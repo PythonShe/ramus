@@ -82,6 +82,7 @@ type Session struct {
 	commitPatch patches
 	stats       statsLoad
 	tools       diffTools
+	refInfo     refLoad
 }
 
 // Debounce gathers a burst of file changes into one refresh.
