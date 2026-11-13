@@ -135,7 +135,7 @@ func (m *model) fetcher(g *commitgraph.Graph) {
 	for req := range m.fetch {
 		first := req.chunk * history.TextChunkRows
 		n := min(history.TextChunkRows, req.snap.Len()-first)
-		c, err := history.LoadText(p, g, first, n, req.snap.Commit)
+		c, err := history.LoadText(p, g.OID, first, n, req.snap.Commit)
 		m.update(func() {
 			if err != nil {
 				m.err = err

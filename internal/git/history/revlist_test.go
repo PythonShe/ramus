@@ -143,7 +143,7 @@ func BenchmarkTextChunkKernel(b *testing.B) {
 	for b.Loop() {
 		first := (i * step) % (g.Len() - TextChunkRows)
 		i++
-		if _, err := LoadText(p, g, first, TextChunkRows, func(row int) uint32 { return uint32(row) }); err != nil {
+		if _, err := LoadText(p, g.OID, first, TextChunkRows, func(row int) uint32 { return uint32(row) }); err != nil {
 			b.Fatal(err)
 		}
 	}

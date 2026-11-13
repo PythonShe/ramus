@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"ramus/internal/git/catfile"
-	"ramus/internal/git/commitgraph"
 	"ramus/internal/git/object"
 )
 
@@ -47,12 +46,14 @@ func (c *TextChunk) Row(i int) (subject, author string, when time.Time) {
 	return string(s), string(a), time.Unix(c.times[k], 0).In(loc)
 }
 
-// LoadText reads the text of rows first to first+n-1, whose graph
-// positions commit returns, through a cat-file process.
-func LoadText(p *catfile.Process, g *commitgraph.Graph, first, n int, commit func(row int) uint32) (*TextChunk, error) {
+// LoadText reads the text of rows first to first+n-1 through a cat-file
+// process. commit gives a row's commit number and oid that number's object
+// id: a commit-graph position and Graph.OID, or a commit store number and
+// its snapshot's OID.
+func LoadText(p *catfile.Process, oid func(id uint32) []byte, first, n int, commit func(row int) uint32) (*TextChunk, error) {
 	ids := make([][]byte, n)
 	for i := range ids {
-		ids[i] = g.OID(commit(first + i))
+		ids[i] = oid(commit(first + i))
 	}
 	c := &TextChunk{
 		First: first,
