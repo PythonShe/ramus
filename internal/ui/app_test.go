@@ -309,7 +309,9 @@ func TestManagerAndGroups(t *testing.T) {
 	h.until("the manager", h.shows("Repositories"))
 	h.click("Mark " + filepath.Base(a.Dir) + " as favourite")
 	h.until("the favourite", func() bool { return len(h.lib.Favourites()) == 1 })
-	h.app.manager.query = filepath.Base(b.Dir)
+	// The whole path: the base name alone may be in the temporary
+	// directory's random name too.
+	h.app.manager.query = b.Dir
 	h.until("the search", func() bool { return len(h.app.manager.repos) == 1 })
 	h.click(filepath.Base(b.Dir))
 	h.until("the tab", func() bool { return len(h.app.tabs) == 1 && !h.app.manager.open })
