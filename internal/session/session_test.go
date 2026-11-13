@@ -124,3 +124,27 @@ func TestOpenErrorAndCloseWhileOpening(t *testing.T) {
 		}
 	}
 }
+
+func TestLog(t *testing.T) {
+	r := gittest.Init(t)
+	r.Commit("one")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	defer s.Close()
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	if _, err := s.Submit(write.Op{Name: "Bad commit", Cmd: run.Cmd{GitDir: s.Repo.GitDir, WorkTree: r.Dir,
+		Args: []string{"commit", "-q", "-m", "nothing staged"}}}); err != nil {
+		t.Fatal(err)
+	}
+	m.until(t, "the job", func() bool { return len(s.Log) == 1 && !s.Log[0].Running })
+	e := s.Log[0]
+	if e.Err == nil || !strings.Contains(e.Command, "commit") {
+		t.Fatalf("entry %+v", e)
+	}
+	sh := "/bin/sh"
+	a := s.RunAction("Say", []string{sh, "-c", "for i in 1 2 3; do echo line $i; done; pwd"})
+	m.until(t, "the action", func() bool { return !a.Running })
+	if a.Err != nil || len(a.Output) != 4 || a.Output[0] != "line 1" {
+		t.Fatalf("action %+v", a)
+	}
+}

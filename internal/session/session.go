@@ -55,6 +55,8 @@ type Session struct {
 	State State
 	Repo  *repo.Repository
 	Queue *write.Queue
+	// Log is what the app ran here for the user, oldest first.
+	Log []*LogEntry
 
 	mu      sync.Mutex
 	dirty   repo.Change
@@ -257,10 +259,7 @@ func (s *Session) Submit(op write.Op) (*write.Job, error) {
 		return nil, errors.New("session: the repository is open read-only until you trust it")
 	}
 	j := s.Queue.Submit(op)
-	go func() {
-		<-j.Done()
-		s.Refresh(repo.Rescan)
-	}()
+	s.follow(s.addLog(op.Name, op.Cmd.Line()), j)
 	return j, nil
 }
 
