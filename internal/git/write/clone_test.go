@@ -11,6 +11,7 @@ import (
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/redact"
+	"ramus/internal/git/run"
 )
 
 func TestCloneAndInit(t *testing.T) {
@@ -62,5 +63,32 @@ func TestCloneAndInit(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(fresh, ".git", "HEAD")); err != nil {
 		t.Fatal("init made no repository")
+	}
+}
+
+func TestCloneSubmodulesWhenAsked(t *testing.T) {
+	g := testrun.Runner(t).Git()
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	// git refuses file:// submodules unless told; only this test allows it.
+	if err := os.WriteFile(global, []byte("[protocol \"file\"]\n\tallow = always\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rn := run.New(g, append(gittest.Env(), "GIT_CONFIG_GLOBAL="+global), 4)
+	src := gittest.Init(t)
+	sub := gittest.Init(t)
+	sub.Write("inside", "x")
+	sub.Commit("sub")
+	src.Git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub.Dir, "sub")
+	src.Commit("with a submodule")
+	dir := filepath.Join(t.TempDir(), "clone")
+	j, err := Clone(rn, CloneOptions{URL: "file://" + src.Dir, Dir: dir, Submodules: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wait(t, j); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sub", "inside")); err != nil {
+		t.Fatal("submodule not cloned when asked")
 	}
 }

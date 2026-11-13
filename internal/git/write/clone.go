@@ -21,14 +21,16 @@ type CloneOptions struct {
 	// Depth makes a shallow clone of that many commits; 0 clones all.
 	Depth int
 	Bare  bool
+	// Submodules clones the submodules too, when the user asks: their URLs
+	// come from the repository being cloned.
+	Submodules bool
 }
 
 // ErrDirNotEmpty is a clone into a directory that holds files.
 var ErrDirNotEmpty = errors.New("write: the folder to clone into is not empty")
 
 // Clone starts a clone at once, outside any queue since there is no
-// repository yet. It never recurses into submodules: their URLs come from
-// the repository just cloned, and are offered once the user trusts it.
+// repository yet. It recurses into submodules only when asked.
 func Clone(r *run.Runner, opt CloneOptions) (*Job, error) {
 	if err := redact.CheckRemoteURL(opt.URL); err != nil {
 		return nil, err
@@ -45,6 +47,9 @@ func Clone(r *run.Runner, opt CloneOptions) (*Job, error) {
 		return nil, err
 	}
 	args := []string{"clone", "--progress", "--no-recurse-submodules"}
+	if opt.Submodules {
+		args[2] = "--recurse-submodules"
+	}
 	if opt.Branch != "" {
 		args = append(args, "--branch", opt.Branch)
 	}
