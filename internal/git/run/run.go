@@ -39,8 +39,15 @@ var localEnv = map[string]bool{
 // Runner runs git. One Runner serves the whole app, so its limit on
 // concurrent processes holds across every repository.
 type Runner struct {
-	git   *gitexe.Git
-	env   []string
+	git *gitexe.Git
+	env []string
+	*pool
+	// hardening is set on a runner for a repository that is not trusted.
+	hardening []string
+}
+
+// pool is shared by a runner and the hardened runners made from it.
+type pool struct {
 	slots chan struct{}
 	// running counts processes alive, for the soak test and diagnostics.
 	running atomic.Int64
@@ -56,8 +63,23 @@ func New(git *gitexe.Git, env []string, max int) *Runner {
 			clean = append(clean, kv)
 		}
 	}
-	return &Runner{git: git, env: clean, slots: make(chan struct{}, max)}
+	return &Runner{git: git, env: clean, pool: &pool{slots: make(chan struct{}, max)}}
 }
+
+// Hardened returns a runner, sharing this one's process limit, for a
+// repository that is not trusted: config adds -c overrides after every
+// command's own, so they win; diff, log and show run no external diff and
+// no textconv; and any command not marked Read is refused, so nothing
+// writes.
+func (r *Runner) Hardened(config []string) *Runner {
+	return &Runner{git: r.git, env: r.env, pool: r.pool, hardening: append([]string{}, config...)}
+}
+
+// IsHardened reports a runner from Hardened.
+func (r *Runner) IsHardened() bool { return r.hardening != nil }
+
+// ErrRestricted is returned for a write through a hardened runner.
+var ErrRestricted = errors.New("run: the repository is not trusted, so git may only read")
 
 // Git returns the executable the runner starts.
 func (r *Runner) Git() *gitexe.Git { return r.git }
@@ -110,6 +132,27 @@ func (c *Cmd) argv() []string {
 	return append(a, c.Args...)
 }
 
+// argv adds the hardening of a runner for a repository not trusted.
+func (r *Runner) argv(c *Cmd) []string {
+	a := c.argv()
+	if r.hardening == nil {
+		return a
+	}
+	globals := a[: len(a)-len(c.Args) : len(a)-len(c.Args)]
+	for _, kv := range r.hardening {
+		globals = append(globals, "-c", kv)
+	}
+	if len(c.Args) == 0 {
+		return globals
+	}
+	globals = append(globals, c.Args[0])
+	switch c.Args[0] {
+	case "diff", "log", "show":
+		globals = append(globals, "--no-ext-diff", "--no-textconv")
+	}
+	return append(globals, c.Args[1:]...)
+}
+
 // Result is what a finished command produced.
 type Result struct {
 	Stdout   []byte
@@ -145,6 +188,9 @@ func (r *Runner) Run(ctx context.Context, c *Cmd) (Result, error) {
 	if c.GitDir == "" {
 		return Result{}, errors.New("run: command names no repository")
 	}
+	if r.hardening != nil && !c.Read {
+		return Result{}, &Error{Line: c.Line(), ExitCode: -1, Err: ErrRestricted}
+	}
 	select {
 	case r.slots <- struct{}{}:
 	case <-ctx.Done():
@@ -176,7 +222,7 @@ func (r *Runner) Track() (done func()) {
 }
 
 func (r *Runner) command(ctx context.Context, c *Cmd) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, r.git.Path, c.argv()...)
+	cmd := exec.CommandContext(ctx, r.git.Path, r.argv(c)...)
 	cmd.Dir = c.WorkTree
 	if cmd.Dir == "" {
 		cmd.Dir = c.GitDir
