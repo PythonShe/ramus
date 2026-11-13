@@ -65,7 +65,11 @@ func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 	if req.Source != Untracked {
 		args = append(append(args, "--"), req.Paths...)
 	}
-	max := req.MaxBytes
+	// --no-index exits 1 when the files differ.
+	return runPatch(ctx, r, gitDir, workTree, args, req.MaxBytes, req.Source == Untracked)
+}
+
+func runPatch(ctx context.Context, r *run.Runner, gitDir, workTree string, args []string, max int, exit1 bool) (Patch, error) {
 	if max <= 0 {
 		max = DefaultMaxPatch
 	}
@@ -83,8 +87,8 @@ func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 		return Patch{Text: w.cut(), Truncated: true}, nil
 	}
 	var e *run.Error
-	if err != nil && req.Source == Untracked && errors.As(err, &e) && e.ExitCode == 1 {
-		err = nil // --no-index exits 1 when the files differ
+	if err != nil && exit1 && errors.As(err, &e) && e.ExitCode == 1 {
+		err = nil
 	}
 	if err != nil {
 		return Patch{}, err
