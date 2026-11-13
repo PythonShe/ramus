@@ -34,6 +34,10 @@ type PatchRequest struct {
 	Context int
 	// MaxBytes cuts the patch off; DefaultMaxPatch when zero.
 	MaxBytes int
+	// ForApply asks for a patch that git apply takes back, for staging
+	// and discarding parts of it: no textconv, standard a/ and b/
+	// prefixes and blank context lines kept, whatever the user's config.
+	ForApply bool
 }
 
 // Patch is a unified diff as git prints it.
@@ -53,6 +57,11 @@ func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 	if req.Context >= 0 {
 		args = append(args, "-U"+strconv.Itoa(req.Context))
 	}
+	var config []string
+	if req.ForApply {
+		args = append(args, "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--no-relative", "--no-color-moved")
+		config = []string{"diff.suppressBlankEmpty=false"}
+	}
 	switch req.Source {
 	case Staged:
 		args = append(args, "--cached")
@@ -66,10 +75,10 @@ func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 		args = append(append(args, "--"), req.Paths...)
 	}
 	// --no-index exits 1 when the files differ.
-	return runPatch(ctx, r, gitDir, workTree, args, req.MaxBytes, req.Source == Untracked)
+	return runPatch(ctx, r, gitDir, workTree, args, config, req.MaxBytes, req.Source == Untracked)
 }
 
-func runPatch(ctx context.Context, r *run.Runner, gitDir, workTree string, args []string, max int, exit1 bool) (Patch, error) {
+func runPatch(ctx context.Context, r *run.Runner, gitDir, workTree string, args, config []string, max int, exit1 bool) (Patch, error) {
 	if max <= 0 {
 		max = DefaultMaxPatch
 	}
@@ -80,7 +89,7 @@ func runPatch(ctx context.Context, r *run.Runner, gitDir, workTree string, args 
 		GitDir: gitDir, WorkTree: workTree, Args: args, Read: true, Stdout: w,
 		// Paths are names, not patterns; quotePath off keeps them as they
 		// are in the headers, as the patch parser expects.
-		Config: []string{"core.quotePath=false"},
+		Config: append([]string{"core.quotePath=false"}, config...),
 		Env:    []string{"GIT_LITERAL_PATHSPECS=1"},
 	})
 	if w.full {

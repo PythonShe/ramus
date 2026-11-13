@@ -29,7 +29,7 @@ func CommitPatch(ctx context.Context, r *run.Runner, gitDir string, a, b []byte,
 		args = append(args, "-U"+strconv.Itoa(contextLines))
 	}
 	args = append(args, hex.EncodeToString(a), hex.EncodeToString(b), "--")
-	return runPatch(ctx, r, gitDir, "", append(args, paths...), maxBytes, false)
+	return runPatch(ctx, r, gitDir, "", append(args, paths...), nil, maxBytes, false)
 }
 
 // BlobPair reads a changed file's two sides natively, in one batch. A nil
