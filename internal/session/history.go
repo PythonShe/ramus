@@ -447,9 +447,10 @@ func emptyTree(hashSize int) []byte {
 }
 
 // CommitPatch reads the patch of paths in commit d against its first
-// parent off the main thread and hands it to done on it. A newer call
+// parent off the main thread, leaving out the white space ws says, and
+// hands it to done on it, with the whole files sides names. A newer call
 // cancels a read still running, whose done is not called.
-func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, done func(PatchResult)) {
+func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws diff.Whitespace, sides Sides, done func(PatchResult)) {
 	r := s.Repo
 	if r == nil {
 		done(PatchResult{Err: errors.New("session: the repository is not open")})
@@ -469,11 +470,14 @@ func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, done
 	s.commitPatch.mu.Unlock()
 	r.Life().Go(func(context.Context) {
 		defer cancel()
-		pt, err := diff.CommitPatch(ctx, r.Runner, r.GitDir, parent, d.OID, paths, -1, maxBytes)
+		pt, err := diff.CommitPatch(ctx, r.Runner, r.GitDir, parent, d.OID, paths, -1, maxBytes, ws)
 		var res PatchResult
 		if err == nil {
 			res.Truncated = pt.Truncated
 			res.Parsed, err = diff.Parse(pt.Text)
+		}
+		if err == nil && !res.Truncated {
+			res.Old, res.New, res.HasSides = readSides(r, sides)
 		}
 		res.Err = err
 		if ctx.Err() != nil {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"ramus/internal/git/diff"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/history"
@@ -105,7 +106,7 @@ func TestHistoryLoadsEveryTip(t *testing.T) {
 	s.LoadCommit(root, func(cd CommitDetail) { rd = &cd })
 	m.until(t, "the root commit", func() bool { return rd != nil })
 	var pr *PatchResult
-	s.CommitPatch(*rd, nil, 0, func(res PatchResult) { pr = &res })
+	s.CommitPatch(*rd, nil, 0, diff.AllWhitespace, Sides{}, func(res PatchResult) { pr = &res })
 	m.until(t, "the root patch", func() bool { return pr != nil })
 	if pr.Err != nil || len(pr.Parsed.Files) != 1 || pr.Parsed.Path(0) != "a" {
 		t.Fatalf("root patch %+v", pr)
