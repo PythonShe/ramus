@@ -104,8 +104,9 @@ func BisectStart(w Where, bad string, good []string, seen Seen) (Op, error) {
 }
 
 // BisectMark marks commit (hex), or HEAD when it is "", good, bad or
-// skipped; git checks out the next commit to test.
-func BisectMark(w Where, v BisectVerdict, commit string) (Op, error) {
+// skipped; git checks out the next commit to test once there are a good
+// and a bad one. start starts the bisect first.
+func BisectMark(w Where, v BisectVerdict, commit string, start bool) (Op, error) {
 	switch v {
 	case BisectGood, BisectBad, BisectSkip:
 	default:
@@ -120,7 +121,12 @@ func BisectMark(w Where, v BisectVerdict, commit string) (Op, error) {
 		args = append(args, commit)
 		name += " " + short(commit)
 	}
-	return Op{Name: name, Cmd: w.cmd(args...)}, nil
+	op := Op{Name: name, Cmd: w.cmd(args...)}
+	if start {
+		op.Name = "Start bisect, " + strings.ToLower(name[:1]) + name[1:]
+		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"bisect", "start"}}
+	}
+	return op, nil
 }
 
 // BisectReset ends a bisect and checks out where it started.

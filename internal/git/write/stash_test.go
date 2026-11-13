@@ -139,10 +139,17 @@ func TestBisectAndPatches(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(h.r.GitDir(), "BISECT_START")); err != nil {
 		t.Fatal("not bisecting")
 	}
-	op, err = BisectMark(h.w, BisectBad, "")
+	op, err = BisectMark(h.w, BisectBad, "", false)
 	h.do(op, err, true)
-	op, err = BisectMark(h.w, BisectGood, commits[1])
+	op, err = BisectMark(h.w, BisectGood, commits[1], false)
 	h.do(op, err, true)
+	h.do(BisectReset(h.w), nil, true)
+	// The first mark can start it.
+	op, err = BisectMark(h.w, BisectBad, commits[7], true)
+	h.do(op, err, true)
+	if !strings.Contains(h.r.Git("bisect", "log"), "# bad: [") {
+		t.Fatal("not started by the mark")
+	}
 	h.do(BisectReset(h.w), nil, true)
 	if h.rev("HEAD") != commits[7] {
 		t.Fatal("not back where it started")
