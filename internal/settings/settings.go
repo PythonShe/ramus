@@ -29,6 +29,9 @@ type Settings struct {
 	RecentLimit int `json:"recentLimit,omitempty"`
 	// Actions are the user's own commands.
 	Actions []Action `json:"actions,omitempty"`
+	// Emails are the user's own addresses besides each repository's
+	// user.email, for statistics of their own commits.
+	Emails []string `json:"emails,omitempty"`
 }
 
 // Action is a command of the user's, shown in the command palette and in
@@ -106,7 +109,7 @@ func Save(path string, s Settings) error {
 	}
 	var fields map[string]json.RawMessage
 	json.Unmarshal(known, &fields)
-	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit", "actions"} {
+	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit", "actions", "emails"} {
 		delete(merged, k)
 	}
 	for k, v := range fields {
