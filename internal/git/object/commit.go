@@ -87,16 +87,19 @@ func parseSignature(b []byte) Signature {
 	}
 	s.Name = bytes.TrimSpace(b[:lt])
 	s.Email = b[lt+1 : gt]
-	f := bytes.Fields(b[gt+1:])
-	if len(f) >= 1 {
-		s.When, _ = strconv.ParseInt(string(f[0]), 10, 64)
+	// "<seconds> <+hhmm>", read by hand: splitting a hostile tail into
+	// fields would allocate per space.
+	when, zone, _ := bytes.Cut(bytes.TrimLeft(b[gt+1:], " "), []byte{' '})
+	if len(when) <= 20 {
+		s.When, _ = strconv.ParseInt(string(when), 10, 64)
 	}
-	if len(f) >= 2 && len(f[1]) == 5 && (f[1][0] == '+' || f[1][0] == '-') {
-		hh, err1 := strconv.Atoi(string(f[1][1:3]))
-		mm, err2 := strconv.Atoi(string(f[1][3:5]))
+	zone = bytes.TrimSpace(zone)
+	if len(zone) == 5 && (zone[0] == '+' || zone[0] == '-') {
+		hh, err1 := strconv.Atoi(string(zone[1:3]))
+		mm, err2 := strconv.Atoi(string(zone[3:5]))
 		if err1 == nil && err2 == nil {
 			off := int16(hh*60 + mm)
-			if f[1][0] == '-' {
+			if zone[0] == '-' {
 				off = -off
 			}
 			s.Offset = off

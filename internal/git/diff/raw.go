@@ -11,6 +11,10 @@ import (
 	"strconv"
 )
 
+// maxHeader bounds a raw line's header: two modes, two object ids and a
+// status are under 160 bytes even for SHA-256.
+const maxHeader = 256
+
 // ErrMalformed is returned for raw output that cannot be parsed.
 var ErrMalformed = errors.New("diff: malformed raw output")
 
@@ -86,6 +90,9 @@ func ParseRaw(data []byte, hashSize int) (*Raw, error) {
 		head, ok := next()
 		if !ok {
 			return nil, ErrMalformed
+		}
+		if len(head) > maxHeader {
+			return nil, fmt.Errorf("%w: header of %d bytes", ErrMalformed, len(head))
 		}
 		if len(head) == 0 || head[0] != ':' {
 			if len(head) == 2*hashSize && r.Len() == 0 {

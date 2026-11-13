@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -88,9 +89,15 @@ func unknownExtensions(stderr string) []string {
 
 // Parse reads the output of git config --list -z --show-origin
 // --show-scope.
+// maxEntries bounds the entries read; real configs hold a few hundred.
+const maxEntries = 1 << 17
+
 func Parse(out []byte) (*Config, error) {
 	c := &Config{}
 	for len(out) > 0 {
+		if len(c.entries) == maxEntries {
+			return nil, fmt.Errorf("config: more than %d entries", maxEntries)
+		}
 		var fields [3][]byte
 		for i := range fields {
 			j := bytes.IndexByte(out, 0)
@@ -188,8 +195,8 @@ func (c *Config) Int(key string, def int64) int64 {
 		mult, v = 1<<30, v[:len(v)-1]
 	}
 	n, err := strconv.ParseInt(v, 10, 64)
-	if err != nil {
-		return def
+	if err != nil || n > math.MaxInt64/mult || n < math.MinInt64/mult {
+		return def // git refuses such a value too
 	}
 	return n * mult
 }

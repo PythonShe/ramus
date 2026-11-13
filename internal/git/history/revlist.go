@@ -53,6 +53,10 @@ func RevList(ctx context.Context, r *run.Runner, gitDir string, tips [][]byte, s
 	return nil
 }
 
+// maxRevListLine bounds one line of rev-list output: a commit with
+// MaxParents parents is some 1.3 MB of hex.
+const maxRevListLine = 2 << 20
+
 type revListParser struct {
 	s       *commits.Store
 	fn      func(uint32, []uint32) error
@@ -71,6 +75,11 @@ func (p *revListParser) Write(b []byte) (int, error) {
 	for len(b) > 0 {
 		i := bytes.IndexByte(b, '\n')
 		if i < 0 {
+			if len(p.partial)+len(b) > maxRevListLine {
+				p.err = fmt.Errorf("history: rev-list line over %d bytes", maxRevListLine)
+				p.cancel()
+				return 0, p.err
+			}
 			p.partial = append(p.partial, b...)
 			break
 		}

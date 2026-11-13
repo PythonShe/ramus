@@ -137,7 +137,7 @@ func (p *Process) next() (Object, error) {
 	}
 	o := Object{Type: typ, Size: size}
 	if size > MaxObject {
-		if _, err := p.out.Discard(int(size) + 1); err != nil {
+		if _, err := io.CopyN(io.Discard, p.out, size+1); err != nil {
 			return Object{}, err
 		}
 		o.TooLarge = true
@@ -149,6 +149,9 @@ func (p *Process) next() (Object, error) {
 	p.buf = p.buf[:size+1]
 	if _, err := io.ReadFull(p.out, p.buf); err != nil {
 		return Object{}, err
+	}
+	if p.buf[size] != '\n' {
+		return Object{}, fmt.Errorf("catfile: object %s not followed by a newline", f[0])
 	}
 	o.Data = p.buf[:size:size]
 	return o, nil
