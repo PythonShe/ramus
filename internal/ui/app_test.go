@@ -284,3 +284,34 @@ func TestSplitArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestManagerAndGroups(t *testing.T) {
+	h := newHarness(t)
+	a, b := h.repoWith(), h.repoWith()
+	h.lib.Opened(a.Dir, time.Unix(1_700_000_000, 0))
+	h.lib.Opened(b.Dir, time.Unix(1_700_000_100, 0))
+	h.tt.Frame()
+	h.tt.Key(ui.Cmd|ui.Shift, ui.KeyO)
+	h.until("the manager", h.shows("Repositories"))
+	h.click("Mark " + filepath.Base(a.Dir) + " as favourite")
+	h.until("the favourite", func() bool { return len(h.lib.Favourites()) == 1 })
+	h.app.manager.query = filepath.Base(b.Dir)
+	h.until("the search", func() bool { return len(h.app.manager.repos) == 1 })
+	h.click(filepath.Base(b.Dir))
+	h.until("the tab", func() bool { return len(h.app.tabs) == 1 && !h.app.manager.open })
+
+	h.app.Open(a.Dir)
+	h.app.openManager()
+	h.app.manager.groupName = "Work"
+	h.tt.Frame()
+	h.click("Save Open Tabs as Group")
+	h.until("the group", func() bool { return len(h.lib.Groups()) == 1 && h.tt.HasText("Work (2)") })
+	h.app.CloseAll()
+	h.tt.Frame()
+	h.app.openManager()
+	h.tt.Frame()
+	h.click("Open Work")
+	if len(h.app.tabs) != 2 {
+		t.Fatalf("group opened %d tabs", len(h.app.tabs))
+	}
+}

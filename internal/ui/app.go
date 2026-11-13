@@ -55,6 +55,7 @@ type App struct {
 	clone      cloneState
 	palette    paletteState
 	settingsUI settingsState
+	manager    managerState
 }
 
 // tab is one open repository.
@@ -246,6 +247,7 @@ func (a *App) View(c *ui.Context) {
 	})
 	a.cloneDialog(c)
 	a.settingsView(c)
+	a.managerView(c)
 	a.paletteView(c)
 }
 
@@ -261,6 +263,9 @@ func (a *App) shortcuts(c *ui.Context) {
 	}
 	if c.Shortcut(ui.Cmd, ui.KeyComma) {
 		a.openSettings()
+	}
+	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyO) {
+		a.openManager()
 	}
 	for i, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9} {
 		if c.Shortcut(ui.Cmd, k) && i < len(a.tabs) {
@@ -285,6 +290,9 @@ func (a *App) ShowClone() { a.clone.open = true }
 
 // ShowSettings opens the settings.
 func (a *App) ShowSettings() { a.openSettings() }
+
+// ShowManager opens the list of every known repository.
+func (a *App) ShowManager() { a.openManager() }
 
 // ShowPalette opens the command palette.
 func (a *App) ShowPalette() { a.palette.open = true }

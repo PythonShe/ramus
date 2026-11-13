@@ -155,6 +155,10 @@ func menu(app *ui.App) *mygo.Menu {
 				app.ShowClone()
 				w.Invalidate()
 			}},
+			{Label: "Repositories…", Accelerator: "CmdOrCtrl+Shift+O", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+				app.ShowManager()
+				w.Invalidate()
+			}},
 			{Role: mygo.RoleOpenRecent},
 			mygo.Separator(),
 			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: func(_ *mygo.MenuItem, w *mygo.Window) {

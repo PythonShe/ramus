@@ -27,6 +27,7 @@ func (a *App) commands() []command {
 		{"Clone Repository…", func() { a.clone.open = true }},
 		{"New Repository…", a.initAndOpen},
 		{"Settings…", a.openSettings},
+		{"Repositories…", a.openManager},
 	}
 	t := a.current()
 	if t != nil {
@@ -48,6 +49,14 @@ func (a *App) commands() []command {
 		cmds = append(cmds, command{"Go to " + a.title(other), func() { a.active = i }})
 	}
 	if a.Library != nil {
+		for _, g := range a.Library.Groups() {
+			paths := g.Paths
+			cmds = append(cmds, command{"Open Group " + g.Name, func() {
+				for _, p := range paths {
+					a.Open(p)
+				}
+			}})
+		}
 		for _, r := range a.Library.Recent(a.Settings.WithDefaults().RecentLimit) {
 			p := r.Path
 			cmds = append(cmds, command{"Open " + r.Name + " (" + r.Path + ")", func() { a.Open(p) }})
