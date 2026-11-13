@@ -34,6 +34,8 @@ const (
 	maxLayers = 1024
 	// git itself stores positions in 31 bits.
 	maxCommits = 1<<31 - 1
+	// MaxParents bounds one commit's parents, as in the commit store.
+	MaxParents = 1 << 15
 )
 
 const (
@@ -339,7 +341,7 @@ func (l *layer) parseBloom(idx, data []byte) error {
 	filters := data[12:]
 	prev := uint32(0)
 	for i := uint32(0); i < l.n; i++ {
-		v := binary.BigEndian.Uint32(idx[i*4:])
+		v := binary.BigEndian.Uint32(idx[int(i)*4:])
 		if v < prev || int64(v) > int64(len(filters)) {
 			return nil
 		}
@@ -400,8 +402,9 @@ func (g *Graph) check(pos uint32) {
 func (g *Graph) OID(pos uint32) []byte {
 	g.check(pos)
 	l, i := g.layerOf(pos)
-	h := uint32(g.hashSize)
-	return l.oids[i*h : (i+1)*h : (i+1)*h]
+	// Offsets are computed in int: in uint32 they wrap on a large graph.
+	o := int(i) * g.hashSize
+	return l.oids[o : o+g.hashSize : o+g.hashSize]
 }
 
 // Lookup returns the position of the commit with object id oid, or None.
@@ -441,8 +444,9 @@ func (l *layer) lookup(oid []byte, h int) (uint32, bool) {
 func (g *Graph) cdat(pos uint32) (*layer, uint32, []byte) {
 	g.check(pos)
 	l, i := g.layerOf(pos)
-	w := uint32(g.hashSize + 16)
-	return l, i, l.cdat[i*w : (i+1)*w]
+	w := g.hashSize + 16
+	o := int(i) * w
+	return l, i, l.cdat[o : o+w]
 }
 
 // Tree returns the object id of the commit's root tree.
@@ -466,10 +470,10 @@ func (g *Graph) Generation(pos uint32) uint64 {
 	if !g.genV2 {
 		return uint64(binary.BigEndian.Uint32(d[g.hashSize+8:]) >> generationShift)
 	}
-	off := uint64(binary.BigEndian.Uint32(l.gda2[i*4:]))
+	off := uint64(binary.BigEndian.Uint32(l.gda2[int(i)*4:]))
 	if off&gdaOverflow != 0 {
-		j := int(off &^ gdaOverflow)
-		if j*8+8 > len(l.gdo2) {
+		j := off &^ gdaOverflow
+		if j*8+8 > uint64(len(l.gdo2)) {
 			// A damaged file; fall back to something monotone enough to
 			// keep a walk going rather than panic.
 			return uint64(g.CommitTime(pos))
@@ -509,10 +513,13 @@ func (g *Graph) Parents(pos uint32, dst []uint32) ([]uint32, error) {
 		}
 		return append(dst, p2), nil
 	}
-	e := p2 &^ parentOctopus
-	for {
-		if int64(e)*4+4 > int64(len(l.edges)) {
+	e := int64(p2 &^ parentOctopus)
+	for n := 2; ; n++ {
+		if e*4+4 > int64(len(l.edges)) {
 			return dst, l.bad("edge list runs past its chunk")
+		}
+		if n > MaxParents {
+			return dst, l.bad("more than %d parents", MaxParents)
 		}
 		v := binary.BigEndian.Uint32(l.edges[e*4:])
 		p := v &^ edgeLast

@@ -100,9 +100,9 @@ func (l *layer) filter(i uint32) []byte {
 	}
 	start := uint32(0)
 	if i > 0 {
-		start = binary.BigEndian.Uint32(l.bidx[(i-1)*4:])
+		start = binary.BigEndian.Uint32(l.bidx[int(i-1)*4:])
 	}
-	end := binary.BigEndian.Uint32(l.bidx[i*4:])
+	end := binary.BigEndian.Uint32(l.bidx[int(i)*4:])
 	return l.bdat[start:end:end]
 }
 
