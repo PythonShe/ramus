@@ -74,6 +74,24 @@ func ParseCommit(data []byte) (Commit, error) {
 	return c, nil
 }
 
+// ParentIDs returns the parents a commit's headers name, as hex, in
+// order; the slices point into data.
+func ParentIDs(data []byte) [][]byte {
+	var out [][]byte
+	for rest := data; len(rest) > 0; {
+		i := bytes.IndexByte(rest, '\n')
+		if i <= 0 {
+			break // end of the headers
+		}
+		line := rest[:i]
+		rest = rest[i+1:]
+		if v, ok := bytes.CutPrefix(line, []byte("parent ")); ok {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 // parseSignature reads "Name <email> 1700000000 +0100". git tolerates
 // damaged lines in old history, so this does too: what cannot be read is
 // left empty.

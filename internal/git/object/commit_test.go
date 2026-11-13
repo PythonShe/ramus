@@ -117,3 +117,11 @@ func FuzzParseCommit(f *testing.F) {
 		_ = Subject(c.Message)
 	})
 }
+
+func TestParentIDs(t *testing.T) {
+	data := []byte("tree aa\nparent bb\nparent cc\nauthor A <a> 1 +0000\n\nparent dd is in the message\n")
+	got := ParentIDs(data)
+	if len(got) != 2 || string(got[0]) != "bb" || string(got[1]) != "cc" {
+		t.Fatalf("%q", got)
+	}
+}
