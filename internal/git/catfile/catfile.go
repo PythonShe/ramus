@@ -160,6 +160,14 @@ func (p *Process) fail(err error) error {
 	return p.dead
 }
 
+// Alive reports whether the process can still read; it waits for a batch
+// another goroutine is reading.
+func (p *Process) Alive() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.dead == nil
+}
+
 // Close ends the process.
 func (p *Process) Close() error {
 	p.mu.Lock()
