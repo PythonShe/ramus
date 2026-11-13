@@ -57,6 +57,9 @@ type Session struct {
 	Queue *write.Queue
 	// Log is what the app ran here for the user, oldest first.
 	Log []*LogEntry
+	// Writes counts the writes that have ended, so a view of something a
+	// write may change (snapshots, undo) knows to read it again.
+	Writes int
 
 	mu      sync.Mutex
 	dirty   repo.Change
@@ -291,7 +294,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 // Submit queues a write and refreshes everything once it ends.
 func (s *Session) Submit(op write.Op) (*write.Job, error) {
 	if s.Queue == nil {
-		return nil, errors.New("session: the repository is open read-only until you trust it")
+		return nil, errReadOnly
 	}
 	j := s.Queue.Submit(op)
 	s.follow(s.addLog(op.Name, op.Cmd.Line()), j)

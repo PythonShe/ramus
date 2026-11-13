@@ -116,6 +116,7 @@ func (s *Session) follow(e *LogEntry, j *write.Job) {
 		}
 		_, err := j.Result()
 		b.finish(err, s.timeNow())
+		s.update(func() { s.Writes++ })
 		s.Refresh(repo.Rescan)
 	}()
 }

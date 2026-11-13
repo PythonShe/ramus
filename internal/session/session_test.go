@@ -1,6 +1,7 @@
 package session
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
+	"ramus/internal/git/snapshot"
 	"ramus/internal/git/trust"
 	"ramus/internal/git/write"
 )
@@ -165,5 +167,65 @@ func TestCloseWhileOpening(t *testing.T) {
 	case <-s.Done():
 	case <-time.After(10 * time.Second):
 		t.Fatal("a session closed while opening did not stop")
+	}
+}
+
+func TestSnapshotsRestoreAndUndo(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "open", func() bool { return s.Queue != nil })
+
+	r.Write("a", "work")
+	if _, err := s.SnapshotNow(false); err != nil {
+		t.Fatal(err)
+	}
+	m.until(t, "the snapshot", func() bool { return s.Writes == 1 })
+	var list []snapshot.Snapshot
+	s.Snapshots(func(l []snapshot.Snapshot, err error) {
+		if err != nil {
+			t.Error(err)
+		}
+		list = l
+	})
+	m.until(t, "the list", func() bool { return list != nil })
+	if len(list) != 1 || list[0].Reason != "Snapshot now" {
+		t.Fatalf("snapshots %+v", list)
+	}
+	var files []snapshot.File
+	s.SnapshotFiles(list[0], func(f []snapshot.File, err error) { files = f })
+	m.until(t, "the files", func() bool { return files != nil })
+	if len(files) != 1 || files[0].Path != "a" {
+		t.Fatalf("files %+v", files)
+	}
+
+	r.Write("a", "lost")
+	if _, err := s.Restore(list[0], []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	m.until(t, "the restore", func() bool { return s.Writes == 2 })
+	if got, _ := os.ReadFile(filepath.Join(r.Dir, "a")); string(got) != "work" {
+		t.Fatalf("a is %q", got)
+	}
+
+	if _, err := s.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	m.until(t, "the undo", func() bool { return s.Writes == 3 })
+	if e := s.Log[len(s.Log)-1]; e.Err == nil || !strings.Contains(e.Err.Error(), "nothing to undo") {
+		t.Fatalf("undo with nothing done: %+v", e)
+	}
+
+	s.timeNow = func() time.Time { return time.Now().Add(30 * 24 * time.Hour) }
+	s.ExpireSnapshots(14 * 24 * time.Hour)
+	deadline := time.Now().Add(20 * time.Second)
+	for strings.TrimSpace(r.Git("for-each-ref", snapshot.Prefix)) != "" {
+		if time.Now().After(deadline) {
+			t.Fatal("old snapshots not expired")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
