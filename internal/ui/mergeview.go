@@ -115,22 +115,29 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 			})
 			return
 		}
-		segs := cf.Segments
-		ms.list.Label = func(i int) string {
-			if segs[i].Conflict != nil {
-				return "Conflict " + strconv.Itoa(conflictIndex(segs, i)+1)
-			}
-			return "Unchanged text"
-		}
-		ui.List(c, &ms.list, len(segs), func(i int) {
-			s := segs[i]
-			if s.Conflict == nil {
-				ui.Text(c, compact(s.Text)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Padding(4, 12).FillWidth()
-				return
-			}
-			a.conflictBlock(c, ms, conflictIndex(segs, i), s.Conflict)
-		}).Grow(1)
+		a.conflictList(c, ms)
 	})
+}
+
+// conflictList is the segments of a conflicted file: the text the sides
+// agree on, shortened, and each conflict with its choices.
+func (a *App) conflictList(c *ui.Context, ms *mergeState) {
+	th := c.Theme()
+	segs := ms.cf.Segments
+	ms.list.Label = func(i int) string {
+		if segs[i].Conflict != nil {
+			return "Conflict " + strconv.Itoa(conflictIndex(segs, i)+1)
+		}
+		return "Unchanged text"
+	}
+	ui.List(c, &ms.list, len(segs), func(i int) {
+		s := segs[i]
+		if s.Conflict == nil {
+			ui.Text(c, compact(s.Text)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Padding(4, 12).FillWidth()
+			return
+		}
+		a.conflictBlock(c, ms, conflictIndex(segs, i), s.Conflict)
+	}).Grow(1)
 }
 
 func fill(cs []conflict.Choice, ch conflict.Choice) {

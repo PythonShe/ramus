@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/cli"
 	"ramus/internal/settings"
 	"ramus/internal/tools"
 )
@@ -66,6 +67,17 @@ func (a *App) settingsView(c *ui.Context) {
 			ui.Field(c, "Recent repositories listed", func() {
 				ui.NumberInput(c, &s.recent, 1, 200, 1)
 			})
+			if a.Program != "" {
+				ui.Field(c, "Git difftool and mergetool", func() {
+					snippet := cli.ToolConfig(a.Program)
+					ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
+						ui.Text(c, strings.TrimSuffix(snippet, "\n")).Font("monospace").FontSize(11).Selectable().Grow(1)
+						if ui.Button(c, "Copy").Clicked() {
+							a.clip = snippet
+						}
+					})
+				})
+			}
 			if s.err != "" {
 				ui.Text(c, s.err).TextColor(th.Danger)
 			}

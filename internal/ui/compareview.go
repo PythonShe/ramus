@@ -180,8 +180,8 @@ func (a *App) compareView(c *ui.Context) {
 	}
 	th := c.Theme()
 	a.loadComparePatch(cs)
-	ui.Modal(c, &cs.open, func() {
-		ui.Column(c).Width(1100).Height(760).Gap(10).Padding(20, 0).Children(func() {
+	a.toolFrame(c, &cs.open, func(box ui.Element) {
+		box.Gap(10).Padding(20, 0).Children(func() {
 			ui.Column(c).Padding(0, 20).Gap(2).Children(func() {
 				ui.Text(c, "Compare").Bold()
 				for _, p := range []string{cs.old, cs.new} {

@@ -43,6 +43,9 @@ type Deps struct {
 	// only called off the main thread.
 	PickFile func(title string) (string, error)
 	SaveFile func(title, name string) (string, error)
+	// Program is the app's own executable, for the git config that makes
+	// it git's difftool and mergetool; "" offers none.
+	Program string
 	// ApplyTheme makes "system", "light" or "dark" the app's appearance.
 	ApplyTheme func(theme string)
 	// Now is the clock, for tests.
@@ -80,8 +83,11 @@ type App struct {
 	// pendingFile is a file to show once its repository is open.
 	pendingFile pendingFile
 	compareUI   compareState
-	libStats    libStatsState
-	diff        struct {
+	toolMerge   mergeTool
+	// tool is set when the app runs as git's difftool or mergetool.
+	tool     bool
+	libStats libStatsState
+	diff     struct {
 		diffOptions
 		loaded bool
 	}
@@ -165,6 +171,9 @@ func (a *App) SetRunner(r *run.Runner, err error) {
 	a.pending = nil
 	if a.compareUI.pending {
 		a.startCompare()
+	}
+	if a.toolMerge.pending {
+		a.startMergeTool()
 	}
 }
 
@@ -318,6 +327,7 @@ func (a *App) View(c *ui.Context) {
 	a.cleanView(c)
 	a.mergeDialogView(c)
 	a.compareView(c)
+	a.mergeToolView(c)
 	a.confirmView(c, &a.confirm)
 	a.paletteView(c)
 }

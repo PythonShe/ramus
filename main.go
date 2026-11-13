@@ -34,6 +34,12 @@ func main() {
 		os.Exit(2)
 	}
 	mygo.App.SetName("Ramus")
+	if req.Wait {
+		// git waits on this process, so it runs on its own instead of
+		// handing the request to a running instance.
+		runTool(req)
+		return
+	}
 	if !mygo.App.RequestSingleInstanceLock() {
 		return // the running instance has the request
 	}
@@ -51,9 +57,10 @@ func main() {
 	}
 	lib, libErr := library.Load(filepath.Join(dir, "library.json"))
 
-	var win *mygo.Window // set and read on the main thread
+	program, _ := os.Executable() // none only leaves the tool config out
+	var win *mygo.Window          // set and read on the main thread
 	app := ui.NewApp(ui.Deps{
-		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, CacheDir: cacheDir,
+		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, CacheDir: cacheDir, Program: program,
 		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
 		Update: func(fn func()) {
 			mygo.RunOnMain(func() {
@@ -95,6 +102,8 @@ func main() {
 			app.Compare(r.Paths[0], r.Paths[1], nil)
 		case cli.Log, cli.Blame:
 			app.ShowFile(r.Paths[0], r.Kind == cli.Blame)
+		case cli.Merge:
+			app.MergeTool(r.Paths[0], r.Paths[1], r.Paths[2], r.Paths[3], nil)
 		}
 	}
 	handle(req)
@@ -129,25 +138,80 @@ func main() {
 			Content:   mygoui.View(app.View),
 		})
 		win.OnClosed(app.CloseAll)
-		// The user's PATH comes from their login shell when the app was not
-		// started from a terminal; asking it takes a moment, so the window
-		// opens first.
-		go func() {
-			env := os.Environ()
-			if userenv.NeedsResolving() {
-				env = userenv.Resolve(context.Background()).Env
-			}
-			g, err := gitexe.Find(context.Background(), lookup(env, "PATH"))
-			var r *run.Runner
-			if err == nil {
-				r = run.New(g, env, maxProcesses)
-			}
-			win.Update(func() { app.SetRunner(r, err) })
-		}()
+		findGit(win, app)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// findGit finds git off the main thread and hands it to the app. The
+// user's PATH comes from their login shell when the app was not started
+// from a terminal; asking it takes a moment, so the window opens first.
+func findGit(win *mygo.Window, app *ui.App) {
+	go func() {
+		env := os.Environ()
+		if userenv.NeedsResolving() {
+			env = userenv.Resolve(context.Background()).Env
+		}
+		g, err := gitexe.Find(context.Background(), lookup(env, "PATH"))
+		var r *run.Runner
+		if err == nil {
+			r = run.New(g, env, maxProcesses)
+		}
+		win.Update(func() { app.SetRunner(r, err) })
+	}()
+}
+
+// runTool runs the app as git's difftool or mergetool: one window with
+// the comparison or the merge, and an exit code git reads, 0 for a merge
+// resolved and saved.
+func runTool(req cli.Request) {
+	cfg := settings.Defaults
+	if dir, err := mygo.App.Path(mygo.PathUserData); err == nil {
+		cfg, _ = settings.Load(filepath.Join(dir, "settings.json"))
+	}
+	mygo.Theme.SetSource(mygo.ThemeSource(cfg.Theme))
+	code := 0
+	if req.Kind == cli.Merge {
+		code = 1
+	}
+	var win *mygo.Window
+	app := ui.NewApp(ui.Deps{Settings: cfg, Update: func(fn func()) {
+		mygo.RunOnMain(func() {
+			if win == nil {
+				fn()
+				return
+			}
+			win.Update(fn)
+		})
+	}})
+	title := "Ramus"
+	switch req.Kind {
+	case cli.Diff:
+		title = "Compare " + filepath.Base(req.Paths[1])
+		app.Compare(req.Paths[0], req.Paths[1], func() { mygo.App.Exit(code) })
+	case cli.Merge:
+		title = "Merge " + filepath.Base(req.Paths[3])
+		app.MergeTool(req.Paths[0], req.Paths[1], req.Paths[2], req.Paths[3], func(resolved bool) {
+			if resolved {
+				code = 0
+			}
+			mygo.App.Exit(code)
+		})
+	}
+	mygo.App.WhenReady(func() {
+		win = mygo.NewWindow(mygo.WindowOptions{
+			Title: title, Width: 1100, Height: 760, MinWidth: 640, MinHeight: 400,
+			StateKey: "tool", Content: mygoui.View(app.ToolView),
+		})
+		win.OnClosed(func() { mygo.App.Exit(code) })
+		findGit(win, app)
+	})
+	if err := mygo.App.Run(); err != nil {
+		log.Fatal(err)
+	}
+	os.Exit(code)
 }
 
 func lookup(env []string, key string) string {
