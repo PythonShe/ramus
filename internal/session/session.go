@@ -60,6 +60,8 @@ type Session struct {
 	// Writes counts the writes that have ended, so a view of something a
 	// write may change (snapshots, undo) knows to read it again.
 	Writes int
+	// History is the history list as loaded; LoadHistory fills it.
+	History HistoryState
 
 	mu      sync.Mutex
 	dirty   repo.Change
@@ -75,6 +77,7 @@ type Session struct {
 	running sync.WaitGroup
 	done    chan struct{}
 	patch   patches
+	hist    hist
 }
 
 // Debounce gathers a burst of file changes into one refresh.
