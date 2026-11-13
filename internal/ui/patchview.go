@@ -39,31 +39,38 @@ func (a *App) diffOpts() *diffOptions {
 	return &o.diffOptions
 }
 
-// diffBar is the options of the patch shown: layout, wrapping and white
-// space. A change of layout or wrapping is saved in the settings.
-func (a *App) diffBar(c *ui.Context) {
+// diffBar is a row of the options of the patch shown: white space,
+// wrapping and layout, then what more builds. A change of layout or
+// wrapping is saved in the settings.
+func (a *App) diffBar(c *ui.Context, more func()) {
 	o := a.diffOpts()
-	ws := []string{"All White Space", "Ignore Space Changes", "Ignore All Space"}
-	ui.PopoverMenuButton(c, ws[o.ws], func(m *ui.Menu) {
-		for i, label := range ws {
-			if m.Item(label).Checked(o.ws == i).Chosen() {
-				o.ws = i
+	ui.Row(c).Padding(0, 12, 6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ws := []string{"All White Space", "Ignore Space Changes", "Ignore All Space"}
+		ui.PopoverMenuButton(c, ws[o.ws], func(m *ui.Menu) {
+			for i, label := range ws {
+				if m.Item(label).Checked(o.ws == i).Chosen() {
+					o.ws = i
+				}
+			}
+		})
+		wrap := ui.Checkbox(c, &o.wrap, "Wrap")
+		layout := ui.Segmented(c, &o.split, "Unified", "Split")
+		ui.Spacer(c)
+		if more != nil {
+			more()
+		}
+		if wrap.Changed() || layout.Changed() {
+			a.Settings.DiffSplit, a.Settings.DiffWrap = o.split == 1, o.wrap
+			if a.SettingsPath != "" {
+				path, saved, update := a.SettingsPath, a.Settings, a.Update
+				go func() {
+					if err := settings.Save(path, saved); err != nil {
+						update(func() { a.notice = "Settings not saved: " + errText(err) })
+					}
+				}()
 			}
 		}
 	})
-	wrap := ui.Checkbox(c, &o.wrap, "Wrap")
-	layout := ui.Segmented(c, &o.split, "Unified", "Split")
-	if wrap.Changed() || layout.Changed() {
-		a.Settings.DiffSplit, a.Settings.DiffWrap = o.split == 1, o.wrap
-		if a.SettingsPath != "" {
-			path, saved, update := a.SettingsPath, a.Settings, a.Update
-			go func() {
-				if err := settings.Save(path, saved); err != nil {
-					update(func() { a.notice = "Settings not saved: " + errText(err) })
-				}
-			}()
-		}
-	}
 }
 
 // patchView is one file's patch in mygo's diff viewer, with what maps the

@@ -163,8 +163,19 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 				}
 			}
 		}
-		a.diffBar(c)
 	})
+	a.diffBar(c, func() {
+		if ui.Button(c, "Open in Diff Tool").Disabled(ro || d.key.src == diff.Untracked).Clicked() {
+			t.s.OpenDiffTool(session.DiffToolRequest{Paths: []string{d.key.path}, Cached: d.key.src == diff.Staged}, a.toolDone)
+		}
+	})
+}
+
+// toolDone shows why an external tool did not run.
+func (a *App) toolDone(err error) {
+	if err != nil {
+		a.notice = errText(err)
+	}
 }
 
 // applyLines stages (cached, not reverse), unstages (cached, reverse) or

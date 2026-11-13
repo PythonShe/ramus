@@ -262,7 +262,11 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, cv.file))
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
-			a.diffBar(c)
+		})
+		a.diffBar(c, func() {
+			if ui.Button(c, "Open in Diff Tool").Disabled(t.s.Queue == nil || len(d.Parents) == 0).Clicked() {
+				t.s.OpenDiffTool(session.DiffToolRequest{Paths: paths, From: d.Parents[0], To: d.OID}, a.toolDone)
+			}
 		})
 		if cv.patch.Truncated || cv.patch.Parsed != nil && cv.patch.Parsed.Cut {
 			ui.Text(c, fmt.Sprintf("Only the first %d MB of this patch are shown", MaxShownPatch>>20)).
