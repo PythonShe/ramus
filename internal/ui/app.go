@@ -65,11 +65,12 @@ type App struct {
 
 // tab is one open repository.
 type tab struct {
-	id   int
-	s    *session.Session
-	sel  string // sidebar item chosen
-	open map[string]bool
-	cv   changesState
+	id     int
+	s      *session.Session
+	sel    string // sidebar item chosen
+	open   map[string]bool
+	cv     changesState
+	commit commitState
 	// The command log: entries newest first, and the output of one.
 	logList   ui.ListState
 	logChosen int

@@ -53,7 +53,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 				a.snapshotsView(c, t)
 				return
 			}
-			ui.Split(c, &t.listW, func() { a.changesList(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
+			ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
 		}).SplitReset(220).Grow(1)
 		a.statusBar(c, t)
 	})

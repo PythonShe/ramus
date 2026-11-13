@@ -484,3 +484,70 @@ func TestChangesBulk(t *testing.T) {
 		t.Fatalf("status\n%s", s)
 	}
 }
+
+func TestCommitBox(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("lf.txt", "a\nb\n")
+	r.Commit("lf")
+	r.Write(".tpl", "Subject line\n\n# Explain why\n")
+	r.Git("config", "commit.template", ".tpl")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("Commit to main"))
+	tb := h.app.current()
+	cs := &tb.commit
+	h.until("the template", func() bool { return cs.subject == "Subject line" })
+	if !strings.Contains(cs.body, "# Explain why") {
+		t.Fatalf("body %q", cs.body)
+	}
+
+	// A commit with the template's comment stripped.
+	r.Write("lf.txt", "a\nb\nc\n")
+	r.Git("add", "lf.txt")
+	h.until("staged", h.shows("Staged (1)"))
+	cs.subject, cs.body = "Add c", "Because.\n\n# Explain why"
+	h.click("Commit to main")
+	h.until("the commit", func() bool { return strings.TrimSpace(r.Git("log", "-1", "--format=%B")) == "Add c\n\nBecause." })
+	h.until("the editor cleared", func() bool { return cs.subject == "Subject line" && !cs.busy })
+
+	// CRLF into an LF file asks first.
+	r.Write("lf.txt", "a\r\nb\r\nc\r\n")
+	r.Git("-c", "core.autocrlf=false", "add", "lf.txt")
+	h.until("staged", h.shows("Staged (1)"))
+	cs.subject, cs.body = "CRLF", ""
+	h.click("Commit to main")
+	h.until("the warning", h.shows("Line endings change in 1 file"))
+	if !h.tt.HasText("core.autocrlf: not set") {
+		t.Fatalf("settings not named: %q", h.tt.Texts())
+	}
+	h.click("Commit Anyway")
+	h.until("the commit", func() bool { return strings.TrimSpace(r.Git("log", "-1", "--format=%s")) == "CRLF" })
+
+	// Amend loads HEAD's message; recent messages are offered.
+	h.until("ready again", func() bool { return !cs.busy && cs.setup != nil })
+	cs.subject, cs.body = "", ""
+	cs.amend = true
+	h.tt.Frame()
+	h.until("HEAD's message", func() bool { return cs.subject == "CRLF" })
+	cs.subject = "CRLF line endings"
+	h.click("Amend Last Commit")
+	h.until("the amend", func() bool { return strings.TrimSpace(r.Git("log", "-1", "--format=%s")) == "CRLF line endings" })
+	if n := strings.TrimSpace(r.Git("rev-list", "--count", "HEAD")); n != "4" {
+		t.Fatalf("%s commits after an amend", n)
+	}
+	h.until("recent loaded", func() bool { return cs.setup != nil && len(cs.setup.Recent) >= 3 })
+
+	// Commit and push sets the upstream on the one remote.
+	remote := gittest.Init(t, "--bare")
+	r.Git("remote", "add", "origin", remote.Dir)
+	r.Write("lf.txt", "pushed\n")
+	r.Git("add", "lf.txt")
+	h.until("staged", h.shows("Staged (1)"))
+	cs.subject, cs.body = "Pushed", ""
+	h.click("Commit and Push")
+	h.until("the push", func() bool {
+		out, err := remote.Run(nil, "log", "-1", "--format=%s", "main")
+		return err == nil && strings.TrimSpace(out) == "Pushed"
+	})
+}

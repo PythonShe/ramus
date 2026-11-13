@@ -113,6 +113,14 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 	a.confirmView(c, &cv.confirm)
 }
 
+// changesPane is the changes list with the commit editor under it.
+func (a *App) changesPane(c *ui.Context, t *tab) {
+	ui.Column(c).Fill().Children(func() {
+		ui.Column(c).Grow(1).Children(func() { a.changesList(c, t) })
+		a.commitBox(c, t)
+	})
+}
+
 func rowLabel(m *changeModel, r changeRow) string {
 	switch r.kind {
 	case rowHeader:
