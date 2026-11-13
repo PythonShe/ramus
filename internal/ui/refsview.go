@@ -31,6 +31,9 @@ type refsState struct {
 	rowsFor rowsKey
 	list    ui.ListState
 	chosen  int
+	// byName indexes the branches and tags of byNameFor by full name.
+	byName    map[string]int
+	byNameFor *session.RefInfo
 	// chosenName keeps the row chosen as rows come and go.
 	chosenName string
 	reveal     bool
@@ -316,6 +319,44 @@ func (a *App) refList(c *ui.Context, t *tab) {
 // nameColumn is the width of the branch and tag name column.
 const nameColumn = 340
 
+// sidebarRefMenu gives a branch or tag in the sidebar the menu it has in
+// the branches view, once the refs are read.
+func (a *App) sidebarRefMenu(it ui.Element, t *tab, name string) {
+	if !strings.HasPrefix(name, "refs/heads/") && !strings.HasPrefix(name, "refs/tags/") {
+		return
+	}
+	a.loadRefs(t)
+	rs := &t.refs
+	if rs.info == nil {
+		return
+	}
+	if rs.byNameFor != rs.info {
+		rs.byNameFor, rs.byName = rs.info, map[string]int{}
+		for i, b := range rs.info.Branches {
+			rs.byName[b.Name] = i
+		}
+		for i, tg := range rs.info.Tags {
+			rs.byName[tg.Name] = i
+		}
+	}
+	i, ok := rs.byName[name]
+	if !ok {
+		return
+	}
+	info := rs.info
+	it.ContextMenu(func(m *ui.Menu) {
+		var act func()
+		if strings.HasPrefix(name, "refs/heads/") {
+			a.branchMenu(m, t, info.Branches[i], &act)
+		} else {
+			a.tagMenu(m, t, info.Tags[i], &act)
+		}
+		if act != nil {
+			act()
+		}
+	})
+}
+
 func fullRef(info *session.RefInfo, kind, idx int) string {
 	if kind == refsBranches {
 		return info.Branches[idx].Name
@@ -359,24 +400,9 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	if !head.Detached {
 		into = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
-	m.Submenu("Merge into "+redact.Control(into), func(sub *ui.Menu) {
-		for _, mode := range []struct {
-			label string
-			mode  write.MergeMode
-		}{
-			{"Merge", write.MergeDefault},
-			{"Fast-Forward Only", write.MergeFFOnly},
-			{"Always Make a Merge Commit", write.MergeNoFF},
-			{"Squash into Staged Changes", write.MergeSquash},
-		} {
-			if sub.Item(mode.label).Disabled(ro || current).Chosen() {
-				*act = func() {
-					op, err := write.Merge(w, b.Name, mode.mode, seen)
-					a.submit(t, op, err)
-				}
-			}
-		}
-	})
+	if m.Item("Merge into " + redact.Control(into) + "…").Disabled(ro || current).Chosen() {
+		*act = func() { a.openMerge(t, b.Name) }
+	}
 	if m.Item("Rebase " + redact.Control(into) + " onto This").Disabled(ro || current || head.Detached).Chosen() {
 		*act = func() {
 			op, err := write.Rebase(w, b.Name, seen)

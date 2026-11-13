@@ -76,6 +76,7 @@ type App struct {
 	branchUI   branchDialog
 	stashUI    stashDialog
 	cleanUI    cleanState
+	mergeUI    mergeDialog
 	libStats   libStatsState
 	diff       struct {
 		diffOptions
@@ -102,6 +103,7 @@ type tab struct {
 	reflog    reflogState
 	refs      refsState
 	stash     stashState
+	merge     mergeState
 	bisect    bisectState
 	stats     statsState
 	links     tabLinks
@@ -307,6 +309,7 @@ func (a *App) View(c *ui.Context) {
 	a.branchView(c)
 	a.stashDialogView(c)
 	a.cleanView(c)
+	a.mergeDialogView(c)
 	a.confirmView(c, &a.confirm)
 	a.paletteView(c)
 }

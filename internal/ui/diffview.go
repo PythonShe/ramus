@@ -54,6 +54,10 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	}
 	m := cv.model
 	i := int(r.idx)
+	if r.sec == secConflicts {
+		a.mergeEditor(c, t, string(m.st.Path(i)))
+		return
+	}
 	key := diffKey{path: string(m.st.Path(i)), src: diff.Unstaged, st: m.st, ws: diff.Whitespace(a.diffOpts().ws)}
 	switch {
 	case r.sec == secStaged:

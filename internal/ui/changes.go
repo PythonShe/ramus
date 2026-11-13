@@ -393,6 +393,7 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 			*act = func() { a.askDiscard(t, m, es) }
 		}
 	case secConflicts:
+		a.conflictMenu(menu, t, m, es, what, act)
 		if menu.Item("Mark " + what + " Resolved").Disabled(ro || n == 0).Chosen() {
 			*act = func() { a.stageEntries(t, m, secUnstaged, es) }
 		}

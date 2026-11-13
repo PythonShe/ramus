@@ -44,6 +44,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		if st.Restricted {
 			a.trustBanner(c, t)
 		}
+		a.operationBar(c, t)
 		ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, func() {
 			switch t.sel {
 			case "log":
@@ -126,6 +127,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 				if r == st.Head.Target {
 					it.Bold()
 				}
+				a.sidebarRefMenu(it, t, r)
 			}
 		})
 		t.open[key] = open
