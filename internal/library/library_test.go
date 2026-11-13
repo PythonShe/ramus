@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"ramus/internal/issuelink"
 )
 
 func names(rs []Repo) []string {
@@ -76,5 +78,28 @@ func TestLibrary(t *testing.T) {
 	back.SetGroup("Work", nil)
 	if len(back.Groups()) != 0 {
 		t.Fatal("empty group kept")
+	}
+}
+
+func TestIssueLinks(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "proj")
+	os.MkdirAll(repo, 0o755)
+	p := filepath.Join(root, "library.json")
+	l, _ := Load(p)
+	rules := []issuelink.Rule{{Pattern: `\bPROJ-(\d+)\b`, URL: "https://jira.example.com/browse/PROJ-$1"}}
+	if err := l.SetIssueLinks(repo, rules); err == nil {
+		t.Fatal("rules set for a repository not in the library")
+	}
+	l.Opened(repo, time.Unix(1, 0))
+	if err := l.SetIssueLinks(repo, rules); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := again.IssueLinks(repo); !slices.Equal(got, rules) {
+		t.Fatalf("rules %+v", got)
 	}
 }

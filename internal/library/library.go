@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"ramus/internal/issuelink"
 	"ramus/internal/settings"
 )
 
@@ -24,6 +25,9 @@ type Repo struct {
 	Name      string    `json:"name"`
 	Opened    time.Time `json:"opened"`
 	Favourite bool      `json:"favourite,omitempty"`
+	// IssueLinks are the repository's own rules for links in commit
+	// messages, tried before those its remote's host implies.
+	IssueLinks []issuelink.Rule `json:"issueLinks,omitempty"`
 }
 
 // Group is a named set of repositories, opened together.
@@ -114,6 +118,32 @@ func (l *Library) SetFavourite(path string, on bool) error {
 		l.repos[i].Favourite = on
 	}
 	l.mu.Unlock()
+	return l.save()
+}
+
+// IssueLinks returns a repository's issue link rules.
+func (l *Library) IssueLinks(path string) []issuelink.Rule {
+	path = Clean(path)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if i := l.find(path); i >= 0 {
+		return slices.Clone(l.repos[i].IssueLinks)
+	}
+	return nil
+}
+
+// SetIssueLinks sets a known repository's issue link rules.
+func (l *Library) SetIssueLinks(path string, rules []issuelink.Rule) error {
+	path = Clean(path)
+	l.mu.Lock()
+	i := l.find(path)
+	if i >= 0 {
+		l.repos[i].IssueLinks = slices.Clone(rules)
+	}
+	l.mu.Unlock()
+	if i < 0 {
+		return errors.New("library: " + path + " is not a known repository")
+	}
 	return l.save()
 }
 
