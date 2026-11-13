@@ -1,2 +1,7 @@
 # Internal notes and research; kept local, never published.
 /docs/internal/
+
+# mygo build output and dev cache.
+/build/
+/.mygo/
+mygo_windows_*.syso
