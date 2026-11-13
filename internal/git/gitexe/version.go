@@ -119,6 +119,25 @@ func (f Feature) String() string { return since[f].name }
 // object reader.
 var Minimum = Version{Major: 2, Minor: 36, Raw: "2.36.0"}
 
-// SecurityFixed is the newest git line with a security fix, as of the
-// release of this Ramus (checked 2026-11). Older git gets a warning.
-var SecurityFixed = Version{Major: 2, Minor: 50, Patch: 1, Raw: "2.50.1"}
+// securityFixed is, per 2.x line, the first release with git's latest
+// security fixes (CVE-2026-111760 and the others released with it, from
+// the release notes of 2.50.2 to 2.56.1; checked 2026-11-13). Lines older
+// than the first key got no fix. Recheck at each Ramus release.
+var securityFixed = map[int]int{50: 2, 51: 3, 52: 1, 53: 1, 54: 1, 55: 1, 56: 1}
+
+const oldestFixedLine, newestKnownLine = 50, 56
+
+// SecurityUpdate reports whether git v lacks security fixes that a newer
+// release of its own line, or a newer line, has; the app then suggests
+// updating git. A line newer than this table knows is assumed fixed.
+func (v Version) SecurityUpdate() bool {
+	switch {
+	case v.Major != 2:
+		return v.Major < 2
+	case v.Minor < oldestFixedLine:
+		return true
+	case v.Minor > newestKnownLine:
+		return false
+	}
+	return v.Patch < securityFixed[v.Minor]
+}

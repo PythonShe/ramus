@@ -98,3 +98,27 @@ func TestFindSkipsRelativeAndMissing(t *testing.T) {
 		t.Fatalf("absolute PATH entry: %v %v", g, err)
 	}
 }
+
+func TestSecurityUpdate(t *testing.T) {
+	for raw, want := range map[string]bool{
+		"git version 2.36.0":           true,
+		"git version 2.49.1":           true,
+		"git version 2.50.1":           true,
+		"git version 2.50.2":           false,
+		"git version 2.51.2":           true,
+		"git version 2.51.3":           false,
+		"git version 2.56.0":           true,
+		"git version 2.56.1":           false,
+		"git version 2.57.0":           false,
+		"git version 2.53.1.windows.1": false,
+		"git version 3.0.0":            false,
+	} {
+		v, err := ParseVersion(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := v.SecurityUpdate(); got != want {
+			t.Errorf("%s: %v, want %v", raw, got, want)
+		}
+	}
+}
