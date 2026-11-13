@@ -156,3 +156,14 @@ func TestMaxOutput(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestStderrLive(t *testing.T) {
+	r := gittest.Init(t)
+	var live strings.Builder
+	_, err := runner(t, 1).Run(context.Background(), &Cmd{GitDir: r.GitDir(), Read: true, Stderr: &live,
+		Args: []string{"rev-parse", "--verify", "nope"}})
+	var e *Error
+	if !errors.As(err, &e) || e.Stderr == "" || live.String() != e.Stderr {
+		t.Fatalf("live %q, returned %v", live.String(), err)
+	}
+}

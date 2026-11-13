@@ -114,6 +114,9 @@ type Cmd struct {
 	Stdin  io.Reader
 	// Stdout receives the output as it comes; when nil, Run returns it.
 	Stdout io.Writer
+	// Stderr, when set, also receives git's messages as they come (progress,
+	// hook output); Run returns them either way.
+	Stderr io.Writer
 	// Timeout bounds the command; DefaultTimeout when zero.
 	Timeout time.Duration
 	// MaxOutput bounds the output Run collects when Stdout is nil;
@@ -282,6 +285,9 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	}
 	stderr := &capped{max: stderrLimit}
 	cmd.Stderr = stderr
+	if c.Stderr != nil {
+		cmd.Stderr = io.MultiWriter(stderr, c.Stderr)
+	}
 	cmd.WaitDelay = 2 * time.Second
 	t0 := time.Now()
 	r.running.Add(1)
