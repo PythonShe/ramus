@@ -3,9 +3,9 @@ package session
 import (
 	"bytes"
 	"context"
-	"strconv"
 	"strings"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 )
@@ -28,7 +28,10 @@ func (s *Session) ListClean(ignored bool, done func([]string, []write.FileState,
 	}
 	update := s.update
 	r.Life().Go(func(ctx context.Context) {
-		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true, MaxOutput: 16 << 20, Args: args})
+		// git clean has no -z; it is read in English, its paths quoted only
+		// where they must be.
+		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true, MaxOutput: 16 << 20, Args: args,
+			Untranslated: true, Config: []string{"core.quotePath=false"}})
 		var paths []string
 		var seen []write.FileState
 		if err == nil {
@@ -48,15 +51,7 @@ func parseClean(out []byte) []string {
 		if !ok || p == "" {
 			continue
 		}
-		if p[0] == '"' {
-			// git's C quoting escapes as Go's does: \" \\ \n \t and octal.
-			u, err := strconv.Unquote(p)
-			if err != nil {
-				continue
-			}
-			p = u
-		}
-		paths = append(paths, p)
+		paths = append(paths, pathsafe.Unquote(p))
 		if len(paths) == MaxClean {
 			break
 		}

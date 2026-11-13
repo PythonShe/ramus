@@ -9,9 +9,11 @@ import (
 
 func TestFileLogAndBlame(t *testing.T) {
 	r := gittest.Init(t)
-	r.Write("a", "one\n")
+	// The first name is one git quotes where it cannot use -z.
+	const a = "a\t\"日本"
+	r.Write(a, "one\n")
 	c1 := r.Commit("one")
-	r.Git("mv", "a", "b")
+	r.Git("mv", a, "b")
 	r.Commit("move")
 	r.Write("b", "one\ntwo\n")
 	c3 := r.Commit("two")
@@ -40,7 +42,7 @@ func TestFileLogAndBlame(t *testing.T) {
 	for _, c := range cs {
 		subjects, paths = append(subjects, c.Subject), append(paths, c.Path)
 	}
-	if strings.Join(subjects, ",") != "two,move,one" || strings.Join(paths, ",") != "b,b,a" {
+	if strings.Join(subjects, ",") != "two,move,one" || strings.Join(paths, ",") != "b,b,"+a {
 		t.Fatalf("followed: %q %q", subjects, paths)
 	}
 	if cs := log("b", FileLogOptions{}); len(cs) != 2 {
@@ -79,7 +81,7 @@ func TestFileLogAndBlame(t *testing.T) {
 	if hexOf(0) != string(mustHex(t, c1)) || hexOf(1) != string(mustHex(t, c3)) || !commits[lineCommit[2]].Uncommitted {
 		t.Fatalf("blame %+v", commits)
 	}
-	if c := commits[lineCommit[0]]; c.Path != "a" || c.Summary != "one" || c.Author == "" {
+	if c := commits[lineCommit[0]]; c.Path != a || c.Summary != "one" || c.Author == "" {
 		t.Fatalf("first line's commit %+v", c)
 	}
 }

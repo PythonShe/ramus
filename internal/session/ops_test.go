@@ -7,29 +7,41 @@ import (
 	"strings"
 	"testing"
 
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 )
 
 func openFor(t *testing.T, r *gittest.Repo) (*Session, mainThread) {
+	return openWith(t, r, testrun.Runner(t))
+}
+
+func openWith(t *testing.T, r *gittest.Repo, runner *run.Runner) (*Session, mainThread) {
 	m := make(mainThread, 64)
-	s := Open(testrun.Runner(t), trusted(t), r.Dir, m.update)
+	s := Open(runner, trusted(t), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "the status", func() bool { return s.State.Status != nil })
 	return s, m
 }
 
 // The clean listing is git clean's, odd names unquoted, ignored files
-// only when asked.
+// only when asked, whatever language git speaks.
 func TestListClean(t *testing.T) {
 	r := gittest.Init(t)
 	r.Write(".gitignore", "*.log\n")
 	r.Commit("ignore")
 	r.Write("dir/x", "1")
 	r.Write("a\"b\tc", "1")
+	r.Write("日本.txt", "1")
 	r.Write("y.log", "1")
-	s, m := openFor(t, r)
+	g, err := gitexe.Find(t.Context(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	// gittest pins LC_ALL=C; this git speaks German where it can.
+	s, m := openWith(t, r, run.New(g, append(gittest.Env(), "LC_ALL=de_DE.UTF-8", "LANGUAGE=de"), 4))
 	list := func(ignored bool) []string {
 		var got []string
 		done := false
@@ -43,10 +55,10 @@ func TestListClean(t *testing.T) {
 		slices.Sort(got)
 		return got
 	}
-	if got := list(false); !slices.Equal(got, []string{"a\"b\tc", "dir/"}) {
+	if got := list(false); !slices.Equal(got, []string{"a\"b\tc", "dir/", "日本.txt"}) {
 		t.Fatalf("got %q", got)
 	}
-	if got := list(true); !slices.Equal(got, []string{"a\"b\tc", "dir/", "y.log"}) {
+	if got := list(true); !slices.Equal(got, []string{"a\"b\tc", "dir/", "y.log", "日本.txt"}) {
 		t.Fatalf("with ignored got %q", got)
 	}
 }

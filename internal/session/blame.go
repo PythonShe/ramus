@@ -88,7 +88,7 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 		var wg sync.WaitGroup
 		wg.Go(func() {
 			_, runErr = r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true, Stdout: pw,
-				Timeout: 10 * time.Minute, Env: []string{"GIT_LITERAL_PATHSPECS=1"},
+				Timeout: 10 * time.Minute, Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Config: []string{"core.quotePath=false"},
 				Args: []string{"blame", "--incremental", "--", path}})
 			pw.CloseWithError(runErr)
 		})
@@ -179,7 +179,7 @@ func parseBlame(ctx context.Context, rd io.Reader, send func(BlameUpdate)) error
 		switch {
 		case key == "filename":
 			if cur != nil {
-				cur.Path = val
+				cur.Path = pathsafe.Unquote(val)
 			}
 			pending.Groups = append(pending.Groups, group)
 			inGroup = false

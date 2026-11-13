@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -181,4 +182,19 @@ func Target(root, rel string) (string, error) {
 func within(root, p string) bool {
 	rel, err := filepath.Rel(root, p)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
+}
+
+// Unquote reads a path as git writes one where it cannot use -z: as it is,
+// or in double quotes with C escapes (\t, \n, \", \\ and octal bytes)
+// when it holds anything unusual. A quoted path that does not parse is
+// returned as it came.
+func Unquote(s string) string {
+	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {
+		return s
+	}
+	// git's escapes are a subset of Go's, with the same meaning.
+	if u, err := strconv.Unquote(s); err == nil {
+		return u
+	}
+	return s
 }
