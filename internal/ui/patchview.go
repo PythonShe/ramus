@@ -236,7 +236,7 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 			ui.Text(c, "No differences in content").TextColor(th.TextMuted)
 		})
 		return
-	case pv.sub != nil:
+	case pv.sub != nil && t != nil:
 		a.submoduleChange(c, t, pv.sub)
 		return
 	case p.Files[0].Binary && (pv.images[0] != nil || pv.images[1] != nil):

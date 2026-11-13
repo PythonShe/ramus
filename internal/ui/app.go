@@ -79,6 +79,7 @@ type App struct {
 	mergeUI    mergeDialog
 	// pendingFile is a file to show once its repository is open.
 	pendingFile pendingFile
+	compareUI   compareState
 	libStats    libStatsState
 	diff        struct {
 		diffOptions
@@ -162,6 +163,9 @@ func (a *App) SetRunner(r *run.Runner, err error) {
 		a.Open(p)
 	}
 	a.pending = nil
+	if a.compareUI.pending {
+		a.startCompare()
+	}
 }
 
 // Open opens the repository at path in a tab, or shows the tab that has it.
@@ -313,6 +317,7 @@ func (a *App) View(c *ui.Context) {
 	a.stashDialogView(c)
 	a.cleanView(c)
 	a.mergeDialogView(c)
+	a.compareView(c)
 	a.confirmView(c, &a.confirm)
 	a.paletteView(c)
 }

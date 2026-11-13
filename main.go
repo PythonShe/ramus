@@ -88,8 +88,13 @@ func main() {
 		}
 	}
 	handle := func(r cli.Request) {
-		if r.Kind == cli.Open {
+		switch r.Kind {
+		case cli.Open:
 			app.Open(r.Paths[0])
+		case cli.Diff:
+			app.Compare(r.Paths[0], r.Paths[1], nil)
+		case cli.Log, cli.Blame:
+			app.ShowFile(r.Paths[0], r.Kind == cli.Blame)
 		}
 	}
 	handle(req)
