@@ -66,6 +66,10 @@ func TestWalkOrder(t *testing.T) {
 	r.Git("merge", "-q", "--no-ff", "-m", "merge", "b0", "b1")
 	r.Env = nil
 	r.CommitAt("older than its parent", 1_000_000_000)
+	// A tip no other tip reaches, older than all of them: it comes last.
+	r.Git("checkout", "-q", "--orphan", "old")
+	r.CommitAt("orphan", 900_000_000)
+	r.Git("checkout", "-q", "main")
 	r.Git("commit-graph", "write", "--reachable")
 
 	g := openGraph(t, r.GitDir())
@@ -122,6 +126,40 @@ func checkWalk(t *testing.T, r *gittest.Repo, g *commitgraph.Graph, w walker) {
 		}
 		shown[pos] = true
 	}
+}
+
+// TestTopoOrderKernel checks the walk against git's --topo-order over the
+// whole kernel, with its 2005 tags among the tips: go test -run
+// TopoOrderKernel with RAMUS_FIXTURES set.
+func TestTopoOrderKernel(t *testing.T) {
+	dir := filepath.Join(gittest.FixturesDir(t), "linux")
+	if _, err := os.Stat(dir); err != nil {
+		t.Skip(err)
+	}
+	r := gittest.Open(t, dir)
+	g := openGraph(t, filepath.Join(dir, ".git"))
+	want := strings.Fields(r.Git("rev-list", "--topo-order", "--all"))
+	start := time.Now()
+	w := NewTopoWalk(g, tips(t, r, g))
+	first := time.Duration(0)
+	n := 0
+	for {
+		pos, _, ok := w.Next()
+		if !ok {
+			break
+		}
+		if n == 0 {
+			first = time.Since(start)
+		}
+		if n >= len(want) || hex.EncodeToString(g.OID(pos)) != want[n] {
+			t.Fatalf("row %d: %x, git has %d rows", n, g.OID(pos), len(want))
+		}
+		n++
+	}
+	if w.Err() != nil || n != len(want) {
+		t.Fatalf("%d rows, git %d: %v", n, len(want), w.Err())
+	}
+	t.Logf("%d rows as git orders them; first row after %v", n, first)
 }
 
 // BenchmarkKernel walks and lays out the whole history of the Linux kernel
