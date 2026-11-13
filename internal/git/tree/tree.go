@@ -106,6 +106,9 @@ func next(e Entry, n int) byte {
 func kind(mode uint32) uint32 { return mode & 0o170000 }
 
 func checkName(name []byte) error {
+	if len(name) > MaxPath {
+		return ErrPathTooLong
+	}
 	if bytes.IndexByte(name, '/') >= 0 || string(name) == "." || string(name) == ".." {
 		return fmt.Errorf("%w: entry %q", ErrMalformed, name)
 	}

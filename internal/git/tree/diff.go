@@ -2,6 +2,7 @@ package tree
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -23,15 +24,33 @@ const (
 	TypeChanged Status = 'T'
 )
 
+// Limits on one comparison. A tree can name the same subtree many times,
+// so a few kilobytes of objects can describe millions of paths; past
+// MaxChanges the list stops and says so.
+const (
+	MaxChanges = 1 << 21
+	MaxPath    = 1 << 15
+)
+
+// maxChanges is MaxChanges, lowered by tests.
+var maxChanges = MaxChanges
+
+// ErrPathTooLong is returned for a path past MaxPath.
+var ErrPathTooLong = errors.New("tree: path too long")
+
 // Changes lists changed paths sorted as git lists them, in flat storage:
 // one buffer for paths, modes and object ids side by side.
 type Changes struct {
-	hashSize int
-	paths    []byte
-	ends     []uint32
-	status   []Status
-	modes    []uint32 // old, new
-	oids     []byte   // old, new; zero for a side that does not exist
+	// Truncated is set when the comparison stopped at MaxChanges; the
+	// list holds the changes found by then, which are not the first ones
+	// in order.
+	Truncated bool
+	hashSize  int
+	paths     []byte
+	ends      []uint32
+	status    []Status
+	modes     []uint32 // old, new
+	oids      []byte   // old, new; zero for a side that does not exist
 }
 
 // Len returns the number of changed paths.
@@ -67,6 +86,10 @@ func (c *Changes) Bytes() int {
 }
 
 func (c *Changes) add(prefix, name []byte, st Status, oldE, newE Entry) {
+	if c.Len() >= maxChanges {
+		c.Truncated = true
+		return
+	}
 	c.paths = append(c.paths, prefix...)
 	c.paths = append(c.paths, name...)
 	c.ends = append(c.ends, uint32(len(c.paths)))
@@ -91,7 +114,7 @@ func (c *Changes) sort() {
 		idx[i] = i
 	}
 	slices.SortFunc(idx, func(a, b int) int { return bytes.Compare(c.Path(a), c.Path(b)) })
-	out := &Changes{hashSize: c.hashSize,
+	out := &Changes{hashSize: c.hashSize, Truncated: c.Truncated,
 		paths: make([]byte, 0, len(c.paths)), ends: make([]uint32, 0, len(c.ends)),
 		status: make([]Status, 0, len(c.status)), modes: make([]uint32, 0, len(c.modes)),
 		oids: make([]byte, 0, len(c.oids))}
@@ -140,6 +163,9 @@ func Diff(r Reader, hashSize int, a, b []byte) (*Changes, error) {
 		}
 		var next []pending
 		err := r.Read(oids, func(i int, o catfile.Object) error {
+			if o.TooLarge {
+				return fmt.Errorf("tree: %x is too large to compare", oids[i])
+			}
 			if o.Type != "tree" {
 				return fmt.Errorf("tree: %x is a %q, not a tree", oids[i], o.Type)
 			}
@@ -159,15 +185,21 @@ func Diff(r Reader, hashSize int, a, b []byte) (*Changes, error) {
 		if err != nil {
 			return nil, err
 		}
+		if c.Truncated {
+			break
+		}
 		level = next
 	}
 	c.sort()
 	return c, nil
 }
 
-func sub(prefix, name []byte) []byte {
+func sub(prefix, name []byte) ([]byte, error) {
+	if len(prefix)+len(name) >= MaxPath {
+		return nil, ErrPathTooLong
+	}
 	p := make([]byte, 0, len(prefix)+len(name)+1)
-	return append(append(append(p, prefix...), name...), '/')
+	return append(append(append(p, prefix...), name...), '/'), nil
 }
 
 // walkOne lists a tree added or deleted whole.
@@ -214,7 +246,11 @@ func compareTrees(c *Changes, next *[]pending, prefix, a, b []byte, hashSize int
 			switch {
 			case ea.IsTree():
 				if !bytes.Equal(ea.OID, eb.OID) {
-					*next = append(*next, pending{prefix: sub(prefix, ea.Name), old: bytes.Clone(ea.OID), new: bytes.Clone(eb.OID)})
+					p, err := sub(prefix, ea.Name)
+					if err != nil {
+						return err
+					}
+					*next = append(*next, pending{prefix: p, old: bytes.Clone(ea.OID), new: bytes.Clone(eb.OID)})
 				}
 			case kind(ea.Mode) != kind(eb.Mode):
 				c.add(prefix, ea.Name, TypeChanged, ea, eb)
@@ -235,9 +271,20 @@ func oneSide(c *Changes, next *[]pending, prefix []byte, e Entry, st Status) err
 	if err := checkName(e.Name); err != nil {
 		return err
 	}
+	if len(prefix)+len(e.Name) > MaxPath {
+		return ErrPathTooLong
+	}
 	if e.IsTree() {
 		// The entry points into data that the next read reuses.
-		p := pending{prefix: sub(prefix, e.Name)}
+		path, err := sub(prefix, e.Name)
+		if err != nil {
+			return err
+		}
+		if len(*next) >= maxChanges {
+			c.Truncated = true
+			return nil
+		}
+		p := pending{prefix: path}
 		if st == Added {
 			p.new = bytes.Clone(e.OID)
 		} else {

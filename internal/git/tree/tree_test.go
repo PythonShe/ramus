@@ -149,3 +149,31 @@ func BenchmarkKernelRelease(b *testing.B) {
 		b.ReportMetric(float64(ch.Len()), "paths")
 	}
 }
+
+// Trees that name the same subtree twice at every level describe 2^depth
+// paths in a few hundred bytes; the comparison stops at its limit.
+func TestAmplification(t *testing.T) {
+	r := gittest.Init(t)
+	blob, err := r.Run([]byte("x\n"), "hash-object", "-w", "--stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur, err := r.Run([]byte("100644 blob "+strings.TrimSpace(blob)+"\tf\n"), "mktree")
+	for i := 0; i < 16 && err == nil; i++ {
+		id := strings.TrimSpace(cur)
+		cur, err = r.Run([]byte("040000 tree "+id+"\ta\n040000 tree "+id+"\tb\n"), "mktree")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	top, _ := hex.DecodeString(strings.TrimSpace(cur))
+	defer func(n int) { maxChanges = n }(maxChanges)
+	maxChanges = 1000
+	c, err := Diff(start(t, r), 20, nil, top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Truncated || c.Len() > maxChanges {
+		t.Fatalf("truncated %v with %d changes", c.Truncated, c.Len())
+	}
+}
