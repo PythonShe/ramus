@@ -85,6 +85,7 @@ type tab struct {
 	snaps     snapState
 	hist      historyState
 	reflog    reflogState
+	stats     statsState
 	links     tabLinks
 	// expired is set once old snapshots were cleared on open.
 	expired bool

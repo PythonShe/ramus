@@ -46,6 +46,7 @@ func (a *App) commands() []command {
 		cmds = append(cmds, command{"Reveal in File Manager", func() { go tools.Reveal(dir) }})
 		cmds = append(cmds, command{"Show History", func() { t.sel = "history" }})
 		cmds = append(cmds, command{"Show Reflog", func() { t.sel = "reflog" }})
+		cmds = append(cmds, command{"Show Statistics", func() { t.sel = "stats" }})
 		cmds = append(cmds, command{"Find Lost Commits", func() { t.sel, t.reflog.lostShown = "reflog", 1 }})
 		cmds = append(cmds, command{"Issue Links…", func() { a.openLinks(t) }})
 		cmds = append(cmds, command{"Show Command Log", func() { t.sel = "log" }})

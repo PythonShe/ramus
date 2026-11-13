@@ -148,3 +148,29 @@ func TestReflogView(t *testing.T) {
 		return strings.TrimSpace(r.Git("rev-parse", "rescued")) != lost
 	})
 }
+
+func TestStatsView(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	for i := range 5 {
+		r.Write("a.txt", strings.Repeat("x", i))
+		r.Commit("work")
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("Statistics")
+	h.until("the counts", h.shows("Ramus Test <test@example.com>"))
+	tab := h.app.current()
+	if got := tab.stats.res.Stats.Commits; got != 6 || !h.tt.HasText("Commits per week") || !h.tt.HasText("By weekday") {
+		t.Fatalf("%d commits; texts %q", got, h.tt.Texts())
+	}
+
+	// A range with no commits in it.
+	tab.stats.from = "2030-01-01"
+	h.app.countStats(tab)
+	h.until("the empty range", h.shows("No commits in this range"))
+	tab.stats.from = "next week"
+	h.app.countStats(tab)
+	h.until("the bad day", h.shows(`"next week" is not a day like 2024-03-31`))
+}
