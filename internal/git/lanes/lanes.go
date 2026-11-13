@@ -37,6 +37,7 @@ type Edge struct {
 }
 
 type rec struct {
+	commit uint32
 	node   uint16
 	color  uint16
 	top    uint16 // lanes other than the node's that end in the node
@@ -80,7 +81,7 @@ func (l *Layout) Width() int { return l.s.width }
 
 // Bytes returns the memory the layout holds, for budgets.
 func (l *Layout) Bytes() int {
-	b := len(l.s.rows)*rowChunk*16 + len(l.s.edges)*edgeChunk*6 + cap(l.s.checks)*12
+	b := len(l.s.rows)*rowChunk*20 + len(l.s.edges)*edgeChunk*6 + cap(l.s.checks)*12
 	for _, c := range l.s.states {
 		b += cap(c) * 2
 	}
@@ -215,7 +216,8 @@ func (l *Layout) Append(commit uint32, parents []uint32) {
 	merges := min(max(len(parents)-1, 0), 255)
 	r := &s.rows[len(s.rows)-1]
 	*r = append(*r, rec{
-		node: uint16(node), color: color,
+		commit: commit,
+		node:   uint16(node), color: color,
 		top: uint16(top), bottom: uint16(len(ev) - top),
 		edges: at, merges: uint8(merges),
 	})
@@ -242,6 +244,9 @@ func (s *Snapshot) Len() int { return s.s.n }
 
 // Width returns the number of columns any row uses.
 func (s *Snapshot) Width() int { return s.s.width }
+
+// Commit returns the commit id that row i was appended with.
+func (s *Snapshot) Commit(i int) uint32 { return s.rec(i).commit }
 
 func (s *Snapshot) rec(i int) rec { return s.s.rows[i/rowChunk][i%rowChunk] }
 
