@@ -65,12 +65,11 @@ type App struct {
 
 // tab is one open repository.
 type tab struct {
-	id      int
-	s       *session.Session
-	sel     string // sidebar item chosen
-	open    map[string]bool
-	changes ui.ListState
-	chosen  int
+	id   int
+	s    *session.Session
+	sel  string // sidebar item chosen
+	open map[string]bool
+	cv   changesState
 	// The command log: entries newest first, and the output of one.
 	logList   ui.ListState
 	logChosen int
@@ -142,9 +141,8 @@ func (a *App) Open(path string) {
 		return
 	}
 	a.nextID++
-	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), chosen: -1, sideW: 220, listW: 420, snaps: newSnapState(),
+	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
-	t.changes.Selected = &t.chosen
 	a.tabs = append(a.tabs, t)
 	a.active = len(a.tabs) - 1
 	if a.Library != nil {

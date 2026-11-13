@@ -180,54 +180,6 @@ func changesLabel(st session.State) string {
 	return fmt.Sprintf("Changes (%d)", st.Status.Len())
 }
 
-func (a *App) changesList(c *ui.Context, t *tab) {
-	th := c.Theme()
-	st := t.s.State.Status
-	ui.Column(c).Fill().Children(func() {
-		if st == nil {
-			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
-			return
-		}
-		if st.Len() == 0 {
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "No changes").TextColor(th.TextMuted)
-			})
-			return
-		}
-		t.changes.Label = func(i int) string { return string(st.Path(i)) }
-		var act func()
-		ui.List(c, &t.changes, st.Len(), func(i int) {
-			x, y := st.XY(i)
-			path := string(st.Path(i))
-			shown, flagged := showPath(path)
-			ui.Row(c).Padding(3, 8).Gap(8).FillWidth().Children(func() {
-				ui.Text(c, string([]byte{x, y})).Font("monospace").TextColor(th.TextMuted).Width(24)
-				name := ui.Text(c, shown).SingleLine().Grow(1)
-				if flagged != "" {
-					name.TextColor(th.Warning).Description(flagged)
-				}
-			}).ContextMenu(func(m *ui.Menu) { a.fileMenu(m, t, path, &act) })
-		}).Grow(1)
-		if act != nil {
-			act()
-		}
-	})
-}
-
-func (a *App) detail(c *ui.Context, t *tab) {
-	th := c.Theme()
-	st := t.s.State.Status
-	ui.Column(c).Fill().Padding(12).Children(func() {
-		if st == nil || t.chosen < 0 || t.chosen >= st.Len() {
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "Choose a file to see its changes").TextColor(th.TextMuted)
-			})
-			return
-		}
-		ui.Text(c, string(st.Path(t.chosen))).Bold()
-	})
-}
-
 func (a *App) statusBar(c *ui.Context, t *tab) {
 	th := c.Theme()
 	st := t.s.State

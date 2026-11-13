@@ -129,14 +129,15 @@ func TestOpenFollowsChanges(t *testing.T) {
 		t.Fatal("trusted repository shown read-only")
 	}
 	r.Write("new.txt", "x")
-	h.until("the new file", h.shows("Changes (1)"))
-	if !h.tt.HasText("new.txt") || !h.tt.HasText("main") {
+	h.until("the new file", h.shows("new.txt"))
+	if !h.tt.HasText("Changes (1)") || !h.tt.HasText("main") {
 		t.Fatalf("texts %q", h.tt.Texts())
 	}
 	h.click("new.txt")
-	if h.app.current().chosen != 0 {
+	if r, ok := h.app.current().cv.chosenFile(); !ok || r.sec != secUnstaged {
 		t.Fatal("click did not choose the file")
 	}
+	h.until("its patch", h.shows("+x"))
 }
 
 func TestWorktreesInSidebar(t *testing.T) {
@@ -388,4 +389,98 @@ func TestSnapshotsView(t *testing.T) {
 		l := h.app.current().s.Log
 		return len(l) > 0 && strings.HasPrefix(l[len(l)-1].Name, "Undo") && !l[len(l)-1].Running
 	})
+}
+
+func TestChangesStageAndDiscard(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n")
+	r.Write("dir/deep.txt", "d\n")
+	r.Commit("a")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	r.Write("a.txt", "one\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\ntwelve\n")
+	r.Write("new.txt", "x\n")
+	h.until("the changes", func() bool { return h.tt.HasText("a.txt") && h.tt.HasText("new.txt") })
+	tb := h.app.current()
+	index := func() string { return r.Git("show", ":a.txt") }
+	read := func(name string) string { b, _ := os.ReadFile(filepath.Join(r.Dir, name)); return string(b) }
+
+	// Stage the untracked file from its menu.
+	if err := h.tt.RightClick("new.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Stage File"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("new.txt staged", h.shows("Staged (1)"))
+
+	// Stage the first hunk of a.txt only.
+	h.click("a.txt")
+	h.until("its patch", h.shows("+one"))
+	h.click("Stage Hunk")
+	h.until("the first hunk staged", func() bool { return strings.HasPrefix(index(), "one\n") })
+	if strings.Contains(index(), "twelve") {
+		t.Fatal("the second hunk was staged too")
+	}
+
+	// Pick the added line of the second hunk and discard it, then undo.
+	h.until("the patch again", func() bool { return h.tt.HasText("+twelve") && !h.tt.HasText("+one") })
+	h.click("+twelve")
+	h.until("the line picked", h.shows("Discard 1 Line…"))
+	h.click("Discard 1 Line…")
+	h.until("the question", h.shows("Discard 1 changed line?"))
+	h.click("Discard")
+	h.until("the line discarded", func() bool { return !strings.Contains(read("a.txt"), "twelve") })
+	if !strings.HasPrefix(read("a.txt"), "one\n") {
+		t.Fatalf("discard took more than the line: %q", read("a.txt"))
+	}
+	h.tt.Key(ui.Cmd, ui.KeyZ)
+	h.until("the discard undone", func() bool { return strings.Contains(read("a.txt"), "twelve") })
+
+	// Unstage everything from the section header; the tree shows folders.
+	h.click("Unstage All")
+	h.until("nothing staged", func() bool { return !h.tt.HasText("Staged (") })
+	r.Write("dir/deep.txt", "changed\n")
+	r.Write("loose/x", "x\n")
+	h.click("Tree")
+	h.until("the folder", h.shows("dir/"))
+	if h.tt.HasText("deep.txt") {
+		t.Fatal("a closed folder shows its files")
+	}
+	if !h.tt.HasText("loose/") || h.tt.HasText("Folder loose") {
+		t.Fatalf("an untracked folder is not one row: %q", h.tt.Texts())
+	}
+	h.click("▸")
+	h.until("the folder open", h.shows("deep.txt"))
+	tb.cv.filter = "deep"
+	h.until("the filter", func() bool { return !h.tt.HasText("a.txt") && h.tt.HasText("deep.txt") })
+}
+
+func TestChangesBulk(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	r.Write("one.txt", "1")
+	r.Write("two.txt", "2")
+	r.Write("three.txt", "3")
+	h.until("the files", h.shows("three.txt"))
+	h.click("one.txt")
+	if err := h.tt.ClickWith(ui.Cmd, "two.txt"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if err := h.tt.RightClick("two.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Stage 2 Files"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("two staged", h.shows("Staged (2)"))
+	if s := r.Git("status", "--porcelain"); !strings.Contains(s, "?? three.txt") {
+		t.Fatalf("status\n%s", s)
+	}
 }
