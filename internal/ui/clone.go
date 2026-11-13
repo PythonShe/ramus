@@ -1,19 +1,25 @@
 package ui
 
 import (
-	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/trust"
 	"ramus/internal/git/write"
 )
 
 type cloneState struct {
-	open     bool
-	url, dir string
+	open       bool
+	url, dir   string
+	submodules bool
+	// starting is set while the folder is checked, before the job exists;
+	// gen tells a start that was stopped meanwhile.
+	starting bool
+	gen      int
 	job      *write.Job
 	progress string
 	percent  int
@@ -31,7 +37,7 @@ func (a *App) cloneDialog(c *ui.Context) {
 	ui.Modal(c, &cs.open, func() {
 		ui.Column(c).Width(520).Gap(12).Padding(20).Children(func() {
 			ui.Text(c, "Clone a repository").Bold()
-			busy := cs.job != nil
+			busy := cs.job != nil || cs.starting
 			ui.Field(c, "URL", func() {
 				ui.TextInput(c, &cs.url).Placeholder("https://github.com/owner/repo.git").AutoFocus().Disabled(busy)
 			})
@@ -43,6 +49,7 @@ func (a *App) cloneDialog(c *ui.Context) {
 					}
 				})
 			})
+			ui.Checkbox(c, &cs.submodules, "Clone submodules too").Disabled(busy)
 			if busy {
 				ui.Progress(c, float64(max(cs.percent, 0))/100)
 				ui.Text(c, cs.progress).SingleLine().FontSize(12).TextColor(th.TextMuted)
@@ -53,7 +60,11 @@ func (a *App) cloneDialog(c *ui.Context) {
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if busy {
 					if ui.Button(c, "Stop").Clicked() {
-						cs.job.Cancel()
+						if cs.job != nil {
+							cs.job.Cancel()
+						}
+						cs.starting = false
+						cs.gen++
 					}
 					return
 				}
@@ -95,45 +106,68 @@ func (a *App) pickCloneParent() {
 func (a *App) startClone() {
 	cs := &a.clone
 	dir := strings.TrimSpace(cs.dir)
-	if dir == "" {
-		cs.err = "Choose a folder to clone into"
-		return
-	}
-	j, err := write.Clone(a.Runner, write.CloneOptions{URL: strings.TrimSpace(cs.url), Dir: dir})
-	if err != nil {
-		cs.err = errText(err)
-		return
-	}
-	cs.job, cs.err, cs.progress, cs.percent = j, "", "", -1
-	update := a.Update
-	go func() {
-		for ev := range j.Events() {
-			update(func() {
-				if cs.job == j {
-					cs.progress, cs.percent = ev.Line, ev.Percent
-				}
-			})
+	if rest, ok := strings.CutPrefix(dir, "~"+string(filepath.Separator)); ok {
+		if home, err := os.UserHomeDir(); err == nil {
+			dir = filepath.Join(home, rest)
 		}
-		_, err := j.Result()
+	}
+	if !filepath.IsAbs(dir) {
+		cs.err = "Choose a folder to clone into, or type its full path"
+		return
+	}
+	opt := write.CloneOptions{URL: strings.TrimSpace(cs.url), Dir: dir, Submodules: cs.submodules}
+	r, update, ts := a.Runner, a.Update, a.Trust
+	cs.err, cs.progress, cs.percent = "", "", -1
+	cs.starting = true
+	cs.gen++
+	gen := cs.gen
+	go func() {
+		// Clone looks at the folder before it starts git.
+		j, err := write.Clone(r, opt)
 		update(func() {
-			if cs.job != j {
-				return
-			}
-			cs.job = nil
-			if err != nil {
-				cs.err = fmt.Sprint(err)
-				return
-			}
-			cs.open, cs.url, cs.dir = false, "", ""
-			// A repository the user just cloned here is theirs to trust;
-			// only folders that come from elsewhere ask.
-			ts := a.Trust
-			go func() {
-				if ts != nil {
-					ts.Set(filepath.Join(dir, ".git"), true)
+			if cs.gen != gen {
+				if j != nil {
+					j.Cancel()
 				}
-				update(func() { a.Open(dir) })
-			}()
+				return
+			}
+			cs.starting = false
+			if err != nil {
+				cs.err = errText(err)
+				return
+			}
+			cs.job = j
+			go a.followClone(j, dir, update, ts)
 		})
 	}()
+}
+
+// followClone shows the clone's progress and opens it when done.
+func (a *App) followClone(j *write.Job, dir string, update func(func()), ts *trust.Store) {
+	cs := &a.clone
+	for ev := range j.Events() {
+		update(func() {
+			if cs.job == j {
+				cs.progress, cs.percent = ev.Line, ev.Percent
+			}
+		})
+	}
+	_, err := j.Result()
+	if err == nil && ts != nil {
+		// A repository the user just cloned here is theirs to trust; only
+		// folders that come from elsewhere ask.
+		ts.Set(filepath.Join(dir, ".git"), true)
+	}
+	update(func() {
+		if cs.job != j {
+			return
+		}
+		cs.job = nil
+		if err != nil {
+			cs.err = errText(err)
+			return
+		}
+		cs.open, cs.url, cs.dir, cs.submodules = false, "", "", false
+		a.Open(dir)
+	})
 }
