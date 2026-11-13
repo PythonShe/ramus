@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"ramus/internal/git/catfile"
 	"ramus/internal/git/commits"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
@@ -123,5 +124,27 @@ func TestCovered(t *testing.T) {
 	}
 	if _, ok := Covered(nil, refTips(t, r)); ok {
 		t.Error("no graph covers")
+	}
+}
+
+// BenchmarkTextChunkKernel loads one chunk of rows' text through cat-file:
+// the cost of text appearing when the list scrolls to rows not yet loaded.
+// Chunks are spread across history, so most objects are deep in packs.
+func BenchmarkTextChunkKernel(b *testing.B) {
+	dir := gittest.FixturesDir(b) + "/linux"
+	g := openGraph(b, dir+"/.git")
+	p, err := catfile.Start(context.Background(), testrun.Runner(b), dir+"/.git")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer p.Close()
+	step := g.Len() / 97
+	i := 0
+	for b.Loop() {
+		first := (i * step) % (g.Len() - TextChunkRows)
+		i++
+		if _, err := LoadText(p, g, first, TextChunkRows, func(row int) uint32 { return uint32(row) }); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
