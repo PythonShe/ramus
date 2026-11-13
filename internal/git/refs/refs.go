@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -18,6 +19,13 @@ import (
 
 // maxSymrefDepth is git's limit on chains of symbolic refs.
 const maxSymrefDepth = 5
+
+// Size limits: a loose ref holds one line; packed-refs past maxPacked is
+// not something git writes for any real repository.
+const (
+	maxLoose  = 4096
+	maxPacked = 1 << 30
+)
 
 // Store reads one repository's refs.
 type Store struct {
@@ -197,10 +205,17 @@ func (s *Store) resolveIn(all map[string]raw, name string, depth int) ([]byte, e
 }
 
 func (s *Store) readPacked(path string) (map[string]raw, error) {
-	data, err := os.ReadFile(path)
+	st, err := os.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return map[string]raw{}, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	if !st.Mode().IsRegular() || st.Size() > maxPacked {
+		return nil, fmt.Errorf("refs: packed-refs is not a regular file under %d bytes", maxPacked)
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -290,12 +305,23 @@ func (s *Store) readLoose(path, name string) (raw, error) {
 	}
 	if st.Mode()&os.ModeSymlink != 0 {
 		target, err := os.Readlink(path)
-		if err != nil || !strings.HasPrefix(filepath.ToSlash(target), "refs/") {
+		t := filepath.ToSlash(target)
+		if err != nil || !strings.HasPrefix(t, "refs/") || !ValidName(t) {
 			return raw{}, fmt.Errorf("refs: %s is a symlink out of refs", name)
 		}
-		return raw{name: name, symref: filepath.ToSlash(target)}, nil
+		return raw{name: name, symref: t}, nil
 	}
-	b, err := os.ReadFile(path)
+	// Only a small regular file is a ref: opening a FIFO would block, and
+	// a huge file would be read whole.
+	if !st.Mode().IsRegular() || st.Size() > maxLoose {
+		return raw{}, fmt.Errorf("refs: %s is not a ref file", name)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return raw{}, err
+	}
+	b, err := io.ReadAll(io.LimitReader(f, maxLoose))
+	f.Close()
 	if err != nil {
 		return raw{}, err
 	}
@@ -376,7 +402,7 @@ func (s *Store) Resolve(name string) ([]byte, error) {
 
 // ValidName applies git check-ref-format's rules to a full ref name.
 func ValidName(name string) bool {
-	if name == "" || name == "@" || strings.HasSuffix(name, "/") || strings.HasPrefix(name, "/") ||
+	if name == "" || len(name) > maxName || name == "@" || strings.HasSuffix(name, "/") || strings.HasPrefix(name, "/") ||
 		strings.HasSuffix(name, ".") || strings.Contains(name, "..") || strings.Contains(name, "@{") ||
 		strings.Contains(name, "//") {
 		return false

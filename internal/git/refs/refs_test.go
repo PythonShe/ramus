@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 )
@@ -159,4 +160,40 @@ func FuzzPacked(f *testing.F) {
 			}
 		}
 	})
+}
+
+// A FIFO, a huge file or a symlink leaving refs/ is not read as a ref.
+func TestHostileLooseRefs(t *testing.T) {
+	r := gittest.Init(t)
+	c := r.Commit("one")
+	heads := filepath.Join(r.GitDir(), "refs", "heads")
+	if err := syscallMkfifo(filepath.Join(heads, "fifo")); err != nil {
+		t.Log("no FIFO:", err)
+	}
+	big, _ := os.Create(filepath.Join(heads, "big"))
+	big.Truncate(256 << 20) // sparse
+	big.Close()
+	os.Symlink("refs/../../../outside", filepath.Join(heads, "escape"))
+	os.WriteFile(filepath.Join(r.Dir, "outside"), []byte(c+"\n"), 0o644)
+	done := make(chan *List)
+	go func() {
+		l, err := store(r).List()
+		if err != nil {
+			t.Error(err)
+		}
+		done <- l
+	}()
+	select {
+	case l := <-done:
+		if l == nil {
+			return
+		}
+		for i := 0; i < l.Len(); i++ {
+			if n := l.Name(i); n != "refs/heads/main" {
+				t.Errorf("read %s", n)
+			}
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("listing refs blocked")
+	}
 }
