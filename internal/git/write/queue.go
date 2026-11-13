@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ramus/internal/git/lifetime"
+	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
 	"ramus/internal/git/snapshot"
 )
@@ -31,6 +32,11 @@ type Op struct {
 	// Backup names refs to keep under BackupPrefix before a history
 	// rewrite.
 	Backup []string
+	// Undo says how to undo the write; a write that succeeds is then
+	// recorded in the queue's History.
+	Undo UndoKind
+	// do runs in place of Cmd, for undo and redo.
+	do func(ctx context.Context) (run.Result, error)
 }
 
 // Stream says where a line came from.
@@ -119,8 +125,13 @@ type Queue struct {
 	// LockWait is how long a write waits for another process's index.lock
 	// to go before failing with a LockedError.
 	LockWait time.Duration
-	mu       sync.Mutex
-	jobs     []*Job
+	// Refs reads the repository's refs, for undo; without it nothing is
+	// recorded.
+	Refs refs.Reader
+	// History is what Undo and Redo act on.
+	History History
+	mu      sync.Mutex
+	jobs    []*Job
 	// started is set while jobs[0] runs.
 	started bool
 	closed  error
@@ -239,6 +250,20 @@ func (q *Queue) run(qctx context.Context, j *Job) {
 		j.finish(run.Result{}, err)
 		return
 	}
+	if j.Op.do != nil {
+		res, err := j.Op.do(ctx)
+		j.finish(res, err)
+		return
+	}
+	var before fullState
+	record := j.Op.Undo != NotUndoable && q.Refs != nil
+	if record {
+		var err error
+		if before, err = capture(q.Refs); err != nil {
+			j.finish(run.Result{}, err)
+			return
+		}
+	}
 	if err := q.prepare(ctx, j); err != nil {
 		j.finish(run.Result{}, err)
 		return
@@ -258,7 +283,22 @@ func (q *Queue) run(qctx context.Context, j *Job) {
 			err = le
 		}
 	}
+	if err == nil && record {
+		q.record(j, before)
+	}
 	j.finish(res, err)
+}
+
+func (q *Queue) record(j *Job, before fullState) {
+	after, err := capture(q.Refs)
+	if err != nil {
+		return // the write happened; it just cannot be undone
+	}
+	b, a := touched(before, after)
+	j.mu.Lock()
+	snap := j.snap
+	j.mu.Unlock()
+	q.History.push(Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op})
 }
 
 // prepare runs inside the job's turn, so nothing the queue runs can
