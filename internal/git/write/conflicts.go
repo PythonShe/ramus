@@ -162,3 +162,21 @@ func MergeTool(w Where, paths []string, gui bool) (Op, error) {
 	cmd.Timeout = MergeToolTime
 	return Op{Name: name, Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Cmd: cmd}, nil
 }
+
+// ObserveMerged records the MERGED file git mergetool hands over,
+// absolute, for SaveMerged to check it is unchanged.
+func ObserveMerged(path string) FileState {
+	dir, name := filepath.Split(path)
+	return stat(dir, name)
+}
+
+// SaveMerged writes a merge resolved for git mergetool to its MERGED file,
+// absolute, whole or not at all, and refuses when the file changed since
+// seen. git mergetool stages it once the tool exits.
+func SaveMerged(path string, data []byte, seen FileState) error {
+	dir, name := filepath.Split(path)
+	if now := stat(dir, name); !now.same(seen) {
+		return &StaleError{What: name, Saw: describe(seen), Now: describe(now)}
+	}
+	return (&FileWrite{Path: name, Data: data}).write(dir)
+}
