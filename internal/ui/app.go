@@ -33,6 +33,8 @@ type Deps struct {
 	// PickFolder asks the user for a folder and blocks until they answer;
 	// "" when they cancel. It is only called off the main thread.
 	PickFolder func(title string) (string, error)
+	// ApplyTheme makes "system", "light" or "dark" the app's appearance.
+	ApplyTheme func(theme string)
 	// Now is the clock, for tests.
 	Now func() time.Time
 }
@@ -49,9 +51,10 @@ type App struct {
 	// pending are repositories asked for before git was found.
 	pending []string
 
-	welcome welcomeState
-	clone   cloneState
-	palette paletteState
+	welcome    welcomeState
+	clone      cloneState
+	palette    paletteState
+	settingsUI settingsState
 }
 
 // tab is one open repository.
@@ -230,6 +233,7 @@ func (a *App) View(c *ui.Context) {
 		}
 	})
 	a.cloneDialog(c)
+	a.settingsView(c)
 	a.paletteView(c)
 }
 
@@ -242,6 +246,9 @@ func (a *App) shortcuts(c *ui.Context) {
 	}
 	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyP) || c.Shortcut(ui.Cmd, ui.KeyK) {
 		a.palette.open = true
+	}
+	if c.Shortcut(ui.Cmd, ui.KeyComma) {
+		a.openSettings()
 	}
 	for i, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9} {
 		if c.Shortcut(ui.Cmd, k) && i < len(a.tabs) {
@@ -263,6 +270,9 @@ func (a *App) PickAndOpen() { a.pickAndOpen() }
 
 // ShowClone opens the clone dialog.
 func (a *App) ShowClone() { a.clone.open = true }
+
+// ShowSettings opens the settings.
+func (a *App) ShowSettings() { a.openSettings() }
 
 // ShowPalette opens the command palette.
 func (a *App) ShowPalette() { a.palette.open = true }

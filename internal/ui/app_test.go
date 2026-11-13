@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -236,5 +237,50 @@ func TestPaletteAndClone(t *testing.T) {
 	h.until("the clone to open", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No changes") })
 	if _, err := os.Stat(filepath.Join(h.app.clone.dir, "README")); err == nil {
 		t.Fatal("dialog state kept")
+	}
+}
+
+func TestSettings(t *testing.T) {
+	h := newHarness(t)
+	h.app.SettingsPath = filepath.Join(t.TempDir(), "settings.json")
+	var theme string
+	h.app.ApplyTheme = func(s string) { theme = s }
+	h.tt.Frame()
+	h.tt.Key(ui.Cmd, ui.KeyComma)
+	h.until("the settings", h.shows("Appearance"))
+	h.app.settingsUI.theme = 2
+	h.app.settingsUI.editor = "code --wait"
+	h.tt.Frame()
+	h.click("Save")
+	if !h.tt.HasText("full path") {
+		t.Fatalf("relative editor accepted: %q", h.tt.Texts())
+	}
+	exe, _ := os.Executable()
+	h.app.settingsUI.editor = `"` + exe + `" --wait`
+	h.tt.Frame()
+	h.click("Save")
+	if theme != "dark" || h.app.Settings.Theme != "dark" || len(h.app.Settings.Editor) != 2 || h.app.Settings.Editor[0] != exe {
+		t.Fatalf("applied %q %+v", theme, h.app.Settings)
+	}
+	h.until("the file", func() bool {
+		s, err := settings.Load(h.app.SettingsPath)
+		return err == nil && s.Theme == "dark"
+	})
+}
+
+func TestSplitArgs(t *testing.T) {
+	for in, want := range map[string][]string{
+		`/usr/bin/code --wait`:          {"/usr/bin/code", "--wait"},
+		`"/Applications/My Editor.app"`: {"/Applications/My Editor.app"},
+		`a 'b c' "d'e"`:                 {"a", "b c", "d'e"},
+		"  ":                            nil,
+	} {
+		got := splitArgs(in)
+		if strings.Join(got, "|") != strings.Join(want, "|") || len(got) != len(want) {
+			t.Errorf("splitArgs(%q) = %q", in, got)
+		}
+		if back := splitArgs(joinArgs(got)); strings.Join(back, "|") != strings.Join(got, "|") {
+			t.Errorf("join round trip of %q: %q", got, back)
+		}
 	}
 }

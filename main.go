@@ -53,6 +53,7 @@ func main() {
 	var win *mygo.Window // set and read on the main thread
 	app := ui.NewApp(ui.Deps{
 		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath,
+		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
 		Update: func(fn func()) {
 			mygo.RunOnMain(func() {
 				if win == nil {
@@ -156,6 +157,10 @@ func menu(app *ui.App) *mygo.Menu {
 			}},
 			{Role: mygo.RoleOpenRecent},
 			mygo.Separator(),
+			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+				app.ShowSettings()
+				w.Invalidate()
+			}},
 			{Label: "Command Palette", Accelerator: "CmdOrCtrl+Shift+P", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 				app.ShowPalette()
 				w.Invalidate()
