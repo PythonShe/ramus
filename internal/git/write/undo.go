@@ -147,7 +147,7 @@ func (q *Queue) Undo() *Job { return q.submitHistory("Undo", true) }
 func (q *Queue) Redo() *Job { return q.submitHistory("Redo", false) }
 
 func (q *Queue) submitHistory(name string, undo bool) *Job {
-	return q.Submit(Op{Name: name, do: func(ctx context.Context) (run.Result, error) {
+	return q.Submit(Op{Name: name, do: func(ctx context.Context, _ *Job) (run.Result, error) {
 		return q.travel(ctx, undo)
 	}})
 }

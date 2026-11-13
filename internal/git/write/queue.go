@@ -40,8 +40,9 @@ type Op struct {
 	// tag). Undo moves only these, so a ref moved meanwhile by something
 	// else is left alone.
 	Refs []string
-	// do runs in place of Cmd, for undo and redo.
-	do func(ctx context.Context) (run.Result, error)
+	// do runs in place of Cmd, for writes the engine makes of several
+	// commands: undo and redo, snapshots.
+	do func(ctx context.Context, j *Job) (run.Result, error)
 }
 
 // Stream says where a line came from.
@@ -262,7 +263,7 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 		return run.Result{}, err
 	}
 	if j.Op.do != nil {
-		res, err := j.Op.do(ctx)
+		res, err := j.Op.do(ctx, j)
 		return res, err
 	}
 	var before fullState
