@@ -153,7 +153,7 @@ func (a *App) libraryWrite(fn func(*library.Library) error) {
 		update(func() {
 			a.manager.dirty = true
 			if err != nil {
-				a.notice = err.Error()
+				a.notice = errText(err)
 			}
 		})
 	}()

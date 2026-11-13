@@ -104,6 +104,10 @@ var (
 	extraRE    = regexp.MustCompile(`(?i)(http\.(?:[^\s=]*\.)?extraheader\s*=\s*)[^\n]*`)
 )
 
+// Shown is text from git as the app shows or keeps it: control
+// characters stripped and secrets hidden.
+func Shown(s string) string { return Secrets(Control(s)) }
+
 // Hidden replaces what Secrets removes.
 const Hidden = "<redacted>"
 

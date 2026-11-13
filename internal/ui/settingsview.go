@@ -97,7 +97,7 @@ func (a *App) saveSettings() {
 		argv := splitArgs(f.text)
 		if len(argv) > 0 {
 			if _, err := tools.Custom(f.label, f.kind, argv); err != nil {
-				s.err = f.label + ": " + err.Error()
+				s.err = f.label + ": " + errText(err)
 				return
 			}
 		}
@@ -112,7 +112,7 @@ func (a *App) saveSettings() {
 		path, saved, update := a.SettingsPath, next, a.Update
 		go func() {
 			if err := settings.Save(path, saved); err != nil {
-				update(func() { a.notice = "Settings not saved: " + err.Error() })
+				update(func() { a.notice = "Settings not saved: " + errText(err) })
 			}
 		}()
 	}

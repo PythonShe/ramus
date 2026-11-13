@@ -39,7 +39,7 @@ func (a *App) commands() []command {
 		for _, tl := range a.palette.tools {
 			cmds = append(cmds, command{"Open in " + tl.Name, func() {
 				if err := tl.Open(dir, 0); err != nil {
-					a.notice = err.Error()
+					a.notice = errText(err)
 				}
 			}})
 		}

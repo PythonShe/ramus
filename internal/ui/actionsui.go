@@ -51,7 +51,7 @@ func (a *App) startAction(t *tab, act settings.Action, v actions.Vars) {
 func (a *App) runAction(t *tab, act settings.Action, v actions.Vars, answers map[string]string) {
 	argv, err := actions.Expand(act.Command, v, answers)
 	if err != nil {
-		a.notice = act.Name + ": " + err.Error()
+		a.notice = act.Name + ": " + errText(err)
 		return
 	}
 	t.s.RunAction(act.Name, argv)
@@ -124,7 +124,7 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 		*act = func() {
 			go func() {
 				if err := ed.Open(abs, 0); err != nil {
-					a.Update(func() { a.notice = err.Error() })
+					a.Update(func() { a.notice = errText(err) })
 				}
 			}()
 		}
@@ -188,7 +188,7 @@ func (a *App) logView(c *ui.Context, t *tab) {
 				ui.Text(c, e.Output[i]).Font("monospace").FontSize(12).Selectable()
 			}).Grow(1)
 			if e.Err != nil {
-				ui.Text(c, e.Err.Error()).TextColor(th.Danger).Selectable()
+				ui.Text(c, errText(e.Err)).TextColor(th.Danger).Selectable()
 			}
 		})
 	}).Fill()

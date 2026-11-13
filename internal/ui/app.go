@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
 	"ramus/internal/git/write"
@@ -113,7 +114,7 @@ func (a *App) findTools() {
 // none.
 func (a *App) SetRunner(r *run.Runner, err error) {
 	if err != nil {
-		a.notice = "Git was not found: " + err.Error()
+		a.notice = "Git was not found: " + errText(err)
 		return
 	}
 	a.Runner = r
@@ -202,7 +203,7 @@ func (a *App) pickAndOpen() {
 		update(func() {
 			switch {
 			case err != nil:
-				a.notice = err.Error()
+				a.notice = errText(err)
 			case p != "":
 				a.Open(p)
 			}
@@ -232,7 +233,7 @@ func (a *App) initAndOpen() {
 		update(func() {
 			switch {
 			case err != nil:
-				a.notice = err.Error()
+				a.notice = errText(err)
 			case p != "":
 				a.Open(p)
 			}
@@ -298,7 +299,11 @@ func (a *App) title(t *tab) string {
 }
 
 // Notify shows a message that belongs to no repository.
-func (a *App) Notify(msg string) { a.notice = msg }
+func (a *App) Notify(msg string) { a.notice = redact.Shown(msg) }
+
+// errText is an error as the app shows it: git's message without escape
+// sequences or credentials.
+func errText(err error) string { return redact.Shown(err.Error()) }
 
 // PickAndOpen asks for a repository's folder and opens it.
 func (a *App) PickAndOpen() { a.pickAndOpen() }

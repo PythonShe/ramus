@@ -34,7 +34,7 @@ const (
 )
 
 func (s *Session) addLog(name, command string) *LogEntry {
-	e := &LogEntry{Name: name, Command: redact.Secrets(redact.Control(command)), Running: true, Started: s.timeNow()}
+	e := &LogEntry{Name: name, Command: redact.Shown(command), Running: true, Started: s.timeNow()}
 	s.Log = append(s.Log, e)
 	if len(s.Log) > MaxLogEntries {
 		s.Log = append(s.Log[:0:0], s.Log[len(s.Log)-MaxLogEntries:]...)
@@ -46,7 +46,7 @@ func (e *LogEntry) add(lines []string) {
 	for i, l := range lines {
 		// What a command prints may hold escape sequences that would
 		// restyle or spoof the log, and secrets that must not stay.
-		lines[i] = redact.Secrets(redact.Control(l))
+		lines[i] = redact.Shown(l)
 	}
 	e.Output = append(e.Output, lines...)
 	if over := len(e.Output) - MaxLogLines; over > 0 {
@@ -146,5 +146,5 @@ func (s *Session) RunAction(name string, argv []string) *LogEntry {
 // characters and secrets, its cause still reachable.
 type shownError struct{ err error }
 
-func (e shownError) Error() string { return redact.Secrets(redact.Control(e.err.Error())) }
+func (e shownError) Error() string { return redact.Shown(e.err.Error()) }
 func (e shownError) Unwrap() error { return e.err }

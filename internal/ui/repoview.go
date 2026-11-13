@@ -28,7 +28,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 	case st.Err != nil:
 		ui.Column(c).Fill().Center().Gap(12).Children(func() {
 			ui.Text(c, "Cannot open "+t.s.Path).Bold()
-			ui.Text(c, st.Err.Error()).TextColor(th.TextMuted).MaxWidth(560)
+			ui.Text(c, errText(st.Err)).TextColor(th.TextMuted).MaxWidth(560)
 			if ui.Button(c, "Close").Clicked() {
 				a.Close(a.active)
 			}
@@ -56,7 +56,7 @@ func (a *App) trustBanner(c *ui.Context, t *tab) {
 		ui.Text(c, "Read-only: this repository's hooks, filters and config commands do not run until you trust it.").Grow(1)
 		if ui.Button(c, "Trust").Clicked() {
 			if err := t.s.Trust(); err != nil {
-				a.notice = err.Error()
+				a.notice = errText(err)
 			}
 		}
 	})
@@ -238,7 +238,7 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 			ui.Text(c, a.gitWarning).FontSize(12).TextColor(th.Warning).SingleLine()
 		}
 		if st.RefreshErr != nil {
-			ui.Text(c, "Refresh failed: "+st.RefreshErr.Error()).FontSize(12).TextColor(th.Danger).SingleLine().MaxWidth(480)
+			ui.Text(c, "Refresh failed: "+errText(st.RefreshErr)).FontSize(12).TextColor(th.Danger).SingleLine().MaxWidth(480)
 		}
 	})
 }

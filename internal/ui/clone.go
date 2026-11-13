@@ -101,7 +101,7 @@ func (a *App) startClone() {
 	}
 	j, err := write.Clone(a.Runner, write.CloneOptions{URL: strings.TrimSpace(cs.url), Dir: dir})
 	if err != nil {
-		cs.err = err.Error()
+		cs.err = errText(err)
 		return
 	}
 	cs.job, cs.err, cs.progress, cs.percent = j, "", "", -1
