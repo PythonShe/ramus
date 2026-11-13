@@ -95,3 +95,30 @@ func BenchmarkBuildChanges(b *testing.B) {
 		}
 	})
 }
+
+func TestEntryNote(t *testing.T) {
+	line := func(xy, sub, mh, mi, mw, path string) string {
+		return fmt.Sprintf("1 %s %s %s %s %s %s %s %s\x00", xy, sub, mh, mi, mw, zeroOID, zeroOID, path)
+	}
+	out := line(".M", "N...", "100644", "100644", "100755", "run.sh") +
+		line("M.", "N...", "100644", "100755", "100755", "staged.sh") +
+		line(".T", "N...", "100644", "100644", "120000", "link") +
+		line(".M", "SC.U", "160000", "160000", "160000", "vendor/lib")
+	st, err := status.Parse([]byte(out), 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []struct {
+		sec  section
+		note string
+	}{
+		{secUnstaged, "file → executable"},
+		{secStaged, "file → executable"},
+		{secUnstaged, "now a symlink"},
+		{secUnstaged, "submodule: new commits, untracked content"},
+	} {
+		if got := entryNote(st, i, want.sec); got != want.note {
+			t.Errorf("%s: %q, want %q", st.Path(i), got, want.note)
+		}
+	}
+}
