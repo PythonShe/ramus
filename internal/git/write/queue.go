@@ -86,6 +86,9 @@ func (j *Job) Done() <-chan struct{} { return j.done }
 func (j *Job) Cancel() {
 	j.cancel()
 	q := j.q
+	if q == nil {
+		return // started on its own: stopping its context stops git
+	}
 	q.mu.Lock()
 	queued := false
 	for i, k := range q.jobs {
@@ -154,8 +157,7 @@ func NewQueue(life *lifetime.Lifetime, r *run.Runner, gitDir string) (*Queue, er
 // Submit queues a write. It never blocks. After the repository closed,
 // the job ends at once with lifetime.ErrClosed.
 func (q *Queue) Submit(op Op) *Job {
-	ctx, cancel := context.WithCancel(context.Background())
-	j := &Job{Op: op, q: q, ctx: ctx, events: make(chan Event, 1024), done: make(chan struct{}), cancel: cancel}
+	j := newJob(q, op)
 	q.mu.Lock()
 	closed := q.closed
 	if closed == nil {
@@ -163,7 +165,7 @@ func (q *Queue) Submit(op Op) *Job {
 	}
 	q.mu.Unlock()
 	if closed != nil {
-		cancel()
+		j.cancel()
 		j.finish(run.Result{}, closed)
 		return j
 	}
@@ -268,16 +270,7 @@ func (q *Queue) run(qctx context.Context, j *Job) {
 		j.finish(run.Result{}, err)
 		return
 	}
-	cmd := j.Op.Cmd
-	cmd.Read = false
-	out, errw := &lines{j: j, stream: Stdout}, &lines{j: j, stream: Stderr}
-	stdout := &keep{max: maxStdout}
-	cmd.Stdout = teeWriter{stdout, out}
-	cmd.Stderr = errw
-	res, err := q.r.Run(ctx, &cmd)
-	out.flush()
-	errw.flush()
-	res.Stdout = stdout.buf
+	res, err := execute(ctx, q.r, j)
 	if err != nil {
 		if le := lockError(q.gitDir, res.Stderr); le != nil {
 			err = le
@@ -329,6 +322,26 @@ func (q *Queue) prepare(ctx context.Context, j *Job) error {
 		j.mu.Unlock()
 	}
 	return nil
+}
+
+// execute runs the job's command with its output going to its events.
+func execute(ctx context.Context, r *run.Runner, j *Job) (run.Result, error) {
+	cmd := j.Op.Cmd
+	cmd.Read = false
+	out, errw := &lines{j: j, stream: Stdout}, &lines{j: j, stream: Stderr}
+	stdout := &keep{max: maxStdout}
+	cmd.Stdout = teeWriter{stdout, out}
+	cmd.Stderr = errw
+	res, err := r.Run(ctx, &cmd)
+	out.flush()
+	errw.flush()
+	res.Stdout = stdout.buf
+	return res, err
+}
+
+func newJob(q *Queue, op Op) *Job {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Job{Op: op, q: q, ctx: ctx, events: make(chan Event, 1024), done: make(chan struct{}), cancel: cancel}
 }
 
 // maxStdout bounds the output a write keeps; its events carry it all.

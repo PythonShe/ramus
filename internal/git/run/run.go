@@ -128,6 +128,8 @@ type Cmd struct {
 	// discovery checks (ownership, safe.bareRepository) apply; naming the
 	// git directory skips them.
 	Discover bool
+	// Outside runs git with no repository, in WorkTree: clone and init.
+	Outside bool
 	// Untranslated makes git print its messages in English, for a command
 	// whose stderr the engine reads. Other commands keep the user's
 	// language, since their errors are shown as they are.
@@ -140,7 +142,7 @@ func (c *Cmd) Line() string { return "git " + strings.Join(c.argv(), " ") }
 
 func (c *Cmd) argv() []string {
 	var a []string
-	if !c.Discover {
+	if !c.Discover && !c.Outside {
 		a = append(a, "--git-dir="+c.GitDir)
 		if c.WorkTree != "" {
 			a = append(a, "--work-tree="+c.WorkTree)
@@ -208,7 +210,7 @@ var ErrTimeout = errors.New("run: timed out")
 // Run runs c and waits for it, after waiting for a free slot. Cancelling
 // ctx stops the wait or the process.
 func (r *Runner) Run(ctx context.Context, c *Cmd) (Result, error) {
-	if c.GitDir == "" {
+	if c.GitDir == "" && !(c.Outside && c.WorkTree != "") {
 		return Result{}, errors.New("run: command names no repository")
 	}
 	if r.hardening != nil && !c.Read {
