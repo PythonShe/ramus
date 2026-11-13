@@ -112,7 +112,7 @@ func (a *App) Open(path string) {
 	}
 	a.nextID++
 	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), chosen: -1, sideW: 220, listW: 420,
-		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true}}
+		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
 	t.changes.Selected = &t.chosen
 	a.tabs = append(a.tabs, t)
 	a.active = len(a.tabs) - 1

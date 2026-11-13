@@ -140,6 +140,23 @@ func TestOpenFollowsChanges(t *testing.T) {
 	}
 }
 
+func TestWorktreesInSidebar(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	other := filepath.Join(t.TempDir(), "second")
+	t.Cleanup(h.closeAll) // before the folder above goes
+	r.Git("worktree", "add", "-q", other, "-b", "topic")
+	h.app.Open(r.Dir)
+	label := "second  topic"
+	h.until("the worktree", h.shows(label))
+	h.click(label)
+	h.until("its tab", func() bool { return len(h.app.tabs) == 2 })
+	if h.app.current().s.Path != library.Clean(other) {
+		t.Fatalf("opened %s", h.app.current().s.Path)
+	}
+}
+
 func TestTrustBanner(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()

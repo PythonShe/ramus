@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -93,7 +94,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		})
 		t.open[key] = open
 	}
-	ui.Sidebar(c, &t.sel, func() {
+	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, "changes", nil, changesLabel(st))
 		section("branches", "Branches", heads, "refs/heads/")
 		section("remotes", "Remotes", remotes, "refs/remotes/")
@@ -101,7 +102,57 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		if st.Status != nil && st.Status.Branch.Stashes > 0 {
 			ui.SidebarItem(c, "stashes", nil, fmt.Sprintf("Stashes (%d)", st.Status.Branch.Stashes))
 		}
-	}).FillHeight()
+		if len(st.Worktrees) > 1 {
+			open := t.open["worktrees"]
+			ui.SidebarSection(c, fmt.Sprintf("Worktrees (%d)", len(st.Worktrees)), &open, func() {
+				for _, w := range st.Worktrees {
+					label := filepath.Base(w.Path)
+					switch {
+					case w.Branch != "":
+						label += "  " + strings.TrimPrefix(w.Branch, "refs/heads/")
+					case w.Detached:
+						label += "  detached"
+					}
+					it := ui.SidebarItem(c, "worktree:"+w.Path, nil, label)
+					if w.Current {
+						it.Bold()
+					}
+				}
+			})
+			t.open["worktrees"] = open
+		}
+		if len(st.Submodules) > 0 {
+			open := t.open["submodules"]
+			ui.SidebarSection(c, fmt.Sprintf("Submodules (%d)", len(st.Submodules)), &open, func() {
+				for _, m := range st.Submodules {
+					ui.SidebarItem(c, "submodule:"+m.Path, nil, m.Path)
+				}
+			})
+			t.open["submodules"] = open
+		}
+	})
+	if side.Changed() {
+		a.chooseSidebar(t)
+	}
+	side.FillHeight()
+}
+
+// chooseSidebar acts on a sidebar item chosen: a worktree or submodule
+// opens in its own tab.
+func (a *App) chooseSidebar(t *tab) {
+	kind, path, ok := strings.Cut(t.sel, ":")
+	if !ok {
+		return
+	}
+	switch kind {
+	case "worktree":
+		if path != t.s.Path {
+			a.Open(path)
+		}
+	case "submodule":
+		a.Open(filepath.Join(t.s.Path, filepath.FromSlash(path)))
+	}
+	t.sel = "changes"
 }
 
 func changesLabel(st session.State) string {

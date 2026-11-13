@@ -7,6 +7,7 @@ package session
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -30,10 +31,12 @@ type State struct {
 	// Fallbacks name what goes to git, for the status line.
 	Fallbacks []string
 
-	Head      refs.Head
-	Refs      *refs.List
-	Status    *status.Status
-	Operation repo.Operation
+	Head       refs.Head
+	Refs       *refs.List
+	Worktrees  []repo.Worktree
+	Submodules []repo.Submodule
+	Status     *status.Status
+	Operation  repo.Operation
 	// RefreshErr is the last refresh that failed; the state before it
 	// stays shown.
 	RefreshErr error
@@ -112,7 +115,11 @@ func (s *Session) open() {
 					if !ok {
 						return
 					}
-					s.Refresh(n.What)
+					what := n.What
+					if slices.Contains(n.Paths, ".gitmodules") {
+						what |= modulesChanged
+					}
+					s.Refresh(what)
 				case <-ctx.Done():
 					return
 				}
@@ -155,7 +162,10 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 	}
 }
 
-const all = repo.WorkTreeChanged | repo.IndexChanged | repo.RefsChanged | repo.OperationChanged | repo.ConfigChanged
+// modulesChanged is .gitmodules changing, beside the watcher's own bits.
+const modulesChanged repo.Change = 1 << 7
+
+const all = modulesChanged | repo.WorkTreeChanged | repo.IndexChanged | repo.RefsChanged | repo.OperationChanged | repo.ConfigChanged
 
 func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change) {
 	if what&repo.Rescan != 0 {
@@ -166,6 +176,10 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		list    *refs.List
 		st      *status.Status
 		op      *repo.Operation
+		wts     []repo.Worktree
+		subs    []repo.Submodule
+		readWts bool
+		readSub bool
 		err     error
 		readAt  time.Time
 		changed bool
@@ -189,6 +203,16 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		op := repo.InProgress(r.GitDir)
 		res.op = &op
+	}
+	if what&(repo.RefsChanged|repo.ConfigChanged) != 0 {
+		wts, err := r.Worktrees(ctx)
+		fail(err)
+		res.wts, res.readWts = wts, err == nil
+	}
+	if what&(modulesChanged|repo.RefsChanged) != 0 {
+		subs, err := r.Submodules(ctx)
+		fail(err)
+		res.subs, res.readSub = subs, err == nil
 	}
 	if what&(repo.WorkTreeChanged|repo.IndexChanged|repo.RefsChanged) != 0 {
 		st, err := status.Read(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, status.Options{})
@@ -215,6 +239,12 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		if res.op != nil {
 			st.Operation = *res.op
+		}
+		if res.readWts {
+			st.Worktrees = res.wts
+		}
+		if res.readSub {
+			st.Submodules = res.subs
 		}
 		st.RefreshErr = res.err
 		s.State = st
