@@ -151,6 +151,33 @@ func InWorkTree(root, rel string) (string, error) {
 	return cur, nil
 }
 
+// Target checks a path the app hands to another program to open (an
+// editor, the file manager, a user's action): InWorkTree, and when the
+// path is itself a symlink, what it points to must be in the work tree
+// too, since the program follows it.
+func Target(root, rel string) (string, error) {
+	p, err := InWorkTree(root, rel)
+	if err != nil {
+		return "", err
+	}
+	st, err := os.Lstat(p)
+	if err != nil || st.Mode()&os.ModeSymlink == 0 {
+		return p, nil
+	}
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	target, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return "", fmt.Errorf("%w: %q: %v", ErrUnsafe, rel, err)
+	}
+	if !within(realRoot, target) {
+		return "", fmt.Errorf("%w: %q leads out of the work tree", ErrUnsafe, rel)
+	}
+	return p, nil
+}
+
 func within(root, p string) bool {
 	rel, err := filepath.Rel(root, p)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)

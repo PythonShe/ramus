@@ -67,3 +67,25 @@ func TestInWorkTree(t *testing.T) {
 		}
 	}
 }
+
+func TestTarget(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	os.WriteFile(filepath.Join(root, "file"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(outside, "secret"), []byte("x"), 0o644)
+	os.Symlink(filepath.Join(outside, "secret"), filepath.Join(root, "away"))
+	os.Symlink("file", filepath.Join(root, "near"))
+	os.Symlink("missing", filepath.Join(root, "dangling"))
+	for rel, ok := range map[string]bool{
+		"file":     true,
+		"near":     true,
+		"absent":   true,
+		"away":     false,
+		"dangling": false,
+		"../x":     false,
+	} {
+		if _, err := Target(root, rel); ok != (err == nil) {
+			t.Errorf("%q: %v", rel, err)
+		}
+	}
+}
