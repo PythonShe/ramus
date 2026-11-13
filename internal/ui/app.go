@@ -56,6 +56,7 @@ type App struct {
 	palette    paletteState
 	settingsUI settingsState
 	manager    managerState
+	prompt     promptState
 }
 
 // tab is one open repository.
@@ -66,8 +67,12 @@ type tab struct {
 	open    map[string]bool
 	changes ui.ListState
 	chosen  int
-	sideW   float32
-	listW   float32
+	// The command log: entries newest first, and the output of one.
+	logList   ui.ListState
+	logChosen int
+	outList   ui.ListState
+	sideW     float32
+	listW     float32
 }
 
 // NewApp returns the app with nothing open.
@@ -248,6 +253,7 @@ func (a *App) View(c *ui.Context) {
 	a.cloneDialog(c)
 	a.settingsView(c)
 	a.managerView(c)
+	a.promptView(c)
 	a.paletteView(c)
 }
 

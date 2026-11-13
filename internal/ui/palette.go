@@ -43,7 +43,13 @@ func (a *App) commands() []command {
 				}
 			}})
 		}
-		cmds = append(cmds, command{"Reveal in File Manager", func() { tools.Reveal(dir) }})
+		cmds = append(cmds, command{"Reveal in File Manager", func() { go tools.Reveal(dir) }})
+		cmds = append(cmds, command{"Show Command Log", func() { t.sel = "log" }})
+		for _, x := range a.Settings.Actions {
+			if x.On == "" {
+				cmds = append(cmds, command{x.Name, func() { a.startAction(t, x, varsFor(t, "")) }})
+			}
+		}
 	}
 	for i, other := range a.tabs {
 		cmds = append(cmds, command{"Go to " + a.title(other), func() { a.active = i }})

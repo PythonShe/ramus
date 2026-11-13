@@ -37,6 +37,10 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 			a.trustBanner(c, t)
 		}
 		ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, func() {
+			if t.sel == "log" {
+				a.logView(c, t)
+				return
+			}
 			ui.Split(c, &t.listW, func() { a.changesList(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
 		}).SplitReset(220).Grow(1)
 		a.statusBar(c, t)
@@ -96,6 +100,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	}
 	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, "changes", nil, changesLabel(st))
+		ui.SidebarItem(c, "log", nil, "Command Log")
 		section("branches", "Branches", heads, "refs/heads/")
 		section("remotes", "Remotes", remotes, "refs/remotes/")
 		section("tags", "Tags", tags, "refs/tags/")
@@ -177,13 +182,18 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 			return
 		}
 		t.changes.Label = func(i int) string { return string(st.Path(i)) }
+		var act func()
 		ui.List(c, &t.changes, st.Len(), func(i int) {
 			x, y := st.XY(i)
-			ui.Row(c).Padding(3, 8).Gap(8).Children(func() {
+			path := string(st.Path(i))
+			ui.Row(c).Padding(3, 8).Gap(8).FillWidth().Children(func() {
 				ui.Text(c, string([]byte{x, y})).Font("monospace").TextColor(th.TextMuted).Width(24)
-				ui.Text(c, string(st.Path(i))).SingleLine().Grow(1)
-			})
+				ui.Text(c, path).SingleLine().Grow(1)
+			}).ContextMenu(func(m *ui.Menu) { a.fileMenu(m, t, path, &act) })
 		}).Grow(1)
+		if act != nil {
+			act()
+		}
 	})
 }
 

@@ -315,3 +315,36 @@ func TestManagerAndGroups(t *testing.T) {
 		t.Fatalf("group opened %d tabs", len(h.app.tabs))
 	}
 }
+
+func TestActionsAndLog(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Settings.Actions = []settings.Action{
+		{Name: "Say hello", Command: []string{"/bin/sh", "-c", "echo hello $1 on $2", "sh", "${prompt:Who}", "${branch}"}},
+		{Name: "Count bytes", Command: []string{"/usr/bin/wc", "-c", "${file}"}, On: "file"},
+	}
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	h.app.palette.open = true
+	h.tt.Frame()
+	h.tt.Type("say hello")
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("the question", h.shows("Who"))
+	h.tt.Type("world")
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("the output", h.shows("hello world on main"))
+
+	r.Write("f.txt", "12345")
+	h.until("the change", h.shows("Changes (1)"))
+	h.click("Changes (1)")
+	h.until("the file", h.shows("f.txt"))
+	if err := h.tt.RightClick("f.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Count bytes"); err != nil {
+		t.Fatalf("menu %q: %v", h.tt.Menu(), err)
+	}
+	h.until("the second output", h.shows("5 "))
+}
