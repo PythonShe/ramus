@@ -45,6 +45,7 @@ func (a *App) commands() []command {
 		}
 		cmds = append(cmds, command{"Reveal in File Manager", func() { go tools.Reveal(dir) }})
 		cmds = append(cmds, command{"Show History", func() { t.sel = "history" }})
+		cmds = append(cmds, command{"Issue Links…", func() { a.openLinks(t) }})
 		cmds = append(cmds, command{"Show Command Log", func() { t.sel = "log" }})
 		cmds = append(cmds, command{"Show Snapshots", func() { t.sel = "snapshots" }})
 		if q := t.s.Queue; q != nil {

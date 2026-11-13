@@ -1,10 +1,13 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+
+	"ramus/internal/issuelink"
 )
 
 func TestHistoryView(t *testing.T) {
@@ -63,4 +66,36 @@ func TestHistoryView(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.until("the message copied", func() bool { return h.tt.Clipboard() == "add beta\n" })
+}
+
+func TestIssueLinks(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "git@github.com:octo/proj.git")
+	r.Write("a.txt", "a\n")
+	r.Commit("fix crash\n\nCloses #12 and PROJ-7.")
+	h.trust.Set(r.GitDir(), true)
+	h.lib.Opened(r.Dir, h.app.Now())
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commits", h.shows("fix crash"))
+	h.click("fix crash")
+	exact := func(s string) func() bool {
+		return func() bool { return slices.Contains(h.tt.Texts(), s) }
+	}
+	h.until("the link from the remote", exact("#12"))
+	if exact("PROJ-7")() {
+		t.Fatal("PROJ-7 linked before a rule names it")
+	}
+
+	tab := h.app.current()
+	h.app.openLinks(tab)
+	h.tt.Frame()
+	h.app.links.rules[0] = issuelink.Rule{Pattern: `\bPROJ-(\d+)\b`, URL: "https://jira.example.com/browse/PROJ-$1"}
+	h.click("Save")
+	h.until("the rule used", exact("PROJ-7"))
+	if got := h.lib.IssueLinks(r.Dir); len(got) != 1 {
+		t.Fatalf("saved %+v", got)
+	}
 }

@@ -64,6 +64,7 @@ type App struct {
 	settingsUI settingsState
 	manager    managerState
 	prompt     promptState
+	links      linksDialog
 }
 
 // tab is one open repository.
@@ -80,6 +81,7 @@ type tab struct {
 	outList   ui.ListState
 	snaps     snapState
 	hist      historyState
+	links     tabLinks
 	// expired is set once old snapshots were cleared on open.
 	expired bool
 	sideW   float32
@@ -277,6 +279,7 @@ func (a *App) View(c *ui.Context) {
 	a.settingsView(c)
 	a.managerView(c)
 	a.promptView(c)
+	a.linksView(c)
 	a.paletteView(c)
 }
 

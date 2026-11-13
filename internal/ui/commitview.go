@@ -72,9 +72,11 @@ func (a *App) commitHeader(c *ui.Context, t *tab, d *session.CommitDetail) {
 	cm := d.Commit
 	subject, body, _ := bytes.Cut(bytes.TrimRight(cm.Message, "\n"), []byte("\n"))
 	ui.Column(c).Padding(10, 12).Gap(6).FillWidth().Children(func() {
-		ui.Text(c, redact.Control(string(subject))).Bold().Selectable()
+		a.loadLinks(t)
+		links := t.links.set
+		linkedText(c, redact.Control(string(subject)), links).Bold()
 		if b := bytes.TrimSpace(body); len(b) > 0 {
-			ui.Text(c, redact.Control(string(b))).Selectable().MaxHeight(160)
+			linkedText(c, redact.Control(string(b)), links).MaxHeight(160)
 		}
 		person := func(role string, p object.Signature) {
 			ui.Row(c).Gap(8).Children(func() {
