@@ -104,6 +104,7 @@ func (a *App) saveSettings() {
 		*f.into = argv
 	}
 	a.Settings, s.open = next.WithDefaults(), false
+	a.findTools()
 	if a.ApplyTheme != nil {
 		a.ApplyTheme(a.Settings.Theme)
 	}

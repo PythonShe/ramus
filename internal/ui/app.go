@@ -78,13 +78,25 @@ func NewApp(d Deps) *App {
 		d.Update = func(fn func()) { fn() }
 	}
 	a := &App{Deps: d, active: -1}
-	// Looking for installed tools touches the disk: not on the main
-	// thread.
-	go func() {
-		found := tools.Detect()
-		d.Update(func() { a.palette.tools, a.palette.found = found, true })
-	}()
+	a.findTools()
 	return a
+}
+
+// findTools looks for the installed editors and terminals, and those the
+// settings name, off the main thread since it touches the disk.
+func (a *App) findTools() {
+	editor, terminal, update := a.Settings.Editor, a.Settings.Terminal, a.Update
+	go func() {
+		var found []tools.Tool
+		if tl, err := tools.Custom("your editor", tools.Editor, editor); err == nil {
+			found = append(found, tl)
+		}
+		if tl, err := tools.Custom("your terminal", tools.Terminal, terminal); err == nil {
+			found = append(found, tl)
+		}
+		found = append(found, tools.Detect()...)
+		update(func() { a.palette.tools, a.palette.found = found, true })
+	}()
 }
 
 // SetRunner gives the app the git it runs, once it is found off the main

@@ -35,14 +35,7 @@ func (a *App) commands() []command {
 			cmds = append(cmds, command{"Trust This Repository", func() { t.s.Trust() }})
 		}
 		dir := t.s.Path
-		var mine []tools.Tool
-		if tl, err := tools.Custom("your editor", tools.Editor, a.Settings.Editor); err == nil {
-			mine = append(mine, tl)
-		}
-		if tl, err := tools.Custom("your terminal", tools.Terminal, a.Settings.Terminal); err == nil {
-			mine = append(mine, tl)
-		}
-		for _, tl := range append(mine, a.palette.tools...) {
+		for _, tl := range a.palette.tools {
 			cmds = append(cmds, command{"Open in " + tl.Name, func() {
 				if err := tl.Open(dir, 0); err != nil {
 					a.notice = err.Error()
