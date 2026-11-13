@@ -191,12 +191,21 @@ func graphCommits(ctx context.Context, g *commitgraph.Graph, pos []uint32, in fu
 // maxMailmap bounds a mailmap file read.
 const maxMailmap = 4 << 20
 
-// loadMailmap reads the mailmaps git would: .mailmap in the work tree (a
-// symlink not followed), mailmap.blob (HEAD:.mailmap in a bare
-// repository) and mailmap.file. One that cannot be read is left out, as
-// names are not worth an error.
+// loadMailmap reads the mailmaps git would.
 func loadMailmap(ctx context.Context, r *repo.Repository) *mailmap.Map {
 	var mm mailmap.Map
+	for _, d := range mailmapData(ctx, r) {
+		mm.Add(d)
+	}
+	return &mm
+}
+
+// mailmapData returns the mailmap files git would read, in its order:
+// .mailmap in the work tree (a symlink not followed), mailmap.blob
+// (HEAD:.mailmap in a bare repository) and mailmap.file. One that cannot
+// be read is left out, as names are not worth an error.
+func mailmapData(ctx context.Context, r *repo.Repository) [][]byte {
+	var out [][]byte
 	readFile := func(p string, follow bool) {
 		stat := os.Lstat
 		if follow {
@@ -207,7 +216,7 @@ func loadMailmap(ctx context.Context, r *repo.Repository) *mailmap.Map {
 			return
 		}
 		if data, err := os.ReadFile(p); err == nil {
-			mm.Add(data)
+			out = append(out, data)
 		}
 	}
 	if r.WorkTree != "" {
@@ -221,7 +230,7 @@ func loadMailmap(ctx context.Context, r *repo.Repository) *mailmap.Map {
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, MaxOutput: maxMailmap,
 			Args: []string{"cat-file", "blob", "--end-of-options", blob}})
 		if err == nil {
-			mm.Add(res.Stdout)
+			out = append(out, res.Stdout)
 		}
 	}
 	if f, ok := r.Config.Get("mailmap.file"); ok && f != "" {
@@ -232,5 +241,5 @@ func loadMailmap(ctx context.Context, r *repo.Repository) *mailmap.Map {
 		}
 		readFile(f, true)
 	}
-	return &mm
+	return out
 }
