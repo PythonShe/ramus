@@ -1,6 +1,15 @@
 package ui
 
 import (
+	"bytes"
+	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
+	"path/filepath"
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
@@ -77,6 +86,10 @@ type patchView struct {
 	// lines; -1 for none.
 	scrollTo float64
 	shown    bool
+	// images are a binary file's sides as pictures, nil where a side is
+	// none or not a picture, and what each says of itself.
+	images [2]ui.ImageSource
+	about  [2]string
 }
 
 // setPatch builds the viewer of res off the main thread: with the whole
@@ -90,9 +103,26 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		pv.p.Path(0) == res.Parsed.Path(0) {
 		scroll = pv.d.ScrollY()
 	}
-	pv.d, pv.p, pv.failed = nil, res.Parsed, false
+	pv.d, pv.p, pv.failed, pv.images, pv.about = nil, res.Parsed, false, [2]ui.ImageSource{}, [2]string{}
 	p := res.Parsed
-	if p == nil || len(p.Files) == 0 || p.Files[0].Binary {
+	if p == nil || len(p.Files) == 0 {
+		return
+	}
+	if p.Files[0].Binary {
+		if res.HasSides && isPicture(p.Path(0)) {
+			go func() {
+				var imgs [2]ui.ImageSource
+				var about [2]string
+				for k, data := range [][]byte{res.Old, res.New} {
+					imgs[k], about[k] = decodePicture(data)
+				}
+				update(func() {
+					if pv.gen == gen {
+						pv.images, pv.about = imgs, about
+					}
+				})
+			}()
+		}
 		return
 	}
 	go func() {
@@ -181,6 +211,9 @@ func (a *App) patchBody(c *ui.Context, pv *patchView, res session.PatchResult, a
 			ui.Text(c, "No differences in content").TextColor(th.TextMuted)
 		})
 		return
+	case p.Files[0].Binary && (pv.images[0] != nil || pv.images[1] != nil):
+		pictures(c, pv)
+		return
 	case p.Files[0].Binary:
 		ui.Column(c).Fill().Center().Children(func() {
 			ui.Text(c, "Binary file").TextColor(th.TextMuted)
@@ -227,4 +260,59 @@ func (a *App) patchBody(c *ui.Context, pv *patchView, res session.PatchResult, a
 		d.SetScrollY(pv.scrollTo)
 		pv.scrollTo = -1
 	}
+}
+
+// isPicture reports whether a path names a picture the app can show.
+func isPicture(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg":
+		return true
+	}
+	return false
+}
+
+// maxPixels bounds a picture decoded, against one that says it is huge.
+const maxPixels = 64 << 20
+
+// decodePicture decodes one side of a picture's change, and says its
+// size; nil for a side that is none or does not decode.
+func decodePicture(data []byte) (ui.ImageSource, string) {
+	if len(data) == 0 {
+		return nil, ""
+	}
+	if cfg, _, err := image.DecodeConfig(bytes.NewReader(data)); err == nil && cfg.Width*cfg.Height > maxPixels {
+		return nil, byteSize(int64(len(data)))
+	}
+	img, err := ui.DecodeImage(data)
+	if err != nil {
+		return nil, byteSize(int64(len(data)))
+	}
+	w, h := ui.ImageSize(img)
+	return img, fmt.Sprintf("%d × %d, %s", int(w), int(h), byteSize(int64(len(data))))
+}
+
+// pictures shows a picture before and after its change, side by side.
+func pictures(c *ui.Context, pv *patchView) {
+	th := c.Theme()
+	ui.Row(c).Fill().Gap(16).Padding(16).Children(func() {
+		for k, title := range []string{"Before", "After"} {
+			if pv.images[k] == nil && pv.about[k] == "" {
+				continue
+			}
+			ui.Column(c).Key(k).Grow(1).Basis(0).FillHeight().Gap(8).Children(func() {
+				ui.Row(c).Gap(8).Children(func() {
+					ui.Text(c, title).FontSize(12).Bold()
+					ui.Text(c, pv.about[k]).FontSize(12).TextColor(th.TextMuted)
+				})
+				ui.Column(c).Grow(1).FillWidth().Center().Background(th.Surface).Radius(6).Padding(8).Children(func() {
+					if img := pv.images[k]; img != nil {
+						w, h := ui.ImageSize(img)
+						ui.Image(c, img).MaxWidth(w).MaxHeight(h).FillWidth().Label(title)
+					} else {
+						ui.Text(c, "Not a picture that can be shown").TextColor(th.TextMuted)
+					}
+				})
+			})
+		}
+	})
 }
