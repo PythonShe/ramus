@@ -166,6 +166,22 @@ func TestStatsView(t *testing.T) {
 		t.Fatalf("%d commits; texts %q", got, h.tt.Texts())
 	}
 
+	// The treemaps: a folder's tile opens it.
+	r.Write("src/main.go", strings.Repeat("x", 4000))
+	r.Commit("src")
+	tab.stats.mode = 1
+	h.app.countStats(tab)
+	h.until("the size treemap", h.shows("src/"))
+	h.click("src/")
+	h.until("the folder", h.shows("main.go"))
+	if !h.tt.HasText("3.9 KB") {
+		t.Fatalf("texts %q", h.tt.Texts())
+	}
+	tab.stats.mode = 2
+	h.until("the change treemap", h.shows("Changes over 7 commits"))
+	h.until("the change counts", h.shows("a.txt: 5 changes, 71.4%"))
+	tab.stats.mode = 0
+
 	// A range with no commits in it.
 	tab.stats.from = "2030-01-01"
 	h.app.countStats(tab)

@@ -22,6 +22,10 @@ type statsState struct {
 	loading  bool
 	err      string
 	authors  ui.ListState
+	// mode shows activity, files by size or files by changes.
+	mode    int
+	sizes   treemapState
+	changes treemapState
 }
 
 // maxBars bounds the bars of the over-time chart: weeks are grouped
@@ -46,10 +50,30 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 				ui.Text(c, ss.err).FontSize(12).TextColor(th.Danger).SingleLine()
 			}
 			ui.Spacer(c)
+			ui.Segmented(c, &ss.mode, "Activity", "Files by Size", "Files by Changes")
 			if r := ss.res; !r.Done && r.Total > 0 {
 				ui.Text(c, fmt.Sprintf("Read %d of %d commits", r.Read, r.Total)).FontSize(12).TextColor(th.TextMuted)
 			}
 		})
+		switch ss.mode {
+		case 1:
+			a.loadTreemap(t, &ss.sizes, false)
+			ui.Column(c).Padding(8, 16).Grow(1).Children(func() { a.treemapView(c, &ss.sizes, byteSize) })
+			return
+		case 2:
+			a.loadTreemap(t, &ss.changes, true)
+			ui.Column(c).Padding(8, 16).Grow(1).Children(func() {
+				if d := ss.changes.data; d != nil && !ss.changes.loading && d.pw.Err == nil {
+					what := "Changes over " + commitCount(d.pw.Commits)
+					if d.pw.Limited {
+						what += ", the latest; choose a start date to go further back"
+					}
+					ui.Text(c, what).FontSize(12).TextColor(th.TextMuted).Padding(0, 0, 6, 0)
+				}
+				a.treemapView(c, &ss.changes, changeCount)
+			})
+			return
+		}
 		r := ss.res
 		switch {
 		case r.Err != nil:
@@ -115,6 +139,36 @@ func (a *App) countStats(t *tab) {
 		ss.res = r
 		ss.loading = !r.Done
 	})
+}
+
+// loadTreemap reads a treemap's files for the request the controls name,
+// when it was read for another.
+func (a *App) loadTreemap(t *tab, ts *treemapState, changes bool) {
+	if ss := &t.stats; ss.asked != nil {
+		req := *ss.asked
+		if !changes {
+			// Sizes are of the branch's tree, whatever the dates.
+			req = session.StatsRequest{Branch: req.Branch}
+		}
+		if ts.data != nil && ts.For == req || ts.loading {
+			return
+		}
+		ts.loading, ts.For, ts.path = true, req, nil
+		done := func(pw session.PathWeights) {
+			// The tree is built off the main thread too: a large
+			// repository has hundreds of thousands of paths.
+			update := a.Update
+			go func() {
+				d := newTreemapData(pw)
+				update(func() { ts.data, ts.loading = d, false })
+			}()
+		}
+		if changes {
+			t.s.ChangeCounts(req, done)
+		} else {
+			t.s.FileSizes(req.Branch, done)
+		}
+	}
 }
 
 // parseDay reads a day typed as YYYY-MM-DD, in local time; empty is no
