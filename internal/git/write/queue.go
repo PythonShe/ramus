@@ -23,6 +23,9 @@ type Op struct {
 	// Name is what the app calls it ("Commit", "Fetch origin").
 	Name string
 	Cmd  run.Cmd
+	// Input is fed to the command's standard input each time it runs, a
+	// redo included; use it instead of Cmd.Stdin, which is read once.
+	Input []byte
 	// Expect, when set, makes the write refuse with a *StaleError if the
 	// state it was decided on changed.
 	Expect *Expect
@@ -335,6 +338,9 @@ func (q *Queue) prepare(ctx context.Context, j *Job) error {
 func execute(ctx context.Context, r *run.Runner, j *Job) (run.Result, error) {
 	cmd := j.Op.Cmd
 	cmd.Read = false
+	if j.Op.Input != nil {
+		cmd.Stdin = bytes.NewReader(j.Op.Input)
+	}
 	out, errw := &lines{j: j, stream: Stdout}, &lines{j: j, stream: Stderr}
 	stdout := &keep{max: maxStdout}
 	cmd.Stdout = teeWriter{stdout, out}

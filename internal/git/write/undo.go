@@ -1,6 +1,7 @@
 package write
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -329,6 +330,9 @@ func (q *Queue) redoFiles(ctx context.Context, e Entry) (snapshot.Snapshot, erro
 		}
 	}
 	cmd.Read = false
+	if e.op.Input != nil {
+		cmd.Stdin = bytes.NewReader(e.op.Input)
+	}
 	if _, err := q.r.Run(ctx, &cmd); err != nil {
 		return e.Snapshot, err
 	}
