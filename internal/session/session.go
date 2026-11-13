@@ -83,6 +83,7 @@ type Session struct {
 	stats       statsLoad
 	tools       diffTools
 	refInfo     refLoad
+	blame       blames
 }
 
 // Debounce gathers a burst of file changes into one refresh.
