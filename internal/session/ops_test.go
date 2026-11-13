@@ -9,6 +9,7 @@ import (
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/write"
 )
 
 func openFor(t *testing.T, r *gittest.Repo) (*Session, mainThread) {
@@ -32,7 +33,7 @@ func TestListClean(t *testing.T) {
 	list := func(ignored bool) []string {
 		var got []string
 		done := false
-		s.ListClean(ignored, func(p []string, err error) {
+		s.ListClean(ignored, func(p []string, _ []write.FileState, err error) {
 			if err != nil {
 				t.Error(err)
 			}

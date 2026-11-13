@@ -69,14 +69,19 @@ func Revert(w Where, commits []string, seen Seen) (Op, error) {
 
 // Clean deletes the untracked paths git clean listed, ignored ones too
 // when ignored is set, after keeping them in a snapshot; undo brings them
-// back.
-func Clean(w Where, paths []string, ignored bool) (Op, error) {
+// back. seen is the paths as they were listed (Observe): the clean
+// refuses if one changed since.
+func Clean(w Where, paths []string, ignored bool, seen []FileState) (Op, error) {
 	if len(paths) == 0 {
 		return Op{}, errors.New("write: nothing to clean")
 	}
 	op, err := Delete(w, paths)
-	if err != nil || !ignored {
+	if err != nil {
 		return op, err
+	}
+	op.Expect = &Expect{AnyHead: true, Files: seen}
+	if !ignored {
+		return op, nil
 	}
 	op.Cmd.Args = append([]string{"clean", "-f", "-d", "-x", "-q", "--"}, paths...)
 	op.Snapshot = &snapshot.Options{Reason: op.Name, Paths: paths, Ignored: true}

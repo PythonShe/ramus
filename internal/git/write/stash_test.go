@@ -113,7 +113,15 @@ func TestCherryPickRevertAndClean(t *testing.T) {
 	h.r.Commit("ignore")
 	h.r.Write("junk/x", "1")
 	h.r.Write("y.log", "1")
-	op, err = Clean(h.w, []string{"junk/", "y.log"}, true)
+	seen, err := Observe(h.w.WorkTree, []string{"junk/", "y.log"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.r.Write("junk/late", "1")
+	op, err = Clean(h.w, []string{"junk/", "y.log"}, true, seen)
+	h.do(op, err, false)
+	seen, _ = Observe(h.w.WorkTree, []string{"junk/", "y.log"})
+	op, err = Clean(h.w, []string{"junk/", "y.log"}, true, seen)
 	h.do(op, err, true)
 	if got := h.status(); got != "" {
 		t.Fatalf("left %q", got)

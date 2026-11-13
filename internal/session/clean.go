@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"ramus/internal/git/run"
+	"ramus/internal/git/write"
 )
 
 // MaxClean bounds the paths a clean lists.
@@ -14,8 +15,9 @@ const MaxClean = 10000
 
 // ListClean asks git clean what it would delete, untracked folders
 // included and ignored files too when ignored is set, off the main thread,
-// and hands the paths to done on it. A folder ends in "/".
-func (s *Session) ListClean(ignored bool, done func([]string, error)) {
+// and hands the paths to done on it, with their state then for the clean
+// to check. A folder ends in "/".
+func (s *Session) ListClean(ignored bool, done func([]string, []write.FileState, error)) {
 	r := s.Repo
 	if r == nil {
 		return
@@ -28,10 +30,12 @@ func (s *Session) ListClean(ignored bool, done func([]string, error)) {
 	r.Life().Go(func(ctx context.Context) {
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true, MaxOutput: 16 << 20, Args: args})
 		var paths []string
+		var seen []write.FileState
 		if err == nil {
 			paths = parseClean(res.Stdout)
+			seen, err = write.Observe(r.WorkTree, paths)
 		}
-		update(func() { done(paths, err) })
+		update(func() { done(paths, seen, err) })
 	})
 }
 

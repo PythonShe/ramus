@@ -241,6 +241,7 @@ type cleanState struct {
 	ignored bool
 	loading bool
 	paths   []string
+	seen    []write.FileState
 	err     string
 	list    ui.ListState
 }
@@ -254,11 +255,11 @@ func (a *App) listClean() {
 	cs := &a.cleanUI
 	cs.loading, cs.paths, cs.err = true, nil, ""
 	ignored, t := cs.ignored, cs.t
-	t.s.ListClean(ignored, func(paths []string, err error) {
+	t.s.ListClean(ignored, func(paths []string, seen []write.FileState, err error) {
 		if cs.t != t || cs.ignored != ignored {
 			return
 		}
-		cs.loading, cs.paths = false, paths
+		cs.loading, cs.paths, cs.seen = false, paths, seen
 		if err != nil {
 			cs.err = errText(err)
 		}
@@ -301,16 +302,17 @@ func (a *App) cleanView(c *ui.Context) {
 			n := len(cs.paths)
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
-					cs.open = false
-				}
 				label := "Delete"
 				if n > 0 {
 					label = "Delete " + plural(n, "Item")
 				}
-				if ui.PrimaryButton(c, label).Disabled(n == 0 || cs.loading || t.s.Queue == nil).Clicked() {
-					op, err := write.Clean(t.s.Where(), cs.paths, cs.ignored)
+				// The destructive choice is never the default one.
+				if ui.Button(c, label).Disabled(n == 0 || cs.loading || t.s.Queue == nil).Clicked() {
+					op, err := write.Clean(t.s.Where(), cs.paths, cs.ignored, cs.seen)
 					a.submit(t, op, err)
+					cs.open = false
+				}
+				if ui.PrimaryButton(c, "Cancel").Clicked() {
 					cs.open = false
 				}
 			})
