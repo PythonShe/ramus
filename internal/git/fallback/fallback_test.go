@@ -35,7 +35,7 @@ func build(t *testing.T, args ...string) *gittest.Repo {
 func check(t *testing.T, g *gittest.Repo, wantFallback string, hashSize int) {
 	ctx := context.Background()
 	runner := testrun.Runner(t)
-	r, err := repo.Open(ctx, runner, g.Dir)
+	r, err := repo.Open(ctx, runner, g.Dir, func(repo.Location) bool { return true })
 	if err != nil {
 		t.Fatal(err)
 	}

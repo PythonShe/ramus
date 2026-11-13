@@ -108,6 +108,11 @@ type Cmd struct {
 	Stdout io.Writer
 	// Timeout bounds the command; DefaultTimeout when zero.
 	Timeout time.Duration
+	// Discover runs git in WorkTree, or GitDir when there is none, and lets
+	// it find the repository itself instead of naming it, so that git's
+	// discovery checks (ownership, safe.bareRepository) apply; naming the
+	// git directory skips them.
+	Discover bool
 	// Untranslated makes git print its messages in English, for a command
 	// whose stderr the engine reads. Other commands keep the user's
 	// language, since their errors are shown as they are.
@@ -119,9 +124,12 @@ type Cmd struct {
 func (c *Cmd) Line() string { return "git " + strings.Join(c.argv(), " ") }
 
 func (c *Cmd) argv() []string {
-	a := []string{"--git-dir=" + c.GitDir}
-	if c.WorkTree != "" {
-		a = append(a, "--work-tree="+c.WorkTree)
+	var a []string
+	if !c.Discover {
+		a = append(a, "--git-dir="+c.GitDir)
+		if c.WorkTree != "" {
+			a = append(a, "--work-tree="+c.WorkTree)
+		}
 	}
 	if c.Read {
 		a = append(a, "--no-optional-locks")

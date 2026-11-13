@@ -18,7 +18,7 @@ func TestOpenClose(t *testing.T) {
 	g.Git("commit-graph", "write", "--reachable")
 	runner := testrun.Runner(t)
 	for round := 0; round < 3; round++ {
-		r, err := Open(context.Background(), runner, g.Dir)
+		r, err := Open(context.Background(), runner, g.Dir, trustAll)
 		if err != nil {
 			t.Fatal(err)
 		}

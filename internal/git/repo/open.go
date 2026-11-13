@@ -12,6 +12,7 @@ import (
 	"ramus/internal/git/lifetime"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
+	"ramus/internal/git/trust"
 )
 
 // Repository is an open repository: where it is, what it is configured
@@ -22,8 +23,12 @@ type Repository struct {
 	Location
 	Config *config.Config
 	Caps   Capabilities
+	// Runner runs git for this repository: hardened when Restricted.
 	Runner *run.Runner
-	life   *lifetime.Lifetime
+	// Restricted is a repository the user has not trusted: git only reads,
+	// with nothing from the repository's own config allowed to run.
+	Restricted bool
+	life       *lifetime.Lifetime
 
 	mu    sync.Mutex
 	cat   *catfile.Process
@@ -31,20 +36,33 @@ type Repository struct {
 	tried bool // the graph was looked for
 }
 
-// Open finds the repository at or above path and reads its config.
-func Open(ctx context.Context, r *run.Runner, path string) (*Repository, error) {
+// Open finds the repository at or above path, checks it is safe to read,
+// and reads its config. trusted says whether the user trusts a
+// repository, by its location; one not trusted opens Restricted.
+func Open(ctx context.Context, r *run.Runner, path string, trusted func(Location) bool) (*Repository, error) {
 	loc, err := Discover(path)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkEmbeddedBare(loc); err != nil {
+		return nil, err
+	}
+	if err := CheckOwnership(ctx, r, loc); err != nil {
 		return nil, err
 	}
 	cfg, err := config.Read(ctx, r, loc.GitDir)
 	if err != nil {
 		return nil, err
 	}
-	return &Repository{
+	repo := &Repository{
 		Location: loc, Config: cfg, Caps: Check(loc, cfg), Runner: r,
 		life: lifetime.New(context.Background()),
-	}, nil
+	}
+	if !trusted(loc) {
+		repo.Restricted = true
+		repo.Runner = r.Hardened(trust.Hardening(cfg))
+	}
+	return repo, nil
 }
 
 // Life is the repository's lifetime: run its goroutines with Life().Go and
