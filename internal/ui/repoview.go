@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -35,13 +36,21 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		})
 		return
 	}
+	if !t.expired && t.s.Queue != nil {
+		t.expired = true
+		t.s.ExpireSnapshots(time.Duration(a.Settings.WithDefaults().SnapshotDays) * 24 * time.Hour)
+	}
 	ui.Column(c).Grow(1).Children(func() {
 		if st.Restricted {
 			a.trustBanner(c, t)
 		}
 		ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, func() {
-			if t.sel == "log" {
+			switch t.sel {
+			case "log":
 				a.logView(c, t)
+				return
+			case "snapshots":
+				a.snapshotsView(c, t)
 				return
 			}
 			ui.Split(c, &t.listW, func() { a.changesList(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
@@ -104,6 +113,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, "changes", nil, changesLabel(st))
 		ui.SidebarItem(c, "log", nil, "Command Log")
+		ui.SidebarItem(c, "snapshots", nil, "Snapshots")
 		section("branches", "Branches", heads, "refs/heads/")
 		section("remotes", "Remotes", remotes, "refs/remotes/")
 		section("tags", "Tags", tags, "refs/tags/")

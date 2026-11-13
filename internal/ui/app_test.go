@@ -361,3 +361,31 @@ func TestShowPath(t *testing.T) {
 		}
 	}
 }
+
+func TestSnapshotsView(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	r.Write("README", "work in progress")
+	h.app.current().sel = "snapshots"
+	h.until("the empty list", h.shows("No snapshots"))
+	h.click("Snapshot Now")
+	h.until("the snapshot", h.shows("Snapshot now"))
+	h.until("its files", h.shows("README"))
+
+	r.Write("README", "an agent broke this")
+	h.click("Restore All")
+	h.until("the restore", func() bool {
+		b, _ := os.ReadFile(filepath.Join(r.Dir, "README"))
+		return string(b) == "work in progress"
+	})
+	h.until("the state it replaced", h.shows("Before restoring"))
+
+	h.tt.Key(ui.Cmd, ui.KeyZ)
+	h.until("the undo in the log", func() bool {
+		l := h.app.current().s.Log
+		return len(l) > 0 && strings.HasPrefix(l[len(l)-1].Name, "Undo") && !l[len(l)-1].Running
+	})
+}

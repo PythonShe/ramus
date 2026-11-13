@@ -75,8 +75,11 @@ type tab struct {
 	logList   ui.ListState
 	logChosen int
 	outList   ui.ListState
-	sideW     float32
-	listW     float32
+	snaps     snapState
+	// expired is set once old snapshots were cleared on open.
+	expired bool
+	sideW   float32
+	listW   float32
 }
 
 // NewApp returns the app with nothing open.
@@ -139,7 +142,7 @@ func (a *App) Open(path string) {
 		return
 	}
 	a.nextID++
-	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), chosen: -1, sideW: 220, listW: 420,
+	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), chosen: -1, sideW: 220, listW: 420, snaps: newSnapState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
 	t.changes.Selected = &t.chosen
 	a.tabs = append(a.tabs, t)
@@ -285,6 +288,15 @@ func (a *App) shortcuts(c *ui.Context) {
 	}
 	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyO) {
 		a.openManager()
+	}
+	if t := a.current(); t != nil && !c.FocusTakesText() {
+		// In a text field these keys undo the typing.
+		if c.Shortcut(ui.Cmd, ui.KeyZ) {
+			a.undo(t, false)
+		}
+		if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyZ) {
+			a.undo(t, true)
+		}
 	}
 	for i, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9} {
 		if c.Shortcut(ui.Cmd, k) && i < len(a.tabs) {

@@ -45,6 +45,21 @@ func (a *App) commands() []command {
 		}
 		cmds = append(cmds, command{"Reveal in File Manager", func() { go tools.Reveal(dir) }})
 		cmds = append(cmds, command{"Show Command Log", func() { t.sel = "log" }})
+		cmds = append(cmds, command{"Show Snapshots", func() { t.sel = "snapshots" }})
+		if q := t.s.Queue; q != nil {
+			cmds = append(cmds, command{"Snapshot Now", func() {
+				if _, err := t.s.SnapshotNow(false); err != nil {
+					a.notice = errText(err)
+				}
+			}})
+			undo, redo := q.History.Next()
+			if undo != "" {
+				cmds = append(cmds, command{"Undo " + undo, func() { a.undo(t, false) }})
+			}
+			if redo != "" {
+				cmds = append(cmds, command{"Redo " + redo, func() { a.undo(t, true) }})
+			}
+		}
 		for _, x := range a.Settings.Actions {
 			if x.On == "" {
 				cmds = append(cmds, command{x.Name, func() { a.startAction(t, x, varsFor(t)) }})
