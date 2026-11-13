@@ -4,5 +4,9 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "copyright": "Copyright 2026 PythonShe",
+  "icon": "assets/app-icon/monogram/png/icon-light-1024.png",
+  "macos": {
+    "icon": "assets/app-icon/monogram/AppIcon.icon"
+  },
   "out": "build"
 }
