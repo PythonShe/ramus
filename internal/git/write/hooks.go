@@ -17,6 +17,9 @@ type Hook struct {
 	// Scope is the config scope that defined it ("local", "global"),
 	// empty for the hooks directory.
 	Scope string
+	// Disabled is a hook turned off with hook.<name>.enabled=false: listed,
+	// but git does not run it.
+	Disabled bool
 }
 
 // ErrNoHookList means this git cannot list hooks (before 2.54). The app
@@ -49,7 +52,11 @@ func Hooks(ctx context.Context, r *run.Runner, gitDir, workTree, event string) (
 			hooks = append(hooks, Hook{Name: string(rec)})
 			continue
 		}
-		hooks = append(hooks, Hook{Name: string(name), Scope: string(scope)})
+		h := Hook{Name: string(name), Scope: string(scope)}
+		if rest, ok := bytes.CutPrefix(name, []byte("disabled\t")); ok {
+			h.Name, h.Disabled = string(rest), true
+		}
+		hooks = append(hooks, h)
 	}
 	return hooks, nil
 }

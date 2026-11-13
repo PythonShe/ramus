@@ -22,7 +22,7 @@ func TestExpectRefusesStaleState(t *testing.T) {
 	head := r.Commit("one")
 	r.Write("a", "seen")
 	op := discard(r.Dir, r.GitDir(), "a")
-	op.Expect = &Expect{Head: head, Files: Observe(r.Dir, []string{"a"})}
+	op.Expect = &Expect{Branch: "refs/heads/main", Head: head, Files: observe(t, r.Dir, "a")}
 
 	// Something else edits the file after the user confirmed.
 	time.Sleep(10 * time.Millisecond)
@@ -36,7 +36,7 @@ func TestExpectRefusesStaleState(t *testing.T) {
 		t.Fatal("ran anyway")
 	}
 
-	op.Expect = &Expect{Head: head, Files: Observe(r.Dir, []string{"a"})}
+	op.Expect = &Expect{Branch: "refs/heads/main", Head: head, Files: observe(t, r.Dir, "a")}
 	r.Commit("two")
 	if _, err := wait(t, q.Submit(op)); !errors.As(err, &se) || se.What != "HEAD" {
 		t.Fatalf("HEAD moved: %v", err)
@@ -45,7 +45,7 @@ func TestExpectRefusesStaleState(t *testing.T) {
 	head = strings.TrimSpace(r.Git("rev-parse", "HEAD"))
 	r.Git("branch", "topic")
 	del := Op{Name: "Delete branch", Cmd: run.Cmd{GitDir: r.GitDir(), Args: []string{"branch", "-D", "topic"}},
-		Expect: &Expect{Head: head, Refs: map[string]string{"refs/heads/topic": strings.TrimSpace(r.Git("rev-parse", "topic"))}}}
+		Expect: &Expect{Branch: "refs/heads/main", Head: head, Refs: map[string]string{"refs/heads/topic": strings.TrimSpace(r.Git("rev-parse", "topic"))}}}
 	r.Git("update-ref", "refs/heads/topic", "HEAD~")
 	if _, err := wait(t, q.Submit(del)); !errors.As(err, &se) || se.What != "refs/heads/topic" {
 		t.Fatalf("ref moved: %v", err)
@@ -56,8 +56,49 @@ func TestExpectRefusesStaleState(t *testing.T) {
 	}
 	r.Git("branch", "topic")
 	if _, err := wait(t, q.Submit(Op{Name: "Create", Cmd: run.Cmd{GitDir: r.GitDir(), Args: []string{"branch", "-D", "topic"}},
-		Expect: &Expect{Head: head, Refs: map[string]string{"refs/heads/topic": ""}}})); !errors.As(err, &se) {
+		Expect: &Expect{Branch: "refs/heads/main", Head: head, Refs: map[string]string{"refs/heads/topic": ""}}})); !errors.As(err, &se) {
 		t.Fatalf("ref appeared: %v", err)
+	}
+}
+
+func observe(t *testing.T, dir string, paths ...string) []FileState {
+	t.Helper()
+	fs, err := Observe(dir, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fs
+}
+
+func TestExpectBranchAndFolders(t *testing.T) {
+	r, q, _ := newQueue(t)
+	r.Write("dir/a", "1")
+	head := r.Commit("one")
+	r.Git("branch", "other")
+	r.Write("dir/a", "seen")
+	x := &Expect{Branch: "refs/heads/main", Head: head, Files: observe(t, r.Dir, "dir")}
+
+	// Same commit, another branch: a reset would move the wrong one.
+	r.Git("checkout", "-q", "other")
+	op := discard(r.Dir, r.GitDir(), "dir")
+	op.Expect = x
+	var se *StaleError
+	if _, err := wait(t, q.Submit(op)); !errors.As(err, &se) || se.What != "the current branch" {
+		t.Fatalf("branch switch: %v", err)
+	}
+	r.Git("checkout", "-q", "main")
+
+	// An edit inside the folder leaves the folder's own times alone.
+	time.Sleep(10 * time.Millisecond)
+	r.Write("dir/a", "edited")
+	if _, err := wait(t, q.Submit(op)); !errors.As(err, &se) || se.What != "dir/a" {
+		t.Fatalf("edit in folder: %v", err)
+	}
+	r.Write("dir/new", "x")
+	op.Expect = &Expect{Branch: "refs/heads/main", Head: head, Files: observe(t, r.Dir, "dir")}
+	os.Remove(filepath.Join(r.Dir, "dir/new"))
+	if _, err := wait(t, q.Submit(op)); !errors.As(err, &se) || !strings.HasPrefix(se.What, "dir") {
+		t.Fatalf("file gone from folder: %v", err)
 	}
 }
 

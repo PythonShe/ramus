@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,6 +24,8 @@ type LockedError struct {
 	// Holders are the processes that have the lock open, where the system
 	// can tell (lsof); none means the lock was likely left by a crash.
 	Holders []Holder
+	// Unknown is set when the system could not tell who holds the lock.
+	Unknown error
 }
 
 // Holder is a process holding a lock.
@@ -33,6 +36,9 @@ type Holder struct {
 
 func (e *LockedError) Error() string {
 	who := "no process holds it; a git command may have crashed"
+	if e.Unknown != nil {
+		who = "who holds it cannot be told (" + e.Unknown.Error() + ")"
+	}
 	if len(e.Holders) > 0 {
 		var names []string
 		for _, h := range e.Holders {
@@ -83,13 +89,16 @@ func describeLock(ctx context.Context, path string) error {
 	if st, err := os.Lstat(path); err == nil {
 		e.Age = time.Since(st.ModTime())
 	}
-	e.Holders = holders(ctx, path)
+	e.Holders, e.Unknown = holders(ctx, path)
 	return e
 }
 
-// holders asks lsof, where there is one at a known place, who has path
-// open.
-func holders(ctx context.Context, path string) []Holder {
+// errNoLsof is a system without lsof at a known place.
+var errNoLsof = errors.New("no lsof")
+
+// holders asks lsof who has path open. An error means it could not tell,
+// which is not the same as no one.
+func holders(ctx context.Context, path string) ([]Holder, error) {
 	var lsof string
 	for _, p := range []string{"/usr/sbin/lsof", "/usr/bin/lsof", "/bin/lsof"} {
 		if _, err := os.Stat(p); err == nil {
@@ -98,11 +107,16 @@ func holders(ctx context.Context, path string) []Holder {
 		}
 	}
 	if lsof == "" {
-		return nil
+		return nil, errNoLsof
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	out, _ := exec.CommandContext(ctx, lsof, "-Fpc", "--", path).Output()
+	out, err := exec.CommandContext(ctx, lsof, "-Fpc", "--", path).Output()
+	var exit *exec.ExitError
+	if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1 && len(out) == 0 && ctx.Err() == nil) {
+		// lsof exits 1 with no output when no process has the file open.
+		return nil, fmt.Errorf("lsof: %w", err)
+	}
 	var hs []Holder
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	for sc.Scan() {
@@ -115,15 +129,16 @@ func holders(ctx context.Context, path string) []Holder {
 			hs[len(hs)-1].Command = line[1:]
 		}
 	}
-	return hs
+	return hs, nil
 }
 
 // RemoveLock deletes index.lock, for when the user has seen a LockedError
 // with no holders and chooses to. It refuses while a process holds it.
+// It refuses too when it cannot tell who holds it.
 func RemoveLock(ctx context.Context, gitDir string) error {
 	path := filepath.Join(gitDir, "index.lock")
-	if hs := holders(ctx, path); len(hs) > 0 {
-		return &LockedError{Path: path, Holders: hs}
+	if hs, err := holders(ctx, path); len(hs) > 0 || err != nil {
+		return &LockedError{Path: path, Holders: hs, Unknown: err}
 	}
 	return os.Remove(path)
 }

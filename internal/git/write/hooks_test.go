@@ -28,4 +28,9 @@ func TestHooks(t *testing.T) {
 	if err != nil || !slices.Equal(hs, want) {
 		t.Fatalf("hooks %+v %v, want %+v", hs, err, want)
 	}
+	r.Git("config", "hook.lint.enabled", "false")
+	hs, err = Hooks(context.Background(), rn, r.GitDir(), r.Dir, "pre-commit")
+	if err != nil || len(hs) != 2 || hs[0] != (Hook{Name: "lint", Scope: "local", Disabled: true}) {
+		t.Fatalf("disabled hook %+v %v", hs, err)
+	}
 }

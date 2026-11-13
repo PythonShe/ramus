@@ -18,6 +18,9 @@ import (
 // refuses to run if any of it changed in the meantime, since the user
 // confirmed losing what they saw, not what is there now.
 type Expect struct {
+	// Branch is the branch HEAD named ("refs/heads/main"), "" when
+	// detached: a switch to another branch at the same commit is a change.
+	Branch string
 	// Head is the commit HEAD was on (hex), "" for unborn.
 	Head string
 	// Refs maps each ref the action moves or deletes to the value seen,
@@ -37,13 +40,44 @@ type FileState struct {
 	ModTime time.Time
 }
 
-// Observe records paths as they are now, for an Expect.
-func Observe(workTree string, paths []string) []FileState {
-	out := make([]FileState, len(paths))
-	for i, p := range paths {
-		out[i] = stat(workTree, p)
+// MaxObserved bounds the files Observe records.
+const MaxObserved = 200000
+
+// ErrTooManyFiles is an Observe of folders holding more than MaxObserved
+// files.
+var ErrTooManyFiles = errors.New("write: too many files to check before the action")
+
+// Observe records paths as they are now, for an Expect. A folder is
+// recorded file by file, since editing a file in place leaves the
+// folder's own times alone.
+func Observe(workTree string, paths []string) ([]FileState, error) {
+	var out []FileState
+	for _, p := range paths {
+		fs := stat(workTree, p)
+		if !fs.Exists || !fs.Mode.IsDir() {
+			out = append(out, fs)
+			continue
+		}
+		root := filepath.Join(workTree, filepath.FromSlash(p))
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() && d.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			rel, _ := filepath.Rel(workTree, path)
+			out = append(out, stat(workTree, filepath.ToSlash(rel)))
+			if len(out) > MaxObserved {
+				return ErrTooManyFiles
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
-	return out
+	return out, nil
 }
 
 func stat(root, p string) FileState {
@@ -69,6 +103,13 @@ func (e *StaleError) Error() string {
 }
 
 func check(ctx context.Context, r *run.Runner, gitDir, workTree string, x *Expect) error {
+	branch, err := symbolic(ctx, r, gitDir)
+	if err != nil {
+		return err
+	}
+	if branch != x.Branch {
+		return &StaleError{What: "the current branch", Saw: orDetached(x.Branch), Now: orDetached(branch)}
+	}
 	head, err := resolve(ctx, r, gitDir, "HEAD")
 	if err != nil {
 		return err
@@ -101,6 +142,23 @@ func resolve(ctx context.Context, r *run.Runner, gitDir, name string) (string, e
 		return "", nil
 	}
 	return string(bytes.TrimSpace(res.Stdout)), err
+}
+
+// symbolic returns the branch HEAD names, "" when detached.
+func symbolic(ctx context.Context, r *run.Runner, gitDir string) (string, error) {
+	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: []string{"symbolic-ref", "-q", "HEAD"}})
+	var e *run.Error
+	if errors.As(err, &e) && e.ExitCode == 1 {
+		return "", nil
+	}
+	return string(bytes.TrimSpace(res.Stdout)), err
+}
+
+func orDetached(b string) string {
+	if b == "" {
+		return "detached"
+	}
+	return strings.TrimPrefix(b, "refs/heads/")
 }
 
 func short(oid string) string {
