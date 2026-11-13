@@ -74,6 +74,7 @@ type Session struct {
 	// stopped; done closes after Close once it is zero.
 	running sync.WaitGroup
 	done    chan struct{}
+	patch   patches
 }
 
 // Debounce gathers a burst of file changes into one refresh.
