@@ -1,0 +1,173 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/egoist/mygo/ui"
+
+	"ramus/internal/session"
+)
+
+// repoView shows one open repository: the sidebar, the changes, and the
+// detail of what is chosen.
+func (a *App) repoView(c *ui.Context, t *tab) {
+	th := c.Theme()
+	st := t.s.State
+	switch {
+	case st.Opening:
+		ui.Column(c).Fill().Center().Gap(12).Children(func() {
+			ui.Spinner(c)
+			ui.Text(c, "Opening "+t.s.Path).TextColor(th.TextMuted)
+		})
+		return
+	case st.Err != nil:
+		ui.Column(c).Fill().Center().Gap(12).Children(func() {
+			ui.Text(c, "Cannot open "+t.s.Path).Bold()
+			ui.Text(c, st.Err.Error()).TextColor(th.TextMuted).MaxWidth(560)
+			if ui.Button(c, "Close").Clicked() {
+				a.Close(a.active)
+			}
+		})
+		return
+	}
+	ui.Column(c).Grow(1).Children(func() {
+		if st.Restricted {
+			a.trustBanner(c, t)
+		}
+		ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, func() {
+			ui.Split(c, &t.listW, func() { a.changesList(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
+		}).SplitReset(220).Grow(1)
+		a.statusBar(c, t)
+	})
+}
+
+func (a *App) trustBanner(c *ui.Context, t *tab) {
+	th := c.Theme()
+	ui.Row(c).Padding(8, 12).Gap(12).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+		ui.Text(c, "Read-only: this repository's hooks, filters and config commands do not run until you trust it.").Grow(1)
+		if ui.Button(c, "Trust").Clicked() {
+			if err := t.s.Trust(); err != nil {
+				a.notice = err.Error()
+			}
+		}
+	})
+}
+
+// sideLimit bounds the refs a sidebar section lists; the branch and tag
+// views list them all.
+const sideLimit = 500
+
+func (a *App) sidebar(c *ui.Context, t *tab) {
+	st := t.s.State
+	var heads, remotes, tags []string
+	if st.Refs != nil {
+		for i := range st.Refs.Len() {
+			name := st.Refs.Name(i)
+			switch {
+			case strings.HasPrefix(name, "refs/heads/"):
+				heads = append(heads, name)
+			case strings.HasPrefix(name, "refs/remotes/"):
+				if !strings.HasSuffix(name, "/HEAD") {
+					remotes = append(remotes, name)
+				}
+			case strings.HasPrefix(name, "refs/tags/"):
+				tags = append(tags, name)
+			}
+		}
+	}
+	section := func(key, title string, refs []string, prefix string) {
+		open := t.open[key]
+		ui.SidebarSection(c, fmt.Sprintf("%s (%d)", title, len(refs)), &open, func() {
+			for i, r := range refs {
+				if i == sideLimit {
+					ui.Text(c, fmt.Sprintf("%d more", len(refs)-sideLimit)).Padding(4, 12).TextColor(c.Theme().TextMuted)
+					break
+				}
+				label := strings.TrimPrefix(r, prefix)
+				it := ui.SidebarItem(c, r, nil, label)
+				if r == st.Head.Target {
+					it.Bold()
+				}
+			}
+		})
+		t.open[key] = open
+	}
+	ui.Sidebar(c, &t.sel, func() {
+		ui.SidebarItem(c, "changes", nil, changesLabel(st))
+		section("branches", "Branches", heads, "refs/heads/")
+		section("remotes", "Remotes", remotes, "refs/remotes/")
+		section("tags", "Tags", tags, "refs/tags/")
+		if st.Status != nil && st.Status.Branch.Stashes > 0 {
+			ui.SidebarItem(c, "stashes", nil, fmt.Sprintf("Stashes (%d)", st.Status.Branch.Stashes))
+		}
+	}).FillHeight()
+}
+
+func changesLabel(st session.State) string {
+	if st.Status == nil || st.Status.Len() == 0 {
+		return "Changes"
+	}
+	return fmt.Sprintf("Changes (%d)", st.Status.Len())
+}
+
+func (a *App) changesList(c *ui.Context, t *tab) {
+	th := c.Theme()
+	st := t.s.State.Status
+	ui.Column(c).Fill().Children(func() {
+		if st == nil {
+			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+			return
+		}
+		if st.Len() == 0 {
+			ui.Column(c).Fill().Center().Children(func() {
+				ui.Text(c, "No changes").TextColor(th.TextMuted)
+			})
+			return
+		}
+		t.changes.Label = func(i int) string { return string(st.Path(i)) }
+		ui.List(c, &t.changes, st.Len(), func(i int) {
+			x, y := st.XY(i)
+			ui.Row(c).Padding(3, 8).Gap(8).Children(func() {
+				ui.Text(c, string([]byte{x, y})).Font("monospace").TextColor(th.TextMuted).Width(24)
+				ui.Text(c, string(st.Path(i))).SingleLine().Grow(1)
+			})
+		}).Grow(1)
+	})
+}
+
+func (a *App) detail(c *ui.Context, t *tab) {
+	th := c.Theme()
+	st := t.s.State.Status
+	ui.Column(c).Fill().Padding(12).Children(func() {
+		if st == nil || t.chosen < 0 || t.chosen >= st.Len() {
+			ui.Column(c).Fill().Center().Children(func() {
+				ui.Text(c, "Choose a file to see its changes").TextColor(th.TextMuted)
+			})
+			return
+		}
+		ui.Text(c, string(st.Path(t.chosen))).Bold()
+	})
+}
+
+func (a *App) statusBar(c *ui.Context, t *tab) {
+	th := c.Theme()
+	st := t.s.State
+	ui.Row(c).Padding(4, 12).Gap(16).Background(th.Surface).Children(func() {
+		branch := strings.TrimPrefix(st.Head.Target, "refs/heads/")
+		if st.Head.Detached {
+			branch = "detached"
+		}
+		ui.Text(c, branch).FontSize(12)
+		if st.Operation != "" {
+			ui.Text(c, string(st.Operation)+" in progress").FontSize(12).TextColor(th.Warning)
+		}
+		if len(st.Fallbacks) > 0 {
+			ui.Text(c, "Through git: "+strings.Join(st.Fallbacks, ", ")).FontSize(12).TextColor(th.TextMuted)
+		}
+		ui.Spacer(c)
+		if st.RefreshErr != nil {
+			ui.Text(c, "Refresh failed: "+st.RefreshErr.Error()).FontSize(12).TextColor(th.Danger).SingleLine().MaxWidth(480)
+		}
+	})
+}
