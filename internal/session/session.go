@@ -81,6 +81,7 @@ type Session struct {
 	// commitPatch cancels a commit patch read that a newer one replaced.
 	commitPatch patches
 	stats       statsLoad
+	tools       diffTools
 }
 
 // Debounce gathers a burst of file changes into one refresh.
