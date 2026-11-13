@@ -219,7 +219,6 @@ func (a *App) patchList(c *ui.Context, t *tab, p *diff.Parsed, r changeRow) {
 			return lineLabel(p, p.Lines[k])
 		}
 	}
-	added, removed := th.Success.Alpha(0.14), th.Danger.Alpha(0.14)
 	var act func()
 	ui.List(c, &d.list, len(rows), func(i int) {
 		k := rows[i]
@@ -245,33 +244,39 @@ func (a *App) patchList(c *ui.Context, t *tab, p *diff.Parsed, r changeRow) {
 			})
 			return
 		}
-		l := p.Lines[k]
-		bg := ui.Color{}
-		switch l.Kind {
-		case '+':
-			bg = added
-		case '-':
-			bg = removed
-		}
-		ui.Row(c).Padding(0, 12).Gap(8).FillWidth().Background(bg).Children(func() {
-			num := func(n int32) string {
-				if n == 0 {
-					return ""
-				}
-				return strconv.Itoa(int(n))
-			}
-			ui.Text(c, num(l.Old)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Width(44).TextAlign(ui.End)
-			ui.Text(c, num(l.New)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Width(44).TextAlign(ui.End)
-			text := string(l.Kind) + redact.Control(string(p.Bytes(l.Text)))
-			if l.Kind == '\\' {
-				text = "\\" + string(p.Bytes(l.Text))
-			}
-			ui.Text(c, text).Font("monospace").FontSize(12).SingleLine().Grow(1)
-		})
+		patchLine(c, p, p.Lines[k])
 	}).Grow(1)
 	if act != nil {
 		act()
 	}
+}
+
+// patchLine is one line of a patch: its old and new numbers and text, on
+// green when added and red when removed.
+func patchLine(c *ui.Context, p *diff.Parsed, l diff.Line) {
+	th := c.Theme()
+	bg := ui.Color{}
+	switch l.Kind {
+	case '+':
+		bg = th.Success.Alpha(0.14)
+	case '-':
+		bg = th.Danger.Alpha(0.14)
+	}
+	ui.Row(c).Padding(0, 12).Gap(8).FillWidth().Background(bg).Children(func() {
+		num := func(n int32) string {
+			if n == 0 {
+				return ""
+			}
+			return strconv.Itoa(int(n))
+		}
+		ui.Text(c, num(l.Old)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Width(44).TextAlign(ui.End)
+		ui.Text(c, num(l.New)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Width(44).TextAlign(ui.End)
+		text := string(l.Kind) + redact.Control(string(p.Bytes(l.Text)))
+		if l.Kind == '\\' {
+			text = "\\" + string(p.Bytes(l.Text))
+		}
+		ui.Text(c, text).Font("monospace").FontSize(12).SingleLine().Grow(1)
+	})
 }
 
 func lineLabel(p *diff.Parsed, l diff.Line) string {

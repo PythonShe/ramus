@@ -52,6 +52,9 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 			case "snapshots":
 				a.snapshotsView(c, t)
 				return
+			case "history":
+				a.historyView(c, t)
+				return
 			}
 			ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
 		}).SplitReset(220).Grow(1)
@@ -112,6 +115,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	}
 	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, "changes", nil, changesLabel(st))
+		ui.SidebarItem(c, "history", nil, "History")
 		ui.SidebarItem(c, "log", nil, "Command Log")
 		ui.SidebarItem(c, "snapshots", nil, "Snapshots")
 		section("branches", "Branches", heads, "refs/heads/")

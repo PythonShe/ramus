@@ -54,6 +54,9 @@ type App struct {
 	pending []string
 	// gitWarning says the installed git is missing security fixes.
 	gitWarning string
+	// clip is text to put on the clipboard on the next frame: work read
+	// off the main thread cannot reach the clipboard itself.
+	clip string
 
 	welcome    welcomeState
 	clone      cloneState
@@ -76,6 +79,7 @@ type tab struct {
 	logChosen int
 	outList   ui.ListState
 	snaps     snapState
+	hist      historyState
 	// expired is set once old snapshots were cleared on open.
 	expired bool
 	sideW   float32
@@ -142,7 +146,7 @@ func (a *App) Open(path string) {
 		return
 	}
 	a.nextID++
-	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(),
+	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
 	a.tabs = append(a.tabs, t)
 	a.active = len(a.tabs) - 1
@@ -246,6 +250,10 @@ func (a *App) initAndOpen() {
 // View builds the main window.
 func (a *App) View(c *ui.Context) {
 	a.shortcuts(c)
+	if a.clip != "" {
+		c.WriteClipboard(a.clip)
+		a.clip = ""
+	}
 	root := ui.Column(c).Fill().Background(c.Theme().Background)
 	if files := root.DroppedFiles(); files != nil {
 		for _, f := range files {
