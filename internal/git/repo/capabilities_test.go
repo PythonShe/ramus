@@ -42,7 +42,7 @@ func TestCapabilities(t *testing.T) {
 
 	rt := gittest.Init(t, "--ref-format=reftable")
 	rt.Commit("one")
-	if c := caps(t, rt); c.RefStorage != "reftable" || c.NativeRefs() {
+	if c := caps(t, rt); c.RefStorage != "reftable" || !c.NativeRefs() || len(c.Fallbacks()) != 0 {
 		t.Fatalf("reftable: %+v", c)
 	}
 

@@ -79,9 +79,11 @@ func Check(loc Location, cfg *config.Config) Capabilities {
 	return c
 }
 
-// NativeRefs reports whether the files-format ref reader serves the
-// repository.
-func (c Capabilities) NativeRefs() bool { return c.RefStorage == "files" && len(c.Unknown) == 0 }
+// NativeRefs reports whether the engine's own ref readers (files or
+// reftable) serve the repository.
+func (c Capabilities) NativeRefs() bool {
+	return (c.RefStorage == "files" || c.RefStorage == "reftable") && len(c.Unknown) == 0
+}
 
 // NativeIndex reports whether the index reader serves the work tree.
 func (c Capabilities) NativeIndex() bool {
@@ -110,7 +112,7 @@ func (c Capabilities) Fallbacks() []string {
 		}
 	}
 	add(c.HashSize == 32, "SHA-256 objects")
-	add(c.RefStorage != "files", c.RefStorage+" refs")
+	add(c.RefStorage != "files" && c.RefStorage != "reftable", c.RefStorage+" refs")
 	add(c.PartialClone, "partial clone")
 	add(c.SplitIndex, "split index")
 	add(c.SparseIndex, "sparse index")

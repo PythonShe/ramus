@@ -123,9 +123,9 @@ func check(t *testing.T, g *gittest.Repo, wantFallback string, hashSize int) {
 	}
 }
 
-func TestReftable(t *testing.T) {
-	g := build(t, "--ref-format=reftable")
-	check(t, g, "reftable refs", 20)
+func TestReftableSHA256(t *testing.T) {
+	g := build(t, "--ref-format=reftable", "--object-format=sha256")
+	check(t, g, "SHA-256 objects", 32)
 }
 
 func TestSHA256(t *testing.T) {

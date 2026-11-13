@@ -74,10 +74,14 @@ func (r *Repository) Life() *lifetime.Lifetime { return r.life }
 // read from the repository's mappings first.
 func (r *Repository) Close() { r.life.Close() }
 
-// Refs returns the ref reader, or nil when refs go to git.
-func (r *Repository) Refs() *refs.Store {
-	if !r.Caps.NativeRefs() {
+// Refs returns the ref reader for the repository's format, or nil when
+// refs go to git.
+func (r *Repository) Refs() refs.Reader {
+	switch {
+	case !r.Caps.NativeRefs():
 		return nil
+	case r.Caps.RefStorage == "reftable":
+		return refs.NewReftable(r.GitDir, r.CommonDir, r.Caps.HashSize)
 	}
 	return refs.New(r.GitDir, r.CommonDir, r.Caps.HashSize)
 }

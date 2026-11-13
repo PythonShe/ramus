@@ -33,9 +33,10 @@ scripts/check.sh      # the full gate: gofmt, vet, engine import boundary, tests
 - Reads go through our own readers of git's on-disk formats; everything that
   writes runs the `git` executable, so hooks, signing and credentials behave
   as in the terminal.
-- When the engine meets something it does not support (SHA-256 repositories,
-  partial clones, reftable, sparse or split indexes), it hands that
-  repository or operation to `git` instead of guessing.
+- When the engine meets something it does not support (SHA-256 objects,
+  partial clones, sparse or split indexes), it hands that repository or
+  operation to `git` instead of guessing. Refs are read natively in both
+  the files and the reftable format.
 - `git` is the oracle: a reader is tested by comparing its output with
   git's on real repositories.
 - The main thread never waits on I/O, a subprocess or a lock held by
