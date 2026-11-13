@@ -3,13 +3,13 @@ package ui
 import (
 	"encoding/hex"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/actions"
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/session"
 	"ramus/internal/settings"
 	"ramus/internal/tools"
@@ -24,16 +24,12 @@ type promptState struct {
 	answers   []string
 }
 
-// varsFor is what an action started in t runs on; file is relative to
-// the work tree, or empty.
-func varsFor(t *tab, file string) actions.Vars {
+// varsFor is what an action started in t runs on.
+func varsFor(t *tab) actions.Vars {
 	st := t.s.State
 	v := actions.Vars{Branch: strings.TrimPrefix(st.Head.Target, "refs/heads/"), Commit: hex.EncodeToString(st.Head.OID)}
 	if r := t.s.Repo; r != nil {
 		v.Repo = r.WorkTree
-		if file != "" && r.WorkTree != "" {
-			v.File = filepath.Join(r.WorkTree, filepath.FromSlash(file))
-		}
 	}
 	return v
 }
@@ -111,26 +107,34 @@ func (a *App) editor() (tools.Tool, bool) {
 	return tools.Tool{}, false
 }
 
-// fileMenu is the context menu of a changed file.
+// fileMenu is the context menu of a changed file. Each choice checks
+// the path first, off the main thread: a path from git may lead out of
+// the work tree through a symlink, and nothing is opened there.
 func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
-	abs := ""
-	if r := t.s.Repo; r != nil && r.WorkTree != "" {
-		abs = filepath.Join(r.WorkTree, filepath.FromSlash(rel))
+	root := ""
+	if r := t.s.Repo; r != nil {
+		root = r.WorkTree
 	}
-	ed, ok := a.editor()
-	open := m.Item("Open in Editor")
-	open.Disabled(!ok || abs == "")
-	if open.Chosen() {
-		*act = func() {
+	withPath := func(fn func(abs string) error) func() {
+		update := a.Update
+		return func() {
 			go func() {
-				if err := ed.Open(abs, 0); err != nil {
-					a.Update(func() { a.notice = errText(err) })
+				abs, err := pathsafe.Target(root, rel)
+				if err == nil {
+					err = fn(abs)
+				}
+				if err != nil {
+					update(func() { a.notice = errText(err) })
 				}
 			}()
 		}
 	}
-	if m.Item("Reveal in File Manager").Disabled(abs == "").Chosen() {
-		*act = func() { go tools.Reveal(abs) }
+	ed, ok := a.editor()
+	if m.Item("Open in Editor").Disabled(!ok || root == "").Chosen() {
+		*act = withPath(func(abs string) error { return ed.Open(abs, 0) })
+	}
+	if m.Item("Reveal in File Manager").Disabled(root == "").Chosen() {
+		*act = withPath(tools.Reveal)
 	}
 	var mine []settings.Action
 	for _, x := range a.Settings.Actions {
@@ -141,9 +145,16 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 	if len(mine) > 0 {
 		m.Separator()
 		for _, x := range mine {
-			if m.Item(x.Name).Chosen() {
-				x := x
-				*act = func() { a.startAction(t, x, varsFor(t, rel)) }
+			if m.Item(x.Name).Disabled(root == "").Chosen() {
+				x, update := x, a.Update
+				*act = withPath(func(abs string) error {
+					update(func() {
+						v := varsFor(t)
+						v.File = abs
+						a.startAction(t, x, v)
+					})
+					return nil
+				})
 			}
 		}
 	}

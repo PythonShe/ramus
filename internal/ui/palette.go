@@ -47,7 +47,7 @@ func (a *App) commands() []command {
 		cmds = append(cmds, command{"Show Command Log", func() { t.sel = "log" }})
 		for _, x := range a.Settings.Actions {
 			if x.On == "" {
-				cmds = append(cmds, command{x.Name, func() { a.startAction(t, x, varsFor(t, "")) }})
+				cmds = append(cmds, command{x.Name, func() { a.startAction(t, x, varsFor(t)) }})
 			}
 		}
 	}
