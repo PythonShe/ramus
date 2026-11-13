@@ -1,6 +1,9 @@
 package activity
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Filter picks the commits counted.
 type Filter struct {
@@ -78,6 +81,32 @@ func (r *Records) Count(f Filter, heat *Heat, days Days) Totals {
 	}
 	t.ActiveDays = len(seenDay)
 	return t
+}
+
+// Span returns the commit times of the first and last commits.
+func (r *Records) Span() (first, last int64) {
+	for i, t := range r.Commit {
+		if i == 0 || t < first {
+			first = t
+		}
+		if i == 0 || t > last {
+			last = t
+		}
+	}
+	return first, last
+}
+
+// People adds the addresses of the authors of the commits f keeps to
+// into, lower-cased, so people are counted once across repositories.
+func (r *Records) People(f Filter, into map[string]bool) {
+	seen := make([]bool, r.Identities())
+	for i := range r.At {
+		if f.keep(r, i) && !seen[r.Who[i]] {
+			seen[r.Who[i]] = true
+			_, email := r.Identity(r.Who[i])
+			into[strings.ToLower(email)] = true
+		}
+	}
 }
 
 // Calendar is what a calendar of activity says beside its squares.
