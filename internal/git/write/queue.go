@@ -6,6 +6,7 @@ package write
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"regexp"
 	"strconv"
 	"sync"
@@ -13,6 +14,7 @@ import (
 
 	"ramus/internal/git/lifetime"
 	"ramus/internal/git/run"
+	"ramus/internal/git/snapshot"
 )
 
 // Op is one write: a git command and what to call it.
@@ -20,6 +22,15 @@ type Op struct {
 	// Name is what the app calls it ("Commit", "Fetch origin").
 	Name string
 	Cmd  run.Cmd
+	// Expect, when set, makes the write refuse with a *StaleError if the
+	// state it was decided on changed.
+	Expect *Expect
+	// Snapshot, when set, keeps the files it names before the write runs;
+	// the write does not run if that fails.
+	Snapshot *snapshot.Options
+	// Backup names refs to keep under BackupPrefix before a history
+	// rewrite.
+	Backup []string
 }
 
 // Stream says where a line came from.
@@ -51,6 +62,8 @@ type Job struct {
 	mu     sync.Mutex
 	res    run.Result
 	err    error
+	snap   snapshot.Snapshot
+	backup string
 	// dropped counts events the reader was too slow for; Result still
 	// holds the output.
 	dropped int
@@ -89,6 +102,14 @@ func (j *Job) Result() (run.Result, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.res, j.err
+}
+
+// Kept returns the snapshot taken and the backup directory made before the
+// job ran, if it asked for them.
+func (j *Job) Kept() (snapshot.Snapshot, string) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.snap, j.backup
 }
 
 // Queue runs one repository's writes in order, one at a time.
@@ -218,6 +239,10 @@ func (q *Queue) run(qctx context.Context, j *Job) {
 		j.finish(run.Result{}, err)
 		return
 	}
+	if err := q.prepare(ctx, j); err != nil {
+		j.finish(run.Result{}, err)
+		return
+	}
 	cmd := j.Op.Cmd
 	cmd.Read = false
 	out, errw := &lines{j: j, stream: Stdout}, &lines{j: j, stream: Stderr}
@@ -234,6 +259,36 @@ func (q *Queue) run(qctx context.Context, j *Job) {
 		}
 	}
 	j.finish(res, err)
+}
+
+// prepare runs inside the job's turn, so nothing the queue runs can
+// change the state between the check and the write.
+func (q *Queue) prepare(ctx context.Context, j *Job) error {
+	op := j.Op
+	if op.Expect != nil {
+		if err := check(ctx, q.r, q.gitDir, op.Cmd.WorkTree, op.Expect); err != nil {
+			return err
+		}
+	}
+	if op.Snapshot != nil {
+		s, err := snapshot.Take(ctx, q.r, snapshot.Where{GitDir: q.gitDir, WorkTree: op.Cmd.WorkTree}, *op.Snapshot)
+		if err != nil {
+			return fmt.Errorf("write: keeping a snapshot first: %w", err)
+		}
+		j.mu.Lock()
+		j.snap = s
+		j.mu.Unlock()
+	}
+	if len(op.Backup) > 0 {
+		dir, err := backup(ctx, q.r, q.gitDir, op.Backup)
+		if err != nil {
+			return fmt.Errorf("write: keeping a backup first: %w", err)
+		}
+		j.mu.Lock()
+		j.backup = dir
+		j.mu.Unlock()
+	}
+	return nil
 }
 
 // maxStdout bounds the output a write keeps; its events carry it all.
