@@ -156,3 +156,14 @@ func TestLogStripsAndRedacts(t *testing.T) {
 		t.Fatalf("kept %q", e.Output)
 	}
 }
+
+func TestCloseWhileOpening(t *testing.T) {
+	r := gittest.Init(t)
+	s := Open(testrun.Runner(t), nil, r.Dir, func(func()) {})
+	s.Close()
+	select {
+	case <-s.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("a session closed while opening did not stop")
+	}
+}

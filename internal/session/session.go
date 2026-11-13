@@ -63,6 +63,14 @@ type Session struct {
 	wake    chan struct{}
 	closed  bool
 	timeNow func() time.Time
+	// stop cancels an open in progress; opened is the repository once
+	// open, before the main thread has taken it, so Close reaches both.
+	stop   context.CancelFunc
+	opened *repo.Repository
+	// running counts opens and the repositories they made until each has
+	// stopped; done closes after Close once it is zero.
+	running sync.WaitGroup
+	done    chan struct{}
 }
 
 // Debounce gathers a burst of file changes into one refresh.
@@ -73,20 +81,47 @@ const Debounce = 75 * time.Millisecond
 // thread (Window.Update).
 func Open(runner *run.Runner, ts *trust.Store, path string, update func(func())) *Session {
 	s := &Session{Path: path, runner: runner, trust: ts, update: update, State: State{Opening: true},
-		wake: make(chan struct{}, 1), timeNow: time.Now}
-	go s.open()
+		wake: make(chan struct{}, 1), timeNow: time.Now, done: make(chan struct{})}
+	s.start()
 	return s
 }
 
-func (s *Session) open() {
+// start opens the repository in the background.
+func (s *Session) start() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	s.mu.Lock()
+	s.stop, s.opened = cancel, nil
+	s.mu.Unlock()
+	s.running.Add(1)
+	go s.open(ctx, cancel)
+}
+
+// Done is closed once the session is closed and everything it started
+// has stopped.
+func (s *Session) Done() <-chan struct{} { return s.done }
+
+func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 	trusted := func(loc repo.Location) bool { return s.trust != nil && s.trust.Trusted(loc.CommonDir) }
 	r, err := repo.Open(ctx, s.runner, s.Path, trusted)
-	if err != nil {
-		s.update(func() { s.State = State{Err: err} })
+	cancel()
+	s.mu.Lock()
+	closed := s.closed
+	if err == nil && !closed {
+		s.opened = r
+	}
+	s.mu.Unlock()
+	if err != nil || closed {
+		if r != nil {
+			r.Close()
+			<-r.Life().Done()
+		}
+		s.running.Done()
+		if err != nil && !closed {
+			s.update(func() { s.State = State{Err: err} })
+		}
 		return
 	}
+	go func() { <-r.Life().Done(); s.running.Done() }()
 	var q *write.Queue
 	if !r.Restricted {
 		if q, err = write.NewQueue(r.Life(), r.Runner, r.GitDir); err == nil {
@@ -275,17 +310,24 @@ func (s *Session) Trust() error {
 	old := s.Repo
 	s.Repo, s.Queue, s.State = nil, nil, State{Opening: true}
 	old.Close()
-	go s.open()
+	s.start()
 	return nil
 }
 
 // Close ends the session; the repository's goroutines and processes stop.
 func (s *Session) Close() {
 	s.mu.Lock()
+	was := s.closed
 	s.closed = true
+	r, stop := s.opened, s.stop
 	s.mu.Unlock()
-	if s.Repo != nil {
-		s.Repo.Close()
-		s.Repo = nil
+	if was {
+		return
 	}
+	stop()
+	if r != nil {
+		r.Close()
+	}
+	s.Repo = nil
+	go func() { s.running.Wait(); close(s.done) }()
 }

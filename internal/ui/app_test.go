@@ -92,9 +92,7 @@ func (h *harness) repoWith(files ...string) *gittest.Repo {
 func (h *harness) closeAll() {
 	var lives []<-chan struct{}
 	for _, t := range h.app.tabs {
-		if t.s.Repo != nil {
-			lives = append(lives, t.s.Repo.Life().Done())
-		}
+		lives = append(lives, t.s.Done())
 	}
 	h.app.CloseAll()
 	for _, d := range lives {
