@@ -104,3 +104,16 @@ func compare(t *testing.T, r *gittest.Repo, limit int) {
 		t.Fatal(err)
 	}
 }
+
+func FuzzParseCommit(f *testing.F) {
+	f.Add([]byte("tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\nauthor A U Thor <a@example.com> 1700000000 +0100\ncommitter C <c@example.com> 1700000000 -0530\n\nsubject\n\nbody\n"))
+	f.Add([]byte("author <> x y\n\n"))
+	f.Add([]byte("author Name <mail 99999999999999999999 +9999\n"))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		c, err := ParseCommit(data)
+		if err != nil {
+			return
+		}
+		_ = Subject(c.Message)
+	})
+}
