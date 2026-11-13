@@ -23,7 +23,7 @@ func TestCommitPatchAndBlobPair(t *testing.T) {
 	run := testrun.Runner(t)
 	a, b := oid(t, r, "HEAD~"), oid(t, r, "HEAD")
 
-	p, err := CommitPatch(context.Background(), run, r.GitDir(), a, b, []string{"old name", "new name"}, -1, 0)
+	p, err := CommitPatch(context.Background(), run, r.GitDir(), a, b, []string{"old name", "new name"}, -1, 0, AllWhitespace)
 	if err != nil {
 		t.Fatal(err)
 	}

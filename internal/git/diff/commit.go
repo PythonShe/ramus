@@ -18,13 +18,14 @@ type Reader interface {
 // CommitPatch gets the patch of paths between commits or trees a and b
 // from git diff, with renames, so diff.algorithm and textconv apply. For a
 // rename, pass both paths. contextLines below zero keeps git's diff.context.
+// ws leaves changes of white space out.
 //
 // The view shows it with the files from BlobPair (DiffState.SetPatchFiles),
 // so the whole file can unfold around the hunks. When textconv rewrote the
 // file, the patch does not make one blob from the other, and the view
 // shows the patch alone.
-func CommitPatch(ctx context.Context, r *run.Runner, gitDir string, a, b []byte, paths []string, contextLines, maxBytes int) (Patch, error) {
-	args := []string{"diff", "--no-color", "--no-ext-diff", "--submodule=short", "-M"}
+func CommitPatch(ctx context.Context, r *run.Runner, gitDir string, a, b []byte, paths []string, contextLines, maxBytes int, ws Whitespace) (Patch, error) {
+	args := append([]string{"diff", "--no-color", "--no-ext-diff", "--submodule=short", "-M"}, ws.args()...)
 	if contextLines >= 0 {
 		args = append(args, "-U"+strconv.Itoa(contextLines))
 	}

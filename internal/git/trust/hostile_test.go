@@ -123,7 +123,7 @@ func reads(t *testing.T, runner *run.Runner, r *gittest.Repo, strict bool) {
 	_, err = diff.WorkTreePatch(ctx, runner, gd, r.Dir, diff.PatchRequest{Source: diff.Untracked, Paths: []string{"new.x"}, Context: -1})
 	check("untracked", err)
 	head, _ := hex.DecodeString(strings.TrimSpace(r.Git("rev-parse", "HEAD")))
-	_, err = diff.CommitPatch(ctx, runner, gd, head, head, nil, -1, 0)
+	_, err = diff.CommitPatch(ctx, runner, gd, head, head, nil, -1, 0, diff.AllWhitespace)
 	check("commit patch", err)
 	s := commits.New(20)
 	check("rev-list", history.RevList(ctx, runner, gd, [][]byte{head}, s, func(uint32, []uint32) error { return nil }))

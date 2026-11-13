@@ -20,6 +20,30 @@ const (
 	Untracked
 )
 
+// Whitespace is what changes of white space a patch leaves out.
+type Whitespace uint8
+
+const (
+	// AllWhitespace shows every change.
+	AllWhitespace Whitespace = iota
+	// IgnoreSpaceChange leaves out changes in the amount of white space,
+	// as git diff -b.
+	IgnoreSpaceChange
+	// IgnoreAllSpace compares lines without their white space, as git
+	// diff -w.
+	IgnoreAllSpace
+)
+
+func (w Whitespace) args() []string {
+	switch w {
+	case IgnoreSpaceChange:
+		return []string{"--ignore-space-change"}
+	case IgnoreAllSpace:
+		return []string{"--ignore-all-space"}
+	}
+	return nil
+}
+
 // DefaultMaxPatch bounds a patch held for display.
 const DefaultMaxPatch = 256 << 20
 
@@ -38,6 +62,9 @@ type PatchRequest struct {
 	// and discarding parts of it: no textconv, standard a/ and b/
 	// prefixes and blank context lines kept, whatever the user's config.
 	ForApply bool
+	// Whitespace leaves changes of white space out; such a patch is for
+	// reading, and git apply may not take it back.
+	Whitespace Whitespace
 }
 
 // Patch is a unified diff as git prints it.
@@ -58,6 +85,7 @@ func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 		args = append(args, "-U"+strconv.Itoa(req.Context))
 	}
 	var config []string
+	args = append(args, req.Whitespace.args()...)
 	if req.ForApply {
 		args = append(args, "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--no-relative", "--no-color-moved")
 		config = []string{"diff.suppressBlankEmpty=false"}
