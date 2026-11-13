@@ -123,9 +123,10 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 			return Snapshot{}, err
 		}
 		if len(paths) == 0 {
-			add = nil
+			add = nil // nothing on disk or in the index to keep
+		} else {
+			add = append(add, "--pathspec-from-file=-", "--pathspec-file-nul")
 		}
-		add = append(add, "--pathspec-from-file=-", "--pathspec-file-nul")
 		for _, p := range paths {
 			spec = append(append(spec, p...), 0)
 		}
