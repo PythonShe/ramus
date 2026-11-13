@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 
 	"ramus/internal/git/diff"
+	"ramus/internal/git/redact"
 	"ramus/internal/session"
 	"ramus/internal/settings"
 )
@@ -90,6 +91,19 @@ type patchView struct {
 	// none or not a picture, and what each says of itself.
 	images [2]ui.ImageSource
 	about  [2]string
+	// sub is a submodule's change, shown as the commits it moves over.
+	sub *subChange
+}
+
+// subChange is a submodule's change: its commits before and after, and
+// the commits between them once read.
+type subChange struct {
+	path     string
+	old, new []byte
+	dirty    bool
+	asked    bool
+	rng      *session.SubmoduleRange
+	list     ui.ListState
 }
 
 // setPatch builds the viewer of res off the main thread: with the whole
@@ -103,9 +117,13 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		pv.p.Path(0) == res.Parsed.Path(0) {
 		scroll = pv.d.ScrollY()
 	}
-	pv.d, pv.p, pv.failed, pv.images, pv.about = nil, res.Parsed, false, [2]ui.ImageSource{}, [2]string{}
+	pv.d, pv.p, pv.failed, pv.images, pv.about, pv.sub = nil, res.Parsed, false, [2]ui.ImageSource{}, [2]string{}, nil
 	p := res.Parsed
 	if p == nil || len(p.Files) == 0 {
+		return
+	}
+	if old, new, dirty, ok := p.Submodule(0); ok {
+		pv.sub = &subChange{path: p.Path(0), old: old, new: new, dirty: dirty}
 		return
 	}
 	if p.Files[0].Binary {
@@ -196,7 +214,7 @@ func (pv *patchView) clearSelection() {
 // patchBody shows the viewer, or why there is none. actions, when set,
 // builds the buttons on the change under the pointer, and lets lines be
 // selected.
-func (a *App) patchBody(c *ui.Context, pv *patchView, res session.PatchResult, actions func(c *ui.Context, change int)) {
+func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchResult, actions func(c *ui.Context, change int)) {
 	th := c.Theme()
 	p := res.Parsed
 	switch {
@@ -210,6 +228,9 @@ func (a *App) patchBody(c *ui.Context, pv *patchView, res session.PatchResult, a
 		ui.Column(c).Fill().Center().Children(func() {
 			ui.Text(c, "No differences in content").TextColor(th.TextMuted)
 		})
+		return
+	case pv.sub != nil:
+		a.submoduleChange(c, t, pv.sub)
 		return
 	case p.Files[0].Binary && (pv.images[0] != nil || pv.images[1] != nil):
 		pictures(c, pv)
@@ -314,5 +335,84 @@ func pictures(c *ui.Context, pv *patchView) {
 				})
 			})
 		}
+	})
+}
+
+// submoduleChange shows a submodule's change as a range of its commits,
+// read from its repository in the work tree.
+func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
+	th := c.Theme()
+	short := func(id []byte) string { return fmt.Sprintf("%.7x", id) }
+	what := ""
+	switch {
+	case sc.old == nil:
+		what = "Submodule added at " + short(sc.new)
+	case sc.new == nil:
+		what = "Submodule removed, was at " + short(sc.old)
+	case bytes.Equal(sc.old, sc.new):
+		what = "Submodule at " + short(sc.new)
+	default:
+		what = "Submodule moves from " + short(sc.old) + " to " + short(sc.new)
+	}
+	if sc.old != nil && sc.new != nil && !bytes.Equal(sc.old, sc.new) && !sc.asked {
+		sc.asked = true
+		t.s.LoadSubmoduleRange(sc.path, sc.old, sc.new, func(r session.SubmoduleRange) { sc.rng = &r })
+	}
+	type row struct {
+		c       session.RangeCommit
+		removed bool
+	}
+	var rows []row
+	if r := sc.rng; r != nil {
+		for _, rc := range r.Added {
+			rows = append(rows, row{rc, false})
+		}
+		for _, rc := range r.Removed {
+			rows = append(rows, row{rc, true})
+		}
+	}
+	ui.Column(c).Fill().Gap(8).Padding(12).Children(func() {
+		ui.Text(c, what).Bold().Selectable()
+		if sc.dirty {
+			ui.Text(c, "Its work tree has changes of its own").FontSize(12).TextColor(th.Warning)
+		}
+		r := sc.rng
+		switch {
+		case sc.asked && r == nil:
+			ui.Spinner(c)
+			return
+		case r == nil:
+			return
+		case r.Err != nil:
+			ui.Text(c, errText(r.Err)).FontSize(12).TextColor(th.TextMuted).Selectable()
+			return
+		}
+		summary := fmt.Sprintf("%s added", commitCount(len(r.Added)))
+		if len(r.Removed) > 0 {
+			summary += fmt.Sprintf(", %s removed", commitCount(len(r.Removed)))
+		}
+		if r.More {
+			summary += ", the latest 500 each way listed"
+		}
+		ui.Text(c, summary).FontSize(12).TextColor(th.TextMuted)
+		sc.list.Label = func(i int) string {
+			verb := "added"
+			if rows[i].removed {
+				verb = "removed"
+			}
+			return verb + " " + rows[i].c.Subject
+		}
+		ui.List(c, &sc.list, len(rows), func(i int) {
+			rc := rows[i]
+			ui.Row(c).Padding(2, 4).Gap(8).FillWidth().Children(func() {
+				sign, col := "+", th.Success
+				if rc.removed {
+					sign, col = "-", th.Danger
+				}
+				ui.Text(c, sign).Font("monospace").FontSize(12).TextColor(col).Width(12)
+				ui.Text(c, rc.c.ID[:min(10, len(rc.c.ID))]).Font("monospace").FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, redact.Control(rc.c.Subject)).FontSize(13).SingleLine().Grow(1)
+			})
+		}).Grow(1)
 	})
 }

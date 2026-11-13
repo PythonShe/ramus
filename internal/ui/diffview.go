@@ -87,7 +87,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 		if d.partialOK() {
 			actions = func(c *ui.Context, change int) { a.changeActions(c, t, r, change) }
 		}
-		a.patchBody(c, &d.pv, res, actions)
+		a.patchBody(c, t, &d.pv, res, actions)
 	})
 }
 

@@ -268,6 +268,6 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 			ui.Text(c, fmt.Sprintf("Only the first %d MB of this patch are shown", MaxShownPatch>>20)).
 				FontSize(12).TextColor(th.Warning).Padding(4, 12)
 		}
-		a.patchBody(c, &cv.pv, cv.patch, nil)
+		a.patchBody(c, t, &cv.pv, cv.patch, nil)
 	})
 }
