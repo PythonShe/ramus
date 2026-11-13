@@ -25,6 +25,7 @@ func (a *App) commands() []command {
 	cmds := []command{
 		{"Open Repository…", a.pickAndOpen},
 		{"Clone Repository…", func() { a.clone.open = true }},
+		{"New Repository…", a.initAndOpen},
 	}
 	t := a.current()
 	if t != nil {

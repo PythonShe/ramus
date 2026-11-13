@@ -178,6 +178,16 @@ func TestTabs(t *testing.T) {
 	}
 }
 
+func TestNewRepository(t *testing.T) {
+	h := newHarness(t)
+	dir := filepath.Join(t.TempDir(), "fresh")
+	t.Cleanup(h.closeAll)
+	h.app.PickFolder = func(string) (string, error) { return dir, nil }
+	h.tt.Frame()
+	h.click("New…")
+	h.until("the new repository", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No changes") })
+}
+
 func TestDropOpens(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()

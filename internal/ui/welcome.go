@@ -26,6 +26,9 @@ func (a *App) welcomeView(c *ui.Context) {
 				if ui.Button(c, "Clone…").Clicked() {
 					a.clone.open = true
 				}
+				if ui.Button(c, "New…").Clicked() {
+					a.initAndOpen()
+				}
 			})
 			if a.notice != "" {
 				ui.Text(c, a.notice).TextColor(th.Danger)

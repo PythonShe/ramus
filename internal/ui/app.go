@@ -2,6 +2,7 @@
 package ui
 
 import (
+	"context"
 	"path/filepath"
 	"slices"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
+	"ramus/internal/git/write"
 	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/internal/settings"
@@ -170,6 +172,30 @@ func (a *App) pickAndOpen() {
 	pick, update := a.PickFolder, a.Update
 	go func() {
 		p, err := pick("Open Repository")
+		update(func() {
+			switch {
+			case err != nil:
+				a.notice = err.Error()
+			case p != "":
+				a.Open(p)
+			}
+		})
+	}()
+}
+
+// initAndOpen asks for a folder, makes it a repository, and opens it.
+func (a *App) initAndOpen() {
+	if a.PickFolder == nil || a.Runner == nil {
+		return
+	}
+	pick, update, r := a.PickFolder, a.Update, a.Runner
+	go func() {
+		p, err := pick("New Repository")
+		if err == nil && p != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			err = write.Init(ctx, r, p, false)
+			cancel()
+		}
 		update(func() {
 			switch {
 			case err != nil:
