@@ -39,8 +39,10 @@ type refsState struct {
 	ask   confirmState
 	// switching is the branch asked to be checked out over local changes.
 	switching string
-	dlg       refDialog
-	clean     cleanupState
+	// deleted are the branches last deleted here, until restored.
+	deleted []session.BranchInfo
+	dlg     refDialog
+	clean   cleanupState
 }
 
 const (
@@ -128,6 +130,16 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 			ro := t.s.Queue == nil
 			switch rs.kind {
 			case refsBranches:
+				if d := rs.deleted; len(d) > 0 {
+					what := "Deleted " + plural(len(d), "branch")
+					if len(d) == 1 {
+						what = "Deleted " + redact.Control(strings.TrimPrefix(d[0].Name, "refs/heads/")) + " at " + d[0].Commit[:min(10, len(d[0].Commit))]
+					}
+					ui.Text(c, what).FontSize(12).TextColor(th.TextMuted).SingleLine()
+					if ui.Button(c, "Restore").Disabled(ro).Clicked() {
+						a.restoreBranches(t, d)
+					}
+				}
 				if ui.Button(c, "Clean Up…").Disabled(rs.info == nil).Clicked() {
 					a.openCleanup(t)
 				}
@@ -454,7 +466,20 @@ func (a *App) deleteBranches(t *tab, bs []session.BranchInfo) {
 		for _, b := range bs {
 			a.submit(t, write.DeleteBranch(w, b.Name, b.Commit, true, b.Worktree, seen), nil)
 		}
+		t.refs.deleted = bs
 	}}
+}
+
+// restoreBranches makes deleted branches again at the commits they were
+// at; a worktree removed with one is not made again.
+func (a *App) restoreBranches(t *tab, bs []session.BranchInfo) {
+	w, seen := t.s.Where(), t.s.Seen()
+	for _, b := range bs {
+		op, err := write.CreateBranch(w, b.Name, b.Commit, false, seen)
+		op.Name = "Restore branch " + strings.TrimPrefix(b.Name, "refs/heads/") + " at " + b.Commit[:min(12, len(b.Commit))]
+		a.submit(t, op, err)
+	}
+	t.refs.deleted = nil
 }
 
 func (a *App) tagMenu(m *ui.Menu, t *tab, tg session.TagInfo, act *func()) {

@@ -91,6 +91,11 @@ func TestRefsView(t *testing.T) {
 	h.click("Delete")
 	h.until("the delete", func() bool { return rev("refs/heads/merged-one") == "" })
 	waitIdle("the delete ended")
+	h.until("the restore button", h.shows("Deleted merged-one at "))
+	gone := rev("HEAD~1")
+	h.click("Restore")
+	h.until("restored", func() bool { return rev("refs/heads/merged-one") == gone })
+	waitIdle("the restore ended")
 
 	// A tag, annotated, and a remote added.
 	h.click("Tags")
