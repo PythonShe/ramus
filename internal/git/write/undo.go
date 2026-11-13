@@ -121,19 +121,19 @@ func capture(rd refs.Reader) (fullState, error) {
 	return s, nil
 }
 
-// touched turns two full states into the entry's two states, keeping only
-// the refs that changed.
-func touched(a, b fullState) (State, State) {
+// touched turns two full states into the entry's two states, keeping the
+// refs that changed among those the write may move: the branch HEAD named
+// before and after, and extra.
+func touched(a, b fullState, extra []string) (State, State) {
 	before := State{Symbolic: a.symbolic, Head: a.head, Refs: map[string]string{}}
 	after := State{Symbolic: b.symbolic, Head: b.head, Refs: map[string]string{}}
-	for _, name := range slices.Sorted(maps.Keys(a.refs)) {
+	names := append([]string{a.symbolic, b.symbolic}, extra...)
+	for _, name := range names {
+		if name == "" || ignored(name) {
+			continue
+		}
 		if a.refs[name] != b.refs[name] {
 			before.Refs[name], after.Refs[name] = a.refs[name], b.refs[name]
-		}
-	}
-	for name, v := range b.refs {
-		if _, ok := a.refs[name]; !ok {
-			before.Refs[name], after.Refs[name] = "", v
 		}
 	}
 	return before, after
@@ -173,9 +173,10 @@ func (q *Queue) travel(ctx context.Context, undo bool) (run.Result, error) {
 		err = q.apply(ctx, e, e.After, e.Before, true)
 	} else if e.Kind == FilesOnly || e.op.Snapshot != nil {
 		// A write that dropped work is redone by running it again, after
-		// checking nothing moved, since only it knows what it drops.
+		// checking nothing moved, since only it knows what it drops. Its
+		// fresh snapshot is what a later undo restores.
 		if err = q.verify(e.Before); err == nil {
-			err = q.redoFiles(ctx, e)
+			e.Snapshot, err = q.redoFiles(ctx, e)
 		}
 	} else {
 		err = q.apply(ctx, e, e.Before, e.After, false)
@@ -206,15 +207,6 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 		_, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: w.WorkTree, Args: args})
 		return err
 	}
-	// Refs that will exist are set before HEAD moves, so a checkout finds
-	// its branch; deletions and the branch HEAD leaves come after.
-	early := func(name, nu string) bool { return nu != "" && name != from.Symbolic }
-	if e.Kind == MovesHead {
-		if err := q.moveRefs(ctx, from, to, early, false); err != nil {
-			return err
-		}
-	}
-	skip := ""
 	switch e.Kind {
 	case FilesOnly:
 		return restoreFiles(ctx, q, w, e.Snapshot)
@@ -222,6 +214,15 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 		if _, err := snapshot.Take(ctx, q.r, w, snapshot.Options{Reason: "Before " + verb(restore) + " " + e.Name}); err != nil {
 			return fmt.Errorf("write: keeping a snapshot first: %w", err)
 		}
+	}
+	// Refs that will exist are set before HEAD moves, so a checkout finds
+	// its branch; deletions and the branch HEAD leaves come after.
+	early := func(name, nu string) bool { return e.Kind == MovesHead && nu != "" && name != from.Symbolic }
+	if err := q.moveRefs(ctx, from, to, early, false); err != nil {
+		return err
+	}
+	skip := ""
+	if e.Kind == MovesHead {
 		switch {
 		case from.Symbolic != to.Symbolic && to.Symbolic != "":
 			err = git("checkout", "-q", "--no-guess", strings.TrimPrefix(to.Symbolic, "refs/heads/"), "--")
@@ -231,12 +232,14 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 			err, skip = git("reset", "-q", "--keep", to.Head), to.Symbolic
 		}
 		if err != nil {
+			// Put back what moved early, so the history still matches.
+			if rb := q.moveRefs(ctx, to, from, func(name, nu string) bool { return early(name, to.Refs[name]) }, false); rb != nil {
+				return fmt.Errorf("%w (and putting refs back failed: %v)", err, rb)
+			}
 			return err
 		}
 	}
-	late := func(name, nu string) bool {
-		return name != skip && (e.Kind != MovesHead || !early(name, nu))
-	}
+	late := func(name, nu string) bool { return name != skip && !early(name, nu) }
 	if err := q.moveRefs(ctx, from, to, late, e.Kind == RefsOnly); err != nil {
 		return err
 	}
@@ -304,58 +307,30 @@ func (q *Queue) moveRefs(ctx context.Context, from, to State, pick func(name, nu
 	return err
 }
 
-// restoreFiles writes back the files a snapshot holds.
+// restoreFiles puts the paths a write's snapshot covers back exactly as
+// they were: index, work tree, and files that were absent.
 func restoreFiles(ctx context.Context, q *Queue, w snapshot.Where, s snapshot.Snapshot) error {
 	if s.Commit == "" {
 		return errors.New("write: the write kept no snapshot to undo from")
 	}
-	var paths []string
-	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, Read: true,
-		Args: []string{"diff-tree", "-r", "-z", "--no-renames", "--name-only", "--diff-filter=AMT", headOrEmpty(s), s.Commit}})
-	if err != nil {
-		return err
-	}
-	for _, p := range strings.Split(string(res.Stdout), "\x00") {
-		if p != "" && (s.All || slices.Contains(s.Paths, p) || covers(s.Paths, p)) {
-			paths = append(paths, p)
-		}
-	}
-	if len(paths) == 0 {
-		return nil
-	}
-	_, err = snapshot.Restore(ctx, q.r, w, s, paths)
+	_, err := snapshot.Restore(ctx, q.r, w, s, s.Paths, snapshot.Exact)
 	return err
 }
 
-func covers(paths []string, p string) bool {
-	for _, q := range paths {
-		if strings.HasPrefix(p, strings.TrimSuffix(q, "/")+"/") {
-			return true
-		}
-	}
-	return false
-}
-
-// emptyTree is git's empty tree, for a snapshot taken on an unborn branch.
-const emptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-
-func headOrEmpty(s snapshot.Snapshot) string {
-	if s.Head == "" {
-		return emptyTree
-	}
-	return s.Head
-}
-
-// redoFiles runs a write again, with a fresh snapshot.
-func (q *Queue) redoFiles(ctx context.Context, e Entry) error {
+// redoFiles runs a write again, with a fresh snapshot, which it returns.
+func (q *Queue) redoFiles(ctx context.Context, e Entry) (snapshot.Snapshot, error) {
 	cmd := e.op.Cmd
+	var s snapshot.Snapshot
 	if e.op.Snapshot != nil {
 		w := snapshot.Where{GitDir: q.gitDir, WorkTree: cmd.WorkTree}
-		if _, err := snapshot.Take(ctx, q.r, w, *e.op.Snapshot); err != nil {
-			return fmt.Errorf("write: keeping a snapshot first: %w", err)
+		var err error
+		if s, err = snapshot.Take(ctx, q.r, w, *e.op.Snapshot); err != nil {
+			return e.Snapshot, fmt.Errorf("write: keeping a snapshot first: %w", err)
 		}
 	}
 	cmd.Read = false
-	_, err := q.r.Run(ctx, &cmd)
-	return err
+	if _, err := q.r.Run(ctx, &cmd); err != nil {
+		return e.Snapshot, err
+	}
+	return s, nil
 }

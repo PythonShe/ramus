@@ -27,7 +27,12 @@ func newUndo(t *testing.T) *undoFixture {
 
 func (f *undoFixture) do(name string, kind UndoKind, snap *snapshot.Options, args ...string) {
 	f.t.Helper()
-	op := Op{Name: name, Undo: kind, Snapshot: snap, Cmd: run.Cmd{GitDir: f.r.GitDir(), WorkTree: f.r.Dir, Args: args}}
+	f.doRefs(name, kind, snap, nil, args...)
+}
+
+func (f *undoFixture) doRefs(name string, kind UndoKind, snap *snapshot.Options, refs []string, args ...string) {
+	f.t.Helper()
+	op := Op{Name: name, Undo: kind, Snapshot: snap, Refs: refs, Cmd: run.Cmd{GitDir: f.r.GitDir(), WorkTree: f.r.Dir, Args: args}}
 	if _, err := wait(f.t, f.q.Submit(op)); err != nil {
 		f.t.Fatalf("%s: %v", name, err)
 	}
@@ -64,8 +69,13 @@ func (f *undoFixture) state() string {
 
 func (f *undoFixture) roundTrip(name string, kind UndoKind, snap *snapshot.Options, args ...string) {
 	f.t.Helper()
+	f.roundTripRefs(name, kind, snap, nil, args...)
+}
+
+func (f *undoFixture) roundTripRefs(name string, kind UndoKind, snap *snapshot.Options, refs []string, args ...string) {
+	f.t.Helper()
 	before := f.state()
-	f.do(name, kind, snap, args...)
+	f.doRefs(name, kind, snap, refs, args...)
 	after := f.state()
 	if after == before {
 		f.t.Fatalf("%s changed nothing", name)
@@ -88,10 +98,10 @@ func TestUndoRefsOnly(t *testing.T) {
 	f.r.Stage("a", "2")
 	f.roundTrip("Commit", RefsOnly, nil, "commit", "-q", "-m", "second")
 	f.roundTrip("Amend", RefsOnly, nil, "commit", "-q", "--amend", "-m", "second, amended")
-	f.roundTrip("Create branch", RefsOnly, nil, "branch", "topic")
-	f.roundTrip("Delete branch", RefsOnly, nil, "branch", "-D", "topic")
+	f.roundTripRefs("Create branch", RefsOnly, nil, []string{"refs/heads/topic"}, "branch", "topic")
+	f.roundTripRefs("Delete branch", RefsOnly, nil, []string{"refs/heads/topic"}, "branch", "-D", "topic")
 	f.roundTrip("Rename branch", RefsOnly, nil, "branch", "-m", "main", "trunk")
-	f.roundTrip("Tag", RefsOnly, nil, "tag", "v1")
+	f.roundTripRefs("Tag", RefsOnly, nil, []string{"refs/tags/v1"}, "tag", "v1")
 	f.r.Git("checkout", "-q", "--detach")
 	f.r.Write("a", "3")
 	f.r.Git("add", "a")
@@ -166,4 +176,62 @@ func TestUndoRefusesWhenChangedElsewhere(t *testing.T) {
 	if _, r := f.q.History.Next(); r != "" {
 		t.Fatalf("a new write kept redo %q", r)
 	}
+}
+
+func TestUndoLeavesOtherRefsAlone(t *testing.T) {
+	f := newUndo(t)
+	f.r.Commit("one")
+	// A hook stands in for the terminal creating a tag while the commit
+	// runs.
+	hook(t, f.r, "pre-commit", "git tag from-the-terminal")
+	f.do("Commit", RefsOnly, nil, "commit", "-q", "--allow-empty", "-m", "two")
+	f.undo("Commit")
+	if out := f.r.Git("tag"); out != "from-the-terminal\n" {
+		t.Fatalf("undo touched a tag it did not make: %q", out)
+	}
+}
+
+func TestUndoDiscardOfADeletion(t *testing.T) {
+	f := newUndo(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	os.Remove(filepath.Join(f.r.Dir, "a"))
+	f.roundTrip("Discard", FilesOnly, &snapshot.Options{Reason: "Discard", Paths: []string{"a"}}, "checkout", "--", "a")
+	if _, err := os.Stat(filepath.Join(f.r.Dir, "a")); err != nil {
+		t.Fatal("redo did not bring the file back")
+	}
+}
+
+func TestUndoDiscardOverStagedChange(t *testing.T) {
+	f := newUndo(t)
+	f.r.Write("a", "A")
+	f.r.Commit("one")
+	f.r.Stage("a", "B")
+	f.r.Write("a", "A")
+	f.roundTrip("Discard", FilesOnly, &snapshot.Options{Reason: "Discard", Paths: []string{"a"}}, "checkout", "--", "a")
+}
+
+func TestRedoKeepsWhatItDrops(t *testing.T) {
+	f := newUndo(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	f.r.Write("a", "A")
+	f.do("Discard", FilesOnly, &snapshot.Options{Reason: "Discard", Paths: []string{"a"}}, "checkout", "--", "a")
+	f.undo("Discard")
+	f.r.Write("a", "B")
+	f.redo("Discard")
+	f.undo("Discard")
+	if b, _ := os.ReadFile(filepath.Join(f.r.Dir, "a")); string(b) != "B" {
+		t.Fatalf("undo after redo restored %q, want the edit B", b)
+	}
+}
+
+func TestUndoHardResetKeepsStaged(t *testing.T) {
+	f := newUndo(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	f.r.Commit("two")
+	f.r.Stage("a", "staged")
+	f.r.Write("a", "unstaged")
+	f.roundTrip("Reset", MovesHead, &snapshot.Options{Reason: "Reset", Paths: []string{"a"}}, "reset", "-q", "--hard", "HEAD~")
 }

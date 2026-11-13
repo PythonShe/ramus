@@ -112,7 +112,7 @@ func TestTakeListRestore(t *testing.T) {
 	f.r.Git("checkout", "--", "a", "dir")
 	os.Remove(filepath.Join(f.r.Dir, "c"))
 	f.r.Write("a", "a3")
-	before, err := Restore(context.Background(), f.run, f.w, got, []string{"a", "c", "dir/d"})
+	before, err := Restore(context.Background(), f.run, f.w, got, []string{"a", "c", "dir/d"}, Overlay)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,5 +233,59 @@ func TestPerWorktree(t *testing.T) {
 	}
 	if !bytes.Contains([]byte(f.r.Git("-C", wt, "show", s.Commit+":a")), []byte("in worktree")) {
 		t.Fatal("wrong content")
+	}
+}
+
+func TestAssumeUnchanged(t *testing.T) {
+	f := setup(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	f.r.Git("update-index", "--assume-unchanged", "a")
+	f.r.Write("a", "hidden from status")
+	s := f.take(Options{Reason: "x", Paths: []string{"a"}})
+	if f.r.Git("show", s.Commit+":a") != "hidden from status" {
+		t.Fatal("snapshot skipped an assume-unchanged file")
+	}
+	if !strings.HasPrefix(f.r.Git("ls-files", "-v", "a"), "h ") {
+		t.Fatal("the real index lost its mark")
+	}
+}
+
+func TestRestoreModes(t *testing.T) {
+	f := setup(t)
+	f.r.Write("dir/a", "a1")
+	f.r.Write("b", "b1")
+	f.r.Write("gone", "g")
+	f.r.Commit("one")
+	f.r.Stage("b", "b2")
+	f.r.Write("b", "b3")
+	os.Remove(filepath.Join(f.r.Dir, "gone"))
+	s := f.take(Options{Reason: "x", Paths: []string{"dir", "b", "gone"}})
+
+	// Overlay: a file added since stays, and nothing is deleted.
+	f.r.Write("dir/new", "added later")
+	f.r.Write("dir/a", "changed")
+	f.r.Git("checkout", "--", "gone")
+	if _, err := Restore(context.Background(), f.run, f.w, s, []string{"dir"}, Overlay); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, filepath.Join(f.r.Dir, "dir/a")) != "a1" || read(t, filepath.Join(f.r.Dir, "dir/new")) != "added later" {
+		t.Fatal("overlay restore")
+	}
+
+	// Exact: what a hard reset dropped comes back, staged and unstaged,
+	// and a file that was deleted is deleted again.
+	f.r.Git("reset", "-q", "--hard")
+	if _, err := Restore(context.Background(), f.run, f.w, s, []string{"dir", "b", "gone"}, Exact); err != nil {
+		t.Fatal(err)
+	}
+	if f.r.Git("show", ":b") != "b2" || read(t, filepath.Join(f.r.Dir, "b")) != "b3" {
+		t.Fatalf("staged %q, work tree %q", f.r.Git("show", ":b"), read(t, filepath.Join(f.r.Dir, "b")))
+	}
+	if _, err := os.Stat(filepath.Join(f.r.Dir, "gone")); err == nil {
+		t.Fatal("a deleted file came back")
+	}
+	if read(t, filepath.Join(f.r.Dir, "dir/new")) != "added later" {
+		t.Fatal("an untracked file was removed")
 	}
 }

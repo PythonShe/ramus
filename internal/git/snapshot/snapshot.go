@@ -112,6 +112,9 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	} else if ctx.Err() != nil {
 		return Snapshot{}, err
 	}
+	if err := clearAssumed(git, s.Paths, s.All); err != nil {
+		return Snapshot{}, err
+	}
 	add := []string{"add", "-A"}
 	if opts.Ignored {
 		add = append(add, "-f")
@@ -161,6 +164,32 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 		return Snapshot{}, err
 	}
 	return s, nil
+}
+
+// clearAssumed takes the assume-unchanged mark off entries of the index
+// copy, which git add would otherwise skip, keeping the old content while
+// the change on disk is about to be dropped. Skip-worktree entries stay:
+// in a sparse checkout their files are absent on purpose.
+func clearAssumed(git func([]byte, []string, ...string) (string, error), paths []string, all bool) error {
+	ls, err := git(nil, nil, "ls-files", "-v", "-z")
+	if err != nil {
+		return err
+	}
+	var marked []byte
+	for _, rec := range strings.Split(ls, "\x00") {
+		tag, path, ok := strings.Cut(rec, " ")
+		if !ok || len(tag) != 1 || tag[0] < 'a' || tag[0] > 'z' {
+			continue
+		}
+		if all || covered(paths, path) {
+			marked = append(append(marked, path...), 0)
+		}
+	}
+	if len(marked) == 0 {
+		return nil
+	}
+	_, err = git(marked, nil, "update-index", "--no-assume-unchanged", "-z", "--stdin")
+	return err
 }
 
 // present drops the paths that are in neither the work tree nor the
@@ -363,6 +392,9 @@ func Files(cat *catfile.Process, hashSize int, s Snapshot) ([]File, error) {
 	if err != nil {
 		return nil, err
 	}
+	if ch.Truncated {
+		return nil, fmt.Errorf("snapshot: more than %d changed files to list", tree.MaxChanges)
+	}
 	var out []File
 	for i := range ch.Len() {
 		p := string(ch.Path(i))
@@ -382,26 +414,118 @@ func covered(paths []string, p string) bool {
 	return false
 }
 
-// Restore writes paths back to the work tree as the snapshot kept them,
-// after keeping the current state of those paths in a new snapshot. Paths
-// the snapshot does not hold are the caller's to leave out: restoring
-// never deletes a file.
-func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []string) (Snapshot, error) {
-	if len(paths) == 0 {
+// Mode says how Restore treats what the snapshot does not hold.
+type Mode uint8
+
+const (
+	// Overlay writes back the files the snapshot holds and leaves every
+	// other file, so restoring never deletes: the recovery view.
+	Overlay Mode = iota
+	// Exact makes the paths as they were when the snapshot was taken: the
+	// index from the snapshot's index commit, the work tree from its tree,
+	// tracked files it did not have removed. Undo uses it.
+	Exact
+)
+
+// Restore writes paths back as the snapshot kept them, after keeping the
+// current state of those paths in a new snapshot, which it returns.
+// Paths may be folders. With Exact and no paths, a snapshot of the whole
+// work tree is restored whole.
+func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []string, mode Mode) (Snapshot, error) {
+	whole := len(paths) == 0
+	if whole && (mode != Exact || !s.All) {
 		return Snapshot{}, errors.New("snapshot: nothing to restore")
 	}
 	before, err := Take(ctx, r, w, Options{Reason: "Before restoring " + s.Time.Format(time.DateTime), Paths: paths})
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("snapshot: keeping the current state first: %w", err)
 	}
-	var spec []byte
-	for _, p := range paths {
-		spec = append(append(spec, p...), 0)
+	git := func(spec []string, args ...string) error {
+		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: []string{"GIT_LITERAL_PATHSPECS=1"}}
+		if spec == nil {
+			c.Args = append(args, "--", ":/")
+			c.Env = nil
+		} else {
+			var b []byte
+			for _, p := range spec {
+				b = append(append(b, p...), 0)
+			}
+			c.Stdin = bytes.NewReader(b)
+			c.Args = append(args, "--pathspec-from-file=-", "--pathspec-file-nul")
+		}
+		_, err := r.Run(ctx, c)
+		return err
 	}
-	_, err = r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Stdin: bytes.NewReader(spec),
-		Env:  []string{"GIT_LITERAL_PATHSPECS=1"},
-		Args: []string{"restore", "--source=" + s.Commit, "--worktree", "--pathspec-from-file=-", "--pathspec-file-nul"}})
+	// git restore refuses a pathspec that matches nothing in the source
+	// (or, without --overlay, the index): such paths hold nothing to do.
+	match := func(tree string, index bool) ([]string, error) {
+		if whole {
+			return nil, nil
+		}
+		return known(ctx, r, w, tree, index, paths)
+	}
+	if mode == Overlay {
+		ps, err := match(s.Commit, false)
+		if err != nil || len(ps) == 0 {
+			return before, err
+		}
+		return before, git(ps, "restore", "--source="+s.Commit, "--worktree", "--overlay")
+	}
+	if s.Index != "" {
+		ps, err := match(s.Index, true)
+		if err != nil {
+			return before, err
+		}
+		if whole || len(ps) > 0 {
+			if err := git(ps, "restore", "--source="+s.Index, "--staged"); err != nil {
+				return before, err
+			}
+		}
+	}
+	ps, err := match(s.Commit, true)
+	if err != nil {
+		return before, err
+	}
+	if whole || len(ps) > 0 {
+		err = git(ps, "restore", "--source="+s.Commit, "--worktree", "--no-overlay")
+	}
 	return before, err
+}
+
+// known returns the paths that name something in tree, or in the index
+// when index is set.
+func known(ctx context.Context, r *run.Runner, w Where, tree string, index bool, paths []string) ([]string, error) {
+	var found []string
+	for c := range slices.Chunk(paths, 256) {
+		list := func(args ...string) error {
+			res, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true,
+				Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: append(append(args, "--"), c...)})
+			if err != nil {
+				return err
+			}
+			for _, p := range strings.Split(string(res.Stdout), "\x00") {
+				if p != "" {
+					found = append(found, p)
+				}
+			}
+			return nil
+		}
+		if err := list("ls-tree", "-r", "-z", "--name-only", "--full-tree", tree); err != nil {
+			return nil, err
+		}
+		if index {
+			if err := list("ls-files", "-z", "--full-name"); err != nil {
+				return nil, err
+			}
+		}
+	}
+	var out []string
+	for _, p := range paths {
+		if slices.ContainsFunc(found, func(f string) bool { return covered([]string{p}, f) }) {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 // Expire removes the snapshots taken before cutoff, in one transaction.

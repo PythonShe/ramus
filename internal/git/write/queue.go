@@ -35,6 +35,11 @@ type Op struct {
 	// Undo says how to undo the write; a write that succeeds is then
 	// recorded in the queue's History.
 	Undo UndoKind
+	// Refs are the refs the write may move besides the branch HEAD names
+	// before and after it (a branch it creates, deletes or renames, a
+	// tag). Undo moves only these, so a ref moved meanwhile by something
+	// else is left alone.
+	Refs []string
 	// do runs in place of Cmd, for undo and redo.
 	do func(ctx context.Context) (run.Result, error)
 }
@@ -93,7 +98,9 @@ func (j *Job) Cancel() {
 	queued := false
 	for i, k := range q.jobs {
 		if k == j && !(i == 0 && q.started) {
-			q.jobs = append(q.jobs[:i], q.jobs[i+1:]...)
+			copy(q.jobs[i:], q.jobs[i+1:])
+			q.jobs[len(q.jobs)-1] = nil // let the job go
+			q.jobs = q.jobs[:len(q.jobs)-1]
 			queued = true
 			break
 		}
@@ -207,11 +214,15 @@ func (q *Queue) loop(ctx context.Context) {
 			}
 			continue
 		}
-		q.run(ctx, j)
+		res, err := q.run(ctx, j)
+		// Out of the queue before Done, so Pending never counts a job
+		// that has ended.
 		q.mu.Lock()
+		q.jobs[0] = nil
 		q.jobs = q.jobs[1:]
 		q.started = false
 		q.mu.Unlock()
+		j.finish(res, err)
 	}
 }
 
@@ -234,7 +245,7 @@ func (j *Job) finish(res run.Result, err error) {
 	close(j.done)
 }
 
-func (q *Queue) run(qctx context.Context, j *Job) {
+func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	ctx, stop := context.WithCancel(qctx)
 	defer stop()
 	go func() {
@@ -245,30 +256,25 @@ func (q *Queue) run(qctx context.Context, j *Job) {
 		}
 	}()
 	if err := j.ctx.Err(); err != nil {
-		j.finish(run.Result{}, err)
-		return
+		return run.Result{}, err
 	}
 	if err := waitLock(ctx, q.gitDir, q.LockWait); err != nil {
-		j.finish(run.Result{}, err)
-		return
+		return run.Result{}, err
 	}
 	if j.Op.do != nil {
 		res, err := j.Op.do(ctx)
-		j.finish(res, err)
-		return
+		return res, err
 	}
 	var before fullState
 	record := j.Op.Undo != NotUndoable && q.Refs != nil
 	if record {
 		var err error
 		if before, err = capture(q.Refs); err != nil {
-			j.finish(run.Result{}, err)
-			return
+			return run.Result{}, err
 		}
 	}
 	if err := q.prepare(ctx, j); err != nil {
-		j.finish(run.Result{}, err)
-		return
+		return run.Result{}, err
 	}
 	res, err := execute(ctx, q.r, j)
 	if err != nil {
@@ -279,7 +285,7 @@ func (q *Queue) run(qctx context.Context, j *Job) {
 	if err == nil && record {
 		q.record(j, before)
 	}
-	j.finish(res, err)
+	return res, err
 }
 
 func (q *Queue) record(j *Job, before fullState) {
@@ -287,7 +293,7 @@ func (q *Queue) record(j *Job, before fullState) {
 	if err != nil {
 		return // the write happened; it just cannot be undone
 	}
-	b, a := touched(before, after)
+	b, a := touched(before, after, j.Op.Refs)
 	j.mu.Lock()
 	snap := j.snap
 	j.mu.Unlock()
