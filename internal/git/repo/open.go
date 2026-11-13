@@ -3,8 +3,10 @@ package repo
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/commitgraph"
@@ -34,6 +36,22 @@ type Repository struct {
 	cat   *catfile.Process
 	graph *commitgraph.Graph
 	tried bool // the graph was looked for
+	// graphAt is the commit-graph files as they were when graph was
+	// opened; git writes a new graph, or a new chain, by renaming.
+	graphAt [2]fileStamp
+}
+
+type fileStamp struct {
+	size int64
+	mod  time.Time
+}
+
+func stamp(path string) fileStamp {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fileStamp{size: -1}
+	}
+	return fileStamp{fi.Size(), fi.ModTime()}
 }
 
 // Open finds the repository at or above path, checks it is safe to read,
@@ -106,20 +124,24 @@ func (r *Repository) CatFile() (*catfile.Process, error) {
 }
 
 // CommitGraph returns the commit-graph, or nil when there is none or git
-// would not use it. It is opened once, for the repository's lifetime.
+// would not use it. It is opened again when git has written a new one
+// since; a graph returned before stays mapped, for readers still walking
+// it, until the repository closes.
 func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.tried {
-		return r.graph, nil
-	}
 	if !r.Caps.CommitGraphUsable() || r.Caps.HashSize != 20 {
 		r.tried = true
 		return nil, nil
 	}
+	info := filepath.Join(r.CommonDir, "objects", "info")
+	at := [2]fileStamp{stamp(filepath.Join(info, "commit-graph")), stamp(filepath.Join(info, "commit-graphs", "commit-graph-chain"))}
+	if r.tried && at == r.graphAt {
+		return r.graph, nil
+	}
 	g, err := commitgraph.Open(filepath.Join(r.CommonDir, "objects"))
 	if errors.Is(err, commitgraph.ErrNotFound) {
-		r.tried = true
+		r.graph, r.tried, r.graphAt = nil, true, at
 		return nil, nil
 	}
 	if err != nil {
@@ -128,6 +150,6 @@ func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	if _, err := r.life.Own(g); err != nil {
 		return nil, err
 	}
-	r.graph, r.tried = g, true
+	r.graph, r.tried, r.graphAt = g, true, at
 	return g, nil
 }
