@@ -1,0 +1,59 @@
+# Ramus
+
+Git client built to be lightweight and fast on large repositories: Go, with
+native UI drawn on the GPU by [mygo](https://github.com/egoist/mygo). No
+webview, no cgo.
+
+Working notes are untracked, in `docs/internal/`; `research/` there holds the
+survey of existing clients this design answers. Never commit them.
+
+## Commands
+
+```bash
+go tool mygo dev      # run with live reload
+go tool mygo build    # package the app into build/
+scripts/check.sh      # the full gate: gofmt, vet, engine import boundary, tests
+```
+
+## Layout
+
+- `main.go`: opens the window; nothing else lives here.
+- `internal/ui/`: app state and views. Views are tested without a window
+  through `ui.NewTester`.
+- `internal/git/`: the engine. It imports nothing from mygo; `check.sh` fails
+  if it does.
+- `.agents/skills/`: mygo's own agent skills, written by
+  `go tool mygo install-skills .`; rerun it after a mygo bump instead of
+  editing them. Read `mygo-maintenance` before changing a view.
+
+## Rules
+
+- Reads go through our own readers of git's on-disk formats; everything that
+  writes runs the `git` executable, so hooks, signing and credentials behave
+  as in the terminal.
+- When the engine meets something it does not support (SHA-256 repositories,
+  partial clones, reftable, sparse or split indexes), it hands that
+  repository or operation to `git` instead of guessing.
+- `git` is the oracle: a reader is tested by comparing its output with
+  git's on real repositories.
+- The main thread never waits on I/O, a subprocess or a lock held by
+  background work. Work runs in goroutines and publishes through
+  `Window.Update`; stale work is cancelled.
+- Subprocesses are bounded in number, cancellable and time-limited.
+- Any collection that can grow goes in `List`, `Table` or `Tree`, never a
+  `Scroll` that builds every row: a mygo frame costs what the view builds.
+- Large data stays out of the garbage collector's way: memory-mapped files,
+  and flat pointer-free slices with one shared byte buffer for text, not one
+  object per commit.
+- Every cache has a byte budget. Everything a repository owns (maps,
+  goroutines, subprocesses, watchers) shares one lifetime that ends when the
+  repository closes. The app must not need restarting.
+- Zlib inflate uses `github.com/klauspost/compress`, behind an interface in
+  the engine so another implementation can replace it.
+- mygo is pre-1.0 and pinned in `go.mod`. A bug in it is fixed by a pull
+  request upstream, not by a fork or a workaround here.
+
+## Commit scopes
+
+`git` (engine), `ui`, `docs`, `workspace` (root files, scripts, mygo config);
+combine as `git,ui`.
