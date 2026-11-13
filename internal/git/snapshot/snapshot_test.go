@@ -188,6 +188,17 @@ func TestUnbornAndConflicted(t *testing.T) {
 	if !strings.Contains(f.r.Git("status", "--porcelain"), "UU a") {
 		t.Fatal("snapshot resolved the conflict")
 	}
+	// Other files are kept while a conflict sits outside the paths, and
+	// the whole tree is kept with one in it.
+	f.r.Write("other", "x")
+	s = f.take(Options{Reason: "beside a conflict", Paths: []string{"other"}})
+	if f.r.Git("show", s.Commit+":other") != "x" {
+		t.Fatalf("beside a conflict %+v", s)
+	}
+	s = f.take(Options{Reason: "whole tree"})
+	if !strings.Contains(f.r.Git("show", s.Commit+":a"), "<<<<<<<") || !strings.Contains(f.r.Git("status", "--porcelain"), "UU a") {
+		t.Fatalf("whole tree %+v", s)
+	}
 }
 
 func TestSurvivesGCAndExpires(t *testing.T) {

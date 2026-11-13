@@ -111,6 +111,8 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 		}
 	} else if ctx.Err() != nil {
 		return Snapshot{}, err
+	} else if err := foldUnmerged(git); err != nil {
+		return Snapshot{}, err
 	}
 	if err := clearAssumed(git, s.Paths, s.All); err != nil {
 		return Snapshot{}, err
@@ -546,4 +548,26 @@ func Expire(ctx context.Context, r *run.Runner, w Where, list []Snapshot, cutoff
 		return 0, err
 	}
 	return n, nil
+}
+
+// foldUnmerged takes the work tree's version of each path the (copied)
+// index holds unmerged, as during a merge that stopped on conflicts: a
+// tree cannot be written of an index with conflicts in it. The index
+// itself is then not kept; the files, markers and all, are.
+func foldUnmerged(git func([]byte, []string, ...string) (string, error)) error {
+	out, err := git(nil, nil, "ls-files", "-u", "-z")
+	if err != nil || out == "" {
+		return err
+	}
+	var spec []byte
+	seen := map[string]bool{}
+	for _, rec := range strings.Split(out, "\x00") {
+		_, path, ok := strings.Cut(rec, "\t")
+		if ok && !seen[path] {
+			seen[path] = true
+			spec = append(append(spec, path...), 0)
+		}
+	}
+	_, err = git(spec, []string{"GIT_LITERAL_PATHSPECS=1"}, "add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul")
+	return err
 }
