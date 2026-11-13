@@ -20,6 +20,8 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 
 	"ramus/spike/internal/measure"
+
+	"ramus/spike/internal/quietwin"
 )
 
 func main() {
@@ -36,8 +38,9 @@ func main() {
 	fmt.Printf("mode %s, %d MB a side: generated in %v, git diff %v, buffers %v\n",
 		*mode, *size, gen.Round(time.Millisecond), s.gitTime.Round(time.Millisecond), s.setupTime.Round(time.Millisecond))
 	s.quit = mygo.App.Quit
+	quietwin.Prepare()
 	mygo.App.WhenReady(func() {
-		mygo.NewWindow(mygo.WindowOptions{Title: "Ramus spike: diff", Width: 1400, Height: 900, Content: ui.View(s.view)})
+		quietwin.Open(mygo.WindowOptions{Title: "Ramus spike: diff", Width: 1400, Height: 900, Content: ui.View(s.view)})
 		s.shown = time.Now()
 	})
 	if err := mygo.App.Run(); err != nil {

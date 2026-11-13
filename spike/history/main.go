@@ -17,6 +17,8 @@ import (
 
 	"github.com/egoist/mygo"
 	mygoui "github.com/egoist/mygo/ui"
+
+	"ramus/spike/internal/quietwin"
 )
 
 func main() {
@@ -30,8 +32,9 @@ func main() {
 	}
 	m := newModel(gitDir, *auto, *frames)
 	m.quit = mygo.App.Quit
+	quietwin.Prepare()
 	mygo.App.WhenReady(func() {
-		win := mygo.NewWindow(mygo.WindowOptions{
+		win := quietwin.Open(mygo.WindowOptions{
 			Title:   "Ramus spike: history",
 			Width:   1200,
 			Height:  900,
