@@ -12,6 +12,7 @@ import (
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 )
 
 func TestParseCommit(t *testing.T) {
@@ -74,7 +75,7 @@ func compare(t *testing.T, r *gittest.Repo, limit int) {
 		args = append(args, "-n", strconv.Itoa(limit))
 	}
 	out := r.Git(args...)
-	p, err := catfile.Start(context.Background(), "git", r.GitDir(), gittest.Env())
+	p, err := catfile.Start(context.Background(), testrun.Runner(t), r.GitDir())
 	if err != nil {
 		t.Fatal(err)
 	}

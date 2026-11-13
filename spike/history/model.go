@@ -14,8 +14,10 @@ import (
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/commitgraph"
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/history"
 	"ramus/internal/git/lanes"
+	"ramus/internal/git/run"
 	"ramus/internal/ui/graph"
 	"ramus/spike/internal/measure"
 )
@@ -119,7 +121,12 @@ func (m *model) load() {
 
 // fetcher loads row text a chunk at a time through one cat-file process.
 func (m *model) fetcher(g *commitgraph.Graph) {
-	p, err := catfile.Start(context.Background(), "git", m.gitDir, nil)
+	git, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
+	if err != nil {
+		m.update(func() { m.err = err })
+		return
+	}
+	p, err := catfile.Start(context.Background(), run.New(git, os.Environ(), 8), m.gitDir)
 	if err != nil {
 		m.update(func() { m.err = err })
 		return

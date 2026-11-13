@@ -10,10 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strconv"
 	"sync"
+
+	"ramus/internal/git/run"
 )
 
 // MaxObject bounds the size of one object read through the process; a
@@ -45,17 +46,17 @@ type Process struct {
 	dead   error
 	cancel context.CancelFunc
 	buf    []byte
+	// untrack ends the runner's count of this process.
+	untrack func()
 }
 
 // Start runs git cat-file --batch-command for the repository at gitDir.
-// The process never takes optional locks and never fetches missing objects
-// from a promisor remote, so a read never writes and never touches the
-// network.
-func Start(ctx context.Context, gitPath, gitDir string, env []string) (*Process, error) {
+// It runs as a read: it takes no optional locks and never fetches missing
+// objects from a promisor remote, so it never writes and never touches the
+// network. It stops when ctx is cancelled or Close is called.
+func Start(ctx context.Context, r *run.Runner, gitDir string) (*Process, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	cmd := exec.CommandContext(ctx, gitPath, "--git-dir="+gitDir, "--no-optional-locks",
-		"cat-file", "--batch-command", "--buffer")
-	cmd.Env = append(append(os.Environ(), env...), "GIT_NO_LAZY_FETCH=1")
+	cmd := r.Command(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: []string{"cat-file", "--batch-command", "--buffer"}})
 	p := &Process{cmd: cmd, cancel: cancel}
 	cmd.Stderr = &limitedWriter{w: &p.stderr, n: 64 << 10}
 	stdin, err := cmd.StdinPipe()
@@ -72,6 +73,7 @@ func Start(ctx context.Context, gitPath, gitDir string, env []string) (*Process,
 		cancel()
 		return nil, err
 	}
+	p.untrack = r.Track()
 	p.stdin = stdin
 	p.in = bufio.NewWriterSize(stdin, 64<<10)
 	p.out = bufio.NewReaderSize(stdout, 256<<10)
@@ -168,6 +170,7 @@ func (p *Process) Close() error {
 	p.stdin.Close()
 	err := p.cmd.Wait()
 	p.cancel()
+	p.untrack()
 	if err != nil && !errors.Is(err, context.Canceled) {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {

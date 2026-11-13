@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 )
 
 func TestRead(t *testing.T) {
@@ -15,7 +16,7 @@ func TestRead(t *testing.T) {
 	r.Write("a.txt", "hello\n")
 	c := r.Commit("first")
 	blob := strings.TrimSpace(r.Git("rev-parse", "HEAD:a.txt"))
-	p, err := Start(context.Background(), "git", r.GitDir(), gittest.Env())
+	p, err := Start(context.Background(), testrun.Runner(t), r.GitDir())
 	if err != nil {
 		t.Fatal(err)
 	}
