@@ -1,5 +1,10 @@
 package diff
 
+import (
+	"bytes"
+	"encoding/hex"
+)
+
 // Runs returns file f's runs of changed lines, in order, as ranges of
 // Lines: lines - and + with no unchanged line between them. A viewer that
 // takes the patch's changes as they are numbers its changes so.
@@ -100,4 +105,36 @@ func (p *Parsed) LineEndings(f int) string {
 		return "LF to CRLF"
 	}
 	return ""
+}
+
+// Submodule returns the commits of file f when it is a submodule's
+// change, as git diff --submodule=short shows one: old or new is nil for
+// a side with none, and dirty tells that the work tree's submodule has
+// changes of its own.
+func (p *Parsed) Submodule(f int) (old, new []byte, dirty, ok bool) {
+	fl := p.Files[f]
+	if !bytes.Contains(p.Bytes(fl.Header), []byte(" 160000")) {
+		return nil, nil, false, false
+	}
+	for h := fl.Hunks.Start; h < fl.Hunks.End; h++ {
+		lines := p.Hunks[h].Lines
+		for i := lines.Start; i < lines.End; i++ {
+			l := p.Lines[i]
+			rest, is := bytes.CutPrefix(p.Bytes(l.Text), []byte("Subproject commit "))
+			if !is || l.Kind == ' ' {
+				return nil, nil, false, false
+			}
+			rest, d := bytes.CutSuffix(rest, []byte("-dirty"))
+			id, err := hex.DecodeString(string(rest))
+			if err != nil {
+				return nil, nil, false, false
+			}
+			if l.Kind == '-' {
+				old = id
+			} else {
+				new, dirty = id, d
+			}
+		}
+	}
+	return old, new, dirty, old != nil || new != nil
 }
