@@ -1,6 +1,9 @@
 package index
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -209,5 +212,30 @@ func TestMonorepo(t *testing.T) {
 		if got != line {
 			t.Fatalf("entry %d:\n got %q\nwant %q", i, got, line)
 		}
+	}
+}
+
+// A version 4 index whose entries each keep a long prefix and add a byte
+// is small on disk and huge in paths; it is refused, not allocated.
+func TestPrefixAmplification(t *testing.T) {
+	const n = 5000
+	var b []byte
+	b = append(b, "DIRC"...)
+	b = binary.BigEndian.AppendUint32(b, 4)
+	b = binary.BigEndian.AppendUint32(b, n)
+	fixed := make([]byte, 40+20+2)
+	for i := 0; i < n; i++ {
+		b = append(b, fixed...)
+		b = append(b, 0) // strip nothing
+		if i == 0 {
+			b = append(b, bytes.Repeat([]byte("p"), 60000)...)
+		} else {
+			b = append(b, 'x')
+		}
+		b = append(b, 0)
+	}
+	b = append(b, make([]byte, 20)...)
+	if _, err := Parse(b, 20); !errors.Is(err, ErrFormat) {
+		t.Fatalf("parsed %d bytes into %d MB of paths: %v", len(b), n*60000>>20, err)
 	}
 }

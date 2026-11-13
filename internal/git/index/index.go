@@ -19,7 +19,16 @@ import (
 const (
 	maxEntries = 1 << 27
 	maxPath    = 1 << 16
-	minEntry   = 62 // the fixed part of a v2 entry plus its NUL
+	// maxPaths bounds the bytes of all paths together, and pathRatio their
+	// size against the file's: version 4 shares prefixes between entries,
+	// so a small file could otherwise name huge paths. Real indexes stay
+	// far under both.
+	maxPaths  = 1 << 30
+	pathRatio = 16
+	// maxExtensions bounds the extensions read; git writes a handful.
+	maxExtensions = 64
+	// maxFile bounds the index file read whole.
+	maxFile = 2 << 30
 )
 
 // Entry flags.
@@ -82,6 +91,13 @@ func bad(format string, args ...any) error {
 // ReadFile reads the index at path, whose object ids are hashSize bytes
 // (20 for SHA-1, 32 for SHA-256).
 func ReadFile(path string, hashSize int) (*Index, error) {
+	st, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if st.Size() > maxFile || !st.Mode().IsRegular() {
+		return nil, bad("%s is not a regular file under %d bytes", path, maxFile)
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -106,8 +122,11 @@ func Parse(b []byte, hashSize int) (*Index, error) {
 	}
 	n := binary.BigEndian.Uint32(b[8:])
 	body := b[:len(b)-hashSize]
-	if n > maxEntries || uint64(n)*minEntry/4 > uint64(len(body)) {
-		// v4 entries can be short, but never under a quarter of minEntry.
+	fixed := 40 + hashSize + 2
+	// Every entry has its fixed part and at least one byte of path data
+	// (a v4 prefix varint or a NUL), so the count is checked against the
+	// file before anything is allocated for it.
+	if n > maxEntries || uint64(n)*uint64(fixed+1) > uint64(len(body)-12) {
 		return nil, bad("%d entries in %d bytes", n, len(b))
 	}
 	x.Checksum = !bytes.Equal(b[len(b)-hashSize:], make([]byte, hashSize))
@@ -116,7 +135,7 @@ func Parse(b []byte, hashSize int) (*Index, error) {
 	x.paths = make([]byte, 0, int(n)*32)
 	off := 12
 	var prev []byte
-	fixed := 40 + hashSize + 2
+	pathBudget := min(maxPaths, pathRatio*len(b)+1<<20)
 	for i := uint32(0); i < n; i++ {
 		start := off
 		if off+fixed > len(body) {
@@ -170,7 +189,7 @@ func Parse(b []byte, hashSize int) (*Index, error) {
 				return nil, bad("entry %d: padding past the end", i)
 			}
 		}
-		if len(x.paths)-pathStart > maxPath {
+		if len(x.paths)-pathStart > maxPath || len(x.paths) > pathBudget {
 			return nil, bad("entry %d: path too long", i)
 		}
 		e.pathEnd = uint32(len(x.paths))
@@ -180,6 +199,9 @@ func Parse(b []byte, hashSize int) (*Index, error) {
 	for off < len(body) {
 		if off+8 > len(body) {
 			return nil, bad("extension header past the end")
+		}
+		if len(x.Extensions) == maxExtensions {
+			return nil, bad("more than %d extensions", maxExtensions)
 		}
 		var ext Extension
 		copy(ext.Sig[:], b[off:off+4])
