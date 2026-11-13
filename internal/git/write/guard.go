@@ -28,6 +28,27 @@ type Expect struct {
 	Refs map[string]string
 	// Files are the work tree files at stake as they were seen.
 	Files []FileState
+	// AnyHead leaves Branch and Head unchecked, for an action that does
+	// not depend on where HEAD is, as a tag of a commit chosen in history.
+	AnyHead bool
+}
+
+func checkHead(ctx context.Context, r *run.Runner, gitDir string, x *Expect) error {
+	branch, err := symbolic(ctx, r, gitDir)
+	if err != nil {
+		return err
+	}
+	if branch != x.Branch {
+		return &StaleError{What: "the current branch", Saw: orDetached(x.Branch), Now: orDetached(branch)}
+	}
+	head, err := resolve(ctx, r, gitDir, "HEAD")
+	if err != nil {
+		return err
+	}
+	if head != x.Head {
+		return &StaleError{What: "HEAD", Saw: short(x.Head), Now: short(head)}
+	}
+	return nil
 }
 
 // FileState is what was seen of a file: enough to tell that it changed
@@ -103,19 +124,10 @@ func (e *StaleError) Error() string {
 }
 
 func check(ctx context.Context, r *run.Runner, gitDir, workTree string, x *Expect) error {
-	branch, err := symbolic(ctx, r, gitDir)
-	if err != nil {
-		return err
-	}
-	if branch != x.Branch {
-		return &StaleError{What: "the current branch", Saw: orDetached(x.Branch), Now: orDetached(branch)}
-	}
-	head, err := resolve(ctx, r, gitDir, "HEAD")
-	if err != nil {
-		return err
-	}
-	if head != x.Head {
-		return &StaleError{What: "HEAD", Saw: short(x.Head), Now: short(head)}
+	if !x.AnyHead {
+		if err := checkHead(ctx, r, gitDir, x); err != nil {
+			return err
+		}
 	}
 	for name, saw := range x.Refs {
 		now, err := resolve(ctx, r, gitDir, name)

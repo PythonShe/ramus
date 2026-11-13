@@ -64,24 +64,3 @@ func Commit(w Where, opt CommitOptions) (Op, error) {
 // HookTimeout bounds a write that runs the user's hooks, which may run
 // a test suite.
 const HookTimeout = 30 * time.Minute
-
-// PushTimeout bounds a push over a slow link.
-const PushTimeout = time.Hour
-
-// PushOptions describe a push of the branch HEAD is on.
-type PushOptions struct {
-	// Remote, when set, pushes HEAD there and makes it the upstream;
-	// otherwise the branch goes to its upstream as git push does.
-	Remote string
-}
-
-// Push sends the current branch to its remote.
-func Push(w Where, opt PushOptions) Op {
-	args := []string{"push", "--progress"}
-	name := "Push"
-	if opt.Remote != "" {
-		args = append(args, "--set-upstream", "--", opt.Remote, "HEAD")
-		name = "Push to " + opt.Remote
-	}
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout}}
-}

@@ -87,7 +87,7 @@ func Init(ctx context.Context, r *run.Runner, dir string, bare bool) error {
 func start(r *run.Runner, op Op) *Job {
 	j := newJob(nil, op)
 	go func() {
-		res, err := execute(j.ctx, r, j)
+		res, err := execute(j.ctx, r, j, j.Op.Cmd, j.Op.Input)
 		j.finish(res, err)
 	}()
 	return j

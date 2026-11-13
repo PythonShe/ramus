@@ -90,3 +90,123 @@ func Reset(w Where, commit string, mode ResetMode, seen Seen) (Op, error) {
 	}
 	return op, nil
 }
+
+// LocalChanges is what a switch does with uncommitted changes.
+type LocalChanges uint8
+
+const (
+	// CarryChanges takes them along, as git switch does; git refuses
+	// when they would be overwritten.
+	CarryChanges LocalChanges = iota
+	// StashChanges stashes them first, untracked files included.
+	StashChanges
+)
+
+// SwitchWith checks out a local branch, doing with local changes what
+// changes says.
+func SwitchWith(w Where, branch string, changes LocalChanges, seen Seen) Op {
+	op := Switch(w, branch, seen)
+	if changes == StashChanges {
+		name := strings.TrimPrefix(branch, "refs/heads/")
+		op.Name += ", stashing changes"
+		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
+			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before switching to " + name}}
+	}
+	return op
+}
+
+// checkName refuses a name git would read as an option.
+func checkName(what, name string) error {
+	if name == "" || strings.HasPrefix(name, "-") {
+		return errors.New("write: a " + what + " name cannot be empty or start with -")
+	}
+	return nil
+}
+
+// RenameBranch renames a local branch; git checks the new name, and
+// moves its config and reflog with it.
+func RenameBranch(w Where, from, to string, seen Seen) (Op, error) {
+	from, to = strings.TrimPrefix(from, "refs/heads/"), strings.TrimPrefix(to, "refs/heads/")
+	if err := checkName("branch", to); err != nil {
+		return Op{}, err
+	}
+	x := seen.expect()
+	x.Refs = map[string]string{"refs/heads/" + to: ""}
+	return Op{Name: "Rename branch " + from + " to " + to, Undo: RefsOnly, Expect: x,
+		Refs: []string{"refs/heads/" + from, "refs/heads/" + to},
+		Cmd:  run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"branch", "-m", "--end-of-options", from, to}}}, nil
+}
+
+// DeleteBranch deletes a local branch at commit (hex), which the user saw
+// it at; force deletes it though not merged. Its value is backed up
+// first, and undo puts it back. A worktree that has it checked out is
+// removed first, which git refuses when the worktree has changes.
+func DeleteBranch(w Where, branch, commit string, force bool, worktree string, seen Seen) Op {
+	name := strings.TrimPrefix(branch, "refs/heads/")
+	ref := "refs/heads/" + name
+	x := seen.expect()
+	x.Refs = map[string]string{ref: commit}
+	flag := "-d"
+	if force {
+		flag = "-D"
+	}
+	op := Op{Name: "Delete branch " + name + " at " + short(commit), Undo: RefsOnly, Expect: x, Refs: []string{ref},
+		Backup: []string{ref},
+		Cmd:    run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"branch", flag, "--end-of-options", name}}}
+	if worktree != "" {
+		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"worktree", "remove", "--", worktree}}
+	}
+	return op
+}
+
+// MergeMode is how a merge records itself.
+type MergeMode string
+
+const (
+	// MergeDefault fast-forwards when it can, else makes a merge commit.
+	MergeDefault MergeMode = ""
+	// MergeFFOnly only fast-forwards, refusing otherwise.
+	MergeFFOnly MergeMode = "--ff-only"
+	// MergeNoFF always makes a merge commit.
+	MergeNoFF MergeMode = "--no-ff"
+	// MergeSquash stages the merged changes for one new commit, and
+	// commits nothing.
+	MergeSquash MergeMode = "--squash"
+)
+
+// Merge merges commit-ish what (a branch or hex) into the branch HEAD is
+// on, which is backed up first. A conflict leaves the merge in progress.
+func Merge(w Where, what string, mode MergeMode, seen Seen) (Op, error) {
+	if err := checkName("merge", what); err != nil {
+		return Op{}, err
+	}
+	switch mode {
+	case MergeDefault, MergeFFOnly, MergeNoFF, MergeSquash:
+	default:
+		return Op{}, errors.New("write: unknown merge mode " + string(mode))
+	}
+	args := []string{"merge", "--no-edit"}
+	if mode != MergeDefault {
+		args = append(args, string(mode))
+	}
+	op := Op{Name: "Merge " + strings.TrimPrefix(what, "refs/heads/"), Undo: MovesHead, Expect: seen.expect(),
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: append(args, "--end-of-options", what), Timeout: HookTimeout}}
+	if seen.Branch != "" {
+		op.Backup = []string{seen.Branch}
+	}
+	return op, nil
+}
+
+// Rebase replays the branch HEAD is on onto commit-ish onto, backing the
+// branch up first. A conflict leaves the rebase in progress.
+func Rebase(w Where, onto string, seen Seen) (Op, error) {
+	if err := checkName("rebase", onto); err != nil {
+		return Op{}, err
+	}
+	if seen.Branch == "" {
+		return Op{}, errors.New("write: rebase needs a branch checked out")
+	}
+	return Op{Name: "Rebase onto " + strings.TrimPrefix(onto, "refs/heads/"), Undo: MovesHead, Expect: seen.expect(),
+		Backup: []string{seen.Branch},
+		Cmd:    run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"rebase", "--end-of-options", onto}, Timeout: HookTimeout}}, nil
+}

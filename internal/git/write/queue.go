@@ -38,6 +38,10 @@ type Op struct {
 	// Undo says how to undo the write; a write that succeeds is then
 	// recorded in the queue's History.
 	Undo UndoKind
+	// Pre runs before Cmd, after the checks, snapshot and backup, with
+	// its output in the job's: the write stops if it fails. A switch that
+	// stashes the changes first uses it.
+	Pre *run.Cmd
 	// Refs are the refs the write may move besides the branch HEAD names
 	// before and after it (a branch it creates, deletes or renames, a
 	// tag). Undo moves only these, so a ref moved meanwhile by something
@@ -280,7 +284,12 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	if err := q.prepare(ctx, j); err != nil {
 		return run.Result{}, err
 	}
-	res, err := execute(ctx, q.r, j)
+	if j.Op.Pre != nil {
+		if res, err := execute(ctx, q.r, j, *j.Op.Pre, nil); err != nil {
+			return res, err
+		}
+	}
+	res, err := execute(ctx, q.r, j, j.Op.Cmd, j.Op.Input)
 	if err != nil {
 		if le := lockError(q.gitDir, res.Stderr); le != nil {
 			err = le
@@ -334,12 +343,12 @@ func (q *Queue) prepare(ctx context.Context, j *Job) error {
 	return nil
 }
 
-// execute runs the job's command with its output going to its events.
-func execute(ctx context.Context, r *run.Runner, j *Job) (run.Result, error) {
-	cmd := j.Op.Cmd
+// execute runs one of the job's commands with its output going to its
+// events.
+func execute(ctx context.Context, r *run.Runner, j *Job, cmd run.Cmd, input []byte) (run.Result, error) {
 	cmd.Read = false
-	if j.Op.Input != nil {
-		cmd.Stdin = bytes.NewReader(j.Op.Input)
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
 	}
 	out, errw := &lines{j: j, stream: Stdout}, &lines{j: j, stream: Stderr}
 	stdout := &keep{max: maxStdout}
