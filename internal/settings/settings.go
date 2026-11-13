@@ -32,6 +32,10 @@ type Settings struct {
 	// Emails are the user's own addresses besides each repository's
 	// user.email, for statistics of their own commits.
 	Emails []string `json:"emails,omitempty"`
+	// DiffSplit shows patches side by side, DiffWrap wraps their long
+	// lines.
+	DiffSplit bool `json:"diffSplit,omitempty"`
+	DiffWrap  bool `json:"diffWrap,omitempty"`
 }
 
 // Action is a command of the user's, shown in the command palette and in
@@ -109,7 +113,7 @@ func Save(path string, s Settings) error {
 	}
 	var fields map[string]json.RawMessage
 	json.Unmarshal(known, &fields)
-	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit", "actions", "emails"} {
+	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit", "actions", "emails", "diffSplit", "diffWrap"} {
 		delete(merged, k)
 	}
 	for k, v := range fields {

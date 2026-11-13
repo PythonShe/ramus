@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
@@ -66,6 +67,14 @@ func (h *harness) until(what string, ok func() bool) {
 }
 
 func (h *harness) shows(s string) func() bool { return func() bool { return h.tt.HasText(s) } }
+
+// patchHas reports whether the viewer of pv is built and its new side
+// holds added and its old side removed.
+func patchHas(pv *patchView, added, removed string) func() bool {
+	return func() bool {
+		return pv.d != nil && strings.Contains(pv.d.New.String(), added) && strings.Contains(pv.d.Old.String(), removed)
+	}
+}
 
 func (h *harness) click(s string) {
 	h.t.Helper()
@@ -137,7 +146,7 @@ func TestOpenFollowsChanges(t *testing.T) {
 	if r, ok := h.app.current().cv.chosenFile(); !ok || r.sec != secUnstaged {
 		t.Fatal("click did not choose the file")
 	}
-	h.until("its patch", h.shows("+x"))
+	h.until("its patch", patchHas(&h.app.current().cv.diff.pv, "x", ""))
 }
 
 func TestWorktreesInSidebar(t *testing.T) {
@@ -416,18 +425,23 @@ func TestChangesStageAndDiscard(t *testing.T) {
 	}
 	h.until("new.txt staged", h.shows("Staged (1)"))
 
-	// Stage the first hunk of a.txt only.
+	// Stage the first change of a.txt only.
 	h.click("a.txt")
-	h.until("its patch", h.shows("+one"))
-	h.click("Stage Hunk")
-	h.until("the first hunk staged", func() bool { return strings.HasPrefix(index(), "one\n") })
+	pv := &tb.cv.diff.pv
+	h.until("its patch", patchHas(pv, "one", "1"))
+	if !pv.whole || len(pv.runs) != 2 {
+		t.Fatalf("whole %v, %d changes", pv.whole, len(pv.runs))
+	}
+	h.app.applyLines(tb, pv.changeLines(0), true, false)
+	h.until("the first change staged", func() bool { return strings.HasPrefix(index(), "one\n") })
 	if strings.Contains(index(), "twelve") {
-		t.Fatal("the second hunk was staged too")
+		t.Fatal("the second change was staged too")
 	}
 
-	// Pick the added line of the second hunk and discard it, then undo.
-	h.until("the patch again", func() bool { return h.tt.HasText("+twelve") && !h.tt.HasText("+one") })
-	h.click("+twelve")
+	// Select the added line of the second change and discard it, then
+	// undo.
+	h.until("the patch again", func() bool { return pv.d != nil && pv.d.Old.String() != "" && len(pv.runs) == 1 })
+	pv.d.SetSelectedLines(editor.DiffLineRange{Side: editor.DiffNew, Start: 11, End: 11}, true)
 	h.until("the line picked", h.shows("Discard 1 Line…"))
 	h.click("Discard 1 Line…")
 	h.until("the question", h.shows("Discard 1 changed line?"))

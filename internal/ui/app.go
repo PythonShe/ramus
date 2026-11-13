@@ -70,6 +70,10 @@ type App struct {
 	links      linksDialog
 	branchUI   branchDialog
 	libStats   libStatsState
+	diff       struct {
+		diffOptions
+		loaded bool
+	}
 	// confirm asks before a write that drops something.
 	confirm confirmState
 }

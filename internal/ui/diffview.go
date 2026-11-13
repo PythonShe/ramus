@@ -3,12 +3,10 @@ package ui
 import (
 	"encoding/hex"
 	"fmt"
-	"strconv"
 
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/diff"
-	"ramus/internal/git/redact"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
@@ -22,6 +20,7 @@ type diffKey struct {
 	path string
 	src  diff.Source
 	st   *status.Status
+	ws   diff.Whitespace
 }
 
 // diffState is the patch of the file chosen in the changes list.
@@ -29,15 +28,10 @@ type diffState struct {
 	key     diffKey
 	loading bool
 	res     session.PatchResult
-	// rows maps the list's rows to the patch: a line index, or -1-h for
-	// the header of hunk h.
-	rows   []int32
-	list   ui.ListState
-	picked ui.Selection[int32]
-	chosen int
+	pv      patchView
 }
 
-func newDiffState() diffState { return diffState{chosen: -1} }
+func newDiffState() diffState { return diffState{} }
 
 // chosenFile is the file row chosen in the changes list, if any.
 func (cv *changesState) chosenFile() (changeRow, bool) {
@@ -60,7 +54,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	}
 	m := cv.model
 	i := int(r.idx)
-	key := diffKey{path: string(m.st.Path(i)), src: diff.Unstaged, st: m.st}
+	key := diffKey{path: string(m.st.Path(i)), src: diff.Unstaged, st: m.st, ws: diff.Whitespace(a.diffOpts().ws)}
 	switch {
 	case r.sec == secStaged:
 		key.src = diff.Staged
@@ -69,65 +63,70 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	}
 	d := &cv.diff
 	if d.key != key {
-		if d.key.path != key.path || d.key.src != key.src {
-			d.picked.Clear()
-			d.list = ui.ListState{}
-			d.chosen = -1
-		}
 		d.key, d.loading = key, true
-		t.s.Patch(diff.PatchRequest{Source: key.src, Paths: []string{key.path}, Context: -1, MaxBytes: MaxShownPatch}, func(res session.PatchResult) {
+		req := diff.PatchRequest{Source: key.src, Paths: []string{key.path}, Context: -1, MaxBytes: MaxShownPatch, Whitespace: key.ws}
+		t.s.Patch(req, patchSides(m.st, i, key.src), func(res session.PatchResult) {
 			if d.key != key {
 				return
 			}
-			d.loading, d.res, d.rows = false, res, patchRows(res.Parsed)
+			d.loading, d.res = false, res
+			a.setPatch(&d.pv, res)
 		})
 	}
 	ui.Column(c).Fill().Children(func() {
 		a.diffHeader(c, t, m, r)
-		switch {
-		case d.loading && d.res.Parsed == nil:
-			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
-			return
-		case d.res.Err != nil:
-			ui.Text(c, errText(d.res.Err)).TextColor(th.Danger).Padding(12).Selectable()
-			return
-		}
-		p := d.res.Parsed
-		if p == nil || len(p.Files) == 0 {
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "No differences in content").TextColor(th.TextMuted)
-			})
-			return
-		}
-		if p.Files[0].Binary {
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "Binary file").TextColor(th.TextMuted)
-			})
-			return
-		}
-		if d.res.Truncated || p.Cut {
+		if d.res.Truncated || d.res.Parsed != nil && d.res.Parsed.Cut {
 			ui.Text(c, fmt.Sprintf("Only the first %d MB of this patch are shown; lines cannot be staged from it", MaxShownPatch>>20)).
 				FontSize(12).TextColor(th.Warning).Padding(4, 12)
 		}
-		a.patchList(c, t, p, r)
+		res := d.res
+		if d.loading && res.Parsed == nil {
+			res = session.PatchResult{}
+		}
+		var actions func(c *ui.Context, change int)
+		if d.partialOK() {
+			actions = func(c *ui.Context, change int) { a.changeActions(c, t, r, change) }
+		}
+		a.patchBody(c, &d.pv, res, actions)
 	})
 }
 
-// patchRows lays out a parsed patch of one file: each hunk's header, then
-// its lines.
-func patchRows(p *diff.Parsed) []int32 {
-	if p == nil || len(p.Files) == 0 {
-		return nil
-	}
-	f := p.Files[0]
-	var rows []int32
-	for h := f.Hunks.Start; h < f.Hunks.End; h++ {
-		rows = append(rows, -1-int32(h))
-		for l := p.Hunks[h].Lines.Start; l < p.Hunks[h].Lines.End; l++ {
-			rows = append(rows, int32(l))
+// patchSides names the whole files of a work-tree change: what the index
+// or HEAD holds, and the work tree's file or the index's.
+func patchSides(st *status.Status, i int, src diff.Source) session.Sides {
+	path := string(st.Path(i))
+	switch src {
+	case diff.Untracked:
+		return session.Sides{WorkTreePath: path}
+	case diff.Staged:
+		if ids := st.OIDs(i); len(ids) == 2 {
+			return session.Sides{Old: ids[0], New: ids[1]}
+		}
+	default:
+		if ids := st.OIDs(i); len(ids) == 2 {
+			return session.Sides{Old: ids[1], WorkTreePath: path}
 		}
 	}
-	return rows
+	return session.Sides{}
+}
+
+// changeActions are the buttons on a change of the patch shown.
+func (a *App) changeActions(c *ui.Context, t *tab, r changeRow, change int) {
+	d := &t.cv.diff
+	ro := t.s.Queue == nil
+	lines := d.pv.changeLines(change)
+	if r.sec == secStaged {
+		if ui.Button(c, "Unstage").Disabled(ro).Clicked() {
+			a.applyLines(t, lines, true, true)
+		}
+		return
+	}
+	if ui.Button(c, "Discard…").Disabled(ro).Clicked() {
+		a.askDiscardLines(t, lines)
+	}
+	if ui.Button(c, "Stage").Disabled(ro).Clicked() {
+		a.applyLines(t, lines, true, false)
+	}
 }
 
 // partialOK reports whether lines of this patch can be staged, unstaged
@@ -135,7 +134,7 @@ func patchRows(p *diff.Parsed) []int32 {
 func (d *diffState) partialOK() bool {
 	p := d.res.Parsed
 	return p != nil && len(p.Files) == 1 && !p.Files[0].Binary && !p.Files[0].Quoted &&
-		!d.res.Truncated && !p.Cut && d.key.src != diff.Untracked
+		!d.res.Truncated && !p.Cut && d.key.src != diff.Untracked && d.key.ws == diff.AllWhitespace
 }
 
 func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
@@ -146,150 +145,26 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 		shown, _ := showPath(string(m.st.Path(int(r.idx))))
 		ui.Text(c, shown).Bold().SingleLine().Grow(1)
 		ui.Text(c, entryWords(m.st, int(r.idx), r.sec)).FontSize(12).TextColor(th.TextMuted)
-		n := d.pickedLines()
-		if !d.partialOK() || n == 0 {
-			return
-		}
-		lines := fmt.Sprintf(" %d Lines", n)
-		if n == 1 {
-			lines = " 1 Line"
-		}
-		if r.sec == secStaged {
-			if ui.Button(c, "Unstage"+lines).Disabled(ro).Clicked() {
-				a.applyLines(t, d.pickedSet(), true, true)
+		if picked, n := d.pv.selectedLines(); d.partialOK() && n > 0 {
+			lines := fmt.Sprintf(" %d Lines", n)
+			if n == 1 {
+				lines = " 1 Line"
 			}
-			return
-		}
-		if ui.Button(c, "Discard"+lines+"…").Disabled(ro).Clicked() {
-			a.askDiscardLines(t, d.pickedSet())
-		}
-		if ui.Button(c, "Stage"+lines).Disabled(ro).Clicked() {
-			a.applyLines(t, d.pickedSet(), true, false)
-		}
-	})
-}
-
-// pickedLines counts the changed lines picked.
-func (d *diffState) pickedLines() int {
-	p := d.res.Parsed
-	if p == nil {
-		return 0
-	}
-	n := 0
-	for k := range d.picked.All() {
-		if k >= 0 && int(k) < len(p.Lines) && (p.Lines[k].Kind == '+' || p.Lines[k].Kind == '-') {
-			n++
-		}
-	}
-	return n
-}
-
-// pickedSet is the lines picked, as Select takes them.
-func (d *diffState) pickedSet() func(int) bool {
-	set := map[int]bool{}
-	for k := range d.picked.All() {
-		set[int(k)] = true
-	}
-	return func(i int) bool { return set[i] }
-}
-
-func hunkSet(p *diff.Parsed, h int32) func(int) bool {
-	lines := p.Hunks[h].Lines
-	return func(i int) bool { return uint32(i) >= lines.Start && uint32(i) < lines.End }
-}
-
-func (a *App) patchList(c *ui.Context, t *tab, p *diff.Parsed, r changeRow) {
-	th := c.Theme()
-	d := &t.cv.diff
-	rows := d.rows
-	partial := d.partialOK()
-	ro := t.s.Queue == nil
-	d.list.Key = func(i int) any { return rows[i] }
-	d.list.Selected = &d.chosen
-	if partial {
-		d.list.Selection = &d.picked
-	} else {
-		d.list.Selection = nil
-	}
-	d.list.Header = func(i int) bool { return rows[i] < 0 }
-	d.list.Label = func(i int) string {
-		if k := rows[i]; k < 0 {
-			return string(p.Bytes(p.Hunks[-1-k].Header))
-		} else {
-			return lineLabel(p, p.Lines[k])
-		}
-	}
-	var act func()
-	ui.List(c, &d.list, len(rows), func(i int) {
-		k := rows[i]
-		if k < 0 {
-			h := -1 - k
-			ui.Row(c).Padding(4, 12).Gap(8).AlignItems(ui.Center).FillWidth().Background(th.Surface).Children(func() {
-				ui.Text(c, redact.Control(string(p.Bytes(p.Hunks[h].Header)))).Font("monospace").FontSize(12).TextColor(th.TextMuted).SingleLine().Grow(1)
-				if !partial {
-					return
+			if r.sec == secStaged {
+				if ui.Button(c, "Unstage"+lines).Disabled(ro).Clicked() {
+					a.applyLines(t, picked, true, true)
 				}
-				if r.sec == secStaged {
-					if ui.Button(c, "Unstage Hunk").Disabled(ro).Clicked() {
-						act = func() { a.applyLines(t, hunkSet(p, h), true, true) }
-					}
-					return
+			} else {
+				if ui.Button(c, "Discard"+lines+"…").Disabled(ro).Clicked() {
+					a.askDiscardLines(t, picked)
 				}
-				if ui.Button(c, "Discard Hunk…").Disabled(ro).Clicked() {
-					act = func() { a.askDiscardLines(t, hunkSet(p, h)) }
+				if ui.Button(c, "Stage"+lines).Disabled(ro).Clicked() {
+					a.applyLines(t, picked, true, false)
 				}
-				if ui.Button(c, "Stage Hunk").Disabled(ro).Clicked() {
-					act = func() { a.applyLines(t, hunkSet(p, h), true, false) }
-				}
-			})
-			return
-		}
-		patchLine(c, p, p.Lines[k])
-	}).Grow(1)
-	if act != nil {
-		act()
-	}
-}
-
-// patchLine is one line of a patch: its old and new numbers and text, on
-// green when added and red when removed.
-func patchLine(c *ui.Context, p *diff.Parsed, l diff.Line) {
-	th := c.Theme()
-	bg := ui.Color{}
-	switch l.Kind {
-	case '+':
-		bg = th.Success.Alpha(0.14)
-	case '-':
-		bg = th.Danger.Alpha(0.14)
-	}
-	ui.Row(c).Padding(0, 12).Gap(8).FillWidth().Background(bg).Children(func() {
-		num := func(n int32) string {
-			if n == 0 {
-				return ""
 			}
-			return strconv.Itoa(int(n))
 		}
-		ui.Text(c, num(l.Old)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Width(44).TextAlign(ui.End)
-		ui.Text(c, num(l.New)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Width(44).TextAlign(ui.End)
-		text := string(l.Kind) + redact.Control(string(p.Bytes(l.Text)))
-		if l.Kind == '\\' {
-			text = "\\" + string(p.Bytes(l.Text))
-		}
-		ui.Text(c, text).Font("monospace").FontSize(12).SingleLine().Grow(1)
+		a.diffBar(c)
 	})
-}
-
-func lineLabel(p *diff.Parsed, l diff.Line) string {
-	text := redact.Control(string(p.Bytes(l.Text)))
-	switch l.Kind {
-	case '+':
-		return "added line " + strconv.Itoa(int(l.New)) + ": " + text
-	case '-':
-		return "removed line " + strconv.Itoa(int(l.Old)) + ": " + text
-	case '\\':
-		return "no newline at end of file"
-	}
-	return "line " + strconv.Itoa(int(l.New)) + ": " + text
 }
 
 // applyLines stages (cached, not reverse), unstages (cached, reverse) or
@@ -302,7 +177,7 @@ func (a *App) applyLines(t *tab, chosen func(int) bool, cached, reverse bool) {
 	if err != nil {
 		a.notice = errText(err)
 	}
-	t.cv.diff.picked.Clear()
+	t.cv.diff.pv.clearSelection()
 }
 
 func (a *App) linesOp(t *tab, chosen func(int) bool, cached, reverse bool) (write.Op, error) {
@@ -358,7 +233,7 @@ func (a *App) askDiscardLines(t *tab, chosen func(int) bool) {
 					if _, err := t.s.Submit(op); err != nil {
 						a.notice = errText(err)
 					}
-					d.picked.Clear()
+					d.pv.clearSelection()
 				},
 			}
 		})

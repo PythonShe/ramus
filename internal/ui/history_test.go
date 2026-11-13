@@ -33,7 +33,7 @@ func TestHistoryView(t *testing.T) {
 	h.click("add alpha")
 	h.until("the detail", h.shows("1 file changed"))
 	h.click("a.txt")
-	h.until("its patch", h.shows("+alpha"))
+	h.until("its patch", patchHas(&h.app.current().hist.detail.pv, "alpha", ""))
 	h.click("Copy Hash")
 	if want := strings.TrimSpace(r.Git("rev-parse", "HEAD~1")); h.tt.Clipboard() != want {
 		t.Fatalf("copied %q, want %s", h.tt.Clipboard(), want)

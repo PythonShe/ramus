@@ -28,8 +28,7 @@ type commitView struct {
 	patchFor     string
 	patchLoading bool
 	patch        session.PatchResult
-	rows         []int32
-	plist        ui.ListState
+	pv           patchView
 }
 
 // commitDetail shows commit id in cv, reading it when id changes.
@@ -245,56 +244,30 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 	if st := f.Status(cv.file); st == 'R' || st == 'C' {
 		paths = []string{string(f.OldPath(cv.file)), paths[0]}
 	}
-	key := string(d.OID) + "\x00" + paths[0] + "\x00" + paths[len(paths)-1]
+	ws := diff.Whitespace(a.diffOpts().ws)
+	key := fmt.Sprintf("%x\x00%s\x00%s\x00%d", d.OID, paths[0], paths[len(paths)-1], ws)
 	if cv.patchFor != key {
 		cv.patchFor, cv.patchLoading = key, true
-		cv.patch, cv.rows, cv.plist = session.PatchResult{}, nil, ui.ListState{}
-		t.s.CommitPatch(*d, paths, MaxShownPatch, func(res session.PatchResult) {
+		cv.patch = session.PatchResult{}
+		_, oldID := f.Old(cv.file)
+		_, newID := f.New(cv.file)
+		t.s.CommitPatch(*d, paths, MaxShownPatch, ws, session.Sides{Old: oldID, New: newID}, func(res session.PatchResult) {
 			if cv.patchFor == key {
-				cv.patchLoading, cv.patch, cv.rows = false, res, patchRows(res.Parsed)
+				cv.patchLoading, cv.patch = false, res
+				a.setPatch(&cv.pv, res)
 			}
 		})
 	}
-	switch {
-	case cv.patchLoading:
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
-		return
-	case cv.patch.Err != nil:
-		ui.Text(c, errText(cv.patch.Err)).TextColor(th.Danger).Padding(12).Selectable()
-		return
-	}
-	p := cv.patch.Parsed
-	if p == nil || len(p.Files) == 0 || len(cv.rows) == 0 {
-		msg := "No differences in content"
-		if p != nil && len(p.Files) > 0 && p.Files[0].Binary {
-			msg = "Binary file"
-		}
-		ui.Column(c).Fill().Center().Children(func() { ui.Text(c, msg).TextColor(th.TextMuted) })
-		return
-	}
 	ui.Column(c).Fill().Children(func() {
-		if cv.patch.Truncated || p.Cut {
+		ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			shown, _ := showPath(commitFileName(f, cv.file))
+			ui.Text(c, shown).Bold().SingleLine().Grow(1)
+			a.diffBar(c)
+		})
+		if cv.patch.Truncated || cv.patch.Parsed != nil && cv.patch.Parsed.Cut {
 			ui.Text(c, fmt.Sprintf("Only the first %d MB of this patch are shown", MaxShownPatch>>20)).
 				FontSize(12).TextColor(th.Warning).Padding(4, 12)
 		}
-		rows := cv.rows
-		cv.plist.Header = func(i int) bool { return rows[i] < 0 }
-		cv.plist.Label = func(i int) string {
-			if k := rows[i]; k < 0 {
-				return string(p.Bytes(p.Hunks[-1-k].Header))
-			} else {
-				return lineLabel(p, p.Lines[k])
-			}
-		}
-		ui.List(c, &cv.plist, len(rows), func(i int) {
-			k := rows[i]
-			if k < 0 {
-				ui.Row(c).Padding(4, 12).FillWidth().Background(th.Surface).Children(func() {
-					ui.Text(c, redact.Control(string(p.Bytes(p.Hunks[-1-k].Header)))).Font("monospace").FontSize(12).TextColor(th.TextMuted).SingleLine().Grow(1)
-				})
-				return
-			}
-			patchLine(c, p, p.Lines[k])
-		}).Grow(1)
+		a.patchBody(c, &cv.pv, cv.patch, nil)
 	})
 }
