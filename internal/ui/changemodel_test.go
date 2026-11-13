@@ -122,3 +122,11 @@ func TestEntryNote(t *testing.T) {
 		}
 	}
 }
+
+func TestCoAuthorList(t *testing.T) {
+	got := coAuthorList("Ada Lovelace <ada@example.com>, Alan Turing <alan@example.com>\nGrace Hopper <grace@example.com>; junk")
+	want := []string{"Ada Lovelace <ada@example.com>", "Alan Turing <alan@example.com>", "Grace Hopper <grace@example.com>"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("%q", got)
+	}
+}
