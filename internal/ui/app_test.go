@@ -235,6 +235,9 @@ func TestPaletteAndClone(t *testing.T) {
 	h.tt.Frame()
 	h.click("Clone")
 	h.until("the clone to open", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No changes") })
+	if h.tt.HasText("Read-only") {
+		t.Fatal("a repository the app cloned asks to be trusted")
+	}
 	if _, err := os.Stat(filepath.Join(h.app.clone.dir, "README")); err == nil {
 		t.Fatal("dialog state kept")
 	}
@@ -347,4 +350,13 @@ func TestActionsAndLog(t *testing.T) {
 		t.Fatalf("menu %q: %v", h.tt.Menu(), err)
 	}
 	h.until("the second output", h.shows("5 "))
+}
+
+func TestShowPath(t *testing.T) {
+	for p, flagged := range map[string]bool{"src/a.go": false, "a\nb": true, ".GIT/config": true, "x/../y": true, "dir/git~1/x": true, "\x1b[31mred": true} {
+		shown, why := showPath(p)
+		if (why != "") != flagged || (flagged && shown == p) {
+			t.Errorf("showPath(%q) = %q, %q", p, shown, why)
+		}
+	}
 }

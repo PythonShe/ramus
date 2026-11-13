@@ -50,6 +50,8 @@ type App struct {
 	notice string
 	// pending are repositories asked for before git was found.
 	pending []string
+	// gitWarning says the installed git is missing security fixes.
+	gitWarning string
 
 	welcome    welcomeState
 	clone      cloneState
@@ -114,6 +116,9 @@ func (a *App) SetRunner(r *run.Runner, err error) {
 		return
 	}
 	a.Runner = r
+	if v := r.Git().Version; v.SecurityUpdate() {
+		a.gitWarning = "Git " + v.String() + " lacks security fixes: update git"
+	}
 	for _, p := range a.pending {
 		a.Open(p)
 	}

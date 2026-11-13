@@ -33,6 +33,9 @@ func (a *App) welcomeView(c *ui.Context) {
 			if a.notice != "" {
 				ui.Text(c, a.notice).TextColor(th.Danger)
 			}
+			if a.gitWarning != "" {
+				ui.Text(c, a.gitWarning).TextColor(th.Warning)
+			}
 			repos := a.known()
 			if a.Library == nil || (len(repos) == 0 && a.welcome.query == "") {
 				return

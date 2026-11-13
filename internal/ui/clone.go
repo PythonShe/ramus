@@ -125,7 +125,15 @@ func (a *App) startClone() {
 				return
 			}
 			cs.open, cs.url, cs.dir = false, "", ""
-			a.Open(dir)
+			// A repository the user just cloned here is theirs to trust;
+			// only folders that come from elsewhere ask.
+			ts := a.Trust
+			go func() {
+				if ts != nil {
+					ts.Set(filepath.Join(dir, ".git"), true)
+				}
+				update(func() { a.Open(dir) })
+			}()
 		})
 	}()
 }

@@ -3,10 +3,13 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/pathsafe"
+	"ramus/internal/git/redact"
 	"ramus/internal/session"
 )
 
@@ -186,9 +189,13 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		ui.List(c, &t.changes, st.Len(), func(i int) {
 			x, y := st.XY(i)
 			path := string(st.Path(i))
+			shown, flagged := showPath(path)
 			ui.Row(c).Padding(3, 8).Gap(8).FillWidth().Children(func() {
 				ui.Text(c, string([]byte{x, y})).Font("monospace").TextColor(th.TextMuted).Width(24)
-				ui.Text(c, path).SingleLine().Grow(1)
+				name := ui.Text(c, shown).SingleLine().Grow(1)
+				if flagged != "" {
+					name.TextColor(th.Warning).Description(flagged)
+				}
 			}).ContextMenu(func(m *ui.Menu) { a.fileMenu(m, t, path, &act) })
 		}).Grow(1)
 		if act != nil {
@@ -227,8 +234,39 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 			ui.Text(c, "Through git: "+strings.Join(st.Fallbacks, ", ")).FontSize(12).TextColor(th.TextMuted)
 		}
 		ui.Spacer(c)
+		if a.gitWarning != "" {
+			ui.Text(c, a.gitWarning).FontSize(12).TextColor(th.Warning).SingleLine()
+		}
 		if st.RefreshErr != nil {
 			ui.Text(c, "Refresh failed: "+st.RefreshErr.Error()).FontSize(12).TextColor(th.Danger).SingleLine().MaxWidth(480)
 		}
 	})
+}
+
+// showPath is how a path from git is shown: as it is, unless it holds
+// what could hide or fake another path (line breaks, control characters,
+// a .git lookalike, ..), when it is quoted and flagged with why. It is
+// never hidden.
+func showPath(p string) (shown, why string) {
+	f := pathsafe.Check(p)
+	if redact.Control(p) != p {
+		f |= pathsafe.LineBreak
+	}
+	if f == 0 {
+		return p, ""
+	}
+	var reasons []string
+	if f&pathsafe.DotGit != 0 {
+		reasons = append(reasons, "looks like .git")
+	}
+	if f&pathsafe.DotDot != 0 {
+		reasons = append(reasons, "has . or .. in it")
+	}
+	if f&pathsafe.LineBreak != 0 {
+		reasons = append(reasons, "has a line break or control character")
+	}
+	if f&pathsafe.Absolute != 0 {
+		reasons = append(reasons, "is absolute")
+	}
+	return "⚠ " + strconv.Quote(p), "This path " + strings.Join(reasons, ", ")
 }
