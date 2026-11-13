@@ -37,12 +37,12 @@ type Edge struct {
 }
 
 type rec struct {
-	node    uint16
-	color   uint16
-	top     uint16 // lanes other than the node's that end in the node
-	bottom  uint16 // edges from the node to its parents
-	edges   uint32 // chunk<<16 | offset of the row's first event
-	merges  uint8  // parents past the first, capped at 255
+	node   uint16
+	color  uint16
+	top    uint16 // lanes other than the node's that end in the node
+	bottom uint16 // edges from the node to its parents
+	edges  uint32 // chunk<<16 | offset of the row's first event
+	merges uint8  // parents past the first, capped at 255
 }
 
 // checkpoint locates the lane colors before a row: a chunk of states, the
