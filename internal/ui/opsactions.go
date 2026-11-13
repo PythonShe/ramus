@@ -297,7 +297,7 @@ func (a *App) cleanView(c *ui.Context) {
 					if why != "" {
 						txt.TextColor(th.Warning).Description(why)
 					}
-				}).Grow(1)
+				}).Label("Files to delete").Grow(1)
 			}
 			n := len(cs.paths)
 			ui.Row(c).Gap(8).Children(func() {

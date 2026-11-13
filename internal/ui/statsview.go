@@ -355,6 +355,6 @@ func (a *App) authorTable(c *ui.Context, t *tab, st stats.Stats) {
 				ui.Text(c, time.Unix(au.First, 0).Format("2006-01-02")+" to "+time.Unix(au.Last, 0).Format("2006-01-02")).
 					FontSize(12).Width(190).TextColor(th.TextMuted)
 			})
-		}).Grow(1)
+		}).Label("Authors").Grow(1)
 	})
 }

@@ -75,7 +75,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	head := t.s.State.Head
 	ui.Column(c).Padding(8).Gap(6).Background(th.Surface).FillWidth().Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			ui.TextInput(c, &cs.subject).Placeholder("Summary").Grow(1).Disabled(cs.busy)
+			ui.TextInput(c, &cs.subject).Label("Summary").Placeholder("Summary").Grow(1).Disabled(cs.busy)
 			if cs.setup != nil && len(cs.setup.Recent) > 0 {
 				recent := cs.setup.Recent
 				ui.PopoverMenuButton(c, "Recent", func(m *ui.Menu) {
@@ -88,8 +88,8 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 				})
 			}
 		})
-		ui.TextArea(c, &cs.body).Placeholder("Description").Lines(2, 8).FillWidth().Disabled(cs.busy)
-		ui.TextInput(c, &cs.coAuthors).Placeholder("Co-authors: Name <email>, …").FillWidth().Disabled(cs.busy)
+		ui.TextArea(c, &cs.body).Label("Description").Placeholder("Description").Lines(2, 8).FillWidth().Disabled(cs.busy)
+		ui.TextInput(c, &cs.coAuthors).Label("Co-authors").Placeholder("Co-authors: Name <email>, …").FillWidth().Disabled(cs.busy)
 		ui.Row(c).Gap(12).Children(func() {
 			ui.Checkbox(c, &cs.amend, "Amend").Disabled(cs.busy || head.Unborn || len(head.OID) == 0)
 			ui.Checkbox(c, &cs.signOff, "Sign off")

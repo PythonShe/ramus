@@ -40,7 +40,7 @@ func (a *App) welcomeView(c *ui.Context) {
 			if a.Library == nil || (len(repos) == 0 && a.welcome.query == "") {
 				return
 			}
-			ui.SearchField(c, &a.welcome.query).Placeholder("Find a repository")
+			ui.SearchField(c, &a.welcome.query).Label("Find a repository").Placeholder("Find a repository")
 			if len(repos) == 0 {
 				ui.Text(c, "No repository matches").TextColor(th.TextMuted)
 				return
@@ -56,7 +56,7 @@ func (a *App) welcomeView(c *ui.Context) {
 				}).RowClicked() {
 					open = r.Path
 				}
-			}).Height(360)
+			}).Label("Recent repositories").Height(360)
 			if l.Submitted() && a.welcome.chosen >= 0 && a.welcome.chosen < len(repos) {
 				open = repos[a.welcome.chosen].Path
 			}

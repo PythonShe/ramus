@@ -151,7 +151,7 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 			ui.Text(c, hex.EncodeToString(e.OID)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
 		})
 		row.ContextMenu(func(m *ui.Menu) { a.commitActions(m, t, e.OID) })
-	}).Grow(1)
+	}).Label("Reflog entries").Grow(1)
 	if rs.chosen >= 0 && rs.chosen < len(entries) {
 		rs.chosenID = entries[rs.chosen].OID
 	}
@@ -201,7 +201,7 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 			ui.Text(c, hex.EncodeToString(l.OID)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
 		})
 		row.ContextMenu(func(m *ui.Menu) { a.commitActions(m, t, l.OID) })
-	}).Grow(1)
+	}).Label("Lost commits").Grow(1)
 }
 
 // ago says how long before now t was, roughly.

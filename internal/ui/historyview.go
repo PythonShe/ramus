@@ -320,6 +320,16 @@ func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author
 	return s, au, w, true
 }
 
+// historyMerged is the abbreviated parents of row i when it is a merge
+// and its text is loaded, else "".
+func (hv *historyState) historyMerged(i int) string {
+	ch := hv.text[i/history.TextChunkRows]
+	if ch == nil || i-ch.First >= ch.Len() {
+		return ""
+	}
+	return ch.Merged(i)
+}
+
 // evict drops the chunks used longest ago past the text budget.
 func (hv *historyState) evict() {
 	total := 0
@@ -351,9 +361,20 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		if !ok {
 			return "commit, loading"
 		}
-		return s + ", " + au + ", " + w.Format("2006-01-02 15:04")
+		out := s + ", " + au + ", " + w.Format("2006-01-02 15:04")
+		if m := hv.historyMerged(i); m != "" {
+			out = "merge of " + m + ", " + out
+		}
+		if labels := hv.labels[string(h.OID(snap.Commit(i)))]; len(labels) > 0 {
+			names := make([]string, len(labels))
+			for j, l := range labels {
+				names[j] = l.kind.word() + " " + l.text
+			}
+			out += ", at " + strings.Join(names, ", ")
+		}
+		return out
 	}
-	ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Grow(1)
+	ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Label("Commits").Grow(1)
 }
 
 func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int) {
@@ -370,7 +391,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 	row := ui.Row(c).Height(historyRowHeight).Gap(8).Padding(0, 8).AlignItems(ui.Center).FillWidth()
 	row.Children(func() {
 		ui.Box(c).Width(gw).Height(historyRowHeight).
-			Role(ui.RoleImage).Label(describeRow(r)).
+			Role(ui.RoleImage).Label(describeRow(r, hv.historyMerged(i))).
 			Draw(func(p *ui.Painter, rect ui.Rect) {
 				// Read again here: the edges built above are reused by
 				// the next row.
@@ -406,8 +427,13 @@ func graphWidth(snap *lanes.Snapshot) float32 {
 	return min(maxGraphWidth, float32(max(1, snap.Width()))*graph.DefaultStyle.LaneWidth)
 }
 
-func describeRow(r lanes.Row) string {
-	if r.Merges > 0 {
+// describeRow is what a graph row reads as: a merge names the commits it
+// merges once its text is loaded.
+func describeRow(r lanes.Row, merged string) string {
+	switch {
+	case merged != "":
+		return "merge of " + merged
+	case r.Merges > 0:
 		return fmt.Sprintf("merge of %d parents", r.Merges+1)
 	}
 	return "commit"
@@ -430,11 +456,36 @@ func refChip(c *ui.Context, l refLabel) {
 	case labelBisectSkip:
 		col = th.TextMuted
 	}
-	chip := ui.Text(c, l.text).FontSize(11).SingleLine().MaxWidth(160).Padding(1, 6).
-		Background(col.Alpha(0.16)).Radius(4)
-	if l.kind == labelCurrent {
-		chip.Bold()
+	chip := ui.Text(c, l.text).FontSize(11).SingleLine().MaxWidth(160).Padding(1, 6).Radius(4).Description(l.kind.word())
+	switch l.kind {
+	case labelTag:
+		// Outlined, so a tag is told from a branch of the same name by
+		// more than its colour.
+		chip.Border(1, col)
+	case labelCurrent:
+		chip.Bold().Background(col.Alpha(0.16))
+	default:
+		chip.Background(col.Alpha(0.16))
 	}
+}
+
+// word names what a label is, for screen readers.
+func (k labelKind) word() string {
+	switch k {
+	case labelCurrent:
+		return "current branch"
+	case labelRemote:
+		return "remote branch"
+	case labelTag:
+		return "tag"
+	case labelStash:
+		return "stash"
+	case labelBisectBad, labelBisectGood, labelBisectSkip:
+		return "bisect mark"
+	case labelHead:
+		return "detached HEAD"
+	}
+	return "branch"
 }
 
 // commitMenu is a commit's context menu: copying its hash, message or

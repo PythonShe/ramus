@@ -142,7 +142,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 					ui.Text(c, ago(now, e.Time)).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
 				})
 				row.ContextMenu(func(m *ui.Menu) { a.stashMenu(m, t, i, e, &act) })
-			}).Grow(1)
+			}).Label("Stash entries").Grow(1)
 			if act != nil {
 				act()
 			}

@@ -77,7 +77,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 	a.rebuildChanges(t)
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.SearchField(c, &cv.filter).Placeholder("Filter by path").Grow(1)
+			ui.SearchField(c, &cv.filter).Label("Filter changes by path").Placeholder("Filter by path").Grow(1)
 			ui.Segmented(c, &cv.mode, "List", "Tree")
 			ro := t.s.Queue == nil
 			ui.PopoverMenuButton(c, "More", func(m *ui.Menu) {
@@ -114,7 +114,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		cv.list.Header = func(i int) bool { return rows[i].kind == rowHeader }
 		cv.list.Label = func(i int) string { return rowLabel(m, rows[i]) }
 		var act func()
-		l := ui.List(c, &cv.list, len(rows), func(i int) { a.changeRow(c, t, m, rows[i], &act) }).Grow(1)
+		l := ui.List(c, &cv.list, len(rows), func(i int) { a.changeRow(c, t, m, rows[i], &act) }).Label("Changed files").Grow(1)
 		if l.Submitted() && cv.chosen >= 0 && cv.chosen < len(rows) {
 			r := rows[cv.chosen]
 			act = func() { a.toggleStage(t, m, []changeRow{r}) }

@@ -66,7 +66,7 @@ func (a *App) promptView(c *ui.Context) {
 			ui.Text(c, p.action.Name).Bold()
 			for i, q := range p.questions {
 				ui.Field(c, q, func() {
-					in := ui.TextInput(c, &p.answers[i])
+					in := ui.TextInput(c, &p.answers[i]).Label(q)
 					if i == 0 {
 						in.AutoFocus()
 					}
@@ -189,7 +189,7 @@ func (a *App) logView(c *ui.Context, t *tab) {
 				})
 				ui.Text(c, e.Started.Format(time.TimeOnly)).FontSize(12).TextColor(th.TextMuted)
 			})
-		}).Fill()
+		}).Label("Commands run").Fill()
 	}, func() {
 		k := len(log) - 1 - t.logChosen
 		if t.logChosen < 0 || k < 0 || k >= len(log) {
@@ -203,7 +203,7 @@ func (a *App) logView(c *ui.Context, t *tab) {
 			}
 			ui.List(c, &t.outList, len(e.Output), func(i int) {
 				ui.Text(c, e.Output[i]).Font("monospace").FontSize(12).Selectable()
-			}).Grow(1)
+			}).Label("Command output").Grow(1)
 			if e.Err != nil {
 				ui.Text(c, errText(e.Err)).TextColor(th.Danger).Selectable()
 			}

@@ -217,7 +217,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 					}
 					a.commitActions(m, t, fc.OID)
 				})
-			}).Grow(1)
+			}).Label("Commits of the file").Grow(1)
 		})
 	}, func() {
 		var id []byte
@@ -338,7 +338,7 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 				}
 			})
 		}
-	}).Grow(1)
+	}).Label("Lines by commit").Grow(1)
 }
 
 // blameWho is the short line naming a blamed commit.

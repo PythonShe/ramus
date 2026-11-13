@@ -242,7 +242,7 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 					txt.TextColor(th.Warning).Tooltip(why)
 				}
 			})
-		}).Grow(1)
+		}).Label("Differing files").Grow(1)
 	})
 }
 

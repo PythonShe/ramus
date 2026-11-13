@@ -178,7 +178,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 			})
 			t.open["submodules"] = open
 		}
-	})
+	}).Label("Repository sections")
 	if side.Changed() {
 		a.chooseSidebar(t)
 	}

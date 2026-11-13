@@ -307,7 +307,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 		}
 		tg := info.Tags[r.idx]
 		row.ContextMenu(func(m *ui.Menu) { a.tagMenu(m, t, tg, &act) })
-	}).Grow(1)
+	}).Label("Branches, tags and remotes").Grow(1)
 	if rs.chosen >= 0 && rs.chosen < len(rows) && rows[rs.chosen].idx >= 0 {
 		rs.chosenName = fullRef(info, rs.kind, rows[rs.chosen].idx)
 	}
@@ -863,7 +863,7 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 						}
 						ui.Text(c, whyWords(f.Why)).FontSize(12).TextColor(th.TextMuted).Width(200).SingleLine()
 					})
-				}).Grow(1)
+				}).Label("Branches to clean up").Grow(1)
 			}
 			n := 0
 			for _, p := range cs.picked {

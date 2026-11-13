@@ -45,7 +45,7 @@ func (a *App) managerView(c *ui.Context) {
 	ui.Modal(c, &m.open, func() {
 		ui.Column(c).Width(640).Height(560).Gap(12).Padding(20).Children(func() {
 			ui.Text(c, "Repositories").Bold()
-			ui.SearchField(c, &m.query).Placeholder("Search every known repository").AutoFocus()
+			ui.SearchField(c, &m.query).Label("Search repositories").Placeholder("Search every known repository").AutoFocus()
 			m.list.Selected = &m.chosen
 			m.list.Label = func(i int) string { return repos[i].Name }
 			l := ui.List(c, &m.list, len(repos), func(i int) {
@@ -77,7 +77,7 @@ func (a *App) managerView(c *ui.Context) {
 						act = func() { a.Open(p); m.open = false }
 					}
 				})
-			}).Grow(1)
+			}).Label("Known repositories").Grow(1)
 			if l.Submitted() && m.chosen >= 0 && m.chosen < len(repos) {
 				p := repos[m.chosen].Path
 				act = func() { a.Open(p); m.open = false }
@@ -128,7 +128,7 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 			return
 		}
 		ui.Row(c).Gap(8).Children(func() {
-			ui.TextInput(c, &m.groupName).Placeholder("Group name").Grow(1)
+			ui.TextInput(c, &m.groupName).Label("Group name").Placeholder("Group name").Grow(1)
 			if ui.Button(c, "Save Open Tabs as Group").Disabled(strings.TrimSpace(m.groupName) == "").Clicked() {
 				name := m.groupName
 				var paths []string

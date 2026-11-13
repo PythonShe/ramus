@@ -446,7 +446,7 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 				ui.Text(c, byteSize(r.Size))
 			}
 		}
-	}).Grow(1).MinHeight(180)
+	}).Label("Statistics by repository").Grow(1).MinHeight(180)
 }
 
 // age says a span of seconds in the largest unit that fits.

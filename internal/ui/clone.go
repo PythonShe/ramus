@@ -39,11 +39,11 @@ func (a *App) cloneDialog(c *ui.Context) {
 			ui.Text(c, "Clone a repository").Bold()
 			busy := cs.job != nil || cs.starting
 			ui.Field(c, "URL", func() {
-				ui.TextInput(c, &cs.url).Placeholder("https://github.com/owner/repo.git").AutoFocus().Disabled(busy)
+				ui.TextInput(c, &cs.url).Label("Repository URL").Placeholder("https://github.com/owner/repo.git").AutoFocus().Disabled(busy)
 			})
 			ui.Field(c, "Folder", func() {
 				ui.Row(c).Gap(8).Children(func() {
-					ui.TextInput(c, &cs.dir).Placeholder(defaultCloneDir(cs.url)).Grow(1).Disabled(busy)
+					ui.TextInput(c, &cs.dir).Label("Folder to clone into").Placeholder(defaultCloneDir(cs.url)).Grow(1).Disabled(busy)
 					if ui.Button(c, "Choose…").Disabled(busy).Clicked() {
 						a.pickCloneParent()
 					}

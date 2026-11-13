@@ -202,7 +202,7 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 				txt.TextColor(th.Warning).Tooltip(why)
 			}
 		})
-	}).Grow(1)
+	}).Label("Files of the commit").Grow(1)
 }
 
 func commitFileName(f *diff.Raw, i int) string {

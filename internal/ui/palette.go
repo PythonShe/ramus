@@ -131,7 +131,7 @@ func (a *App) paletteView(c *ui.Context) {
 	var run func()
 	ui.Modal(c, &p.open, func() {
 		cb := ui.ComboboxBase(c, &p.query)
-		cb.Input.AutoFocus().Placeholder("Type a command").Width(520)
+		cb.Input.AutoFocus().Placeholder("Type a command").Label("Command").Width(520)
 		cb.Popup(func(panel ui.Element) {
 			for _, cmd := range cmds {
 				cb.Item(cmd.label).Padding(6, 10).Children(func() { ui.Text(c, cmd.label).SingleLine() })

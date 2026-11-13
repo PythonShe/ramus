@@ -73,7 +73,7 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 					ui.Text(c, s.Reason).SingleLine()
 					ui.Text(c, s.Time.Format(time.DateTime)).FontSize(12).TextColor(th.TextMuted)
 				})
-			}).Fill()
+			}).Label("Saved snapshots").Fill()
 		}, func() {
 			if ss.chosen < 0 || ss.chosen >= len(list) {
 				return
@@ -159,7 +159,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 					name.TextColor(th.Warning).Description(flagged)
 				}
 			})
-		}).Grow(1)
+		}).Label("Files in the snapshot").Grow(1)
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 			ro := t.s.Queue == nil
 			n := ss.picked.Len()

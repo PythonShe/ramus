@@ -137,7 +137,7 @@ func (a *App) conflictList(c *ui.Context, ms *mergeState) {
 			return
 		}
 		a.conflictBlock(c, ms, conflictIndex(segs, i), s.Conflict)
-	}).Grow(1)
+	}).Label("Conflicts and unchanged text").Grow(1)
 }
 
 func fill(cs []conflict.Choice, ch conflict.Choice) {
@@ -432,7 +432,7 @@ func (a *App) mergeDialogView(c *ui.Context) {
 							ui.Text(c, "merges").FontSize(12).TextColor(th.TextMuted)
 						}
 					})
-				}).Grow(1)
+				}).Label("Files that would conflict").Grow(1)
 			} else {
 				ui.Spacer(c)
 			}

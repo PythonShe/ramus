@@ -420,6 +420,6 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 				ui.Text(c, rc.c.ID[:min(10, len(rc.c.ID))]).Font("monospace").FontSize(12).TextColor(th.TextMuted)
 				ui.Text(c, redact.Control(rc.c.Subject)).FontSize(13).SingleLine().Grow(1)
 			})
-		}).Grow(1)
+		}).Label("Submodule commits").Grow(1)
 	})
 }
