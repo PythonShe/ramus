@@ -61,6 +61,14 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 			case "stats":
 				a.statsView(c, t)
 				return
+			case "refs":
+				a.refsView(c, t)
+				return
+			}
+			if strings.HasPrefix(t.sel, "refs/heads/") || strings.HasPrefix(t.sel, "refs/tags/") {
+				t.refs.showRef(t.sel)
+				a.refsView(c, t)
+				return
 			}
 			ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
 		}).SplitReset(220).Grow(1)
@@ -123,6 +131,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		ui.SidebarItem(c, "changes", nil, changesLabel(st))
 		ui.SidebarItem(c, "history", nil, "History")
 		ui.SidebarItem(c, "reflog", nil, "Reflog")
+		ui.SidebarItem(c, "refs", nil, "Branches and Tags")
 		ui.SidebarItem(c, "stats", nil, "Statistics")
 		ui.SidebarItem(c, "log", nil, "Command Log")
 		ui.SidebarItem(c, "snapshots", nil, "Snapshots")
