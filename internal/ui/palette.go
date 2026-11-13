@@ -28,6 +28,7 @@ func (a *App) commands() []command {
 		{"New Repository…", a.initAndOpen},
 		{"Settings…", a.openSettings},
 		{"Repositories…", a.openManager},
+		{"Library Statistics…", a.openLibStats},
 	}
 	t := a.current()
 	if t != nil {

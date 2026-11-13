@@ -29,6 +29,9 @@ type Deps struct {
 	// SettingsPath is the settings file, for saving and for "Open
 	// Settings File".
 	SettingsPath string
+	// CacheDir keeps what is worth keeping across launches but can be
+	// read again; "" keeps nothing.
+	CacheDir string
 	// Update runs a function on the main thread and rebuilds the view
 	// (Window.Update). It returns at once.
 	Update func(func())
@@ -66,6 +69,7 @@ type App struct {
 	prompt     promptState
 	links      linksDialog
 	branchUI   branchDialog
+	libStats   libStatsState
 	// confirm asks before a write that drops something.
 	confirm confirmState
 }
@@ -283,6 +287,7 @@ func (a *App) View(c *ui.Context) {
 	a.cloneDialog(c)
 	a.settingsView(c)
 	a.managerView(c)
+	a.libStatsView(c)
 	a.promptView(c)
 	a.linksView(c)
 	a.branchView(c)

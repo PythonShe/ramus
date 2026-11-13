@@ -227,5 +227,8 @@ func plural(n int, unit string) string {
 	if n == 1 {
 		return "1 " + unit
 	}
+	if w, ok := strings.CutSuffix(unit, "y"); ok && w != "" && !strings.ContainsRune("aeiou", rune(w[len(w)-1])) {
+		return strconv.Itoa(n) + " " + w + "ies"
+	}
 	return strconv.Itoa(n) + " " + unit + "s"
 }

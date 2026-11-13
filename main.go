@@ -41,6 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	cacheDir, _ := mygo.App.Path(mygo.PathCache) // none is only slower
 	cfgPath := filepath.Join(dir, "settings.json")
 	cfg, cfgErr := settings.Load(cfgPath)
 	mygo.Theme.SetSource(mygo.ThemeSource(cfg.Theme))
@@ -52,7 +53,7 @@ func main() {
 
 	var win *mygo.Window // set and read on the main thread
 	app := ui.NewApp(ui.Deps{
-		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath,
+		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, CacheDir: cacheDir,
 		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
 		Update: func(fn func()) {
 			mygo.RunOnMain(func() {

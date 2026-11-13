@@ -15,6 +15,7 @@ type settingsState struct {
 	edit             settings.Settings
 	theme            int
 	editor, terminal string
+	emails           string
 	days, recent     float64
 	err              string
 }
@@ -25,6 +26,7 @@ func (a *App) openSettings() {
 	s.edit = a.Settings.WithDefaults()
 	s.theme = max(0, indexOf(settings.Themes, s.edit.Theme))
 	s.editor, s.terminal = joinArgs(s.edit.Editor), joinArgs(s.edit.Terminal)
+	s.emails = strings.Join(s.edit.Emails, ", ")
 	s.days, s.recent = float64(s.edit.SnapshotDays), float64(s.edit.RecentLimit)
 }
 
@@ -54,6 +56,9 @@ func (a *App) settingsView(c *ui.Context) {
 			})
 			ui.Field(c, "Terminal", func() {
 				ui.TextInput(c, &s.terminal).Placeholder("/Applications/Ghostty.app")
+			})
+			ui.Field(c, "Your email addresses besides each repository's user.email", func() {
+				ui.TextInput(c, &s.emails).Placeholder("you@example.com, you@work.example")
 			})
 			ui.Field(c, "Keep snapshots of dropped work (days)", func() {
 				ui.NumberInput(c, &s.days, 1, 365, 1)
@@ -88,6 +93,10 @@ func (a *App) saveSettings() {
 	next := a.Settings
 	next.Theme = settings.Themes[min(max(s.theme, 0), len(settings.Themes)-1)]
 	next.SnapshotDays, next.RecentLimit = int(s.days), int(s.recent)
+	next.Emails = nil
+	for _, e := range strings.FieldsFunc(s.emails, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
+		next.Emails = append(next.Emails, e)
+	}
 	for _, f := range []struct {
 		text  string
 		into  *[]string
