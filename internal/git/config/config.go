@@ -47,7 +47,7 @@ type Config struct {
 // Read runs git config --list for the repository.
 func Read(ctx context.Context, r *run.Runner, gitDir string) (*Config, error) {
 	res, err := r.Run(ctx, &run.Cmd{
-		GitDir: gitDir, Read: true,
+		GitDir: gitDir, Read: true, Untranslated: true,
 		Args: []string{"config", "--list", "-z", "--show-origin", "--show-scope"},
 	})
 	if err != nil {

@@ -86,6 +86,10 @@ type Cmd struct {
 	Stdout io.Writer
 	// Timeout bounds the command; DefaultTimeout when zero.
 	Timeout time.Duration
+	// Untranslated makes git print its messages in English, for a command
+	// whose stderr the engine reads. Other commands keep the user's
+	// language, since their errors are shown as they are.
+	Untranslated bool
 }
 
 // Line returns the command as a user would type it, for the command log
@@ -182,6 +186,11 @@ func (r *Runner) command(ctx context.Context, c *Cmd) *exec.Cmd {
 		cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
 	}
 	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
+	if c.Untranslated {
+		// LC_ALL would override LC_MESSAGES; the C locale ignores LANGUAGE.
+		// LANG and LC_CTYPE stay, so paths and text decode as before.
+		cmd.Env = append(cmd.Env, "LC_ALL=", "LC_MESSAGES=C")
+	}
 	cmd.Stdin = c.Stdin
 	stopGroup(cmd)
 	return cmd

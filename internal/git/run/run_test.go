@@ -121,3 +121,28 @@ func TestStderrCapped(t *testing.T) {
 		t.Fatalf("%q", c.String())
 	}
 }
+
+// A user whose git speaks another language still gets messages the engine
+// can read, where it reads them.
+func TestUntranslated(t *testing.T) {
+	r := gittest.Init(t)
+	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	run := New(g, append(gittest.Env(), "LC_ALL=zh_CN.UTF-8", "LANGUAGE=zh_CN"), 2)
+	stderr := func(untranslated bool) string {
+		_, err := run.Run(context.Background(), &Cmd{GitDir: r.GitDir(), Args: []string{"rev-parse", "--verify", "nope"}, Untranslated: untranslated})
+		var e *Error
+		if !errors.As(err, &e) {
+			t.Fatal(err)
+		}
+		return e.Stderr
+	}
+	if strings.HasPrefix(stderr(false), "fatal") {
+		t.Skip("this git has no Chinese messages")
+	}
+	if s := stderr(true); !strings.HasPrefix(s, "fatal") {
+		t.Errorf("untranslated stderr %q", s)
+	}
+}
