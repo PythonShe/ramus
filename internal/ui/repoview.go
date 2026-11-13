@@ -36,6 +36,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		})
 		return
 	}
+	a.resolvePending(t)
 	if !t.expired && t.s.Queue != nil {
 		t.expired = true
 		t.s.ExpireSnapshots(time.Duration(a.Settings.WithDefaults().SnapshotDays) * 24 * time.Hour)
@@ -67,6 +68,9 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 				return
 			case "stashes":
 				a.stashView(c, t)
+				return
+			case "file":
+				a.fileView(c, t)
 				return
 			}
 			if strings.HasPrefix(t.sel, "refs/heads/") || strings.HasPrefix(t.sel, "refs/tags/") {

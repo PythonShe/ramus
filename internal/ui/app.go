@@ -77,8 +77,10 @@ type App struct {
 	stashUI    stashDialog
 	cleanUI    cleanState
 	mergeUI    mergeDialog
-	libStats   libStatsState
-	diff       struct {
+	// pendingFile is a file to show once its repository is open.
+	pendingFile pendingFile
+	libStats    libStatsState
+	diff        struct {
 		diffOptions
 		loaded bool
 	}
@@ -104,6 +106,7 @@ type tab struct {
 	refs      refsState
 	stash     stashState
 	merge     mergeState
+	file      fileState
 	bisect    bisectState
 	stats     statsState
 	links     tabLinks
@@ -173,7 +176,7 @@ func (a *App) Open(path string) {
 		return
 	}
 	a.nextID++
-	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), refs: newRefsState(), stash: newStashState(),
+	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), refs: newRefsState(), stash: newStashState(), file: newFileState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
 	a.tabs = append(a.tabs, t)
 	a.active = len(a.tabs) - 1

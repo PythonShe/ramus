@@ -24,6 +24,8 @@ type commitView struct {
 	files   ui.ListState
 	file    int
 	split   float32
+	// want is a file to choose once the commit is read.
+	want string
 
 	patchFor     string
 	patchLoading bool
@@ -41,7 +43,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		return
 	}
 	if !bytes.Equal(cv.id, id) {
-		*cv = commitView{id: id, loading: true, file: -1, split: cv.split}
+		*cv = commitView{id: id, loading: true, file: -1, split: cv.split, want: cv.want}
 		t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {
 				cv.loading, cv.d = false, &d
@@ -53,6 +55,14 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		return
 	}
 	d := cv.d
+	if cv.want != "" && cv.file < 0 && d.Files != nil {
+		for i := range d.Files.Len() {
+			if string(d.Files.Path(i)) == cv.want {
+				cv.file = i
+				break
+			}
+		}
+	}
 	if d.Err != nil {
 		ui.Text(c, errText(d.Err)).TextColor(th.Danger).Padding(12).Selectable()
 		return

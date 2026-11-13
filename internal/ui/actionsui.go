@@ -129,6 +129,12 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 			}()
 		}
 	}
+	if m.Item("Show File History").Disabled(root == "").Chosen() {
+		*act = func() { a.showFile(t, rel, false) }
+	}
+	if m.Item("Blame").Disabled(root == "").Chosen() {
+		*act = func() { a.showFile(t, rel, true) }
+	}
 	ed, ok := a.editor()
 	if m.Item("Open in Editor").Disabled(!ok || root == "").Chosen() {
 		*act = withPath(func(abs string) error { return ed.Open(abs, 0) })
