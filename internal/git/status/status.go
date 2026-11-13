@@ -56,10 +56,14 @@ type Status struct {
 	entries  []entry
 	paths    []byte
 	oids     []byte
+	unmerged int
 }
 
 // Len returns the number of entries.
 func (s *Status) Len() int { return len(s.entries) }
+
+// Unmerged returns the number of conflicted entries.
+func (s *Status) Unmerged() int { return s.unmerged }
 
 // Bytes returns the memory the status holds.
 func (s *Status) Bytes() int {
@@ -269,6 +273,7 @@ func (s *Status) tracked(line []byte, n int, kind Kind, orig []byte) error {
 	nModes, nOIDs := 3, 2
 	if kind == Unmerged {
 		nModes, nOIDs = 4, 3
+		s.unmerged++
 	}
 	for k := 0; k < nModes; k++ {
 		m, err := strconv.ParseUint(string(f[3+k]), 8, 32)

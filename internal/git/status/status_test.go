@@ -108,7 +108,7 @@ func TestStatus(t *testing.T) {
 		for i := 0; i < s.Len(); i++ {
 			kinds[s.Kind(i)]++
 		}
-		if kinds[Unmerged] != 1 || kinds[Renamed] != 1 || kinds[Untracked] < 3 || (opt.Ignored && kinds[Ignored] != 1) {
+		if kinds[Unmerged] != 1 || s.Unmerged() != 1 || kinds[Renamed] != 1 || kinds[Untracked] < 3 || (opt.Ignored && kinds[Ignored] != 1) {
 			t.Errorf("%+v: kinds %v", opt, kinds)
 		}
 	}
