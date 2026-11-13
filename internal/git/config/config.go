@@ -38,6 +38,10 @@ type Entry struct {
 // Config is a snapshot of every entry, in git's order: later entries win.
 type Config struct {
 	entries []Entry
+	// UnknownExtensions are repository extensions this git does not know.
+	// git then leaves the repository's own config out of the list, and
+	// refuses to work in it, so the repository is out of reach entirely.
+	UnknownExtensions []string
 }
 
 // Read runs git config --list for the repository.
@@ -54,7 +58,32 @@ func Read(ctx context.Context, r *run.Runner, gitDir string) (*Config, error) {
 		}
 		return nil, err
 	}
-	return Parse(res.Stdout)
+	c, err := Parse(res.Stdout)
+	if err != nil {
+		return nil, err
+	}
+	c.UnknownExtensions = unknownExtensions(res.Stderr)
+	return c, nil
+}
+
+// unknownExtensions reads git's warning:
+//
+//	warning: unknown repository extension found:
+//		somethingnew
+func unknownExtensions(stderr string) []string {
+	var out []string
+	in := false
+	for _, line := range strings.Split(stderr, "\n") {
+		switch {
+		case strings.Contains(line, "unknown repository extension"):
+			in = true
+		case in && strings.HasPrefix(line, "\t"):
+			out = append(out, strings.TrimSpace(line))
+		default:
+			in = false
+		}
+	}
+	return out
 }
 
 // Parse reads the output of git config --list -z --show-origin
