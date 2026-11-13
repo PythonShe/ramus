@@ -64,6 +64,9 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 			case "refs":
 				a.refsView(c, t)
 				return
+			case "stashes":
+				a.stashView(c, t)
+				return
 			}
 			if strings.HasPrefix(t.sel, "refs/heads/") || strings.HasPrefix(t.sel, "refs/tags/") {
 				t.refs.showRef(t.sel)

@@ -52,6 +52,15 @@ func (a *App) commands() []command {
 		cmds = append(cmds, command{"Issue Links…", func() { a.openLinks(t) }})
 		cmds = append(cmds, command{"Show Command Log", func() { t.sel = "log" }})
 		cmds = append(cmds, command{"Show Snapshots", func() { t.sel = "snapshots" }})
+		cmds = append(cmds, command{"Show Branches and Tags", func() { t.sel = "refs" }})
+		cmds = append(cmds, command{"Show Stashes", func() { t.sel = "stashes" }})
+		if t.s.Queue != nil {
+			cmds = append(cmds, command{"Stash Changes…", func() { a.openStash(t) }})
+			cmds = append(cmds, command{"Clean Untracked Files…", func() { a.openClean(t) }})
+			if a.PickFile != nil {
+				cmds = append(cmds, command{"Apply Patch File…", func() { a.applyPatchFile(t) }})
+			}
+		}
 		if q := t.s.Queue; q != nil {
 			cmds = append(cmds, command{"Snapshot Now", func() {
 				if _, err := t.s.SnapshotNow(false); err != nil {

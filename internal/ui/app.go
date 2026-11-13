@@ -38,6 +38,11 @@ type Deps struct {
 	// PickFolder asks the user for a folder and blocks until they answer;
 	// "" when they cancel. It is only called off the main thread.
 	PickFolder func(title string) (string, error)
+	// PickFile asks for a file to open, and SaveFile for where to save
+	// one named name; both block, return "" when the user cancels, and are
+	// only called off the main thread.
+	PickFile func(title string) (string, error)
+	SaveFile func(title, name string) (string, error)
 	// ApplyTheme makes "system", "light" or "dark" the app's appearance.
 	ApplyTheme func(theme string)
 	// Now is the clock, for tests.
@@ -69,6 +74,8 @@ type App struct {
 	prompt     promptState
 	links      linksDialog
 	branchUI   branchDialog
+	stashUI    stashDialog
+	cleanUI    cleanState
 	libStats   libStatsState
 	diff       struct {
 		diffOptions
@@ -94,6 +101,8 @@ type tab struct {
 	hist      historyState
 	reflog    reflogState
 	refs      refsState
+	stash     stashState
+	bisect    bisectState
 	stats     statsState
 	links     tabLinks
 	// expired is set once old snapshots were cleared on open.
@@ -162,7 +171,7 @@ func (a *App) Open(path string) {
 		return
 	}
 	a.nextID++
-	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), refs: newRefsState(),
+	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), refs: newRefsState(), stash: newStashState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
 	a.tabs = append(a.tabs, t)
 	a.active = len(a.tabs) - 1
@@ -296,6 +305,8 @@ func (a *App) View(c *ui.Context) {
 	a.promptView(c)
 	a.linksView(c)
 	a.branchView(c)
+	a.stashDialogView(c)
+	a.cleanView(c)
 	a.confirmView(c, &a.confirm)
 	a.paletteView(c)
 }

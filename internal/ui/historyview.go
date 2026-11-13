@@ -49,10 +49,12 @@ type historyState struct {
 	want    []byte
 	wantFor *lanes.Snapshot
 	// writing is set once a commit-graph write was asked for here.
-	writing  bool
-	jump     string
-	jumpErr  string
-	buf      []lanes.Edge
+	writing bool
+	jump    string
+	jumpErr string
+	buf     []lanes.Edge
+	// picked are the commits chosen together, by commit index.
+	picked   ui.Selection[uint32]
 	path     ui.Path
 	detail   commitView
 	detailW  float32
@@ -72,6 +74,9 @@ const (
 	labelTag
 	labelHead
 	labelStash
+	labelBisectBad
+	labelBisectGood
+	labelBisectSkip
 )
 
 type refLabel struct {
@@ -99,6 +104,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	hv.buildLabels(t.s.State, h)
 	ui.Split(c, &hv.detailW, func() {
 		ui.Column(c).Fill().Children(func() {
+			a.bisectBar(c, t)
 			a.historyBar(c, t, h)
 			switch {
 			case h.Snap == nil && h.Err == nil:
@@ -253,6 +259,12 @@ func (hv *historyState) buildLabels(st session.State, h session.HistoryState) {
 					id = list.OID(i)
 				}
 				add(id, refLabel{strings.TrimPrefix(name, "refs/tags/"), labelTag})
+			case name == "refs/bisect/bad":
+				add(list.OID(i), refLabel{"bad", labelBisectBad})
+			case strings.HasPrefix(name, "refs/bisect/good-"):
+				add(list.OID(i), refLabel{"good", labelBisectGood})
+			case strings.HasPrefix(name, "refs/bisect/skip-"):
+				add(list.OID(i), refLabel{"skipped", labelBisectSkip})
 			}
 		}
 	}
@@ -332,6 +344,7 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	hv := &t.hist
 	snap := h.Snap
 	hv.list.Selected = &hv.chosen
+	hv.list.Selection = &hv.picked
 	hv.list.Key = func(i int) any { return snap.Commit(i) }
 	hv.list.Label = func(i int) string {
 		s, au, w, ok := a.historyRow(t, h, i)
@@ -382,7 +395,10 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		ui.Text(c, when.Format("2006-01-02 15:04")).SingleLine().Width(112).TextColor(th.TextMuted)
 		ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
 	})
-	row.ContextMenu(func(m *ui.Menu) { a.commitMenu(m, t, id, merge) })
+	row.ContextMenu(func(m *ui.Menu) {
+		ids, n := a.historyIDs(t, h, i)
+		a.commitMenu(m, t, id, merge, ids, n)
+	})
 }
 
 // graphWidth fits the graph column to the lanes the history uses.
@@ -407,8 +423,12 @@ func refChip(c *ui.Context, l refLabel) {
 		col = th.Warning
 	case labelHead:
 		col = th.Danger
-	case labelStash:
+	case labelStash, labelBisectGood:
 		col = th.Success
+	case labelBisectBad:
+		col = th.Danger
+	case labelBisectSkip:
+		col = th.TextMuted
 	}
 	chip := ui.Text(c, l.text).FontSize(11).SingleLine().MaxWidth(160).Padding(1, 6).
 		Background(col.Alpha(0.16)).Radius(4)
@@ -418,8 +438,12 @@ func refChip(c *ui.Context, l refLabel) {
 }
 
 // commitMenu is a commit's context menu: copying its hash, message or
-// patch.
-func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool) {
+// patch, and what acts on it or, when several are picked, on them all.
+func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() []string, n int) {
+	if n > 1 {
+		a.commitOps(m, t, ids, n)
+		return
+	}
 	if m.Item("Copy Hash").Chosen() {
 		a.clip = hex.EncodeToString(id)
 	}

@@ -50,6 +50,7 @@ func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
 			}
 		}
 	})
+	a.commitOps(m, t, func() []string { return []string{commit} }, 1)
 }
 
 // submit runs a write and shows why it could not start.

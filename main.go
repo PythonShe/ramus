@@ -71,6 +71,16 @@ func main() {
 			}
 			return paths[0], nil
 		},
+		PickFile: func(title string) (string, error) {
+			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: title})
+			if err != nil || len(paths) == 0 {
+				return "", err
+			}
+			return paths[0], nil
+		},
+		SaveFile: func(title, name string) (string, error) {
+			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: title, DefaultPath: name, CreateDirectories: true})
+		},
 	})
 	for _, e := range []error{cfgErr, libErr} {
 		if e != nil {

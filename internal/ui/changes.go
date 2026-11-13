@@ -10,6 +10,7 @@ import (
 
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
+	"ramus/internal/session"
 )
 
 // changesState is a tab's changes list.
@@ -78,6 +79,18 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.SearchField(c, &cv.filter).Placeholder("Filter by path").Grow(1)
 			ui.Segmented(c, &cv.mode, "List", "Tree")
+			ro := t.s.Queue == nil
+			ui.PopoverMenuButton(c, "More", func(m *ui.Menu) {
+				if m.Item("Stash Changes…").Disabled(ro).Chosen() {
+					a.openStash(t)
+				}
+				if m.Item("Clean Untracked Files…").Disabled(ro).Chosen() {
+					a.openClean(t)
+				}
+				if m.Item("Apply Patch File…").Disabled(ro || a.PickFile == nil).Chosen() {
+					a.applyPatchFile(t)
+				}
+			})
 		})
 		m := cv.model
 		if m == nil {
@@ -394,6 +407,16 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 			if menu.Item("Ignore All *" + ext + " Files").Disabled(ro).Chosen() {
 				*act = func() { a.ignore(t, "*"+ext) }
 			}
+		}
+	}
+	if r.sec != secConflicts && n > 0 {
+		if menu.Item("Save Changes to " + what + " as Patch…").Disabled(a.SaveFile == nil).Chosen() {
+			var paths []string
+			for _, e := range es {
+				paths = append(paths, string(m.st.Path(int(e))))
+			}
+			req := session.PatchSave{Paths: paths, Cached: r.sec == secStaged}
+			*act = func() { a.savePatch(t, req, "changes.patch") }
 		}
 	}
 	if r.kind == rowFile {
