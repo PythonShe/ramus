@@ -27,6 +27,22 @@ type Settings struct {
 	SnapshotDays int `json:"snapshotDays,omitempty"`
 	// RecentLimit bounds the recent repositories listed.
 	RecentLimit int `json:"recentLimit,omitempty"`
+	// Actions are the user's own commands.
+	Actions []Action `json:"actions,omitempty"`
+}
+
+// Action is a command of the user's, shown in the command palette and in
+// the context menus of what it acts on.
+type Action struct {
+	Name string `json:"name"`
+	// Command is the program, by its full path, and its arguments. In
+	// each argument ${repo}, ${branch}, ${commit} and ${file} stand for
+	// what the action runs on, and ${prompt:Question} for what the user
+	// answers when it starts. No shell runs it.
+	Command []string `json:"command"`
+	// On is where it shows besides the palette: "file", "branch" or
+	// "commit"; empty for the repository only.
+	On string `json:"on,omitempty"`
 }
 
 // Themes are the values Theme takes.
@@ -90,7 +106,7 @@ func Save(path string, s Settings) error {
 	}
 	var fields map[string]json.RawMessage
 	json.Unmarshal(known, &fields)
-	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit"} {
+	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit", "actions"} {
 		delete(merged, k)
 	}
 	for k, v := range fields {
