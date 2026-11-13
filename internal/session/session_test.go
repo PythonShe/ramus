@@ -148,3 +148,11 @@ func TestLog(t *testing.T) {
 		t.Fatalf("action %+v", a)
 	}
 }
+
+func TestLogStripsAndRedacts(t *testing.T) {
+	e := &LogEntry{}
+	e.add([]string{"\x1b]0;evil title\x07ok \x1b[31mred", "https://user:hunter2@example.com/x.git"})
+	if strings.Contains(e.Output[0], "\x1b") || strings.Contains(e.Output[1], "hunter2") {
+		t.Fatalf("kept %q", e.Output)
+	}
+}

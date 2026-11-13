@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ramus/internal/actions"
+	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
 )
@@ -33,7 +34,7 @@ const (
 )
 
 func (s *Session) addLog(name, command string) *LogEntry {
-	e := &LogEntry{Name: name, Command: command, Running: true, Started: s.timeNow()}
+	e := &LogEntry{Name: name, Command: redact.Secrets(redact.Control(command)), Running: true, Started: s.timeNow()}
 	s.Log = append(s.Log, e)
 	if len(s.Log) > MaxLogEntries {
 		s.Log = append(s.Log[:0:0], s.Log[len(s.Log)-MaxLogEntries:]...)
@@ -42,6 +43,11 @@ func (s *Session) addLog(name, command string) *LogEntry {
 }
 
 func (e *LogEntry) add(lines []string) {
+	for i, l := range lines {
+		// What a command prints may hold escape sequences that would
+		// restyle or spoof the log, and secrets that must not stay.
+		lines[i] = redact.Secrets(redact.Control(l))
+	}
 	e.Output = append(e.Output, lines...)
 	if over := len(e.Output) - MaxLogLines; over > 0 {
 		e.Output = append(e.Output[:0:0], e.Output[over:]...)
@@ -92,7 +98,10 @@ func (b *batcher) finish(err error, ended time.Time) {
 	b.mu.Unlock()
 	b.update(func() {
 		b.e.add(lines)
-		b.e.Running, b.e.Err, b.e.Ended = false, err, ended
+		b.e.Running, b.e.Ended = false, ended
+		if err != nil {
+			b.e.Err = shownError{err}
+		}
 	})
 }
 
@@ -132,3 +141,10 @@ func (s *Session) RunAction(name string, argv []string) *LogEntry {
 	})
 	return e
 }
+
+// shownError is an error as the log shows it: stripped of control
+// characters and secrets, its cause still reachable.
+type shownError struct{ err error }
+
+func (e shownError) Error() string { return redact.Secrets(redact.Control(e.err.Error())) }
+func (e shownError) Unwrap() error { return e.err }
