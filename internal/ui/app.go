@@ -65,6 +65,9 @@ type App struct {
 	manager    managerState
 	prompt     promptState
 	links      linksDialog
+	branchUI   branchDialog
+	// confirm asks before a write that drops something.
+	confirm confirmState
 }
 
 // tab is one open repository.
@@ -81,6 +84,7 @@ type tab struct {
 	outList   ui.ListState
 	snaps     snapState
 	hist      historyState
+	reflog    reflogState
 	links     tabLinks
 	// expired is set once old snapshots were cleared on open.
 	expired bool
@@ -148,7 +152,7 @@ func (a *App) Open(path string) {
 		return
 	}
 	a.nextID++
-	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(),
+	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
 	a.tabs = append(a.tabs, t)
 	a.active = len(a.tabs) - 1
@@ -280,6 +284,8 @@ func (a *App) View(c *ui.Context) {
 	a.managerView(c)
 	a.promptView(c)
 	a.linksView(c)
+	a.branchView(c)
+	a.confirmView(c, &a.confirm)
 	a.paletteView(c)
 }
 

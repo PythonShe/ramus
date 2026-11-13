@@ -99,3 +99,52 @@ func TestIssueLinks(t *testing.T) {
 		t.Fatalf("saved %+v", got)
 	}
 }
+
+func TestReflogView(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "lost\n")
+	lost := r.Commit("lost work")
+	r.Git("reset", "-q", "--hard", "HEAD~1")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("Reflog")
+	h.until("the reflog", h.shows("reset: moving to HEAD~1"))
+
+	h.click("Lost Commits")
+	h.click("Find Lost Commits")
+	h.until("the lost commit", h.shows("lost work"))
+	h.click("lost work")
+	h.until("its detail", h.shows("1 file changed"))
+	if err := h.tt.RightClick("lost work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Create Branch Here…"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	h.tt.Type("rescued")
+	h.click("Create")
+	h.until("the branch", func() bool {
+		return strings.TrimSpace(r.Git("rev-parse", "--abbrev-ref", "HEAD")) == "rescued"
+	})
+	if got := strings.TrimSpace(r.Git("rev-parse", "rescued")); got != lost {
+		t.Fatalf("rescued at %s, want %s", got, lost)
+	}
+
+	// Reset the branch back, hard, after a confirmation.
+	h.app.current().reflog.lostShown = 0
+	h.until("the new entry", h.shows("checkout: moving from main to rescued"))
+	if err := h.tt.RightClick("reset: moving to HEAD~1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Reset rescued to Here", "Hard: Drop Local Changes…"); err != nil {
+		t.Fatal(err)
+	}
+	h.until("the question", h.shows("Reset"))
+	h.app.confirm.run()
+	h.until("the reset", func() bool {
+		return strings.TrimSpace(r.Git("rev-parse", "rescued")) != lost
+	})
+}

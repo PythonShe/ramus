@@ -32,10 +32,9 @@ type commitView struct {
 	plist        ui.ListState
 }
 
-func (a *App) commitDetail(c *ui.Context, t *tab) {
+// commitDetail shows commit id in cv, reading it when id changes.
+func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 	th := c.Theme()
-	cv := &t.hist.detail
-	id := t.hist.chosenID
 	if id == nil {
 		ui.Column(c).Fill().Center().Children(func() {
 			ui.Text(c, "Choose a commit to see it").TextColor(th.TextMuted)
@@ -62,9 +61,9 @@ func (a *App) commitDetail(c *ui.Context, t *tab) {
 	ui.SplitVertical(c, &cv.split, func() {
 		ui.Column(c).Fill().Children(func() {
 			a.commitHeader(c, t, d)
-			a.commitFiles(c, t, d)
+			a.commitFiles(c, cv, d)
 		})
-	}, func() { a.commitPatch(c, t, d) }).SplitReset(360).Fill()
+	}, func() { a.commitPatch(c, t, cv, d) }).SplitReset(360).Fill()
 }
 
 func (a *App) commitHeader(c *ui.Context, t *tab, d *session.CommitDetail) {
@@ -175,9 +174,8 @@ func signatureText(d *session.CommitDetail, restricted bool) string {
 	return "Signed"
 }
 
-func (a *App) commitFiles(c *ui.Context, t *tab, d *session.CommitDetail) {
+func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
-	cv := &t.hist.detail
 	f := d.Files
 	if f == nil || f.Len() == 0 {
 		ui.Text(c, "No files changed").TextColor(th.TextMuted).Padding(8, 12)
@@ -234,9 +232,8 @@ func fileStatusColor(th *ui.Theme, st byte) ui.Color {
 	return th.Warning
 }
 
-func (a *App) commitPatch(c *ui.Context, t *tab, d *session.CommitDetail) {
+func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
-	cv := &t.hist.detail
 	f := d.Files
 	if f == nil || cv.file < 0 || cv.file >= f.Len() {
 		ui.Column(c).Fill().Center().Children(func() {

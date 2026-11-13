@@ -116,7 +116,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 			}
 			a.historyList(c, t, h)
 		})
-	}, func() { a.commitDetail(c, t) }).SplitReset(640).Fill()
+	}, func() { a.commitDetail(c, t, hv.chosenID, &hv.detail) }).SplitReset(640).Fill()
 	if hv.chosen >= 0 && h.Snap != nil && hv.chosen < h.Snap.Len() {
 		id := h.OID(h.Snap.Commit(hv.chosen))
 		if string(id) != string(hv.chosenID) {
@@ -435,6 +435,8 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool) {
 	if m.Item("Copy Patch").Disabled(merge).Chosen() {
 		a.copyPatch(t, id)
 	}
+	m.Separator()
+	a.commitActions(m, t, id)
 }
 
 func (a *App) copyPatch(t *tab, id []byte) {
