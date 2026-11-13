@@ -42,6 +42,9 @@ type Op struct {
 	// its output in the job's: the write stops if it fails. A switch that
 	// stashes the changes first uses it.
 	Pre *run.Cmd
+	// File, when set, is written into the work tree after the checks and
+	// snapshot and before Pre: a merged result the user resolved.
+	File *FileWrite
 	// Refs are the refs the write may move besides the branch HEAD names
 	// before and after it (a branch it creates, deletes or renames, a
 	// tag). Undo moves only these, so a ref moved meanwhile by something
@@ -283,6 +286,11 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	}
 	if err := q.prepare(ctx, j); err != nil {
 		return run.Result{}, err
+	}
+	if f := j.Op.File; f != nil {
+		if err := f.write(j.Op.Cmd.WorkTree); err != nil {
+			return run.Result{}, err
+		}
 	}
 	if j.Op.Pre != nil {
 		if res, err := execute(ctx, q.r, j, *j.Op.Pre, nil); err != nil {
