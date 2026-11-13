@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ramus/internal/git/catfile"
+	"ramus/internal/git/commitgraph"
 	"ramus/internal/git/commits"
 	"ramus/internal/git/diff"
 	"ramus/internal/git/history"
@@ -139,6 +140,16 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		return
 	}
 	pos, covered := history.Covered(g, tips)
+	if g != nil && !covered {
+		// A tag may name a tree or a blob (the kernel's v2.6.11 names a
+		// tree), which no graph holds; only a missing commit means the
+		// graph is behind.
+		if tips, err = commitTips(cat, g, tips); err != nil {
+			fail(err)
+			return
+		}
+		pos, covered = history.Covered(g, tips)
+	}
 	var advice *history.Advice
 	if a, ok := history.GraphAdvice(r.GitDir, r.Caps.CommitGraphUsable(), g, covered); ok && !r.Restricted {
 		advice = &a
@@ -294,6 +305,26 @@ func readStashes(ctx context.Context, r *repo.Repository, list *refs.List) []Sta
 		out = append(out, Stash{OID: id, Base: base, Message: f[2]})
 	}
 	return out
+}
+
+// commitTips keeps the tips that are commits: those in g, and those
+// cat-file says are.
+func commitTips(cat *catfile.Process, g *commitgraph.Graph, tips [][]byte) ([][]byte, error) {
+	var keep, check [][]byte
+	for _, t := range tips {
+		if g.Lookup(t) != commitgraph.None {
+			keep = append(keep, t)
+		} else {
+			check = append(check, t)
+		}
+	}
+	err := cat.Read(check, func(i int, o catfile.Object) error {
+		if o.Type == "commit" {
+			keep = append(keep, check[i])
+		}
+		return nil
+	})
+	return keep, err
 }
 
 // tagTarget reads the "object" header of a tag.
