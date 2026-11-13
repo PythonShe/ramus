@@ -3,6 +3,7 @@ package ui
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -214,13 +215,19 @@ func (a *App) initAndOpen() {
 	if a.PickFolder == nil || a.Runner == nil {
 		return
 	}
-	pick, update, r := a.PickFolder, a.Update, a.Runner
+	pick, update, r, ts := a.PickFolder, a.Update, a.Runner, a.Trust
 	go func() {
 		p, err := pick("New Repository")
 		if err == nil && p != "" {
+			// A repository made here is the user's own; one that was already
+			// in the folder came from elsewhere and still asks to be trusted.
+			_, statErr := os.Lstat(filepath.Join(p, ".git"))
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			err = write.Init(ctx, r, p, false)
 			cancel()
+			if err == nil && os.IsNotExist(statErr) && ts != nil {
+				ts.Set(filepath.Join(p, ".git"), true)
+			}
 		}
 		update(func() {
 			switch {

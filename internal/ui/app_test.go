@@ -202,6 +202,9 @@ func TestNewRepository(t *testing.T) {
 	h.tt.Frame()
 	h.click("New…")
 	h.until("the new repository", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No changes") })
+	if h.tt.HasText("Read-only") {
+		t.Fatal("a repository the app made asks to be trusted")
+	}
 }
 
 func TestDropOpens(t *testing.T) {
