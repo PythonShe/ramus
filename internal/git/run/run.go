@@ -78,6 +78,14 @@ func (r *Runner) Hardened(config []string) *Runner {
 // IsHardened reports a runner from Hardened.
 func (r *Runner) IsHardened() bool { return r.hardening != nil }
 
+// DefaultMaxOutput bounds collected output: far over what a command the
+// engine reads whole prints for any real repository (the raw file list of
+// a commit touching every file of a 400,000-file tree is some 60 MB).
+const DefaultMaxOutput = 512 << 20
+
+// ErrOutputTooLarge is returned when a command prints past MaxOutput.
+var ErrOutputTooLarge = errors.New("run: output too large")
+
 // ErrRestricted is returned for a write through a hardened runner.
 var ErrRestricted = errors.New("run: the repository is not trusted, so git may only read")
 
@@ -108,6 +116,10 @@ type Cmd struct {
 	Stdout io.Writer
 	// Timeout bounds the command; DefaultTimeout when zero.
 	Timeout time.Duration
+	// MaxOutput bounds the output Run collects when Stdout is nil;
+	// DefaultMaxOutput when zero. Past it git is stopped and Run returns
+	// ErrOutputTooLarge.
+	MaxOutput int
 	// Discover runs git in WorkTree, or GitDir when there is none, and lets
 	// it find the repository itself instead of naming it, so that git's
 	// discovery checks (ownership, safe.bareRepository) apply; naming the
@@ -258,11 +270,15 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := r.command(ctx, c)
-	var stdout bytes.Buffer
+	limit := c.MaxOutput
+	if limit <= 0 {
+		limit = DefaultMaxOutput
+	}
+	stdout := &bounded{max: limit, cancel: cancel}
 	if c.Stdout != nil {
 		cmd.Stdout = c.Stdout
 	} else {
-		cmd.Stdout = &stdout
+		cmd.Stdout = stdout
 	}
 	stderr := &capped{max: stderrLimit}
 	cmd.Stderr = stderr
@@ -271,11 +287,13 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	r.running.Add(1)
 	err := cmd.Run()
 	r.running.Add(-1)
-	res := Result{Stdout: stdout.Bytes(), Stderr: stderr.String(), Duration: time.Since(t0)}
+	res := Result{Stdout: stdout.buf, Stderr: stderr.String(), Duration: time.Since(t0)}
 	if err != nil {
 		e := &Error{Line: c.Line(), ExitCode: -1, Stderr: res.Stderr, Err: err}
 		var exit *exec.ExitError
 		switch {
+		case stdout.over:
+			e.Err = fmt.Errorf("%w: over %d bytes", ErrOutputTooLarge, limit)
 		case errors.Is(ctx.Err(), context.DeadlineExceeded):
 			e.Err = fmt.Errorf("%w after %v", ErrTimeout, timeout)
 		case ctx.Err() != nil:
@@ -289,6 +307,24 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 }
 
 // capped keeps the first max bytes written to it.
+// bounded collects output up to max bytes and then stops the command.
+type bounded struct {
+	buf    []byte
+	max    int
+	over   bool
+	cancel func()
+}
+
+func (b *bounded) Write(p []byte) (int, error) {
+	if len(b.buf)+len(p) > b.max {
+		b.over = true
+		b.cancel()
+		return 0, ErrOutputTooLarge
+	}
+	b.buf = append(b.buf, p...)
+	return len(p), nil
+}
+
 type capped struct {
 	buf bytes.Buffer
 	max int

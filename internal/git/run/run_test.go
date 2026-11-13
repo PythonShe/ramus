@@ -146,3 +146,13 @@ func TestUntranslated(t *testing.T) {
 		t.Errorf("untranslated stderr %q", s)
 	}
 }
+
+func TestMaxOutput(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("big", strings.Repeat("x", 1<<20))
+	r.Commit("one")
+	_, err := runner(t, 2).Run(context.Background(), &Cmd{GitDir: r.GitDir(), Args: []string{"cat-file", "blob", "HEAD:big"}, Read: true, MaxOutput: 64 << 10})
+	if !errors.Is(err, ErrOutputTooLarge) {
+		t.Fatalf("got %v", err)
+	}
+}
