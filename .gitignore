@@ -1,6 +1,9 @@
 # Internal notes and research; kept local, never published.
 /docs/internal/
 
+# Per-user agent settings.
+/.claude/
+
 # mygo build output and dev cache.
 /build/
 /.mygo/
