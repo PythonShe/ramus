@@ -78,6 +78,8 @@ type Session struct {
 	done    chan struct{}
 	patch   patches
 	hist    hist
+	// commitPatch cancels a commit patch read that a newer one replaced.
+	commitPatch patches
 }
 
 // Debounce gathers a burst of file changes into one refresh.

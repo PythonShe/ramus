@@ -11,6 +11,15 @@ import (
 	"ramus/internal/git/history"
 )
 
+func mustHex(t *testing.T, s string) []byte {
+	t.Helper()
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
 func historyOIDs(h HistoryState) []string {
 	var out []string
 	for i := range h.Snap.Len() {
@@ -36,6 +45,8 @@ func TestHistoryLoadsEveryTip(t *testing.T) {
 	r.Write("a", "4")
 	r.Commit("main work")
 	r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+	r.Write("a", "stashed")
+	r.Git("stash", "push", "-q", "-m", "wip")
 
 	want := strings.Fields(r.Git("rev-list", "HEAD", "--branches", "--tags"))
 	slices.Sort(want)
@@ -76,8 +87,29 @@ func TestHistoryLoadsEveryTip(t *testing.T) {
 		}
 	}
 	load(false)
+	h := s.History
+	tag := strings.TrimSpace(r.Git("rev-parse", "v1"))
+	tagged := strings.TrimSpace(r.Git("rev-parse", "v1^{commit}"))
+	if c := h.TagCommits[string(mustHex(t, tag))]; hex.EncodeToString(c) != tagged {
+		t.Fatalf("tag v1 names %x, want %s", c, tagged)
+	}
+	if len(h.Stashes) != 1 || h.Stashes[0].Message != "On main: wip" ||
+		hex.EncodeToString(h.Stashes[0].Base) != strings.TrimSpace(r.Git("rev-parse", "HEAD")) {
+		t.Fatalf("stashes %+v", h.Stashes)
+	}
 	r.Git("commit-graph", "write", "--reachable")
 	load(true)
+
+	root := mustHex(t, strings.TrimSpace(r.Git("rev-list", "--max-parents=0", "HEAD")))
+	var rd *CommitDetail
+	s.LoadCommit(root, func(cd CommitDetail) { rd = &cd })
+	m.until(t, "the root commit", func() bool { return rd != nil })
+	var pr *PatchResult
+	s.CommitPatch(*rd, nil, 0, func(res PatchResult) { pr = &res })
+	m.until(t, "the root patch", func() bool { return pr != nil })
+	if pr.Err != nil || len(pr.Parsed.Files) != 1 || pr.Parsed.Path(0) != "a" {
+		t.Fatalf("root patch %+v", pr)
+	}
 
 	var d *CommitDetail
 	head, _ := hex.DecodeString(strings.TrimSpace(r.Git("rev-parse", "HEAD")))
