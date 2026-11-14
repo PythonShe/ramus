@@ -33,8 +33,16 @@ func TestParseCommit(t *testing.T) {
 	}
 	if c.Parents != 2 || string(c.Author.Name) != "A U Thor" || string(c.Author.Email) != "a@example.com" ||
 		c.Author.When != 1700000000 || c.Author.Offset != 330 || c.Committer.Offset != -480 ||
-		string(c.Encoding) != "ISO-8859-1" || !c.Signed {
+		string(c.Encoding) != "ISO-8859-1" || !c.Signed || c.SigKind != SigOpenPGP {
 		t.Fatalf("%+v", c)
+	}
+	for armor, want := range map[string]SigKind{
+		"-----BEGIN SSH SIGNATURE-----": SigSSH, "-----BEGIN SIGNED MESSAGE-----": SigX509, "-----BEGIN SOMETHING-----": SigUnknown,
+	} {
+		ssh := []byte("tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\ngpgsig " + armor + "\n abc\n\nmsg\n")
+		if c, err := ParseCommit(ssh); err != nil || !c.Signed || c.SigKind != want {
+			t.Fatalf("%s: %+v %v", armor, c, err)
+		}
 	}
 	if s := string(Subject(c.Message)); s != "Subject line continues" {
 		t.Fatalf("subject %q", s)

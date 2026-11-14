@@ -27,7 +27,34 @@ type Commit struct {
 	// Encoding is the commit's encoding header, empty for UTF-8.
 	Encoding []byte
 	Signed   bool // a gpgsig header is present
-	Message  []byte
+	// SigKind is the kind of key that signed it, read from the
+	// signature's armor.
+	SigKind SigKind
+	Message []byte
+}
+
+// SigKind is the kind of key a signature was made with, as git's
+// gpg.format names them.
+type SigKind byte
+
+const (
+	SigUnknown SigKind = iota
+	SigOpenPGP
+	SigSSH
+	SigX509
+)
+
+// sigKind reads the kind of a signature from its armor's first line.
+func sigKind(armor []byte) SigKind {
+	switch string(bytes.TrimSpace(armor)) {
+	case "-----BEGIN PGP SIGNATURE-----":
+		return SigOpenPGP
+	case "-----BEGIN SSH SIGNATURE-----":
+		return SigSSH
+	case "-----BEGIN SIGNED MESSAGE-----":
+		return SigX509
+	}
+	return SigUnknown
 }
 
 // ErrBadCommit reports bytes that are not a commit git would write.
@@ -65,6 +92,7 @@ func ParseCommit(data []byte) (Commit, error) {
 			c.Encoding = val
 		case "gpgsig", "gpgsig-sha256":
 			c.Signed = true
+			c.SigKind = sigKind(val)
 		}
 	}
 	// A commit with headers and no blank line has an empty message.

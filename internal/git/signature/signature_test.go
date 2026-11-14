@@ -55,7 +55,7 @@ func TestVerify(t *testing.T) {
 	if s := commit(signed); !s.Verified() || s.Signer != "test@example.com" || !strings.HasPrefix(s.Key, "SHA256:") {
 		t.Fatalf("signed commit %+v", s)
 	}
-	if s := commit(unsigned); s.Code != None {
+	if s := commit(unsigned); s.Code != None || s.Reason != "" {
 		t.Fatalf("unsigned commit %+v", s)
 	}
 	if s := tag("refs/tags/v1"); !s.Verified() || s.Signer != "test@example.com" || !strings.HasPrefix(s.Key, "SHA256:") {
@@ -74,6 +74,16 @@ func TestVerify(t *testing.T) {
 	}
 	if s := tag("refs/tags/v1"); s.Verified() {
 		t.Fatalf("tag by a signer not allowed %+v", s)
+	}
+
+	// No allowed signers at all: git says N, and why, of a signature it
+	// could not check.
+	r.Git("config", "--unset", "gpg.ssh.allowedSignersFile")
+	if s := commit(signed); s.Code != CannotCheck || !strings.Contains(s.Reason, "allowedSignersFile") {
+		t.Fatalf("commit with no allowed signers %+v", s)
+	}
+	if s := commit(unsigned); s.Code != None {
+		t.Fatalf("unsigned commit with no allowed signers %+v", s)
 	}
 }
 

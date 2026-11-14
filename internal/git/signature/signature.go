@@ -33,6 +33,10 @@ type Status struct {
 	// Signer is who the key belongs to, as the checking program names
 	// them; Key the key's ID or fingerprint.
 	Signer, Key string
+	// Reason is git's word on why a signature cannot be checked, as
+	// "gpg.ssh.allowedSignersFile needs to be configured", "" when it
+	// gave none.
+	Reason string
 }
 
 // Verified reports a good signature from a key git trusts: for SSH, one
@@ -49,27 +53,6 @@ func (s Status) good() bool {
 	return false
 }
 
-// Text says what the verdict is.
-func (s Status) Text() string {
-	switch s.Code {
-	case Good:
-		return "Good signature"
-	case Untrusted:
-		return "Good signature, from a key not trusted"
-	case Expired:
-		return "Good signature, expired"
-	case KeyExpired:
-		return "Good signature, from a key since expired"
-	case Revoked:
-		return "Signed with a revoked key"
-	case Bad:
-		return "Bad signature"
-	case CannotCheck:
-		return "Signature cannot be checked: the key or the program to check it is missing"
-	}
-	return "Not signed"
-}
-
 // Commit asks git about the signature of commit (hex).
 func Commit(ctx context.Context, r *run.Runner, gitDir, commit string) (Status, error) {
 	res, err := r.Run(ctx, &run.Cmd{
@@ -79,15 +62,36 @@ func Commit(ctx context.Context, r *run.Runner, gitDir, commit string) (Status, 
 	if err != nil {
 		return Status{}, err
 	}
-	return parse(res.Stdout)
+	return parse(res.Stdout, res.Stderr)
 }
 
-func parse(out []byte) (Status, error) {
+// parse reads %G?, %GS and %GK, and what git said besides. git gives N
+// for a signature it could not check, as one made with an SSH key while
+// no allowed signers are set, saying why: that is a signature, which
+// cannot be checked.
+func parse(out []byte, stderr string) (Status, error) {
 	f := strings.Split(strings.TrimRight(string(out), "\n"), "\x00")
 	if len(f) != 3 || len(f[0]) != 1 {
 		return Status{}, errors.New("signature: git said " + strings.TrimSpace(string(out)))
 	}
-	return Status{Code: Code(f[0][0]), Signer: f[1], Key: f[2]}, nil
+	s := Status{Code: Code(f[0][0]), Signer: f[1], Key: f[2]}
+	if s.Code == None || s.Code == CannotCheck {
+		if s.Reason = reason(stderr); s.Reason != "" {
+			s.Code = CannotCheck
+		}
+	}
+	return s, nil
+}
+
+// reason is git's errors in stderr, without their "error: ".
+func reason(stderr string) string {
+	var out []string
+	for _, line := range strings.Split(stderr, "\n") {
+		if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "[GNUPG:]") {
+			out = append(out, strings.TrimPrefix(line, "error: "))
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // Tag asks git about the signature of the tag named (a full ref name).
@@ -166,6 +170,9 @@ func tagStatus(ok bool, stderr string) Status {
 		// git refused what the program called good, as an ssh key not
 		// in the allowed signers.
 		s.Code = CannotCheck
+	}
+	if s.Code == CannotCheck {
+		s.Reason = reason(stderr)
 	}
 	return s
 }
