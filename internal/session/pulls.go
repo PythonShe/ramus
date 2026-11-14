@@ -236,7 +236,7 @@ func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid 
 		s.update(func() {
 			if res.Err == nil {
 				res.at = s.timeNow()
-				s.keep(key, answer{pull: &res})
+				s.keep(r, key, answer{pull: &res})
 			}
 			if !dropped {
 				done(res)

@@ -488,7 +488,7 @@ func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()
 	deliver := func(d CommitDetail) {
 		s.update(func() {
 			if d.Done && d.Err == nil {
-				s.keep(key, answer{detail: &d})
+				s.keep(r, key, answer{detail: &d})
 			}
 			if !dropped {
 				done(d)
@@ -625,7 +625,7 @@ func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws d
 			live := ctx.Err() == nil
 			cancel()
 			if err == nil {
-				s.keep(key, answer{patch: &res})
+				s.keep(r, key, answer{patch: &res})
 			}
 			if live {
 				done(res)

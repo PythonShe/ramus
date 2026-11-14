@@ -37,7 +37,7 @@ func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func
 		}
 		s.update(func() {
 			if d.Err == nil {
-				s.keep(key, answer{detail: &d})
+				s.keep(r, key, answer{detail: &d})
 			}
 			if !dropped {
 				done(d)

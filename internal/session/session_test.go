@@ -94,8 +94,18 @@ func TestUntrustedOpensRestricted(t *testing.T) {
 	}
 	s.LoadHistory()
 	m.until(t, "history", func() bool { return s.History.Done })
+	loaded := false
+	s.LoadCommit(s.State.Head.OID, func(d CommitDetail) { loaded = d.Done })
+	m.until(t, "a commit", func() bool { return loaded })
+	if s.answers().Len() == 0 {
+		t.Fatal("the commit was not kept")
+	}
 	if err := s.Trust(); err != nil {
 		t.Fatal(err)
+	}
+	// What the hardened runner read is read again.
+	if s.answers().Len() != 0 {
+		t.Fatal("answers kept across the trust")
 	}
 	// The history read from the closed repository must not outlive it.
 	if s.History.Snap != nil || s.History.OID != nil {

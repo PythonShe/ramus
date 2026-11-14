@@ -668,8 +668,13 @@ func (s *Session) Trust() error {
 	}
 	old := s.Repo
 	// History goes too: its object ids may point into the closed
-	// repository's commit-graph mapping.
+	// repository's commit-graph mapping. The background fetch starts
+	// afresh, as it never ran while restricted, and so do the answers
+	// kept, which the hardened runner made: no textconv, no external diff.
 	s.Repo, s.Queue, s.State, s.History = nil, nil, State{Opening: true}, HistoryState{}
+	s.fetch.halt()
+	s.fetch = backgroundFetch{}
+	s.DropAnswers()
 	old.Close()
 	s.start()
 	return nil

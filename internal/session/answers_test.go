@@ -140,7 +140,7 @@ func TestAnswersKept(t *testing.T) {
 	if ran, _ := loadCommit(); !ran {
 		t.Fatal("a commit was kept past DropAnswers")
 	}
-	s.keep("large", answer{patch: &PatchResult{Old: make([]byte, maxAnswer)}})
+	s.keep(s.Repo, "large", answer{patch: &PatchResult{Old: make([]byte, maxAnswer)}})
 	if _, ok := s.answers().Peek("large"); ok {
 		t.Fatal("kept an answer past maxAnswer")
 	}

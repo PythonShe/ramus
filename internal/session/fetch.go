@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
 	"ramus/locales"
 )
@@ -15,9 +16,13 @@ const fetchTimeout = 10 * time.Minute
 // backgroundFetch is the fetch a session runs on its own, on the main
 // thread but for its timer.
 type backgroundFetch struct {
-	every    time.Duration
-	stop     chan struct{}
-	running  bool
+	every time.Duration
+	// repo is the repository the timer was set for: one opened since,
+	// or opened again once trusted, sets it anew.
+	repo *repo.Repository
+	stop chan struct{}
+	// job is the quiet fetch queued or running, nil when none is.
+	job      *write.Job
 	stopped  error
 	onFailed func(error)
 	// started is when the last fetch of either kind started.
@@ -30,17 +35,13 @@ type backgroundFetch struct {
 // password cannot ask for it. An untrusted repository, or one with no
 // remote, never fetches.
 func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
-	bf := &s.fetch
+	bf, r := &s.fetch, s.Repo
 	bf.onFailed = failed
-	if every == bf.every {
+	if every == bf.every && r == bf.repo {
 		return
 	}
-	if bf.stop != nil {
-		close(bf.stop)
-		bf.stop = nil
-	}
-	bf.every = every
-	r := s.Repo
+	bf.halt()
+	bf.every, bf.repo = every, r
 	if every == 0 || r == nil || r.Restricted || s.Queue == nil || bf.stopped != nil {
 		return
 	}
@@ -68,6 +69,14 @@ func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
 	})
 }
 
+// halt stops the timer, if one runs.
+func (bf *backgroundFetch) halt() {
+	if bf.stop != nil {
+		close(bf.stop)
+		bf.stop = nil
+	}
+}
+
 // FetchEvery is how often the session fetches in the background, 0 for
 // never.
 func (s *Session) FetchEvery() time.Duration { return s.fetch.every }
@@ -86,10 +95,7 @@ func (s *Session) fetchNow() {
 		}
 		bf := &s.fetch
 		bf.stopped = err
-		if bf.stop != nil {
-			close(bf.stop)
-			bf.stop = nil
-		}
+		bf.halt()
 		if bf.onFailed != nil {
 			bf.onFailed(err)
 		}
@@ -100,7 +106,7 @@ func (s *Session) fetchNow() {
 // unless a fetch started within fresh or one is running: for the branch
 // picker, which shows the remote branches as the user opens it. done is
 // told how it ended, on the main thread; it is not called when there is
-// no fetch to run.
+// no fetch to run, nor once the repository was opened again since.
 func (s *Session) FetchFresh(fresh time.Duration, done func(error)) bool {
 	if !s.fetch.started.IsZero() && time.Since(s.fetch.started) < fresh {
 		return false
@@ -109,14 +115,14 @@ func (s *Session) FetchFresh(fresh time.Duration, done func(error)) bool {
 }
 
 // Fetching reports whether a quiet fetch is running.
-func (s *Session) Fetching() bool { return s.fetch.running }
+func (s *Session) Fetching() bool { return s.fetch.job != nil }
 
 // quietFetch fetches every remote with no one to ask for a password,
 // unless a fetch is running or there is no remote; it reports whether
 // it started one.
 func (s *Session) quietFetch(done func(error)) bool {
 	bf, r := &s.fetch, s.Repo
-	if r == nil || r.Restricted || bf.running || len(r.Config().Subsections("remote", "url")) == 0 {
+	if r == nil || r.Restricted || bf.job != nil || len(r.Config().Subsections("remote", "url")) == 0 {
 		return false
 	}
 	op, err := write.Fetch(s.Where(), "", false)
@@ -130,10 +136,21 @@ func (s *Session) quietFetch(done func(error)) bool {
 	if err != nil {
 		return false
 	}
-	bf.running, bf.started = true, time.Now()
-	s.Then(j, func(err error) {
-		bf.running = false
-		done(err)
-	})
+	bf.job, bf.started = j, time.Now()
+	update := s.update
+	// Not Then, which gives up once the lifetime ends: the queue ends
+	// every job it was given, closing too, so this always hears and the
+	// fetch never stays running.
+	go func() {
+		<-j.Done()
+		_, err := j.Result()
+		update(func() {
+			if bf.job != j {
+				return // the state was reset since: the repository opened again
+			}
+			bf.job = nil
+			done(err)
+		})
+	}()
 	return true
 }

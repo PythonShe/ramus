@@ -49,8 +49,13 @@ func (s *Session) answers() *cache.Cache[string, answer] {
 	return s.answerCache
 }
 
-// keep stores a, unless it is too large to be worth it.
-func (s *Session) keep(key string, a answer) {
+// keep stores a, read from r, unless it is too large to be worth it or r
+// is no longer the session's: an answer a read of the repository before
+// it was trusted finishes late was made by the hardened runner.
+func (s *Session) keep(r *repo.Repository, key string, a answer) {
+	if r == nil || r != s.Repo {
+		return
+	}
 	c := s.answers()
 	if n := a.bytes(); n <= maxAnswer && n <= c.Budget()/4 {
 		c.Put(key, a)

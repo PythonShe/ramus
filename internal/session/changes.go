@@ -181,7 +181,7 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 			live := ctx.Err() == nil
 			cancel()
 			if keep {
-				s.keep(key, answer{patch: &res})
+				s.keep(r, key, answer{patch: &res})
 			}
 			if live {
 				done(res)
