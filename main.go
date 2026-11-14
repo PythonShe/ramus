@@ -132,7 +132,13 @@ func main() {
 			win.Invalidate()
 		}
 	})
+	if probe != "" {
+		probeMark("app")
+	}
 	mygo.App.WhenReady(func() {
+		if probe != "" {
+			probeMark("ready")
+		}
 		mygo.App.SetMenu(menu(app))
 		opts := mygo.WindowOptions{
 			Title:     "Ramus",
@@ -148,6 +154,7 @@ func main() {
 		}
 		win = mygo.NewWindow(opts)
 		if probe != "" {
+			probeMark("window")
 			probeWindow(win, probe)
 		}
 		win.OnClosed(app.CloseAll)

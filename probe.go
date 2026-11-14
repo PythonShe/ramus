@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -19,6 +20,14 @@ const probeEnv = "RAMUS_PROBE_STARTUP"
 const probeTimeout = 30 * time.Second
 
 var mainStart time.Time
+
+// probeMarks are the times of a probe's steps since mainStart.
+var probeMarks []string
+
+// probeMark notes when step was reached, for a probe run.
+func probeMark(step string) {
+	probeMarks = append(probeMarks, fmt.Sprintf("%s %.1f", step, float64(time.Since(mainStart).Microseconds())/1000))
+}
 
 // startProbe readies a probe run and returns its data folder, "" when
 // this is not one.
@@ -43,7 +52,7 @@ func startProbe() string {
 // probeWindow has win report its first frame, then ends the app.
 func probeWindow(win *mygo.Window, dir string) {
 	win.OnReadyToShow(func() {
-		fmt.Printf("first frame %.1f ms\n", float64(time.Since(mainStart).Microseconds())/1000)
+		fmt.Printf("first frame %.1f ms (%s)\n", float64(time.Since(mainStart).Microseconds())/1000, strings.Join(probeMarks, ", "))
 		os.RemoveAll(dir)
 		mygo.App.Exit(0)
 	})
