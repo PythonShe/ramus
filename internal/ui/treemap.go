@@ -17,6 +17,19 @@ type treemapData struct {
 	pw      session.PathWeights
 	tree    *pathtree.Tree
 	weights []int64 // by node
+	// shown is the folder shown and its tiles laid out, kept from frame
+	// to frame: making them walks and sorts all its children.
+	shown treemapShown
+}
+
+// treemapShown is one folder's tiles and, for laidW by laidH, where they
+// go.
+type treemapShown struct {
+	ok           bool
+	node         pathtree.Node
+	tiles        []tile
+	laidW, laidH float64
+	laid         []placed
 }
 
 func newTreemapData(pw session.PathWeights) *treemapData {
@@ -123,6 +136,24 @@ func squarify(tiles []tile, w, h float64) []strip {
 // tilesOf returns a folder's children as tiles, largest first, the
 // smallest folded into one past maxTiles.
 func (d *treemapData) tilesOf(n pathtree.Node) []tile {
+	if d.shown.ok && d.shown.node == n {
+		return d.shown.tiles
+	}
+	ts := d.makeTiles(n)
+	d.shown = treemapShown{ok: true, node: n, tiles: ts}
+	return ts
+}
+
+// layout returns the tiles of folder n placed in a w by h space.
+func (d *treemapData) layout(n pathtree.Node, w, h float64) []placed {
+	tiles := d.tilesOf(n)
+	if sh := &d.shown; sh.laid == nil || sh.laidW != w || sh.laidH != h {
+		sh.laid, sh.laidW, sh.laidH = place(squarify(tiles, w, h), w, h), w, h
+	}
+	return d.shown.laid
+}
+
+func (d *treemapData) makeTiles(n pathtree.Node) []tile {
 	var ts []tile
 	for _, k := range d.tree.Children(n) {
 		if d.weights[k] > 0 {
@@ -174,7 +205,6 @@ func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) stri
 		ui.Spacer(c)
 		ui.Text(c, unit(d.weights[cur])).FontSize(textSmall).TextColor(th.TextMuted)
 	})
-	tiles := d.tilesOf(cur)
 	total := float64(d.weights[cur])
 	box := ui.Box(c).Key("treemap").Grow(1).FillWidth().MinHeight(240)
 	// Laid out at the size the box had last frame; the first frame, and
@@ -189,7 +219,7 @@ func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) stri
 	}
 	w, h := float64(b.W), float64(b.H)
 	box.Children(func() {
-		for i, r := range place(squarify(tiles, w, h), w, h) {
+		for i, r := range d.layout(cur, w, h) {
 			tw, th := float32(max(r.w-2, 1)), float32(max(r.h-2, 1))
 			a.treemapTile(c, ts, d, r.t, total, unit, i, tw, th).
 				Absolute().Left(float32(r.x)).Top(float32(r.y)).Width(tw).Height(th)
