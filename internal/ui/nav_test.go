@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/hex"
+	"slices"
 	"strings"
 	"testing"
 
@@ -79,5 +80,29 @@ func TestSidebarToggle(t *testing.T) {
 		if !h.tt.Focused(field) {
 			t.Fatalf("the field lost the focus as the sidebar toggled (hidden %v)", h.app.Settings.NoSidebar)
 		}
+	}
+}
+
+func TestOpenAnotherRepository(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	if err := h.tt.Click("Open Another Repository"); err != nil {
+		t.Fatal(err)
+	}
+	menu := h.tt.Menu()
+	for _, want := range []string{"Open Repository…", "Clone Repository…", "New Repository…", "Repositories…"} {
+		if !slices.Contains(menu, want) {
+			t.Fatalf("menu %q lacks %q", menu, want)
+		}
+	}
+	if err := h.tt.ChooseMenuItem("Clone Repository…"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if !h.app.clone.open {
+		t.Fatal("the clone dialog did not open")
 	}
 }

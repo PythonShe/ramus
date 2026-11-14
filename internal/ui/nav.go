@@ -151,7 +151,8 @@ func (a *App) navBar(c *ui.Context, t *tab) {
 }
 
 // navIcons are the icons of the navigation bar, parsed once.
-var navIcons = sync.OnceValue(func() (icons struct{ sidebar *ui.SVG }) {
+var navIcons = sync.OnceValue(func() (icons struct{ sidebar, plus *ui.SVG }) {
 	icons.sidebar = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg>`))
+	icons.plus = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5.5v13M5.5 12h13"/></svg>`))
 	return icons
 })

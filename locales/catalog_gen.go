@@ -10595,6 +10595,16 @@ func (msgs Messages) TabsClose(name string) string {
 	return Catalog.Format(msgs.locale, "tabsClose", map[string]any{"name": name})
 }
 
+// TabsOpenMore says "Open Another Repository"
+// in the language the app shows.
+func TabsOpenMore() string { return In(i18n.Locale()).TabsOpenMore() }
+
+// TabsOpenMore says "Open Another Repository"
+// in the language of msgs.
+func (msgs Messages) TabsOpenMore() string {
+	return Catalog.Format(msgs.locale, "tabsOpenMore", nil)
+}
+
 // GitLogRowLabel says "{command}, {status}"
 // in the language the app shows.
 //

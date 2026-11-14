@@ -2067,6 +2067,7 @@
   "tabsMoveToNewWindow": "Move to New Window",
   "tabsCloseTab": "Close Tab",
   "tabsClose": "Close {name}",
+  "tabsOpenMore": "Open Another Repository",
   "@tabsClose": {
     "description": "The button that closes a repository's tab."
   },

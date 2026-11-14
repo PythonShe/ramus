@@ -55,6 +55,7 @@ func (a *App) tabBar(c *ui.Context) {
 				})
 			}
 		})
+		a.openMore(c)
 	})
 	if act != nil {
 		act()
@@ -79,3 +80,43 @@ func (a *App) indexOf(id int) int {
 	return -1
 }
 
+// openMore opens another repository: the ways the welcome view offers,
+// and the recent ones not open.
+func (a *App) openMore(c *ui.Context) {
+	label := locales.TabsOpenMore()
+	ui.Toolbar(c, func() {
+		b := ui.Button(c, "").Label(label).Tooltip(label)
+		b.Children(func() { ui.Icon(c, navIcons().plus).FontSize(16) })
+		b.Menu(func(m *ui.Menu) {
+			if m.Item(locales.KeysOpen()).Chosen() {
+				a.pickAndOpen()
+			}
+			if m.Item(locales.KeysClone()).Chosen() {
+				a.clone.open = true
+			}
+			if m.Item(locales.KeysNew()).Chosen() {
+				a.initAndOpen()
+			}
+			if a.Library == nil {
+				return
+			}
+			first := true
+			for _, r := range a.Library.Recent(a.Settings.WithDefaults().RecentLimit) {
+				if a.Has(r.Path) {
+					continue
+				}
+				if first {
+					m.Separator()
+					first = false
+				}
+				if m.Item(r.Name).Chosen() {
+					a.Open(r.Path)
+				}
+			}
+			m.Separator()
+			if m.Item(locales.MenuRepositories()).Chosen() {
+				a.openManager()
+			}
+		})
+	}).Label(label)
+}
