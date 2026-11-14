@@ -180,7 +180,7 @@ func main() {
 // first.
 func findGit(ws *windows, crash *crashlog.Log, ask *askpass.Server) {
 	go func() {
-		r, env, _, err := lookGit()
+		r, env, shellErr, err := lookGit()
 		// An askpass of the user's own stays theirs.
 		if err == nil && ask != nil && lookup(env, "SSH_ASKPASS") == "" {
 			if program, perr := os.Executable(); perr == nil {
@@ -192,6 +192,11 @@ func findGit(ws *windows, crash *crashlog.Log, ask *askpass.Server) {
 		}
 		mygo.RunOnMain(func() {
 			ws.git, ws.gitErr, ws.found = r, err, true
+			if shellErr != nil && len(ws.list) > 0 {
+				// Not fatal: git and the tools in the usual places are found
+				// all the same; ones the shell adds to PATH may not be.
+				ws.list[0].app.Notify("Your login shell's settings were not read, so git runs with the app's own PATH: " + shellErr.Error())
+			}
 			for _, w := range ws.list {
 				if w.win == nil {
 					w.app.SetRunner(r, err)
