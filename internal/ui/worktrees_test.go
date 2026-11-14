@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Worktrees made from a branch and a remote branch, locked, removed with
@@ -22,7 +23,18 @@ func TestWorktreeActions(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("No changes"))
 	tb := h.app.current()
-	list := func() string { return r.Git("worktree", "list", "--porcelain") }
+	// git worktree list fails when the app removes the last worktree's
+	// folder under it as it reads: ask again then.
+	list := func() string {
+		t.Helper()
+		for range 50 {
+			if out, err := r.Run(nil, "worktree", "list", "--porcelain"); err == nil {
+				return out
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		return r.Git("worktree", "list", "--porcelain")
+	}
 	// as is a path as git lists it: with forward slashes on Windows too.
 	as := filepath.ToSlash
 
