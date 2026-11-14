@@ -182,6 +182,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 		if ss.chosen >= 0 && ss.chosen < len(ss.entries) {
 			id = ss.entries[ss.chosen].OID
 		}
+		ss.detail.noPull = true
 		a.commitDetail(c, t, id, &ss.detail)
 	}).Fill()
 	a.confirmView(c, &ss.ask)

@@ -62,6 +62,9 @@ type commitView struct {
 	pull                   session.CommitPullResult
 	pullAsked, pullWaiting bool
 	pullCancel             func()
+	// noPull keeps the pull request from being asked for: a stash entry
+	// is never pushed.
+	noPull bool
 }
 
 // sigResult is a verdict on a signature, or why there is none.
@@ -83,7 +86,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			cv.cancel()
 		}
 		cv.stopPull()
-		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want}
+		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want, noPull: cv.noPull}
 		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {
 				cv.loading, cv.d = !d.Done, &d
@@ -331,7 +334,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 // loadCommitPull asks GitHub once per commit shown, when the settings
 // turn pull requests on, for the pull request that brought it in.
 func (a *App) loadCommitPull(t *tab, cv *commitView, d *session.CommitDetail) {
-	if !a.Settings.PullRequests || cv.pullAsked || a.Runner == nil && a.forgeFind == nil {
+	if !a.Settings.PullRequests || cv.noPull || cv.pullAsked || a.Runner == nil && a.forgeFind == nil {
 		return
 	}
 	cv.pullAsked, cv.pullWaiting = true, true
