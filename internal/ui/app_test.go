@@ -12,6 +12,7 @@ import (
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
 	"ramus/internal/library"
 	"ramus/internal/settings"
@@ -30,6 +31,12 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	return newHarnessWith(t, testrun.Runner(t))
+}
+
+// newHarnessWith is newHarness with the app running git through r.
+func newHarnessWith(t *testing.T, r *run.Runner) *harness {
+	t.Helper()
 	dir := t.TempDir()
 	ts, err := trust.Load(filepath.Join(dir, "trust.json"))
 	if err != nil {
@@ -40,7 +47,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	h := &harness{t: t, updates: make(chan func(), 1024), trust: ts, lib: lib}
-	h.app = NewApp(Deps{Runner: testrun.Runner(t), Trust: ts, Library: lib, Settings: settings.Defaults,
+	h.app = NewApp(Deps{Runner: r, Trust: ts, Library: lib, Settings: settings.Defaults,
 		Update: func(fn func()) { h.updates <- fn }})
 	h.tt = ui.NewTester(h.app.View, 1200, 800)
 	return h
