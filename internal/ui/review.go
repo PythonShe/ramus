@@ -31,10 +31,16 @@ const (
 // whole. A file kept leaves the list.
 type reviewState struct {
 	list ui.ListState
-	// files are the status entries listed, for builtFor and onlyNew.
+	// files are the entries of filesOf listed. They are made off the main
+	// thread, for builtFor, builtOnly and builtGen; gen counts the
+	// changes to seen and stamps.
 	files     []int32
+	filesOf   *status.Status
+	building  bool
 	builtFor  *status.Status
 	builtOnly bool
+	builtGen  int
+	gen       int
 	// items are the patches read, by path; tick counts the frames shown,
 	// which an item's used is set to when built.
 	items   map[string]*reviewItem
@@ -93,7 +99,7 @@ func (rv *reviewState) leave() {
 		it.key = diffKey{}
 		rv.loading = nil
 	}
-	rv.stamping = false
+	rv.stamping, rv.building = false, false
 }
 
 func (a *App) reviewView(c *ui.Context, t *tab) {
@@ -106,9 +112,11 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 		return
 	}
 	a.stampReview(t, st)
-	if rv.builtFor != st || rv.builtOnly != rv.onlyNew {
-		rv.files = reviewFiles(st, rv)
-		rv.builtFor, rv.builtOnly = st, rv.onlyNew
+	a.rebuildReview(t, st)
+	cur := st
+	if st = rv.filesOf; st == nil {
+		loading(c, "")
+		return
 	}
 	files := rv.files
 	ro := t.s.Queue == nil
@@ -123,13 +131,14 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 			}
 			ui.Text(c, what).Bold().Grow(1)
 			ui.Checkbox(c, &rv.onlyNew, locales.ReviewChangedSinceSeen()).Disabled(rv.seen == nil)
-			if ui.Button(c, locales.ReviewMarkAllSeen()).Disabled(rv.stampedFor != st || rv.stamps == nil).Clicked() {
-				rv.seen, rv.builtFor = rv.stamps, nil
+			if ui.Button(c, locales.ReviewMarkAllSeen()).Disabled(rv.stampedFor != cur || rv.stamps == nil).Clicked() {
+				rv.seen = rv.stamps
+				rv.gen++
 			}
 		})
 		a.diffBar(c, nil)
 		switch {
-		case rv.onlyNew && rv.stampedFor != st:
+		case rv.onlyNew && rv.stampedFor != cur, rv.builtOnly != rv.onlyNew:
 			loading(c, "")
 			return
 		case len(files) == 0 && rv.onlyNew:
@@ -158,17 +167,43 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 	rv.trim()
 }
 
+// rebuildReview lists the files to review again, off the main thread,
+// when the status, the choice of only new files, or what was seen
+// changed. Main thread only.
+func (a *App) rebuildReview(t *tab, st *status.Status) {
+	rv := &t.rev
+	if rv.building || rv.builtFor == st && rv.builtOnly == rv.onlyNew && rv.builtGen == rv.gen {
+		return
+	}
+	rv.building = true
+	onlyNew, gen := rv.onlyNew, rv.gen
+	// seen and stamps are replaced, never changed in place, so the
+	// goroutine may read them.
+	seen, stamps, update := rv.seen, rv.stamps, a.Update
+	a.goWork(t, func() {
+		files := reviewFiles(st, onlyNew, seen, stamps)
+		update(func() {
+			if !rv.building {
+				return
+			}
+			rv.building = false
+			rv.files, rv.filesOf = files, st
+			rv.builtFor, rv.builtOnly, rv.builtGen = st, onlyNew, gen
+		})
+	})
+}
+
 // reviewFiles are the entries of st with changes not staged, and with
 // onlyNew those changed since they were marked seen.
-func reviewFiles(st *status.Status, rv *reviewState) []int32 {
+func reviewFiles(st *status.Status, onlyNew bool, seen, stamps map[string]fileStamp) []int32 {
 	var out []int32
 	for i := range st.Len() {
 		if !inSection(st, i, secUnstaged) {
 			continue
 		}
-		if rv.onlyNew && rv.seen != nil {
+		if onlyNew && seen != nil {
 			p := string(st.Path(i))
-			if s, ok := rv.seen[p]; ok && s == rv.stamps[p] {
+			if s, ok := seen[p]; ok && s == stamps[p] {
 				continue
 			}
 		}
@@ -178,33 +213,24 @@ func reviewFiles(st *status.Status, rv *reviewState) []int32 {
 }
 
 // stampReview reads, off the main thread, the size and time of each file
-// to review, for st.
+// to review, for st, unless there are more than reviewStampMax.
 func (a *App) stampReview(t *tab, st *status.Status) {
 	rv := &t.rev
 	if rv.stampedFor == st || rv.stamping {
 		return
 	}
-	var ps []string
-	for i := range st.Len() {
-		if inSection(st, i, secUnstaged) {
-			ps = append(ps, string(st.Path(i)))
-		}
-	}
-	if len(ps) > reviewStampMax {
-		rv.stampedFor, rv.stamps = st, nil
-		return
-	}
 	rv.stamping = true
 	root, update := t.s.Where().WorkTree, a.Update
 	a.goWork(t, func() {
-		stamps := make(map[string]fileStamp, len(ps))
-		for _, p := range ps {
-			fi, err := os.Lstat(filepath.Join(root, filepath.FromSlash(p)))
-			if err != nil {
-				stamps[p] = fileStamp{missing: true}
-				continue
+		n := 0
+		for i := range st.Len() {
+			if inSection(st, i, secUnstaged) {
+				n++
 			}
-			stamps[p] = fileStamp{size: fi.Size(), mtime: fi.ModTime().UnixNano(), mode: fi.Mode()}
+		}
+		var stamps map[string]fileStamp
+		if n <= reviewStampMax {
+			stamps = stampFiles(root, st, n)
 		}
 		update(func() {
 			if !rv.stamping {
@@ -213,10 +239,28 @@ func (a *App) stampReview(t *tab, st *status.Status) {
 			rv.stamping = false
 			if t.s.State.Status == st {
 				rv.stamps, rv.stampedFor = stamps, st
-				rv.builtFor = nil
+				rv.gen++
 			}
 		})
 	})
+}
+
+// stampFiles reads the size and time of the n files of st to review.
+func stampFiles(root string, st *status.Status, n int) map[string]fileStamp {
+	stamps := make(map[string]fileStamp, n)
+	for i := range st.Len() {
+		if !inSection(st, i, secUnstaged) {
+			continue
+		}
+		p := string(st.Path(i))
+		fi, err := os.Lstat(filepath.Join(root, filepath.FromSlash(p)))
+		if err != nil {
+			stamps[p] = fileStamp{missing: true}
+			continue
+		}
+		stamps[p] = fileStamp{size: fi.Size(), mtime: fi.ModTime().UnixNano(), mode: fi.Mode()}
+	}
+	return stamps
 }
 
 func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro bool, act *func()) {
