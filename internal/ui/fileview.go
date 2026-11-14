@@ -21,7 +21,7 @@ import (
 // lines blamed on commits.
 type fileState struct {
 	path  string // relative to the work tree; a folder ends in "/"
-	blame int    // 0 history, 1 blame
+	blame int    // 0 history, 1 blame, linesMode a line history
 
 	follow, noMerges bool
 	logKey           string
@@ -43,7 +43,10 @@ type fileState struct {
 	blameDone  bool
 	blameErr   string
 	blameList  ui.ListState
+	bpicked    ui.Selection[int] // blame rows chosen together
 	cancel     func()
+
+	lines lineHistory
 }
 
 func newFileState() fileState {
@@ -56,6 +59,8 @@ func (a *App) showFile(t *tab, path string, blame bool) {
 	if fs.path != path {
 		fs.path, fs.chosen, fs.commits = path, -1, nil
 		fs.detail.want = path
+		fs.lines = lineHistory{}
+		fs.bpicked.Clear()
 	}
 	fs.blame = 0
 	if blame {
@@ -136,12 +141,23 @@ func (a *App) fileView(c *ui.Context, t *tab) {
 				ui.Checkbox(c, &fs.noMerges, "Hide Merges")
 			}
 			if !strings.HasSuffix(fs.path, "/") {
-				ui.Segmented(c, &fs.blame, "History", "Blame")
+				modes := []string{"History", "Blame"}
+				if fs.lines.from > 0 {
+					modes = append(modes, fs.lines.label())
+				}
+				ui.Segmented(c, &fs.blame, modes...)
 			}
 		})
-		if fs.blame == 1 && !strings.HasSuffix(fs.path, "/") {
+		switch {
+		case strings.HasSuffix(fs.path, "/"):
+		case fs.blame == 1:
 			a.blameView(c, t)
 			return
+		case fs.blame == linesMode && fs.lines.from > 0:
+			a.lineHistoryView(c, t)
+			return
+		case fs.blame == linesMode:
+			fs.blame = 0
 		}
 		a.fileHistory(c, t)
 	})
@@ -243,6 +259,7 @@ func (a *App) loadBlame(t *tab) {
 		return
 	}
 	fs.blameKey = key
+	fs.bpicked.Clear()
 	if fs.cancel != nil {
 		fs.cancel()
 	}
@@ -317,6 +334,7 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 		}
 		return "Line " + strconv.Itoa(i+1) + ", " + who + ": " + line(i)
 	}
+	fs.blameList.Selection, fs.blameList.DragSelect = &fs.bpicked, true
 	ui.List(c, &fs.blameList, len(starts), func(i int) {
 		k := lc[i]
 		first := i == 0 || lc[i-1] != k
@@ -330,18 +348,24 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 			ui.Text(c, strconv.Itoa(i+1)).Font("monospace").FontSize(12).Width(numW).TextColor(th.TextMuted)
 			ui.Text(c, line(i)).Font("monospace").FontSize(12).SingleLine().Grow(1)
 		})
+		var id []byte
 		if k >= 0 && int(k) < len(cs) && !cs[k].Uncommitted {
-			id := cs[k].OID
-			row.ContextMenu(func(m *ui.Menu) {
-				if m.Item("Show Commit in History").Chosen() {
-					t.sel = "history"
-					a.chooseCommit(t, id)
-				}
-				if m.Item("Copy Hash").Chosen() {
-					a.clip = hex.EncodeToString(id)
-				}
-			})
+			id = cs[k].OID
 		}
+		row.ContextMenu(func(m *ui.Menu) {
+			a.lineHistoryItem(m, t, i)
+			if id == nil {
+				return
+			}
+			m.Separator()
+			if m.Item("Show Commit in History").Chosen() {
+				t.sel = "history"
+				a.chooseCommit(t, id)
+			}
+			if m.Item("Copy Hash").Chosen() {
+				a.clip = hex.EncodeToString(id)
+			}
+		})
 	}).Label("Lines by commit").Grow(1)
 }
 

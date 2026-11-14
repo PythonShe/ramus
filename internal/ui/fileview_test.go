@@ -57,3 +57,42 @@ func TestFileHistoryAndBlame(t *testing.T) {
 		t.Fatalf("%d tabs", len(h.app.tabs))
 	}
 }
+
+// The history of lines chosen in the blame follows them back through a
+// rename, one commit at a time with its patch of them.
+func TestLineHistory(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("f.txt", "alpha\nbeta\ngamma\n")
+	r.Commit("add f")
+	r.Write("f.txt", "alpha\nBETA\ngamma\n")
+	r.Commit("shout beta")
+	r.Git("mv", "f.txt", "g.txt")
+	r.Commit("rename to g")
+	r.Write("g.txt", "alpha\nBETA\nGAMMA\n")
+	r.Commit("shout gamma")
+	h.trust.Set(r.GitDir(), true)
+
+	h.app.ShowFile(filepath.Join(r.Dir, "g.txt"), true)
+	h.until("the blame", func() bool { return hasExact(h, "BETA") && !h.tt.HasText("Blaming") })
+	h.menu("BETA", "History of This Line")
+	h.until("the line history", func() bool { return hasExact(h, "Line 2") && hasExact(h, "shout beta") && hasExact(h, "add f") })
+	tb := h.app.current()
+	if hasExact(h, "shout gamma") || len(tb.file.lines.log.Commits) != 2 {
+		t.Fatalf("commits: %q", h.tt.Texts())
+	}
+	if !hasExact(h, "as f.txt") {
+		t.Fatalf("the old name is not shown: %q", h.tt.Texts())
+	}
+	h.until("the patch of shout beta", patchHas(&tb.file.lines.pv, "BETA", "beta"))
+
+	// Two lines chosen together, then back to the blame.
+	h.click("Blame")
+	h.until("the blame again", func() bool { return hasExact(h, "GAMMA") })
+	tb.file.bpicked.Add(1)
+	tb.file.bpicked.Add(2)
+	h.menu("GAMMA", "History of These 2 Lines")
+	h.until("both lines", func() bool {
+		return hasExact(h, "Lines 2–3") && hasExact(h, "shout gamma") && hasExact(h, "shout beta")
+	})
+}
