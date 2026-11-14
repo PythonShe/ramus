@@ -140,3 +140,21 @@ func TestRefreshRechecksEditedFiles(t *testing.T) {
 		t.Fatal("a new file was placed without a full status")
 	}
 }
+
+// A watcher that dropped notices asks for a rescan: the paths it named
+// before no longer stand for everything that changed.
+func TestOverflowRescans(t *testing.T) {
+	s := &Session{wake: make(chan struct{}, 1)}
+	s.refreshPaths(repo.WorkTreeChanged, []string{"a"})
+	if s.dirtyAll || len(s.dirtyPaths) != 1 {
+		t.Fatalf("named paths: all %v, paths %v", s.dirtyAll, s.dirtyPaths)
+	}
+	s.refreshPaths(repo.Rescan, nil)
+	if !s.dirtyAll || s.dirtyPaths != nil || s.dirty&repo.Rescan == 0 {
+		t.Fatalf("after overflow: all %v, paths %v, what %v", s.dirtyAll, s.dirtyPaths, s.dirty)
+	}
+	s.refreshPaths(repo.WorkTreeChanged, []string{"b"})
+	if !s.dirtyAll || s.dirtyPaths != nil {
+		t.Fatal("a later notice narrowed the rescan")
+	}
+}
