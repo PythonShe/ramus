@@ -31,7 +31,7 @@ type fileState struct {
 	commits          []session.FileCommit
 	limited          bool
 	logErr           string
-	list             ui.ListState
+	list             tableState
 	chosen           int
 	detail           commitView
 	detailW          float32
@@ -212,32 +212,22 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 			fs.list.Label = func(i int) string {
 				return locales.FileHistoryCommit(redact.Control(cs[i].Subject), redact.Control(cs[i].Author), ago(now, cs[i].Time))
 			}
-			ui.List(c, &fs.list, len(cs), func(i int) {
+			fs.list.CellMenu = func(m *ui.Menu, i, _ int) {
 				fc := cs[i]
-				row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
-				row.Children(func() {
-					ui.Text(c, redact.Control(fc.Subject)).SingleLine().Grow(1)
-					if fc.Path != "" && fc.Path != fs.path {
-						shown, _ := showPath(fc.Path)
-						ui.Text(c, locales.FileHistoryAsPath(shown)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
-					}
-					ui.Text(c, redact.Control(fc.Author)).FontSize(textSmall).Width(120).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, ago(now, fc.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, hex.EncodeToString(fc.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
-				})
-				row.ContextMenu(func(m *ui.Menu) {
-					if m.Item(locales.FileHistoryShowInHistory()).Chosen() {
-						t.sel = "history"
-						a.chooseCommit(t, fc.OID)
-					}
-					if m.Item(locales.CommonCopyHash()).Chosen() {
-						a.clip = hex.EncodeToString(fc.OID)
-					}
-					if fc.Path == "" || fc.Path == fs.path {
-						a.restoreFromItem(m, t, fs.path, hex.EncodeToString(fc.OID))
-					}
-					a.commitActions(m, t, fc.OID)
-				})
+				if m.Item(locales.FileHistoryShowInHistory()).Chosen() {
+					t.sel = "history"
+					a.chooseCommit(t, fc.OID)
+				}
+				if m.Item(locales.CommonCopyHash()).Chosen() {
+					a.clip = hex.EncodeToString(fc.OID)
+				}
+				if fc.Path == "" || fc.Path == fs.path {
+					a.restoreFromItem(m, t, fs.path, hex.EncodeToString(fc.OID))
+				}
+				a.commitActions(m, t, fc.OID)
+			}
+			a.savedTable(c, "fileHistory", &fs.list, commitColumns(), len(cs), func(i, col int) {
+				fileCommitCell(c, cs[i], fs.path, now, col)
 			}).Label(locales.FileHistoryFileCommits()).Grow(1)
 		})
 	}, func() {
@@ -250,6 +240,28 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 		}
 		a.commitDetail(c, t, id, &fs.detail)
 	}).Fill()
+}
+
+// fileCommitCell builds column col (commitColumns) of a commit in the
+// history of the file at path, which says where the file was when the
+// commit had it at another path.
+func fileCommitCell(c *ui.Context, fc session.FileCommit, path string, now time.Time, col int) {
+	switch col {
+	case 0:
+		ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, redact.Control(fc.Subject)).SingleLine().Grow(1)
+			if fc.Path != "" && fc.Path != path {
+				shown, _ := showPath(fc.Path)
+				mutedCell(c, locales.FileHistoryAsPath(shown)).MaxWidth(200)
+			}
+		})
+	case 1:
+		mutedCell(c, redact.Control(fc.Author))
+	case 2:
+		mutedCell(c, ago(now, fc.Time))
+	case 3:
+		hashCell(c, fc.OID)
+	}
 }
 
 // loadBlame blames the file again when it, or the refs, changed.

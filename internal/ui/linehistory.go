@@ -25,7 +25,7 @@ type lineHistory struct {
 	loading  bool
 	log      *session.LineLog
 	err      string
-	list     ui.ListState
+	list     tableState
 	chosen   int
 	shown    int // the commit whose patch res holds, -1 none
 	res      session.PatchResult
@@ -131,29 +131,19 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 			lh.list.Label = func(i int) string {
 				return locales.FileHistoryCommit(redact.Control(cs[i].Subject), redact.Control(cs[i].Author), ago(now, cs[i].Time))
 			}
-			ui.List(c, &lh.list, len(cs), func(i int) {
+			lh.list.CellMenu = func(m *ui.Menu, i, _ int) {
 				fc := cs[i]
-				row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
-				row.Children(func() {
-					ui.Text(c, redact.Control(fc.Subject)).SingleLine().Grow(1)
-					if fc.Path != "" && fc.Path != fs.path {
-						shown, _ := showPath(fc.Path)
-						ui.Text(c, locales.FileHistoryAsPath(shown)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
-					}
-					ui.Text(c, redact.Control(fc.Author)).FontSize(textSmall).Width(120).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, ago(now, fc.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, hex.EncodeToString(fc.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
-				})
-				row.ContextMenu(func(m *ui.Menu) {
-					if m.Item(locales.FileHistoryShowInHistory()).Chosen() {
-						t.sel = "history"
-						a.chooseCommit(t, fc.OID)
-					}
-					if m.Item(locales.CommonCopyHash()).Chosen() {
-						a.clip = hex.EncodeToString(fc.OID)
-					}
-					a.commitActions(m, t, fc.OID)
-				})
+				if m.Item(locales.FileHistoryShowInHistory()).Chosen() {
+					t.sel = "history"
+					a.chooseCommit(t, fc.OID)
+				}
+				if m.Item(locales.CommonCopyHash()).Chosen() {
+					a.clip = hex.EncodeToString(fc.OID)
+				}
+				a.commitActions(m, t, fc.OID)
+			}
+			a.savedTable(c, "lineHistory", &lh.list, commitColumns(), len(cs), func(i, col int) {
+				fileCommitCell(c, cs[i], fs.path, now, col)
 			}).Label(locales.FileHistoryLineCommits()).Grow(1)
 		})
 	}, func() {

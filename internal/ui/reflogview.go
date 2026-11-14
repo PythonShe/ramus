@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"encoding/hex"
 	"strings"
 	"time"
 
@@ -25,7 +24,7 @@ type reflogState struct {
 	loading  bool
 	entries  []session.ReflogEntry
 	err      string
-	list     ui.ListState
+	list     tableState
 	chosen   int
 	chosenID []byte
 
@@ -33,7 +32,7 @@ type reflogState struct {
 	lostLoading  bool
 	lostErr      string
 	lostSearched bool
-	lostList     ui.ListState
+	lostList     tableState
 	lostChosen   int
 
 	detail  commitView
@@ -99,7 +98,6 @@ func (a *App) reflogRefMenu(c *ui.Context, t *tab) {
 }
 
 func (a *App) reflogList(c *ui.Context, t *tab) {
-	th := c.Theme()
 	rs := &t.reflog
 	// Any ref change may have added an entry.
 	if refs := t.s.State.Refs; (refs != rs.readFor || rs.ref != rs.readRef) && !rs.loading {
@@ -140,17 +138,25 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 	rs.list.Label = func(i int) string {
 		return locales.ReflogEntry(entries[i].Selector, redact.Control(entries[i].Message))
 	}
+	rs.list.CellMenu = func(m *ui.Menu, i, _ int) { a.commitActions(m, t, entries[i].OID) }
+	cols := []ui.TableColumn{
+		{Title: locales.ColumnEntry(), ID: "entry", Width: 110, MinWidth: 60},
+		{Title: locales.ColumnMessage(), ID: "message", MinWidth: 80},
+		dateColumn(), commitColumn(),
+	}
 	now := a.Now()
-	ui.List(c, &rs.list, len(entries), func(i int) {
+	a.savedTable(c, "reflog", &rs.list, cols, len(entries), func(i, col int) {
 		e := entries[i]
-		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
-		row.Children(func() {
-			ui.Text(c, e.Selector).Font("monospace").FontSize(textSmall).Width(96).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, redact.Control(e.Message)).SingleLine().Grow(1)
-			ui.Text(c, ago(now, e.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, hex.EncodeToString(e.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
-		})
-		row.ContextMenu(func(m *ui.Menu) { a.commitActions(m, t, e.OID) })
+		switch col {
+		case 0:
+			mutedCell(c, e.Selector).Font("monospace")
+		case 1:
+			ui.Text(c, redact.Control(e.Message)).SingleLine()
+		case 2:
+			mutedCell(c, ago(now, e.Time))
+		case 3:
+			hashCell(c, e.OID)
+		}
 	}).Label(locales.ReflogEntries()).Grow(1)
 	if rs.chosen >= 0 && rs.chosen < len(entries) {
 		rs.chosenID = entries[rs.chosen].OID
@@ -158,7 +164,6 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 }
 
 func (a *App) lostList(c *ui.Context, t *tab) {
-	th := c.Theme()
 	rs := &t.reflog
 	if !rs.lostSearched {
 		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
@@ -188,17 +193,20 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	lost := rs.lost
 	rs.lostList.Selected = &rs.lostChosen
 	rs.lostList.Label = func(i int) string { return locales.ReflogLost(redact.Control(lost[i].Subject), lost[i].Author) }
+	rs.lostList.CellMenu = func(m *ui.Menu, i, _ int) { a.commitActions(m, t, lost[i].OID) }
 	now := a.Now()
-	ui.List(c, &rs.lostList, len(lost), func(i int) {
+	a.savedTable(c, "lostCommits", &rs.lostList, commitColumns(), len(lost), func(i, col int) {
 		l := lost[i]
-		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
-		row.Children(func() {
-			ui.Text(c, redact.Control(l.Subject)).SingleLine().Grow(1)
-			ui.Text(c, redact.Control(l.Author)).FontSize(textSmall).Width(120).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, ago(now, l.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, hex.EncodeToString(l.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
-		})
-		row.ContextMenu(func(m *ui.Menu) { a.commitActions(m, t, l.OID) })
+		switch col {
+		case 0:
+			ui.Text(c, redact.Control(l.Subject)).SingleLine()
+		case 1:
+			mutedCell(c, redact.Control(l.Author))
+		case 2:
+			mutedCell(c, ago(now, l.Time))
+		case 3:
+			hashCell(c, l.OID)
+		}
 	}).Label(locales.ReflogLostList()).Grow(1)
 }
 

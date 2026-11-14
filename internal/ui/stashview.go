@@ -22,7 +22,7 @@ type stashState struct {
 	loading bool
 	entries []session.ReflogEntry
 	err     string
-	list    ui.ListState
+	list    tableState
 	chosen  int
 	detail  commitView
 	detailW float32
@@ -163,15 +163,22 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			ss.list.Label = func(i int) string { return stashName(i) + ", " + redact.Control(entries[i].Message) }
 			now := a.Now()
 			var act func()
-			ui.List(c, &ss.list, len(entries), func(i int) {
+			ss.list.CellMenu = func(m *ui.Menu, i, _ int) { a.stashMenu(m, t, i, entries[i], &act) }
+			cols := []ui.TableColumn{
+				{Title: locales.ColumnEntry(), ID: "entry", Width: 100, MinWidth: 60},
+				{Title: locales.ColumnMessage(), ID: "message", MinWidth: 80},
+				dateColumn(),
+			}
+			a.savedTable(c, "stashes", &ss.list, cols, len(entries), func(i, col int) {
 				e := entries[i]
-				row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
-				row.Children(func() {
-					ui.Text(c, stashName(i)).Font("monospace").FontSize(textSmall).Width(80).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, redact.Control(e.Message)).SingleLine().Grow(1)
-					ui.Text(c, ago(now, e.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
-				})
-				row.ContextMenu(func(m *ui.Menu) { a.stashMenu(m, t, i, e, &act) })
+				switch col {
+				case 0:
+					mutedCell(c, stashName(i)).Font("monospace")
+				case 1:
+					ui.Text(c, redact.Control(e.Message)).SingleLine()
+				case 2:
+					mutedCell(c, ago(now, e.Time))
+				}
 			}).Label(locales.StashEntriesLabel()).Grow(1)
 			if act != nil {
 				act()
