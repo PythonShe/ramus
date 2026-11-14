@@ -70,7 +70,8 @@ func TestStashAndClean(t *testing.T) {
 		t.Fatalf("left %q", st)
 	}
 	h.click("Stashes (1)")
-	h.until("the stash list", h.shows("On main: my work"))
+	// Exactly: the write's progress in the tab bar holds the text too.
+	h.until("the stash list", func() bool { return hasExact(h, "On main: my work") })
 	stash := strings.TrimSpace(r.Git("rev-parse", "stash@{0}"))
 	h.menu("On main: my work", "Drop…")
 	h.until("the question", h.shows("Drop stash@{0} ("+stash[:10]+")?"))
