@@ -50,11 +50,16 @@ func TestLoadSave(t *testing.T) {
 	}
 }
 
+// Fetching in the background is on unless turned off, every
+// DefaultFetchMinutes unless the user set at least MinFetchMinutes.
 func TestFetchMinutes(t *testing.T) {
-	for in, want := range map[int]int{-3: 0, 0: 0, 1: MinFetchMinutes, MinFetchMinutes: MinFetchMinutes, 60: 60} {
-		if got := (Settings{FetchMinutes: in}).WithDefaults().FetchMinutes; got != want {
+	for in, want := range map[int]int{-3: DefaultFetchMinutes, 0: DefaultFetchMinutes, 1: MinFetchMinutes, MinFetchMinutes: MinFetchMinutes, 60: 60} {
+		if got := (Settings{FetchMinutes: in}).WithDefaults().FetchEvery(); got != want {
 			t.Errorf("%d minutes: got %d, want %d", in, got, want)
 		}
+	}
+	if got := (Settings{NoFetch: true, FetchMinutes: 30}).FetchEvery(); got != 0 {
+		t.Errorf("turned off, fetching every %d minutes", got)
 	}
 }
 
@@ -63,7 +68,7 @@ func TestSaveClearsEveryField(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "settings.json")
 	on := Settings{Theme: "dark", Editor: []string{"e"}, Terminal: []string{"t"}, SnapshotDays: 3, RecentLimit: 4,
 		Actions: []Action{{Name: "a", Command: []string{"/bin/true"}}}, Emails: []string{"x@example.com"},
-		DiffSplit: true, DiffNoWrap: true, NoFocusRefresh: true, FetchMinutes: 10, PullRequests: true, HiddenSections: []string{"tags"},
+		DiffSplit: true, DiffNoWrap: true, NoFocusRefresh: true, NoFetch: true, FetchMinutes: 10, PullRequests: true, HiddenSections: []string{"tags"},
 		NoSidebar: true, Keys: map[string][]string{"push": {"CmdOrCtrl+Shift+U"}},
 		HistoryColumns: map[string]Column{"hash": {Width: 80, Hidden: true}, "graph": {Thin: true}}, HistoryMessage: 300}
 	// Every field set: a field added later without a value here fails.

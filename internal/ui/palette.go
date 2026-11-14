@@ -119,7 +119,7 @@ func (a *App) tabCommands(t *tab) []command {
 		cmd("switch-branch", func() { a.openPicker(t) }),
 	)
 	cmds = append(cmds, a.hidingCommands()...)
-	if a.Settings.FetchMinutes > 0 && t.prefs.loaded {
+	if a.Settings.FetchEvery() > 0 && t.prefs.loaded {
 		label, off := locales.PaletteStopFetching(), true
 		if t.prefs.fetchOff {
 			label, off = locales.PaletteStartFetching(), false

@@ -41,9 +41,11 @@ type Settings struct {
 	// NoFocusRefresh turns off reading the repository again when the
 	// window gains focus, the fallback for changes the watcher missed.
 	NoFocusRefresh bool `json:"noFocusRefresh,omitempty"`
-	// FetchMinutes is how often open repositories fetch every remote in
-	// the background; 0 never, and at least MinFetchMinutes.
-	FetchMinutes int `json:"fetchMinutes,omitempty"`
+	// NoFetch keeps open repositories from fetching every remote in the
+	// background, which they do every FetchMinutes: DefaultFetchMinutes
+	// when 0, and at least MinFetchMinutes.
+	NoFetch      bool `json:"noFetch,omitempty"`
+	FetchMinutes int  `json:"fetchMinutes,omitempty"`
 	// PullRequests shows each branch's open pull request and its checks
 	// in the branches view, asked of the user's own gh or glab.
 	PullRequests bool `json:"pullRequests,omitempty"`
@@ -74,8 +76,23 @@ type Column struct {
 	Thin   bool    `json:"thin,omitempty"`
 }
 
-// MinFetchMinutes is the shortest wait between background fetches.
-const MinFetchMinutes = 5
+// MinFetchMinutes is the shortest wait between background fetches,
+// DefaultFetchMinutes the one unless the user sets another.
+const (
+	MinFetchMinutes     = 5
+	DefaultFetchMinutes = 15
+)
+
+// FetchEvery is the minutes between background fetches, 0 for none.
+func (s Settings) FetchEvery() int {
+	if s.NoFetch {
+		return 0
+	}
+	if s.FetchMinutes <= 0 {
+		return DefaultFetchMinutes
+	}
+	return max(s.FetchMinutes, MinFetchMinutes)
+}
 
 // Action is a command of the user's, shown in the command palette and in
 // the context menus of what it acts on.
@@ -108,9 +125,9 @@ func (s Settings) WithDefaults() Settings {
 	if s.RecentLimit <= 0 {
 		s.RecentLimit = Defaults.RecentLimit
 	}
-	if s.FetchMinutes < 0 {
+	if s.FetchMinutes <= 0 {
 		s.FetchMinutes = 0
-	} else if s.FetchMinutes > 0 {
+	} else {
 		s.FetchMinutes = max(s.FetchMinutes, MinFetchMinutes)
 	}
 	return s

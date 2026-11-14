@@ -66,8 +66,8 @@ func (a *App) diagnostics() string {
 	for i, t := range a.tabs {
 		fmt.Fprintf(&b, "  %d: %s\n", i+1, repoDiagnostics(t))
 	}
-	if a.Settings.FetchMinutes > 0 {
-		fmt.Fprintf(&b, "Background fetch: every %d minutes\n", a.Settings.FetchMinutes)
+	if n := a.Settings.FetchEvery(); n > 0 {
+		fmt.Fprintf(&b, "Background fetch: every %d minutes\n", n)
 	}
 	if a.diag.withCrash && a.diag.crash != "" {
 		b.WriteString("\n" + strings.TrimRight(a.diag.crash, "\n") + "\n")

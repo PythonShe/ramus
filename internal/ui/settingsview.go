@@ -37,7 +37,10 @@ func (a *App) openSettings() {
 	s.emails = strings.Join(s.edit.Emails, ", ")
 	s.days, s.recent = float64(s.edit.SnapshotDays), float64(s.edit.RecentLimit)
 	s.focusRefresh = !s.edit.NoFocusRefresh
-	s.fetch, s.fetchMinutes = s.edit.FetchMinutes > 0, float64(max(s.edit.FetchMinutes, 15))
+	// Turned off, fetching shows the minutes it would take, turned on.
+	on := s.edit
+	on.NoFetch = false
+	s.fetch, s.fetchMinutes = !s.edit.NoFetch, float64(on.FetchEvery())
 	s.pulls = s.edit.PullRequests
 	if a.ChosenLocale != nil {
 		tags, names := a.languageChoices()
@@ -149,9 +152,14 @@ func (a *App) saveSettings() {
 	next.SnapshotDays, next.RecentLimit = int(s.days), int(s.recent)
 	next.NoFocusRefresh = !s.focusRefresh
 	next.PullRequests = s.pulls
-	next.FetchMinutes = 0
+	// The minutes stay as they were while fetching is off, and at the
+	// default they are left out, to follow it.
+	next.NoFetch = !s.fetch
 	if s.fetch {
 		next.FetchMinutes = int(s.fetchMinutes)
+		if next.FetchMinutes == settings.DefaultFetchMinutes {
+			next.FetchMinutes = 0
+		}
 	}
 	next.Emails = nil
 	for _, e := range strings.FieldsFunc(s.emails, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {

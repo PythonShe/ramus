@@ -299,7 +299,7 @@ func (sr *sideRefs) build(t *tab) *sideRefs {
 // settings and the repository's own choice say.
 func (a *App) keepFetching(t *tab) {
 	a.loadRefPrefs(t)
-	every := time.Duration(a.Settings.FetchMinutes) * time.Minute
+	every := time.Duration(a.Settings.FetchEvery()) * time.Minute
 	if !t.prefs.loaded || t.prefs.fetchOff {
 		every = 0
 	}

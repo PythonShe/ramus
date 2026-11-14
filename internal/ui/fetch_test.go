@@ -15,13 +15,14 @@ func TestBackgroundFetchSettings(t *testing.T) {
 	r := h.repoWith()
 	r.Git("remote", "add", "origin", origin.Dir)
 	h.trust.Set(r.GitDir(), true)
+	h.app.Settings.NoFetch = true
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("No changes"))
 	tb := h.app.current()
 	if tb.s.FetchEvery() != 0 {
 		t.Fatal("fetching with the setting off")
 	}
-	h.app.Settings.FetchMinutes = 15
+	h.app.Settings.NoFetch = false
 	h.until("fetching", func() bool { return tb.s.FetchEvery() == 15*time.Minute })
 
 	h.app.palette.open = true
@@ -38,6 +39,32 @@ func TestBackgroundFetchSettings(t *testing.T) {
 	h.tt.Key(0, ui.KeyEnter)
 	h.until("fetching again", func() bool { return tb.s.FetchEvery() == 15*time.Minute && !h.app.Library.FetchOff(r.Dir) })
 
-	h.app.Settings.FetchMinutes = 0
+	h.app.Settings.NoFetch = true
 	h.until("fetching off everywhere", func() bool { return tb.s.FetchEvery() == 0 })
+}
+
+// Settings shows fetching on by default; turned off, it keeps the
+// minutes chosen for when it is turned on again.
+func TestFetchSettingDefault(t *testing.T) {
+	h := newHarness(t)
+	h.app.openSettings()
+	s := &h.app.settingsUI
+	if !s.fetch || s.fetchMinutes != 15 {
+		t.Fatalf("by default: fetch %v every %v", s.fetch, s.fetchMinutes)
+	}
+	s.fetchMinutes = 30
+	h.app.saveSettings()
+	if h.app.Settings.FetchEvery() != 30 {
+		t.Fatalf("every %d", h.app.Settings.FetchEvery())
+	}
+	h.app.openSettings()
+	s.fetch = false
+	h.app.saveSettings()
+	if h.app.Settings.FetchEvery() != 0 || h.app.Settings.FetchMinutes != 30 {
+		t.Fatalf("turned off: %+v", h.app.Settings)
+	}
+	h.app.openSettings()
+	if s.fetch || s.fetchMinutes != 30 {
+		t.Fatalf("shown again: fetch %v every %v", s.fetch, s.fetchMinutes)
+	}
 }
