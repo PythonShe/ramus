@@ -32,12 +32,14 @@ type historyState struct {
 	chosen int
 	// textFor is the load the text chunks were read for: rows of another
 	// load are other commits.
-	textFor  histLoad
-	text     map[int]*history.TextChunk
-	used     map[int]uint64
-	asked    map[int]bool
-	inflight int
-	frame    uint64
+	textFor histLoad
+	text    map[int]*history.TextChunk
+	// textBudget, when set, replaces historyTextBudget.
+	textBudget int
+	used       map[int]uint64
+	asked      map[int]bool
+	inflight   int
+	frame      uint64
 
 	// labels are built for the refs and the history (its stashes and
 	// tags) they were built from.
@@ -388,7 +390,11 @@ func (hv *historyState) evict() {
 	for _, c := range hv.text {
 		total += c.Bytes()
 	}
-	for total > historyTextBudget && len(hv.text) > 1 {
+	budget := historyTextBudget
+	if hv.textBudget > 0 {
+		budget = hv.textBudget
+	}
+	for total > budget && len(hv.text) > 1 {
 		oldest, at := -1, ^uint64(0)
 		for k := range hv.text {
 			if hv.used[k] < at {

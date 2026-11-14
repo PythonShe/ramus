@@ -2,12 +2,15 @@ package ui
 
 import (
 	"encoding/hex"
+	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/history"
 	"ramus/internal/issuelink"
 )
 
@@ -201,4 +204,52 @@ func TestStatsView(t *testing.T) {
 	tab.stats.from = "next week"
 	h.app.countStats(tab)
 	h.until("the bad day", h.shows(`"next week" is not a day like 2024-03-31`))
+}
+
+// Scrolling through a long history keeps the row text within its budget:
+// the chunks used longest ago go.
+func TestHistoryTextBudget(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	var stream strings.Builder
+	const n = 3000
+	body := strings.Repeat("a long line of a commit message ", 4)
+	for i := range n {
+		msg := fmt.Sprintf("commit %d %s\n", i, body)
+		fmt.Fprintf(&stream, "commit refs/heads/main\ncommitter A U Thor <a@example.com> %d +0000\ndata %d\n%s", 1700000000+i, len(msg), msg)
+		if i == 0 {
+			stream.WriteString("from refs/heads/main^0\n")
+		}
+		fmt.Fprintf(&stream, "M 644 inline f.txt\ndata %d\n%d\n\n", len(strconv.Itoa(i))+1, i)
+	}
+	if out, err := r.Run([]byte(stream.String()), "fast-import", "--quiet"); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	r.Git("reset", "-q", "--hard")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("history", func() bool { return tb.s.History.Done && tb.s.History.Snap != nil && tb.s.History.Snap.Len() == n+1 })
+	const budget = 160 << 10
+	hv := &tb.hist
+	hv.textBudget = budget
+	peak := 0
+	for row := 0; row <= n; row += 128 {
+		hv.list.ScrollTo(row, ui.Start)
+		h.until(fmt.Sprintf("row %d", row), func() bool { return hv.loaded(row) != nil })
+		total := 0
+		for _, c := range hv.text {
+			total += c.Bytes()
+		}
+		peak = max(peak, total)
+		if total > budget {
+			t.Fatalf("at row %d the text holds %d bytes in %d chunks, over %d", row, total, len(hv.text), budget)
+		}
+	}
+	if len(hv.text) < 2 || len(hv.text) >= (n+1)/history.TextChunkRows {
+		t.Fatalf("%d chunks kept of %d", len(hv.text), (n+1)/history.TextChunkRows)
+	}
+	t.Logf("peak %d bytes, %d chunks kept", peak, len(hv.text))
 }
