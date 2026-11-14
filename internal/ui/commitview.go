@@ -52,12 +52,16 @@ type commitView struct {
 	pv           patchView
 	pager        patchPager
 	loadPatch    func()
+	// sig is the signature's verdict as shown, with its popover.
+	sig sigResult
 }
 
 // sigResult is a verdict on a signature, or why there is none.
 type sigResult struct {
 	st  signature.Status
 	err error
+	// info keeps open the popover saying why it was not checked.
+	info bool
 }
 
 // commitDetail shows commit id in cv, reading it when id changes.
@@ -246,13 +250,13 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		// The commit's own signature, under its hash: the kind of key
 		// that made it, then what git made of it.
 		if cm.Signed {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
-				ui.Row(c).Gap(spaceS).AlignItems(ui.Start).Grow(1).Children(func() {
+				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
 					if k := sigKindName(cm.SigKind); k != "" {
 						ui.Badge(c, k).FontSize(textCaption)
 					}
-					commitSigText(c, d, t.s.State.Restricted)
+					commitSigText(c, cv, d, t.s.State.Restricted)
 				})
 			})
 		}
@@ -309,16 +313,16 @@ func sigKindName(k object.SigKind) string {
 }
 
 // commitSigText says what git made of a signed commit's signature.
-func commitSigText(c *ui.Context, d *session.CommitDetail, restricted bool) {
+func commitSigText(c *ui.Context, cv *commitView, d *session.CommitDetail, restricted bool) {
 	switch {
 	case restricted:
 		ui.Text(c, locales.CommitSigNotTrusted()).FontSize(textSmall).TextColor(c.Theme().TextMuted)
-	case d.SigErr != nil:
-		sigText(c, &sigResult{err: d.SigErr})
-	case d.Sig.Code == 0:
+	case d.Sig.Code == 0 && d.SigErr == nil:
 		sigText(c, nil)
 	default:
-		sigText(c, &sigResult{st: d.Sig})
+		r := &cv.sig
+		r.st, r.err = d.Sig, d.SigErr
+		sigText(c, r)
 	}
 }
 
@@ -454,8 +458,22 @@ func sigText(c *ui.Context, r *sigResult) {
 		ui.Text(c, locales.CommitSigCheckingVerdict()).FontSize(textSmall).TextColor(th.TextMuted)
 		return
 	}
+	// Why it was not checked is git's own word, often long: a popover
+	// holds it.
+	why := func(short, reason string) {
+		ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, short).FontSize(textSmall).TextColor(th.TextMuted)
+			if reason != "" {
+				infoButton(c, &r.info, locales.CommitSigWhy(), reason, th.Warning)
+			}
+		})
+	}
 	if r.err != nil {
-		ui.Text(c, locales.CommitSigNotChecked(errText(r.err))).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
+		why(locales.CommitSigNotChecked(), errText(r.err))
+		return
+	}
+	if r.st.Code == signature.CannotCheck {
+		why(locales.CommitSigCannotCheck(), redact.Shown(r.st.Reason))
 		return
 	}
 	st := r.st
@@ -469,7 +487,7 @@ func sigText(c *ui.Context, r *sigResult) {
 		color = th.TextMuted
 	}
 	text := verdictText(st)
-	if st.Key != "" && st.Code != signature.CannotCheck {
+	if st.Key != "" {
 		text = locales.CommitSigVerdictKey(text, redact.Control(st.Key))
 	}
 	ui.Text(c, text).FontSize(textSmall).TextColor(color).Selectable()
@@ -497,11 +515,6 @@ func verdictText(st signature.Status) string {
 		return by(locales.CommitSigExpiredKey, locales.CommitSigExpiredKeyBy)
 	case signature.Revoked:
 		return by(locales.CommitSigRevoked, locales.CommitSigRevokedBy)
-	case signature.CannotCheck:
-		if st.Reason != "" {
-			return locales.CommitSigCannotCheckWhy(redact.Shown(st.Reason))
-		}
-		return locales.CommitSigCannotCheck()
 	}
 	return locales.CommitSigNone()
 }

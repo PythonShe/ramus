@@ -787,9 +787,9 @@
   "commitSigRevoked": "Good signature, from a revoked key",
   "commitSigRevokedBy": "Good signature by {signer}, from a revoked key",
   "commitSigCannotCheck": "Cannot be checked here",
-  "commitSigCannotCheckWhy": "Cannot be checked: {reason}",
-  "@commitSigCannotCheckWhy": {
-    "description": "git could not check a signature; reason is git's own message, in English."
+  "commitSigWhy": "Why",
+  "@commitSigWhy": {
+    "description": "The info button beside a signature that was not checked, which shows git's reason."
   },
   "commitSigNotTrusted": "Not checked until you trust this repository",
   "commitSigNone": "Not signed",
@@ -808,7 +808,7 @@
   "@commitSigCheckingVerdict": {
     "description": "A commit's signature is being checked."
   },
-  "commitSigNotChecked": "Not checked: {reason}",
+  "commitSigNotChecked": "Not checked",
   "commitSigVerdictKey": "{verdict}, key {key}",
   "commitCheckOut": "Check Out Commit",
   "commitCreateBranchHere": "Create Branch Here…",

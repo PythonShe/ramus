@@ -4439,20 +4439,20 @@ func (msgs Messages) CommitSigCannotCheck() string {
 	return Catalog.Format(msgs.locale, "commitSigCannotCheck", nil)
 }
 
-// CommitSigCannotCheckWhy says "Cannot be checked: {reason}"
+// CommitSigWhy says "Why"
 // in the language the app shows.
 //
-// git could not check a signature; reason is git's own message, in English.
-func CommitSigCannotCheckWhy(reason string) string {
-	return In(i18n.Locale()).CommitSigCannotCheckWhy(reason)
-}
+// The info button beside a signature that was not checked, which shows
+// git's reason.
+func CommitSigWhy() string { return In(i18n.Locale()).CommitSigWhy() }
 
-// CommitSigCannotCheckWhy says "Cannot be checked: {reason}"
+// CommitSigWhy says "Why"
 // in the language of msgs.
 //
-// git could not check a signature; reason is git's own message, in English.
-func (msgs Messages) CommitSigCannotCheckWhy(reason string) string {
-	return Catalog.Format(msgs.locale, "commitSigCannotCheckWhy", map[string]any{"reason": reason})
+// The info button beside a signature that was not checked, which shows
+// git's reason.
+func (msgs Messages) CommitSigWhy() string {
+	return Catalog.Format(msgs.locale, "commitSigWhy", nil)
 }
 
 // CommitSigNotTrusted says "Not checked until you trust this repository"
@@ -4549,14 +4549,14 @@ func (msgs Messages) CommitSigCheckingVerdict() string {
 	return Catalog.Format(msgs.locale, "commitSigCheckingVerdict", nil)
 }
 
-// CommitSigNotChecked says "Not checked: {reason}"
+// CommitSigNotChecked says "Not checked"
 // in the language the app shows.
-func CommitSigNotChecked(reason string) string { return In(i18n.Locale()).CommitSigNotChecked(reason) }
+func CommitSigNotChecked() string { return In(i18n.Locale()).CommitSigNotChecked() }
 
-// CommitSigNotChecked says "Not checked: {reason}"
+// CommitSigNotChecked says "Not checked"
 // in the language of msgs.
-func (msgs Messages) CommitSigNotChecked(reason string) string {
-	return Catalog.Format(msgs.locale, "commitSigNotChecked", map[string]any{"reason": reason})
+func (msgs Messages) CommitSigNotChecked() string {
+	return Catalog.Format(msgs.locale, "commitSigNotChecked", nil)
 }
 
 // CommitSigVerdictKey says "{verdict}, key {key}"

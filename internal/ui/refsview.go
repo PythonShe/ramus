@@ -388,7 +388,7 @@ func (a *App) verifyTag(t *tab, tg session.TagInfo) {
 	rs.sigs[obj] = nil
 	t.s.Verify("", tg.Name, func(st signature.Status, err error) {
 		if _, ok := rs.sigs[obj]; ok {
-			rs.sigs[obj] = &sigResult{st, err}
+			rs.sigs[obj] = &sigResult{st: st, err: err}
 		}
 	})
 }

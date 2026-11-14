@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"math"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/gittest"
 )
@@ -59,10 +62,22 @@ func TestSigning(t *testing.T) {
 	h.click("History")
 	h.until("the new commit", h.shows("signed elsewhere"))
 	h.click("signed elsewhere")
-	h.until("why it is not checked", h.shows("Cannot be checked: gpg.ssh.allowedSignersFile"))
+	h.until("that it is not checked", h.shows("Cannot be checked"))
 	if h.tt.HasText("Not signed") {
 		t.Fatal("a signed commit shown as not signed")
 	}
+	// The badge sits on the row's line, with the label and the verdict.
+	label, _ := h.tt.Find("Signature")
+	badge, _ := h.tt.Find("SSH")
+	if mid := func(r ui.Rect) float32 { return r.Y + r.H/2 }; math.Abs(float64(mid(label)-mid(badge))) > 0.5 {
+		t.Fatalf("badge at %v, label at %v", badge, label)
+	}
+	// git's reason waits in a popover, not across the row.
+	if h.tt.HasText("allowedSignersFile") {
+		t.Fatal("the reason shown in the row")
+	}
+	h.click("Why")
+	h.until("the reason", h.shows("gpg.ssh.allowedSignersFile"))
 }
 
 func countText(h *harness, s string) int {

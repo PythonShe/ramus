@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/egoist/mygo/ui"
+import (
+	"sync"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // The app's spacing, type sizes and shared frames. Views take their
 // numbers from here, never literals, so the same kind of thing looks the
@@ -94,3 +98,27 @@ func clickable(e ui.Element) ui.Element {
 	}
 	return e
 }
+
+// infoButton is a small icon, in color, that opens more to say in a
+// popover: what would crowd a row as a line of text, as git's reason a
+// signature could not be checked. *open keeps the popover open.
+func infoButton(c *ui.Context, open *bool, label, text string, color ui.Color) {
+	th := c.Theme()
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(th.Radius).Padding(space2XS)
+	if b.Hovered() {
+		b.Background(th.SurfaceHover)
+	}
+	b.Children(func() { ui.Icon(c, styleIcons().info).FontSize(textSmall + 2).TextColor(color) })
+	if b.Clicked() {
+		*open = !*open
+	}
+	ui.Popover(c, b, open, func() {
+		ui.Text(c, text).FontSize(textSmall).MaxWidth(320).Selectable()
+	})
+}
+
+// styleIcons are the shared controls' icons, parsed once.
+var styleIcons = sync.OnceValue(func() (icons struct{ info *ui.SVG }) {
+	icons.info = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.6v.1" stroke-width="2.4"/></svg>`))
+	return icons
+})
