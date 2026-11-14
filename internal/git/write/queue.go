@@ -42,6 +42,9 @@ type Op struct {
 	// its output in the job's: the write stops if it fails. A switch that
 	// stashes the changes first uses it.
 	Pre *run.Cmd
+	// More run after Cmd, in order, for a write git takes in parts: paths
+	// past what one command line holds. The first that fails stops it.
+	More []run.Cmd
 	// File, when set, is written into the work tree after the checks and
 	// snapshot and before Pre: a merged result the user resolved.
 	File *FileWrite
@@ -298,6 +301,12 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 		}
 	}
 	res, err := execute(ctx, q.r, j, j.Op.Cmd, j.Op.Input)
+	for _, c := range j.Op.More {
+		if err != nil {
+			break
+		}
+		res, err = execute(ctx, q.r, j, c, nil)
+	}
 	if err != nil {
 		if le := lockError(q.gitDir, res.Stderr); le != nil {
 			err = le

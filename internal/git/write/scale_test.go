@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ramus/internal/git/refs"
+	"ramus/internal/git/run"
 )
 
 // Thousands of paths stage, unstage and discard in one git process each,
@@ -54,5 +55,39 @@ func TestManyPathsOneProcess(t *testing.T) {
 		if !step.ok() {
 			t.Fatalf("%s left the files as they were", step.name)
 		}
+	}
+
+	// git clean reads no paths from standard input: deleting thousands
+	// of untracked files is one write of a few runs, each under the
+	// Windows command line limit.
+	var untracked []string
+	for i := range n {
+		p := fmt.Sprintf("new/u%02d/g %d [y].txt", i%50, i)
+		r.Write(p, "new\n")
+		untracked = append(untracked, p)
+	}
+	op, err := Delete(w, untracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs := append([]run.Cmd{op.Cmd}, op.More...)
+	for _, c := range runs {
+		if l := len(strings.Join(c.Args, " ")); l > 32<<10 {
+			t.Fatalf("a clean run is %d bytes long", l)
+		}
+	}
+	start := time.Now()
+	if _, err := wait(t, q.Submit(op)); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("delete %d untracked files: %d runs, %v (snapshot included)", n, len(runs), time.Since(start).Round(time.Millisecond))
+	if got := count("ls-files", "--others", "--exclude-standard"); got != 0 {
+		t.Fatalf("%d untracked files left", got)
+	}
+	if _, err := wait(t, q.Undo()); err != nil {
+		t.Fatal(err)
+	}
+	if got := count("ls-files", "--others", "--exclude-standard"); got != n {
+		t.Fatalf("undo brought back %d of %d untracked files", got, n)
 	}
 }

@@ -479,10 +479,6 @@ func (a *App) askDiscard(t *tab, m *changeModel, es []int32) {
 			tracked = append(tracked, p)
 		}
 	}
-	if len(untracked) > write.MaxDelete {
-		a.notice = fmt.Sprintf("Choose at most %d untracked files to delete at once", write.MaxDelete)
-		return
-	}
 	w := t.s.Where()
 	head := t.s.State.Head
 	update := a.Update

@@ -66,21 +66,40 @@ func Discard(w Where, paths []string) Op {
 		Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Undo: FilesOnly}
 }
 
-// MaxDelete bounds the untracked paths one Delete removes; git clean
-// takes them as arguments.
-const MaxDelete = 1000
+// MaxArgPaths bounds the paths a write passes as arguments in one
+// command, where git reads none from standard input.
+const MaxArgPaths = 1000
 
 // ErrTooMany is more paths than one write takes.
 var ErrTooMany = errors.New("write: too many paths at once")
 
+// maxArgBytes bounds the paths one git clean names: git clean reads no
+// paths from standard input, and Windows limits a command line to 32 K
+// characters.
+const maxArgBytes = 24 << 10
+
 // Delete removes untracked paths, folders included, after keeping them
-// in a snapshot; it is undoable.
+// in a snapshot; it is undoable. git clean takes paths only as
+// arguments, so many paths take several runs, inside the one write.
 func Delete(w Where, paths []string) (Op, error) {
-	if len(paths) > MaxDelete {
-		return Op{}, fmt.Errorf("%w: %d untracked paths, at most %d", ErrTooMany, len(paths), MaxDelete)
+	if len(paths) == 0 {
+		return Op{}, errors.New("write: no files chosen")
 	}
 	name := "Delete " + count(len(paths), paths[0])
-	return Op{Name: name, Cmd: w.cmd(append([]string{"clean", "-f", "-d", "-q", "--"}, paths...)...),
+	var cmds []run.Cmd
+	for rest := paths; len(rest) > 0; {
+		args := []string{"clean", "-f", "-d", "-q", "--"}
+		head, n := len(args), 0
+		for i, p := range rest {
+			if i > 0 && n+len(p)+1 > maxArgBytes {
+				break
+			}
+			args, n = append(args, p), n+len(p)+1
+		}
+		rest = rest[len(args)-head:]
+		cmds = append(cmds, w.cmd(args...))
+	}
+	return Op{Name: name, Cmd: cmds[0], More: cmds[1:],
 		Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Undo: FilesOnly}, nil
 }
 

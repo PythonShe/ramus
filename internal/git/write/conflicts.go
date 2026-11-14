@@ -103,8 +103,8 @@ func checkPaths(paths []string) error {
 	switch {
 	case len(paths) == 0:
 		return errors.New("write: no files chosen")
-	case len(paths) > MaxDelete:
-		return fmt.Errorf("%w: %d files, at most %d", ErrTooMany, len(paths), MaxDelete)
+	case len(paths) > MaxArgPaths:
+		return fmt.Errorf("%w: %d files, at most %d", ErrTooMany, len(paths), MaxArgPaths)
 	}
 	return nil
 }
