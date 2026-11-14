@@ -123,8 +123,8 @@ func workPatchKey(req diff.PatchRequest, sd Sides) (key string, work bool) {
 		return "", false
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "w\x00%d\x00%d\x00%d\x00%t\x00%d\x00%d\x00%x\x00%x\x00%o\x00%o\x00%s",
-		req.Source, req.Context, req.MaxBytes, req.ForApply, req.Whitespace, sd.Max,
+	fmt.Fprintf(&b, "w\x00%d\x00%d\x00%d\x00%t\x00%t\x00%d\x00%d\x00%x\x00%x\x00%o\x00%o\x00%s",
+		req.Source, req.Context, req.MaxBytes, req.ForApply, req.Renames, req.Whitespace, sd.Max,
 		sd.Old, sd.New, sd.Modes[0], sd.Modes[1], sd.WorkTreePath)
 	for _, p := range req.Paths {
 		b.WriteString("\x00" + p)

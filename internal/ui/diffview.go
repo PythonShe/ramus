@@ -15,6 +15,9 @@ import (
 // diffKey is what a shown patch was read for; a new status reads it again.
 type diffKey struct {
 	path string
+	// orig is the path a renamed file had, "" when it was not renamed in
+	// the section shown.
+	orig string
 	src  diff.Source
 	st   *status.Status
 	ws   diff.Whitespace
@@ -65,6 +68,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	case m.st.Kind(i) == status.Untracked:
 		key.src = diff.Untracked
 	}
+	key.orig = renamedFrom(m.st, i, key.src)
 	d := &cv.diff
 	if d.key != key {
 		if d.key.path != key.path || d.key.src != key.src {
@@ -75,7 +79,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 		var load func()
 		load = func() {
 			d.loading = true
-			req := diff.PatchRequest{Source: key.src, Paths: []string{key.path}, Context: -1, MaxBytes: d.pager.max(), Whitespace: key.ws}
+			req := diff.PatchRequest{Source: key.src, Paths: key.paths(), Context: -1, MaxBytes: d.pager.max(), Whitespace: key.ws, Renames: key.orig != ""}
 			sides.Max = d.pager.sides()
 			t.s.Patch(req, sides, func(res session.PatchResult) {
 				if d.key != key {
@@ -106,6 +110,28 @@ func (a *App) detail(c *ui.Context, t *tab) {
 		}
 		a.patchBody(c, t, &d.pv, res, actions)
 	})
+}
+
+// renamedFrom is the old path of entry i when status found it renamed in
+// the part src shows: staged, or in the work tree for a file added with
+// intent to add.
+func renamedFrom(st *status.Status, i int, src diff.Source) string {
+	if st.Kind(i) != status.Renamed {
+		return ""
+	}
+	x, y := st.XY(i)
+	if (src == diff.Staged && x == 'R') || (src == diff.Unstaged && y == 'R') {
+		return string(st.OrigPath(i))
+	}
+	return ""
+}
+
+// paths are what the patch is read for: the old path first for a rename.
+func (k diffKey) paths() []string {
+	if k.orig != "" {
+		return []string{k.orig, k.path}
+	}
+	return []string{k.path}
 }
 
 // patchSides names the whole files of a work-tree change: what the index
@@ -151,8 +177,10 @@ func (a *App) changeActions(c *ui.Context, t *tab, r changeRow, change int) {
 // or discarded one by one.
 func (d *diffState) partialOK() bool {
 	p := d.res.Parsed
+	// Lines of a rename applied back would undo the rename with them.
 	return p != nil && len(p.Files) == 1 && !p.Files[0].Binary && !p.Files[0].Quoted &&
-		!d.res.Truncated && !p.Cut && d.key.src != diff.Untracked && d.key.ws == diff.AllWhitespace
+		!d.res.Truncated && !p.Cut && d.key.src != diff.Untracked && d.key.ws == diff.AllWhitespace &&
+		d.key.orig == ""
 }
 
 func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
@@ -184,7 +212,7 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	})
 	a.diffBar(c, func() {
 		if ui.Button(c, "Open in Diff Tool").Disabled(ro || d.key.src == diff.Untracked).Clicked() {
-			t.s.OpenDiffTool(session.DiffToolRequest{Paths: []string{d.key.path}, Cached: d.key.src == diff.Staged}, a.toolDone)
+			t.s.OpenDiffTool(session.DiffToolRequest{Paths: d.key.paths(), Cached: d.key.src == diff.Staged}, a.toolDone)
 		}
 	})
 }

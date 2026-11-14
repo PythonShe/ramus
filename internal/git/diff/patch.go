@@ -65,6 +65,9 @@ type PatchRequest struct {
 	// Whitespace leaves changes of white space out; such a patch is for
 	// reading, and git apply may not take it back.
 	Whitespace Whitespace
+	// Renames finds renames among Paths whatever diff.renames says: a
+	// file status found renamed shows against its old path.
+	Renames bool
 }
 
 // Patch is a unified diff as git prints it.
@@ -89,6 +92,9 @@ func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 	if req.ForApply {
 		args = append(args, "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--no-relative", "--no-color-moved")
 		config = []string{"diff.suppressBlankEmpty=false"}
+	}
+	if req.Renames {
+		args = append(args, "--find-renames")
 	}
 	switch req.Source {
 	case Staged:
