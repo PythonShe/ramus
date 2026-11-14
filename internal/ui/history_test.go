@@ -434,9 +434,9 @@ func TestCommitMessageDragsTaller(t *testing.T) {
 // The history's dividers belong to the column on their left. Dragged
 // right, a column pushes the ones after it into the free room at the end
 // and stops where there is none; dragged left, it draws them along and
-// leaves that room, and shuts when let go under half its least width. A
-// shut column keeps its divider to drag out again. The date and the hash
-// keep their widths. A list too narrow for the message gives up the room
+// leaves that room, down to its least width. A click on its title shuts
+// it, and a shut column keeps its divider, to click or drag out again.
+// The date and the hash keep their widths. A list too narrow for the message gives up the room
 // at the end, then shuts the columns at the end first.
 func TestHistoryColumns(t *testing.T) {
 	h := newHarness(t)
@@ -494,22 +494,27 @@ func TestHistoryColumns(t *testing.T) {
 	if at("Ramus Test").W != 160 || hv.cols.end != 20 {
 		t.Fatalf("author %v wide, room at the end %v", at("Ramus Test").W, hv.cols.end)
 	}
-	// The date keeps its width: dragged right it stays, let go short of
-	// half it comes back whole, past half it shuts and the hash moves up.
+	// The date keeps its width, dragged either way.
 	drag(after("Date"), 20, "Commit", 0)
-	drag(after("Date"), -30, "Commit", 1)
+	drag(after("Date"), -30, "Commit", 0)
 	if at("Date").W != histColumnMin[colDate] {
-		t.Fatalf("date at %v after a short drag", at("Date"))
+		t.Fatalf("date at %v after a drag", at("Date"))
 	}
+	// A click on its title shuts it, and the hash moves up.
 	hash := at("Commit").X
-	drag(after("Date"), -80, "Commit", 1)
+	clickTitle := func(title string) {
+		b := at(title)
+		h.tt.ClickAt(b.X+b.W/2, b.Y+b.H/2)
+		settle()
+	}
+	clickTitle("Date")
 	if hasExact(h, "Date") || !h.app.Settings.HistoryColumns["date"].Hidden || at("Commit").X != hash-histColumnMin[colDate] {
 		t.Fatalf("date not shut: %+v, hash at %v from %v", h.app.Settings.HistoryColumns["date"], at("Commit").X, hash)
 	}
 	// Shut, it keeps its divider, after the author's, to drag it out
-	// again into the room at the end.
-	x := after("Author") + spaceM
-	h.tt.Move(x, head.Y+head.H/2)
+	// again into the room at the end, or to click.
+	x, y := after("Author")+spaceM, head.Y+head.H/2
+	h.tt.Move(x, y)
 	h.tt.Frame()
 	if h.tt.Cursor() != ui.CursorResizeEW {
 		t.Fatalf("cursor over a shut column's divider is %v", h.tt.Cursor())
@@ -517,6 +522,36 @@ func TestHistoryColumns(t *testing.T) {
 	drag(x, 112, "Commit", 1)
 	if at("Date").W != histColumnMin[colDate] || hv.cols.end != 20 {
 		t.Fatalf("date dragged out to %v, room at the end %v", at("Date"), hv.cols.end)
+	}
+	clickTitle("Date")
+	h.tt.ClickAt(x, y)
+	settle()
+	if !hasExact(h, "Date") || at("Date").W != histColumnMin[colDate] || hv.cols.end != 20 {
+		t.Fatalf("date clicked back to %v, room at the end %v", at("Date"), hv.cols.end)
+	}
+	// The hash, shut by its title, keeps a divider at the end of the
+	// header, which brings it back.
+	clickTitle("Commit")
+	if hasExact(h, "Commit") || !h.app.Settings.HistoryColumns["hash"].Hidden {
+		t.Fatal("hash column not shut by its title")
+	}
+	h.tt.ClickAt(after("Date")+spaceM, y)
+	settle()
+	if !hasExact(h, "Commit") || hv.cols.end != 20 {
+		t.Fatalf("hash not back from its divider: room at the end %v", hv.cols.end)
+	}
+	// Dragged left, a column stops at its least width.
+	h.tt.Press(after("Author"), y)
+	h.tt.Frame()
+	h.tt.Move(after("Author")-200, y)
+	h.tt.Frame()
+	if w := at("Ramus Test").W; w != histColumnMin[colAuthor] {
+		t.Fatalf("author %v wide dragged past its least", w)
+	}
+	h.tt.Release(after("Author")-200, y)
+	settle()
+	if hasExact(h, "Author") == false || at("Ramus Test").W != histColumnMin[colAuthor] {
+		t.Fatalf("author let go at %v", at("Ramus Test").W)
 	}
 	// Or the header's menu brings it back, into the room at the end.
 	if err := h.tt.RightClick("Message"); err != nil {
@@ -578,8 +613,9 @@ func TestHistoryColumns(t *testing.T) {
 }
 
 // The graph collapses to a thin form rather than shutting: by a click on
-// its divider, which expands it again, or dragged most of the way there.
-// Thin, its lanes are drawn closer together, all of them still shown.
+// its title, and a click on its divider expands it again. A drag stops
+// at its least width. Thin, its lanes are drawn closer together, all of
+// them still shown.
 func TestHistoryGraphCollapses(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
@@ -616,8 +652,17 @@ func TestHistoryGraphCollapses(t *testing.T) {
 
 	h.tt.ClickAt(divider())
 	settle()
+	if hv.cols.w[colGraph] != full {
+		t.Fatalf("divider clicked, graph %v wide, want %v", hv.cols.w[colGraph], full)
+	}
+	title := func() (float32, float32) {
+		x, y := divider()
+		return x - spaceM/2 - hv.cols.w[colGraph]/2, y
+	}
+	h.tt.ClickAt(title())
+	settle()
 	if hv.cols.w[colGraph] != thin || !h.app.Settings.HistoryColumns["graph"].Thin {
-		t.Fatalf("clicked, graph %v wide, want thin %v", hv.cols.w[colGraph], thin)
+		t.Fatalf("title clicked, graph %v wide, want thin %v", hv.cols.w[colGraph], thin)
 	}
 	if st := hv.cols.graphStyle(); st.Columns(thin) < snap.Width() {
 		t.Fatalf("thin, %d of %d lanes drawn", st.Columns(thin), snap.Width())
@@ -625,7 +670,7 @@ func TestHistoryGraphCollapses(t *testing.T) {
 	h.tt.ClickAt(divider())
 	settle()
 	if hv.cols.w[colGraph] != full {
-		t.Fatalf("clicked again, graph %v wide, want %v", hv.cols.w[colGraph], full)
+		t.Fatalf("divider clicked, graph %v wide, want %v", hv.cols.w[colGraph], full)
 	}
 
 	// A list too narrow for the message, once the author, the date and
@@ -642,7 +687,8 @@ func TestHistoryGraphCollapses(t *testing.T) {
 		t.Fatal("thin for want of room kept as the user's")
 	}
 
-	// Dragged to the end, it settles thin; dragged out, full again.
+	// Dragged to the end, it stops at its least; thin, dragged out, full
+	// again.
 	drag := func(dx float32) {
 		x, y := divider()
 		h.tt.Press(x, y)
@@ -655,9 +701,11 @@ func TestHistoryGraphCollapses(t *testing.T) {
 		settle()
 	}
 	drag(-full)
-	if hv.cols.w[colGraph] != thin {
-		t.Fatalf("dragged to the end, graph %v wide, want thin %v", hv.cols.w[colGraph], thin)
+	if least := graphLeast(snap); hv.cols.w[colGraph] != least || h.app.Settings.HistoryColumns["graph"].Thin {
+		t.Fatalf("dragged to the end, graph %v wide, want %v", hv.cols.w[colGraph], least)
 	}
+	h.tt.ClickAt(title())
+	settle()
 	drag(full)
 	if p := h.app.Settings.HistoryColumns["graph"]; p.Thin || hv.cols.w[colGraph] != thin+full {
 		t.Fatalf("dragged out, graph %v wide, kept %+v", hv.cols.w[colGraph], p)
@@ -724,10 +772,9 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	date, _ := h.tt.Find("Date")
 	x, y := date.X-spaceM/2, date.Y+date.H/2
 	h.tt.ClickAt(x, y)
-	h.tt.ClickAt(x, y)
 	settle()
-	if m := h.app.Settings.HistoryMessage; m != 220 || hasExact(h, "Author") {
-		t.Fatalf("double click on a shut author's divider: message kept at %v", m)
+	if m := h.app.Settings.HistoryMessage; m != 220 || !hasExact(h, "Author") {
+		t.Fatalf("click on a shut author's divider: message kept at %v", m)
 	}
 
 	for range 2 {
