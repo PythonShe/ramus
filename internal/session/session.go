@@ -563,7 +563,9 @@ func (s *Session) Trust() error {
 		return err
 	}
 	old := s.Repo
-	s.Repo, s.Queue, s.State = nil, nil, State{Opening: true}
+	// History goes too: its object ids may point into the closed
+	// repository's commit-graph mapping.
+	s.Repo, s.Queue, s.State, s.History = nil, nil, State{Opening: true}, HistoryState{}
 	old.Close()
 	s.start()
 	return nil

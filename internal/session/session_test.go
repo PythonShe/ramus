@@ -92,8 +92,14 @@ func TestUntrustedOpensRestricted(t *testing.T) {
 	if _, err := s.Submit(write.Op{Name: "x"}); err == nil || !strings.Contains(err.Error(), "trust") {
 		t.Fatalf("write in a restricted repository: %v", err)
 	}
+	s.LoadHistory()
+	m.until(t, "history", func() bool { return s.History.Done })
 	if err := s.Trust(); err != nil {
 		t.Fatal(err)
+	}
+	// The history read from the closed repository must not outlive it.
+	if s.History.Snap != nil || s.History.OID != nil {
+		t.Fatal("history kept across the reopen")
 	}
 	m.until(t, "reopen", func() bool { return s.State.Status != nil && !s.State.Opening })
 	if s.State.Restricted || s.Queue == nil || !ts.Trusted(r.GitDir()) {

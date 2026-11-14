@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -143,8 +144,10 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	if hv.chosen >= 0 && h.Snap != nil && hv.chosen < h.Snap.Len() {
 		id := h.OID(h.Snap.Commit(hv.chosen))
 		if string(id) != string(hv.chosenID) {
-			// A row chosen by hand outranks a go-to still resolving.
-			hv.chosenID = id
+			// A row chosen by hand outranks a go-to still resolving. A
+			// copy: id may point into the commit-graph's mapping, which
+			// goes when the repository reopens.
+			hv.chosenID = slices.Clone(id)
 			hv.jumpN++
 		}
 	}
