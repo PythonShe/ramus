@@ -36,7 +36,10 @@ type compareState struct {
 	key     compareKey
 	patch   session.PatchResult
 	pv      patchView
-	cancel  context.CancelFunc
+	pager   patchPager
+	// patchLoading is set while the pager's next step is read.
+	patchLoading bool
+	cancel       context.CancelFunc
 	// closed runs once the comparison is closed, for a tool that waits.
 	closed func()
 }
@@ -133,31 +136,52 @@ func (a *App) loadComparePatch(cs *compareState) {
 	if !ok || cs.key == key || a.Runner == nil {
 		return
 	}
+	if cs.key.old != key.old || cs.key.new != key.new {
+		cs.pager = patchPager{}
+	}
 	cs.key, cs.patch = key, session.PatchResult{}
+	a.readComparePatch(cs, key)
+}
+
+// readComparePatch reads the pager's next step of the patch for key.
+func (a *App) readComparePatch(cs *compareState, key compareKey) {
 	r, update := a.Runner, a.Update
+	max, sideMax := cs.pager.max(), cs.pager.sides()
+	if sideMax == 0 {
+		sideMax = maxCompareSide
+	}
+	cs.patchLoading = true
 	go func() {
 		res := session.PatchResult{}
-		p, err := diff.ComparePatch(context.Background(), r, key.old, key.new, key.ws, MaxShownPatch)
+		p, err := diff.ComparePatch(context.Background(), r, key.old, key.new, key.ws, max)
 		res.Truncated, res.Err = p.Truncated, err
 		if err == nil {
 			res.Parsed, res.Err = diff.Parse(p.Text)
 		}
 		if res.Err == nil && !p.Truncated {
-			o, ok1 := readSide(key.old)
-			n, ok2 := readSide(key.new)
+			o, ok1 := readSide(key.old, sideMax)
+			n, ok2 := readSide(key.new, sideMax)
 			res.Old, res.New, res.HasSides = o, n, ok1 && ok2
+			res.SidesTooLarge = !res.HasSides && (o == nil && key.old != "" || n == nil && key.new != "")
 		}
 		update(func() {
-			if cs.key == key {
-				cs.patch = res
-				a.setPatch(&cs.pv, res)
+			if cs.key != key {
+				return
 			}
+			cs.patch = res
+			a.setPatch(&cs.pv, res)
+			if cs.pager.more(res) {
+				a.readComparePatch(cs, key)
+				return
+			}
+			cs.patchLoading = false
 		})
 	}()
 }
 
-// readSide is a file read whole, when it is small enough to; none for "".
-func readSide(path string) ([]byte, bool) {
+// readSide is a file read whole, when it is at most max bytes; none for
+// "".
+func readSide(path string, max int) ([]byte, bool) {
 	if path == "" {
 		return nil, true
 	}
@@ -166,8 +190,11 @@ func readSide(path string) ([]byte, bool) {
 		return nil, false
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxCompareSide+1))
-	return data, err == nil && len(data) <= maxCompareSide
+	data, err := io.ReadAll(io.LimitReader(f, int64(max)+1))
+	if err != nil || len(data) > max {
+		return nil, false
+	}
+	return data, true
 }
 
 func (a *App) compareView(c *ui.Context) {
@@ -255,10 +282,7 @@ func (a *App) comparedPatch(c *ui.Context, cs *compareState) {
 		return
 	}
 	ui.Column(c).Fill().Children(func() {
-		if cs.patch.Truncated {
-			ui.Text(c, fmt.Sprintf("Only the first %d MB of this patch are shown", MaxShownPatch>>20)).
-				FontSize(12).TextColor(th.Warning).Padding(4, 12)
-		}
+		a.pagerNotice(c, &cs.pager, cs.patch, cs.patchLoading, "", func() { a.readComparePatch(cs, cs.key) })
 		a.patchBody(c, nil, &cs.pv, cs.patch, nil)
 	})
 }

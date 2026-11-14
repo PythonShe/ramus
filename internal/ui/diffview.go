@@ -12,9 +12,6 @@ import (
 	"ramus/internal/session"
 )
 
-// MaxShownPatch bounds the patch the changes view reads for one file.
-const MaxShownPatch = 32 << 20
-
 // diffKey is what a shown patch was read for; a new status reads it again.
 type diffKey struct {
 	path string
@@ -29,6 +26,9 @@ type diffState struct {
 	loading bool
 	res     session.PatchResult
 	pv      patchView
+	pager   patchPager
+	// load reads the patch again for the pager's next step.
+	load func()
 }
 
 func newDiffState() diffState { return diffState{} }
@@ -67,22 +67,35 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	}
 	d := &cv.diff
 	if d.key != key {
-		d.key, d.loading = key, true
-		req := diff.PatchRequest{Source: key.src, Paths: []string{key.path}, Context: -1, MaxBytes: MaxShownPatch, Whitespace: key.ws}
-		t.s.Patch(req, patchSides(m.st, i, key.src), func(res session.PatchResult) {
-			if d.key != key {
-				return
-			}
-			d.loading, d.res = false, res
-			a.setPatch(&d.pv, res)
-		})
+		if d.key.path != key.path || d.key.src != key.src {
+			d.pager = patchPager{}
+		}
+		d.key = key
+		sides := patchSides(m.st, i, key.src)
+		var load func()
+		load = func() {
+			d.loading = true
+			req := diff.PatchRequest{Source: key.src, Paths: []string{key.path}, Context: -1, MaxBytes: d.pager.max(), Whitespace: key.ws}
+			sides.Max = d.pager.sides()
+			t.s.Patch(req, sides, func(res session.PatchResult) {
+				if d.key != key {
+					return
+				}
+				d.res = res
+				a.setPatch(&d.pv, res)
+				if d.pager.more(res) {
+					load()
+					return
+				}
+				d.loading = false
+			})
+		}
+		d.load = load
+		load()
 	}
 	ui.Column(c).Fill().Children(func() {
 		a.diffHeader(c, t, m, r)
-		if d.res.Truncated || d.res.Parsed != nil && d.res.Parsed.Cut {
-			ui.Text(c, fmt.Sprintf("Only the first %d MB of this patch are shown; lines cannot be staged from it", MaxShownPatch>>20)).
-				FontSize(12).TextColor(th.Warning).Padding(4, 12)
-		}
+		a.pagerNotice(c, &d.pager, d.res, d.loading, "; lines cannot be staged from it", d.load)
 		res := d.res
 		if d.loading && res.Parsed == nil {
 			res = session.PatchResult{}

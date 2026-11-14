@@ -34,6 +34,8 @@ type commitView struct {
 	patchLoading bool
 	patch        session.PatchResult
 	pv           patchView
+	pager        patchPager
+	loadPatch    func()
 }
 
 // commitDetail shows commit id in cv, reading it when id changes.
@@ -284,16 +286,29 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 	ws := diff.Whitespace(a.diffOpts().ws)
 	key := fmt.Sprintf("%x\x00%s\x00%s\x00%d", d.OID, paths[0], paths[len(paths)-1], ws)
 	if cv.patchFor != key {
-		cv.patchFor, cv.patchLoading = key, true
-		cv.patch = session.PatchResult{}
+		cv.patchFor, cv.patch, cv.pager = key, session.PatchResult{}, patchPager{}
 		_, oldID := f.Old(cv.file)
 		_, newID := f.New(cv.file)
-		t.s.CommitPatch(*d, paths, MaxShownPatch, ws, session.Sides{Old: oldID, New: newID}, func(res session.PatchResult) {
-			if cv.patchFor == key {
-				cv.patchLoading, cv.patch = false, res
+		detail := *d
+		var load func()
+		load = func() {
+			cv.patchLoading = true
+			sides := session.Sides{Old: oldID, New: newID, Max: cv.pager.sides()}
+			t.s.CommitPatch(detail, paths, cv.pager.max(), ws, sides, func(res session.PatchResult) {
+				if cv.patchFor != key {
+					return
+				}
+				cv.patch = res
 				a.setPatch(&cv.pv, res)
-			}
-		})
+				if cv.pager.more(res) {
+					load()
+					return
+				}
+				cv.patchLoading = false
+			})
+		}
+		cv.loadPatch = load
+		load()
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -305,10 +320,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 				t.s.OpenDiffTool(session.DiffToolRequest{Paths: paths, From: d.Parents[0], To: d.OID}, a.toolDone)
 			}
 		})
-		if cv.patch.Truncated || cv.patch.Parsed != nil && cv.patch.Parsed.Cut {
-			ui.Text(c, fmt.Sprintf("Only the first %d MB of this patch are shown", MaxShownPatch>>20)).
-				FontSize(12).TextColor(th.Warning).Padding(4, 12)
-		}
+		a.pagerNotice(c, &cv.pager, cv.patch, cv.patchLoading, "", cv.loadPatch)
 		a.patchBody(c, t, &cv.pv, cv.patch, nil)
 	})
 }

@@ -592,7 +592,7 @@ func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws d
 			res.Parsed, err = diff.Parse(pt.Text)
 		}
 		if err == nil && !res.Truncated {
-			res.Old, res.New, res.HasSides = readSides(r, sides)
+			readSides(r, sides, &res)
 		}
 		res.Err = err
 		if ctx.Err() != nil {

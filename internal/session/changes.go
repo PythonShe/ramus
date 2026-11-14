@@ -30,6 +30,9 @@ type PatchResult struct {
 	// HasSides: the view unfolds the lines around the hunks from them.
 	Old, New []byte
 	HasSides bool
+	// SidesTooLarge is set when a side was past Sides.Max, so the lines
+	// around the hunks cannot unfold.
+	SidesTooLarge bool
 }
 
 // Sides names the whole files a patch was made from: blobs by id, a nil
@@ -38,53 +41,71 @@ type PatchResult struct {
 type Sides struct {
 	Old, New     []byte
 	WorkTreePath string
+	// Max bounds each side read whole; 0 is DefaultMaxSide.
+	Max int
 }
 
-// maxSide bounds a whole file read for the view.
-const maxSide = 32 << 20
+// DefaultMaxSide bounds a whole file read for the view.
+const DefaultMaxSide = 32 << 20
 
-// readSides reads both sides, or reports false: a side too large, missing
-// or not a regular file leaves the patch shown alone.
-func readSides(r *repo.Repository, sd Sides) (old, new []byte, ok bool) {
+// errTooLarge is a side past Sides.Max.
+var errTooLarge = errors.New("session: the file is too large to show whole")
+
+// readSides reads both sides into res, or leaves them out: a side too
+// large, missing or not a regular file leaves the patch shown alone.
+func readSides(r *repo.Repository, sd Sides, res *PatchResult) {
 	if sd.Old == nil && sd.New == nil && sd.WorkTreePath == "" {
-		return nil, nil, false
+		return
+	}
+	max := sd.Max
+	if max <= 0 {
+		max = DefaultMaxSide
 	}
 	cat, err := r.CatFile()
 	if err != nil {
-		return nil, nil, false
+		return
 	}
 	newID := sd.New
 	if sd.WorkTreePath != "" {
 		newID = nil
 	}
-	if old, new, err = diff.BlobPair(cat, sd.Old, newID); err != nil {
-		return nil, nil, false
+	old, new, err := diff.BlobPair(cat, sd.Old, newID)
+	if err != nil {
+		return
 	}
 	if sd.WorkTreePath != "" {
-		if new, err = readWorkTreeFile(r.WorkTree, sd.WorkTreePath); err != nil {
-			return nil, nil, false
+		if new, err = readWorkTreeFile(r.WorkTree, sd.WorkTreePath, max); err != nil {
+			res.SidesTooLarge = errors.Is(err, errTooLarge)
+			return
 		}
 	}
-	return old, new, len(old) <= maxSide && len(new) <= maxSide
+	if len(old) > max || len(new) > max {
+		res.SidesTooLarge = true
+		return
+	}
+	res.Old, res.New, res.HasSides = old, new, true
 }
 
 // readWorkTreeFile reads a regular file of the work tree, not following
-// a symbolic link, up to maxSide.
-func readWorkTreeFile(workTree, rel string) ([]byte, error) {
+// a symbolic link, up to max bytes.
+func readWorkTreeFile(workTree, rel string, max int) ([]byte, error) {
 	p := filepath.Join(workTree, filepath.FromSlash(rel))
 	fi, err := os.Lstat(p)
 	if err != nil {
 		return nil, err
 	}
-	if !fi.Mode().IsRegular() || fi.Size() > maxSide {
+	if !fi.Mode().IsRegular() {
 		return nil, errors.New("session: not a file to show whole")
+	}
+	if fi.Size() > int64(max) {
+		return nil, errTooLarge
 	}
 	f, err := os.Open(p)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return io.ReadAll(io.LimitReader(f, maxSide+1))
+	return io.ReadAll(io.LimitReader(f, int64(max)+1))
 }
 
 // patches cancels a patch read that a newer one replaced.
@@ -122,7 +143,7 @@ func (s *Session) Patch(req diff.PatchRequest, sides Sides, done func(PatchResul
 			res.Parsed, err = diff.Parse(pt.Text)
 		}
 		if err == nil && !res.Truncated {
-			res.Old, res.New, res.HasSides = readSides(r, sides)
+			readSides(r, sides, &res)
 		}
 		res.Err = err
 		if ctx.Err() != nil {
