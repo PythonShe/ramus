@@ -504,15 +504,24 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 	head := t.s.State.Head
 	update := a.Update
 	go func() {
-		files, err := write.Observe(w.WorkTree, append(append([]string(nil), tracked...), untracked...))
+		// One expectation each: the discard changes the tracked files,
+		// which the delete, queued after it, must not find changed.
+		trackedFiles, err := write.Observe(w.WorkTree, tracked)
+		var untrackedFiles []write.FileState
+		if err == nil {
+			untrackedFiles, err = write.Observe(w.WorkTree, untracked)
+		}
 		update(func() {
 			if err != nil {
 				a.notice = errText(err)
 				return
 			}
-			expect := &write.Expect{Head: hex.EncodeToString(head.OID), Files: files}
-			if !head.Detached {
-				expect.Branch = head.Target
+			expect := func(files []write.FileState) *write.Expect {
+				x := &write.Expect{Head: hex.EncodeToString(head.OID), Files: files}
+				if !head.Detached {
+					x.Branch = head.Target
+				}
+				return x
 			}
 			names := nameList(append(tracked, untracked...))
 			message := locales.ChangesDiscardBoth(len(tracked), len(untracked), names)
@@ -530,7 +539,7 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 				run: func() {
 					if len(tracked) > 0 {
 						op := write.Discard(w, tracked)
-						op.Expect = expect
+						op.Expect = expect(trackedFiles)
 						if _, err := t.s.Submit(op); err != nil {
 							a.notice = errText(err)
 						}
@@ -538,7 +547,7 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 					if len(untracked) > 0 {
 						op, err := write.Delete(w, untracked)
 						if err == nil {
-							op.Expect = expect
+							op.Expect = expect(untrackedFiles)
 							_, err = t.s.Submit(op)
 						}
 						if err != nil {
