@@ -77,6 +77,7 @@ type App struct {
 	prompt     promptState
 	links      linksDialog
 	branchUI   branchDialog
+	message    messageDialog
 	stashUI    stashDialog
 	cleanUI    cleanState
 	mergeUI    mergeDialog
@@ -366,6 +367,11 @@ func (a *App) View(c *ui.Context) {
 	a.promptView(c)
 	a.linksView(c)
 	a.branchView(c)
+	a.messageView(c)
+	if t := a.current(); t != nil {
+		// Opened from the branches view or a commit's menu.
+		a.refDialogView(c, &t.refs.dlg, t)
+	}
 	a.stashDialogView(c)
 	a.cleanView(c)
 	a.mergeDialogView(c)

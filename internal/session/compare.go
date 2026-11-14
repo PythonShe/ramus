@@ -2,9 +2,12 @@ package session
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"strings"
 
 	"ramus/internal/git/diff"
+	"ramus/internal/git/write"
 )
 
 // Compare reads the files changed from commit from to commit to off the
@@ -42,4 +45,24 @@ func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func
 		})
 	})
 	return func() { dropped = true; stop() }
+}
+
+// Rewrite describes commit d for a rewrite of HEAD's history: the git at
+// hand, its first parent, and the local branches the rewrite may move.
+func (s *Session) Rewrite(d CommitDetail) write.Rewrite {
+	rw := write.Rewrite{Commit: hex.EncodeToString(d.OID)}
+	if len(d.Parents) > 0 {
+		rw.Parent = hex.EncodeToString(d.Parents[0])
+	}
+	if r := s.Repo; r != nil {
+		rw.Git = r.Runner.Git().Version
+	}
+	if l := s.State.Refs; l != nil {
+		for i := range l.Len() {
+			if n := l.Name(i); strings.HasPrefix(n, "refs/heads/") {
+				rw.Branches = append(rw.Branches, n)
+			}
+		}
+	}
+	return rw
 }

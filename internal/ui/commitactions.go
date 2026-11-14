@@ -30,6 +30,9 @@ func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
 	if m.Item("Create Branch Here…").Disabled(ro).Chosen() {
 		a.branchUI = branchDialog{open: true, t: t, commit: commit, checkout: true}
 	}
+	if m.Item("Create Tag Here…").Disabled(ro).Chosen() {
+		a.tagDialog(t, commit)
+	}
 	head := t.s.State.Head
 	target := "HEAD"
 	if !head.Detached {
@@ -50,6 +53,7 @@ func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
 			}
 		}
 	})
+	a.rewriteActions(m, t, id)
 	a.commitOps(m, t, func() []string { return []string{commit} }, 1)
 }
 

@@ -183,7 +183,6 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 	})
 	a.confirmView(c, &rs.ask)
 	a.switchAsk(c, t)
-	a.refDialogView(c, &rs.dlg, t)
 	a.cleanupView(c, t)
 }
 
