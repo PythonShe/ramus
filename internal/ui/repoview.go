@@ -49,7 +49,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		}
 		a.operationBar(c, t)
 		a.forcePushOffer(c, t)
-		ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, func() {
+		main := func() {
 			// After the sidebar, which may have chosen another view.
 			a.showView(t)
 			switch t.sel {
@@ -87,7 +87,12 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 				return
 			}
 			ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
-		}).SplitReset(220).Grow(1)
+		}
+		if a.Settings.NoSidebar {
+			ui.Column(c).Grow(1).FillWidth().Children(main)
+		} else {
+			ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, main).SplitReset(220).Grow(1)
+		}
 		a.statusBar(c, t)
 	})
 }
@@ -115,8 +120,11 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	heads, remotes, tags := sr.heads, sr.remotes, sr.tags
 	th := c.Theme()
 	section := func(key, title string, refs []string, prefix string) {
+		if !a.shown(key) {
+			return
+		}
 		open := t.open[key]
-		ui.SidebarSection(c, fmt.Sprintf("%s (%d)", title, len(refs)), &open, func() {
+		a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("%s (%d)", title, len(refs)), &open, func() {
 			for i, r := range refs {
 				if i == sideLimit {
 					ui.Text(c, fmt.Sprintf("%d more", len(refs)-sideLimit)).Padding(4, 12).TextColor(c.Theme().TextMuted)
@@ -132,17 +140,22 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 				}
 				a.sidebarRefMenu(it, t, r)
 			}
-		})
+		}), key)
 		t.open[key] = open
+	}
+	item := func(key, label string) {
+		if a.shown(key) {
+			a.hideMenu(ui.SidebarItem(c, key, nil, label), key)
+		}
 	}
 	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, "changes", nil, changesLabel(st))
-		ui.SidebarItem(c, "history", nil, "History")
-		ui.SidebarItem(c, "reflog", nil, "Reflog")
-		ui.SidebarItem(c, "refs", nil, "Branches and Tags")
-		ui.SidebarItem(c, "stats", nil, "Statistics")
-		ui.SidebarItem(c, "log", nil, "Command Log")
-		ui.SidebarItem(c, "snapshots", nil, "Snapshots")
+		item("history", "History")
+		item("reflog", "Reflog")
+		item("refs", "Branches and Tags")
+		item("stats", "Statistics")
+		item("log", "Command Log")
+		item("snapshots", "Snapshots")
 		section("branches", "Branches", heads, "refs/heads/")
 		section("remotes", "Remotes", remotes, "refs/remotes/")
 		section("tags", "Tags", tags, "refs/tags/")
@@ -150,11 +163,11 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 			ui.SidebarItem(c, "compare", nil, "Comparison")
 		}
 		if st.Status != nil && st.Status.Branch.Stashes > 0 {
-			ui.SidebarItem(c, "stashes", nil, fmt.Sprintf("Stashes (%d)", st.Status.Branch.Stashes))
+			item("stashes", fmt.Sprintf("Stashes (%d)", st.Status.Branch.Stashes))
 		}
-		if len(st.Worktrees) > 1 {
+		if len(st.Worktrees) > 1 && a.shown("worktrees") {
 			open := t.open["worktrees"]
-			ui.SidebarSection(c, fmt.Sprintf("Worktrees (%d)", len(st.Worktrees)), &open, func() {
+			a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("Worktrees (%d)", len(st.Worktrees)), &open, func() {
 				for _, w := range st.Worktrees {
 					label := filepath.Base(w.Path)
 					switch {
@@ -168,16 +181,16 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 						it.Bold()
 					}
 				}
-			})
+			}), "worktrees")
 			t.open["worktrees"] = open
 		}
-		if len(st.Submodules) > 0 {
+		if len(st.Submodules) > 0 && a.shown("submodules") {
 			open := t.open["submodules"]
-			ui.SidebarSection(c, fmt.Sprintf("Submodules (%d)", len(st.Submodules)), &open, func() {
+			a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("Submodules (%d)", len(st.Submodules)), &open, func() {
 				for _, m := range st.Submodules {
 					ui.SidebarItem(c, "submodule:"+m.Path, nil, m.Path)
 				}
-			})
+			}), "submodules")
 			t.open["submodules"] = open
 		}
 	}).Label("Repository sections")
@@ -215,6 +228,9 @@ func changesLabel(st session.State) string {
 func (a *App) statusBar(c *ui.Context, t *tab) {
 	th := c.Theme()
 	st := t.s.State
+	if a.Settings.NoStatusBar && st.Operation == "" && a.gitWarning == "" && st.WatchErr == nil && st.RefreshErr == nil {
+		return
+	}
 	ui.Row(c).Padding(4, 12).Gap(16).Background(th.Surface).Children(func() {
 		branch := strings.TrimPrefix(st.Head.Target, "refs/heads/")
 		if st.Head.Detached {

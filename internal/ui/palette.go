@@ -51,6 +51,7 @@ func (a *App) commands() []command {
 		cmds = append(cmds, command{"Show Statistics", func() { t.sel = "stats" }})
 		cmds = append(cmds, command{"Find Lost Commits", func() { t.sel, t.reflog.lostShown = "reflog", 1 }})
 		cmds = append(cmds, command{"Issue Links…", func() { a.openLinks(t) }})
+		cmds = append(cmds, a.hidingCommands()...)
 		if a.Settings.FetchMinutes > 0 && t.prefs.loaded {
 			label, off := "Stop Fetching This Repository in the Background", true
 			if t.prefs.fetchOff {

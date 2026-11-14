@@ -42,6 +42,13 @@ type Settings struct {
 	// FetchMinutes is how often open repositories fetch every remote in
 	// the background; 0 never, and at least MinFetchMinutes.
 	FetchMinutes int `json:"fetchMinutes,omitempty"`
+	// HiddenSections are the sidebar's items and sections left out, by
+	// key ("reflog", "tags").
+	HiddenSections []string `json:"hiddenSections,omitempty"`
+	// NoSidebar leaves the repository sidebar out; NoStatusBar the
+	// status bar, but while it has a warning.
+	NoSidebar   bool `json:"noSidebar,omitempty"`
+	NoStatusBar bool `json:"noStatusBar,omitempty"`
 }
 
 // MinFetchMinutes is the shortest wait between background fetches.
