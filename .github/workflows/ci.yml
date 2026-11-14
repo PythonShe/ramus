@@ -33,3 +33,17 @@ jobs:
       # a regression; the 200 ms target is for hardware.
       - name: Cold start to first frame
         run: go run ./scripts/coldstart -runs 10 -budget 300ms "$RUNNER_TEMP/ramus"
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Git version
+        run: git --version
+      - name: Check
+        run: scripts/check.sh
+      - name: Build without cgo
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ramus" .
