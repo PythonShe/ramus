@@ -412,6 +412,16 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 		}
 	}
 	if r.sec != secConflicts && n > 0 {
+		ps := paths(m.st, es)
+		if menu.Item("Stash Changes to " + what + "…").Disabled(ro).Chosen() {
+			*act = func() { a.openStashPaths(t, ps) }
+		}
+		if r.sec == secStaged && canStashStaged(t) && menu.Item("Stash Staged Changes…").Disabled(ro).Chosen() {
+			*act = func() {
+				a.openStash(t)
+				a.stashUI.what = 1
+			}
+		}
 		if menu.Item("Save Changes to " + what + " as Patch…").Disabled(a.SaveFile == nil).Chosen() {
 			var paths []string
 			for _, e := range es {

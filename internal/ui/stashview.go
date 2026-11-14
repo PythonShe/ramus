@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/write"
@@ -42,11 +43,25 @@ type stashDialog struct {
 	message   string
 	untracked bool
 	keepIndex bool
-	err       string
+	// paths, when set, are the files stashed; else what is 0 for every
+	// change and 1 for what is staged alone.
+	paths []string
+	what  int
+	err   string
 }
 
 func (a *App) openStash(t *tab) {
 	a.stashUI = stashDialog{open: true, t: t, untracked: true}
+}
+
+// openStashPaths asks how to stash the changes to paths alone.
+func (a *App) openStashPaths(t *tab, paths []string) {
+	a.stashUI = stashDialog{open: true, t: t, untracked: true, paths: paths}
+}
+
+// canStashStaged reports whether git can stash what is staged alone.
+func canStashStaged(t *tab) bool {
+	return t.s.Repo != nil && t.s.Repo.Runner.Git().Version.Has(gitexe.StashStaged)
 }
 
 func (a *App) stashDialogView(c *ui.Context) {
@@ -57,10 +72,23 @@ func (a *App) stashDialogView(c *ui.Context) {
 	th := c.Theme()
 	ui.Modal(c, &d.open, func() {
 		ui.Column(c).Width(420).Gap(12).Padding(20).Children(func() {
-			ui.Text(c, "Stash Changes").Bold()
+			title := "Stash Changes"
+			if n := len(d.paths); n > 0 {
+				title = "Stash Changes to " + countOf(n, "File")
+				if n == 1 {
+					title = "Stash Changes to " + d.paths[0]
+				}
+			}
+			ui.Text(c, title).Bold()
 			in := ui.TextInput(c, &d.message).Placeholder("Message").Label("Message").AutoFocus()
-			ui.Checkbox(c, &d.untracked, "Include untracked files")
-			ui.Checkbox(c, &d.keepIndex, "Keep staged changes in place")
+			if len(d.paths) == 0 && canStashStaged(d.t) {
+				ui.Segmented(c, &d.what, "All Changes", "Staged Changes Only")
+			}
+			staged := len(d.paths) == 0 && d.what == 1
+			if !staged {
+				ui.Checkbox(c, &d.untracked, "Include untracked files")
+				ui.Checkbox(c, &d.keepIndex, "Keep staged changes in place")
+			}
 			if d.err != "" {
 				ui.Text(c, d.err).FontSize(12).TextColor(th.Danger)
 			}
@@ -70,7 +98,8 @@ func (a *App) stashDialogView(c *ui.Context) {
 					d.open = false
 				}
 				if ui.PrimaryButton(c, "Stash").Disabled(d.t.s.Queue == nil).Clicked() || in.Submitted() {
-					op := write.Stash(d.t.s.Where(), write.StashOptions{Message: d.message, Untracked: d.untracked, KeepIndex: d.keepIndex})
+					op := write.Stash(d.t.s.Where(), write.StashOptions{Message: d.message, Untracked: d.untracked, KeepIndex: d.keepIndex,
+						Paths: d.paths, Staged: staged})
 					if _, err := d.t.s.Submit(op); err != nil {
 						d.err = errText(err)
 						return
