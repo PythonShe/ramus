@@ -17,22 +17,34 @@ type StashOptions struct {
 	KeepIndex bool
 	// Paths limits the stash to these paths; none stashes everything.
 	Paths []string
+	// Staged stashes what is staged alone, leaving the rest in place: the
+	// way to stash some hunks of a file (git 2.35, gitexe.StashStaged).
+	// Untracked and KeepIndex do not apply.
+	Staged bool
 }
 
 // Stash puts local changes on the stash and clears them from the work
 // tree. Nothing is lost: the stash holds them.
 func Stash(w Where, opt StashOptions) Op {
 	args := []string{"stash", "push"}
-	if opt.Untracked {
-		args = append(args, "--include-untracked")
-	}
-	if opt.KeepIndex {
-		args = append(args, "--keep-index")
+	switch {
+	case opt.Staged:
+		args = append(args, "--staged")
+	default:
+		if opt.Untracked {
+			args = append(args, "--include-untracked")
+		}
+		if opt.KeepIndex {
+			args = append(args, "--keep-index")
+		}
 	}
 	if m := strings.TrimSpace(opt.Message); m != "" {
 		args = append(args, "--message="+m)
 	}
 	op := Op{Name: "Stash changes"}
+	if opt.Staged {
+		op.Name = "Stash staged changes"
+	}
 	if len(opt.Paths) > 0 {
 		// git stash names the whole tree as ":/" itself, which literal
 		// pathspecs break, so each path is made literal on its own.

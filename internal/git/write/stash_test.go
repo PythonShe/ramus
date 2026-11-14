@@ -1,10 +1,13 @@
 package write
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"ramus/internal/git/gitexe"
 )
 
 func (h *harness) stash(n int) StashEntry {
@@ -204,6 +207,37 @@ func TestStashPaths(t *testing.T) {
 	h.r.Write("b*", "2")
 	h.do(Stash(h.w, StashOptions{Paths: []string{"b*"}}), nil, true)
 	if got := h.status(); got != "M a" {
+		t.Fatalf("status %q", got)
+	}
+}
+
+// Hunks picked by staging them are stashed, and the rest of the file
+// stays as it was.
+func TestStashStaged(t *testing.T) {
+	h := newHarness(t)
+	if g, err := gitexe.Find(context.Background(), os.Getenv("PATH")); err != nil || !g.Version.Has(gitexe.StashStaged) {
+		t.Skip("no git with stash push --staged")
+	}
+	h.r.Write("f", "1\n2\n3\n4\n5\n6\n7\n8\n9\n")
+	h.r.Write("g", "g\n")
+	h.r.Commit("one")
+	h.r.Write("f", "1 picked\n2\n3\n4\n5\n6\n7\n8\n9 kept\n")
+	h.r.Write("g", "g changed\n")
+	// Stage the first hunk of f alone.
+	patch := h.r.Git("diff", "-U0", "--", "f")
+	first := patch[:strings.Index(patch, "@@ -9")]
+	if out, err := h.r.Run([]byte(first), "apply", "--cached", "--unidiff-zero", "-"); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	h.do(Stash(h.w, StashOptions{Staged: true, Message: "picked"}), nil, true)
+	if got := h.r.Git("diff", "stash@{0}^1", "stash@{0}", "--", "f"); !strings.Contains(got, "+1 picked") || strings.Contains(got, "9 kept") {
+		t.Fatalf("stash holds\n%s", got)
+	}
+	data, _ := os.ReadFile(filepath.Join(h.r.Dir, "f"))
+	if string(data) != "1\n2\n3\n4\n5\n6\n7\n8\n9 kept\n" {
+		t.Fatalf("f is %q", data)
+	}
+	if got := h.status(); got != "M f\n M g" {
 		t.Fatalf("status %q", got)
 	}
 }
