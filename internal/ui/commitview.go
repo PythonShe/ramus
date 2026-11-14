@@ -21,10 +21,12 @@ import (
 type commitView struct {
 	id      []byte
 	loading bool
-	d       *session.CommitDetail
-	files   ui.ListState
-	file    int
-	split   float32
+	// cancel stops reading the commit shown before.
+	cancel func()
+	d      *session.CommitDetail
+	files  ui.ListState
+	file   int
+	split  float32
 	// want is a file to choose once the commit is read.
 	want string
 
@@ -44,10 +46,13 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		return
 	}
 	if !bytes.Equal(cv.id, id) {
+		if cv.cancel != nil {
+			cv.cancel()
+		}
 		*cv = commitView{id: id, loading: true, file: -1, split: cv.split, want: cv.want}
-		t.s.LoadCommit(id, func(d session.CommitDetail) {
+		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {
-				cv.loading, cv.d = false, &d
+				cv.loading, cv.d = !d.Done, &d
 			}
 		})
 	}
@@ -172,6 +177,9 @@ func signatureText(d *session.CommitDetail, restricted bool) string {
 	if !d.Commit.Signed {
 		return ""
 	}
+	if d.Checking {
+		return "Signed; checking"
+	}
 	who := ""
 	if d.Signer != "" {
 		who = " by " + redact.Control(d.Signer)
@@ -201,6 +209,10 @@ func signatureText(d *session.CommitDetail, restricted bool) string {
 func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
 	f := d.Files
+	if f == nil && !d.Done {
+		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		return
+	}
 	if f == nil || f.Len() == 0 {
 		ui.Text(c, "No files changed").TextColor(th.TextMuted).Padding(8, 12)
 		return

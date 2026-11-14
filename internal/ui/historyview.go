@@ -529,11 +529,12 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() [
 	}
 	if m.Item("Copy Message").Chosen() {
 		t.s.LoadCommit(id, func(d session.CommitDetail) {
-			if d.Err != nil {
+			switch {
+			case d.Err != nil:
 				a.notice = errText(d.Err)
-				return
+			case d.Done:
+				a.clip = string(d.Commit.Message)
 			}
-			a.clip = string(d.Commit.Message)
 		})
 	}
 	if m.Item("Copy Patch").Disabled(merge).Chosen() {

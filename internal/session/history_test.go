@@ -1,10 +1,13 @@
 package session
 
 import (
+	"bytes"
 	"encoding/hex"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/diff"
 	"ramus/internal/git/gittest"
@@ -104,7 +107,7 @@ func TestHistoryLoadsEveryTip(t *testing.T) {
 	root := mustHex(t, strings.TrimSpace(r.Git("rev-list", "--max-parents=0", "HEAD")))
 	var rd *CommitDetail
 	s.LoadCommit(root, func(cd CommitDetail) { rd = &cd })
-	m.until(t, "the root commit", func() bool { return rd != nil })
+	m.until(t, "the root commit", func() bool { return rd != nil && rd.Done })
 	var pr *PatchResult
 	s.CommitPatch(*rd, nil, 0, diff.AllWhitespace, Sides{}, func(res PatchResult) { pr = &res })
 	m.until(t, "the root patch", func() bool { return pr != nil })
@@ -115,7 +118,7 @@ func TestHistoryLoadsEveryTip(t *testing.T) {
 	var d *CommitDetail
 	head, _ := hex.DecodeString(strings.TrimSpace(r.Git("rev-parse", "HEAD")))
 	s.LoadCommit(head, func(cd CommitDetail) { d = &cd })
-	m.until(t, "the commit", func() bool { return d != nil })
+	m.until(t, "the commit", func() bool { return d != nil && d.Done })
 	if d.Err != nil || len(d.Parents) != 2 || string(d.Commit.Message) != "merge side\n" {
 		t.Fatalf("detail %+v", d)
 	}
@@ -162,4 +165,57 @@ func TestHistoryView(t *testing.T) {
 	check(HistoryView{Only: []string{"refs/heads/side"}}, "side")
 	check(HistoryView{Filter: history.Filter{Message: "NEEDLE"}}, "-i", "--grep=needle", "HEAD", "side")
 	check(HistoryView{}, "HEAD", "side")
+}
+
+// A commit of 10,000 files hands over its message before its files, and
+// a load cancelled for a newer selection hands over nothing more.
+func TestLoadCommitParts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("writes 10,000 files")
+	}
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	for i := range 10000 {
+		r.Write("many/"+strconv.Itoa(i%100)+"/f"+strconv.Itoa(i), "x\n")
+	}
+	big := mustHex(t, r.Commit("ten thousand files"))
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "refs", func() bool { return s.State.Refs != nil })
+
+	var parts []CommitDetail
+	start := time.Now()
+	var first time.Duration
+	s.LoadCommit(big, func(d CommitDetail) {
+		if first == 0 {
+			first = time.Since(start)
+		}
+		parts = append(parts, d)
+	})
+	m.until(t, "the commit", func() bool { return len(parts) > 0 && parts[len(parts)-1].Done })
+	t.Logf("message after %v, files after %v", first.Round(time.Millisecond), time.Since(start).Round(time.Millisecond))
+	if parts[0].Files != nil || string(parts[0].Commit.Message) != "ten thousand files\n" {
+		t.Fatalf("first part %+v", parts[0])
+	}
+	last := parts[len(parts)-1]
+	if last.Err != nil || last.Files == nil || last.Files.Len() != 10000 {
+		t.Fatalf("last part err %v files %v", last.Err, last.Files)
+	}
+	for _, p := range parts {
+		if !bytes.Equal(p.OID, big) {
+			t.Fatalf("a part for %x", p.OID)
+		}
+	}
+
+	stale := 0
+	cancel := s.LoadCommit(big, func(CommitDetail) { stale++ })
+	cancel()
+	var other *CommitDetail
+	s.LoadCommit(mustHex(t, strings.TrimSpace(r.Git("rev-parse", "HEAD~1"))), func(d CommitDetail) { other = &d })
+	m.until(t, "the other commit", func() bool { return other != nil && other.Done })
+	if stale != 0 {
+		t.Fatalf("a cancelled load handed over %d parts", stale)
+	}
 }

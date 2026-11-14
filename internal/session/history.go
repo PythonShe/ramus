@@ -445,7 +445,8 @@ type CommitDetail struct {
 	OID     []byte
 	Commit  object.Commit
 	Parents [][]byte
-	// Files are the files changed from the first parent, renames found.
+	// Files are the files changed from the first parent, renames found;
+	// nil while they are read.
 	Files *diff.Raw
 	// Signature is git's %G? letter for a signed commit ("G" good, "B"
 	// bad, "U" good but untrusted, "E" cannot check...), "" when unsigned
@@ -455,25 +456,49 @@ type CommitDetail struct {
 	// Odd is set when the message or a name was not valid in the commit's
 	// encoding (UTF-8 when it names none): its bytes show as \xNN.
 	Odd bool
-	Err error
+	// Checking is set while git checks the signature.
+	Checking bool
+	// Done is set on the last of the details handed over.
+	Done bool
+	Err  error
 }
 
-// LoadCommit reads one commit, its changed files and its signature off
-// the main thread and hands them to done on it.
-func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) {
+// LoadCommit reads one commit off the main thread and hands it to done on
+// it as it is read: the message first, then its changed files, then its
+// signature, so a commit of 10,000 files or a slow signature check holds
+// back nothing read before. cancel stops the reading; done is not called
+// after it.
+func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
-		return
+		return func() {}
 	}
-	update := s.update
-	r.Life().Go(func(ctx context.Context) {
+	ctx, stop := context.WithCancel(r.Life().Context())
+	// dropped is read and written on the main thread only.
+	dropped := false
+	deliver := func(d CommitDetail) {
+		s.update(func() {
+			if !dropped {
+				done(d)
+			}
+		})
+	}
+	r.Life().Go(func(context.Context) {
+		defer stop()
 		d := CommitDetail{OID: oid}
-		d.Err = s.readCommit(ctx, r, &d)
-		update(func() { done(d) })
+		d.Err = s.readCommit(ctx, r, &d, deliver)
+		if ctx.Err() != nil && d.Err != nil {
+			return // cancelled, or the repository closed
+		}
+		d.Done, d.Checking = true, false
+		deliver(d)
 	})
+	return func() { dropped = true; stop() }
 }
 
-func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitDetail) error {
+// readCommit fills d, handing each part to publish as it is read; the
+// last part is left for the caller.
+func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitDetail, publish func(CommitDetail)) error {
 	cat, err := r.CatFile()
 	if err != nil {
 		return err
@@ -508,10 +533,13 @@ func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitD
 	if len(d.Parents) > 0 {
 		parent = d.Parents[0]
 	}
+	publish(*d)
 	if d.Files, _, err = diff.Renames(ctx, r.Runner, r.GitDir, r.Caps.HashSize, parent, d.OID); err != nil {
 		return err
 	}
 	if d.Commit.Signed && !r.Restricted {
+		d.Checking = true
+		publish(*d)
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
 			Args: []string{"log", "-1", "--no-walk", "--format=%G?%x00%GS", hex.EncodeToString(d.OID), "--"}})
 		if err == nil {
