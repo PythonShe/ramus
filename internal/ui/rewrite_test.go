@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"ramus/internal/git/write"
 )
 
 // An older commit is reworded, fixed up with what is staged, and dropped
@@ -97,4 +99,56 @@ func TestForcePushOffer(t *testing.T) {
 		out, _ := up.Run(nil, "log", "-1", "--format=%s", "main")
 		return strings.TrimSpace(out) == "add a, reworded"
 	})
+}
+
+// The history editor replays the commits from one on as its rows say:
+// a reword chosen from a row's menu, rows moved, a fix up; a branch at a
+// commit moves with it.
+func TestEditHistoryDialog(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	for _, f := range []string{"a", "b", "c", "d"} {
+		r.Write(f+".txt", f+"\n")
+		r.Commit("add " + f)
+	}
+	r.Git("branch", "side", "HEAD~2")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("history", h.shows("add b"))
+
+	h.menu("add b", "Edit History from Here…")
+	he := &h.app.history
+	h.until("the editor", func() bool {
+		if h.app.notice != "" {
+			t.Fatal(h.app.notice)
+		}
+		return he.open && len(he.rows) == 3
+	})
+	if !hasExact(h, "side") || he.rows[0].Subject != "add b" {
+		t.Fatalf("rows: %q", h.tt.Texts())
+	}
+	h.click("Pick")
+	if err := h.tt.ChooseMenuItem("Reword"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the message", func() bool { return he.rows[0].message == "add b" })
+	he.rows[0].message = "add b, reworded"
+	he.move([]int{2}, 1) // d before c
+	he.rows[2].action = write.DoFixup
+	h.click("Rewrite 3 Commits")
+	h.until("the rewrite", func() bool {
+		if l := tb.s.Log; len(l) > 0 && l[len(l)-1].Err != nil {
+			t.Fatalf("%s: %v", l[len(l)-1].Name, l[len(l)-1].Err)
+		}
+		return strings.TrimSpace(r.Git("log", "--format=%s")) == "add d\nadd b, reworded\nadd a\none"
+	})
+	if r.Git("show", "HEAD:c.txt") != "c\n" || strings.TrimSpace(r.Git("log", "-1", "--format=%s", "side")) != "add b, reworded" {
+		t.Fatal("c is not folded into d, or side did not move")
+	}
+	if he.open {
+		t.Fatal("the editor is still open")
+	}
 }

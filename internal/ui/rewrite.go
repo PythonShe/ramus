@@ -55,6 +55,9 @@ func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 			})
 		}
 	}
+	if m.Item("Edit History from Here…").Disabled(ro).Chosen() {
+		a.editHistory(t, id, nil)
+	}
 	if m.Item("Drop Commit…").Disabled(ro).Danger().Chosen() {
 		a.withCommit(t, id, func(d session.CommitDetail) {
 			op, err := write.DropCommit(t.s.Where(), t.s.Rewrite(d), t.s.Seen())
