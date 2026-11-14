@@ -2,28 +2,36 @@ package cli
 
 import (
 	"errors"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestParse(t *testing.T) {
-	cwd := "/work/repo"
+	vol := ""
+	if runtime.GOOS == "windows" {
+		vol = "C:"
+	}
+	// at is the path p, absolute, as the platform writes it.
+	at := func(p string) string { return filepath.FromSlash(vol + p) }
+	cwd := at("/work/repo")
 	for _, c := range []struct {
 		args []string
 		want Request
 	}{
 		{nil, Request{}},
-		{[]string{"."}, Request{Kind: Open, Paths: []string{"/work/repo"}}},
-		{[]string{"../other"}, Request{Kind: Open, Paths: []string{"/work/other"}}},
-		{[]string{"diff", "a.txt", "/tmp/b.txt"}, Request{Kind: Diff, Paths: []string{"/work/repo/a.txt", "/tmp/b.txt"}}},
-		{[]string{"diff", "--wait", "--", "-a", "b"}, Request{Kind: Diff, Wait: true, Paths: []string{"/work/repo/-a", "/work/repo/b"}}},
-		{[]string{"log", "src/x.go"}, Request{Kind: Log, Paths: []string{"/work/repo/src/x.go"}}},
-		{[]string{"blame", "x.go"}, Request{Kind: Blame, Paths: []string{"/work/repo/x.go"}}},
-		{[]string{"merge", "--wait", "B", "L", "R", "M"}, Request{Kind: Merge, Wait: true, Paths: []string{"/work/repo/B", "/work/repo/L", "/work/repo/R", "/work/repo/M"}}},
-		{[]string{"merge", "L", "R", "M"}, Request{Kind: Merge, Paths: []string{"", "/work/repo/L", "/work/repo/R", "/work/repo/M"}}},
+		{[]string{"."}, Request{Kind: Open, Paths: []string{at("/work/repo")}}},
+		{[]string{"../other"}, Request{Kind: Open, Paths: []string{at("/work/other")}}},
+		{[]string{"diff", "a.txt", "/tmp/b.txt"}, Request{Kind: Diff, Paths: []string{at("/work/repo/a.txt"), at("/tmp/b.txt")}}},
+		{[]string{"diff", "--wait", "--", "-a", "b"}, Request{Kind: Diff, Wait: true, Paths: []string{at("/work/repo/-a"), at("/work/repo/b")}}},
+		{[]string{"log", "src/x.go"}, Request{Kind: Log, Paths: []string{at("/work/repo/src/x.go")}}},
+		{[]string{"blame", "x.go"}, Request{Kind: Blame, Paths: []string{at("/work/repo/x.go")}}},
+		{[]string{"merge", "--wait", "B", "L", "R", "M"}, Request{Kind: Merge, Wait: true, Paths: []string{at("/work/repo/B"), at("/work/repo/L"), at("/work/repo/R"), at("/work/repo/M")}}},
+		{[]string{"merge", "L", "R", "M"}, Request{Kind: Merge, Paths: []string{"", at("/work/repo/L"), at("/work/repo/R"), at("/work/repo/M")}}},
 		// git passes an empty $BASE when there is no common ancestor.
-		{[]string{"merge", "", "L", "R", "M"}, Request{Kind: Merge, Paths: []string{"", "/work/repo/L", "/work/repo/R", "/work/repo/M"}}},
+		{[]string{"merge", "", "L", "R", "M"}, Request{Kind: Merge, Paths: []string{"", at("/work/repo/L"), at("/work/repo/R"), at("/work/repo/M")}}},
 	} {
 		got, err := Parse(c.args, cwd)
 		if err != nil || !reflect.DeepEqual(got, c.want) {

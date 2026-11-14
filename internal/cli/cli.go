@@ -8,6 +8,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -50,8 +51,12 @@ var ErrUsage = errors.New("cli: bad command line")
 // Parse reads args (without the program name) run in directory cwd.
 func Parse(args []string, cwd string) (Request, error) {
 	abs := func(p string) string {
-		if p == "" || filepath.IsAbs(p) {
+		switch {
+		case p == "" || filepath.IsAbs(p):
 			return filepath.Clean(p)
+		case filepath.VolumeName(p) == "" && os.IsPathSeparator(p[0]):
+			// On Windows, rooted on the drive of the folder it was typed in.
+			return filepath.Join(filepath.VolumeName(cwd), p)
 		}
 		return filepath.Join(cwd, p)
 	}
