@@ -437,11 +437,11 @@
   "@mergeMerge": {
     "description": "A verb: the button that merges the branch."
   },
-  "mergeTakeOursFor": "Take Ours for {what}",
+  "mergeTakeOursFor": "{count, plural, one {Take Ours for File} other {Take Ours for # Files}}",
   "@mergeTakeOursFor": {
-    "description": "A menu item; what is \"File\" or \"3 Files\"."
+    "description": "A menu item on conflicted files: resolve them whole with our side."
   },
-  "mergeTakeTheirsFor": "Take Theirs for {what}",
+  "mergeTakeTheirsFor": "{count, plural, one {Take Theirs for File} other {Take Theirs for # Files}}",
   "mergeTakeBoth": "Take Both, Ours First",
   "mergeOpenInTool": "Open in Merge Tool",
   "mergeToolTitle": "Merge {file}",
@@ -665,10 +665,6 @@
   "changesNoteNewCommits": "new commits",
   "changesNoteModifiedContent": "modified content",
   "changesNoteUntrackedContent": "untracked content",
-  "changesFiles": "{count, plural, one {File} other {# Files}}",
-  "@changesFiles": {
-    "description": "The files a menu acts on, in a menu item's title."
-  },
   "changesUnstageFiles": "{count, plural, one {Unstage File} other {Unstage # Files}}",
   "changesStageFiles": "{count, plural, one {Stage File} other {Stage # Files}}",
   "changesDiscardFiles": "{count, plural, one {Discard Changes to File…} other {Discard Changes to # Files…}}",

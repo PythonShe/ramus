@@ -542,7 +542,7 @@ func (a *App) mergeDialogView(c *ui.Context) {
 }
 
 // conflictMenu adds what resolves conflicted files whole to their menu.
-func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, what string, act *func()) {
+func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, act *func()) {
 	ro := t.s.Queue == nil || len(es) == 0
 	w := t.s.Where()
 	// A side that deleted a file is taken by deleting it.
@@ -563,10 +563,10 @@ func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, wh
 		return take, remove
 	}
 	for _, s := range []struct {
-		label func(what string) string
+		label func(count int) string
 		side  write.Side
 	}{{locales.MergeTakeOursFor, write.OurSide}, {locales.MergeTakeTheirsFor, write.TheirSide}} {
-		if menu.Item(s.label(what)).Disabled(ro).Chosen() {
+		if menu.Item(s.label(len(es))).Disabled(ro).Chosen() {
 			*act = func() {
 				take, remove := split(s.side)
 				if len(take) > 0 {

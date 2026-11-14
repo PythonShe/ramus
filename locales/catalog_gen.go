@@ -2414,28 +2414,28 @@ func (msgs Messages) MergeMerge() string {
 	return Catalog.Format(msgs.locale, "mergeMerge", nil)
 }
 
-// MergeTakeOursFor says "Take Ours for {what}"
+// MergeTakeOursFor says "{count, plural, one {Take Ours for File} other {Take Ours for # Files}}"
 // in the language the app shows.
 //
-// A menu item; what is "File" or "3 Files".
-func MergeTakeOursFor(what string) string { return In(i18n.Locale()).MergeTakeOursFor(what) }
+// A menu item on conflicted files: resolve them whole with our side.
+func MergeTakeOursFor(count int) string { return In(i18n.Locale()).MergeTakeOursFor(count) }
 
-// MergeTakeOursFor says "Take Ours for {what}"
+// MergeTakeOursFor says "{count, plural, one {Take Ours for File} other {Take Ours for # Files}}"
 // in the language of msgs.
 //
-// A menu item; what is "File" or "3 Files".
-func (msgs Messages) MergeTakeOursFor(what string) string {
-	return Catalog.Format(msgs.locale, "mergeTakeOursFor", map[string]any{"what": what})
+// A menu item on conflicted files: resolve them whole with our side.
+func (msgs Messages) MergeTakeOursFor(count int) string {
+	return Catalog.Format(msgs.locale, "mergeTakeOursFor", map[string]any{"count": count})
 }
 
-// MergeTakeTheirsFor says "Take Theirs for {what}"
+// MergeTakeTheirsFor says "{count, plural, one {Take Theirs for File} other {Take Theirs for # Files}}"
 // in the language the app shows.
-func MergeTakeTheirsFor(what string) string { return In(i18n.Locale()).MergeTakeTheirsFor(what) }
+func MergeTakeTheirsFor(count int) string { return In(i18n.Locale()).MergeTakeTheirsFor(count) }
 
-// MergeTakeTheirsFor says "Take Theirs for {what}"
+// MergeTakeTheirsFor says "{count, plural, one {Take Theirs for File} other {Take Theirs for # Files}}"
 // in the language of msgs.
-func (msgs Messages) MergeTakeTheirsFor(what string) string {
-	return Catalog.Format(msgs.locale, "mergeTakeTheirsFor", map[string]any{"what": what})
+func (msgs Messages) MergeTakeTheirsFor(count int) string {
+	return Catalog.Format(msgs.locale, "mergeTakeTheirsFor", map[string]any{"count": count})
 }
 
 // MergeTakeBoth says "Take Both, Ours First"
@@ -3714,20 +3714,6 @@ func ChangesNoteUntrackedContent() string { return In(i18n.Locale()).ChangesNote
 // in the language of msgs.
 func (msgs Messages) ChangesNoteUntrackedContent() string {
 	return Catalog.Format(msgs.locale, "changesNoteUntrackedContent", nil)
-}
-
-// ChangesFiles says "{count, plural, one {File} other {# Files}}"
-// in the language the app shows.
-//
-// The files a menu acts on, in a menu item's title.
-func ChangesFiles(count int) string { return In(i18n.Locale()).ChangesFiles(count) }
-
-// ChangesFiles says "{count, plural, one {File} other {# Files}}"
-// in the language of msgs.
-//
-// The files a menu acts on, in a menu item's title.
-func (msgs Messages) ChangesFiles(count int) string {
-	return Catalog.Format(msgs.locale, "changesFiles", map[string]any{"count": count})
 }
 
 // ChangesUnstageFiles says "{count, plural, one {Unstage File} other {Unstage # Files}}"
