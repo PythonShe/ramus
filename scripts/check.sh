@@ -21,10 +21,16 @@ fi
 
 # Network use is git's own: no package of ours opens a connection, and
 # none reaches mygo's updater, network, protocol or cookie modules. A
-# future update check is the one place to allow here.
+# future update check is the one place to allow here. The askpass helper
+# talks to the app over a Unix socket, so it may import net, for "unix"
+# sockets only.
 if go list -f '{{.ImportPath}} {{join .Imports " "}}' . ./internal/... |
-	awk '{for (i = 2; i <= NF; i++) if ($i ~ /^(net|net\/http|net\/rpc|net\/smtp|crypto\/tls)$/) print $1 " imports " $i}' | grep .; then
+	awk '{for (i = 2; i <= NF; i++) if ($i ~ /^(net|net\/http|net\/rpc|net\/smtp|crypto\/tls)$/ && !($1 == "ramus/internal/askpass" && $i == "net")) print $1 " imports " $i}' | grep .; then
 	echo "a package of ours uses the network" >&2
+	exit 1
+fi
+if grep -n -E 'net\.(Dial|Listen)[A-Za-z]*\(' internal/askpass/*.go | grep -v '_test.go:' | grep -v '("unix"'; then
+	echo "askpass opens a socket that is not a Unix socket" >&2
 	exit 1
 fi
 if grep -rn -E 'mygo\.(Updater|Network|Protocol|Cookies)\b' --include='*.go' *.go internal | grep -v '_test.go:'; then
