@@ -7,6 +7,7 @@ import (
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/mailmap"
 	"ramus/internal/git/object"
+	"ramus/internal/git/redact"
 	"ramus/internal/git/textenc"
 )
 
@@ -97,6 +98,9 @@ func LoadText(p *catfile.Process, oid func(id uint32) []byte, first, n int, comm
 			email, _ := textenc.Decode(cm.Author.Email, enc)
 			author, _ = mm.Lookup(author, email)
 		}
+		// The text is only shown: without the controls and bidi overrides
+		// a commit could carry to disguise its subject or its author.
+		subject, author = redact.Control(subject), redact.Control(author)
 		c.odd = append(c.odd, !ok1 || !ok2)
 		c.buf = append(c.buf, subject...)
 		c.ends = append(c.ends, uint32(len(c.buf)))

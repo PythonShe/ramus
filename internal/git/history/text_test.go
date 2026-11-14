@@ -87,6 +87,11 @@ func TestLoadTextEncodings(t *testing.T) {
 	}
 	r.Git("update-ref", "HEAD", strings.TrimSpace(id))
 	commit("plain", "")
+	// A subject and an author name that disguise themselves with a bidi
+	// override and a terminal escape are shown without them.
+	r.Write("f", "bidi")
+	r.Git("add", "f")
+	r.Git("commit", "-q", "--author", "Ev\u202eil\x1b[2J <e@x>", "-m", "fix \u202egnp.exe\u200b")
 	var ids [][]byte
 	for _, line := range strings.Fields(r.Git("log", "--format=%H")) {
 		id, _ := hex.DecodeString(line)
@@ -104,9 +109,9 @@ func TestLoadTextEncodings(t *testing.T) {
 	for i, want := range []struct {
 		subject string
 		odd     bool
-	}{{"plain", false}, {`caf\xe9 raw`, true}, {"café latin", false}} {
-		if s, _, _ := c.Row(i); s != want.subject || c.Odd(i) != want.odd {
-			t.Errorf("row %d: %q odd %v; want %q odd %v", i, s, c.Odd(i), want.subject, want.odd)
+	}{{"fix gnp.exe", false}, {"plain", false}, {`caf\xe9 raw`, true}, {"café latin", false}} {
+		if s, au, _ := c.Row(i); s != want.subject || c.Odd(i) != want.odd || i == 0 && au != "Evil" {
+			t.Errorf("row %d: %q by %q odd %v; want %q odd %v", i, s, au, c.Odd(i), want.subject, want.odd)
 		}
 	}
 }
