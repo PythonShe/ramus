@@ -22,7 +22,9 @@ type CommitSetup struct {
 	Recent   []string
 	// Last is HEAD's message, for an amend; empty when unborn.
 	Last string
-	Err  error
+	// Encoding is i18n.commitEncoding, for CommitOptions.Encoding.
+	Encoding string
+	Err      error
 }
 
 // RecentMessages is how many recent messages the editor offers.
@@ -45,6 +47,7 @@ func (s *Session) LoadCommitSetup(done func(CommitSetup)) {
 		var cs CommitSetup
 		cs.Template, cs.Err = message.Template(ctx, r.Runner, w)
 		cs.Comment = message.CommentChar(ctx, r.Runner, w)
+		cs.Encoding = message.Encoding(ctx, r.Runner, w)
 		if recent, err := message.Recent(ctx, r.Runner, w, RecentMessages); err == nil {
 			cs.Recent = recent
 		} else if cs.Err == nil {

@@ -65,6 +65,16 @@ func CommentChar(ctx context.Context, r *run.Runner, w Where) string {
 	return c
 }
 
+// Encoding returns i18n.commitEncoding, the encoding git labels new
+// commits with and expects their messages in; "" when unset, UTF-8.
+func Encoding(ctx context.Context, r *run.Runner, w Where) string {
+	out, err := w.git(ctx, r, "config", "--get", "i18n.commitEncoding")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
 // StripTemplate removes from msg the template's comment lines the user
 // left in, and nothing else: a line of their own that starts with the
 // comment character, an issue number say, stays.

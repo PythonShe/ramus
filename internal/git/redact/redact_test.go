@@ -18,7 +18,7 @@ func TestControl(t *testing.T) {
 		"tab\tkept":                      "tab\tkept",
 		"\x1b(Bcharset":                  "charset",
 		"unterminated \x1b]0;title":      "unterminated ",
-		"bad utf8 \xff":                  "bad utf8 \ufffd",
+		"bad utf8 \xff":                  `bad utf8 \xff`,
 		"\u65e5\u672c\u8a9e":             "\u65e5\u672c\u8a9e",
 	} {
 		if got := Control(in); got != want {

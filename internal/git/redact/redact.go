@@ -5,6 +5,7 @@ package redact
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -39,7 +40,9 @@ func Control(s string) string {
 			r, n := utf8.DecodeRuneInString(s[i:])
 			switch {
 			case r == utf8.RuneError && n == 1:
-				b.WriteRune(utf8.RuneError)
+				// Kept, as an escape, so that text that is not UTF-8
+				// loses nothing.
+				fmt.Fprintf(&b, `\x%02x`, c)
 			case r == 0x9b: // C1 CSI
 				i = skipCSI(s, i+n)
 				continue

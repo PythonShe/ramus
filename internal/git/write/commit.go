@@ -6,6 +6,7 @@ import (
 
 	"ramus/internal/git/message"
 	"ramus/internal/git/run"
+	"ramus/internal/git/textenc"
 )
 
 // CommitOptions describe a commit.
@@ -21,6 +22,9 @@ type CommitOptions struct {
 	SignOff   bool
 	NoVerify  bool
 	CoAuthors []string
+	// Encoding is i18n.commitEncoding: git labels the commit with it and
+	// takes the message as already in it, so it is encoded here.
+	Encoding string
 }
 
 // Commit records the index as a new commit, the message read from
@@ -55,9 +59,17 @@ func Commit(w Where, opt CommitOptions) (Op, error) {
 		if err := message.CheckPerson(p); err != nil {
 			return Op{}, err
 		}
-		args = append(args, "--trailer", "Co-authored-by: "+p)
+		trailer, err := textenc.Encode("Co-authored-by: "+p, opt.Encoding)
+		if err != nil {
+			return Op{}, err
+		}
+		args = append(args, "--trailer", string(trailer))
 	}
-	op.Name, op.Cmd, op.Input = name, run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: HookTimeout}, []byte(opt.Message)
+	msg, err := textenc.Encode(opt.Message, opt.Encoding)
+	if err != nil {
+		return Op{}, err
+	}
+	op.Name, op.Cmd, op.Input = name, run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: HookTimeout}, msg
 	return op, nil
 }
 

@@ -149,7 +149,9 @@ func (c *Cmd) argv() []string {
 		}
 	}
 	if c.Read {
-		a = append(a, "--no-optional-locks")
+		// What the app reads it reads as UTF-8; git otherwise writes
+		// messages in i18n.commitEncoding when one is set.
+		a = append(a, "--no-optional-locks", "-c", "i18n.logOutputEncoding=UTF-8")
 	}
 	for _, kv := range c.Config {
 		a = append(a, "-c", kv)

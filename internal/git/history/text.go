@@ -6,6 +6,7 @@ import (
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/object"
+	"ramus/internal/git/textenc"
 )
 
 // TextChunkRows is the number of consecutive rows whose text loads as one
@@ -24,6 +25,9 @@ type TextChunk struct {
 	ends  []uint32
 	times []int64
 	zones []int16
+	// odd marks rows whose text was not valid in its encoding, shown with
+	// escapes.
+	odd []bool
 }
 
 // Len returns the number of rows the chunk holds.
@@ -31,7 +35,7 @@ func (c *TextChunk) Len() int { return len(c.times) }
 
 // Bytes returns the memory the chunk holds, for cache budgets.
 func (c *TextChunk) Bytes() int {
-	return cap(c.buf) + cap(c.ends)*4 + cap(c.times)*8 + cap(c.zones)*2 + 64
+	return cap(c.buf) + cap(c.ends)*4 + cap(c.times)*8 + cap(c.zones)*2 + cap(c.odd) + 64
 }
 
 // Row returns the subject, author name and author time of row i, which
@@ -47,6 +51,10 @@ func (c *TextChunk) Row(i int) (subject, author string, when time.Time) {
 	loc := time.FixedZone("", int(c.zones[k])*60)
 	return string(s), string(a), time.Unix(c.times[k], 0).In(loc)
 }
+
+// Odd reports whether row i's subject or author was not valid text in
+// the commit's encoding: its bytes are then shown as \xNN escapes.
+func (c *TextChunk) Odd(i int) bool { return c.odd[i-c.First] }
 
 // Merged returns the abbreviated parents of row i when it is a merge, as
 // "1a2b3c4 and 5d6e7f8", and "" for a commit with one parent or none.
@@ -73,15 +81,20 @@ func LoadText(p *catfile.Process, oid func(id uint32) []byte, first, n int, comm
 		ends:  make([]uint32, 0, 3*n),
 		times: make([]int64, 0, n),
 		zones: make([]int16, 0, n),
+		odd:   make([]bool, 0, n),
 	}
 	err := p.Read(ids, func(i int, o catfile.Object) error {
 		var cm object.Commit
 		if o.Type == "commit" {
 			cm, _ = object.ParseCommit(o.Data)
 		}
-		c.buf = append(c.buf, object.Subject(cm.Message)...)
+		enc := string(cm.Encoding)
+		subject, ok1 := textenc.Decode(object.Subject(cm.Message), enc)
+		author, ok2 := textenc.Decode(cm.Author.Name, enc)
+		c.odd = append(c.odd, !ok1 || !ok2)
+		c.buf = append(c.buf, subject...)
 		c.ends = append(c.ends, uint32(len(c.buf)))
-		c.buf = append(c.buf, cm.Author.Name...)
+		c.buf = append(c.buf, author...)
 		c.ends = append(c.ends, uint32(len(c.buf)))
 		if cm.Parents > 1 {
 			c.buf = appendMerged(c.buf, o.Data, cm.Parents)

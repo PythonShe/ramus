@@ -20,6 +20,7 @@ import (
 	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
+	"ramus/internal/git/textenc"
 	"ramus/internal/git/write"
 )
 
@@ -375,7 +376,10 @@ type CommitDetail struct {
 	// or not checked: in a repository not trusted, the verifier named in
 	// its config does not run.
 	Signature, Signer string
-	Err               error
+	// Odd is set when the message or a name was not valid in the commit's
+	// encoding (UTF-8 when it names none): its bytes show as \xNN.
+	Odd bool
+	Err error
 }
 
 // LoadCommit reads one commit, its changed files and its signature off
@@ -412,6 +416,13 @@ func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitD
 	if d.Commit, err = object.ParseCommit(data); err != nil {
 		return err
 	}
+	// Shown and copied as UTF-8, as git log shows them.
+	enc, ok := string(d.Commit.Encoding), true
+	for _, f := range []*[]byte{&d.Commit.Message, &d.Commit.Author.Name, &d.Commit.Author.Email, &d.Commit.Committer.Name, &d.Commit.Committer.Email} {
+		text, valid := textenc.Decode(*f, enc)
+		*f, ok = []byte(text), ok && valid
+	}
+	d.Odd = !ok
 	for _, p := range object.ParentIDs(data) {
 		if id, err := hex.DecodeString(string(p)); err == nil {
 			d.Parents = append(d.Parents, id)
