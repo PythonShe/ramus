@@ -3,9 +3,12 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
+	"ramus/internal/git/lifetime"
 	"ramus/internal/git/repo"
+	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 	"ramus/locales"
 )
@@ -22,17 +25,21 @@ type backgroundFetch struct {
 	repo *repo.Repository
 	stop chan struct{}
 	// job is the quiet fetch queued or running, nil when none is.
-	job      *write.Job
-	stopped  error
+	job     *write.Job
+	stopped error
+	// failures counts the background fetches failed in a row.
+	failures int
 	onFailed func(error)
 	// started is when the last fetch of either kind started.
 	started time.Time
 }
 
-// SetBackgroundFetch fetches every remote every so often, 0 for never;
-// failed is told, once, when a fetch fails, which ends fetching in the
-// background until the repository opens again: a fetch that needs a
-// password cannot ask for it. An untrusted repository, or one with no
+// SetBackgroundFetch fetches every remote every so often, 0 for never.
+// A fetch that fails for want of the user (a login, a password, a host
+// key: it cannot ask, see needsUser) ends fetching in the background
+// until the repository opens again, and failed is told, once. Any other
+// failure, as the network being down, is tried again, the wait doubling
+// each time up to maxFetchWait. An untrusted repository, or one with no
 // remote, never fetches.
 func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
 	bf, r := &s.fetch, s.Repo
@@ -41,7 +48,7 @@ func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
 		return
 	}
 	bf.halt()
-	bf.every, bf.repo = every, r
+	bf.every, bf.repo, bf.failures = every, r, 0
 	if every == 0 || r == nil || r.Restricted || s.Queue == nil || bf.stopped != nil {
 		return
 	}
@@ -49,22 +56,32 @@ func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
 	bf.stop = stop
 	update := s.update
 	r.Life().Go(func(ctx context.Context) {
-		t := time.NewTimer(every)
-		defer t.Stop()
+		wait := every
 		for {
+			t := time.NewTimer(wait)
 			select {
+			case <-ctx.Done():
+				t.Stop()
+				return
+			case <-stop:
+				t.Stop()
+				return
+			case <-t.C:
+			}
+			// The next wait is known once the fetch has ended.
+			next := make(chan time.Duration, 1)
+			update(func() {
+				if bf.stop == stop {
+					s.fetchNow(func(d time.Duration) { next <- d })
+				}
+			})
+			select {
+			case wait = <-next:
 			case <-ctx.Done():
 				return
 			case <-stop:
 				return
-			case <-t.C:
 			}
-			update(func() {
-				if bf.stop == stop {
-					s.fetchNow()
-				}
-			})
-			t.Reset(every)
 		}
 	})
 }
@@ -77,6 +94,21 @@ func (bf *backgroundFetch) halt() {
 	}
 }
 
+// maxFetchWait bounds the wait between background fetches that failed,
+// unless fetching is set to be rarer still.
+const maxFetchWait = time.Hour
+
+// wait is how long to wait before the next background fetch: the
+// interval set, doubled for each fetch failed in a row.
+func (bf *backgroundFetch) wait() time.Duration {
+	limit := max(bf.every, maxFetchWait)
+	d := bf.every
+	for i := 0; i < bf.failures && d < limit; i++ {
+		d *= 2
+	}
+	return min(d, limit)
+}
+
 // FetchEvery is how often the session fetches in the background, 0 for
 // never.
 func (s *Session) FetchEvery() time.Duration { return s.fetch.every }
@@ -84,22 +116,69 @@ func (s *Session) FetchEvery() time.Duration { return s.fetch.every }
 // FetchStopped is why the background fetch stopped, nil while it has not.
 func (s *Session) FetchStopped() error { return s.fetch.stopped }
 
-// fetchNow starts a background fetch, unless one is running.
-func (s *Session) fetchNow() {
-	if s.fetch.stopped != nil {
+// fetchNow starts a background fetch, unless one is running, and hands
+// next the wait before the one after, once this one has ended.
+func (s *Session) fetchNow(next func(time.Duration)) {
+	bf := &s.fetch
+	if bf.stopped != nil {
 		return
 	}
-	s.quietFetch(func(err error) {
-		if err == nil || errors.Is(err, context.Canceled) {
+	started := s.quietFetch(func(err error) {
+		switch {
+		case err == nil:
+			bf.failures = 0
+		case errors.Is(err, context.Canceled), errors.Is(err, lifetime.ErrClosed):
+			// Stopped, or the repository closed: that says nothing of
+			// the remote.
+		case needsUser(err):
+			bf.stopped = err
+			bf.halt()
+			if bf.onFailed != nil {
+				bf.onFailed(err)
+			}
 			return
+		default:
+			bf.failures++
 		}
-		bf := &s.fetch
-		bf.stopped = err
-		bf.halt()
-		if bf.onFailed != nil {
-			bf.onFailed(err)
-		}
+		next(bf.wait())
 	})
+	if !started {
+		next(bf.wait())
+	}
+}
+
+// needsUser reports a fetch that failed for want of something only the
+// user can give: credentials, which a fetch with no one to ask cannot
+// read, a login the server refused, or a host key ssh does not know or
+// that changed. Trying again would fail the same way, and some servers
+// count each try towards locking the account. The fetch runs
+// Untranslated, so git's own words are English; ssh's always are.
+func needsUser(err error) bool {
+	var re *run.Error
+	if !errors.As(err, &re) {
+		return false
+	}
+	msg := strings.ToLower(re.Stderr)
+	for _, s := range []string{
+		"terminal prompts disabled", // could not read Username for ...
+		"could not read username",
+		"could not read password",
+		"authentication failed",
+		"invalid username or password",
+		"permission denied (", // ssh: Permission denied (publickey).
+		"host key verification failed",
+		"remote host identification has changed",
+		"returned error: 401",
+		"returned error: 403",
+		// GitHub and others answer so for a private repository to one
+		// not logged in.
+		"repository not found",
+	} {
+		if strings.Contains(msg, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // FetchFresh fetches every remote now, as the background fetch does,
@@ -132,6 +211,8 @@ func (s *Session) quietFetch(done func(error)) bool {
 	op.Name = locales.SessionFetchInBackground()
 	op.Cmd.Timeout = fetchTimeout
 	op.Cmd.NoPrompt = true // no one is there to answer
+	// needsUser reads what git said.
+	op.Cmd.Untranslated = true
 	j, err := s.Submit(op)
 	if err != nil {
 		return false
