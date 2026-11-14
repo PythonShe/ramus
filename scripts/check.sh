@@ -3,7 +3,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-unformatted=$(gofmt -l *.go internal spike scripts)
+unformatted=$(gofmt -l *.go internal spike scripts bench)
 if [ -n "$unformatted" ]; then
 	echo "gofmt needed:" >&2
 	echo "$unformatted" >&2
