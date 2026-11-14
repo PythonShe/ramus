@@ -15,6 +15,7 @@ import (
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
 	"ramus/internal/library"
+	"ramus/internal/session"
 	"ramus/internal/settings"
 )
 
@@ -27,6 +28,19 @@ type harness struct {
 	updates chan func()
 	trust   *trust.Store
 	lib     *library.Library
+	// seen are the sessions of every tab a frame showed, so that one a
+	// test closed has stopped too before its folder is removed.
+	seen map[*session.Session]bool
+}
+
+// note records the sessions of the tabs now open.
+func (h *harness) note() {
+	if h.seen == nil {
+		h.seen = map[*session.Session]bool{}
+	}
+	for _, t := range h.app.tabs {
+		h.seen[t.s] = true
+	}
 }
 
 func newHarness(t *testing.T) *harness {
@@ -59,6 +73,7 @@ func (h *harness) until(what string, ok func() bool) {
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		h.tt.Frame()
+		h.note()
 		if ok() {
 			return
 		}
@@ -85,6 +100,7 @@ func patchHas(pv *patchView, added, removed string) func() bool {
 
 func (h *harness) click(s string) {
 	h.t.Helper()
+	h.note()
 	if err := h.tt.Click(s); err != nil {
 		h.t.Fatalf("click %q: %v; texts %q", s, err, h.tt.Texts())
 	}
@@ -106,9 +122,10 @@ func (h *harness) repoWith(files ...string) *gittest.Repo {
 }
 
 func (h *harness) closeAll() {
+	h.note()
 	var lives []<-chan struct{}
-	for _, t := range h.app.tabs {
-		lives = append(lives, t.s.Done())
+	for s := range h.seen {
+		lives = append(lives, s.Done())
 	}
 	h.app.CloseAll()
 	for _, d := range lives {
