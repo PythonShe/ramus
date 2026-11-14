@@ -25,7 +25,21 @@ type CommitOptions struct {
 	// Encoding is i18n.commitEncoding: git labels the commit with it and
 	// takes the message as already in it, so it is encoded here.
 	Encoding string
+	// Sign signs the commit, or not, whatever commit.gpgSign says. git
+	// signs it with the key and program its config names: GPG, SSH or
+	// X.509.
+	Sign SignMode
 }
+
+// SignMode is whether a commit is signed.
+type SignMode int
+
+const (
+	// SignAsConfigured leaves it to commit.gpgSign.
+	SignAsConfigured SignMode = iota
+	SignYes
+	SignNo
+)
 
 // Commit records the index as a new commit, the message read from
 // standard input, so nothing in it is taken as an option. Undo moves the
@@ -50,6 +64,12 @@ func Commit(w Where, opt CommitOptions) (Op, error) {
 	}
 	if opt.SignOff {
 		args = append(args, "--signoff")
+	}
+	switch opt.Sign {
+	case SignYes:
+		args = append(args, "--gpg-sign")
+	case SignNo:
+		args = append(args, "--no-gpg-sign")
 	}
 	if opt.NoVerify {
 		args = append(args, "--no-verify")
