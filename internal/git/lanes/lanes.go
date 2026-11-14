@@ -299,6 +299,9 @@ type Row struct {
 	// Top are the lines from the top of the row to its middle, Bottom from
 	// the middle to the bottom.
 	Top, Bottom []Edge
+	// Hidden counts the lanes running through the row past maxCols, left
+	// out of it.
+	Hidden int
 }
 
 // Row returns row i, with edges only in columns below maxCols (0 for all
@@ -313,6 +316,7 @@ func (s *Snapshot) Row(i, maxCols int, buf []Edge) (Row, []Edge) {
 	r := s.rec(i)
 	ev := s.events(r)
 	buf = buf[:0]
+	hidden := 0
 	if len(s.ends) < len(s.state) {
 		s.ends = make([]bool, len(s.state))
 	}
@@ -320,6 +324,9 @@ func (s *Snapshot) Row(i, maxCols int, buf []Edge) (Row, []Edge) {
 		s.ends[e.From] = true
 	}
 	for col, c := range s.state {
+		if c != 0 && col >= maxCols {
+			hidden++
+		}
 		if c == 0 || col >= maxCols {
 			continue
 		}
@@ -350,5 +357,6 @@ func (s *Snapshot) Row(i, maxCols int, buf []Edge) (Row, []Edge) {
 		Merges: int(r.merges),
 		Top:    buf[:top:top],
 		Bottom: buf[top:],
+		Hidden: hidden,
 	}, buf
 }

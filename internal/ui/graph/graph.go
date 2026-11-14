@@ -25,6 +25,9 @@ var palette = [...]ui.Color{
 	ui.Hex("#8b5cf6"), ui.Hex("#ec4899"), ui.Hex("#14b8a6"), ui.Hex("#f97316"),
 }
 
+// cut marks the edge of a graph with lanes left out past it.
+var cut = ui.Hex("#9ca3af")
+
 // Color returns the color of a lane's color index.
 func Color(i uint16) ui.Color { return palette[int(i)%len(palette)] }
 
@@ -35,9 +38,17 @@ func (s Style) Columns(width float32) int {
 
 // Paint draws one row's lines and node into r; bg is the row background,
 // which hollows merge nodes. Edges past the columns that
-// fit are left out; a node past them is drawn at the edge, hollow.
+// fit are left out; a node past them is drawn at the edge, hollow, and
+// rows with lanes left out show a dotted edge.
 func Paint(p *ui.Painter, r ui.Rect, row lanes.Row, s Style, bg ui.Color, path *ui.Path) {
 	cols := s.Columns(r.W)
+	if row.Hidden > 0 {
+		ex := r.X + s.LaneWidth*float32(cols) - s.Line
+		for k := range 3 {
+			y := r.Y + r.H*(float32(k)+0.5)/3
+			p.Line(ex, y-1, ex, y+1, s.Line, cut)
+		}
+	}
 	x := func(col uint16) float32 {
 		c := min(int(col), cols-1)
 		return r.X + s.LaneWidth*(float32(c)+0.5)

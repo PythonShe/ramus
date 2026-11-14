@@ -224,3 +224,36 @@ func TestMaxCols(t *testing.T) {
 		}
 	}
 }
+
+// Fifty branches leave one commit at once: past the columns that show,
+// rows draw nothing and say how many lanes they left out (SourceGit #740).
+func TestWideFanOut(t *testing.T) {
+	const n, cols = 50, 13
+	var rows [][]uint32
+	for range n {
+		rows = append(rows, []uint32{n})
+	}
+	rows = append(rows, []uint32{})
+	l := build(rows)
+	check(t, l, rows)
+	if l.Width() != n {
+		t.Fatalf("width %d", l.Width())
+	}
+	s := l.Snapshot()
+	for i := range n {
+		r, _ := s.Row(i, cols, nil)
+		for _, e := range append(r.Top, r.Bottom...) {
+			if e.From >= cols && e.To >= cols {
+				t.Fatalf("row %d: edge %v past the columns shown", i, e)
+			}
+		}
+		// Row i is crossed by the lanes of tips 0 to i-1, one column
+		// each; its own node past the columns is drawn at their edge.
+		if want := max(0, i-cols); r.Hidden != want {
+			t.Fatalf("row %d: %d lanes left out, want %d", i, r.Hidden, want)
+		}
+		if all, _ := s.Row(i, 0, nil); all.Hidden != 0 {
+			t.Fatalf("row %d: lanes left out with no limit", i)
+		}
+	}
+}

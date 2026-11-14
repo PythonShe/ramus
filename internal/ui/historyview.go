@@ -485,13 +485,17 @@ func graphWidth(snap *lanes.Snapshot) float32 {
 // describeRow is what a graph row reads as: a merge names the commits it
 // merges once its text is loaded.
 func describeRow(r lanes.Row, merged string) string {
+	what := "commit"
 	switch {
 	case merged != "":
-		return "merge of " + merged
+		what = "merge of " + merged
 	case r.Merges > 0:
-		return fmt.Sprintf("merge of %d parents", r.Merges+1)
+		what = fmt.Sprintf("merge of %d parents", r.Merges+1)
 	}
-	return "commit"
+	if r.Hidden > 0 {
+		what += fmt.Sprintf(", %d more branch lines not drawn", r.Hidden)
+	}
+	return what
 }
 
 func refChip(c *ui.Context, l refLabel) {
