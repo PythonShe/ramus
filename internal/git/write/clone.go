@@ -60,7 +60,7 @@ func Clone(r *run.Runner, opt CloneOptions) (*Job, error) {
 		args = append(args, "--bare")
 	}
 	args = append(args, "--", opt.URL, dir)
-	return start(r, Op{Name: "Clone " + redact.Secrets(opt.URL), Cmd: run.Cmd{Outside: true, WorkTree: parent, Args: args, Timeout: CloneTimeout}}), nil
+	return start(r, Op{Name: "Clone " + redact.Secrets(opt.URL), Cmd: run.Cmd{Outside: true, WorkTree: parent, Args: args, Timeout: CloneTimeout, Stall: NetworkStall}}), nil
 }
 
 // CloneTimeout bounds a clone; a kernel over a slow link takes a while.

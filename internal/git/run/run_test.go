@@ -173,7 +173,7 @@ func TestStderrLive(t *testing.T) {
 func TestPrompt(t *testing.T) {
 	r := gittest.Init(t)
 	run := runner(t, 2)
-	run.SetPrompt([]string{"RAMUS_PROMPT_TEST=yes"})
+	run.SetPrompt([]string{"RAMUS_PROMPT_TEST=yes"}, nil)
 	got := func(c Cmd) string {
 		c.GitDir, c.WorkTree = r.GitDir(), r.Dir
 		c.Config = []string{`alias.e=!echo "[$RAMUS_PROMPT_TEST]"`}
@@ -192,5 +192,36 @@ func TestPrompt(t *testing.T) {
 	}
 	if s := got(Cmd{NoPrompt: true}); s != "[]" {
 		t.Errorf("no prompt: %q", s)
+	}
+}
+
+// A command that prints nothing for Stall is stopped, one that keeps
+// printing is not, and a question open to the user does not count.
+func TestStall(t *testing.T) {
+	r := gittest.Init(t)
+	asking := false
+	var mu sync.Mutex
+	run := runner(t, 2)
+	run.SetPrompt(nil, func() bool { mu.Lock(); defer mu.Unlock(); return asking })
+	sh := func(script string, stall time.Duration) error {
+		_, err := run.Run(context.Background(), &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Stall: stall,
+			Config: []string{"alias.s=!" + script}, Args: []string{"s"}})
+		return err
+	}
+	start := time.Now()
+	if err := sh("sleep 5", 300*time.Millisecond); !errors.Is(err, ErrStalled) {
+		t.Fatalf("silent: %v", err)
+	}
+	if d := time.Since(start); d > 4*time.Second {
+		t.Fatalf("stopped after %v", d)
+	}
+	if err := sh("for i in 1 2 3 4 5 6; do echo x; sleep 0.2; done", 600*time.Millisecond); err != nil {
+		t.Fatalf("printing: %v", err)
+	}
+	mu.Lock()
+	asking = true
+	mu.Unlock()
+	if err := sh("sleep 1", 300*time.Millisecond); err != nil {
+		t.Fatalf("asking: %v", err)
 	}
 }

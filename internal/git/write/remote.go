@@ -12,6 +12,11 @@ import (
 // PushTimeout bounds a push or fetch over a slow link.
 const PushTimeout = time.Hour
 
+// NetworkStall stops a fetch, pull, push or clone that hears nothing for
+// that long: git prints progress as data comes, and a server running a
+// hook for minutes is rare.
+const NetworkStall = 5 * time.Minute
+
 // PushOptions describe a push of the branch HEAD is on.
 type PushOptions struct {
 	// Remote, when set, pushes HEAD there and makes it the upstream;
@@ -34,7 +39,7 @@ func Push(w Where, opt PushOptions) Op {
 		args = append(args, "--set-upstream", "--", opt.Remote, "HEAD")
 		name += " to " + opt.Remote
 	}
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout}}
+	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}
 }
 
 // Fetch fetches from remote, or every remote when it is empty, pruning
@@ -54,7 +59,7 @@ func Fetch(w Where, remote string, prune bool) (Op, error) {
 		args = append(args, "--end-of-options", remote)
 		name = "Fetch " + remote
 	}
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout}}, nil
+	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }
 
 // PullMode is how a pull takes in the upstream's commits.
@@ -80,7 +85,7 @@ func Pull(w Where, mode PullMode, branches []string, seen Seen) (Op, error) {
 	}
 	return Op{Name: "Pull", Undo: MovesHead, Expect: seen.expect(), Backup: []string{seen.Branch}, Refs: branches,
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"pull", "--progress", "--no-edit", string(mode)},
-			Config: []string{updateRefs}, Timeout: PushTimeout}}, nil
+			Config: []string{updateRefs}, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }
 
 // TagKind is what a tag is.
@@ -138,7 +143,7 @@ func PushTag(w Where, remote, name string) (Op, error) {
 	}
 	name = strings.TrimPrefix(name, "refs/tags/")
 	return Op{Name: "Push tag " + name + " to " + remote,
-		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"push", "--progress", "--", remote, "refs/tags/" + name}, Timeout: PushTimeout}}, nil
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"push", "--progress", "--", remote, "refs/tags/" + name}, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }
 
 // CheckRemoteURL refuses a URL git would read as an option, one with
@@ -224,5 +229,5 @@ func PushStack(w Where, remote string, branches []StackBranch) (Op, error) {
 		args = append(args, b.Local+":"+b.Remote)
 	}
 	name := fmt.Sprintf("Push stack of %d branches to %s", len(branches), remote)
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout}}, nil
+	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }

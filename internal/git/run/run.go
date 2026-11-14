@@ -48,8 +48,9 @@ type Runner struct {
 	hardened  bool
 	hardening atomic.Pointer[[]string]
 	// prompt is the environment that lets a command ask the user, as
-	// for a password; see SetPrompt.
+	// for a password, and asking reports a question open; see SetPrompt.
 	prompt []string
+	asking func() bool
 }
 
 // pool is shared by a runner and the hardened runners made from it.
@@ -74,10 +75,13 @@ func New(git *gitexe.Git, env []string, max int) *Runner {
 }
 
 // SetPrompt has every command that is not Read nor NoPrompt run with
-// env, the app's askpass helper, so that git and ssh can ask the user.
-// Call it before the first command. A runner from Hardened, which runs
-// reads only, never asks.
-func (r *Runner) SetPrompt(env []string) { r.prompt = slices.Clone(env) }
+// env, the app's askpass helper, so that git and ssh can ask the user;
+// asking, when set, reports whether a question is open, during which no
+// command stalls. Call it before the first command. A runner from
+// Hardened, which runs reads only, never asks.
+func (r *Runner) SetPrompt(env []string, asking func() bool) {
+	r.prompt, r.asking = slices.Clone(env), asking
+}
 
 // Hardened returns a runner, sharing this one's process limit, for a
 // repository that is not trusted: config adds -c overrides after every
@@ -164,6 +168,11 @@ type Cmd struct {
 	// NoPrompt keeps git and ssh from asking the user, for a command no
 	// one waits on, as a background fetch: it fails instead.
 	NoPrompt bool
+	// Stall stops the command once it has printed nothing for that long,
+	// for a network command whose server or connection stopped
+	// answering; 0 never. Time a question to the user is open does not
+	// count (see SetPrompt).
+	Stall time.Duration
 }
 
 // Line returns the command as a user would type it, for the command log
@@ -238,6 +247,9 @@ func (e *Error) Unwrap() error { return e.Err }
 
 // ErrTimeout is wrapped by the error of a command that ran past its time.
 var ErrTimeout = errors.New("run: timed out")
+
+// ErrStalled is returned for a command stopped by Cmd.Stall.
+var ErrStalled = errors.New("run: stalled")
 
 // Run runs c and waits for it, after waiting for a free slot. Cancelling
 // ctx stops the wait or the process.
@@ -326,6 +338,16 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	if c.Stderr != nil {
 		cmd.Stderr = io.MultiWriter(stderr, c.Stderr)
 	}
+	var stalled atomic.Bool
+	if c.Stall > 0 {
+		act := &activity{}
+		act.touch()
+		cmd.Stdout = io.MultiWriter(cmd.Stdout, act)
+		cmd.Stderr = io.MultiWriter(cmd.Stderr, act)
+		done := make(chan struct{})
+		defer close(done)
+		go r.watchStall(c.Stall, act, done, func() { stalled.Store(true); cancel() })
+	}
 	cmd.WaitDelay = 2 * time.Second
 	t0 := time.Now()
 	r.running.Add(1)
@@ -338,6 +360,8 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 		switch {
 		case stdout.over:
 			e.Err = fmt.Errorf("%w: over %d bytes", ErrOutputTooLarge, limit)
+		case stalled.Load():
+			e.Err = fmt.Errorf("%w: nothing heard for %v", ErrStalled, c.Stall)
 		case errors.Is(ctx.Err(), context.DeadlineExceeded):
 			e.Err = fmt.Errorf("%w after %v", ErrTimeout, timeout)
 		case ctx.Err() != nil:
@@ -350,6 +374,40 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	}
 	r.journal.record(c, c.Line(), t0, res, nil, false)
 	return res, nil
+}
+
+// watchStall calls stop once act has seen nothing for stall, the time a
+// question to the user is open aside, until done is closed.
+func (r *Runner) watchStall(stall time.Duration, act *activity, done <-chan struct{}, stop func()) {
+	tick := time.NewTicker(max(stall/8, 10*time.Millisecond))
+	defer tick.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-tick.C:
+		}
+		if r.asking != nil && r.asking() {
+			act.touch()
+			continue
+		}
+		if act.since() > stall {
+			stop()
+			return
+		}
+	}
+}
+
+// activity is when output was last written.
+type activity struct{ last atomic.Int64 }
+
+func (a *activity) touch() { a.last.Store(time.Now().UnixNano()) }
+
+func (a *activity) since() time.Duration { return time.Duration(time.Now().UnixNano() - a.last.Load()) }
+
+func (a *activity) Write(p []byte) (int, error) {
+	a.touch()
+	return len(p), nil
 }
 
 // bounded collects output up to max bytes and then stops the command.

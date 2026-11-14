@@ -180,11 +180,11 @@ func main() {
 // first.
 func findGit(ws *windows, crash *crashlog.Log, ask *askpass.Server) {
 	go func() {
-		r, env, err := lookGit()
+		r, env, _, err := lookGit()
 		// An askpass of the user's own stays theirs.
 		if err == nil && ask != nil && lookup(env, "SSH_ASKPASS") == "" {
 			if program, perr := os.Executable(); perr == nil {
-				r.SetPrompt(ask.Env(program))
+				r.SetPrompt(ask.Env(program), ask.Asking)
 			}
 		}
 		if err == nil && crash != nil {
@@ -231,17 +231,19 @@ func listenAsk(ws *windows) *askpass.Server {
 }
 
 // lookGit finds git on the user's PATH and makes the runner of every
-// git process; env is the user's environment it runs with.
-func lookGit() (*run.Runner, []string, error) {
-	env := os.Environ()
+// git process; env is the user's environment it runs with, and
+// shellErr says why the login shell's could not be read.
+func lookGit() (r *run.Runner, env []string, shellErr, err error) {
+	env = os.Environ()
 	if userenv.NeedsResolving() {
-		env = userenv.Resolve(context.Background()).Env
+		res := userenv.Resolve(context.Background())
+		env, shellErr = res.Env, res.Err
 	}
 	g, err := gitexe.Find(context.Background(), lookup(env, "PATH"))
 	if err != nil {
-		return nil, env, err
+		return nil, env, shellErr, err
 	}
-	return run.New(g, env, maxProcesses), env, nil
+	return run.New(g, env, maxProcesses), env, shellErr, nil
 }
 
 // runTool runs the app as git's difftool or mergetool: one window with
@@ -288,7 +290,7 @@ func runTool(req cli.Request) {
 		})
 		win.OnClosed(func() { mygo.App.Exit(code) })
 		go func() {
-			r, _, err := lookGit()
+			r, _, _, err := lookGit()
 			win.Update(func() { app.SetRunner(r, err) })
 		}()
 	})

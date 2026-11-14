@@ -51,6 +51,10 @@ func submoduleOp(w Where, verb string, args, paths []string, timeout time.Durati
 		name = verb + " " + strconv.Itoa(len(paths)) + " submodules"
 	}
 	args = append(append([]string{"submodule"}, args...), "--")
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: append(args, paths...), Timeout: timeout,
+	op := Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: append(args, paths...), Timeout: timeout,
 		Env: []string{"GIT_LITERAL_PATHSPECS=1"}}}
+	if timeout == PushTimeout {
+		op.Cmd.Stall = NetworkStall // an update fetches, with progress
+	}
+	return op
 }

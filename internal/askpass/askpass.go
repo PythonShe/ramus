@@ -199,6 +199,14 @@ func (s *Server) Env(program string) []string {
 	}
 }
 
+// Asking reports whether a question is open: the user is answering, and
+// the command that asked waits for them.
+func (s *Server) Asking() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.open > 0
+}
+
 // Close stops listening; helpers still connected are cancelled.
 func (s *Server) Close() error {
 	err := s.ln.Close()
