@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/refs"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -25,8 +26,10 @@ type branchPick struct {
 	hover int
 	list  ui.ListState
 	// rows are those matching query, rebuilt as it or the refs change.
-	rows     []pickRow
-	rowsFor  *sideRefs
+	rows []pickRow
+	// rowsFor is the refs they were built from, and their pins.
+	rowsFor  *refs.List
+	rowsGen  int
 	rowsWith string
 }
 
@@ -179,10 +182,10 @@ func pickRowView(c *ui.Context, t *tab, r pickRow, hi bool) ui.Element {
 // first, then the remote ones under their heading.
 func (p *branchPick) build(t *tab) []pickRow {
 	sr := t.sideRefs.build(t)
-	if p.rowsFor == sr && p.rowsWith == p.query {
+	if p.rowsFor == sr.refs && p.rowsFor != nil && p.rowsGen == sr.gen && p.rowsWith == p.query {
 		return p.rows
 	}
-	p.rowsFor, p.rowsWith, p.rows = sr, p.query, nil
+	p.rowsFor, p.rowsGen, p.rowsWith, p.rows = sr.refs, sr.gen, p.query, nil
 	words := strings.Fields(strings.ToLower(p.query))
 	matches := func(ref string) bool {
 		s := strings.ToLower(shortRef(ref))
