@@ -39,6 +39,8 @@ type windows struct {
 	keep     *layout.Keeper
 	saving   bool
 	quitting bool
+	// about is the About window, nil while it is not open.
+	about *aboutWindow
 }
 
 // layoutDelay is how long changes to what is open gather before the

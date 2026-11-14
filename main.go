@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -334,8 +335,29 @@ func menu(ws *windows) *mygo.Menu {
 			}
 		}
 	}
+	about := func(check bool) func(*mygo.MenuItem, *mygo.Window) {
+		return func(*mygo.MenuItem, *mygo.Window) { ws.showAbout(check) }
+	}
+	// macOS has About in the app's menu, the others in Help.
+	appMenu := &mygo.MenuItem{Role: mygo.RoleAppMenu, Submenu: []*mygo.MenuItem{
+		{Label: locales.MenuAbout(), Click: about(false)},
+		{Label: locales.MenuCheckForUpdates(), Click: about(true)},
+		mygo.Separator(),
+		{Role: mygo.RoleServices},
+		mygo.Separator(),
+		{Role: mygo.RoleHide},
+		{Role: mygo.RoleHideOthers},
+		{Role: mygo.RoleUnhide},
+		mygo.Separator(),
+		{Role: mygo.RoleQuit},
+	}}
+	help := &mygo.MenuItem{Label: locales.MenuHelp(), Hidden: runtime.GOOS == "darwin", Submenu: []*mygo.MenuItem{
+		{Label: locales.MenuCheckForUpdates(), Click: about(true)},
+		mygo.Separator(),
+		{Label: locales.MenuAbout(), Click: about(false)},
+	}}
 	return mygo.NewMenu([]*mygo.MenuItem{
-		{Role: mygo.RoleAppMenu},
+		appMenu,
 		{Label: locales.MenuFile(), Submenu: []*mygo.MenuItem{
 			{Label: locales.MenuNewWindow(), Accelerator: key("new-window"), Click: func(*mygo.MenuItem, *mygo.Window) { ws.open(nil) }},
 			{Label: locales.MenuOpenRepository(), Accelerator: key("open"), Click: act((*ui.App).PickAndOpen)},
@@ -352,5 +374,6 @@ func menu(ws *windows) *mygo.Menu {
 		{Role: mygo.RoleEditMenu},
 		{Role: mygo.RoleViewMenu},
 		{Role: mygo.RoleWindowMenu},
+		help,
 	})
 }

@@ -2158,6 +2158,48 @@
   "@appShellNotRead": {
     "description": "PATH is the environment variable; keep it as is."
   },
+  "menuAbout": "About Ramus",
+  "@menuAbout": {
+    "description": "The menu item that opens the About window; on macOS in the app's menu, elsewhere in Help."
+  },
+  "menuCheckForUpdates": "Check for Updates…",
+  "@menuCheckForUpdates": {
+    "description": "The menu item that opens the About window and checks for a newer version."
+  },
+  "menuHelp": "Help",
+  "@menuHelp": {
+    "description": "The Help menu, on Linux and Windows, which holds About."
+  },
+  "aboutName": "Ramus",
+  "@aboutName": {
+    "description": "The app's name, under its icon in the About window."
+  },
+  "aboutVersion": "Version {version}",
+  "aboutCopyright": "© 2026 PythonShe",
+  "@aboutCopyright": {
+    "description": "The copyright line of the About window."
+  },
+  "aboutCheckForUpdates": "Check for Updates",
+  "aboutChecking": "Checking for updates…",
+  "aboutUpToDate": "Ramus is up to date.",
+  "aboutUpdatesOff": "This build of Ramus does not update itself.",
+  "@aboutUpdatesOff": {
+    "description": "After a check in a build without updates, as one run in development."
+  },
+  "aboutCheckFailed": "Could not check for updates: {error}",
+  "aboutUpdateFound": "Ramus {version} is available.",
+  "aboutInstallUpdate": "Install and Relaunch",
+  "aboutInstalling": "Installing Ramus {version}…",
+  "aboutInstallFailed": "Could not install the update: {error}",
+  "aboutLicenses": "Licenses",
+  "@aboutLicenses": {
+    "description": "Heads the About window's list of the licenses of Ramus and of what it is built from."
+  },
+  "aboutAllLicenses": "All Licenses",
+  "@aboutAllLicenses": {
+    "description": "A button that goes back from one license shown in full to the list of them."
+  },
+  "aboutLicensesFailed": "Could not read the licenses: {error}",
   "menuFile": "File",
   "@menuFile": {
     "description": "The File menu."

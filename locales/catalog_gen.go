@@ -10941,6 +10941,224 @@ func (msgs Messages) AppShellNotRead(error string) string {
 	return Catalog.Format(msgs.locale, "appShellNotRead", map[string]any{"error": error})
 }
 
+// MenuAbout says "About Ramus"
+// in the language the app shows.
+//
+// The menu item that opens the About window; on macOS in the app's menu,
+// elsewhere in Help.
+func MenuAbout() string { return In(i18n.Locale()).MenuAbout() }
+
+// MenuAbout says "About Ramus"
+// in the language of msgs.
+//
+// The menu item that opens the About window; on macOS in the app's menu,
+// elsewhere in Help.
+func (msgs Messages) MenuAbout() string {
+	return Catalog.Format(msgs.locale, "menuAbout", nil)
+}
+
+// MenuCheckForUpdates says "Check for Updates…"
+// in the language the app shows.
+//
+// The menu item that opens the About window and checks for a newer version.
+func MenuCheckForUpdates() string { return In(i18n.Locale()).MenuCheckForUpdates() }
+
+// MenuCheckForUpdates says "Check for Updates…"
+// in the language of msgs.
+//
+// The menu item that opens the About window and checks for a newer version.
+func (msgs Messages) MenuCheckForUpdates() string {
+	return Catalog.Format(msgs.locale, "menuCheckForUpdates", nil)
+}
+
+// MenuHelp says "Help"
+// in the language the app shows.
+//
+// The Help menu, on Linux and Windows, which holds About.
+func MenuHelp() string { return In(i18n.Locale()).MenuHelp() }
+
+// MenuHelp says "Help"
+// in the language of msgs.
+//
+// The Help menu, on Linux and Windows, which holds About.
+func (msgs Messages) MenuHelp() string {
+	return Catalog.Format(msgs.locale, "menuHelp", nil)
+}
+
+// AboutName says "Ramus"
+// in the language the app shows.
+//
+// The app's name, under its icon in the About window.
+func AboutName() string { return In(i18n.Locale()).AboutName() }
+
+// AboutName says "Ramus"
+// in the language of msgs.
+//
+// The app's name, under its icon in the About window.
+func (msgs Messages) AboutName() string {
+	return Catalog.Format(msgs.locale, "aboutName", nil)
+}
+
+// AboutVersion says "Version {version}"
+// in the language the app shows.
+func AboutVersion(version string) string { return In(i18n.Locale()).AboutVersion(version) }
+
+// AboutVersion says "Version {version}"
+// in the language of msgs.
+func (msgs Messages) AboutVersion(version string) string {
+	return Catalog.Format(msgs.locale, "aboutVersion", map[string]any{"version": version})
+}
+
+// AboutCopyright says "© 2026 PythonShe"
+// in the language the app shows.
+//
+// The copyright line of the About window.
+func AboutCopyright() string { return In(i18n.Locale()).AboutCopyright() }
+
+// AboutCopyright says "© 2026 PythonShe"
+// in the language of msgs.
+//
+// The copyright line of the About window.
+func (msgs Messages) AboutCopyright() string {
+	return Catalog.Format(msgs.locale, "aboutCopyright", nil)
+}
+
+// AboutCheckForUpdates says "Check for Updates"
+// in the language the app shows.
+func AboutCheckForUpdates() string { return In(i18n.Locale()).AboutCheckForUpdates() }
+
+// AboutCheckForUpdates says "Check for Updates"
+// in the language of msgs.
+func (msgs Messages) AboutCheckForUpdates() string {
+	return Catalog.Format(msgs.locale, "aboutCheckForUpdates", nil)
+}
+
+// AboutChecking says "Checking for updates…"
+// in the language the app shows.
+func AboutChecking() string { return In(i18n.Locale()).AboutChecking() }
+
+// AboutChecking says "Checking for updates…"
+// in the language of msgs.
+func (msgs Messages) AboutChecking() string {
+	return Catalog.Format(msgs.locale, "aboutChecking", nil)
+}
+
+// AboutUpToDate says "Ramus is up to date."
+// in the language the app shows.
+func AboutUpToDate() string { return In(i18n.Locale()).AboutUpToDate() }
+
+// AboutUpToDate says "Ramus is up to date."
+// in the language of msgs.
+func (msgs Messages) AboutUpToDate() string {
+	return Catalog.Format(msgs.locale, "aboutUpToDate", nil)
+}
+
+// AboutUpdatesOff says "This build of Ramus does not update itself."
+// in the language the app shows.
+//
+// After a check in a build without updates, as one run in development.
+func AboutUpdatesOff() string { return In(i18n.Locale()).AboutUpdatesOff() }
+
+// AboutUpdatesOff says "This build of Ramus does not update itself."
+// in the language of msgs.
+//
+// After a check in a build without updates, as one run in development.
+func (msgs Messages) AboutUpdatesOff() string {
+	return Catalog.Format(msgs.locale, "aboutUpdatesOff", nil)
+}
+
+// AboutCheckFailed says "Could not check for updates: {error}"
+// in the language the app shows.
+func AboutCheckFailed(error string) string { return In(i18n.Locale()).AboutCheckFailed(error) }
+
+// AboutCheckFailed says "Could not check for updates: {error}"
+// in the language of msgs.
+func (msgs Messages) AboutCheckFailed(error string) string {
+	return Catalog.Format(msgs.locale, "aboutCheckFailed", map[string]any{"error": error})
+}
+
+// AboutUpdateFound says "Ramus {version} is available."
+// in the language the app shows.
+func AboutUpdateFound(version string) string { return In(i18n.Locale()).AboutUpdateFound(version) }
+
+// AboutUpdateFound says "Ramus {version} is available."
+// in the language of msgs.
+func (msgs Messages) AboutUpdateFound(version string) string {
+	return Catalog.Format(msgs.locale, "aboutUpdateFound", map[string]any{"version": version})
+}
+
+// AboutInstallUpdate says "Install and Relaunch"
+// in the language the app shows.
+func AboutInstallUpdate() string { return In(i18n.Locale()).AboutInstallUpdate() }
+
+// AboutInstallUpdate says "Install and Relaunch"
+// in the language of msgs.
+func (msgs Messages) AboutInstallUpdate() string {
+	return Catalog.Format(msgs.locale, "aboutInstallUpdate", nil)
+}
+
+// AboutInstalling says "Installing Ramus {version}…"
+// in the language the app shows.
+func AboutInstalling(version string) string { return In(i18n.Locale()).AboutInstalling(version) }
+
+// AboutInstalling says "Installing Ramus {version}…"
+// in the language of msgs.
+func (msgs Messages) AboutInstalling(version string) string {
+	return Catalog.Format(msgs.locale, "aboutInstalling", map[string]any{"version": version})
+}
+
+// AboutInstallFailed says "Could not install the update: {error}"
+// in the language the app shows.
+func AboutInstallFailed(error string) string { return In(i18n.Locale()).AboutInstallFailed(error) }
+
+// AboutInstallFailed says "Could not install the update: {error}"
+// in the language of msgs.
+func (msgs Messages) AboutInstallFailed(error string) string {
+	return Catalog.Format(msgs.locale, "aboutInstallFailed", map[string]any{"error": error})
+}
+
+// AboutLicenses says "Licenses"
+// in the language the app shows.
+//
+// Heads the About window's list of the licenses of Ramus and of what it is
+// built from.
+func AboutLicenses() string { return In(i18n.Locale()).AboutLicenses() }
+
+// AboutLicenses says "Licenses"
+// in the language of msgs.
+//
+// Heads the About window's list of the licenses of Ramus and of what it is
+// built from.
+func (msgs Messages) AboutLicenses() string {
+	return Catalog.Format(msgs.locale, "aboutLicenses", nil)
+}
+
+// AboutAllLicenses says "All Licenses"
+// in the language the app shows.
+//
+// A button that goes back from one license shown in full to the list of
+// them.
+func AboutAllLicenses() string { return In(i18n.Locale()).AboutAllLicenses() }
+
+// AboutAllLicenses says "All Licenses"
+// in the language of msgs.
+//
+// A button that goes back from one license shown in full to the list of
+// them.
+func (msgs Messages) AboutAllLicenses() string {
+	return Catalog.Format(msgs.locale, "aboutAllLicenses", nil)
+}
+
+// AboutLicensesFailed says "Could not read the licenses: {error}"
+// in the language the app shows.
+func AboutLicensesFailed(error string) string { return In(i18n.Locale()).AboutLicensesFailed(error) }
+
+// AboutLicensesFailed says "Could not read the licenses: {error}"
+// in the language of msgs.
+func (msgs Messages) AboutLicensesFailed(error string) string {
+	return Catalog.Format(msgs.locale, "aboutLicensesFailed", map[string]any{"error": error})
+}
+
 // MenuFile says "File"
 // in the language the app shows.
 //

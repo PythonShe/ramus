@@ -19,12 +19,12 @@ if go list -deps ./internal/git/... | grep -q '^github.com/egoist/mygo'; then
 	exit 1
 fi
 
-# Network use is git's own, or the user's gh or glab when the settings
-# turn pull requests on: no package of ours opens a connection, and
-# none reaches mygo's updater, network, protocol or cookie modules. A
-# future update check is the one place to allow here. The askpass helper
-# talks to the app over a Unix socket, so it may import net, for "unix"
-# sockets only.
+# Network use is git's own, the user's gh or glab when the settings
+# turn pull requests on, and the update check the user asks for in the
+# About window (about.go, through mygo's updater): no package of ours
+# opens a connection, and nothing else reaches mygo's updater, network,
+# protocol or cookie modules. The askpass helper talks to the app over a
+# Unix socket, so it may import net, for "unix" sockets only.
 if go list -f '{{.ImportPath}} {{join .Imports " "}}' . ./internal/... |
 	awk '{for (i = 2; i <= NF; i++) if ($i ~ /^(net|net\/http|net\/rpc|net\/smtp|crypto\/tls)$/ && !($1 == "ramus/internal/askpass" && $i == "net")) print $1 " imports " $i}' | grep .; then
 	echo "a package of ours uses the network" >&2
@@ -34,7 +34,7 @@ if grep -n -E 'net\.(Dial|Listen)[A-Za-z]*\(' internal/askpass/*.go | grep -v '_
 	echo "askpass opens a socket that is not a Unix socket" >&2
 	exit 1
 fi
-if grep -rn -E 'mygo\.(Updater|Network|Protocol|Cookies)\b' --include='*.go' *.go internal | grep -v '_test.go:'; then
+if grep -rn -E 'mygo\.(Updater|Network|Protocol|Cookies)\b' --include='*.go' *.go internal | grep -v '_test.go:' | grep -v -E '^about\.go:[0-9]+:.*mygo\.Updater\.'; then
 	echo "the app reaches mygo's network modules" >&2
 	exit 1
 fi
