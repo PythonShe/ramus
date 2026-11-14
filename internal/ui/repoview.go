@@ -76,6 +76,9 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 			case "file":
 				a.fileView(c, t)
 				return
+			case "compare":
+				a.commitCompareView(c, t)
+				return
 			}
 			if strings.HasPrefix(t.sel, "refs/heads/") || strings.HasPrefix(t.sel, "refs/tags/") {
 				t.refs.showRef(t.sel)
@@ -142,6 +145,9 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		section("branches", "Branches", heads, "refs/heads/")
 		section("remotes", "Remotes", remotes, "refs/remotes/")
 		section("tags", "Tags", tags, "refs/tags/")
+		if t.cmp.to != nil {
+			ui.SidebarItem(c, "compare", nil, "Comparison")
+		}
 		if st.Status != nil && st.Status.Branch.Stashes > 0 {
 			ui.SidebarItem(c, "stashes", nil, fmt.Sprintf("Stashes (%d)", st.Status.Branch.Stashes))
 		}

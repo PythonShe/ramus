@@ -32,6 +32,15 @@ func (a *App) leaveView(t *tab, name string) {
 		}
 	case "stashes":
 		leaveDetail(&t.stash.detail)
+	case "compare":
+		cc := &t.cmp
+		if cc.loading {
+			cc.cancel()
+			cc.loading = false
+		}
+		if cc.cv.patchLoading {
+			cc.cv.patchFor, cc.cv.patchLoading = "", false
+		}
 	case "file":
 		fs := &t.file
 		leaveDetail(&fs.detail)

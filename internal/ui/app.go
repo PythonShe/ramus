@@ -121,6 +121,7 @@ type tab struct {
 	file      fileState
 	bisect    bisectState
 	stats     statsState
+	cmp       commitCompare
 	links     tabLinks
 	prefs     refPrefs
 	sideRefs  sideRefs

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -466,6 +467,13 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 		*act = func() {
 			op, err := write.Rebase(w, b.Name, seen)
 			a.submit(t, op, err)
+		}
+	}
+	if m.Item("Compare with " + redact.Control(into)).Disabled(current || len(head.OID) == 0).Chosen() {
+		*act = func() {
+			if id, err := hex.DecodeString(b.Commit); err == nil {
+				a.compareCommits(t, head.OID, id, into, short)
+			}
 		}
 	}
 	if info := t.refs.info; info != nil {

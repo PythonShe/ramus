@@ -50,6 +50,16 @@ func (a *App) commitOps(m *ui.Menu, t *tab, ids func() []string, n int) {
 		}
 		a.savePatch(t, session.PatchSave{Commits: list}, name)
 	}
+	if n == 2 && m.Item("Compare These Commits").Chosen() {
+		list := ids() // newest first
+		from, _ := hex.DecodeString(list[1])
+		to, _ := hex.DecodeString(list[0])
+		a.compareCommits(t, from, to, list[1][:10], list[0][:10])
+	}
+	if n == 1 && len(head.OID) > 0 && m.Item("Compare with HEAD").Chosen() {
+		from, _ := hex.DecodeString(ids()[0])
+		a.compareCommits(t, from, head.OID, shortID(from), "HEAD")
+	}
 	bs := t.bisect.state
 	if n == 2 && !bs.Active {
 		if m.Item("Bisect Between These").Disabled(ro).Chosen() {
