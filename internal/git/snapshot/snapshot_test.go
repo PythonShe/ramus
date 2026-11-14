@@ -72,11 +72,15 @@ func TestTakeListRestore(t *testing.T) {
 	f.r.Stage("b", "b2")
 	f.r.Write("c", "untracked")
 	f.r.Write("dir/d", "d2")
-	f.r.Write("odd\nname", "n")
+	odd := "odd\nname"
+	if !gittest.Portable(odd) {
+		odd = "odd name"
+	}
+	f.r.Write(odd, "n")
 	status := f.r.Git("status", "--porcelain=v2", "-z")
 	index := read(t, filepath.Join(f.w.GitDir, "index"))
 
-	s := f.take(Options{Reason: "Discard\nchanges", Paths: []string{"a", "c", "dir", "odd\nname"}})
+	s := f.take(Options{Reason: "Discard\nchanges", Paths: []string{"a", "c", "dir", odd}})
 	if s.Head == "" || s.Index == "" || s.All {
 		t.Fatalf("snapshot %+v", s)
 	}
@@ -100,7 +104,7 @@ func TestTakeListRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []File{{"a", tree.Modified}, {"c", tree.Added}, {"dir/d", tree.Modified}, {"odd\nname", tree.Added}}
+	want := []File{{"a", tree.Modified}, {"c", tree.Added}, {"dir/d", tree.Modified}, {odd, tree.Added}}
 	if !slices.Equal(files, want) {
 		t.Fatalf("files %+v, want %+v", files, want)
 	}
@@ -298,5 +302,33 @@ func TestRestoreModes(t *testing.T) {
 	}
 	if read(t, filepath.Join(f.r.Dir, "dir/new")) != "added later" {
 		t.Fatal("an untracked file was removed")
+	}
+}
+
+// A file changed in the same tick as the index was written is racy: git
+// reads it again instead of trusting its stat data, and so must the copy
+// of the index a snapshot works in. Without ctime and inode, as on
+// Windows, only the times tell.
+func TestRacyFile(t *testing.T) {
+	f := setup(t)
+	f.r.Git("config", "core.trustctime", "false")
+	f.r.Git("config", "core.checkStat", "minimal")
+	f.r.Write("a", "A")
+	f.r.Commit("one")
+	at := time.Now().Add(-time.Hour).Truncate(time.Second)
+	a, index := filepath.Join(f.r.Dir, "a"), filepath.Join(f.w.GitDir, "index")
+	os.Chtimes(a, at, at)
+	f.r.Git("add", "a")
+	os.Chtimes(index, at, at)
+	f.r.Write("a", "B")
+	os.Chtimes(a, at, at)
+	// diff-files leaves the index as it is; status would rewrite it and
+	// mark the entry for reading again.
+	if d := f.r.Git("diff-files", "--name-only"); d != "a\n" {
+		t.Fatalf("git sees %q", d)
+	}
+	s := f.take(Options{Reason: "Discard", Paths: []string{"a"}})
+	if got := f.r.Git("show", s.Commit+":a"); got != "B" {
+		t.Fatalf("snapshot kept %q", got)
 	}
 }

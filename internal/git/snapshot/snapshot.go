@@ -252,6 +252,18 @@ func copyIndex(gitDir string) (string, error) {
 		os.Remove(tmp)
 		return "", err
 	}
+	// git trusts an entry's stat data only when the file is older than the
+	// index; a copy as new as now would hide a file changed in the same
+	// tick as the index was written, and the snapshot would keep the old
+	// content.
+	st, err := src.Stat()
+	if err == nil {
+		err = os.Chtimes(tmp, st.ModTime(), st.ModTime())
+	}
+	if err != nil {
+		os.Remove(tmp)
+		return "", err
+	}
 	return tmp, nil
 }
 
