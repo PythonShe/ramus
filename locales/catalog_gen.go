@@ -7827,3 +7827,65 @@ func TreemapTile(share float64, name string, size string) string {
 func (msgs Messages) TreemapTile(share float64, name string, size string) string {
 	return Catalog.Format(msgs.locale, "treemapTile", map[string]any{"share": share, "name": name, "size": size})
 }
+
+// TreemapSizeGB says "{size, number, ::.0} GB"
+// in the language the app shows.
+//
+// A size in gigabytes, with one fraction digit.
+func TreemapSizeGB(size float64) string { return In(i18n.Locale()).TreemapSizeGB(size) }
+
+// TreemapSizeGB says "{size, number, ::.0} GB"
+// in the language of msgs.
+//
+// A size in gigabytes, with one fraction digit.
+func (msgs Messages) TreemapSizeGB(size float64) string {
+	return Catalog.Format(msgs.locale, "treemapSizeGB", map[string]any{"size": size})
+}
+
+// TreemapSizeMB says "{size, number, ::.0} MB"
+// in the language the app shows.
+//
+// A size in megabytes, with one fraction digit.
+func TreemapSizeMB(size float64) string { return In(i18n.Locale()).TreemapSizeMB(size) }
+
+// TreemapSizeMB says "{size, number, ::.0} MB"
+// in the language of msgs.
+//
+// A size in megabytes, with one fraction digit.
+func (msgs Messages) TreemapSizeMB(size float64) string {
+	return Catalog.Format(msgs.locale, "treemapSizeMB", map[string]any{"size": size})
+}
+
+// TreemapSizeKB says "{size, number, ::.0} KB"
+// in the language the app shows.
+//
+// A size in kilobytes, with one fraction digit.
+func TreemapSizeKB(size float64) string { return In(i18n.Locale()).TreemapSizeKB(size) }
+
+// TreemapSizeKB says "{size, number, ::.0} KB"
+// in the language of msgs.
+//
+// A size in kilobytes, with one fraction digit.
+func (msgs Messages) TreemapSizeKB(size float64) string {
+	return Catalog.Format(msgs.locale, "treemapSizeKB", map[string]any{"size": size})
+}
+
+// TreemapSizeBytes says "{count, plural, one {# byte} other {# bytes}}"
+// in the language the app shows.
+func TreemapSizeBytes(count int) string { return In(i18n.Locale()).TreemapSizeBytes(count) }
+
+// TreemapSizeBytes says "{count, plural, one {# byte} other {# bytes}}"
+// in the language of msgs.
+func (msgs Messages) TreemapSizeBytes(count int) string {
+	return Catalog.Format(msgs.locale, "treemapSizeBytes", map[string]any{"count": count})
+}
+
+// TreemapChangeCount says "{count, plural, one {# change} other {# changes}}"
+// in the language the app shows.
+func TreemapChangeCount(count int) string { return In(i18n.Locale()).TreemapChangeCount(count) }
+
+// TreemapChangeCount says "{count, plural, one {# change} other {# changes}}"
+// in the language of msgs.
+func (msgs Messages) TreemapChangeCount(count int) string {
+	return Catalog.Format(msgs.locale, "treemapChangeCount", map[string]any{"count": count})
+}

@@ -2,10 +2,7 @@ package ui
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -287,19 +284,14 @@ func (a *App) treemapTile(c *ui.Context, ts *treemapState, d *treemapData, t til
 func byteSize(n int64) string {
 	switch {
 	case n >= 1<<30:
-		return fmt.Sprintf("%.1f GB", float64(n)/(1<<30))
+		return locales.TreemapSizeGB(float64(n) / (1 << 30))
 	case n >= 1<<20:
-		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+		return locales.TreemapSizeMB(float64(n) / (1 << 20))
 	case n >= 1<<10:
-		return fmt.Sprintf("%.1f KB", float64(n)/(1<<10))
+		return locales.TreemapSizeKB(float64(n) / (1 << 10))
 	}
-	return strconv.FormatInt(n, 10) + " bytes"
+	return locales.TreemapSizeBytes(int(n))
 }
 
 // changeCount says how many changes a path had.
-func changeCount(n int64) string {
-	if n == 1 {
-		return "1 change"
-	}
-	return strings.TrimSpace(strconv.FormatInt(n, 10)) + " changes"
-}
+func changeCount(n int64) string { return locales.TreemapChangeCount(int(n)) }

@@ -1432,5 +1432,37 @@
         "type": "double"
       }
     }
-  }
+  },
+  "treemapSizeGB": "{size, number, ::.0} GB",
+  "@treemapSizeGB": {
+    "description": "A size in gigabytes, with one fraction digit.",
+    "placeholders": {
+      "size": {
+        "type": "double",
+        "example": "1.5"
+      }
+    }
+  },
+  "treemapSizeMB": "{size, number, ::.0} MB",
+  "@treemapSizeMB": {
+    "description": "A size in megabytes, with one fraction digit.",
+    "placeholders": {
+      "size": {
+        "type": "double",
+        "example": "1.5"
+      }
+    }
+  },
+  "treemapSizeKB": "{size, number, ::.0} KB",
+  "@treemapSizeKB": {
+    "description": "A size in kilobytes, with one fraction digit.",
+    "placeholders": {
+      "size": {
+        "type": "double",
+        "example": "1.5"
+      }
+    }
+  },
+  "treemapSizeBytes": "{count, plural, one {# byte} other {# bytes}}",
+  "treemapChangeCount": "{count, plural, one {# change} other {# changes}}"
 }
