@@ -19,6 +19,7 @@ import (
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
 	"ramus/internal/git/userenv"
+	"ramus/internal/layout"
 	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/internal/settings"
@@ -78,8 +79,26 @@ func main() {
 		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, CacheDir: cacheDir, Program: program, Crash: crash,
 		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
 	}}
+	var saved []layout.Window
+	var layoutErr error
+	if probe == "" {
+		layoutPath := filepath.Join(dir, "layout.json")
+		saved, layoutErr = layout.Load(layoutPath)
+		ws.keep = layout.NewKeeper(layoutPath)
+		ws.keep.OnError = func(err error) { log.Print(err) }
+	}
 	first := ws.add()
-	for _, e := range []error{cfgErr, libErr} {
+	// What was open when the app last ran opens again, before the
+	// request it was started with.
+	for i, l := range saved {
+		w := first
+		if i > 0 {
+			w = ws.add()
+		}
+		w.app.Restore(l)
+	}
+	ws.focused = first
+	for _, e := range []error{cfgErr, libErr, layoutErr} {
 		if e != nil {
 			first.app.Notify(e.Error())
 		}
@@ -119,6 +138,11 @@ func main() {
 		}
 		ws.raise(handle(r))
 	})
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		ws.flushLayout()
+		ws.quitting = true
+	})
+	mygo.App.OnQuitCanceled(func() { ws.quitting = false })
 	mygo.App.OnOpenFile(func(p string) {
 		ws.raise(handle(cli.Request{Kind: cli.Open, Paths: []string{p}}))
 	})
@@ -131,6 +155,9 @@ func main() {
 		}
 		ws.ready = true
 		mygo.App.SetMenu(menu(ws))
+		for _, w := range ws.list[1:] {
+			ws.show(w)
+		}
 		ws.show(first)
 		findGit(ws, crash)
 	})

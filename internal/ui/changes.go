@@ -29,9 +29,12 @@ type changesState struct {
 	openGen     int
 	list        ui.ListState
 	chosen      int
-	picked      ui.Selection[rowKey]
-	confirm     confirmState
-	diff        diffState
+	// want is the path of a file to choose once the list is built: one
+	// chosen when the app last ran.
+	want    string
+	picked  ui.Selection[rowKey]
+	confirm confirmState
+	diff    diffState
 }
 
 // confirmState is a question asked before a write that drops work.
@@ -67,8 +70,26 @@ func (a *App) rebuildChanges(t *tab) {
 		update(func() {
 			cv.building = false
 			cv.model, cv.builtFor, cv.builtFilter, cv.builtTree, cv.builtOpen = m, st, filter, tree, gen
+			cv.findWanted()
 		})
 	}()
+}
+
+// findWanted chooses the wanted file in a model just built, if it is
+// there.
+func (cv *changesState) findWanted() {
+	m := cv.model
+	if cv.want == "" || m == nil {
+		return
+	}
+	for i, r := range m.rows {
+		if r.kind == rowFile && string(m.st.Path(int(r.idx))) == cv.want {
+			cv.chosen = i
+			cv.list.ScrollTo(i, ui.Center)
+			break
+		}
+	}
+	cv.want = ""
 }
 
 func (a *App) changesList(c *ui.Context, t *tab) {

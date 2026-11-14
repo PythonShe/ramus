@@ -1,12 +1,15 @@
 package main
 
 import (
+	"log"
 	"slices"
+	"time"
 
 	"github.com/egoist/mygo"
 	mygoui "github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/run"
+	"ramus/internal/layout"
 	"ramus/internal/settings"
 	"ramus/internal/ui"
 )
@@ -29,6 +32,58 @@ type windows struct {
 	git     *run.Runner
 	gitErr  error
 	found   bool
+	// keep writes what the windows have open, nil keeps nothing; saving
+	// is a write coming; quitting is set from the start of a quit to
+	// its end, when the layout is written whole and windows closing do
+	// not change it.
+	keep     *layout.Keeper
+	saving   bool
+	quitting bool
+}
+
+// layoutDelay is how long changes to what is open gather before the
+// layout is written: a write per frame of a drag is too many.
+const layoutDelay = time.Second
+
+// layout is what the windows have open, the first window first.
+func (ws *windows) layout() []layout.Window {
+	out := make([]layout.Window, 0, len(ws.list))
+	for _, w := range ws.list {
+		out = append(out, w.app.Layout())
+	}
+	return out
+}
+
+// layoutChanged has the layout written soon.
+func (ws *windows) layoutChanged() {
+	// Until git is found the tabs asked for are not open yet: the
+	// layout read at launch stays.
+	if ws.keep == nil || !ws.found || ws.gitErr != nil || ws.saving || ws.quitting {
+		return
+	}
+	ws.saving = true
+	time.AfterFunc(layoutDelay, func() {
+		mygo.RunOnMain(func() {
+			ws.saving = false
+			// The last window closing quits the app; what it had open is
+			// what opens next time, so it is not written away.
+			if !ws.quitting && len(ws.list) > 0 {
+				ws.keep.Keep(ws.layout())
+			}
+		})
+	})
+}
+
+// flushLayout writes the layout at the start of a quit. It is the one
+// write the main thread waits on: the OS may end the process as soon as
+// the quit's listeners return, and the file is a few hundred bytes.
+func (ws *windows) flushLayout() {
+	if ws.keep == nil || !ws.found || ws.gitErr != nil || len(ws.list) == 0 {
+		return
+	}
+	if err := ws.keep.Flush(ws.layout()); err != nil {
+		log.Print(err)
+	}
 }
 
 // add makes a window's app; show opens its window once the app is
@@ -76,6 +131,7 @@ func (ws *windows) add() *window {
 			}
 		}
 	}
+	d.LayoutChanged = ws.layoutChanged
 	w.app = ui.NewApp(d)
 	w.app.KeysChanged = func() { mygo.App.SetMenu(menu(ws)) }
 	if ws.found {
@@ -99,7 +155,7 @@ func (ws *windows) show(w *window) {
 		MinHeight: 480,
 		Content:   mygoui.View(w.app.View),
 	}
-	if len(ws.list) == 1 {
+	if w == ws.list[0] {
 		opts.StateKey = "main"
 	}
 	if ws.probe != "" {
@@ -111,6 +167,10 @@ func (ws *windows) show(w *window) {
 		probeWindow(w.win, ws.probe)
 	}
 	w.win.OnClosed(func() {
+		if len(ws.list) == 1 && !ws.quitting {
+			ws.flushLayout() // the app quits with its last window
+			ws.quitting = true
+		}
 		w.app.CloseAll()
 		ws.list = slices.DeleteFunc(ws.list, func(o *window) bool { return o == w })
 		if ws.focused == w {
@@ -119,6 +179,7 @@ func (ws *windows) show(w *window) {
 				ws.focused = ws.list[n-1]
 			}
 		}
+		ws.layoutChanged()
 	})
 	w.win.OnFocus(func() {
 		ws.focused = w

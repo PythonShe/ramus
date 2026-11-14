@@ -16,6 +16,7 @@ import (
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
 	"ramus/internal/git/write"
+	"ramus/internal/layout"
 	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/internal/settings"
@@ -63,6 +64,9 @@ type Deps struct {
 	// SettingsChanged is called on the main thread with the settings this
 	// window changed, for the other windows to use them.
 	SettingsChanged func(settings.Settings)
+	// LayoutChanged is called on the main thread when the tabs open, or
+	// what is chosen in them, changed, for Layout to be kept.
+	LayoutChanged func()
 }
 
 // App is the state the main window shows. View reads it on the main
@@ -79,6 +83,10 @@ type App struct {
 	notice string
 	// pending are repositories asked for before git was found.
 	pending []string
+	// restoring are the tabs Restore opens, by path, to set up when each
+	// is made; lastLayout the layout LayoutChanged was last told of.
+	restoring  map[string]restoredTab
+	lastLayout layout.Window
 	// gitWarning says the installed git is missing security fixes.
 	gitWarning string
 	// clip is text to put on the clipboard on the next frame: work read
@@ -209,6 +217,7 @@ func (a *App) SetRunner(r *run.Runner, err error) {
 		a.Open(p)
 	}
 	a.pending = nil
+	a.restoring = nil // a tab open twice is set up once
 	if a.compareUI.pending {
 		a.startCompare()
 	}
@@ -232,8 +241,17 @@ func (a *App) Open(path string) {
 	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), refs: newRefsState(), stash: newStashState(), file: newFileState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
 	a.tabs = append(a.tabs, t)
-	a.active = len(a.tabs) - 1
-	if a.Library != nil {
+	r, restored := a.restoring[path]
+	if restored {
+		delete(a.restoring, path)
+		r.apply(t)
+	}
+	if !restored || r.active {
+		a.active = len(a.tabs) - 1
+	}
+	// Reopened at launch is not opened by the user: the library's order
+	// stays.
+	if a.Library != nil && !restored {
 		lib, now := a.Library, a.Now()
 		a.writes.Go(func() { lib.Opened(path, now) }) // writes a file: never on the main thread
 	}
@@ -421,6 +439,7 @@ func (a *App) View(c *ui.Context) {
 	a.keysView(c)
 	a.diagnosticsView(c)
 	a.paletteView(c)
+	a.noteLayout()
 }
 
 // title is what a tab and the window call a repository.
