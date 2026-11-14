@@ -274,13 +274,13 @@ func (a *App) reload(t *tab) {
 }
 
 // WindowFocused reads every open repository again for what the watcher
-// missed, unless the settings turn it off.
+// missed, unless the settings turn it off, and those not watched always.
 func (a *App) WindowFocused() {
-	if a.Settings.NoFocusRefresh {
-		return
-	}
 	for _, t := range a.tabs {
-		t.s.FocusRefresh()
+		// A repository not watched has nothing else to show changes by.
+		if !a.Settings.NoFocusRefresh || t.s.State.WatchErr != nil {
+			t.s.FocusRefresh()
+		}
 	}
 }
 

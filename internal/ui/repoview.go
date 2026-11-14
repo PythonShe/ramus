@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 
 	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/redact"
+	"ramus/internal/git/watch"
 	"ramus/internal/session"
 )
 
@@ -282,9 +284,11 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 			ui.Text(c, a.gitWarning).FontSize(12).TextColor(th.Warning).SingleLine()
 		}
 		if st.WatchErr != nil {
-			// Changes then show when the window gains focus, not as they
-			// happen.
-			ui.Text(c, "Not watching for changes: "+errText(st.WatchErr)).FontSize(12).TextColor(th.Warning).SingleLine().MaxWidth(480)
+			what := "Not watching for changes: " + errText(st.WatchErr)
+			if errors.Is(st.WatchErr, watch.ErrLimit) {
+				what = "Too many folders to watch for changes"
+			}
+			ui.Text(c, what+"; refreshing when the window is focused").FontSize(12).TextColor(th.Warning).SingleLine().MaxWidth(560)
 		}
 		if st.RefreshErr != nil {
 			ui.Text(c, "Refresh failed: "+errText(st.RefreshErr)).FontSize(12).TextColor(th.Danger).SingleLine().MaxWidth(480)

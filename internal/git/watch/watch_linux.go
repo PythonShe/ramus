@@ -22,6 +22,9 @@ const mask = syscall.IN_MODIFY | syscall.IN_ATTRIB | syscall.IN_CLOSE_WRITE | sy
 	syscall.IN_DELETE | syscall.IN_DELETE_SELF | syscall.IN_MOVED_FROM | syscall.IN_MOVED_TO |
 	syscall.IN_MOVE_SELF | syscall.IN_DONT_FOLLOW | syscall.IN_EXCL_UNLINK
 
+// inotifyAddWatch is the call, for tests to reach the limit.
+var inotifyAddWatch = syscall.InotifyAddWatch
+
 type linuxWatch struct {
 	w    *Watcher
 	fd   int
@@ -68,7 +71,7 @@ func (l *linuxWatch) addTree(dir string) error {
 		if rel != "." && l.skip != nil && l.skip(rel) {
 			return filepath.SkipDir
 		}
-		wd, err := syscall.InotifyAddWatch(l.fd, p, mask|syscall.IN_ONLYDIR)
+		wd, err := inotifyAddWatch(l.fd, p, mask|syscall.IN_ONLYDIR)
 		if err == syscall.ENOSPC {
 			return ErrLimit
 		}
