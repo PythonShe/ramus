@@ -1,8 +1,12 @@
 package write
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"ramus/internal/git/run"
 	"ramus/internal/git/snapshot"
@@ -109,11 +113,122 @@ func SwitchWith(w Where, branch string, changes LocalChanges, seen Seen) Op {
 	if changes == StashChanges {
 		name := strings.TrimPrefix(branch, "refs/heads/")
 		op.Name += ", stashing changes"
-		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
-			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before switching to " + name}}
+		op.Pre, op.PreStashes = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
+			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before switching to " + name}}, true
 	}
 	return op
 }
+
+// preStash is what the repository was before a write's Pre stashed the
+// changes: HEAD (its commit and the ref it names, or HEAD detached) and
+// the top stash, "" for none; and the top stash once Pre ran, which is
+// the one it made when it differs.
+type preStash struct {
+	head, stash, made string
+}
+
+// beforeStash reads what unstash compares against, nil when it cannot
+// be read: then nothing is popped, as the stash made could not be told
+// from one the user had.
+func (q *Queue) beforeStash(ctx context.Context, workTree string) *preStash {
+	head, err := q.readHead(ctx, workTree)
+	if err != nil {
+		return nil
+	}
+	top, err := q.topStash(ctx, workTree)
+	if err != nil {
+		return nil
+	}
+	return &preStash{head: head, stash: top}
+}
+
+func (q *Queue) readHead(ctx context.Context, workTree string) (string, error) {
+	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Read: true,
+		Args: []string{"rev-parse", "HEAD", "--symbolic-full-name", "HEAD"}})
+	return string(res.Stdout), err
+}
+
+// topStash is the commit refs/stash names, "" when there is none.
+func (q *Queue) topStash(ctx context.Context, workTree string) (string, error) {
+	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Read: true,
+		Args: []string{"for-each-ref", "--format=%(refname) %(objectname)", "refs/stash"}})
+	if err != nil {
+		return "", err
+	}
+	for line := range strings.SplitSeq(string(res.Stdout), "\n") {
+		if oid, ok := strings.CutPrefix(line, "refs/stash "); ok {
+			return oid, nil
+		}
+	}
+	return "", nil
+}
+
+// unstashTimeout bounds putting stashed changes back after a failed
+// write: it runs though the write was cancelled, so the changes come
+// back all the same.
+const unstashTimeout = 2 * time.Minute
+
+// unstash pops the stash the write's Pre made, found by its commit, not
+// as stash@{0}, which another program may have pushed over it, once the
+// write failed with failed. HEAD having moved means the switch happened
+// and something after it failed, a hook: the changes then stay stashed,
+// as asked. When the pop fails, the error names the stash they are in.
+func (q *Queue) unstash(ctx context.Context, j *Job, before *preStash, failed error) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), unstashTimeout)
+	defer cancel()
+	workTree := j.Op.Cmd.WorkTree
+	top := before.made
+	if top == "" || top == before.stash {
+		return failed // nothing was stashed: there were no changes
+	}
+	if head, err := q.readHead(ctx, workTree); err != nil || head != before.head {
+		return failed
+	}
+	entry := ""
+	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Read: true,
+		Args: []string{"log", "-g", "--format=%H", "refs/stash", "--"}})
+	if err == nil {
+		n := 0
+		for line := range strings.SplitSeq(strings.TrimSpace(string(res.Stdout)), "\n") {
+			if line == top {
+				entry = "stash@{" + strconv.Itoa(n) + "}"
+				break
+			}
+			n++
+		}
+		if entry == "" {
+			err = errors.New("write: the stash made is not in the stash list")
+		}
+	}
+	if err == nil {
+		_, err = execute(ctx, q.r, j, run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Timeout: unstashTimeout,
+			Args: []string{"stash", "pop", "--index", entry}}, nil)
+	}
+	if err != nil {
+		return &StashKeptError{Err: failed, Entry: entry, Commit: top, Pop: err}
+	}
+	return failed
+}
+
+// StashKeptError is a write that stashed the local changes first and
+// failed, and whose changes could not be put back: they are in the
+// stash Entry ("stash@{0}", "" when it could not be found in the list)
+// at Commit (hex).
+type StashKeptError struct {
+	Err           error
+	Entry, Commit string
+	Pop           error
+}
+
+func (e *StashKeptError) Error() string {
+	where := short(e.Commit)
+	if e.Entry != "" {
+		where = e.Entry + " (" + where + ")"
+	}
+	return fmt.Sprintf("%v; the changes it stashed are kept in %s, as putting them back failed: %v", e.Err, where, e.Pop)
+}
+
+func (e *StashKeptError) Unwrap() error { return e.Err }
 
 // CheckoutRemote switches to a new local branch name made at remote
 // branch remote ("refs/remotes/origin/x") and tracking it. A branch of
@@ -144,8 +259,8 @@ func CheckoutRemote(w Where, remote, name, local string, force bool, changes Loc
 	}
 	if changes == StashChanges {
 		op.Name += ", stashing changes"
-		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
-			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before checking out " + short}}
+		op.Pre, op.PreStashes = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
+			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before checking out " + short}}, true
 	}
 	return op, nil
 }

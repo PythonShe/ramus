@@ -2,94 +2,87 @@ package write
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
-	"ramus/internal/git/refs"
+	"ramus/internal/git/run"
 )
 
-func TestBranchSwitchAndReset(t *testing.T) {
-	r, q, _ := newQueue(t)
-	q.Refs = refs.New(r.GitDir(), r.GitDir(), 20)
-	w := Where{GitDir: r.GitDir(), WorkTree: r.Dir}
-	rev := func(x string) string { return strings.TrimSpace(r.Git("rev-parse", x)) }
-	head := func() Seen {
-		b := strings.TrimSpace(r.Git("rev-parse", "--symbolic-full-name", "HEAD"))
-		if b == "HEAD" {
-			b = ""
+// A switch that stashed the changes and then failed puts them back,
+// staged as they were, popping the stash it made though another was
+// pushed over it; a pop that fails names the stash they are kept in;
+// a switch that happened before failing leaves them stashed, as asked.
+func TestSwitchStashingPutsChangesBackOnFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the failing commands are shell aliases")
+	}
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Write("b", "1")
+	h.r.Commit("one")
+	h.r.Git("branch", "topic")
+	h.r.Write("b", "the user's")
+	h.r.Git("stash", "push", "-q", "-m", "the user's own") // must not be popped
+	h.r.Write("a", "staged")
+	h.r.Git("add", "a")
+	h.r.Write("b", "changed")
+	h.r.Write("new", "untracked")
+	want := h.status()
+	stashes := func() string { return strings.TrimSpace(h.r.Git("stash", "list", "--format=%gs")) }
+	ours := stashes()
+
+	// A branch that is not there: git switch fails.
+	_, err := wait(t, h.q.Submit(SwitchWith(h.w, "refs/heads/gone", StashChanges, h.seen())))
+	if err == nil {
+		t.Fatal("switched to a branch that is not there")
+	}
+	var kept *StashKeptError
+	if errors.As(err, &kept) || h.status() != want || stashes() != ours {
+		t.Fatalf("after a failed switch: %v; status %q, want %q; stashes %q", err, h.status(), want, stashes())
+	}
+
+	// The failing write pushes a stash over the one Pre made, or leaves
+	// the work tree in the way of the pop, or switches and fails.
+	failing := func(script string) error {
+		op := SwitchWith(h.w, "refs/heads/topic", StashChanges, h.seen())
+		op.Cmd.Config = []string{"alias.fail=!sh -c '" + script + "; exit 1'"}
+		op.Cmd.Args = []string{"fail"}
+		_, err := wait(t, h.q.Submit(op))
+		if err == nil {
+			t.Fatal("the failing write did not fail")
 		}
-		return Seen{Branch: b, Head: rev("HEAD")}
+		return err
 	}
-	ok := func(op Op, err error) {
-		t.Helper()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := wait(t, q.Submit(op)); err != nil {
-			t.Fatalf("%s: %v", op.Name, err)
-		}
+	err = failing(`echo other >other && git stash push -q -u -m pushed-over`)
+	if errors.As(err, &kept) || h.status() != want || !strings.HasPrefix(stashes(), "On main: pushed-over\n") {
+		t.Fatalf("with a stash pushed over it: %v; status %q, want %q; stashes %q", err, h.status(), want, stashes())
 	}
-	r.Write("a", "1")
-	first := r.Commit("one")
-	r.Write("a", "2")
-	r.Commit("two")
+	h.r.Git("stash", "drop", "-q")
 
-	ok(CreateBranch(w, "topic", first, false, head()))
-	if rev("topic") != first || !strings.HasSuffix(head().Branch, "/main") {
-		t.Fatal("branch not made where asked, or HEAD moved")
+	err = failing(`echo in-the-way >b`)
+	if !errors.As(err, &kept) || kept.Entry != "stash@{0}" || !strings.Contains(err.Error(), "stash@{0}") {
+		t.Fatalf("a pop that failed: %v", err)
 	}
-	var se *StaleError
-	op, _ := CreateBranch(w, "topic", first, false, head())
-	if _, err := wait(t, q.Submit(op)); !errors.As(err, &se) {
-		t.Fatalf("second create: %v", err)
+	var re *run.Error
+	if !errors.As(err, &re) {
+		t.Fatalf("the switch's own error is lost: %v", err)
 	}
-	if _, err := CreateBranch(w, "-f", first, false, head()); err == nil {
-		t.Fatal("a name starting with - was taken")
+	if s := stashes(); !strings.HasPrefix(s, "On main: Ramus: before switching to topic\n") {
+		t.Fatalf("stashes %q", s)
 	}
-
-	ok(Switch(w, "refs/heads/topic", head()), nil)
-	if head().Branch != "refs/heads/topic" {
-		t.Fatal("did not switch")
-	}
-	if _, err := wait(t, q.Undo()); err != nil || head().Branch != "refs/heads/main" {
-		t.Fatalf("undo switch: %v, on %s", err, head().Branch)
+	// git put the untracked file back before refusing; the stash keeps
+	// it all the same.
+	h.r.Git("checkout", "-q", "--", "b")
+	h.r.Git("clean", "-q", "-f")
+	h.r.Git("stash", "pop", "-q", "--index")
+	if h.status() != want {
+		t.Fatalf("status %q, want %q", h.status(), want)
 	}
 
-	ok(Detach(w, first, head()), nil)
-	if head().Branch != "" || head().Head != first {
-		t.Fatalf("detach: %+v", head())
-	}
-	ok(Switch(w, "main", head()), nil)
-
-	// A hard reset keeps the dropped work in a snapshot and the branch
-	// in a backup, and undoes.
-	two := rev("HEAD")
-	r.Write("a", "work in progress")
-	ok(Reset(w, first, ResetHard, head()))
-	if rev("main") != first {
-		t.Fatal("reset did not move main")
-	}
-	if got, _ := os.ReadFile(filepath.Join(r.Dir, "a")); string(got) != "1" {
-		t.Fatalf("a is %q", got)
-	}
-	if !strings.Contains(r.Git("for-each-ref", "--format=%(objectname)", BackupPrefix), two) {
-		t.Fatal("no backup of main")
-	}
-	if _, err := wait(t, q.Undo()); err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := os.ReadFile(filepath.Join(r.Dir, "a")); rev("main") != two || string(got) != "work in progress" {
-		t.Fatalf("undo reset: main %s, a %q", rev("main"), got)
-	}
-	stale := head()
-	stale.Head = first
-	op, _ = Reset(w, first, ResetSoft, stale)
-	if _, err := wait(t, q.Submit(op)); !errors.As(err, &se) {
-		t.Fatalf("stale reset: %v", err)
-	}
-	if _, err := Reset(w, first, "sideways", head()); err == nil {
-		t.Fatal("unknown mode taken")
+	err = failing(`git switch -q topic`)
+	if errors.As(err, &kept) || h.seen().Branch != "refs/heads/topic" || h.status() != "" ||
+		!strings.HasPrefix(stashes(), "On main: Ramus: before switching to topic\n") {
+		t.Fatalf("a switch that happened and failed: %v; on %s; status %q; stashes %q", err, h.seen().Branch, h.status(), stashes())
 	}
 }

@@ -44,6 +44,10 @@ type Op struct {
 	// its output in the job's: the write stops if it fails. A switch that
 	// stashes the changes first uses it.
 	Pre *run.Cmd
+	// PreStashes says Pre stashes the local changes: when Cmd then fails
+	// with HEAD where it was, the stash it made is popped back, so the
+	// changes are not left in a stash the user never hears of.
+	PreStashes bool
 	// More run after Cmd, in order, for a write git takes in parts: paths
 	// past what one command line holds. The first that fails stops it.
 	More []run.Cmd
@@ -301,9 +305,19 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 			return run.Result{}, err
 		}
 	}
+	var stashed *preStash
 	if j.Op.Pre != nil {
+		if j.Op.PreStashes {
+			stashed = q.beforeStash(ctx, j.Op.Cmd.WorkTree)
+		}
 		if res, err := execute(ctx, q.r, j, *j.Op.Pre, nil); err != nil {
 			return res, err
+		}
+		if stashed != nil {
+			var err error
+			if stashed.made, err = q.topStash(ctx, j.Op.Cmd.WorkTree); err != nil {
+				stashed = nil
+			}
 		}
 	}
 	res, err := execute(ctx, q.r, j, j.Op.Cmd, j.Op.Input)
@@ -316,6 +330,9 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	if err != nil {
 		if le := lockError(q.gitDir, res.Stderr); le != nil {
 			err = le
+		}
+		if stashed != nil {
+			err = q.unstash(ctx, j, stashed, err)
 		}
 	}
 	if err == nil && record {
