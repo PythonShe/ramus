@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/crashlog"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
@@ -50,6 +51,8 @@ type Deps struct {
 	ApplyTheme func(theme string)
 	// Now is the clock, for tests.
 	Now func() time.Time
+	// Crash keeps the crash reports; nil keeps none.
+	Crash *crashlog.Log
 	// KeysChanged is called on the main thread when the shortcuts
 	// change, for the app menu to show them; Accelerator reads them.
 	KeysChanged func()

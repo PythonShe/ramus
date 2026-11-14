@@ -13,11 +13,14 @@ import (
 	mygoui "github.com/egoist/mygo/ui"
 
 	"ramus/internal/cli"
+	"ramus/internal/crashlog"
 	"ramus/internal/git/gitexe"
+	"ramus/internal/git/lifetime"
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
 	"ramus/internal/git/userenv"
 	"ramus/internal/library"
+	"ramus/internal/session"
 	"ramus/internal/settings"
 	"ramus/internal/ui"
 )
@@ -54,6 +57,13 @@ func main() {
 	if probe != "" {
 		dir, cacheDir = probe, probe
 	}
+	crash := crashlog.New(filepath.Join(dir, "crashes"), mygo.App.Version())
+	if probe == "" {
+		go crash.CatchFatal() // a crash it cannot keep is only not kept
+		session.OnPanic = func(path, gitDir string, p lifetime.Panic) {
+			go crash.Panic(path, gitDir, p)
+		}
+	}
 	cfgPath := filepath.Join(dir, "settings.json")
 	cfg, cfgErr := settings.Load(cfgPath)
 	mygo.Theme.SetSource(mygo.ThemeSource(cfg.Theme))
@@ -66,7 +76,7 @@ func main() {
 	program, _ := os.Executable() // none only leaves the tool config out
 	var win *mygo.Window          // set and read on the main thread
 	app := ui.NewApp(ui.Deps{
-		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, CacheDir: cacheDir, Program: program,
+		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, CacheDir: cacheDir, Program: program, Crash: crash,
 		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
 		Update: func(fn func()) {
 			mygo.RunOnMain(func() {
@@ -160,7 +170,7 @@ func main() {
 		}
 		win.OnClosed(app.CloseAll)
 		win.OnFocus(app.WindowFocused)
-		findGit(win, app)
+		findGit(win, app, crash)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
@@ -170,7 +180,7 @@ func main() {
 // findGit finds git off the main thread and hands it to the app. The
 // user's PATH comes from their login shell when the app was not started
 // from a terminal; asking it takes a moment, so the window opens first.
-func findGit(win *mygo.Window, app *ui.App) {
+func findGit(win *mygo.Window, app *ui.App, crash *crashlog.Log) {
 	go func() {
 		env := os.Environ()
 		if userenv.NeedsResolving() {
@@ -180,6 +190,7 @@ func findGit(win *mygo.Window, app *ui.App) {
 		var r *run.Runner
 		if err == nil {
 			r = run.New(g, env, maxProcesses)
+			crash.SetGit(g, r.Journal())
 		}
 		win.Update(func() { app.SetRunner(r, err) })
 	}()
@@ -228,7 +239,7 @@ func runTool(req cli.Request) {
 			StateKey: "tool", Content: mygoui.View(app.ToolView),
 		})
 		win.OnClosed(func() { mygo.App.Exit(code) })
-		findGit(win, app)
+		findGit(win, app, nil)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)

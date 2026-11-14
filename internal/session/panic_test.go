@@ -17,8 +17,11 @@ func TestPanicRecovered(t *testing.T) {
 	r.Commit("one")
 	var mu sync.Mutex
 	var heard []string
-	OnPanic = func(path string, p lifetime.Panic) {
+	OnPanic = func(path, gitDir string, p lifetime.Panic) {
 		mu.Lock()
+		if gitDir != r.GitDir() {
+			heard = append(heard, "git dir "+gitDir)
+		}
 		heard = append(heard, path+": "+p.Value)
 		mu.Unlock()
 	}

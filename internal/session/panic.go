@@ -9,16 +9,25 @@ import (
 )
 
 // OnPanic, when set, hears of every panic recovered in a repository's
-// work, on whichever goroutine it happened, for the crash log.
-var OnPanic func(path string, p lifetime.Panic)
+// work, on whichever goroutine it happened, for the crash log; gitDir is
+// "" before the repository was open. It must return at once.
+var OnPanic func(path, gitDir string, p lifetime.Panic)
+
+func (s *Session) heard(p lifetime.Panic) {
+	if OnPanic != nil {
+		gitDir := ""
+		if g := s.gitDir.Load(); g != nil {
+			gitDir = *g
+		}
+		OnPanic(s.Path, gitDir, p)
+	}
+}
 
 // panicked reports a panic in the repository's work, off the main
 // thread: the tab shows the first.
 func (s *Session) panicked(p lifetime.Panic) {
 	p.Value = redact.Shown(p.Value)
-	if OnPanic != nil {
-		OnPanic(s.Path, p)
-	}
+	s.heard(p)
 	s.update(func() {
 		if s.Panic == nil {
 			s.Panic = &p
@@ -39,9 +48,7 @@ func (s *Session) recoverWork() {
 func (s *Session) recoverMain() {
 	if v := recover(); v != nil {
 		p := lifetime.Panic{Value: redact.Shown(fmt.Sprint(v)), Stack: string(debug.Stack())}
-		if OnPanic != nil {
-			OnPanic(s.Path, p)
-		}
+		s.heard(p)
 		if s.Panic == nil {
 			s.Panic = &p
 		}

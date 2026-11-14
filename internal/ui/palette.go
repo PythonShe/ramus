@@ -48,6 +48,10 @@ func (a *App) commands() []command {
 		cmd("repositories", a.openManager),
 		cmd("library-stats", a.openLibStats),
 	}
+	if a.Crash != nil {
+		dir := a.Crash.Dir()
+		cmds = append(cmds, cmd("crash-reports", func() { go tools.Reveal(dir) }))
+	}
 	t := a.current()
 	if t != nil {
 		cmds = append(cmds, a.tabCommands(t)...)

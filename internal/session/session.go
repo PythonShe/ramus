@@ -112,6 +112,8 @@ type Session struct {
 	blame       blames
 	view        viewScope
 	fetch       backgroundFetch
+	// gitDir is the repository's, once open, for the crash log.
+	gitDir atomic.Pointer[string]
 	// monitorAnswered is set once the user turned the monitor on or said
 	// not now; the refresher reads it.
 	monitorAnswered atomic.Bool
@@ -215,6 +217,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 		return
 	}
 	go func() { <-r.Life().Done(); s.running.Done() }()
+	s.gitDir.Store(&r.GitDir)
 	r.Life().OnPanic(s.panicked)
 	var q *write.Queue
 	if !r.Restricted {
