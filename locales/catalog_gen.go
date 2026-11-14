@@ -4275,6 +4275,16 @@ func (msgs Messages) CommitParents(count int) string {
 	return Catalog.Format(msgs.locale, "commitParents", map[string]any{"count": count})
 }
 
+// CommitGoToParent says "Go to Parent"
+// in the language the app shows.
+func CommitGoToParent() string { return In(i18n.Locale()).CommitGoToParent() }
+
+// CommitGoToParent says "Go to Parent"
+// in the language of msgs.
+func (msgs Messages) CommitGoToParent() string {
+	return Catalog.Format(msgs.locale, "commitGoToParent", nil)
+}
+
 // CommitCopyMessage says "Copy Message"
 // in the language the app shows.
 func CommitCopyMessage() string { return In(i18n.Locale()).CommitCopyMessage() }

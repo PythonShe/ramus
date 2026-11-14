@@ -771,6 +771,7 @@
   "@commitParents": {
     "description": "Labels a commit's parent commits."
   },
+  "commitGoToParent": "Go to Parent",
   "commitCopyMessage": "Copy Message",
   "commitCopyPatch": "Copy Patch",
   "commitSigChecking": "Signed; checking",

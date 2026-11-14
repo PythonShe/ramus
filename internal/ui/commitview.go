@@ -277,14 +277,16 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			})
 		}
 		if len(d.Parents) > 0 {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
 				ui.Text(c, locales.CommitParents(len(d.Parents))).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
-				for _, p := range d.Parents {
-					if ui.Button(c, hex.EncodeToString(p)[:10]).Font("monospace").Clicked() {
-						t.sel = "history"
-						a.chooseCommit(t, p)
+				ui.Column(c).Gap(space2XS).Children(func() {
+					for _, p := range d.Parents {
+						if clickable(ui.Text(c, hex.EncodeToString(p)).Font("monospace").FontSize(textSmall)).Tooltip(locales.CommitGoToParent()).Clicked() {
+							t.sel = "history"
+							a.chooseCommit(t, p)
+						}
 					}
-				}
+				})
 			})
 		}
 		if s := signatureText(d, t.s.State.Restricted); s != "" {

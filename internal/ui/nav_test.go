@@ -26,9 +26,9 @@ func TestBackAndForward(t *testing.T) {
 	h.click("History")
 	h.until("the commits", h.shows("edit readme"))
 	h.click("edit readme")
-	h.until("the detail", h.shows(parent[:10]))
+	h.until("the detail", h.shows(parent))
 	// A parent gone to is a page of its own.
-	h.click(parent[:10])
+	h.click(parent)
 	h.until("the parent", func() bool { return chosen() == parent })
 
 	h.click("Back")
