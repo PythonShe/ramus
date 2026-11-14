@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -47,6 +48,47 @@ func Env() []string {
 		env = append(env, kv)
 	}
 	return env
+}
+
+// Portable reports whether a file at path, slash-separated, can be made
+// on this system under that name. Windows refuses control characters and
+// <>:"|?* in a name, drops a trailing space or dot, and reads a backslash
+// as a separator.
+func Portable(path string) bool {
+	if runtime.GOOS != "windows" {
+		return true
+	}
+	for name := range strings.SplitSeq(path, "/") {
+		if strings.ContainsFunc(name, func(r rune) bool { return r < 32 || strings.ContainsRune(`<>:"|?*\\`, r) }) ||
+			strings.HasSuffix(name, " ") || strings.HasSuffix(name, ".") {
+			return false
+		}
+	}
+	return true
+}
+
+// PortableNames is names without those Portable refuses.
+func PortableNames(names ...string) []string {
+	var out []string
+	for _, n := range names {
+		if Portable(n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// Shell is the full path of a POSIX shell, as an action names its
+// program; on Windows the one that comes with git, when it is on PATH.
+func Shell(t testing.TB) string {
+	if runtime.GOOS != "windows" {
+		return "/bin/sh"
+	}
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh:", err)
+	}
+	return sh
 }
 
 // Init creates an empty repository. Extra arguments go to git init.
@@ -175,8 +217,8 @@ func (r *Repo) Tick() int64 {
 // GitDir returns the repository's git directory.
 func (r *Repo) GitDir() string {
 	r.t.Helper()
-	d := strings.TrimSpace(r.Git("rev-parse", "--absolute-git-dir"))
-	return d
+	// git writes forward slashes on Windows too; the engine's paths do not.
+	return filepath.FromSlash(strings.TrimSpace(r.Git("rev-parse", "--absolute-git-dir")))
 }
 
 // FixturesDir returns the directory of large fixture repositories kept

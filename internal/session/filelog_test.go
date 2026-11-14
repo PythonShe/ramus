@@ -10,7 +10,10 @@ import (
 func TestFileLogAndBlame(t *testing.T) {
 	r := gittest.Init(t)
 	// The first name is one git quotes where it cannot use -z.
-	const a = "a\t\"日本"
+	a := "a\t\"日本"
+	if !gittest.Portable(a) {
+		a = "a 日本"
+	}
 	r.Write(a, "one\n")
 	c1 := r.Commit("one")
 	r.Git("mv", a, "b")

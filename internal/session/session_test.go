@@ -143,7 +143,7 @@ func TestLog(t *testing.T) {
 	if e.Err == nil || !strings.Contains(e.Command, "commit") {
 		t.Fatalf("entry %+v", e)
 	}
-	sh := "/bin/sh"
+	sh := gittest.Shell(t)
 	a := s.RunAction("Say", []string{sh, "-c", "for i in 1 2 3; do echo line $i; done; pwd"})
 	m.until(t, "the action", func() bool { return !a.Running })
 	if a.Err != nil || len(a.Output) != 4 || a.Output[0] != "line 1" {

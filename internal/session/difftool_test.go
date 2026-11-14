@@ -20,7 +20,7 @@ func TestDiffTool(t *testing.T) {
 	r.Commit("a")
 	r.Write("a.txt", "two\n")
 	out := filepath.Join(t.TempDir(), "seen")
-	r.Git("config", "difftool.record.cmd", `cat "$LOCAL" "$REMOTE" > `+out)
+	r.Git("config", "difftool.record.cmd", `cat "$LOCAL" "$REMOTE" > `+filepath.ToSlash(out))
 	r.Git("config", "diff.tool", "record")
 
 	m := make(mainThread, 64)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"ramus/internal/git/gitexe"
+	"ramus/internal/git/gittest"
 )
 
 func (h *harness) stash(n int) StashEntry {
@@ -200,12 +201,17 @@ func (h *harness) read(name string) string {
 
 func TestStashPaths(t *testing.T) {
 	h := newHarness(t)
+	// A name a pathspec would read as a pattern.
+	odd := "b*"
+	if !gittest.Portable(odd) {
+		odd = "b[x]"
+	}
 	h.r.Write("a", "1")
-	h.r.Write("b*", "1")
+	h.r.Write(odd, "1")
 	h.r.Commit("one")
 	h.r.Write("a", "2")
-	h.r.Write("b*", "2")
-	h.do(Stash(h.w, StashOptions{Paths: []string{"b*"}}), nil, true)
+	h.r.Write(odd, "2")
+	h.do(Stash(h.w, StashOptions{Paths: []string{odd}}), nil, true)
 	if got := h.status(); got != "M a" {
 		t.Fatalf("status %q", got)
 	}

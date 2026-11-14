@@ -11,7 +11,7 @@ import (
 // git's quoted listing, unquoted, is its -z listing.
 func TestUnquote(t *testing.T) {
 	r := gittest.Init(t)
-	for _, n := range []string{"plain.txt", "tab\there", "new\nline", `quote"d`, `back\slash`, "日本語.txt", "sp ace"} {
+	for _, n := range gittest.PortableNames("plain.txt", "tab\there", "new\nline", `quote"d`, `back\slash`, "日本語.txt", "sp ace") {
 		r.Write(n, "x")
 	}
 	r.Git("add", ".")

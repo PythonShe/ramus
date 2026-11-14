@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"ramus/internal/git/gittest"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
 )
@@ -21,9 +22,13 @@ func TestManyPathsOneProcess(t *testing.T) {
 	w := Where{GitDir: r.GitDir(), WorkTree: r.Dir}
 	const n = 5000
 	var paths []string
+	// Names a shell or a pathspec would read otherwise.
+	name := "d%02d/f %d *[x].txt"
+	if !gittest.Portable(name) {
+		name = "d%02d/f %d [x].txt"
+	}
 	for i := range n {
-		// Names a shell or a pathspec would read otherwise.
-		p := fmt.Sprintf("d%02d/f %d *[x].txt", i%50, i)
+		p := fmt.Sprintf(name, i%50, i)
 		r.Write(p, "one\n")
 		paths = append(paths, p)
 	}

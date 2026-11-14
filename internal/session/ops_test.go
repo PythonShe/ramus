@@ -33,7 +33,11 @@ func TestListClean(t *testing.T) {
 	r.Write(".gitignore", "*.log\n")
 	r.Commit("ignore")
 	r.Write("dir/x", "1")
-	r.Write("a\"b\tc", "1")
+	odd := "a\"b\tc"
+	if !gittest.Portable(odd) {
+		odd = "a b c"
+	}
+	r.Write(odd, "1")
 	r.Write("日本.txt", "1")
 	r.Write("y.log", "1")
 	g, err := gitexe.Find(t.Context(), os.Getenv("PATH"))
@@ -55,10 +59,10 @@ func TestListClean(t *testing.T) {
 		slices.Sort(got)
 		return got
 	}
-	if got := list(false); !slices.Equal(got, []string{"a\"b\tc", "dir/", "日本.txt"}) {
+	if got := list(false); !slices.Equal(got, []string{odd, "dir/", "日本.txt"}) {
 		t.Fatalf("got %q", got)
 	}
-	if got := list(true); !slices.Equal(got, []string{"a\"b\tc", "dir/", "y.log", "日本.txt"}) {
+	if got := list(true); !slices.Equal(got, []string{odd, "dir/", "y.log", "日本.txt"}) {
 		t.Fatalf("with ignored got %q", got)
 	}
 }

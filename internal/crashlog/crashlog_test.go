@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ func TestPanicReport(t *testing.T) {
 	}
 	data, _ := os.ReadFile(name)
 	text := string(data)
-	for _, want := range []string{"Ramus: 1.2.3", "OS: ", "Git: " + rn.Git().Version.Raw, "Repository: ~/src/repo", "Panic: boom", "goroutine 7", "~/x.go:12", "git rev-parse --verify", "exit 128"} {
+	for _, want := range []string{"Ramus: 1.2.3", "OS: ", "Git: " + rn.Git().Version.Raw, "Repository: " + filepath.Join("~", "src", "repo"), "Panic: boom", "goroutine 7", "~/x.go:12", "git rev-parse --verify", "exit 128"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("no %q in\n%s", want, text)
 		}
@@ -38,7 +39,7 @@ func TestPanicReport(t *testing.T) {
 	if strings.Contains(text, "hunter2") || home != "" && strings.Contains(text, home+"/") {
 		t.Errorf("kept a secret or the home folder:\n%s", text)
 	}
-	if st, _ := os.Stat(name); st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(name); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v", st.Mode())
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -122,6 +123,9 @@ func TestSnapshotBeforeDiscard(t *testing.T) {
 	}
 
 	// A snapshot that cannot be taken stops the write.
+	if runtime.GOOS == "windows" {
+		return // a folder's mode does not stop writes there
+	}
 	r.Write("a", "more work")
 	op.Snapshot = &snapshot.Options{Reason: "x", Paths: []string{"a"}}
 	os.WriteFile(filepath.Join(r.GitDir(), "objects", "info", "alternates"), []byte("/nonexistent\n"), 0o644)

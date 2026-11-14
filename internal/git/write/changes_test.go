@@ -167,7 +167,7 @@ func TestIgnore(t *testing.T) {
 	r, q, _ := newQueue(t)
 	w := Where{GitDir: r.GitDir(), WorkTree: r.Dir}
 	r.Write(".gitignore", "*.log")
-	names := []string{"build out", "#hash", "!bang", "star*file", "trailing ", "a[1]", `back\slash`, "dir/sub"}
+	names := gittest.PortableNames("build out", "#hash", "!bang", "star*file", "trailing ", "a[1]", `back\slash`, "dir/sub")
 	for _, n := range names {
 		r.Write(n, "x")
 		op, err := Ignore(w, IgnorePattern(n))

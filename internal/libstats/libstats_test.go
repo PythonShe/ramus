@@ -1,6 +1,7 @@
 package libstats
 
 import (
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,12 @@ func TestLoad(t *testing.T) {
 		mine.Write("a", strings.Repeat("x", i))
 		mine.Commit("c")
 	}
+	// git counts whole KiB, of the bytes stored where the system has no
+	// block counts, as on Windows: some kilobytes that do not compress.
+	noise := make([]byte, 16<<10)
+	rand.NewChaCha8([32]byte{}).Read(noise)
+	mine.Write("noise", string(noise))
+	mine.Git("add", "noise")
 	other := gittest.Init(t)
 	other.Write("b", "1")
 	other.Commit("one")

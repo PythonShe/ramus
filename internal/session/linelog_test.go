@@ -38,14 +38,19 @@ func TestToOldLines(t *testing.T) {
 
 func TestLineLog(t *testing.T) {
 	r := gittest.Init(t)
+	// A name git could read as an option or a revision.
+	name := "-g:h"
+	if !gittest.Portable(name) {
+		name = "-g h"
+	}
 	r.Write("f", "a\nb\nc\nd\n")
 	r.Commit("one")
 	r.Write("f", "a\nB\nc\nd\n")
 	r.Commit("two")
-	r.Git("mv", "--", "f", "-g:h")
-	r.Write("-g:h", "a\nB\nc\nD\n")
+	r.Git("mv", "--", "f", name)
+	r.Write(name, "a\nB\nc\nD\n")
 	r.Commit("three")
-	r.Write("-g:h", "new\na\nB\nc\nD\n")
+	r.Write(name, "new\na\nB\nc\nD\n")
 	r.Write("untracked", "x\n")
 	s, m := openFor(t, r)
 
@@ -59,7 +64,7 @@ func TestLineLog(t *testing.T) {
 	}
 	// Line 3 of the work tree is line 2 of HEAD, which "two" changed, in
 	// the file as it was named then.
-	l, err := read("-g:h", 3, 3)
+	l, err := read(name, 3, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +81,7 @@ func TestLineLog(t *testing.T) {
 	if _, err := diff.Parse(l.Patch(1)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := read("-g:h", 1, 1); !errors.Is(err, ErrNotCommitted) {
+	if _, err := read(name, 1, 1); !errors.Is(err, ErrNotCommitted) {
 		t.Fatalf("a line only the work tree has: %v", err)
 	}
 	if _, err := read("untracked", 1, 1); !errors.Is(err, ErrNotCommitted) {

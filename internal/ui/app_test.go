@@ -361,9 +361,10 @@ func TestActionsAndLog(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
+	sh := gittest.Shell(t)
 	h.app.Settings.Actions = []settings.Action{
-		{Name: "Say hello", Command: []string{"/bin/sh", "-c", "echo hello $1 on $2", "sh", "${prompt:Who}", "${branch}"}},
-		{Name: "Count bytes", Command: []string{"/usr/bin/wc", "-c", "${file}"}, On: "file"},
+		{Name: "Say hello", Command: []string{sh, "-c", "echo hello $1 on $2", "sh", "${prompt:Who}", "${branch}"}},
+		{Name: "Count bytes", Command: []string{sh, "-c", `wc -c "$1"`, "sh", "${file}"}, On: "file"},
 	}
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("No changes"))

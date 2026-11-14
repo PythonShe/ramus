@@ -30,6 +30,16 @@ func TestCompareFolders(t *testing.T) {
 		t.Fatalf("listing: %q", h.tt.Texts())
 	}
 	cs := &h.app.compareUI
+	t.Cleanup(func() {
+		if t.Failed() && cs.patch.Parsed != nil {
+			for i := range cs.patch.Parsed.Files {
+				t.Logf("patch file %d: %q", i, cs.patch.Parsed.Path(i))
+			}
+		}
+		if t.Failed() {
+			t.Logf("patch error %v, key %+v", cs.patch.Err, cs.key)
+		}
+	})
 	shown := func(want string) func() bool {
 		return func() bool {
 			p := cs.patch.Parsed

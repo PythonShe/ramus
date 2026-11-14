@@ -29,7 +29,10 @@ func TestEncodings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.Git("update-index", "--add", "--cacheinfo", "100644,"+strings.TrimSpace(blob)+",caf\xe9.txt")
+	// On stdin: Windows passes arguments as UTF-16, which has no such name.
+	if out, err := r.Run([]byte("100644 "+strings.TrimSpace(blob)+"\tcaf\xe9.txt\n"), "update-index", "--index-info"); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
 	h.until("open", h.shows(`⚠ "caf\xe9.txt"`))

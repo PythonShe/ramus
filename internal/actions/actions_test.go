@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"runtime"
 	"slices"
 	"testing"
 )
 
+// prog is a program by its full path, as an action names it.
+var prog = map[bool]string{false: "/usr/bin/env", true: `C:\Windows\System32\cmd.exe`}[runtime.GOOS == "windows"]
+
 func TestExpand(t *testing.T) {
-	cmd := []string{"/usr/bin/env", "--", "${repo}/x", "-m", "${prompt:Message}", "${file}", "${prompt:Message}${branch}", "${HOME}"}
+	cmd := []string{prog, "--", "${repo}/x", "-m", "${prompt:Message}", "${file}", "${prompt:Message}${branch}", "${HOME}"}
 	if got := Prompts(cmd); !slices.Equal(got, []string{"Message"}) {
 		t.Fatalf("prompts %q", got)
 	}
@@ -18,14 +22,14 @@ func TestExpand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/usr/bin/env", "--", "/r/x", "-m", "hi there", "/r/a b; rm -rf /", "hi theremain", "${HOME}"}
+	want := []string{prog, "--", "/r/x", "-m", "hi there", "/r/a b; rm -rf /", "hi theremain", "${HOME}"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("expanded %q, want %q", got, want)
 	}
-	if _, err := Expand([]string{"/bin/echo", "${commit}"}, v, nil); !errors.Is(err, ErrMissing) {
+	if _, err := Expand([]string{prog, "${commit}"}, v, nil); !errors.Is(err, ErrMissing) {
 		t.Fatalf("missing commit: %v", err)
 	}
-	if _, err := Expand([]string{"/bin/echo", "${prompt:X}"}, v, nil); !errors.Is(err, ErrMissing) {
+	if _, err := Expand([]string{prog, "${prompt:X}"}, v, nil); !errors.Is(err, ErrMissing) {
 		t.Fatalf("missing answer: %v", err)
 	}
 	if _, err := Expand([]string{"echo"}, v, nil); err == nil {

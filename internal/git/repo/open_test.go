@@ -127,7 +127,7 @@ func TestReloadConfig(t *testing.T) {
 	}
 	defer u.Close()
 	marker := filepath.Join(t.TempDir(), "ran")
-	g.Git("config", "filter.evil.clean", "touch "+marker+"; cat")
+	g.Git("config", "filter.evil.clean", "touch "+filepath.ToSlash(marker)+"; cat")
 	g.Write("a.txt", "two\n")
 	diff := func(rn *run.Runner) {
 		t.Helper()
