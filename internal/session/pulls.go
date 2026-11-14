@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"ramus/internal/forge"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
 )
 
@@ -79,6 +80,23 @@ func PullsRepo(head forge.Repo, remotes []RemoteInfo) forge.Repo {
 		}
 	}
 	return head
+}
+
+// RemoteURLs are the URLs of a repository's remote named upstream, ""
+// when it has none, and of origin, or of the first remote when there is
+// no origin.
+func RemoteURLs(r *repo.Repository) (upstream, origin string) {
+	cfg := r.Config()
+	upstream, _ = cfg.Get("remote." + ParentRemote + ".url")
+	if u, ok := cfg.Get("remote.origin.url"); ok {
+		return upstream, u
+	}
+	for _, name := range cfg.Subsections("remote", "url") {
+		if u, ok := cfg.Get("remote." + name + ".url"); ok {
+			return upstream, u
+		}
+	}
+	return upstream, ""
 }
 
 // LoadPulls asks the hosts, off the main thread, through the tool find

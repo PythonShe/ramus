@@ -7,6 +7,7 @@ import (
 
 	"ramus/internal/git/repo"
 	"ramus/internal/issuelink"
+	"ramus/internal/session"
 	"ramus/locales"
 )
 
@@ -35,7 +36,7 @@ func (a *App) loadLinks(t *tab) {
 		if lib != nil {
 			own = lib.IssueLinks(path)
 		}
-		remote := issuelink.FromRemote(remoteURL(r))
+		remote := remoteLinks(r)
 		update(func() {
 			if t.links.For == r {
 				t.links.own, t.links.remote = own, remote
@@ -45,18 +46,15 @@ func (a *App) loadLinks(t *tab) {
 	}()
 }
 
-// remoteURL is the URL of origin, or of the first remote when there is no
-// origin.
-func remoteURL(r *repo.Repository) string {
-	if u, ok := r.Config().Get("remote.origin.url"); ok {
-		return u
+// remoteLinks are the rules the host of the remote named upstream
+// implies, as a fork's issues are its parent's, else those of origin's,
+// or of the first remote's when there is no origin.
+func remoteLinks(r *repo.Repository) []issuelink.Rule {
+	up, origin := session.RemoteURLs(r)
+	if rules := issuelink.FromRemote(up); up != "" && rules != nil {
+		return rules
 	}
-	for _, name := range r.Config().Subsections("remote", "url") {
-		if u, ok := r.Config().Get("remote." + name + ".url"); ok {
-			return u
-		}
-	}
-	return ""
+	return issuelink.FromRemote(origin)
 }
 
 // linkedText shows text with its issue references as links, selectable.

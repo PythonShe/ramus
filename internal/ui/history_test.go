@@ -142,6 +142,28 @@ func TestIssueLinks(t *testing.T) {
 	}
 }
 
+// In a fork's clone, issue numbers are the issues of the repository it
+// was forked from, the remote named upstream.
+func TestIssueLinksOnFork(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "git@github.com:me/proj.git")
+	r.Git("remote", "add", "upstream", "https://github.com/octo/proj.git")
+	r.Write("a.txt", "a\n")
+	r.Commit("fix crash (#12)")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commits", h.shows("fix crash (#12)"))
+	h.click("fix crash (#12)")
+	tb := h.app.current()
+	h.until("the rules", func() bool { return tb.links.set != nil })
+	if ms := tb.links.set.Find("#12"); len(ms) != 1 || ms[0].URL != "https://github.com/octo/proj/issues/12" {
+		t.Fatalf("links %+v", ms)
+	}
+}
+
 func TestReflogView(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
