@@ -34,10 +34,10 @@ type Settings struct {
 	// Emails are the user's own addresses besides each repository's
 	// user.email, for statistics of their own commits.
 	Emails []string `json:"emails,omitempty"`
-	// DiffSplit shows patches side by side, DiffWrap wraps their long
-	// lines.
-	DiffSplit bool `json:"diffSplit,omitempty"`
-	DiffWrap  bool `json:"diffWrap,omitempty"`
+	// DiffSplit shows patches side by side; DiffNoWrap leaves their long
+	// lines unwrapped, which they are not by default.
+	DiffSplit  bool `json:"diffSplit,omitempty"`
+	DiffNoWrap bool `json:"diffNoWrap,omitempty"`
 	// NoFocusRefresh turns off reading the repository again when the
 	// window gains focus, the fallback for changes the watcher missed.
 	NoFocusRefresh bool `json:"noFocusRefresh,omitempty"`

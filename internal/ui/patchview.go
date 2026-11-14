@@ -35,7 +35,7 @@ func (a *App) diffOpts() *diffOptions {
 		if a.Settings.DiffSplit {
 			o.split = 1
 		}
-		o.wrap = a.Settings.DiffWrap
+		o.wrap = !a.Settings.DiffNoWrap
 	}
 	return &o.diffOptions
 }
@@ -62,7 +62,7 @@ func (a *App) diffBar(c *ui.Context, more func()) {
 			more()
 		}
 		if wrap.Changed() || layout.Changed() {
-			a.Settings.DiffSplit, a.Settings.DiffWrap = o.split == 1, o.wrap
+			a.Settings.DiffSplit, a.Settings.DiffNoWrap = o.split == 1, !o.wrap
 			if a.SettingsPath != "" {
 				path, saved, update := a.SettingsPath, a.Settings, a.Update
 				go func() {
