@@ -23,6 +23,13 @@ import (
 // logged returns the lines so far.
 func loggedRunner(t *testing.T) (runner *run.Runner, logged func() []string) {
 	t.Helper()
+	return scriptRunner(t, "")
+}
+
+// scriptRunner is loggedRunner running more, shell lines, after the log
+// and before git.
+func scriptRunner(t *testing.T, more string) (runner *run.Runner, logged func() []string) {
+	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script as git")
 	}
@@ -32,7 +39,7 @@ func loggedRunner(t *testing.T) (runner *run.Runner, logged func() []string) {
 	}
 	bin := t.TempDir()
 	logFile := filepath.Join(bin, "log")
-	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\nexec " + real + " \"$@\"\n"
+	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\n" + more + "\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

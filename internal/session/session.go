@@ -145,6 +145,7 @@ type refreshSeen struct {
 	// statusFailed is set when the last status read failed: its error
 	// shows until one succeeds.
 	statusFailed bool
+	pause        statusPause
 }
 
 // focusChanges is what changed of refs, HEAD and the index since they
@@ -307,7 +308,7 @@ func (s *Session) urgent() bool {
 func (s *Session) Reload() {
 	s.DropAnswers()
 	s.historyViewN++
-	s.Refresh(repo.Rescan)
+	s.refreshNow(repo.Rescan)
 }
 
 // FocusRefresh is the window gaining focus, a fallback for changes the
@@ -346,9 +347,16 @@ func (s *Session) refreshPaths(what repo.Change, paths []string) {
 
 func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 	var seen refreshSeen
+	// held is a full status put off by seen.pause; retry fires when it
+	// may run.
+	held := false
+	retry := time.NewTimer(time.Hour)
+	retry.Stop()
+	defer retry.Stop()
 	for {
 		select {
 		case <-s.wake:
+		case <-retry.C:
 		case <-ctx.Done():
 			return
 		}
@@ -356,16 +364,49 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 			return
 		}
 		s.mu.Lock()
-		what, paths := s.dirty, s.dirtyPaths
+		what, paths, urgent := s.dirty, s.dirtyPaths, s.now
 		if s.dirtyAll {
 			paths = nil
 		}
 		s.dirty, s.dirtyPaths, s.dirtyAll, s.now = 0, nil, false, false
 		s.mu.Unlock()
-		if what != 0 {
-			s.read(ctx, r, what, paths, &seen)
+		if held {
+			what, paths, held = what|repo.WorkTreeChanged, nil, false
+		}
+		if what == 0 {
+			continue
+		}
+		if wait := s.read(ctx, r, what, paths, urgent, &seen); wait > 0 {
+			held = true
+			retry.Reset(wait)
 		}
 	}
+}
+
+// statusPause spaces full statuses out by what the last one took: on a
+// work tree that keeps changing (a build, a coding agent) they would
+// otherwise run back to back, each seconds long on a large one, and hold
+// the processes and the disk. A write of the app's own and a refresh the
+// user asks for are urgent and do not wait.
+type statusPause struct{ until time.Time }
+
+// statusPauseFactor is the pause after a full status as a multiple of
+// what it took: the work tree's status is then read at most a third of
+// the time.
+const statusPauseFactor = 2
+
+// ran records a full status that took took and ended at end.
+func (p *statusPause) ran(end time.Time, took time.Duration) {
+	p.until = end.Add(statusPauseFactor * took)
+}
+
+// wait returns how long a full status asked for at now waits; zero runs
+// it now.
+func (p *statusPause) wait(now time.Time, urgent bool) time.Duration {
+	if urgent || !now.Before(p.until) {
+		return 0
+	}
+	return p.until.Sub(now)
 }
 
 // keepsStatus reports whether refs read again leave status as it was:
@@ -425,14 +466,16 @@ const focusCheck repo.Change = 1 << 8
 
 const all = modulesChanged | repo.WorkTreeChanged | repo.IndexChanged | repo.RefsChanged | repo.OperationChanged | repo.ConfigChanged
 
-func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change, paths []string, seen *refreshSeen) {
+// read reads what changed and hands it to the main thread. It returns
+// how long a full status it put off waits, as seen.pause says, or zero.
+func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change, paths []string, urgent bool, seen *refreshSeen) time.Duration {
 	if what&repo.Rescan != 0 {
 		what |= all
 	}
 	if what&focusCheck != 0 {
 		what = what&^focusCheck | focusChanges(r, seen)
 		if what == 0 {
-			return
+			return 0
 		}
 	}
 	type result struct {
@@ -512,6 +555,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		keyErr == nil && seen.indexRead && key == seen.index {
 		needStatus = false
 	}
+	var wait time.Duration
 	if needStatus {
 		start := time.Now()
 		var st *status.Status
@@ -525,28 +569,38 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			}
 		}
 		if !rechecked {
+			// What was read besides status shows now; status follows
+			// when the pause ends.
+			wait = seen.pause.wait(time.Now(), urgent)
+		}
+		if !rechecked && wait == 0 {
+			full := time.Now()
 			st, err = status.Read(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, status.Options{})
+			end := time.Now()
+			seen.pause.ran(end, end.Sub(full))
 		}
-		fail(err)
-		res.st = st
-		res.readAt = s.timeNow()
-		seen.statusFailed = err != nil
-		if err == nil {
-			seen.status = st
-		}
-		if err == nil && !rechecked && !s.monitorAnswered.Load() {
-			if a, ok := status.AdviseMonitor(runtime.GOOS, r.Runner.Git().Version, r.Config(), r.GitDir, r.WorkTree, !r.Restricted, time.Since(start)); ok {
-				res.monitor = &a
+		if rechecked || wait == 0 {
+			fail(err)
+			res.st = st
+			res.readAt = s.timeNow()
+			seen.statusFailed = err != nil
+			if err == nil {
+				seen.status = st
 			}
-		}
-		if err == nil && !rechecked {
-			// A recheck read the work tree only; an index notice still
-			// to come must not find its key already seen.
-			seen.index, seen.indexRead = key, keyErr == nil
+			if err == nil && !rechecked && !s.monitorAnswered.Load() {
+				if a, ok := status.AdviseMonitor(runtime.GOOS, r.Runner.Git().Version, r.Config(), r.GitDir, r.WorkTree, !r.Restricted, time.Since(start)); ok {
+					res.monitor = &a
+				}
+			}
+			if err == nil && !rechecked {
+				// A recheck read the work tree only; an index notice still
+				// to come must not find its key already seen.
+				seen.index, seen.indexRead = key, keyErr == nil
+			}
 		}
 	}
 	if ctx.Err() != nil {
-		return
+		return 0
 	}
 	s.update(func() {
 		if s.Repo != r {
@@ -579,6 +633,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		st.RefreshErr = res.err
 		s.State = st
 	})
+	return wait
 }
 
 // Submit queues a write and refreshes everything once it ends.
