@@ -5,7 +5,10 @@
 //
 // The files are memory-mapped and read in place; a Graph holds no
 // per-commit objects. Commits are addressed by their position in the
-// combined graph, base layers first, as git numbers them.
+// combined graph, base layers first, as git numbers them. A graph opened
+// again over a split chain shares the mappings of the layers that did
+// not change (OpenReusing); each mapping goes with the last graph using
+// it.
 package commitgraph
 
 import (
@@ -19,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"ramus/internal/git/mmap"
 )
@@ -73,7 +77,10 @@ func (e *FormatError) Error() string { return "commitgraph: " + e.Path + ": " + 
 
 // Graph is an open commit-graph, one or more layers.
 type Graph struct {
-	layers   []*layer
+	layers []*layer
+	// maps is the graph's hold on its layers' mappings, apart from the
+	// Graph so that it can be released once the Graph is unreachable.
+	maps     *Mappings
 	hashSize int
 	n        uint32
 	// genV2 is true when every layer has corrected commit dates; git uses
@@ -89,8 +96,11 @@ type Graph struct {
 }
 
 type layer struct {
-	path     string
-	file     *mmap.File
+	path string
+	file *mmap.File
+	// refs counts the graphs holding the layer; the file is unmapped when
+	// the last lets go.
+	refs     atomic.Int32
 	hashSize int
 	base     uint32 // commits in the layers below this one
 	n        uint32
@@ -109,7 +119,13 @@ type layer struct {
 // Open reads the commit-graph of the repository whose objects directory is
 // objectsDir. A split chain is preferred over a single file, as git does.
 // It returns ErrNotFound when there is neither.
-func Open(objectsDir string) (*Graph, error) {
+func Open(objectsDir string) (*Graph, error) { return OpenReusing(objectsDir, nil) }
+
+// OpenReusing is Open sharing with prev, a graph of the same repository
+// opened before, the layers of a split chain that git kept: a layer's
+// file is named by its contents, so the same name at the same place in
+// the chain is the same layer. prev may be nil, or closed.
+func OpenReusing(objectsDir string, prev *Graph) (*Graph, error) {
 	chain := filepath.Join(objectsDir, "info", "commit-graphs", "commit-graph-chain")
 	hashes, err := readChain(chain)
 	switch {
@@ -118,7 +134,7 @@ func Open(objectsDir string) (*Graph, error) {
 		for i, h := range hashes {
 			paths[i] = filepath.Join(objectsDir, "info", "commit-graphs", "graph-"+h+".graph")
 		}
-		return openLayers(paths)
+		return openLayers(paths, prev)
 	case !errors.Is(err, fs.ErrNotExist):
 		return nil, err
 	}
@@ -126,7 +142,7 @@ func Open(objectsDir string) (*Graph, error) {
 	if _, err := os.Stat(single); errors.Is(err, fs.ErrNotExist) {
 		return nil, ErrNotFound
 	}
-	return openLayers([]string{single})
+	return openLayers([]string{single}, nil)
 }
 
 func readChain(path string) ([]string, error) {
@@ -159,17 +175,29 @@ func readChain(path string) ([]string, error) {
 	return hashes, nil
 }
 
-func openLayers(paths []string) (_ *Graph, err error) {
-	g := &Graph{genV2: true}
+func openLayers(paths []string, prev *Graph) (_ *Graph, err error) {
+	g := &Graph{genV2: true, maps: &Mappings{}}
 	defer func() {
 		if err != nil {
+			g.maps.layers = g.layers
 			g.Close()
 		}
 	}()
+	var kept []*layer
+	if prev != nil {
+		kept = prev.layers
+	}
 	for i, p := range paths {
-		l, err := openLayer(p, g.n)
-		if err != nil {
-			return nil, err
+		var l *layer
+		// Only a prefix of the chain can be kept: a layer's positions
+		// start after those below it.
+		if i < len(kept) && kept[i].path == p && kept[i].base == g.n && kept[i].retain() {
+			l = kept[i]
+		} else {
+			kept = nil
+			if l, err = openLayer(p, g.n); err != nil {
+				return nil, err
+			}
 		}
 		g.layers = append(g.layers, l)
 		if i == 0 {
@@ -205,6 +233,7 @@ func openLayers(paths []string) (_ *Graph, err error) {
 			g.bloom = BloomSettings{}
 		}
 	}
+	g.maps.layers = g.layers
 	return g, nil
 }
 
@@ -214,6 +243,7 @@ func openLayer(path string, base uint32) (*layer, error) {
 		return nil, err
 	}
 	l := &layer{path: path, file: f, base: base}
+	l.refs.Store(1)
 	if err := l.parse(); err != nil {
 		f.Close()
 		return nil, err
@@ -360,16 +390,59 @@ func (l *layer) parseBloom(idx, data []byte) error {
 	return nil
 }
 
-// Close unmaps every layer. The Graph must not be used afterwards.
-func (g *Graph) Close() error {
+// retain takes another hold on a layer still mapped.
+func (l *layer) retain() bool {
+	for {
+		n := l.refs.Load()
+		if n <= 0 {
+			return false
+		}
+		if l.refs.CompareAndSwap(n, n+1) {
+			return true
+		}
+	}
+}
+
+func (l *layer) release() error {
+	if l.refs.Add(-1) == 0 {
+		return l.file.Close()
+	}
+	return nil
+}
+
+// Mappings is a graph's hold on the files it maps.
+type Mappings struct {
+	layers []*layer
+	closed atomic.Bool
+}
+
+// Close lets go of the mappings, unmapping each layer no other graph
+// shares. The graph must not be read afterwards, nor any bytes read
+// from it. Safe to call more than once and from any goroutine.
+func (m *Mappings) Close() error {
+	if m.closed.Swap(true) {
+		return nil
+	}
 	var first error
-	for _, l := range g.layers {
-		if err := l.file.Close(); err != nil && first == nil {
+	for _, l := range m.layers {
+		if err := l.release(); err != nil && first == nil {
 			first = err
 		}
 	}
-	g.layers = nil
 	return first
+}
+
+// Mappings returns the graph's hold on its files, so that its owner can
+// close them once nothing reads the graph without keeping the Graph
+// itself reachable. Closing it closes the graph.
+func (g *Graph) Mappings() *Mappings { return g.maps }
+
+// Close unmaps every layer no other graph shares. The Graph must not be
+// used afterwards.
+func (g *Graph) Close() error {
+	err := g.maps.Close()
+	g.layers = nil
+	return err
 }
 
 // Len returns the number of commits in the graph.
@@ -412,7 +485,9 @@ func (g *Graph) check(pos uint32) {
 }
 
 // OID returns the object id of the commit at pos. The bytes point into the
-// mapped file and must not be kept past Close.
+// mapped file and must not be kept past Close, nor past the last
+// reference to g when its owner closes its Mappings once g is unreachable;
+// a caller keeping one copies it.
 func (g *Graph) OID(pos uint32) []byte {
 	g.check(pos)
 	l, i := g.layerOf(pos)

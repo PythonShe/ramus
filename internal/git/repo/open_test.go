@@ -2,8 +2,10 @@ package repo
 
 import (
 	"context"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -12,6 +14,7 @@ import (
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/history"
 	"ramus/internal/git/run"
 )
 
@@ -95,6 +98,87 @@ func TestCommitGraphReopens(t *testing.T) {
 	if first.Len() != 1 || first.Lookup(first.OID(0)) != 0 {
 		t.Error("the earlier graph no longer reads")
 	}
+}
+
+// Rewriting the commit-graph again and again leaves only the graphs
+// something still reads mapped: a walk holding an old one goes on reading
+// it, and once it lets go, the old mapping goes too.
+func TestCommitGraphReleased(t *testing.T) {
+	for _, split := range []bool{false, true} {
+		g := gittest.Init(t)
+		write := func() {
+			args := []string{"commit-graph", "write", "--reachable"}
+			if split {
+				// Expire at once, so git deletes the layers it replaced.
+				args = append(args, "--split", "--expire-time=now")
+			}
+			g.Git(args...)
+		}
+		for i := 0; i < 20; i++ {
+			g.Commit("c")
+		}
+		write()
+		r, err := Open(context.Background(), testrun.Runner(t), g.Dir, trustAll)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, err := r.CommitGraph()
+		if err != nil || first == nil {
+			t.Fatal(first, err)
+		}
+		tip := first.Lookup(hexID(t, g.Git("rev-parse", "HEAD")))
+		walk := history.NewTopoWalk(first, []uint32{tip})
+		walk.Next()
+		settle := func() {
+			for i := 0; i < 3; i++ {
+				runtime.GC()
+				time.Sleep(time.Millisecond) // cleanups run on a goroutine of their own
+				if _, err := r.CommitGraph(); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		for i := 0; i < 8; i++ {
+			g.Commit("more")
+			write()
+			if _, err := r.CommitGraph(); err != nil {
+				t.Fatal(err)
+			}
+			settle()
+		}
+		if n := r.openGraphs(); n != 2 {
+			t.Errorf("split %v: %d graphs mapped, want the walked one and the current one", split, n)
+		}
+		n := 1
+		for {
+			if _, _, ok := walk.Next(); !ok {
+				break
+			}
+			n++
+		}
+		if walk.Err() != nil || n != 20 {
+			t.Fatalf("split %v: the old graph walked %d commits, %v", split, n, walk.Err())
+		}
+		walk, first = nil, nil
+		settle()
+		if n := r.openGraphs(); n != 1 {
+			t.Errorf("split %v: %d graphs mapped once the walk let go", split, n)
+		}
+		if g, _ := r.CommitGraph(); g == nil || g.Len() != 28 {
+			t.Fatalf("split %v: current graph %v", split, g)
+		}
+		r.Close()
+		<-r.Life().Done()
+	}
+}
+
+func hexID(t *testing.T, s string) []byte {
+	t.Helper()
+	b, err := hex.DecodeString(strings.TrimSpace(s))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 // What makes git ignore the commit-graph, done in a terminal while the

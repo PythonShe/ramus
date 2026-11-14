@@ -33,8 +33,9 @@ type HistoryState struct {
 	Snap *lanes.Snapshot
 	// OID returns a row's commit object id from its number in Snap; it is
 	// safe to call from any goroutine. The bytes may point into the
-	// repository's commit-graph mapping: a caller keeping one past the
-	// repository's close copies it.
+	// repository's commit-graph mapping, which goes once nothing holds
+	// the graph: a caller keeping one past its hold on this state copies
+	// it.
 	OID  func(id uint32) []byte
 	Done bool
 	Err  error

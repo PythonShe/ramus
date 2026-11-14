@@ -327,6 +327,64 @@ func TestDamaged(t *testing.T) {
 	}
 }
 
+// A graph opened again over a chain git added a layer to shares the layer
+// it kept, which stays mapped while either graph holds it.
+func TestOpenReusing(t *testing.T) {
+	r := fixture(t)
+	r.Git("commit-graph", "write", "--reachable", "--split")
+	objects := filepath.Join(r.GitDir(), "objects")
+	old, err := Open(objects)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Commit("on top")
+	r.Git("commit-graph", "write", "--reachable", "--split=no-merge")
+	g, err := OpenReusing(objects, old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer g.Close()
+	if g.Layers() != 2 || old.Layers() != 1 || g.layers[0] != old.layers[0] || g.layers[1] == old.layers[0] {
+		t.Fatalf("layers %d over %d, base shared %v", g.Layers(), old.Layers(), g.layers[0] == old.layers[0])
+	}
+	base := g.layers[0]
+	if n := base.refs.Load(); n != 2 {
+		t.Fatalf("base held %d times", n)
+	}
+	old.Close()
+	old.Close()
+	if n := base.refs.Load(); n != 1 {
+		t.Fatalf("base held %d times after the old graph closed", n)
+	}
+	checkCommits(t, g, oracle(t, r))
+	// A closed graph shares nothing: its layers are opened afresh.
+	again, err := OpenReusing(objects, old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again.Close()
+	if n := base.refs.Load(); n != 1 {
+		t.Fatalf("base held %d times", n)
+	}
+	// A rewritten single file is never shared, though its name stays.
+	r.Git("commit-graph", "write", "--reachable")
+	single, err := Open(objects)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Commit("one more")
+	r.Git("commit-graph", "write", "--reachable")
+	next, err := OpenReusing(objects, single)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.layers[0] == single.layers[0] || next.Len() != single.Len()+1 {
+		t.Fatal("a rewritten single file shared")
+	}
+	single.Close()
+	next.Close()
+}
+
 // A graph written without generation numbers reads, but says it has
 // none; one with version 1 numbers has them.
 func TestNoGenerations(t *testing.T) {

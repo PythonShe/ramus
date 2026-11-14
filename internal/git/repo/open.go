@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,6 +48,37 @@ type Repository struct {
 	// graphAt is the commit-graph files as they were when graph was
 	// opened; git writes a new graph, or a new chain, by renaming.
 	graphAt [2]fileStamp
+	// graphs are the mappings of every graph opened and not yet let go,
+	// with what forgets each from the lifetime.
+	graphs map[*commitgraph.Mappings]func() error
+	gone   *graveyard
+}
+
+// graveyard collects the mappings of graphs nothing reaches any more: the
+// garbage collector adds them, CommitGraph closes them.
+type graveyard struct {
+	mu sync.Mutex
+	// found are added since the last CommitGraph, aged since the one
+	// before.
+	found, aged []*commitgraph.Mappings
+}
+
+func (y *graveyard) add(m *commitgraph.Mappings) {
+	y.mu.Lock()
+	y.found = append(y.found, m)
+	y.mu.Unlock()
+}
+
+// take returns the mappings found before the last call, and ages those
+// found since. A reader may still be using bytes it read from a graph
+// just after its last use of the Graph itself; closing only what has
+// been gone a whole call leaves it far more than that.
+func (y *graveyard) take() []*commitgraph.Mappings {
+	y.mu.Lock()
+	defer y.mu.Unlock()
+	out := y.aged
+	y.aged, y.found = y.found, nil
+	return out
 }
 
 type fileStamp struct {
@@ -171,11 +203,22 @@ func (r *Repository) CatFile() (*catfile.Process, error) {
 
 // CommitGraph returns the commit-graph, or nil when there is none or git
 // would not use it. It is opened again when git has written a new one
-// since; a graph returned before stays mapped, for readers still walking
-// it, until the repository closes.
+// since, sharing the layers of a split chain that git kept. A graph
+// returned before stays mapped while anything reaches it (a walk, a
+// published history's OID), and is unmapped after; bytes read from it
+// are copied by whoever keeps them past their hold on the Graph.
 func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.gone == nil {
+		r.gone, r.graphs = &graveyard{}, map[*commitgraph.Mappings]func() error{}
+	}
+	for _, m := range r.gone.take() {
+		if forget, ok := r.graphs[m]; ok {
+			delete(r.graphs, m)
+			forget()
+		}
+	}
 	if !r.Capabilities().CommitGraphUsable() || r.Caps.HashSize != 20 {
 		// Opened again once git would use it again.
 		r.graph, r.tried, r.graphAt = nil, false, [2]fileStamp{}
@@ -186,7 +229,7 @@ func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	if r.tried && at == r.graphAt {
 		return r.graph, nil
 	}
-	g, err := commitgraph.Open(filepath.Join(r.CommonDir, "objects"))
+	g, err := commitgraph.OpenReusing(filepath.Join(r.CommonDir, "objects"), r.graph)
 	if errors.Is(err, commitgraph.ErrNotFound) {
 		r.graph, r.tried, r.graphAt = nil, true, at
 		return nil, nil
@@ -194,9 +237,23 @@ func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := r.life.Own(g); err != nil {
+	// The lifetime owns the mappings, not the Graph, so that the graph
+	// can become unreachable while they stay open until the collector
+	// says so, or the repository closes.
+	m := g.Mappings()
+	forget, err := r.life.Own(m)
+	if err != nil {
 		return nil, err
 	}
+	r.graphs[m] = forget
+	runtime.AddCleanup(g, r.gone.add, m)
 	r.graph, r.tried, r.graphAt = g, true, at
 	return g, nil
+}
+
+// openGraphs returns how many graphs hold mappings.
+func (r *Repository) openGraphs() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.graphs)
 }

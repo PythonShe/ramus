@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -182,7 +183,8 @@ func graphCommits(ctx context.Context, g *commitgraph.Graph, pos []uint32, in fu
 			return nil, ctx.Err()
 		}
 		if in(g.CommitTime(p)) {
-			out = append(out, g.OID(p))
+			// A copy: the graph's mapping goes once nothing holds g.
+			out = append(out, bytes.Clone(g.OID(p)))
 		}
 	}
 	return out, w.Err()
