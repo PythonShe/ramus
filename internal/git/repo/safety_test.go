@@ -26,7 +26,7 @@ func TestOwnership(t *testing.T) {
 	other := run.New(git, append(gittest.Env(), "GIT_TEST_ASSUME_DIFFERENT_OWNER=1"), 2)
 	_, err = Open(context.Background(), other, g.Dir, trustAll)
 	var e *OwnershipError
-	if !errors.As(err, &e) || e.Path != g.Dir || e.Fix != "git config --global --add safe.directory "+g.Dir {
+	if !errors.As(err, &e) || e.Path != g.Dir || e.Fix != "git config --global --add safe.directory "+filepath.ToSlash(g.Dir) {
 		t.Fatalf("got %v", err)
 	}
 	r, err := Open(context.Background(), testrun.Runner(t), g.Dir, trustAll)

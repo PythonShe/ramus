@@ -53,7 +53,9 @@ func CheckOwnership(ctx context.Context, r *run.Runner, loc Location) error {
 			fix = l
 		}
 	}
-	return &OwnershipError{Path: path, Fix: fix}
+	// git names the folder with forward slashes on Windows too; its hint
+	// is kept as git wrote it, which git takes back.
+	return &OwnershipError{Path: filepath.FromSlash(path), Fix: fix}
 }
 
 // ErrEmbeddedBare is a bare repository inside another repository's work
