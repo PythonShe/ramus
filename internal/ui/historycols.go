@@ -30,8 +30,8 @@ import (
 //
 // A drag resizes a column, down to its least width and no further, so
 // that none shows part of its values. A click on a column's title shuts
-// it, and a click on its divider, which stays where the column was,
-// brings it back; so does dragging that divider out into the room at the
+// it, and a click on its divider, which stays where the column was, a
+// second line beside the one before it, brings it back; so does dragging that divider out into the room at the
 // end, and the header's menu.
 //
 // The graph does not shut but collapses to a thin form, its lanes at
@@ -519,13 +519,12 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 		a.setHistoryColumn(k, p)
 	}
 	on := g.Hovered() || held
+	// A shut column's divider stays drawn: beside the one before it, the
+	// pair marks where a column is shut, as a spreadsheet's does.
 	g.Draw(func(p *ui.Painter, r ui.Rect) {
 		col := th.Border
-		switch {
-		case on:
+		if on {
 			col = th.Accent
-		case k != colMessage && !hv.cols.shown[k]:
-			return // a shut column's divider shows as it is pointed at
 		}
 		p.Fill(ui.Rect{X: r.X + r.W/2 - 0.5, Y: r.Y + r.H/4, W: 1, H: r.H / 2}, col, 0)
 	})
