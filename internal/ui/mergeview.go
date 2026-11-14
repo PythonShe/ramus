@@ -26,6 +26,71 @@ type mergeState struct {
 	custom  []string
 	list    ui.ListState
 	err     string
+	// shown is the text each segment shows, built off the main thread
+	// for the load numbered gen: a generated file's conflict can hold
+	// tens of thousands of lines.
+	shown []shownSegment
+	gen   int
+	// index numbers each conflict segment among the conflicts.
+	index []int
+}
+
+// shownSegment is the text a segment shows: unchanged text shortened, or
+// each side of a conflict cut to maxShownLines.
+type shownSegment struct {
+	text  string
+	sides [3]string // ours, base, theirs
+	// lines is the longest side's line count, to keep Edit off past
+	// maxEditLines.
+	lines int
+}
+
+const (
+	// maxShownLines bounds the lines a side of a conflict shows; the
+	// choices still take the whole side.
+	maxShownLines = 200
+	// maxEditLines bounds a conflict edited in place.
+	maxEditLines = 5000
+)
+
+// showSegments builds what each segment shows.
+func showSegments(segs []conflict.Segment) []shownSegment {
+	out := make([]shownSegment, len(segs))
+	for i, s := range segs {
+		if s.Conflict == nil {
+			out[i].text = compact(s.Text)
+			continue
+		}
+		cc := s.Conflict
+		for k, side := range [][]byte{cc.Ours, cc.Base, cc.Theirs} {
+			var n int
+			out[i].sides[k], n = headLines(side, maxShownLines)
+			out[i].lines = max(out[i].lines, n)
+		}
+	}
+	return out
+}
+
+// headLines is text's first n lines, with how many follow, and its line
+// count.
+func headLines(text []byte, n int) (string, int) {
+	total := bytes.Count(text, []byte{'\n'})
+	if len(text) > 0 && text[len(text)-1] != '\n' {
+		total++
+	}
+	cut := text
+	if total > n {
+		end := 0
+		for range n {
+			end += bytes.IndexByte(text[end:], '\n') + 1
+		}
+		cut = text[:end]
+	}
+	s := strings.TrimSuffix(redact.Control(string(cut)), "\n")
+	if total > n {
+		s += fmt.Sprintf("\n⋯ %d more lines", total-n)
+	}
+	return s, total
 }
 
 // mergeChoices are the choices offered for a conflict, in order.
@@ -55,7 +120,31 @@ func (a *App) loadMerge(t *tab, path string) {
 		ms.loading, ms.cf = false, cf
 		n := conflict.Count(cf.Segments)
 		ms.choices, ms.custom = make([]conflict.Choice, n), make([]string, n)
+		a.showConflicts(ms)
 	})
+}
+
+// showConflicts numbers ms's conflicts and builds what its segments show
+// off the main thread.
+func (a *App) showConflicts(ms *mergeState) {
+	ms.gen++
+	gen, segs, update := ms.gen, ms.cf.Segments, a.Update
+	ms.shown, ms.index = nil, make([]int, len(segs))
+	k := 0
+	for i, s := range segs {
+		ms.index[i] = k
+		if s.Conflict != nil {
+			k++
+		}
+	}
+	go func() {
+		shown := showSegments(segs)
+		update(func() {
+			if ms.gen == gen {
+				ms.shown = shown
+			}
+		})
+	}()
 }
 
 // mergeEditor resolves a conflicted file: each conflict by a side, both,
@@ -124,19 +213,23 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 func (a *App) conflictList(c *ui.Context, ms *mergeState) {
 	th := c.Theme()
 	segs := ms.cf.Segments
+	if ms.shown == nil {
+		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		return
+	}
 	ms.list.Label = func(i int) string {
 		if segs[i].Conflict != nil {
-			return "Conflict " + strconv.Itoa(conflictIndex(segs, i)+1)
+			return "Conflict " + strconv.Itoa(ms.index[i]+1)
 		}
 		return "Unchanged text"
 	}
 	ui.List(c, &ms.list, len(segs), func(i int) {
 		s := segs[i]
 		if s.Conflict == nil {
-			ui.Text(c, compact(s.Text)).Font("monospace").FontSize(12).TextColor(th.TextMuted).Padding(4, 12).FillWidth()
+			ui.Text(c, ms.shown[i].text).Font("monospace").FontSize(12).TextColor(th.TextMuted).Padding(4, 12).FillWidth()
 			return
 		}
-		a.conflictBlock(c, ms, conflictIndex(segs, i), s.Conflict)
+		a.conflictBlock(c, ms, ms.index[i], s.Conflict, ms.shown[i])
 	}).Label("Conflicts and unchanged text").Grow(1)
 }
 
@@ -146,18 +239,7 @@ func fill(cs []conflict.Choice, ch conflict.Choice) {
 	}
 }
 
-// conflictIndex is the number of the conflict segment i holds.
-func conflictIndex(segs []conflict.Segment, i int) int {
-	n := 0
-	for _, s := range segs[:i] {
-		if s.Conflict != nil {
-			n++
-		}
-	}
-	return n
-}
-
-func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.Conflict) {
+func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.Conflict, shown shownSegment) {
 	th := c.Theme()
 	ui.Column(c).Padding(8, 12).Gap(8).FillWidth().Background(th.Surface).Children(func() {
 		ui.Text(c, "Conflict "+strconv.Itoa(k+1)).Bold()
@@ -172,6 +254,9 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 				} else {
 					b = ui.Button(c, mc.label)
 				}
+				if mc.choice == conflict.Custom && shown.lines > maxEditLines {
+					b.Disabled(true).Tooltip(fmt.Sprintf("Over %d lines: edit this conflict in your editor", maxEditLines))
+				}
 				if b.Clicked() {
 					if mc.choice == conflict.Custom && ms.choices[k] != conflict.Custom {
 						ms.custom[k] = string(resolvedText(cc, ms.choices[k]))
@@ -181,17 +266,17 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 			}
 		})
 		ui.Row(c).Gap(8).FillWidth().Children(func() {
-			side := func(title string, text []byte) {
+			side := func(title string, text string) {
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
 					ui.Text(c, title).FontSize(12).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, strings.TrimSuffix(redact.Control(string(text)), "\n")).Font("monospace").FontSize(12).Selectable()
+					ui.Text(c, text).Font("monospace").FontSize(12).Selectable()
 				})
 			}
-			side("Ours: "+redact.Control(cc.OursLabel), cc.Ours)
+			side("Ours: "+redact.Control(cc.OursLabel), shown.sides[0])
 			if cc.HasBase {
-				side("Base: "+redact.Control(cc.BaseLabel), cc.Base)
+				side("Base: "+redact.Control(cc.BaseLabel), shown.sides[1])
 			}
-			side("Theirs: "+redact.Control(cc.TheirsLabel), cc.Theirs)
+			side("Theirs: "+redact.Control(cc.TheirsLabel), shown.sides[2])
 		})
 		if ms.choices[k] == conflict.Custom {
 			ui.TextArea(c, &ms.custom[k]).Font("monospace").FontSize(12).Label("Result of conflict " + strconv.Itoa(k+1)).Height(120)

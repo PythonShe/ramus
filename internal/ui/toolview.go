@@ -88,6 +88,7 @@ func (a *App) startMergeTool() {
 			n := conflict.Count(files.Segments)
 			mt.ms = mergeState{path: merged, choices: make([]conflict.Choice, n), custom: make([]string, n)}
 			mt.ms.cf.Segments = files.Segments
+			a.showConflicts(&mt.ms)
 		})
 	}()
 }
