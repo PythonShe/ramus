@@ -62,6 +62,10 @@ type Settings struct {
 	// column, which it keeps however wide the list, leaving the rest free
 	// at the end of the rows; 0 for the message to fill them.
 	HistoryMessage float32 `json:"historyMessage,omitempty"`
+	// Tables are the order and the widths the user gave the columns of
+	// the other lists, by list ("branches", "reflog"): each column by its
+	// key, never its title, which changes with the language.
+	Tables map[string]TableLayout `json:"tables,omitempty"`
 	// Keys are the user's shortcuts by command, in place of the app's
 	// own: accelerators such as "CmdOrCtrl+Shift+P"; an empty list
 	// leaves a command without one.
@@ -75,6 +79,14 @@ type Column struct {
 	Width  float32 `json:"width,omitempty"`
 	Hidden bool    `json:"hidden,omitempty"`
 	Thin   bool    `json:"thin,omitempty"`
+}
+
+// TableLayout is a table's columns as the user left them: the order of
+// those moved, and the widths of those resized, by key. Columns it does
+// not name keep the table's own order and width.
+type TableLayout struct {
+	Order  []string           `json:"order,omitempty"`
+	Widths map[string]float32 `json:"widths,omitempty"`
 }
 
 // MinFetchMinutes is the shortest wait between background fetches,
@@ -131,7 +143,34 @@ func (s Settings) WithDefaults() Settings {
 	} else {
 		s.FetchMinutes = max(s.FetchMinutes, MinFetchMinutes)
 	}
+	s.Tables = validTables(s.Tables)
 	return s
+}
+
+// validTables returns tables without the widths no column can take, as a
+// file edited by hand may give, nor the tables left with nothing. The
+// maps are new: the ones given may be shared with another window.
+func validTables(tables map[string]TableLayout) map[string]TableLayout {
+	var out map[string]TableLayout
+	for key, l := range tables {
+		var widths map[string]float32
+		for id, w := range l.Widths {
+			if w > 0 {
+				if widths == nil {
+					widths = map[string]float32{}
+				}
+				widths[id] = w
+			}
+		}
+		if len(l.Order) == 0 && widths == nil {
+			continue
+		}
+		if out == nil {
+			out = map[string]TableLayout{}
+		}
+		out[key] = TableLayout{Order: l.Order, Widths: widths}
+	}
+	return out
 }
 
 // Load reads the file at path. A missing file gives the defaults; a file

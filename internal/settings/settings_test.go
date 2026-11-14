@@ -70,7 +70,8 @@ func TestSaveClearsEveryField(t *testing.T) {
 		Actions: []Action{{Name: "a", Command: []string{"/bin/true"}}}, Emails: []string{"x@example.com"},
 		DiffSplit: true, DiffNoWrap: true, NoFocusRefresh: true, NoFetch: true, FetchMinutes: 10, PullRequests: true, HiddenSections: []string{"tags"},
 		NoSidebar: true, Keys: map[string][]string{"push": {"CmdOrCtrl+Shift+U"}},
-		HistoryColumns: map[string]Column{"hash": {Width: 80, Hidden: true}, "graph": {Thin: true}}, HistoryMessage: 300}
+		HistoryColumns: map[string]Column{"hash": {Width: 80, Hidden: true}, "graph": {Thin: true}}, HistoryMessage: 300,
+		Tables: map[string]TableLayout{"branches": {Order: []string{"time", "name"}, Widths: map[string]float32{"name": 200}}}}
 	// Every field set: a field added later without a value here fails.
 	v := reflect.ValueOf(on)
 	for i := range v.NumField() {
@@ -86,5 +87,30 @@ func TestSaveClearsEveryField(t *testing.T) {
 	}
 	if back, err := Load(p); err != nil || !reflect.DeepEqual(back, Defaults) {
 		t.Fatalf("back %+v %v", back, err)
+	}
+}
+
+// A table's layout keeps what a column can take: a width edited by hand
+// to nothing goes, and a table left with nothing goes too.
+func TestTablesNormalized(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	os.WriteFile(p, []byte(`{"tables": {
+		"branches": {"order": ["time", "name"], "widths": {"name": 200, "time": 0, "upstream": -5}},
+		"reflog": {"widths": {"message": -1}},
+		"stashes": {}
+	}}`), 0o600)
+	s, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]TableLayout{"branches": {Order: []string{"time", "name"}, Widths: map[string]float32{"name": 200}}}
+	if !reflect.DeepEqual(s.Tables, want) {
+		t.Fatalf("tables %+v", s.Tables)
+	}
+	if err := Save(p, s); err != nil {
+		t.Fatal(err)
+	}
+	if back, err := Load(p); err != nil || !reflect.DeepEqual(back, s) {
+		t.Fatalf("round trip %+v %v", back, err)
 	}
 }
