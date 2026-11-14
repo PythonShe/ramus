@@ -655,3 +655,99 @@ func TestHistoryGraphCollapses(t *testing.T) {
 		t.Fatalf("dragged out, graph %v wide, kept %+v", hv.cols.w[colGraph], p)
 	}
 }
+
+// The message is the last to give way: as the list narrows, the columns
+// shut and the graph goes thin while the message keeps the room its long
+// subject would like; only then does it narrow.
+func TestHistoryMessageStaysLast(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	long := "feat(client): send the core's logs to the window, and keep the last ones"
+	r.Write("a.txt", "alpha\n")
+	r.Commit(long)
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the rows", h.shows(long))
+	h.tt.Frame()
+	hv := &h.app.current().hist
+	if hv.msgWant < 360 || hv.msgWant > historyMessageWant {
+		t.Fatalf("the message would like %v", hv.msgWant)
+	}
+	for _, w := range []float32{1000, 800, 700, 640, 560, 480, 420, 360, 300} {
+		hv.detailW = w
+		h.tt.Frame()
+		h.tt.Advance(time.Second)
+		msg, _ := h.tt.Find("Message")
+		others := hv.cols.shown[colAuthor] || hv.cols.shown[colDate] || hv.cols.shown[colHash]
+		if others && msg.W < hv.msgWant-1 {
+			t.Fatalf("a list %v wide narrows the message to %v, under %v, with columns %v", w, msg.W, hv.msgWant, hv.cols.shown)
+		}
+		if !others && msg.W < min(hv.msgWant, historyMessageMin)-1 {
+			t.Fatalf("a list %v wide leaves the message %v", w, msg.W)
+		}
+	}
+}
+
+// The room at the end is the user's: a double click on a shut column's
+// divider, a drag of the message's divider in a list too narrow to keep
+// it, and a column hidden and shown again from the menu leave it as it
+// was.
+func TestHistoryColumnsKeepTheRoomAtTheEnd(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "alpha\n")
+	r.Commit("add alpha")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the rows", h.shows("Ramus Test"))
+	hv := &h.app.current().hist
+	settle := func() {
+		h.tt.Frame()
+		h.tt.Advance(time.Second)
+	}
+	h.app.Settings.HistoryEnd = 40
+	h.app.setHistoryColumn(colAuthor, settings.Column{Hidden: true})
+	settle()
+	date, _ := h.tt.Find("Date")
+	x, y := date.X-spaceM/2, date.Y+date.H/2
+	h.tt.ClickAt(x, y)
+	h.tt.ClickAt(x, y)
+	settle()
+	if e := h.app.Settings.HistoryEnd; e != 40 || hasExact(h, "Author") {
+		t.Fatalf("double click on a shut author's divider: room at the end %v", e)
+	}
+
+	for range 2 {
+		if err := h.tt.RightClick("Message"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.tt.ChooseMenuItem("Commit"); err != nil {
+			t.Fatal(err)
+		}
+		settle()
+	}
+	if e := h.app.Settings.HistoryEnd; e != 40 || !hasExact(h, "Commit") {
+		t.Fatalf("the hash hidden and shown from the menu: room at the end %v", e)
+	}
+
+	// Too narrow to keep room at the end, the message's divider makes
+	// none.
+	h.app.Settings.HistoryColumns, h.app.Settings.HistoryEnd = nil, 0
+	hv.detailW = 560
+	settle()
+	a, _ := h.tt.Find("Author")
+	x, y = a.X-spaceM/2, a.Y+a.H/2
+	h.tt.Press(x, y)
+	h.tt.Frame()
+	h.tt.Move(x-50, y)
+	h.tt.Frame()
+	h.tt.Release(x-50, y)
+	settle()
+	if e := h.app.Settings.HistoryEnd; e != 0 {
+		t.Fatalf("room at the end %v made in a list with none to spare", e)
+	}
+}

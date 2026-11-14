@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/hex"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -67,8 +68,12 @@ type historyState struct {
 	rowW float32
 	// cols are the columns as laid out in this frame; colDrag a divider
 	// being dragged.
-	cols     histLayout
-	colDrag  colDrag
+	cols    histLayout
+	colDrag colDrag
+	// msgWant is the room the message would like: its widest subject
+	// shown since history loaded, with its labels, up to
+	// historyMessageWant.
+	msgWant  float32
 	widthKey listWidthKey
 	chosenID []byte
 	filter   historyFilter
@@ -143,6 +148,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 		clear(hv.text)
 		clear(hv.used)
 		clear(hv.asked)
+		hv.msgWant = 0
 	}
 	a.findWanted(t, h)
 	a.buildLabels(hv, t.s.State, h)
@@ -543,6 +549,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 				ui.Text(c, "…").TextColor(th.TextMuted).Grow(1)
 				return
 			}
+			hv.wantMessage(c, subject, labels)
 			subj := ui.Text(c, subject).SingleLine().Grow(1)
 			if ch := hv.loaded(i); ch != nil && ch.Odd(i) {
 				subj.TextColor(th.Warning).Description(locales.HistoryBadEncoding())
@@ -580,6 +587,29 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		if v, ok := ui.Drop[draggedCommits](row); ok {
 			a.dropOnCommit(t, h, hex.EncodeToString(id), v)
 		}
+	}
+}
+
+// wantMessage widens the room the message would like to fit a subject
+// shown with its labels. It measures the text, never the cell, whose
+// width the columns decide: the columns follow it, not it them.
+func (hv *historyState) wantMessage(c *ui.Context, subject string, labels []refLabel) {
+	if hv.msgWant >= historyMessageWant {
+		return
+	}
+	w, _ := c.MeasureText(0, ui.Span{Text: subject})
+	for j, l := range labels {
+		if j == 3 {
+			break
+		}
+		lw, _ := c.MeasureText(0, ui.Span{Text: l.name(), Size: textCaption})
+		w += min(lw, 160) + 2*spaceS + spaceM
+	}
+	// In steps, for a few subjects a point apart not to lay out again.
+	w = min(historyMessageWant, float32(math.Ceil(float64(w)/spaceM))*spaceM)
+	if w > hv.msgWant {
+		hv.msgWant = w
+		c.AnimationFrame()
 	}
 }
 
