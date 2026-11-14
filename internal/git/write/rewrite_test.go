@@ -96,3 +96,83 @@ func testRewrite(t *testing.T, v gitexe.Version) {
 		t.Fatalf("squash: %q", subject("main~2"))
 	}
 }
+
+// An edit of history replays a whole todo: commits reordered, reworded,
+// squashed with a message or joined, fixed up and dropped, a branch left
+// where its step says; undo puts it all back.
+func TestEditHistory(t *testing.T) {
+	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	h := newHarness(t)
+	for i := 1; i <= 6; i++ {
+		f := "f" + string(rune('0'+i))
+		h.r.Write(f, f+"\n")
+		h.r.Commit("add " + f)
+	}
+	h.r.Git("branch", "mid", "HEAD~2")
+	h.r.Write("f6", "local change\n")
+	id := func(n int) string { return h.rev("main~" + string(rune('0'+6-n))) } // commit n, 1 to 6
+	rw := Rewrite{Commit: id(2), Parent: id(1), Git: g.Version, Branches: []string{"refs/heads/mid"}}
+	before := map[string]string{"main": h.rev("main"), "mid": h.rev("mid")}
+	steps := []Step{
+		{Action: DoPick, Commit: id(3)},
+		{Action: DoReword, Commit: id(2), Message: "two, it's \\n \"quoted\"\n\n# a line kept\n"},
+		{Action: DoSquash, Commit: id(4), Message: "four into two"},
+		{Action: DoDrop, Commit: id(5), Refs: []string{"refs/heads/mid"}},
+		{Action: DoPick, Commit: id(6)},
+	}
+	op, err := EditHistory(h.w, rw, steps, h.seen())
+	h.do(op, err, true)
+	log := strings.TrimSpace(h.r.Git("log", "--format=%s", "main"))
+	if log != "add f6\nfour into two\nadd f3\nadd f1" {
+		t.Fatalf("log:\n%s", log)
+	}
+	if h.rev("mid") != h.rev("main~1") {
+		t.Fatalf("mid at %s, not at the squash", h.rev("mid"))
+	}
+	if h.read("f5") != "" || h.r.Git("show", "main~1:f4") != "f4\n" || h.read("f6") != "local change\n" {
+		t.Fatal("the files are not as the steps make them")
+	}
+	h.undo()
+	for b, id := range before {
+		if h.rev(b) != id {
+			t.Fatalf("%s not put back", b)
+		}
+	}
+
+	// A reworded message keeps every byte, comment lines included.
+	steps = []Step{{Action: DoReword, Commit: id(2), Message: "two, it's \\n \"quoted\" $HOME `x`\n\n# a line kept\n"}}
+	for n := 3; n <= 6; n++ {
+		steps = append(steps, Step{Action: DoFixup, Commit: id(n)})
+	}
+	op, err = EditHistory(h.w, rw, steps, h.seen())
+	h.do(op, err, true)
+	if body := h.r.Git("log", "-1", "--format=%B", "main"); body != "two, it's \\n \"quoted\" $HOME `x`\n\n# a line kept\n\n" {
+		t.Fatalf("message %q", body)
+	}
+	h.undo()
+
+	// Squash with no message joins them, as git does.
+	op, err = EditHistory(h.w, rw, []Step{{Action: DoPick, Commit: id(2)}, {Action: DoSquash, Commit: id(3)},
+		{Action: DoPick, Commit: id(4)}, {Action: DoPick, Commit: id(5)}, {Action: DoPick, Commit: id(6)}}, h.seen())
+	h.do(op, err, true)
+	if body := h.r.Git("log", "-1", "--format=%B", "main~3"); body != "add f2\n\nadd f3\n\n" {
+		t.Fatalf("joined message %q", body)
+	}
+	h.undo()
+
+	for _, bad := range [][]Step{
+		{{Action: DoFixup, Commit: id(2)}},
+		{{Action: DoDrop, Commit: id(2)}, {Action: DoSquash, Commit: id(3)}},
+		{{Action: DoReword, Commit: id(2), Message: " \n"}},
+		{{Action: DoPick, Commit: id(2)}, {Action: DoPick, Commit: id(2)}},
+		{{Action: DoPick, Commit: "--root"}},
+		{{Action: DoPick, Commit: id(2), Refs: []string{"refs/tags/x"}}},
+	} {
+		if _, err := EditHistory(h.w, rw, bad, h.seen()); err == nil {
+			t.Errorf("%+v taken", bad)
+		}
+	}
+}

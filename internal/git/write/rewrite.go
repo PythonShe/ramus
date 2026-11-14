@@ -174,3 +174,143 @@ func FixupInto(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 	op.Input = in
 	return op, nil
 }
+
+// Action is what an edit of history does with one commit.
+type Action uint8
+
+const (
+	DoPick Action = iota
+	DoReword
+	// DoEdit stops the rebase after the commit, for the user to change it.
+	DoEdit
+	// DoSquash folds the commit into the one before it, messages joined.
+	DoSquash
+	// DoFixup folds the commit into the one before it, keeping that
+	// one's message.
+	DoFixup
+	DoDrop
+)
+
+var actionWords = [...]string{"pick", "reword", "edit", "squash", "fixup", "drop"}
+
+func (a Action) String() string {
+	if int(a) < len(actionWords) {
+		return actionWords[a]
+	}
+	return "action " + fmt.Sprint(uint8(a))
+}
+
+// Step is one commit of an edit of history.
+type Step struct {
+	Action Action
+	Commit string // hex
+	// Message is the commit's new message for DoReword, and for DoSquash the
+	// message of the commit the fold makes; "" there joins the messages,
+	// as git does.
+	Message string
+	// Refs are branches (full names) to leave at this step's commit, as
+	// it is once the step is done.
+	Refs []string
+}
+
+// EditHistory replays steps, oldest first, onto rw.Parent (the root when
+// it is ""), as an interactive rebase does with the todo they make; rw.Commit
+// is the oldest commit replayed. The todo is written whole, so the commits
+// must be a straight line, with no merge among them. A step's Refs move
+// only where git has update-ref; without, branches stay where they are.
+func EditHistory(w Where, rw Rewrite, steps []Step, seen Seen) (Op, error) {
+	if err := rw.check(); err != nil {
+		return Op{}, err
+	}
+	if len(steps) == 0 {
+		return Op{}, errors.New("write: no commits to replay")
+	}
+	todo, err := historyTodo(steps, rw.Git.Has(gitexe.UpdateRefs))
+	if err != nil {
+		return Op{}, err
+	}
+	args := []string{"rebase", "--interactive", "--autostash", "--no-rebase-merges"}
+	if rw.Parent == "" {
+		args = append(args, "--root")
+	} else {
+		args = append(args, "--end-of-options", rw.Parent)
+	}
+	c := w.cmd(args...)
+	// The todo comes on standard input; a squash keeps the messages
+	// joined, which git's editor would otherwise be asked about.
+	c.Env = append(c.Env, "GIT_SEQUENCE_EDITOR=cat >", "GIT_EDITOR=true")
+	op := rw.op("Edit history from", seen, c)
+	op.Input = []byte(todo)
+	return op, nil
+}
+
+// historyTodo is the rebase todo steps make; refs adds the update-ref
+// lines.
+func historyTodo(steps []Step, refs bool) (string, error) {
+	var b strings.Builder
+	seen := map[string]bool{}
+	kept := false
+	for _, s := range steps {
+		if !isHex(s.Commit) {
+			return "", fmt.Errorf("write: %q is not a commit id", s.Commit)
+		}
+		if seen[s.Commit] {
+			return "", fmt.Errorf("write: %s is in the list twice", short(s.Commit))
+		}
+		seen[s.Commit] = true
+		msg := ""
+		switch s.Action {
+		case DoPick, DoEdit, DoDrop:
+		case DoReword:
+			if strings.TrimSpace(s.Message) == "" {
+				return "", errors.New("write: a commit message cannot be empty")
+			}
+			msg = s.Message
+		case DoSquash, DoFixup:
+			if !kept {
+				return "", fmt.Errorf("write: %s has no commit before it to fold into", short(s.Commit))
+			}
+			if s.Action == DoSquash && s.Message != "" {
+				if strings.TrimSpace(s.Message) == "" {
+					return "", errors.New("write: a commit message cannot be empty")
+				}
+				msg = s.Message
+			}
+		default:
+			return "", fmt.Errorf("write: unknown %v", s.Action)
+		}
+		word := s.Action.String()
+		if msg != "" {
+			// The new message is set once the commit is made, by an
+			// amend git runs: git's own editor would ask for it.
+			word = "pick"
+			if s.Action == DoSquash {
+				word = "fixup"
+			}
+		}
+		fmt.Fprintf(&b, "%s %s\n", word, s.Commit)
+		if msg != "" {
+			cc, err := commentChar(msg)
+			if err != nil {
+				return "", err
+			}
+			fmt.Fprintf(&b, "exec printf '%%b' '%s' | git -c core.commentChar='%s' commit --amend --only -q --allow-empty -F -\n", printfArg(msg), cc)
+		}
+		kept = kept || s.Action != DoDrop
+		if !refs {
+			continue
+		}
+		for _, r := range s.Refs {
+			if !strings.HasPrefix(r, "refs/heads/") || strings.ContainsAny(r, " \t\n") {
+				return "", fmt.Errorf("write: %q is not a branch", r)
+			}
+			fmt.Fprintf(&b, "update-ref %s\n", r)
+		}
+	}
+	return b.String(), nil
+}
+
+// printfArg is s as printf %b reads it inside single quotes, on one line.
+func printfArg(s string) string {
+	return strings.NewReplacer(`\`, `\\`, "\n", `\n`, "\r", `\r`, "'", `'\''`).Replace(s)
+}
