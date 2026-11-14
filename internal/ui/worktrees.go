@@ -243,12 +243,14 @@ func (a *App) worktreeRemoveView(c *ui.Context) {
 			ui.Checkbox(c, &d.force, "Remove even with changes or untracked files")
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
-					d.open = false
-				}
-				if ui.PrimaryButton(c, "Remove").Clicked() {
+				// The destructive choice is never the default one: Enter
+				// must not delete a folder, least of all with force on.
+				if ui.Button(c, "Remove").Clicked() {
 					d.open = false
 					a.removeWorktree(d)
+				}
+				if ui.PrimaryButton(c, "Cancel").Clicked() {
+					d.open = false
 				}
 			})
 		})
