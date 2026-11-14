@@ -373,6 +373,7 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 	ui.List(c, &cv.files, f.Len(), func(i int) {
 		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, f.Status(i)))
+			fileIcon(c, string(f.Path(i)))
 			shown, why := showPath(commitFileName(f, i))
 			txt := pathLabel(c, shown).Grow(1)
 			if why != "" {

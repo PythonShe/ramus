@@ -14,6 +14,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/watch"
 	"ramus/internal/session"
+	"ramus/internal/ui/fileicon"
 	"ramus/locales"
 )
 
@@ -362,6 +363,17 @@ func runningWrite(log []*session.LogEntry) *session.LogEntry {
 		}
 	}
 	return nil
+}
+
+// fileIcon shows the icon of the file at path, as a code editor's list
+// does, in its own colors: a decoration, which assistive technology does
+// not read.
+func fileIcon(c *ui.Context, path string) {
+	if s := fileicon.For(path); s != nil {
+		ui.Image(c, s).Width(16).Height(16).Role(ui.RoleNone)
+		return
+	}
+	ui.Box(c).Width(16)
 }
 
 // pathLabel shows path shown, from showPath, in a list's row on one line.

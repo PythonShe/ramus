@@ -206,6 +206,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 		}
 		i := int(r.idx)
 		ui.Text(c, entryLetter(m.st, i, r.sec)).Font("monospace").TextColor(th.TextMuted).Width(16).Description(entryWords(m.st, i, r.sec))
+		fileIcon(c, string(m.st.Path(i)))
 		shown, flagged := showPath(m.name(r))
 		if f, why := showPath(string(m.st.Path(i))); why != "" {
 			shown, flagged = f, why

@@ -55,4 +55,6 @@ It builds for macOS, Windows and Linux; CI runs the tests on all three.
 
 ## License
 
-[Apache 2.0](LICENSE)
+[Apache 2.0](LICENSE). The file icons are from
+[Symbols](https://github.com/miguelsolorio/vscode-symbols) by Miguel
+Solorio, under the [MIT license](internal/ui/fileicon/LICENSE).

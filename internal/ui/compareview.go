@@ -262,6 +262,11 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 		ui.List(c, &cs.rows, l.Len(), func(i int) {
 			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, l.Status(i)))
+				p := l.New(i)
+				if p == "" {
+					p = l.Old(i)
+				}
+				fileIcon(c, p)
 				shown, why := showPath(name(i))
 				txt := pathLabel(c, shown).Grow(1)
 				if why != "" {
