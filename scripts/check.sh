@@ -19,5 +19,18 @@ if go list -deps ./internal/git/... | grep -q '^github.com/egoist/mygo'; then
 	exit 1
 fi
 
+# Network use is git's own: no package of ours opens a connection, and
+# none reaches mygo's updater, network, protocol or cookie modules. A
+# future update check is the one place to allow here.
+if go list -f '{{.ImportPath}} {{join .Imports " "}}' . ./internal/... |
+	awk '{for (i = 2; i <= NF; i++) if ($i ~ /^(net|net\/http|net\/rpc|net\/smtp|crypto\/tls)$/) print $1 " imports " $i}' | grep .; then
+	echo "a package of ours uses the network" >&2
+	exit 1
+fi
+if grep -rn -E 'mygo\.(Updater|Network|Protocol|Cookies)\b' --include='*.go' *.go internal | grep -v '_test.go:'; then
+	echo "the app reaches mygo's network modules" >&2
+	exit 1
+fi
+
 # mygo is pure Go; building without cgo keeps cross-compiling working.
 CGO_ENABLED=0 go test ./...

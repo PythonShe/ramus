@@ -12,7 +12,7 @@ survey of existing clients this design answers. Never commit them.
 ```bash
 go tool mygo dev      # run with live reload
 go tool mygo build    # package the app into build/
-scripts/check.sh      # the full gate: gofmt, vet, engine import boundary, tests
+scripts/check.sh      # the full gate: gofmt, vet, engine import boundary, no network of ours, tests
 go run ./scripts/coldstart <binary>  # time to first frame; CI runs it, it opens AppKit
 ```
 
