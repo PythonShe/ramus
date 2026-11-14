@@ -22,6 +22,8 @@ import (
 type Op struct {
 	// Name is what the app calls it ("Commit", "Fetch origin").
 	Name string
+	// Line, when set, is the command the log shows in place of Cmd's.
+	Line string
 	Cmd  run.Cmd
 	// Input is fed to the command's standard input each time it runs, a
 	// redo included; use it instead of Cmd.Stdin, which is read once.

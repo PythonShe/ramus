@@ -543,6 +543,9 @@ func (s *Session) Submit(op write.Op) (*write.Job, error) {
 	}
 	j := s.Queue.Submit(op)
 	line := op.Cmd.Line()
+	if op.Line != "" {
+		line = op.Line
+	}
 	for _, c := range op.More {
 		line += "\n" + c.Line()
 	}
