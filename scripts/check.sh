@@ -19,7 +19,8 @@ if go list -deps ./internal/git/... | grep -q '^github.com/egoist/mygo'; then
 	exit 1
 fi
 
-# Network use is git's own: no package of ours opens a connection, and
+# Network use is git's own, or the user's gh or glab when the settings
+# turn pull requests on: no package of ours opens a connection, and
 # none reaches mygo's updater, network, protocol or cookie modules. A
 # future update check is the one place to allow here. The askpass helper
 # talks to the app over a Unix socket, so it may import net, for "unix"

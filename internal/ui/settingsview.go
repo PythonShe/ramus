@@ -21,6 +21,7 @@ type settingsState struct {
 	focusRefresh     bool
 	fetch            bool
 	fetchMinutes     float64
+	pulls            bool
 	err              string
 }
 
@@ -34,6 +35,7 @@ func (a *App) openSettings() {
 	s.days, s.recent = float64(s.edit.SnapshotDays), float64(s.edit.RecentLimit)
 	s.focusRefresh = !s.edit.NoFocusRefresh
 	s.fetch, s.fetchMinutes = s.edit.FetchMinutes > 0, float64(max(s.edit.FetchMinutes, 15))
+	s.pulls = s.edit.PullRequests
 }
 
 func indexOf(xs []string, x string) int {
@@ -79,6 +81,7 @@ func (a *App) settingsView(c *ui.Context) {
 					ui.NumberInput(c, &s.fetchMinutes, settings.MinFetchMinutes, 24*60, 5)
 				})
 			}
+			ui.Checkbox(c, &s.pulls, "Show pull requests on branches, through gh or glab")
 			if a.Program != "" {
 				ui.Field(c, "Git difftool and mergetool", func() {
 					snippet := cli.ToolConfig(a.Program)
@@ -121,6 +124,7 @@ func (a *App) saveSettings() {
 	next.Theme = settings.Themes[min(max(s.theme, 0), len(settings.Themes)-1)]
 	next.SnapshotDays, next.RecentLimit = int(s.days), int(s.recent)
 	next.NoFocusRefresh = !s.focusRefresh
+	next.PullRequests = s.pulls
 	next.FetchMinutes = 0
 	if s.fetch {
 		next.FetchMinutes = int(s.fetchMinutes)

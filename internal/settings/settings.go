@@ -44,6 +44,9 @@ type Settings struct {
 	// FetchMinutes is how often open repositories fetch every remote in
 	// the background; 0 never, and at least MinFetchMinutes.
 	FetchMinutes int `json:"fetchMinutes,omitempty"`
+	// PullRequests shows each branch's open pull request and its checks
+	// in the branches view, asked of the user's own gh or glab.
+	PullRequests bool `json:"pullRequests,omitempty"`
 	// HiddenSections are the sidebar's items and sections left out, by
 	// key ("reflog", "tags").
 	HiddenSections []string `json:"hiddenSections,omitempty"`

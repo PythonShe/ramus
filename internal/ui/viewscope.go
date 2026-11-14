@@ -1,5 +1,7 @@
 package ui
 
+import "strings"
+
 // showView tells the session which view of t is shown, and lets go of
 // what the view left was still reading: the session cancels those reads,
 // and the view reads again when it is shown again.
@@ -21,6 +23,9 @@ func (a *App) hideTab(t *tab) {
 
 // leaveView drops the loads view name had in flight, so it asks again.
 func (a *App) leaveView(t *tab, name string) {
+	if name == "refs" || strings.HasPrefix(name, "refs/") {
+		t.pulls.loading = false
+	}
 	switch name {
 	case "":
 	case "history":

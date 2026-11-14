@@ -132,6 +132,9 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 	th := c.Theme()
 	rs := &t.refs
 	a.loadRefs(t)
+	if rs.kind == refsBranches {
+		a.loadPulls(t)
+	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Segmented(c, &rs.kind, "Branches", "Tags", "Remotes")
@@ -314,6 +317,9 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				}
 				if on := stackedOn(info, b.Name); on != "" {
 					ui.Text(c, "on "+redact.Control(on)).FontSize(12).TextColor(th.TextMuted).SingleLine().Description("Stacked on " + redact.Control(on))
+				}
+				if p, ok := t.pulls.by[b.Name]; ok && a.Settings.PullRequests {
+					pullBadge(c, p)
 				}
 			})
 			if rs.kind == refsBranches {
@@ -542,6 +548,7 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	if m.Item("Copy Name").Chosen() {
 		a.clip = short
 	}
+	a.pullItems(m, t, b)
 	m.Separator()
 	pin := "Pin to Top"
 	if slices.Contains(t.prefs.pinned, b.Name) {

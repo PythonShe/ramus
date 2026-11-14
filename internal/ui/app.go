@@ -13,6 +13,7 @@ import (
 
 	"ramus/internal/crashlog"
 	"ramus/internal/drafts"
+	"ramus/internal/forge"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
@@ -96,6 +97,13 @@ type App struct {
 	// clip is text to put on the clipboard on the next frame: work read
 	// off the main thread cannot reach the clipboard itself.
 	clip string
+	// openURL is a page to open in the browser.
+	openURL string
+	// forges finds gh and glab, forgeFind in their place for a test;
+	// forgeWarned are the notices about them said once.
+	forges      *forgeTools
+	forgeFind   func(forge.Kind) (*forge.CLI, error)
+	forgeWarned map[string]bool
 
 	keymap     *keymap
 	welcome    welcomeState
@@ -169,6 +177,7 @@ type tab struct {
 	cmp       commitCompare
 	dash      dashState
 	rev       reviewState
+	pulls     pullsState
 	forcePush forcePush
 	links     tabLinks
 	prefs     refPrefs
@@ -311,6 +320,7 @@ func (a *App) Reload() {
 func (a *App) reload(t *tab) {
 	t.s.Reload()
 	t.dash.reload()
+	t.pulls.key = ""
 	t.commit.setup = nil
 	t.cv.diff.key = diffKey{}
 	t.links.For = nil
@@ -395,6 +405,10 @@ func (a *App) View(c *ui.Context) {
 	if a.clip != "" {
 		c.WriteClipboard(a.clip)
 		a.clip = ""
+	}
+	if a.openURL != "" {
+		c.OpenURL(a.openURL)
+		a.openURL = ""
 	}
 	root := ui.Column(c).Fill().Background(c.Theme().Background)
 	if files := root.DroppedFiles(); files != nil {

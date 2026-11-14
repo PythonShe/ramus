@@ -63,7 +63,7 @@ func TestSaveClearsEveryField(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "settings.json")
 	on := Settings{Theme: "dark", Editor: []string{"e"}, Terminal: []string{"t"}, SnapshotDays: 3, RecentLimit: 4,
 		Actions: []Action{{Name: "a", Command: []string{"/bin/true"}}}, Emails: []string{"x@example.com"},
-		DiffSplit: true, DiffWrap: true, NoFocusRefresh: true, FetchMinutes: 10, HiddenSections: []string{"tags"},
+		DiffSplit: true, DiffWrap: true, NoFocusRefresh: true, FetchMinutes: 10, PullRequests: true, HiddenSections: []string{"tags"},
 		NoSidebar: true, NoStatusBar: true, Keys: map[string][]string{"push": {"CmdOrCtrl+Shift+U"}}}
 	// Every field set: a field added later without a value here fails.
 	v := reflect.ValueOf(on)
