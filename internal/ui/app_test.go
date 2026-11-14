@@ -305,7 +305,19 @@ func TestSettings(t *testing.T) {
 	if !h.tt.HasText("Language") || h.app.settingsUI.lang != "System" {
 		t.Fatalf("language %q; texts %q", h.app.settingsUI.lang, h.tt.Texts())
 	}
+	// Save waits for a change.
+	if h.app.settingsChanged() {
+		t.Fatalf("changed as opened: %+v", h.app.settingsUI)
+	}
+	h.app.settingsUI.theme = 2
+	if !h.app.settingsChanged() {
+		t.Fatal("a theme chosen is no change")
+	}
+	h.app.settingsUI.theme = 0
 	h.app.settingsUI.lang = "English"
+	if !h.app.settingsChanged() {
+		t.Fatal("a language chosen is no change")
+	}
 	h.app.settingsUI.theme = 2
 	// The editor is chosen, never typed: a program that cannot be one is
 	// refused, one that can is kept.

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -120,7 +121,7 @@ func (a *App) settingsView(c *ui.Context) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					s.open = false
 				}
-				if ui.PrimaryButton(c, locales.CommonSave()).Clicked() {
+				if ui.PrimaryButton(c, locales.CommonSave()).Disabled(!a.settingsChanged()).Clicked() {
 					a.saveSettings()
 				}
 			})
@@ -327,6 +328,70 @@ func settingsGroup(c *ui.Context, heading string, fn func(row settingsRow)) {
 // main thread.
 func (a *App) saveSettings() {
 	s := &a.settingsUI
+	next := a.formSettings()
+	if s.difftoolRead && s.difftool != s.difftoolWas {
+		r, tool, on, update := a.Runner, a.globalTool(), s.difftool, a.Update
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			err := write.SetTool(ctx, r, tool, on)
+			cancel()
+			if err != nil {
+				update(func() { a.notice = locales.SettingsDiffToolFailed(errText(err)) })
+			}
+		}()
+	}
+	a.Settings, s.open = next.WithDefaults(), false
+	a.findTools()
+	if a.ApplyTheme != nil {
+		a.ApplyTheme(a.Settings.Theme)
+	}
+	if tag, changed := a.formLanguage(); changed {
+		a.SetLocale(tag)
+	}
+	if a.SettingsPath != "" {
+		path, saved, update := a.SettingsPath, next, a.Update
+		go func() {
+			if err := settings.Save(path, saved); err != nil {
+				update(func() { a.notice = locales.SettingsNotSaved(errText(err)) })
+			}
+		}()
+	}
+}
+
+// settingsChanged reports whether the form says anything other than
+// what is in force, for Save to have something to do.
+func (a *App) settingsChanged() bool {
+	s := &a.settingsUI
+	if _, changed := a.formLanguage(); changed || s.difftoolRead && s.difftool != s.difftoolWas {
+		return true
+	}
+	// Compared as written, where a list left empty and none are the same,
+	// and with the minutes between fetches as they take effect.
+	norm := func(x settings.Settings) string {
+		x = x.WithDefaults()
+		on := x
+		on.NoFetch = false
+		x.FetchMinutes = on.FetchEvery()
+		b, _ := json.Marshal(x)
+		return string(b)
+	}
+	return norm(a.formSettings()) != norm(a.Settings)
+}
+
+// formLanguage is the language the form chooses, and whether it is
+// another than the app's.
+func (a *App) formLanguage() (string, bool) {
+	if a.SetLocale == nil || a.ChosenLocale == nil {
+		return "", false
+	}
+	tags, names := a.languageChoices()
+	tag := tags[max(0, indexOf(names, a.settingsUI.lang))]
+	return tag, tag != a.ChosenLocale()
+}
+
+// formSettings are the settings as the form has them.
+func (a *App) formSettings() settings.Settings {
+	s := &a.settingsUI
 	next := a.Settings
 	next.Theme = settings.Themes[min(max(s.theme, 0), len(settings.Themes)-1)]
 	next.SnapshotDays, next.RecentLimit = s.days, s.recent
@@ -346,34 +411,5 @@ func (a *App) saveSettings() {
 		next.Emails = append(next.Emails, e)
 	}
 	next.Editor, next.Terminal = s.editor, s.terminal
-	if s.difftoolRead && s.difftool != s.difftoolWas {
-		r, tool, on, update := a.Runner, a.globalTool(), s.difftool, a.Update
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			err := write.SetTool(ctx, r, tool, on)
-			cancel()
-			if err != nil {
-				update(func() { a.notice = locales.SettingsDiffToolFailed(errText(err)) })
-			}
-		}()
-	}
-	a.Settings, s.open = next.WithDefaults(), false
-	a.findTools()
-	if a.ApplyTheme != nil {
-		a.ApplyTheme(a.Settings.Theme)
-	}
-	if a.SetLocale != nil && a.ChosenLocale != nil {
-		tags, names := a.languageChoices()
-		if tag := tags[max(0, indexOf(names, s.lang))]; tag != a.ChosenLocale() {
-			a.SetLocale(tag)
-		}
-	}
-	if a.SettingsPath != "" {
-		path, saved, update := a.SettingsPath, next, a.Update
-		go func() {
-			if err := settings.Save(path, saved); err != nil {
-				update(func() { a.notice = locales.SettingsNotSaved(errText(err)) })
-			}
-		}()
-	}
+	return next
 }
