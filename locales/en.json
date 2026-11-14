@@ -2257,6 +2257,24 @@
   "@appPanic": {
     "description": "A bug stopped work that belongs to no repository; error is what failed, as the program says it."
   },
+  "appCloseTabTitle": "Close {name}?",
+  "@appCloseTabTitle": {
+    "description": "Asked before closing a tab while git is still changing its repository; name is the repository's."
+  },
+  "appCloseWindowTitle": "Close this window?",
+  "@appCloseWindowTitle": {
+    "description": "Asked before closing a window while git is still changing one of its repositories."
+  },
+  "appQuitTitle": "Quit Ramus?",
+  "@appQuitTitle": {
+    "description": "Asked before quitting while git is still changing a repository."
+  },
+  "appStillRunning": "{name} is still running in {repo}. Stopping it part way can leave the repository half changed.",
+  "@appStillRunning": {
+    "description": "Why closing is asked about: name is the command running, as Push or Commit; repo is the repository's name."
+  },
+  "appStopAndClose": "Stop and Close",
+  "appStopAndQuit": "Stop and Quit",
   "menuAbout": "About Ramus",
   "@menuAbout": {
     "description": "The menu item that opens the About window; on macOS in the app's menu, elsewhere in Help."

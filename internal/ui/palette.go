@@ -94,7 +94,7 @@ func (a *App) commands() []command {
 // tabCommands are the commands on the repository of tab t.
 func (a *App) tabCommands(t *tab) []command {
 	cmds := []command{
-		cmd("close-tab", func() { a.Close(a.active) }),
+		cmd("close-tab", func() { a.closeTab(a.active) }),
 		cmd("refresh", func() { a.reload(t) }),
 	}
 	if a.NewWindow != nil && len(a.tabs) > 1 {

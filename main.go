@@ -149,11 +149,15 @@ func main() {
 		}
 		ws.raise(handle(r))
 	})
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+		if ws.beforeQuit(e) {
+			e.PreventDefault()
+			return
+		}
 		ws.flush()
 		ws.quitting = true
 	})
-	mygo.App.OnQuitCanceled(func() { ws.quitting = false })
+	mygo.App.OnQuitCanceled(func() { ws.quitting, ws.quitAnyway = false, false })
 	mygo.App.OnOpenFile(func(p string) {
 		ws.raise(handle(cli.Request{Kind: cli.Open, Paths: []string{p}}))
 	})

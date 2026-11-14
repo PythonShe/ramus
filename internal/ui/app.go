@@ -374,12 +374,20 @@ func (a *App) Move(from, to int) {
 	a.active = slices.Index(a.tabs, cur)
 }
 
-// CloseAll ends every session, when the window closes.
+// CloseAll ends every session, and stops a clone running, when the
+// window closes.
 func (a *App) CloseAll() {
 	for _, t := range a.tabs {
 		t.s.Close()
 	}
 	a.tabs, a.active = nil, -1
+	cs := &a.clone
+	if cs.job != nil {
+		cs.job.Cancel()
+		cs.job = nil
+	}
+	cs.starting = false
+	cs.gen++ // a clone still starting is stopped once it has
 }
 
 // Reload reads the current repository again, the views' kept answers

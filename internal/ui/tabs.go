@@ -41,7 +41,7 @@ func (a *App) tabBar(c *ui.Context) {
 				}
 				name := a.title(t)
 				tb.ContextMenu(func(m *ui.Menu) {
-					if a.NewWindow != nil && m.Item(locales.TabsMoveToNewWindow()).Disabled(len(a.tabs) < 2).Chosen() {
+					if a.NewWindow != nil && m.Item(locales.TabsMoveToNewWindow()).Disabled(len(a.tabs) < 2 || busyWrite(t) != nil).Chosen() {
 						moving = i
 					}
 					a.editorMenu(m, t, &act)
@@ -74,7 +74,7 @@ func (a *App) tabBar(c *ui.Context) {
 	}
 	switch {
 	case closing >= 0:
-		a.Close(closing)
+		a.closeTab(closing)
 	case moving >= 0:
 		a.moveToNewWindow(moving)
 	}

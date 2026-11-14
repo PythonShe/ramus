@@ -18,6 +18,8 @@ import (
 type window struct {
 	win *mygo.Window
 	app *ui.App
+	// closing is set once the user said to close it, a write running.
+	closing bool
 }
 
 // windows are the app's windows. They share the stores, the settings
@@ -39,6 +41,8 @@ type windows struct {
 	keep     *layout.Keeper
 	saving   bool
 	quitting bool
+	// quitAnyway is set when the user said to quit, a write running.
+	quitAnyway bool
 	// about is the About window, nil while it is not open.
 	about *aboutWindow
 }
@@ -179,6 +183,20 @@ func (ws *windows) show(w *window) {
 		probeMark("window")
 		probeWindow(w.win, ws.probe)
 	}
+	w.win.OnClose(func(e *mygo.CloseEvent) {
+		if ws.quitting || w.closing {
+			return
+		}
+		if w.app.AskToClose(false, func() {
+			stopThen([]*ui.App{w.app}, func() {
+				w.closing = true
+				w.win.Close()
+			})
+		}) {
+			e.PreventDefault()
+			w.win.Invalidate()
+		}
+	})
 	w.win.OnClosed(func() {
 		if len(ws.list) == 1 && !ws.quitting {
 			ws.flush() // the app quits with its last window
@@ -198,6 +216,58 @@ func (ws *windows) show(w *window) {
 		ws.focused = w
 		w.app.WindowFocused()
 	})
+}
+
+// beforeQuit asks, while a write runs in a window, whether to stop it
+// and quit, and reports whether it asked; the quit then waits for the
+// answer. The OS ending the session is not asked about.
+func (ws *windows) beforeQuit(e *mygo.QuitEvent) bool {
+	if e.SessionEnding || ws.quitAnyway {
+		return false
+	}
+	for _, w := range ws.list {
+		if w.win != nil && w.app.AskToClose(true, func() {
+			ws.quitAnyway = true
+			apps := make([]*ui.App, len(ws.list))
+			for i, o := range ws.list {
+				apps[i] = o.app
+			}
+			stopThen(apps, mygo.App.Quit)
+		}) {
+			ws.raise(w)
+			return true
+		}
+	}
+	return false
+}
+
+// stopWait bounds how long closing waits for the writes it stopped to
+// end; git, told to stop, has as long to take its locks away (run's
+// WaitDelay) before it is killed.
+const stopWait = 3 * time.Second
+
+// stopPoll is how often stopThen looks whether the writes have ended.
+const stopPoll = 50 * time.Millisecond
+
+// stopThen stops the writes running in apps and calls done on the main
+// thread once they have ended, or after stopWait: closing the window or
+// quitting at once could end the app before git had stopped. The main
+// thread stays free meanwhile, for the writes' ends to reach it.
+func stopThen(apps []*ui.App, done func()) {
+	for _, a := range apps {
+		a.StopWrites()
+	}
+	deadline := time.Now().Add(stopWait)
+	var check func()
+	check = func() {
+		if time.Now().Before(deadline) && slices.ContainsFunc(apps, (*ui.App).Writing) {
+			time.AfterFunc(stopPoll, func() { mygo.RunOnMain(check) })
+			return
+		}
+		done()
+	}
+	// Not now: the frame that asked is still being built.
+	time.AfterFunc(0, func() { mygo.RunOnMain(check) })
 }
 
 // open is a new window with the repositories at paths; one already open

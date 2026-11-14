@@ -11369,6 +11369,90 @@ func (msgs Messages) AppPanic(error string) string {
 	return Catalog.Format(msgs.locale, "appPanic", map[string]any{"error": error})
 }
 
+// AppCloseTabTitle says "Close {name}?"
+// in the language the app shows.
+//
+// Asked before closing a tab while git is still changing its repository;
+// name is the repository's.
+func AppCloseTabTitle(name string) string { return In(i18n.Locale()).AppCloseTabTitle(name) }
+
+// AppCloseTabTitle says "Close {name}?"
+// in the language of msgs.
+//
+// Asked before closing a tab while git is still changing its repository;
+// name is the repository's.
+func (msgs Messages) AppCloseTabTitle(name string) string {
+	return Catalog.Format(msgs.locale, "appCloseTabTitle", map[string]any{"name": name})
+}
+
+// AppCloseWindowTitle says "Close this window?"
+// in the language the app shows.
+//
+// Asked before closing a window while git is still changing one of its
+// repositories.
+func AppCloseWindowTitle() string { return In(i18n.Locale()).AppCloseWindowTitle() }
+
+// AppCloseWindowTitle says "Close this window?"
+// in the language of msgs.
+//
+// Asked before closing a window while git is still changing one of its
+// repositories.
+func (msgs Messages) AppCloseWindowTitle() string {
+	return Catalog.Format(msgs.locale, "appCloseWindowTitle", nil)
+}
+
+// AppQuitTitle says "Quit Ramus?"
+// in the language the app shows.
+//
+// Asked before quitting while git is still changing a repository.
+func AppQuitTitle() string { return In(i18n.Locale()).AppQuitTitle() }
+
+// AppQuitTitle says "Quit Ramus?"
+// in the language of msgs.
+//
+// Asked before quitting while git is still changing a repository.
+func (msgs Messages) AppQuitTitle() string {
+	return Catalog.Format(msgs.locale, "appQuitTitle", nil)
+}
+
+// AppStillRunning says "{name} is still running in {repo}. Stopping it part way can leave the repository half changed."
+// in the language the app shows.
+//
+// Why closing is asked about: name is the command running, as Push or
+// Commit; repo is the repository's name.
+func AppStillRunning(name string, repo string) string {
+	return In(i18n.Locale()).AppStillRunning(name, repo)
+}
+
+// AppStillRunning says "{name} is still running in {repo}. Stopping it part way can leave the repository half changed."
+// in the language of msgs.
+//
+// Why closing is asked about: name is the command running, as Push or
+// Commit; repo is the repository's name.
+func (msgs Messages) AppStillRunning(name string, repo string) string {
+	return Catalog.Format(msgs.locale, "appStillRunning", map[string]any{"name": name, "repo": repo})
+}
+
+// AppStopAndClose says "Stop and Close"
+// in the language the app shows.
+func AppStopAndClose() string { return In(i18n.Locale()).AppStopAndClose() }
+
+// AppStopAndClose says "Stop and Close"
+// in the language of msgs.
+func (msgs Messages) AppStopAndClose() string {
+	return Catalog.Format(msgs.locale, "appStopAndClose", nil)
+}
+
+// AppStopAndQuit says "Stop and Quit"
+// in the language the app shows.
+func AppStopAndQuit() string { return In(i18n.Locale()).AppStopAndQuit() }
+
+// AppStopAndQuit says "Stop and Quit"
+// in the language of msgs.
+func (msgs Messages) AppStopAndQuit() string {
+	return Catalog.Format(msgs.locale, "appStopAndQuit", nil)
+}
+
 // MenuAbout says "About Ramus"
 // in the language the app shows.
 //
