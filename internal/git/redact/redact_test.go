@@ -20,6 +20,15 @@ func TestControl(t *testing.T) {
 		"unterminated \x1b]0;title":      "unterminated ",
 		"bad utf8 \xff":                  `bad utf8 \xff`,
 		"\u65e5\u672c\u8a9e":             "\u65e5\u672c\u8a9e",
+		"arabic mark \u061cx":            "arabic mark x",
+		"ma\u200bin \ufeffmain":          "main main",
+		"ma\u200din ma\u200cin":          "main main",
+		"\u200dlead trail\u200c":         "lead trail",
+		// Joiners that shape what they join stay: an emoji sequence, a
+		// Persian word, a Devanagari conjunct.
+		"\U0001f468\u200d\U0001f469\u200d\U0001f467":       "\U0001f468\u200d\U0001f469\u200d\U0001f467",
+		"\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645": "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645",
+		"\u0915\u094d\u200d\u0937":                         "\u0915\u094d\u200d\u0937",
 	} {
 		if got := Control(in); got != want {
 			t.Errorf("Control(%q) = %q, want %q", in, got, want)

@@ -14,8 +14,9 @@ import (
 
 // Control removes what a terminal or a text view could misread: escape
 // sequences (CSI, OSC and the rest), control characters other than
-// newline and tab, C1 controls and bidirectional overrides, which can
-// make a host or a path read as something else. A lone \r becomes a
+// newline and tab, C1 controls, bidirectional overrides and marks, and
+// zero-width characters with no work to do (see joins), which can make a
+// host, a path or a name read as something else. A lone \r becomes a
 // newline, as git's progress lines are meant to be read.
 func Control(s string) string {
 	var b strings.Builder
@@ -47,7 +48,11 @@ func Control(s string) string {
 				i = skipCSI(s, i+n)
 				continue
 			case r >= 0x80 && r <= 0x9f:
-			case r >= 0x202a && r <= 0x202e, r >= 0x2066 && r <= 0x2069, r == 0x200e, r == 0x200f:
+			case r >= 0x202a && r <= 0x202e, r >= 0x2066 && r <= 0x2069, r == 0x200e, r == 0x200f, r == 0x061c:
+			case r == 0x200b, r == 0xfeff:
+				// Invisible, and in text a commit or a ref carries only to
+				// make two names that differ read the same.
+			case (r == 0x200c || r == 0x200d) && !joins(s, i, n):
 			default:
 				b.WriteString(s[i : i+n])
 			}
@@ -57,6 +62,16 @@ func Control(s string) string {
 		i++
 	}
 	return b.String()
+}
+
+// joins reports a zero-width joiner or non-joiner, s[i:i+n], that has
+// work to do: between two characters past ASCII, as in emoji sequences,
+// Persian words and Indic conjuncts, which lose their shape without it.
+// Next to ASCII it only hides a difference, as between the letters of a branch name.
+func joins(s string, i, n int) bool {
+	before, _ := utf8.DecodeLastRuneInString(s[:i])
+	after, _ := utf8.DecodeRuneInString(s[i+n:])
+	return before >= utf8.RuneSelf && before != utf8.RuneError && after >= utf8.RuneSelf && after != utf8.RuneError
 }
 
 // skipEscape returns the index after the escape sequence at i.
