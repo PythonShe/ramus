@@ -57,9 +57,10 @@ type Settings struct {
 	// HistoryColumns are the history list's columns the user resized or
 	// collapsed, by key: "graph", "author", "date", "hash".
 	HistoryColumns map[string]Column `json:"historyColumns,omitempty"`
-	// HistoryEnd is the free room the user left at the end of the
-	// history's rows, by dragging its columns left.
-	HistoryEnd float32 `json:"historyEnd,omitempty"`
+	// HistoryMessage is the width the user gave the history's message
+	// column, which it keeps however wide the list, leaving the rest free
+	// at the end of the rows; 0 for the message to fill them.
+	HistoryMessage float32 `json:"historyMessage,omitempty"`
 	// Keys are the user's shortcuts by command, in place of the app's
 	// own: accelerators such as "CmdOrCtrl+Shift+P"; an empty list
 	// leaves a command without one.

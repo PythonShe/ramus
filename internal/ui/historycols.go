@@ -17,9 +17,13 @@ import (
 // left, as in Finder: dragged right, it widens the column and pushes the
 // ones after it into the free room at the end of the rows, and stops when
 // there is none; dragged left, it narrows the column and draws the ones
-// after it along, leaving that room free. The message's divider is how
-// room is made, down to the message's least width; a double click on it
-// gives the message all of it back.
+// after it along, leaving that room free.
+//
+// The message fills the rows until the user gives it a width: by its own
+// divider, down to its least, or by narrowing a column after it, which
+// keeps it as wide as it was. It then keeps that width however wide the
+// list, the rest free at the end; a double click on its divider has it
+// fill the rows again, as does widening it to the end.
 //
 // The date and the hash always take as long, so they keep their widths:
 // the hash has no divider, and the date's can only shut it.
@@ -38,12 +42,13 @@ import (
 // closer together rather than cutting them off.
 //
 // The message is what a row is read by. It would like the room its
-// subjects take, up to historyMessageWant: when the list is too narrow
-// for that, the free room at the end goes first, then the columns at the
-// end shut, the hash, then the date, then the author, and then the graph
-// goes thin; they come back as the list widens. Only then does the
-// message narrow, down to historyMessageMin. Nor does a drag widen a
-// column into the room the message would like.
+// subjects take, up to historyMessageWant, or the width the user gave it
+// if less: when the list is too narrow for that, the free room at the end
+// goes first, then the columns at the end shut, the hash, then the date,
+// then the author, and then the graph goes thin; they come back as the
+// list widens. Only then does the message narrow, down to
+// historyMessageMin. Nor does a drag widen a column into the room the
+// message would like.
 
 type histColumn int
 
@@ -114,12 +119,15 @@ type histLayout struct {
 	to colWant
 }
 
-// colWant is where the columns go: their widths and the free room at
-// the end; msg is the room the message would like, room what it has over
-// that, and spare what it had before any column gave way.
+// colWant is where the columns go: their widths, the message's and the
+// free room at the end; subj is the room the message's subjects would
+// like, and room what the message has over the room it would like.
 type colWant struct {
-	w                     [histColumns]float32
-	end, msg, room, spare float32
+	w                    [histColumns]float32
+	msg, end, subj, room float32
+	// gaveWay is set when a column shut, or the graph went thin, for
+	// want of room.
+	gaveWay bool
 }
 
 // graphStyle draws the graph as wide as it is.
@@ -151,9 +159,9 @@ type colDrag struct {
 	active bool
 	col    histColumn
 	// raw is the width the pointer asks for, as far as it went; w0 the
-	// column's as the press began, and end0, room0 and spare0 the
-	// layout's end, room and spare then (colWant).
-	raw, w0, end0, room0, spare0 float32
+	// column's as the press began, and msg0, end0 and room0 the layout's
+	// msg, end and room then (colWant).
+	raw, w0, msg0, end0, room0 float32
 	// moved is set once the pointer moved, for a click on the graph's
 	// divider not to be taken for a drag; done as the pointer lets go.
 	moved, done bool
@@ -205,7 +213,7 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 		for k := range histColumns {
 			p := a.Settings.HistoryColumns[histColumnKeys[k]]
 			if m.Item(histColumnName(k)).Checked(!p.Hidden).Chosen() {
-				a.showColumn(hv, k, p.Hidden)
+				a.showColumn(k, p.Hidden)
 			}
 		}
 		m.Separator()
@@ -218,8 +226,8 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 				a.toggleThinGraph()
 			}
 		}
-		if m.Item(locales.HistoryColumnsReset()).Disabled(len(a.Settings.HistoryColumns) == 0 && a.Settings.HistoryEnd == 0).Chosen() {
-			a.Settings.HistoryColumns, a.Settings.HistoryEnd = nil, 0
+		if m.Item(locales.HistoryColumnsReset()).Disabled(len(a.Settings.HistoryColumns) == 0 && a.Settings.HistoryMessage == 0).Chosen() {
+			a.Settings.HistoryColumns, a.Settings.HistoryMessage = nil, 0
 			a.keepSettings()
 		}
 	})
@@ -263,36 +271,55 @@ func (a *App) letGo(d *colDrag, want colWant, snap *lanes.Snapshot) {
 	}
 	k := d.col
 	if k == colMessage {
-		a.Settings.HistoryEnd = want.end
-		a.keepSettings()
+		if want.gaveWay && want.end >= 0.5 {
+			// Too little room made for a column given way to come
+			// back whole: the message takes it back.
+			return
+		}
+		a.keepMessage(want.msg, want.end, want.subj)
 		return
 	}
 	p := a.Settings.HistoryColumns[histColumnKeys[k]]
-	end := a.Settings.HistoryEnd
 	switch least := histColumnMin[k]; {
 	case k == colGraph:
 		// Thin when let go nearer its thin form than the full graph's
-		// least; the width it had stays, for when it expands.
+		// least; the width it had stays, for when it expands. The
+		// message is left as it was.
 		thin, least := graphThin(snap), graphLeast(snap)
 		p.Hidden, p.Thin = false, d.raw < (thin+least)/2
 		if !p.Thin {
 			p.Width = max(least, want.w[k])
 		}
+		a.setHistoryColumn(k, p)
+		return
 	case want.w[k] < least/2 || d.w0+d.end0 < least:
 		// Shut, or kept shut when there is no room to open it whole;
 		// the width it had stays, for when it is back.
 		p.Hidden = p.Hidden || d.w0 > 0
-		end = d.end0 + d.w0
+		want.end += want.w[k]
 	default:
 		w := max(least, want.w[k])
 		p.Hidden = false
 		if k == colAuthor {
 			p.Width = w
 		}
-		end = d.end0 + d.w0 - w
+		want.end -= w - want.w[k]
 	}
-	a.Settings.HistoryEnd = max(0, end)
+	// The message stays as wide as it was, the room the column took or
+	// left free at the end.
+	a.keepMessage(d.msg0, want.end, want.subj)
 	a.setHistoryColumn(k, p)
+}
+
+// keepMessage keeps the message at width msg, with end free after the
+// columns: none, and the message wide enough for its subjects, it fills
+// the rows again.
+func (a *App) keepMessage(msg, end, subj float32) {
+	a.Settings.HistoryMessage = msg
+	if end < 0.5 && msg >= subj {
+		a.Settings.HistoryMessage = 0
+	}
+	a.keepSettings()
 }
 
 // columnHandles are the columns whose divider stays as they shut: those
@@ -326,64 +353,69 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) colWant {
 			cw.w[k] = histColumnWidth[k]
 		}
 	}
-	cw.end = max(0, a.Settings.HistoryEnd)
+	cw.subj = clamp(hv.msgWant, historyMessageMin, historyMessageWant)
+	// msg is the width the message keeps, 0 for it to fill the rows.
+	msg := a.Settings.HistoryMessage
 	d := &hv.colDrag
 	dragged := histColumn(-1)
 	if d.active {
+		// The column dragged follows the pointer: the graph into the
+		// room the message has over the room it would like, the others
+		// into the room at the end, which they leave as they narrow, the
+		// message staying as wide as it was.
 		dragged = d.col
+		switch k := d.col; k {
+		case colGraph:
+			cw.w[k] = clamp(d.raw, 0, min(historyGraphMax, d.w0+max(0, d.room0)))
+		case colMessage:
+			msg = clamp(d.raw, historyMessageMin, d.w0+d.end0)
+		default:
+			most := d.w0 + d.end0
+			if k == colDate {
+				most = min(most, histColumnWidth[colDate])
+			}
+			cw.w[k] = clamp(d.raw, 0, most)
+			msg = d.msg0
+		}
+	}
+	// want is the room the message would like.
+	want := cw.subj
+	if msg > 0 {
+		want = min(want, msg)
 	}
 	handles := a.columnHandles(hv)
-	cw.msg = clamp(hv.msgWant, historyMessageMin, historyMessageWant)
-	cw.room, cw.spare = 1e6, 1e6
-	if hv.rowW > 0 {
-		room := hv.rowW - 2*insetX - cw.msg - spaceM - cw.end
-		for k := range histColumns {
-			room -= cw.w[k] + columnGap(k, cw.w[k], handles[k])
-		}
-		// Short of room, the room at the end goes first, then the
-		// columns at the end, each whole: a column shows its values in
-		// full or not at all. Then the graph goes thin.
-		if room < 0 {
-			give := min(cw.end, -room)
-			cw.end -= give
-			room += give
-		}
-		cw.spare = max(0, room)
-		for k := colHash; k > colGraph && room < 0; k-- {
-			if k != dragged && cw.w[k] > 0 {
-				room += cw.w[k] + columnGap(k, cw.w[k], handles[k]) - columnGap(k, 0, handles[k])
-				cw.w[k] = 0
-			}
-		}
-		if thin := graphThin(snap); room < 0 && dragged != colGraph && cw.w[colGraph] > thin {
-			room += cw.w[colGraph] - thin
-			cw.w[colGraph] = thin
-		}
-		cw.room = room
-	}
-	if !d.active {
+	cw.msg, cw.room = want, 1e6
+	if hv.rowW == 0 {
 		return cw
 	}
-	// The column dragged follows the pointer: the graph into the room
-	// the message has over what it would like, the message and the others
-	// into the room at the end, which they leave as they narrow. The
-	// message makes no more of it than it has to spare: at rest, the
-	// room at the end goes before the room the message would like.
-	switch k := d.col; k {
-	case colGraph:
-		cw.w[k] = clamp(d.raw, 0, min(historyGraphMax, d.w0+max(0, d.room0)))
-		cw.room = d.room0 + d.w0 - cw.w[k]
-	case colMessage:
-		cw.end = clamp(d.end0+d.w0-d.raw, 0, d.end0+d.spare0)
-		cw.room = d.room0 + d.end0 - cw.end
-	default:
-		most := d.w0 + d.end0
-		if k == colDate {
-			most = min(most, histColumnWidth[colDate])
-		}
-		cw.w[k] = clamp(d.raw, 0, most)
-		cw.end = d.end0 + d.w0 - cw.w[k]
+	room := hv.rowW - 2*insetX - spaceM - want
+	for k := range histColumns {
+		room -= cw.w[k] + columnGap(k, cw.w[k], handles[k])
 	}
+	// Short of room, the columns at the end give way first, each whole:
+	// a column shows its values in full or not at all. Then the graph
+	// goes thin.
+	for k := colHash; k > colGraph && room < 0; k-- {
+		if k != dragged && cw.w[k] > 0 {
+			room += cw.w[k] + columnGap(k, cw.w[k], handles[k]) - columnGap(k, 0, handles[k])
+			cw.w[k] = 0
+			cw.gaveWay = true
+		}
+	}
+	if thin := graphThin(snap); room < 0 && dragged != colGraph && cw.w[colGraph] > thin {
+		room += cw.w[colGraph] - thin
+		cw.w[colGraph] = thin
+		cw.gaveWay = true
+	}
+	// The message takes the room, up to the width it keeps; the rest is
+	// free at the end. With a column given way there is no room to leave
+	// free, and the message takes it all, but under the pointer.
+	cw.room = room
+	cw.msg = want + room
+	if msg > 0 && (!cw.gaveWay || dragged == colMessage) {
+		cw.msg = min(msg, cw.msg)
+	}
+	cw.end = want + room - cw.msg
 	return cw
 }
 
@@ -417,9 +449,9 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 	switch {
 	case held && (!d.active || d.col != k):
 		to := hv.cols.to
-		*d = colDrag{active: true, col: k, end0: to.end, room0: to.room, spare0: to.spare}
+		*d = colDrag{active: true, col: k, msg0: to.msg, end0: to.end, room0: to.room}
 		if k == colMessage {
-			d.w0 = to.msg + to.room
+			d.w0 = to.msg
 		} else {
 			d.w0 = to.w[k]
 		}
@@ -446,18 +478,16 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 		if g.Clicked() && !(d.active && d.col == k && d.moved) {
 			switch {
 			case p.Hidden:
-				a.showColumn(hv, k, true)
+				a.showColumn(k, true)
 			case p.Thin || !thin:
 				a.toggleThinGraph()
 			}
 		}
 	case k == colMessage && g.DoubleClicked():
-		a.Settings.HistoryEnd = 0
+		a.Settings.HistoryMessage = 0
 		a.keepSettings()
 	case k == colAuthor && !a.Settings.HistoryColumns[histColumnKeys[k]].Hidden && g.DoubleClicked():
 		p := a.Settings.HistoryColumns[histColumnKeys[k]]
-		w := hv.cols.to.w[k]
-		a.Settings.HistoryEnd = max(0, a.Settings.HistoryEnd+w-histColumnWidth[k])
 		p.Width = 0
 		a.setHistoryColumn(k, p)
 	}
@@ -476,23 +506,12 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 }
 
 // showColumn shows column k or shuts it, from the header's menu or the
-// graph's divider. Shown, a column takes the room at the end first; shut,
-// it leaves the room it took there, as a drag would. Its divider stays
-// either way, and the graph takes and leaves the message's room.
-func (a *App) showColumn(hv *historyState, k histColumn, show bool) {
+// graph's divider. Shown, a column takes the room at the end first, then
+// the message's; shut, it gives its room to the message, or to the end
+// when the message keeps a width.
+func (a *App) showColumn(k histColumn, show bool) {
 	p := a.Settings.HistoryColumns[histColumnKeys[k]]
 	p.Hidden = !show
-	if k != colGraph {
-		if show {
-			w := histColumnWidth[k]
-			if k == colAuthor && p.Width > 0 {
-				w = p.Width
-			}
-			a.Settings.HistoryEnd = max(0, a.Settings.HistoryEnd-w)
-		} else {
-			a.Settings.HistoryEnd += hv.cols.to.w[k]
-		}
-	}
 	a.setHistoryColumn(k, p)
 }
 

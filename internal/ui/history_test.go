@@ -487,12 +487,12 @@ func TestHistoryColumns(t *testing.T) {
 	// The message's divider makes room at the end, the columns drawn
 	// along; the author's then pushes the date and the hash into it.
 	drag(before("Author"), -60, "Author", 1)
-	if e := h.app.Settings.HistoryEnd; e != 60 {
-		t.Fatalf("room at the end %v, made 60", e)
+	if e := hv.cols.end; e != 60 || h.app.Settings.HistoryMessage == 0 {
+		t.Fatalf("room at the end %v, made 60; message kept at %v", e, h.app.Settings.HistoryMessage)
 	}
 	drag(after("Author"), 40, "Date", 1)
-	if at("Ramus Test").W != 160 || h.app.Settings.HistoryEnd != 20 {
-		t.Fatalf("author %v wide, room at the end %v", at("Ramus Test").W, h.app.Settings.HistoryEnd)
+	if at("Ramus Test").W != 160 || hv.cols.end != 20 {
+		t.Fatalf("author %v wide, room at the end %v", at("Ramus Test").W, hv.cols.end)
 	}
 	// The date keeps its width: dragged right it stays, let go short of
 	// half it comes back whole, past half it shuts and the hash moves up.
@@ -515,8 +515,8 @@ func TestHistoryColumns(t *testing.T) {
 		t.Fatalf("cursor over a shut column's divider is %v", h.tt.Cursor())
 	}
 	drag(x, 112, "Commit", 1)
-	if at("Date").W != histColumnMin[colDate] || h.app.Settings.HistoryEnd != 20 {
-		t.Fatalf("date dragged out to %v, room at the end %v", at("Date"), h.app.Settings.HistoryEnd)
+	if at("Date").W != histColumnMin[colDate] || hv.cols.end != 20 {
+		t.Fatalf("date dragged out to %v, room at the end %v", at("Date"), hv.cols.end)
 	}
 	// Or the header's menu brings it back, into the room at the end.
 	if err := h.tt.RightClick("Message"); err != nil {
@@ -542,7 +542,7 @@ func TestHistoryColumns(t *testing.T) {
 
 	// Narrowed, the list gives up the room at the end first, then shuts
 	// the hash, the date, the author, each whole, and keeps the message.
-	h.app.Settings.HistoryColumns, h.app.Settings.HistoryEnd = nil, 0
+	h.app.Settings.HistoryColumns, h.app.Settings.HistoryMessage = nil, 0
 	for _, c := range []struct {
 		w     float32
 		shown [histColumns]bool
@@ -561,11 +561,19 @@ func TestHistoryColumns(t *testing.T) {
 			t.Fatalf("a list %v wide leaves the message %v", c.w, msg.W)
 		}
 	}
-	h.app.Settings.HistoryEnd = 100
+	// A message kept narrow leaves the room at the end, which goes
+	// first as the list narrows; with a column shut, the message takes
+	// what is left.
+	h.app.Settings.HistoryMessage = 200
 	hv.detailW = 640
 	settle()
-	if hv.cols.shown != [histColumns]bool{true, true, true, true} || hv.cols.end >= 100 {
-		t.Fatalf("room at the end %v kept over the columns %v", hv.cols.end, hv.cols.shown)
+	if hv.cols.shown != [histColumns]bool{true, true, true, true} || hv.cols.end != 76 {
+		t.Fatalf("room at the end %v, columns %v", hv.cols.end, hv.cols.shown)
+	}
+	hv.detailW = 560
+	settle()
+	if hv.cols.shown[colHash] || hv.cols.end != 0 || at("Message").W != 260 {
+		t.Fatalf("narrowed: room at the end %v, message %v, columns %v", hv.cols.end, at("Message").W, hv.cols.shown)
 	}
 }
 
@@ -690,15 +698,16 @@ func TestHistoryMessageStaysLast(t *testing.T) {
 	}
 }
 
-// The room at the end is the user's: a double click on a shut column's
-// divider, a drag of the message's divider in a list too narrow to keep
-// it, and a column hidden and shown again from the menu leave it as it
-// was.
-func TestHistoryColumnsKeepTheRoomAtTheEnd(t *testing.T) {
+// The message's width is the user's: a double click on a shut column's
+// divider and a column hidden and shown again from the menu leave it as
+// it was, and a drag of its divider that makes too little room for a
+// column given way to come back springs back.
+func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
+	long := strings.Repeat("feat(client): keep the logs ", 5)
 	r.Write("a.txt", "alpha\n")
-	r.Commit("add alpha")
+	r.Commit(long)
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
 	h.until("open", h.shows("No changes"))
@@ -709,7 +718,7 @@ func TestHistoryColumnsKeepTheRoomAtTheEnd(t *testing.T) {
 		h.tt.Frame()
 		h.tt.Advance(time.Second)
 	}
-	h.app.Settings.HistoryEnd = 40
+	h.app.Settings.HistoryMessage = 220
 	h.app.setHistoryColumn(colAuthor, settings.Column{Hidden: true})
 	settle()
 	date, _ := h.tt.Find("Date")
@@ -717,8 +726,8 @@ func TestHistoryColumnsKeepTheRoomAtTheEnd(t *testing.T) {
 	h.tt.ClickAt(x, y)
 	h.tt.ClickAt(x, y)
 	settle()
-	if e := h.app.Settings.HistoryEnd; e != 40 || hasExact(h, "Author") {
-		t.Fatalf("double click on a shut author's divider: room at the end %v", e)
+	if m := h.app.Settings.HistoryMessage; m != 220 || hasExact(h, "Author") {
+		t.Fatalf("double click on a shut author's divider: message kept at %v", m)
 	}
 
 	for range 2 {
@@ -730,24 +739,59 @@ func TestHistoryColumnsKeepTheRoomAtTheEnd(t *testing.T) {
 		}
 		settle()
 	}
-	if e := h.app.Settings.HistoryEnd; e != 40 || !hasExact(h, "Commit") {
-		t.Fatalf("the hash hidden and shown from the menu: room at the end %v", e)
+	if m := h.app.Settings.HistoryMessage; m != 220 || !hasExact(h, "Commit") {
+		t.Fatalf("the hash hidden and shown from the menu: message kept at %v", m)
 	}
 
-	// Too narrow to keep room at the end, the message's divider makes
-	// none.
-	h.app.Settings.HistoryColumns, h.app.Settings.HistoryEnd = nil, 0
-	hv.detailW = 560
+	// The hash given way, the message's divider makes too little room
+	// for it: let go, the message takes the room back.
+	h.app.Settings.HistoryColumns, h.app.Settings.HistoryMessage = nil, 0
+	hv.detailW = 800
 	settle()
+	if hv.msgWant != historyMessageWant || hv.cols.shown[colHash] {
+		t.Fatalf("message would like %v; columns %v", hv.msgWant, hv.cols.shown)
+	}
+	msg, _ := h.tt.Find("Message")
 	a, _ := h.tt.Find("Author")
 	x, y = a.X-spaceM/2, a.Y+a.H/2
 	h.tt.Press(x, y)
 	h.tt.Frame()
 	h.tt.Move(x-50, y)
 	h.tt.Frame()
+	if now, _ := h.tt.Find("Message"); now.W != msg.W-50 {
+		t.Fatalf("message %v under the pointer, from %v", now.W, msg.W)
+	}
 	h.tt.Release(x-50, y)
 	settle()
-	if e := h.app.Settings.HistoryEnd; e != 0 {
-		t.Fatalf("room at the end %v made in a list with none to spare", e)
+	if now, _ := h.tt.Find("Message"); h.app.Settings.HistoryMessage != 0 || now.W != msg.W {
+		t.Fatalf("message %v let go, from %v; kept at %v", now.W, msg.W, h.app.Settings.HistoryMessage)
+	}
+	// Enough room for the hash, it comes back, and the message keeps
+	// the width it was given.
+	h.tt.Press(x, y)
+	h.tt.Frame()
+	h.tt.Move(x-64, y)
+	h.tt.Frame()
+	h.tt.Release(x-64, y)
+	settle()
+	if !hasExact(h, "Commit") || h.app.Settings.HistoryMessage != msg.W-64 {
+		t.Fatalf("hash back %v, message kept at %v", hasExact(h, "Commit"), h.app.Settings.HistoryMessage)
+	}
+	// Wide, the message narrows by its divider below the room its long
+	// subject would like, down to its least, every column shown.
+	h.app.Settings.HistoryColumns, h.app.Settings.HistoryMessage = nil, 0
+	hv.detailW = 1000
+	settle()
+	msg, _ = h.tt.Find("Message")
+	a, _ = h.tt.Find("Author")
+	x, y = a.X-spaceM/2, a.Y+a.H/2
+	h.tt.Press(x, y)
+	h.tt.Frame()
+	h.tt.Move(x+300-msg.W, y)
+	h.tt.Frame()
+	h.tt.Release(x+300-msg.W, y)
+	settle()
+	if now, _ := h.tt.Find("Message"); now.W != 300 || h.app.Settings.HistoryMessage != 300 || !hasExact(h, "Commit") {
+		t.Fatalf("message %v, kept at %v, columns %v", now.W, h.app.Settings.HistoryMessage, hv.cols.shown)
 	}
 }
