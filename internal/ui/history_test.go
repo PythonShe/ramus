@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/hex"
 	"slices"
 	"strings"
 	"testing"
@@ -52,6 +53,17 @@ func TestHistoryView(t *testing.T) {
 	h.until("the jump", func() bool {
 		return tab.hist.chosen == 2 && h.tt.HasText(want)
 	})
+
+	// Only the latest go-to is answered, whichever git answers first.
+	for range 10 {
+		h.app.jumpTo(tab, "HEAD")
+		h.app.jumpTo(tab, "v1")
+		h.until("the second jump", func() bool { return hex.EncodeToString(tab.hist.chosenID) == want })
+		h.settle()
+		if got := hex.EncodeToString(tab.hist.chosenID); got != want || tab.hist.chosen != 2 {
+			t.Fatalf("an older go-to won: %s", got)
+		}
+	}
 
 	// A new commit reloads history and keeps the chosen commit chosen.
 	r.Write("b.txt", "beta\n")

@@ -52,7 +52,9 @@ type historyState struct {
 	writing bool
 	jump    string
 	jumpErr string
-	buf     []lanes.Edge
+	// jumpN numbers the go-to requests; only the latest is answered.
+	jumpN int
+	buf   []lanes.Edge
 	// picked are the commits chosen together, by commit index.
 	picked   ui.Selection[uint32]
 	path     ui.Path
@@ -139,7 +141,9 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	if hv.chosen >= 0 && h.Snap != nil && hv.chosen < h.Snap.Len() {
 		id := h.OID(h.Snap.Commit(hv.chosen))
 		if string(id) != string(hv.chosenID) {
+			// A row chosen by hand outranks a go-to still resolving.
 			hv.chosenID = id
+			hv.jumpN++
 		}
 	}
 }
@@ -195,7 +199,12 @@ func historyStatus(h session.HistoryState) string {
 func (a *App) jumpTo(t *tab, rev string) {
 	hv := &t.hist
 	hv.jumpErr = ""
+	hv.jumpN++
+	n := hv.jumpN
 	t.s.ResolveCommit(rev, func(id []byte, err error) {
+		if n != hv.jumpN {
+			return // a newer request, or the user chose a commit meanwhile
+		}
 		if err != nil {
 			hv.jumpErr = errText(err)
 			return
@@ -208,6 +217,7 @@ func (a *App) jumpTo(t *tab, rev string) {
 // is found.
 func (a *App) chooseCommit(t *tab, id []byte) {
 	hv := &t.hist
+	hv.jumpN++
 	hv.want, hv.wantFor = id, nil
 	hv.chosenID = id
 	hv.chosen = -1
