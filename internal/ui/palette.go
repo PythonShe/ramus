@@ -52,6 +52,7 @@ func (a *App) commands() []command {
 		dir := a.Crash.Dir()
 		cmds = append(cmds, cmd("crash-reports", func() { go tools.Reveal(dir) }))
 	}
+	cmds = append(cmds, cmd("diagnostics", a.openDiagnostics))
 	t := a.current()
 	if t != nil {
 		cmds = append(cmds, a.tabCommands(t)...)

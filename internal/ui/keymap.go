@@ -168,6 +168,7 @@ var bindable = []struct{ id, name string }{
 	{"keyboard-shortcuts", "Keyboard Shortcuts…"},
 	{"library-stats", "Library Statistics…"},
 	{"crash-reports", "Show Crash Reports"},
+	{"diagnostics", "Diagnostics…"},
 	{"close-tab", "Close Tab"},
 	{"refresh", "Refresh"},
 	{"undo", "Undo"},

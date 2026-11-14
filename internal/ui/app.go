@@ -81,6 +81,7 @@ type App struct {
 	palette    paletteState
 	settingsUI settingsState
 	keysUI     keysState
+	diag       diagState
 	manager    managerState
 	prompt     promptState
 	links      linksDialog
@@ -394,6 +395,7 @@ func (a *App) View(c *ui.Context) {
 	a.mergeToolView(c)
 	a.confirmView(c, &a.confirm)
 	a.keysView(c)
+	a.diagnosticsView(c)
 	a.paletteView(c)
 }
 
