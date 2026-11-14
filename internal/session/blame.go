@@ -75,12 +75,12 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 	post := s.update
 	r.Life().Go(func(context.Context) {
 		defer stop()
-		data, err := readWorkFile(r.WorkTree, path)
+		data, readErr := readWorkFile(r.WorkTree, path)
 		if ctx.Err() != nil {
 			return
 		}
-		post(func() { text(data, err) })
-		if err != nil {
+		post(func() { text(data, readErr) })
+		if readErr != nil {
 			return
 		}
 		pr, pw := io.Pipe()
@@ -102,7 +102,7 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 		if ctx.Err() != nil {
 			return
 		}
-		err = runErr
+		err := runErr
 		if err == nil {
 			err = parseErr
 		}
