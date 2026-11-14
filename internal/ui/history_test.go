@@ -110,6 +110,39 @@ func TestHistoryView(t *testing.T) {
 	h.until("the message copied", func() bool { return h.tt.Clipboard() == "add beta\n" })
 }
 
+// A commit's subject, its author and a branch's name are shown without the
+// bidi overrides and zero-width characters that could disguise them, and
+// Copy Message copies the message without its escapes, lines and tabs
+// kept.
+func TestHistoryShowsNoDisguise(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "a\n")
+	r.Git("add", "a.txt")
+	r.Git("commit", "-q", "--author", "Mal\u202elory <m@x>", "-m", "fix \u202egnp.exe\n\nbody\x1b]0;title\x07\tend")
+	r.Git("branch", "ma\u200bin")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	for _, s := range []string{"fix gnp.exe", "Mallory"} {
+		h.until(s, h.shows(s))
+	}
+	h.until("the branch", func() bool { return strings.Count(strings.Join(h.tt.Texts(), "\n"), "main") >= 2 })
+	for _, s := range h.tt.Texts() {
+		if strings.Contains(s, "gnp") && strings.ContainsAny(s, "\u202e\x1b") || strings.Contains(s, "lory") && strings.Contains(s, "\u202e") {
+			t.Fatalf("shown as is: %q", s)
+		}
+	}
+	if err := h.tt.RightClick("fix gnp.exe"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Copy Message"); err != nil {
+		t.Fatal(err)
+	}
+	h.until("the message copied", func() bool { return h.tt.Clipboard() == "fix gnp.exe\n\nbody\tend\n" })
+}
+
 func TestIssueLinks(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()

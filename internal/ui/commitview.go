@@ -231,7 +231,7 @@ func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.Co
 		// The subject stands for the message: a click copies it whole.
 		s := clickable(linkedText(c, redact.Control(string(subject)), links).Bold()).Tooltip(locales.CommitCopyMessage())
 		if s.Clicked() {
-			a.clip = string(d.Commit.Message)
+			a.clip = copiedMessage(d.Commit.Message)
 		}
 		cv.subjectH = s.LayoutBounds().H
 		cv.bodyH = 0

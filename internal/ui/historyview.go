@@ -703,7 +703,7 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() [
 			case d.Err != nil:
 				a.notice = errText(d.Err)
 			case d.Done:
-				a.clip = string(d.Commit.Message)
+				a.clip = copiedMessage(d.Commit.Message)
 			}
 		})
 	}
@@ -713,6 +713,11 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() [
 	m.Separator()
 	a.commitActions(m, t, id)
 }
+
+// copiedMessage is a commit message as Copy Message puts it on the
+// clipboard: its lines and tabs kept, without the escapes and controls
+// that a terminal it is pasted into would act on.
+func copiedMessage(msg []byte) string { return redact.Control(string(msg)) }
 
 func (a *App) copyPatch(t *tab, id []byte) {
 	t.s.FormatPatch(id, func(text string, err error) {
