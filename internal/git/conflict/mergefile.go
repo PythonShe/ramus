@@ -3,6 +3,7 @@ package conflict
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 
 	"ramus/internal/git/run"
@@ -23,7 +24,14 @@ var ErrTooLarge = errors.New("conflict: the merge is too large to resolve here")
 // Each side is labelled with its name in labels: local, base, remote.
 func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, labels [3]string) (Files, error) {
 	if base == "" {
-		base = "/dev/null"
+		// An empty file: git for Windows cannot stat /dev/null here.
+		f, err := os.CreateTemp("", "ramus-base-*")
+		if err != nil {
+			return Files{}, err
+		}
+		f.Close()
+		defer os.Remove(f.Name())
+		base = f.Name()
 	}
 	var out strings.Builder
 	w := &limited{b: &out, max: MaxSize}
