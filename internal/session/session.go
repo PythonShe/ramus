@@ -89,6 +89,16 @@ type Session struct {
 	blame       blames
 }
 
+// refreshSeen is what the last refresh of one repository read, to tell what a change
+// notice really changed: an index rewritten with the same content key
+// needs no status, and refs read with the same values keep the list
+// everything was built from.
+type refreshSeen struct {
+	index     repo.IndexKey
+	indexRead bool
+	refs      *refs.List
+}
+
 // Debounce gathers a burst of file changes into one refresh.
 const Debounce = 75 * time.Millisecond
 
@@ -194,6 +204,7 @@ func (s *Session) Refresh(what repo.Change) {
 }
 
 func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
+	var seen refreshSeen
 	for {
 		select {
 		case <-s.wake:
@@ -210,7 +221,7 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 		s.dirty = 0
 		s.mu.Unlock()
 		if what != 0 {
-			s.read(ctx, r, what)
+			s.read(ctx, r, what, &seen)
 		}
 	}
 }
@@ -220,7 +231,7 @@ const modulesChanged repo.Change = 1 << 7
 
 const all = modulesChanged | repo.WorkTreeChanged | repo.IndexChanged | repo.RefsChanged | repo.OperationChanged | repo.ConfigChanged
 
-func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change) {
+func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change, seen *refreshSeen) {
 	if what&repo.Rescan != 0 {
 		what |= all
 	}
@@ -243,6 +254,15 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			res.err = err
 		}
 	}
+	var key repo.IndexKey
+	keyErr := errors.New("not read")
+	if what&(repo.WorkTreeChanged|repo.IndexChanged|repo.RefsChanged) != 0 {
+		// Taken before status runs, so a write during it shows next time.
+		key, keyErr = repo.ReadIndexKey(r.GitDir)
+		if keyErr == nil && seen.indexRead && key == seen.index && what&(repo.WorkTreeChanged|repo.RefsChanged) == 0 {
+			what &^= repo.IndexChanged
+		}
+	}
 	if what&(repo.RefsChanged|repo.OperationChanged) != 0 {
 		if rd := r.Refs(); rd != nil {
 			h, err := rd.Head()
@@ -252,6 +272,11 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			}
 			l, err := rd.List()
 			fail(err)
+			if err == nil && l.Equal(seen.refs) {
+				l = nil
+			} else if err == nil {
+				seen.refs = l
+			}
 			res.list = l
 		}
 		op := repo.InProgress(r.GitDir)
@@ -272,6 +297,9 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		fail(err)
 		res.st = st
 		res.readAt = s.timeNow()
+		if err == nil {
+			seen.index, seen.indexRead = key, keyErr == nil
+		}
 	}
 	if ctx.Err() != nil {
 		return

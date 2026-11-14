@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -100,6 +101,20 @@ func (l *List) Peeled(i int) []byte {
 
 // Symbolic returns the target of a symbolic ref, empty for a direct one.
 func (l *List) Symbolic(i int) string { return l.targets[i] }
+
+// Equal reports whether o holds the same refs with the same values, so a
+// refresh that read nothing new can keep l and what was built from it.
+func (l *List) Equal(o *List) bool {
+	if l == o {
+		return true
+	}
+	if l == nil || o == nil || l.hashSize != o.hashSize {
+		return false
+	}
+	return bytes.Equal(l.names, o.names) && slices.Equal(l.ends, o.ends) &&
+		bytes.Equal(l.oids, o.oids) && bytes.Equal(l.peeled, o.peeled) &&
+		maps.Equal(l.targets, o.targets) && slices.Equal(l.Broken, o.Broken)
+}
 
 // Bytes returns the memory the list holds.
 func (l *List) Bytes() int {
