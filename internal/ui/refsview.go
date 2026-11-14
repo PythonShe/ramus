@@ -335,10 +335,12 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					tr.TextColor(th.TextMuted)
 				}
 				ui.Text(c, redact.Control(b.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
-				// A branch hovered or chosen offers to switch to it where
-				// its time is, so that the row keeps its width.
+				// The branch chosen offers to switch to it where its time
+				// is, so that the row keeps its width; hovering changes
+				// nothing, as in the other lists. One checked out in
+				// another worktree cannot be switched to.
 				current := !head.Detached && b.Name == head.Target
-				if !current && t.s.Queue != nil && (row.Hovered() || rs.chosen == i) {
+				if !current && b.Worktree == "" && t.s.Queue != nil && rs.chosen == i {
 					ui.Row(c).Width(88).Children(func() {
 						if ui.Button(c, locales.RefsSwitch()).Label(locales.RefsSwitchTo(redact.Control(r.label))).Padding(0, spaceM).Clicked() {
 							act = func() { a.checkOut(t, b) }
