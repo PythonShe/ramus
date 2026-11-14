@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "copyright": "Copyright 2026 PythonShe",
+  "updates": {
+    "publicKey": "sCbNnINA6mFoBIE1MHNF8e3LJ94e2WjvIoUuu0fagqk=",
+    "github": "PythonShe/ramus"
+  },
   "icon": "assets/app-icon/monogram/png/icon-light-1024.png",
   "macos": {
     "icon": "assets/app-icon/monogram/AppIcon.icon"
