@@ -408,6 +408,16 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	hv.list.Selected = &hv.chosen
 	hv.list.Selection = &hv.picked
 	hv.list.Key = func(i int) any { return snap.Commit(i) }
+	hv.list.DragRows = nil
+	if t.s.Queue != nil {
+		hv.list.DragRows = func(rows []int) any {
+			ids := make(draggedCommits, len(rows))
+			for k, r := range rows {
+				ids[k] = hex.EncodeToString(h.OID(snap.Commit(r)))
+			}
+			return ids
+		}
+	}
 	hv.list.Label = func(i int) string {
 		s, au, w, ok := a.historyRow(t, h, i)
 		if !ok {
@@ -475,6 +485,14 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		ids, n := a.historyIDs(t, h, i)
 		a.commitMenu(m, t, id, merge, ids, n)
 	})
+	if t.s.Queue != nil {
+		if _, over := ui.DragOver[draggedCommits](row); over {
+			row.Background(th.Accent.Alpha(0.16))
+		}
+		if v, ok := ui.Drop[draggedCommits](row); ok {
+			a.dropOnCommit(t, h, hex.EncodeToString(id), v)
+		}
+	}
 }
 
 // graphWidth fits the graph column to the lanes the history uses.
@@ -552,6 +570,7 @@ func (k labelKind) word() string {
 func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() []string, n int) {
 	if n > 1 {
 		a.commitOps(m, t, ids, n)
+		a.rewriteMany(m, t, ids, n)
 		return
 	}
 	if m.Item("Copy Hash").Chosen() {

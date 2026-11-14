@@ -3,6 +3,8 @@ package ui
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -38,8 +40,8 @@ type editRow struct {
 var actionLabels = [...]string{"Pick", "Reword", "Edit", "Squash", "Fix Up", "Drop"}
 
 // editHistory opens the editor of the history from commit id to HEAD,
-// with steps set for the commits picked when picked is not nil.
-func (a *App) editHistory(t *tab, id []byte, picked func(rows []editRow)) {
+// its rows as prefill makes them when it is not nil.
+func (a *App) editHistory(t *tab, id []byte, prefill func(rows []editRow) ([]editRow, error)) {
 	t.s.EditRange(id, func(rw write.Rewrite, commits []session.EditCommit, err error) {
 		if err != nil {
 			a.notice = errText(err)
@@ -49,8 +51,11 @@ func (a *App) editHistory(t *tab, id []byte, picked func(rows []editRow)) {
 		for i, c := range commits {
 			rows[i] = editRow{EditCommit: c, position: i}
 		}
-		if picked != nil {
-			picked(rows)
+		if prefill != nil {
+			if rows, err = prefill(rows); err != nil {
+				a.notice = errText(err)
+				return
+			}
 		}
 		a.history = historyEdit{open: true, t: t, rw: rw, rows: rows, chosen: -1}
 	})
@@ -199,4 +204,95 @@ func countOf(n int, thing string) string {
 		return "1 " + thing
 	}
 	return strconv.Itoa(n) + " " + thing + "s"
+}
+
+// squashPlan gathers the rows of folded (hex) right after the row of
+// into, in their order, as squashes into it.
+func squashPlan(into string, folded []string) func([]editRow) ([]editRow, error) {
+	return func(rows []editRow) ([]editRow, error) {
+		fold := map[string]bool{}
+		for _, f := range folded {
+			if f != into {
+				fold[f] = true
+			}
+		}
+		var moved, rest []editRow
+		for _, r := range rows {
+			if fold[hex.EncodeToString(r.OID)] {
+				r.action = write.DoSquash
+				moved = append(moved, r)
+			} else {
+				rest = append(rest, r)
+			}
+		}
+		at := -1
+		for i, r := range rest {
+			if hex.EncodeToString(r.OID) == into {
+				at = i
+			}
+		}
+		if at < 0 || len(moved) != len(fold) {
+			return nil, errors.New("the commits are not all on HEAD's line of first parents")
+		}
+		return append(append(append(make([]editRow, 0, len(rows)), rest[:at+1]...), moved...), rest[at+1:]...), nil
+	}
+}
+
+// dropPlan marks the rows of dropped (hex) to be dropped.
+func dropPlan(dropped []string) func([]editRow) ([]editRow, error) {
+	return func(rows []editRow) ([]editRow, error) {
+		n := 0
+		for i := range rows {
+			if slices.Contains(dropped, hex.EncodeToString(rows[i].OID)) {
+				rows[i].action = write.DoDrop
+				n++
+			}
+		}
+		if n != len(dropped) {
+			return nil, errors.New("the commits are not all on HEAD's line of first parents")
+		}
+		return rows, nil
+	}
+}
+
+// rewriteMany adds what rewrites several commits picked (hex, newest
+// first) to a menu; each opens the history editor with the plan.
+func (a *App) rewriteMany(m *ui.Menu, t *tab, ids func() []string, n int) {
+	ro := t.s.Queue == nil || t.s.Repo == nil
+	m.Separator()
+	open := func(plan func([]string) func([]editRow) ([]editRow, error)) {
+		list := ids()
+		oldest, _ := hex.DecodeString(list[len(list)-1])
+		a.editHistory(t, oldest, plan(list))
+	}
+	if m.Item("Squash " + countOf(n, "Commit") + "…").Disabled(ro).Chosen() {
+		open(func(list []string) func([]editRow) ([]editRow, error) { return squashPlan(list[len(list)-1], list) })
+	}
+	if m.Item("Drop " + countOf(n, "Commit") + "…").Disabled(ro).Danger().Chosen() {
+		open(dropPlan)
+	}
+}
+
+// draggedCommits are history rows dragged, by hex id, newest first.
+type draggedCommits []string
+
+// dropOnCommit opens the history editor with the commits dragged squashed
+// into the commit into (hex), from whichever of them is oldest.
+func (a *App) dropOnCommit(t *tab, h session.HistoryState, into string, dragged draggedCommits) {
+	if len(dragged) == 0 || len(dragged) == 1 && dragged[0] == into {
+		return
+	}
+	// The rows are newest first: the oldest of them is the last found.
+	all := append(slices.Clone([]string(dragged)), into)
+	oldest := ""
+	for r := 0; r < h.Snap.Len(); r++ {
+		if id := hex.EncodeToString(h.OID(h.Snap.Commit(r))); slices.Contains(all, id) {
+			oldest = id
+		}
+	}
+	from, err := hex.DecodeString(oldest)
+	if err != nil || oldest == "" {
+		return
+	}
+	a.editHistory(t, from, squashPlan(into, dragged))
 }
