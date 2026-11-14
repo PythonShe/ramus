@@ -151,6 +151,13 @@ func (s *Session) follow(e *LogEntry, j *write.Job) { s.followThen(e, j, repo.Re
 // followThen is follow reading again only what, for a write that changes
 // less than everything.
 func (s *Session) followThen(e *LogEntry, j *write.Job, what repo.Change) {
+	// Every write the log follows is one the user waits on, but for the
+	// quiet fetch itself: the queue runs one at a time, so a fetch in the
+	// background, which may take minutes, gives its turn up and is tried
+	// again later.
+	if bg := s.fetch.job; bg != nil && bg != j {
+		bg.Cancel()
+	}
 	e.job, e.Percent = j, -1
 	b := &batcher{update: s.update, e: e}
 	go func() {

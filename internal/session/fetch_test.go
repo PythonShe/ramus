@@ -13,6 +13,7 @@ import (
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
+	"ramus/internal/git/write"
 )
 
 // A repository fetches in the background while asked to; a fetch that
@@ -204,5 +205,64 @@ func TestTrustStartsTheBackgroundFetch(t *testing.T) {
 	m.until(t, "the fetch after the reopen", func() bool { return ended })
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A write of the user's does not wait behind a background fetch, which
+// may take minutes: the fetch gives its turn up, is not counted as
+// failed, and is tried again.
+func TestWriteDoesNotWaitForTheBackgroundFetch(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the hanging ssh is a shell script")
+	}
+	r := gittest.Init(t)
+	r.Write("a.txt", "a\n")
+	r.Commit("one")
+	hang := filepath.Join(t.TempDir(), "ssh")
+	if err := os.WriteFile(hang, []byte("#!/bin/sh\nexec sleep 60\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.Git("config", "core.sshCommand", hang)
+	r.Git("remote", "add", "origin", "ssh://example.invalid/x")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	fetches := func() int {
+		n := 0
+		for _, l := range s.Log {
+			if strings.Contains(l.Name, "in the background") {
+				n++
+			}
+		}
+		return n
+	}
+
+	var failed []error
+	s.SetBackgroundFetch(50*time.Millisecond, func(err error) { failed = append(failed, err) })
+	m.until(t, "the fetch", s.Fetching)
+	m.pump(100 * time.Millisecond)
+	n := fetches()
+
+	r.Write("b.txt", "b\n")
+	start := time.Now()
+	j, err := s.Submit(write.Stage(s.Where(), []string{"b.txt"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged := false
+	s.Then(j, func(err error) {
+		if err != nil {
+			t.Errorf("stage: %v", err)
+		}
+		staged = true
+	})
+	m.until(t, "the stage", func() bool { return staged })
+	if took := time.Since(start); took > 10*time.Second {
+		t.Fatalf("the stage waited %v", took)
+	}
+	m.until(t, "the fetch tried again", func() bool { return fetches() > n })
+	if s.fetch.failures != 0 || s.FetchStopped() != nil || len(failed) != 0 {
+		t.Fatalf("the fetch given up counted as failed: %d, %v, %v", s.fetch.failures, s.FetchStopped(), failed)
 	}
 }
