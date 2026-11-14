@@ -19,6 +19,9 @@ import (
 // host, a path or a name read as something else. A lone \r becomes a
 // newline, as git's progress lines are meant to be read.
 func Control(s string) string {
+	if plain(s) {
+		return s
+	}
 	var b strings.Builder
 	for i := 0; i < len(s); {
 		c := s[i]
@@ -62,6 +65,18 @@ func Control(s string) string {
 		i++
 	}
 	return b.String()
+}
+
+// plain reports printable ASCII, newlines and tabs, which Control keeps
+// as they are: most text is, and it is then not copied. Every history
+// row's subject goes through Control.
+func plain(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; (c < 0x20 && c != '\n' && c != '\t') || c >= 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // joins reports a zero-width joiner or non-joiner, s[i:i+n], that has
