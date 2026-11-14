@@ -108,7 +108,7 @@ func (a *App) savePatch(t *tab, req session.PatchSave, name string) {
 		return
 	}
 	save, update := a.SaveFile, a.Update
-	go func() {
+	a.goWork(t, func() {
 		file, err := save(locales.OpsSavePatchTitle(), name)
 		update(func() {
 			switch {
@@ -122,7 +122,7 @@ func (a *App) savePatch(t *tab, req session.PatchSave, name string) {
 				})
 			}
 		})
-	}()
+	})
 }
 
 // applyPatchFile asks for a patch file, reads what it changes, and asks
@@ -132,7 +132,7 @@ func (a *App) applyPatchFile(t *tab) {
 		return
 	}
 	pick, update := a.PickFile, a.Update
-	go func() {
+	a.goWork(t, func() {
 		file, err := pick(locales.OpsApplyPatchTitle())
 		update(func() {
 			switch {
@@ -148,7 +148,7 @@ func (a *App) applyPatchFile(t *tab) {
 				})
 			}
 		})
-	}()
+	})
 }
 
 func (a *App) askApply(t *tab, pf session.PatchFile) {

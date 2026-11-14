@@ -43,6 +43,16 @@ func (s *Session) recoverWork() {
 	}
 }
 
+// Recover, deferred in a goroutine the app starts for the repository's
+// views, reports a panic in it as one in the repository's work: recover
+// works only called by the deferred function itself, so it does not call
+// recoverWork.
+func (s *Session) Recover() {
+	if v := recover(); v != nil {
+		s.panicked(lifetime.Panic{Value: fmt.Sprint(v), Stack: string(debug.Stack())})
+	}
+}
+
 // recoverMain, deferred around what work hands the main thread, reports
 // a panic in it there.
 func (s *Session) recoverMain() {

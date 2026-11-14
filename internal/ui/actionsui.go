@@ -156,7 +156,7 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 	withPath := func(fn func(abs string) error) func() {
 		update := a.Update
 		return func() {
-			go func() {
+			a.goWork(t, func() {
 				abs, err := pathsafe.Target(root, rel)
 				if err == nil {
 					err = fn(abs)
@@ -164,7 +164,7 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 				if err != nil {
 					update(func() { a.notice = errText(err) })
 				}
-			}()
+			})
 		}
 	}
 	if m.Item(locales.ActionsShowFileHistory()).Disabled(root == "").Chosen() {

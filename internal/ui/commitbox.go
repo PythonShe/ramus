@@ -150,7 +150,7 @@ func (a *App) loadDraft(t *tab) {
 	}
 	cs.draftLoading = true
 	store, path, update := a.Drafts, t.s.Path, a.Update
-	go func() {
+	a.goWork(t, func() {
 		d, err := store.Load(path)
 		update(func() {
 			cs.draftLoading, cs.draftRead = false, true
@@ -163,7 +163,7 @@ func (a *App) loadDraft(t *tab) {
 			cs.kept = d
 			cs.fillTemplate()
 		})
-	}()
+	})
 }
 
 // keepDraft hands the message to the store when it changed. The commit

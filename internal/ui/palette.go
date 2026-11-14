@@ -54,7 +54,7 @@ func (a *App) commands() []command {
 	}
 	if a.Crash != nil {
 		dir := a.Crash.Dir()
-		cmds = append(cmds, cmd("crash-reports", func() { go tools.Reveal(dir) }))
+		cmds = append(cmds, cmd("crash-reports", func() { a.goWork(nil, func() { tools.Reveal(dir) }) }))
 	}
 	cmds = append(cmds, cmd("diagnostics", a.openDiagnostics))
 	if a.ShowAbout != nil {
@@ -112,7 +112,7 @@ func (a *App) tabCommands(t *tab) []command {
 		}})
 	}
 	cmds = append(cmds,
-		cmd("reveal", func() { go tools.Reveal(dir) }),
+		cmd("reveal", func() { a.goWork(t, func() { tools.Reveal(dir) }) }),
 		cmd("show-changes", func() { t.sel = "changes" }),
 		cmd("show-history", func() { t.sel = "history" }),
 		cmd("show-reflog", func() { t.sel = "reflog" }),

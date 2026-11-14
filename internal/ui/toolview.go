@@ -70,7 +70,7 @@ func (a *App) startMergeTool() {
 	mt.pending = false
 	r, update := a.Runner, a.Update
 	base, local, remote, merged := mt.base, mt.local, mt.remote, mt.merged
-	go func() {
+	a.goWork(nil, func() {
 		seen := write.ObserveMerged(merged)
 		labels := [3]string{filepath.Base(local), filepath.Base(base), filepath.Base(remote)}
 		if base == "" {
@@ -90,7 +90,7 @@ func (a *App) startMergeTool() {
 			mt.ms.cf.Segments = files.Segments
 			a.showConflicts(&mt.ms)
 		})
-	}()
+	})
 }
 
 // endMergeTool closes the merge and tells whoever waits on it.
@@ -110,7 +110,7 @@ func (a *App) saveMergeTool(data []byte, side string) {
 	mt := &a.toolMerge
 	mt.saving, mt.err = true, ""
 	merged, seen, update := mt.merged, mt.seen, a.Update
-	go func() {
+	a.goWork(nil, func() {
 		var err error
 		if data == nil {
 			data, err = os.ReadFile(side)
@@ -129,7 +129,7 @@ func (a *App) saveMergeTool(data []byte, side string) {
 			}
 			a.endMergeTool(true)
 		})
-	}()
+	})
 }
 
 func (a *App) mergeToolView(c *ui.Context) {

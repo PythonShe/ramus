@@ -231,7 +231,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				closed[folder] = v
 			}
 		}
-		go func() {
+		a.goWork(t, func() {
 			rows := groupRefs(refNames(key.info, key.kind), key.filter, closed)
 			update(func() {
 				if rs.rowsAsked != key {
@@ -249,7 +249,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				}
 				rs.reveal = false
 			})
-		}()
+		})
 	}
 	if rs.rowsFor.info == nil || rs.rowsFor.kind != rs.kind {
 		loading(c, "")

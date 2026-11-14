@@ -134,7 +134,7 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 	}
 	if p.Files[0].Binary {
 		if res.HasSides && isPicture(p.Path(0)) {
-			go func() {
+			a.goWork(nil, func() {
 				var imgs [2]ui.ImageSource
 				var about [2]string
 				for k, data := range [][]byte{res.Old, res.New} {
@@ -145,11 +145,11 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 						pv.images, pv.about = imgs, about
 					}
 				})
-			}()
+			})
 		}
 		return
 	}
-	go func() {
+	a.goWork(nil, func() {
 		next := patchView{p: p, d: &editor.DiffState{Indicators: editor.DiffClassic}, scrollTo: scroll}
 		fps, err := editor.ParsePatch(string(p.Text))
 		if err != nil || len(fps) == 0 {
@@ -175,7 +175,7 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 				*pv = next
 			}
 		})
-	}()
+	})
 }
 
 // changeLines is the lines of the viewer's change i, as Select takes

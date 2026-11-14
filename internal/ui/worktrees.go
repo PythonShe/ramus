@@ -115,7 +115,7 @@ func (a *App) worktreeView(c *ui.Context) {
 // the worktree's own folder name.
 func (a *App) pickWorktreeParent(d *worktreeDialog) {
 	pick, update := a.PickFolder, a.Update
-	go func() {
+	a.goWork(nil, func() {
 		p, err := pick(locales.WorktreePickFolder())
 		update(func() {
 			switch {
@@ -125,7 +125,7 @@ func (a *App) pickWorktreeParent(d *worktreeDialog) {
 				d.path = filepath.Join(p, filepath.Base(strings.TrimSpace(d.path)))
 			}
 		})
-	}()
+	})
 }
 
 func (a *App) addWorktree(d *worktreeDialog) {

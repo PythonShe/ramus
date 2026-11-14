@@ -304,14 +304,14 @@ func (a *App) buildLabels(hv *historyState, st session.State, h session.HistoryS
 	}
 	hv.labelsFor, hv.labelsHist = st.Refs, h.For
 	refs, hist, update := st.Refs, h.For, a.Update
-	go func() {
+	a.goWork(nil, func() {
 		labels := labelMap(st, h)
 		update(func() {
 			if hv.labelsFor == refs && hv.labelsHist == hist {
 				hv.labels = labels
 			}
 		})
-	}()
+	})
 }
 
 // labelMap maps each commit to the labels of the refs at it.

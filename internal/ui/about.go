@@ -7,6 +7,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/crashlog"
+	"ramus/internal/git/lifetime"
 	"ramus/internal/licenses"
 	"ramus/locales"
 )
@@ -41,6 +43,8 @@ type About struct {
 	Update func(fn func())
 	// Relaunch restarts the app, into an update installed.
 	Relaunch func()
+	// Crash keeps the crash reports; nil keeps none.
+	Crash *crashlog.Log
 
 	upd    updateState
 	found  Update
@@ -81,7 +85,7 @@ func (ab *About) CheckNow() {
 	}
 	ctx := ab.begin(updateChecking)
 	check, update := ab.Check, ab.Update
-	go func() {
+	goRecover(ab.Crash, func() {
 		u, err := check(ctx)
 		update(func() {
 			if ctx.Err() != nil {
@@ -98,7 +102,14 @@ func (ab *About) CheckNow() {
 				ab.upd, ab.found = updateFound, u
 			}
 		})
-	}()
+	}, ab.failed(update))
+}
+
+// failed shows a panic in a check or an install as its failure.
+func (ab *About) failed(update func(func())) func(lifetime.Panic) {
+	return func(p lifetime.Panic) {
+		update(func() { ab.upd, ab.err = updateFailed, locales.AppPanic(p.Value) })
+	}
 }
 
 // install installs the update found and relaunches into it.
@@ -107,7 +118,7 @@ func (ab *About) install() {
 	ctx := ab.begin(updateInstalling)
 	ab.done = 0
 	update, relaunch := ab.Update, ab.Relaunch
-	go func() {
+	goRecover(ab.Crash, func() {
 		err := u.Install(ctx, func(done, total int64) {
 			if total > 0 {
 				update(func() { ab.done = float64(done) / float64(total) })
@@ -125,7 +136,7 @@ func (ab *About) install() {
 				relaunch()
 			}
 		})
-	}()
+	}, ab.failed(update))
 }
 
 // begin starts work of state s, cancelling any before it.

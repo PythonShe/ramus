@@ -230,7 +230,7 @@ func NewApp(d Deps) *App {
 // the user prefers (tools.Preferred), else the first found.
 func (a *App) findTools() {
 	editor, terminal, update := a.Settings.Editor, a.Settings.Terminal, a.Update
-	go func() {
+	a.goWork(nil, func() {
 		found := tools.Detect()
 		var auto [2]string
 		var mine []tools.Tool
@@ -261,7 +261,7 @@ func (a *App) findTools() {
 		}
 		found = append(mine, found...)
 		update(func() { a.palette.tools, a.palette.found, a.palette.auto = found, true, auto })
-	}()
+	})
 }
 
 // yourEditor and yourTerminal name the editor and the terminal the
@@ -336,7 +336,7 @@ func (a *App) Open(path string) {
 	// stays.
 	if a.Library != nil && !restored {
 		lib, now := a.Library, a.Now()
-		a.writes.Go(func() { lib.Opened(path, now) }) // writes a file: never on the main thread
+		a.goWrite(func() { lib.Opened(path, now) }) // writes a file: never on the main thread
 	}
 }
 
@@ -422,7 +422,7 @@ func (a *App) pickAndOpen() {
 		return
 	}
 	pick, update := a.PickFolder, a.Update
-	go func() {
+	a.goWork(nil, func() {
 		p, err := pick(locales.AppOpenRepository())
 		update(func() {
 			switch {
@@ -432,7 +432,7 @@ func (a *App) pickAndOpen() {
 				a.Open(p)
 			}
 		})
-	}()
+	})
 }
 
 // initAndOpen asks for a folder, makes it a repository, and opens it.
@@ -441,7 +441,7 @@ func (a *App) initAndOpen() {
 		return
 	}
 	pick, update, r, ts := a.PickFolder, a.Update, a.Runner, a.Trust
-	go func() {
+	a.goWork(nil, func() {
 		p, err := pick(locales.AppNewRepository())
 		if err == nil && p != "" {
 			// A repository made here is the user's own; one that was already
@@ -462,7 +462,7 @@ func (a *App) initAndOpen() {
 				a.Open(p)
 			}
 		})
-	}()
+	})
 }
 
 // View builds the main window.

@@ -280,7 +280,7 @@ func (a *App) askDiscardLinesOf(t *tab, lt lineTarget, confirm *confirmState, ch
 	w := t.s.Where()
 	head := t.s.State.Head
 	update := a.Update
-	go func() {
+	a.goWork(t, func() {
 		files, err := write.Observe(w.WorkTree, []string{path})
 		update(func() {
 			if err != nil {
@@ -305,5 +305,5 @@ func (a *App) askDiscardLinesOf(t *tab, lt lineTarget, confirm *confirmState, ch
 				},
 			}
 		})
-	}()
+	})
 }

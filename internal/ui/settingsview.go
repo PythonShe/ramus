@@ -115,7 +115,7 @@ func (a *App) settingsView(c *ui.Context) {
 				}
 				if a.SettingsPath != "" && ui.Button(c, locales.SettingsOpenFile()).Clicked() {
 					p := a.SettingsPath
-					go tools.OpenDefault(p)
+					a.goWork(nil, func() { tools.OpenDefault(p) })
 				}
 				ui.Spacer(c)
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
@@ -256,7 +256,7 @@ func (a *App) pickTool(kind tools.Kind, title string, argv *[]string) {
 		return
 	}
 	pick, update, s := a.PickFile, a.Update, &a.settingsUI
-	go func() {
+	a.goWork(nil, func() {
 		p, err := pick(title)
 		if err == nil && p != "" {
 			_, err = tools.Custom(title, kind, []string{p})
@@ -269,7 +269,7 @@ func (a *App) pickTool(kind tools.Kind, title string, argv *[]string) {
 				*argv, s.err = []string{p}, ""
 			}
 		})
-	}()
+	})
 }
 
 // readDifftool reads whether git's global config makes the app its
@@ -279,7 +279,7 @@ func (a *App) readDifftool() {
 		return
 	}
 	r, tool, update, s := a.Runner, a.globalTool(), a.Update, &a.settingsUI
-	go func() {
+	a.goWork(nil, func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		on, err := write.ToolIsSet(ctx, r, tool)
 		cancel()
@@ -288,7 +288,7 @@ func (a *App) readDifftool() {
 				s.difftool, s.difftoolWas, s.difftoolRead = on, on, true
 			}
 		})
-	}()
+	})
 }
 
 // globalTool is the app as git's difftool and mergetool.
@@ -331,14 +331,14 @@ func (a *App) saveSettings() {
 	next := a.formSettings()
 	if s.difftoolRead && s.difftool != s.difftoolWas {
 		r, tool, on, update := a.Runner, a.globalTool(), s.difftool, a.Update
-		go func() {
+		a.goWork(nil, func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			err := write.SetTool(ctx, r, tool, on)
 			cancel()
 			if err != nil {
 				update(func() { a.notice = locales.SettingsDiffToolFailed(errText(err)) })
 			}
-		}()
+		})
 	}
 	a.Settings, s.open = next.WithDefaults(), false
 	a.findTools()

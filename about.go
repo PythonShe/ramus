@@ -46,6 +46,7 @@ func (ws *windows) showAbout(check bool) {
 		ab.IconDark = s
 	}
 	ab.Check = checkUpdate
+	ab.Crash = ws.deps.Crash
 	ab.Update = func(fn func()) {
 		mygo.RunOnMain(func() {
 			if a.win != nil {

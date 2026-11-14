@@ -151,10 +151,10 @@ func (a *App) loadTreemap(t *tab, ts *treemapState, changes bool) {
 			// The tree is built off the main thread too: a large
 			// repository has hundreds of thousands of paths.
 			update := a.Update
-			go func() {
+			a.goWork(t, func() {
 				d := newTreemapData(pw)
 				update(func() { ts.data, ts.loading = d, false })
-			}()
+			})
 		}
 		if changes {
 			t.s.ChangeCounts(req, done)

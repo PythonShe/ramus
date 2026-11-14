@@ -55,7 +55,7 @@ func (a *App) loadRefPrefs(t *tab) {
 	}
 	rp.loading = true
 	lib, path, update := a.Library, t.s.Path, a.Update
-	go func() {
+	a.goWork(t, func() {
 		pinned, hidden := lib.RefPrefs(path)
 		fetchOff, editor := lib.FetchOff(path), lib.Editor(path)
 		update(func() {
@@ -67,7 +67,7 @@ func (a *App) loadRefPrefs(t *tab) {
 				a.applyHistoryFilter(t)
 			}
 		})
-	}()
+	})
 }
 
 // saveRefPrefs keeps the pinned and hidden refs off the main thread.
@@ -77,11 +77,11 @@ func (a *App) saveRefPrefs(t *tab) {
 	}
 	lib, path, update := a.Library, t.s.Path, a.Update
 	pinned, hidden := slices.Clone(t.prefs.pinned), slices.Clone(t.prefs.hidden)
-	go func() {
+	a.goWork(t, func() {
 		if err := lib.SetRefPrefs(path, pinned, hidden); err != nil {
 			update(func() { a.notice = errText(err) })
 		}
-	}()
+	})
 }
 
 // toggleRef adds name to the list or takes it out, and saves.

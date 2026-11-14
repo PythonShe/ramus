@@ -33,7 +33,7 @@ func (a *App) Ask(q *askpass.Ask) {
 		}
 	}
 	update := a.Update
-	go func() {
+	a.goWork(nil, func() {
 		// Off the main thread: the folders are resolved on disk.
 		if h := remoteHost(q.Question, repos); h != "" {
 			update(func() {
@@ -45,11 +45,11 @@ func (a *App) Ask(q *askpass.Ask) {
 				}
 			})
 		}
-	}()
-	go func() {
+	})
+	a.goWork(nil, func() {
 		<-q.Gone()
 		update(func() { a.dropAsk(q) })
-	}()
+	})
 }
 
 // remoteHost is the host q's prompt names when a remote of the repository

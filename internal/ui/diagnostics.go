@@ -33,7 +33,7 @@ func (a *App) openDiagnostics() {
 		return
 	}
 	crash, update := a.Crash, a.Update
-	go func() {
+	a.goWork(nil, func() {
 		names, _ := crash.Reports()
 		if len(names) == 0 {
 			return
@@ -43,7 +43,7 @@ func (a *App) openDiagnostics() {
 			return
 		}
 		update(func() { a.diag.crash, a.diag.crashName = string(data), filepath.Base(names[0]) })
-	}()
+	})
 }
 
 // diagnostics is the text copied: the app, OS and git; what each open
@@ -121,7 +121,7 @@ func (a *App) diagnosticsView(c *ui.Context) {
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				if ui.Button(c, locales.DiagnosticsOpenIssue()).Clicked() {
-					go tools.OpenDefault(issueURL)
+					a.goWork(nil, func() { tools.OpenDefault(issueURL) })
 				}
 				ui.Spacer(c)
 				if ui.Button(c, locales.CommonClose()).Clicked() {

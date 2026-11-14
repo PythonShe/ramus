@@ -11305,6 +11305,22 @@ func (msgs Messages) AppShellNotRead(error string) string {
 	return Catalog.Format(msgs.locale, "appShellNotRead", map[string]any{"error": error})
 }
 
+// AppPanic says "Something in Ramus failed: {error}"
+// in the language the app shows.
+//
+// A bug stopped work that belongs to no repository; error is what failed,
+// as the program says it.
+func AppPanic(error string) string { return In(i18n.Locale()).AppPanic(error) }
+
+// AppPanic says "Something in Ramus failed: {error}"
+// in the language of msgs.
+//
+// A bug stopped work that belongs to no repository; error is what failed,
+// as the program says it.
+func (msgs Messages) AppPanic(error string) string {
+	return Catalog.Format(msgs.locale, "appPanic", map[string]any{"error": error})
+}
+
 // MenuAbout says "About Ramus"
 // in the language the app shows.
 //

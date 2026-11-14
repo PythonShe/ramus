@@ -2241,6 +2241,10 @@
   "@appShellNotRead": {
     "description": "PATH is the environment variable; keep it as is."
   },
+  "appPanic": "Something in Ramus failed: {error}",
+  "@appPanic": {
+    "description": "A bug stopped work that belongs to no repository; error is what failed, as the program says it."
+  },
   "menuAbout": "About Ramus",
   "@menuAbout": {
     "description": "The menu item that opens the About window; on macOS in the app's menu, elsewhere in Help."

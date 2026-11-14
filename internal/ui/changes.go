@@ -67,14 +67,14 @@ func (a *App) rebuildChanges(t *tab) {
 		open[k] = v
 	}
 	update := a.Update
-	go func() {
+	a.goWork(t, func() {
 		m := buildChanges(st, filter, tree, open)
 		update(func() {
 			cv.building = false
 			cv.model, cv.builtFor, cv.builtFilter, cv.builtTree, cv.builtOpen = m, st, filter, tree, gen
 			cv.findWanted()
 		})
-	}()
+	})
 }
 
 // findWanted chooses the wanted file in a model just built, if it is

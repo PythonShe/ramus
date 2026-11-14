@@ -152,7 +152,7 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 // file), then shows the result.
 func (a *App) libraryWrite(fn func(*library.Library) error) {
 	lib, update := a.Library, a.Update
-	a.writes.Go(func() {
+	a.goWrite(func() {
 		err := fn(lib)
 		update(func() {
 			a.manager.dirty = true

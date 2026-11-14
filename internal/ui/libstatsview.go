@@ -132,14 +132,14 @@ func (a *App) summarize() {
 	s.sumGen++
 	gen, repos, today, update := s.sumGen, slices.Clone(s.repos), activity.DayOf(a.Now()), a.Update
 	s.summing = true
-	go func() {
+	a.goWork(nil, func() {
 		sum := libstats.Summarize(repos, f, today)
 		update(func() {
 			if s.sumGen == gen {
 				s.sum, s.summing = &sum, false
 			}
 		})
-	}()
+	})
 }
 
 func (a *App) libStatsView(c *ui.Context) {

@@ -69,7 +69,7 @@ func (a *App) startCompare() {
 	ctx, cancel := context.WithCancel(context.Background())
 	cs.cancel = cancel
 	old, new, r, update := cs.old, cs.new, a.Runner, a.Update
-	go func() {
+	a.goWork(nil, func() {
 		oi, err1 := os.Stat(old)
 		ni, err2 := os.Stat(new)
 		var list *diff.Compared
@@ -97,7 +97,7 @@ func (a *App) startCompare() {
 				cs.chosen = 0
 			}
 		})
-	}()
+	})
 }
 
 func (a *App) stopCompare() {
@@ -152,7 +152,7 @@ func (a *App) readComparePatch(cs *compareState, key compareKey) {
 		sideMax = maxCompareSide
 	}
 	cs.patchLoading = true
-	go func() {
+	a.goWork(nil, func() {
 		res := session.PatchResult{}
 		p, err := diff.ComparePatch(context.Background(), r, key.old, key.new, key.ws, max)
 		res.Truncated, res.Err = p.Truncated, err
@@ -177,7 +177,7 @@ func (a *App) readComparePatch(cs *compareState, key compareKey) {
 			}
 			cs.patchLoading = false
 		})
-	}()
+	})
 }
 
 // readSide is a file read whole, when it is at most max bytes; none for

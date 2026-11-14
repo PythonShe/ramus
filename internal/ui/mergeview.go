@@ -137,14 +137,14 @@ func (a *App) showConflicts(ms *mergeState) {
 			k++
 		}
 	}
-	go func() {
+	a.goWork(nil, func() {
 		shown := showSegments(segs)
 		update(func() {
 			if ms.gen == gen {
 				ms.shown = shown
 			}
 		})
-	}()
+	})
 }
 
 // mergeEditor resolves a conflicted file: each conflict by a side, both,

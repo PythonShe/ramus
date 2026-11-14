@@ -227,14 +227,14 @@ func (a *App) findStackTool() {
 	}
 	a.ghStack.asked = true
 	find, update := a.findForge(), a.Update
-	go func() {
+	a.goWork(nil, func() {
 		c, err := find(forge.GitHub)
 		ok := false
 		if err == nil {
 			_, ok = c.HasStack(context.Background())
 		}
 		update(func() { a.ghStack.c, a.ghStack.ok = c, ok })
-	}()
+	})
 }
 
 // stackBadge shows where a branch is in the GitHub stack gh stack keeps,

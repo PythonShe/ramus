@@ -196,7 +196,7 @@ func (a *App) stampReview(t *tab, st *status.Status) {
 	}
 	rv.stamping = true
 	root, update := t.s.Where().WorkTree, a.Update
-	go func() {
+	a.goWork(t, func() {
 		stamps := make(map[string]fileStamp, len(ps))
 		for _, p := range ps {
 			fi, err := os.Lstat(filepath.Join(root, filepath.FromSlash(p)))
@@ -216,7 +216,7 @@ func (a *App) stampReview(t *tab, st *status.Status) {
 				rv.builtFor = nil
 			}
 		})
-	}()
+	})
 }
 
 func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro bool, act *func()) {

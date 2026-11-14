@@ -31,7 +31,7 @@ func (a *App) loadLinks(t *tab) {
 	}
 	t.links.For = r
 	lib, path, update := a.Library, t.s.Path, a.Update
-	go func() {
+	a.goWork(t, func() {
 		var own []issuelink.Rule
 		if lib != nil {
 			own = lib.IssueLinks(path)
@@ -43,7 +43,7 @@ func (a *App) loadLinks(t *tab) {
 				t.links.set = issuelink.Compile(append(slices.Clone(own), remote...))
 			}
 		})
-	}()
+	})
 }
 
 // remoteLinks are the rules the host of the remote named upstream
@@ -163,7 +163,7 @@ func (a *App) saveLinks() {
 	}
 	t, lib, update := d.t, a.Library, a.Update
 	d.open = false
-	go func() {
+	a.goWork(nil, func() {
 		err := lib.SetIssueLinks(t.s.Path, rules)
 		update(func() {
 			if err != nil {
@@ -173,5 +173,5 @@ func (a *App) saveLinks() {
 			// Read again with the remote's rules.
 			t.links.For = nil
 		})
-	}()
+	})
 }

@@ -94,14 +94,14 @@ func (a *App) pickCloneParent() {
 		return
 	}
 	pick, update := a.PickFolder, a.Update
-	go func() {
+	a.goWork(nil, func() {
 		p, err := pick(locales.CloneInto())
 		update(func() {
 			if err == nil && p != "" {
 				a.clone.dir = filepath.Join(p, defaultCloneDir(a.clone.url))
 			}
 		})
-	}()
+	})
 }
 
 func (a *App) startClone() {
@@ -122,7 +122,7 @@ func (a *App) startClone() {
 	cs.starting = true
 	cs.gen++
 	gen := cs.gen
-	go func() {
+	a.goWork(nil, func() {
 		// Clone looks at the folder before it starts git.
 		j, err := write.Clone(r, opt)
 		update(func() {
@@ -138,9 +138,9 @@ func (a *App) startClone() {
 				return
 			}
 			cs.job = j
-			go a.followClone(j, dir, update, ts)
+			a.goWork(nil, func() { a.followClone(j, dir, update, ts) })
 		})
-	}()
+	})
 }
 
 // followClone shows the clone's progress and opens it when done.

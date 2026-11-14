@@ -39,3 +39,18 @@ func TestPanicInTab(t *testing.T) {
 	}
 	h.until("no banner", func() bool { return !h.tt.HasText("Something in Ramus failed") })
 }
+
+// A panic in work a view started off the main thread does not end the
+// app: one for a repository shows in its tab, one for none in a notice.
+func TestPanicInViewWork(t *testing.T) {
+	h := newHarness(t)
+	h.panics = true
+	r := h.repoWith("a.txt")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("a.txt"))
+	h.app.goWork(h.app.current(), func() { panic("view work broke") })
+	h.until("the banner", h.shows("Something in Ramus failed while working on this repository: view work broke"))
+	h.app.goWork(nil, func() { panic("window work broke") })
+	h.until("the notice", func() bool { return h.app.notice == "Something in Ramus failed: window work broke" })
+}
