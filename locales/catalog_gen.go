@@ -2679,16 +2679,6 @@ func (msgs Messages) CompareDifferingFiles() string {
 	return Catalog.Format(msgs.locale, "compareDifferingFiles", nil)
 }
 
-// CompareChooseFile says "Choose a file to see its changes"
-// in the language the app shows.
-func CompareChooseFile() string { return In(i18n.Locale()).CompareChooseFile() }
-
-// CompareChooseFile says "Choose a file to see its changes"
-// in the language of msgs.
-func (msgs Messages) CompareChooseFile() string {
-	return Catalog.Format(msgs.locale, "compareChooseFile", nil)
-}
-
 // CompareSwap says "Swap"
 // in the language the app shows.
 //
@@ -4331,16 +4321,6 @@ func (msgs Messages) CommitBoxNotAllChecked() string {
 	return Catalog.Format(msgs.locale, "commitBoxNotAllChecked", nil)
 }
 
-// CommitChooseCommit says "Choose a commit to see it"
-// in the language the app shows.
-func CommitChooseCommit() string { return In(i18n.Locale()).CommitChooseCommit() }
-
-// CommitChooseCommit says "Choose a commit to see it"
-// in the language of msgs.
-func (msgs Messages) CommitChooseCommit() string {
-	return Catalog.Format(msgs.locale, "commitChooseCommit", nil)
-}
-
 // CommitAuthor says "Author"
 // in the language the app shows.
 func CommitAuthor() string { return In(i18n.Locale()).CommitAuthor() }
@@ -4867,16 +4847,6 @@ func CommitSwitchToBranch() string { return In(i18n.Locale()).CommitSwitchToBran
 // A checkbox: check out the branch once it is made.
 func (msgs Messages) CommitSwitchToBranch() string {
 	return Catalog.Format(msgs.locale, "commitSwitchToBranch", nil)
-}
-
-// DiffChooseFile says "Choose a file to see its changes"
-// in the language the app shows.
-func DiffChooseFile() string { return In(i18n.Locale()).DiffChooseFile() }
-
-// DiffChooseFile says "Choose a file to see its changes"
-// in the language of msgs.
-func (msgs Messages) DiffChooseFile() string {
-	return Catalog.Format(msgs.locale, "diffChooseFile", nil)
 }
 
 // DiffUnstage says "Unstage"

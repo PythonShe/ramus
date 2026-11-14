@@ -279,7 +279,7 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 
 func (a *App) comparedPatch(c *ui.Context, cs *compareState) {
 	if _, _, ok := cs.comparedFiles(); !ok {
-		emptyState(c, locales.CompareChooseFile())
+		emptyPane(c)
 		return
 	}
 	ui.Column(c).Fill().Children(func() {

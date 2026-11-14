@@ -85,6 +85,11 @@ func emptyState(c *ui.Context, msg string) {
 	})
 }
 
+// emptyPane fills the space of a pane with nothing chosen to show.
+func emptyPane(c *ui.Context) {
+	ui.Column(c).Fill()
+}
+
 // errorMessage shows what went wrong where the content would be.
 func errorMessage(c *ui.Context, msg string) {
 	ui.Text(c, msg).TextColor(c.Theme().Danger).Padding(spaceL).Selectable()

@@ -78,7 +78,7 @@ type sigResult struct {
 // commitDetail shows commit id in cv, reading it when id changes.
 func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 	if id == nil {
-		emptyState(c, locales.CommitChooseCommit())
+		emptyPane(c)
 		return
 	}
 	if !bytes.Equal(cv.id, id) {
@@ -475,7 +475,7 @@ func fileStatusColor(th *ui.Theme, st byte) ui.Color {
 func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	f := d.Files
 	if f == nil || cv.file < 0 || cv.file >= f.Len() {
-		emptyState(c, locales.DiffChooseFile())
+		emptyPane(c)
 		return
 	}
 	paths := []string{string(f.Path(cv.file))}

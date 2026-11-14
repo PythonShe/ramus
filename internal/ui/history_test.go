@@ -364,7 +364,7 @@ func TestCommitPatchOpensForAChosenFile(t *testing.T) {
 	h.until("the commits", h.shows("two files"))
 	h.click("two files")
 	h.until("the files", h.shows("b.txt"))
-	if h.tt.HasText("Choose a file to see its changes") || h.tt.HasText("Close Patch") {
+	if h.tt.HasText("Close Patch") {
 		t.Fatal("a patch pane before a file is chosen")
 	}
 	listW := h.app.current().hist.detailW

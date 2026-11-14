@@ -486,7 +486,6 @@
     "description": "Accessibility label of a differing file; status is a word such as Added or Modified."
   },
   "compareDifferingFiles": "Differing files",
-  "compareChooseFile": "Choose a file to see its changes",
   "compareSwap": "Swap",
   "@compareSwap": {
     "description": "Swaps the two commits compared."
@@ -789,7 +788,6 @@
     "description": "The value of a git setting that has none."
   },
   "commitBoxNotAllChecked": "Some staged files were too many or too large to check.",
-  "commitChooseCommit": "Choose a commit to see it",
   "commitAuthor": "Author",
   "commitCommitter": "Committer",
   "commitHashLabel": "Commit",
@@ -870,7 +868,6 @@
   "@commitSwitchToBranch": {
     "description": "A checkbox: check out the branch once it is made."
   },
-  "diffChooseFile": "Choose a file to see its changes",
   "diffUnstage": "Unstage",
   "diffDiscardChange": "Discard…",
   "diffStage": "Stage",

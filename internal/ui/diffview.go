@@ -49,7 +49,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	cv := &t.cv
 	r, ok := cv.chosenFile()
 	if !ok {
-		emptyState(c, locales.DiffChooseFile())
+		emptyPane(c)
 		return
 	}
 	m := cv.model
