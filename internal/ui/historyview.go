@@ -113,7 +113,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 		clear(hv.asked)
 	}
 	a.findWanted(t, h)
-	hv.buildLabels(t.s.State, h)
+	a.buildLabels(hv, t.s.State, h)
 	ui.Split(c, &hv.detailW, func() {
 		ui.Column(c).Fill().Children(func() {
 			a.bisectBar(c, t)
@@ -250,11 +250,27 @@ func (a *App) findWanted(t *tab, h session.HistoryState) {
 
 // buildLabels maps commits to the refs that point at them, when the refs
 // change.
-func (hv *historyState) buildLabels(st session.State, h session.HistoryState) {
-	if st.Refs == hv.labelsFor && h.For == hv.labelsHist && hv.labels != nil {
+//
+// They are built off the main thread: tens of thousands of refs take
+// milliseconds. The labels shown stay until the new ones come.
+func (a *App) buildLabels(hv *historyState, st session.State, h session.HistoryState) {
+	if st.Refs == hv.labelsFor && h.For == hv.labelsHist {
 		return
 	}
 	hv.labelsFor, hv.labelsHist = st.Refs, h.For
+	refs, hist, update := st.Refs, h.For, a.Update
+	go func() {
+		labels := labelMap(st, h)
+		update(func() {
+			if hv.labelsFor == refs && hv.labelsHist == hist {
+				hv.labels = labels
+			}
+		})
+	}()
+}
+
+// labelMap maps each commit to the labels of the refs at it.
+func labelMap(st session.State, h session.HistoryState) map[string][]refLabel {
 	labels := map[string][]refLabel{}
 	add := func(id []byte, l refLabel) {
 		if len(id) > 0 {
@@ -299,7 +315,7 @@ func (hv *historyState) buildLabels(st session.State, h session.HistoryState) {
 	for i, s := range h.Stashes {
 		add(s.Base, refLabel{fmt.Sprintf("stash@{%d}", i), labelStash})
 	}
-	hv.labels = labels
+	return labels
 }
 
 // row returns the text of row i, asking for its chunk when it is not

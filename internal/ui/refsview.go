@@ -27,11 +27,15 @@ type refsState struct {
 	readW   int
 	loading bool
 
-	closed  map[string]bool
-	rows    []refRow
-	rowsFor rowsKey
-	list    ui.ListState
-	chosen  int
+	closed map[string]bool
+	// closedGen counts folders opened and closed, for the rows key.
+	closedGen int
+	rows      []refRow
+	rowsFor   rowsKey
+	// rowsAsked is the key of rows being grouped off the main thread.
+	rowsAsked rowsKey
+	list      ui.ListState
+	chosen    int
 	// byName indexes the branches and tags of byNameFor by full name.
 	byName    map[string]int
 	byNameFor *session.RefInfo
@@ -196,24 +200,57 @@ func refNames(info *session.RefInfo, kind int) []string {
 	return out
 }
 
+// closedPrefix keys a list's closed folders in refsState.closed.
+func closedPrefix(kind int) string {
+	if kind == refsTags {
+		return "t:"
+	}
+	return "b:"
+}
+
 func (a *App) refList(c *ui.Context, t *tab) {
 	th := c.Theme()
 	rs := &t.refs
 	info := rs.info
-	key := rowsKey{info, rs.kind, rs.filter, rs.rowsFor.gen}
-	if key != rs.rowsFor {
-		rs.rows, rs.rowsFor = groupRefs(refNames(info, rs.kind), rs.filter, rs.closed), key
-		rs.chosen = -1
-		for i, r := range rs.rows {
-			if r.idx >= 0 && fullRef(info, rs.kind, r.idx) == rs.chosenName {
-				rs.chosen = i
-				if rs.reveal {
-					rs.list.ScrollTo(i, ui.Center)
-				}
+	key := rowsKey{info, rs.kind, rs.filter, rs.closedGen}
+	if key != rs.rowsFor && key != rs.rowsAsked {
+		// Grouped off the main thread: tens of thousands of refs take
+		// milliseconds. The rows shown stay until the new ones come.
+		rs.rowsAsked = key
+		// The folders closed in this list, by path, as groupRefs takes them.
+		closed, update := map[string]bool{}, a.Update
+		for k, v := range rs.closed {
+			if folder, ok := strings.CutPrefix(k, closedPrefix(rs.kind)); ok {
+				closed[folder] = v
 			}
 		}
-		rs.reveal = false
+		go func() {
+			rows := groupRefs(refNames(key.info, key.kind), key.filter, closed)
+			update(func() {
+				if rs.rowsAsked != key {
+					return
+				}
+				rs.rows, rs.rowsFor = rows, key
+				rs.chosen = -1
+				for i, r := range rows {
+					if r.idx >= 0 && fullRef(key.info, key.kind, r.idx) == rs.chosenName {
+						rs.chosen = i
+						if rs.reveal {
+							rs.list.ScrollTo(i, ui.Center)
+						}
+					}
+				}
+				rs.reveal = false
+			})
+		}()
 	}
+	if rs.rowsFor.info == nil || rs.rowsFor.kind != rs.kind {
+		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		return
+	}
+	// The rows index the ref details they were grouped from, which stay
+	// shown until the rows of newer ones come.
+	info = rs.rowsFor.info
 	rows := rs.rows
 	if len(rows) == 0 {
 		ui.Column(c).Fill().Center().Children(func() {
@@ -228,10 +265,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 		})
 		return
 	}
-	prefix := "b:"
-	if rs.kind == refsTags {
-		prefix = "t:"
-	}
+	prefix := closedPrefix(rs.kind)
 	head := t.s.State.Head
 	now := a.Now()
 	rs.list.Selected = &rs.chosen
@@ -254,7 +288,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					arrow = "▸"
 				}
 				if ui.Text(c, arrow).Width(12).TextColor(th.TextMuted).RowClicked() {
-					act = func() { rs.closed[k] = !rs.closed[k]; rs.rowsFor.gen++ }
+					act = func() { rs.closed[k] = !rs.closed[k]; rs.closedGen++ }
 				}
 				ui.Text(c, redact.Control(r.label)+"/").SingleLine().Grow(1)
 				return
