@@ -2,9 +2,11 @@ package lifetime
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -96,3 +98,23 @@ func (b blockingReader) Read([]byte) (int, error) {
 	<-b.ctx.Done()
 	return 0, b.ctx.Err()
 }
+
+func TestPanicRecovered(t *testing.T) {
+	l := New(context.Background())
+	got := make(chan Panic, 2)
+	l.OnPanic(func(p Panic) { got <- p })
+	l.Go(func(context.Context) { panicInWork() })
+	p := <-got
+	if p.Value != "broken: 7" || !strings.Contains(p.Stack, "panicInWork") {
+		t.Fatalf("%+v", p)
+	}
+	// The lifetime still ends.
+	l.Close()
+	select {
+	case <-l.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("not closed")
+	}
+}
+
+func panicInWork() { panic(fmt.Sprintf("broken: %d", 7)) }

@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"ramus/internal/git/lifetime"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
@@ -72,6 +73,9 @@ type Session struct {
 	Writes int
 	// History is the history list as loaded; LoadHistory fills it.
 	History HistoryState
+	// Panic is the first panic recovered in the repository's work: what
+	// it was doing may have stopped, so the tab offers to open it again.
+	Panic *lifetime.Panic
 
 	mu    sync.Mutex
 	dirty repo.Change
@@ -162,8 +166,14 @@ const (
 // says Opening until it is open. update runs a function on the main
 // thread (Window.Update).
 func Open(runner *run.Runner, ts *trust.Store, path string, update func(func())) *Session {
-	s := &Session{Path: path, runner: runner, trust: ts, update: update, State: State{Opening: true},
+	s := &Session{Path: path, runner: runner, trust: ts, State: State{Opening: true},
 		wake: make(chan struct{}, 1), timeNow: time.Now, done: make(chan struct{})}
+	s.update = func(fn func()) {
+		update(func() {
+			defer s.recoverMain()
+			fn()
+		})
+	}
 	s.start()
 	return s
 }
@@ -183,6 +193,7 @@ func (s *Session) start() {
 func (s *Session) Done() <-chan struct{} { return s.done }
 
 func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
+	defer s.recoverWork()
 	trusted := func(loc repo.Location) bool { return s.trust != nil && s.trust.Trusted(loc.CommonDir) }
 	r, err := repo.Open(ctx, s.runner, s.Path, trusted)
 	cancel()
@@ -204,6 +215,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 		return
 	}
 	go func() { <-r.Life().Done(); s.running.Done() }()
+	r.Life().OnPanic(s.panicked)
 	var q *write.Queue
 	if !r.Restricted {
 		if q, err = write.NewQueue(r.Life(), r.Runner, r.GitDir); err == nil {

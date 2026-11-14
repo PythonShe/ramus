@@ -44,6 +44,9 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		t.s.ExpireSnapshots(time.Duration(a.Settings.WithDefaults().SnapshotDays) * 24 * time.Hour)
 	}
 	ui.Column(c).Grow(1).Children(func() {
+		if t.s.Panic != nil {
+			a.panicBanner(c, t)
+		}
 		if st.Restricted {
 			a.trustBanner(c, t)
 		}
@@ -107,6 +110,37 @@ func (a *App) trustBanner(c *ui.Context, t *tab) {
 			}
 		}
 	})
+}
+
+// panicBanner says the repository's work stopped on a bug, and offers to
+// open it again.
+func (a *App) panicBanner(c *ui.Context, t *tab) {
+	th := c.Theme()
+	p := t.s.Panic
+	ui.Row(c).Padding(8, 12).Gap(12).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+		ui.Text(c, "Something in Ramus failed while working on this repository: "+p.Value).TextColor(th.Danger).Grow(1).Selectable()
+		if ui.Button(c, "Copy Details").Clicked() {
+			a.clip = p.Value + "\n\n" + p.Stack
+		}
+		if ui.Button(c, "Reopen").Clicked() {
+			a.reopen(t)
+		}
+	})
+}
+
+// reopen closes the repository of tab t and opens it again in its place.
+func (a *App) reopen(t *tab) {
+	i := slices.Index(a.tabs, t)
+	if i < 0 {
+		return
+	}
+	path, sel := t.s.Path, t.sel
+	a.Close(i)
+	a.Open(path)
+	n := len(a.tabs) - 1
+	a.tabs[n].sel = sel
+	a.Move(n, i)
+	a.active = i
 }
 
 // sideLimit bounds the refs a sidebar section lists; the branch and tag

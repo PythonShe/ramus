@@ -110,6 +110,7 @@ func (b *batcher) finish(err error, ended time.Time) {
 func (s *Session) follow(e *LogEntry, j *write.Job) {
 	b := &batcher{update: s.update, e: e}
 	go func() {
+		defer s.recoverWork()
 		for ev := range j.Events() {
 			if ev.Percent < 0 || strings.Contains(ev.Line, "done") {
 				b.line(ev.Line) // progress redraws are not kept, only their last state

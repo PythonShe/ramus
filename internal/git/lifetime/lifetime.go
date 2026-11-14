@@ -8,7 +8,9 @@ package lifetime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"runtime/debug"
 	"sync"
 
 	"ramus/internal/git/mmap"
@@ -28,6 +30,13 @@ type Lifetime struct {
 	closed  bool
 	closers map[*owned]struct{}
 	err     error
+	onPanic func(Panic)
+}
+
+// Panic is a panic recovered in a goroutine of the lifetime.
+type Panic struct {
+	Value string
+	Stack string
 }
 
 type owned struct{ c io.Closer }
@@ -53,9 +62,35 @@ func (l *Lifetime) Go(fn func(ctx context.Context)) error {
 	l.wg.Add(1)
 	go func() {
 		defer l.wg.Done()
+		defer l.Recover()
 		fn(l.ctx)
 	}()
 	return nil
+}
+
+// OnPanic has a panic in a goroutine of the lifetime recovered and handed
+// to fn, so that one repository's failure does not end the app. Without
+// it a panic goes on as usual.
+func (l *Lifetime) OnPanic(fn func(Panic)) {
+	l.mu.Lock()
+	l.onPanic = fn
+	l.mu.Unlock()
+}
+
+// Recover, deferred in a goroutine of the repository that Go did not
+// start, treats a panic in it as one in Go's.
+func (l *Lifetime) Recover() {
+	v := recover()
+	if v == nil {
+		return
+	}
+	l.mu.Lock()
+	fn := l.onPanic
+	l.mu.Unlock()
+	if fn == nil {
+		panic(v)
+	}
+	fn(Panic{Value: fmt.Sprint(v), Stack: string(debug.Stack())})
 }
 
 // Own closes c when the lifetime ends, after every goroutine has
