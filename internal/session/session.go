@@ -117,8 +117,14 @@ type refreshSeen struct {
 	status *status.Status
 }
 
-// Debounce gathers a burst of file changes into one refresh.
-const Debounce = 75 * time.Millisecond
+// Debounce gathers a burst of file changes into one refresh: a refresh
+// waits until no change came for Debounce, or MaxDebounce after the
+// first, so that a tool writing thousands of files (a coding agent, a
+// formatter) costs one status, and one that never stops still shows.
+const (
+	Debounce    = 75 * time.Millisecond
+	MaxDebounce = time.Second
+)
 
 // Open starts opening the repository at path and returns at once; State
 // says Opening until it is open. update runs a function on the main
@@ -243,9 +249,7 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 		case <-ctx.Done():
 			return
 		}
-		select {
-		case <-time.After(Debounce):
-		case <-ctx.Done():
+		if !quiet(ctx, s.wake) {
 			return
 		}
 		s.mu.Lock()
@@ -257,6 +261,27 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 		s.mu.Unlock()
 		if what != 0 {
 			s.read(ctx, r, what, paths, &seen)
+		}
+	}
+}
+
+// quiet waits until wake has been still for Debounce, or MaxDebounce
+// has passed; false when ctx ended first.
+func quiet(ctx context.Context, wake <-chan struct{}) bool {
+	limit := time.NewTimer(MaxDebounce)
+	defer limit.Stop()
+	still := time.NewTimer(Debounce)
+	defer still.Stop()
+	for {
+		select {
+		case <-wake:
+			still.Reset(Debounce)
+		case <-still.C:
+			return true
+		case <-limit.C:
+			return true
+		case <-ctx.Done():
+			return false
 		}
 	}
 }
