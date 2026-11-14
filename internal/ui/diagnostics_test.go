@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -36,7 +37,11 @@ func TestDiagnostics(t *testing.T) {
 		got := h.tt.Clipboard()
 		return strings.HasPrefix(got, "Ramus: 9.9.9") && strings.Contains(got, "Panic: boom")
 	})
-	if got := h.tt.Clipboard(); got != h.app.diagnostics() {
+	// The count of git processes is live: a read the open started may end
+	// between the frame that copied and this call.
+	running := regexp.MustCompile(`(?m)^Git processes running: \d+$`)
+	same := func(s string) string { return running.ReplaceAllString(s, "Git processes running: N") }
+	if got := h.tt.Clipboard(); same(got) != same(h.app.diagnostics()) {
 		t.Fatalf("copied text differs from the text shown")
 	}
 }

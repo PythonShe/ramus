@@ -3,6 +3,7 @@ package session
 import (
 	"encoding/hex"
 	"errors"
+	"strings"
 	"testing"
 
 	"ramus/internal/git/gittest"
@@ -50,7 +51,10 @@ func TestEditRange(t *testing.T) {
 	side := r.Commit("side")
 	r.Git("switch", "-q", "main")
 	r.Git("merge", "-q", "--no-ff", "-m", "merge", "side")
-	m.until(t, "the merge", func() bool { return s.State.Head.OID != nil && hex.EncodeToString(s.State.Head.OID) != c })
+	// The merge itself: the state passes through HEAD at a and at side on
+	// the way there.
+	merge := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	m.until(t, "the merge", func() bool { return hex.EncodeToString(s.State.Head.OID) == merge })
 	if _, _, err := read(b); !errors.Is(err, ErrMergeInRange) {
 		t.Fatalf("over a merge: %v", err)
 	}

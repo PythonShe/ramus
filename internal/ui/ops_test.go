@@ -33,8 +33,14 @@ func (h *harness) idle(tb *tab, what string) {
 		if len(l) == 0 || l[len(l)-1].Running {
 			return false
 		}
+		// The commit alone does not say the write is shown: a rebase has
+		// HEAD at its last commit, detached, before it moves the branch
+		// there, and a state read then still has the refs from before.
 		out, _ := tb.s.Repo.Runner.Run(h.t.Context(), &run.Cmd{GitDir: tb.s.Repo.GitDir, Read: true, Args: []string{"rev-parse", "HEAD"}})
-		return strings.TrimSpace(string(out.Stdout)) == hex.EncodeToString(tb.s.State.Head.OID)
+		ref, _ := tb.s.Repo.Runner.Run(h.t.Context(), &run.Cmd{GitDir: tb.s.Repo.GitDir, Read: true, Args: []string{"symbolic-ref", "-q", "HEAD"}})
+		head := tb.s.State.Head
+		return strings.TrimSpace(string(out.Stdout)) == hex.EncodeToString(head.OID) &&
+			strings.TrimSpace(string(ref.Stdout)) == head.Target
 	})
 }
 

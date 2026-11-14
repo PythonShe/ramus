@@ -476,7 +476,9 @@ func TestChangesStageAndDiscard(t *testing.T) {
 
 	// Select the added line of the second change and discard it, then
 	// undo.
-	h.until("the patch again", func() bool { return pv.d != nil && pv.d.Old.String() != "" && len(pv.runs) == 1 })
+	// Whole: a status read before the write, shown after it, builds a
+	// viewer of the patch alone, whose lines are numbered otherwise.
+	h.until("the patch again", func() bool { return pv.d != nil && pv.whole && len(pv.runs) == 1 })
 	pv.d.SetSelectedLines(editor.DiffLineRange{Side: editor.DiffNew, Start: 11, End: 11}, true)
 	h.until("the line picked", h.shows("Discard 1 Line…"))
 	h.click("Discard 1 Line…")
