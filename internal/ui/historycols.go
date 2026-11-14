@@ -32,7 +32,8 @@ import (
 //
 // The message is what a row is read by: when the list is too narrow for
 // it, the columns at the end shut first, the hash, then the date, then
-// the author, and open again as the list widens.
+// the author, and then the graph goes thin; they come back as the list
+// widens. The message alone is left to narrow.
 
 type histColumn int
 
@@ -271,6 +272,10 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) [histColumns]
 			room += columnRoom(want[k])
 			want[k] = 0
 		}
+	}
+	if thin := graphThin(snap); room < 0 && dragged != colGraph && want[colGraph] > thin {
+		room += columnRoom(want[colGraph]) - columnRoom(thin)
+		want[colGraph] = thin
 	}
 	return want
 }

@@ -579,6 +579,20 @@ func TestHistoryGraphCollapses(t *testing.T) {
 		t.Fatalf("clicked again, graph %v wide, want %v", hv.cols.w[colGraph], full)
 	}
 
+	// A list too narrow for the message, once the author, the date and
+	// the hash are shut, has the graph go thin, and full again as it
+	// widens.
+	for _, c := range []struct{ w, graph float32 }{{360, full}, {260, thin}, {640, full}} {
+		hv.detailW = c.w
+		settle()
+		if hv.cols.w[colGraph] != c.graph || c.w < 640 && hv.cols.shown[colAuthor] {
+			t.Fatalf("a list %v wide: graph %v wide, want %v; columns %v", c.w, hv.cols.w[colGraph], c.graph, hv.cols.shown)
+		}
+	}
+	if h.app.Settings.HistoryColumns["graph"].Thin {
+		t.Fatal("thin for want of room kept as the user's")
+	}
+
 	// Dragged to the end, it settles thin; dragged out, full again.
 	drag := func(dx float32) {
 		x, y := divider()
