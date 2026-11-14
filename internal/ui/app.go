@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -65,6 +66,9 @@ type App struct {
 	tabs   []*tab
 	active int
 	nextID int
+	// writes are the files being written off the main thread, for a test
+	// to wait for before their folder goes.
+	writes sync.WaitGroup
 	// notice is a message for the user that does not belong to a tab.
 	notice string
 	// pending are repositories asked for before git was found.
@@ -216,7 +220,7 @@ func (a *App) Open(path string) {
 	a.active = len(a.tabs) - 1
 	if a.Library != nil {
 		lib, now := a.Library, a.Now()
-		go lib.Opened(path, now) // writes a file: never on the main thread
+		a.writes.Go(func() { lib.Opened(path, now) }) // writes a file: never on the main thread
 	}
 }
 

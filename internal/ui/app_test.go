@@ -128,6 +128,7 @@ func (h *harness) closeAll() {
 		lives = append(lives, s.Done())
 	}
 	h.app.CloseAll()
+	h.app.writes.Wait()
 	for _, d := range lives {
 		select {
 		case <-d:

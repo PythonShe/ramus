@@ -73,7 +73,8 @@ func TestStashAndClean(t *testing.T) {
 	h.idle(tb, "the drop")
 	h.click("Restore")
 	h.until("restored", func() bool {
-		return strings.Contains(r.Git("stash", "list"), stash[:7]) || r.Git("rev-parse", "stash@{0}") == stash+"\n"
+		out, err := r.Run(nil, "rev-parse", "stash@{0}")
+		return err == nil && strings.TrimSpace(out) == stash
 	})
 	h.idle(tb, "the restore")
 	h.until("the restored stash", h.shows("On main: my work"))
