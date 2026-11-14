@@ -61,7 +61,7 @@ func actionLabel(act write.Action) string {
 func (a *App) editHistory(t *tab, id []byte, prefill func(rows []editRow) ([]editRow, error)) {
 	t.s.EditRange(id, func(rw write.Rewrite, commits []session.EditCommit, err error) {
 		if err != nil {
-			a.notice = errText(err)
+			a.tell(t, errText(err))
 			return
 		}
 		rows := make([]editRow, len(commits))
@@ -70,7 +70,7 @@ func (a *App) editHistory(t *tab, id []byte, prefill func(rows []editRow) ([]edi
 		}
 		if prefill != nil {
 			if rows, err = prefill(rows); err != nil {
-				a.notice = errText(err)
+				a.tell(t, errText(err))
 				return
 			}
 		}

@@ -387,7 +387,7 @@ func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author
 				if err != nil || partial {
 					delete(hv.asked, k)
 					if err != nil {
-						a.notice = errText(err)
+						a.tell(t, errText(err))
 						return
 					}
 				}
@@ -701,7 +701,7 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() [
 		t.s.LoadCommit(id, func(d session.CommitDetail) {
 			switch {
 			case d.Err != nil:
-				a.notice = errText(d.Err)
+				a.tell(t, errText(d.Err))
 			case d.Done:
 				a.clip = copiedMessage(d.Commit.Message)
 			}
@@ -722,7 +722,7 @@ func copiedMessage(msg []byte) string { return redact.Control(string(msg)) }
 func (a *App) copyPatch(t *tab, id []byte) {
 	t.s.FormatPatch(id, func(text string, err error) {
 		if err != nil {
-			a.notice = errText(err)
+			a.tell(t, errText(err))
 			return
 		}
 		a.clip = text

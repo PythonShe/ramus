@@ -101,7 +101,7 @@ func (a *App) withCommit(t *tab, id []byte, fn func(session.CommitDetail)) {
 	t.s.LoadCommit(id, func(d session.CommitDetail) {
 		switch {
 		case d.Err != nil:
-			a.notice = errText(d.Err)
+			a.tell(t, errText(d.Err))
 		case d.Done:
 			fn(d)
 		}

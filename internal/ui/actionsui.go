@@ -162,7 +162,7 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 					err = fn(abs)
 				}
 				if err != nil {
-					update(func() { a.notice = errText(err) })
+					update(func() { a.tell(t, errText(err)) })
 				}
 			})
 		}

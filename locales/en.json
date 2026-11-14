@@ -1189,6 +1189,18 @@
   "repoNotWatching": "Not watching for changes: {error}; refreshing when the window is focused",
   "repoTooManyFolders": "Too many folders to watch for changes; refreshing when the window is focused",
   "repoRefreshFailed": "Refresh failed: {error}",
+  "repoWriteFailed": "{name} failed: {error}",
+  "@repoWriteFailed": {
+    "description": "The repository's error bar: name is the command the app ran, as Push or Commit; error is what git said."
+  },
+  "repoShowInLog": "Show in Log",
+  "@repoShowInLog": {
+    "description": "A button in the error bar: shows the failed command's output in the Command Log."
+  },
+  "repoDismiss": "Dismiss",
+  "@repoDismiss": {
+    "description": "The error bar's close button: takes the error away."
+  },
   "repoPathFlagged": "This path {reasons}",
   "@repoPathFlagged": {
     "description": "Why a path is flagged; reasons are one or more of the repoPath* reasons, joined by commas."

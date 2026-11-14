@@ -6467,6 +6467,54 @@ func (msgs Messages) RepoRefreshFailed(error string) string {
 	return Catalog.Format(msgs.locale, "repoRefreshFailed", map[string]any{"error": error})
 }
 
+// RepoWriteFailed says "{name} failed: {error}"
+// in the language the app shows.
+//
+// The repository's error bar: name is the command the app ran, as Push or
+// Commit; error is what git said.
+func RepoWriteFailed(name string, error string) string {
+	return In(i18n.Locale()).RepoWriteFailed(name, error)
+}
+
+// RepoWriteFailed says "{name} failed: {error}"
+// in the language of msgs.
+//
+// The repository's error bar: name is the command the app ran, as Push or
+// Commit; error is what git said.
+func (msgs Messages) RepoWriteFailed(name string, error string) string {
+	return Catalog.Format(msgs.locale, "repoWriteFailed", map[string]any{"name": name, "error": error})
+}
+
+// RepoShowInLog says "Show in Log"
+// in the language the app shows.
+//
+// A button in the error bar: shows the failed command's output in the
+// Command Log.
+func RepoShowInLog() string { return In(i18n.Locale()).RepoShowInLog() }
+
+// RepoShowInLog says "Show in Log"
+// in the language of msgs.
+//
+// A button in the error bar: shows the failed command's output in the
+// Command Log.
+func (msgs Messages) RepoShowInLog() string {
+	return Catalog.Format(msgs.locale, "repoShowInLog", nil)
+}
+
+// RepoDismiss says "Dismiss"
+// in the language the app shows.
+//
+// The error bar's close button: takes the error away.
+func RepoDismiss() string { return In(i18n.Locale()).RepoDismiss() }
+
+// RepoDismiss says "Dismiss"
+// in the language of msgs.
+//
+// The error bar's close button: takes the error away.
+func (msgs Messages) RepoDismiss() string {
+	return Catalog.Format(msgs.locale, "repoDismiss", nil)
+}
+
 // RepoPathFlagged says "This path {reasons}"
 // in the language the app shows.
 //

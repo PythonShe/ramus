@@ -101,8 +101,10 @@ type App struct {
 	writes sync.WaitGroup
 	// keeper writes the settings when Deps has none.
 	keeper *settings.Keeper
-	// notice is a message for the user that does not belong to a tab.
-	notice string
+	// notice is the last message for the user, noticeBy whom it belongs
+	// to: a tab, or the window.
+	notice   string
+	noticeBy noticeOwner
 	// pending are repositories asked for before git was found.
 	pending []string
 	// restoring are the tabs Restore opens, by path, to set up when each
@@ -209,6 +211,8 @@ type tab struct {
 	sideOut float32
 	listW   float32
 	nav     tabNav
+	// failSeen is the failed write whose error the user dismissed.
+	failSeen *session.LogEntry
 }
 
 // NewApp returns the app with nothing open.
@@ -289,7 +293,7 @@ func toolName(name string) string {
 // none.
 func (a *App) SetRunner(r *run.Runner, err error) {
 	if err != nil {
-		a.notice = locales.AppGitNotFound(errText(err))
+		a.Notify(locales.AppGitNotFound(errText(err)))
 		return
 	}
 	a.Runner = r
@@ -344,6 +348,9 @@ func (a *App) Open(path string) {
 func (a *App) Close(i int) {
 	if i < 0 || i >= len(a.tabs) {
 		return
+	}
+	if a.noticeBy.tab == a.tabs[i] {
+		a.dropNotice()
 	}
 	a.tabs[i].s.Close()
 	a.tabs = slices.Delete(a.tabs, i, i+1)
@@ -467,6 +474,7 @@ func (a *App) initAndOpen() {
 
 // View builds the main window.
 func (a *App) View(c *ui.Context) {
+	a.claimNotice()
 	a.shortcuts(c)
 	if a.clip != "" {
 		c.WriteClipboard(a.clip)
@@ -541,7 +549,10 @@ func (a *App) title(t *tab) string {
 }
 
 // Notify shows a message that belongs to no repository.
-func (a *App) Notify(msg string) { a.notice = redact.Shown(msg) }
+func (a *App) Notify(msg string) {
+	a.notice = redact.Shown(msg)
+	a.noticeBy = noticeOwner{seen: a.notice}
+}
 
 // errText is an error as the app shows it: git's message without escape
 // sequences or credentials.

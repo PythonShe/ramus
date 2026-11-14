@@ -79,7 +79,7 @@ func (a *App) saveRefPrefs(t *tab) {
 	pinned, hidden := slices.Clone(t.prefs.pinned), slices.Clone(t.prefs.hidden)
 	a.goWork(t, func() {
 		if err := lib.SetRefPrefs(path, pinned, hidden); err != nil {
-			update(func() { a.notice = errText(err) })
+			update(func() { a.tell(t, errText(err)) })
 		}
 	})
 }
@@ -305,7 +305,7 @@ func (a *App) keepFetching(t *tab) {
 	}
 	path := t.s.Path
 	t.s.SetBackgroundFetch(every, func(err error) {
-		a.notice = locales.HistoryFetchStopped(filepath.Base(path), errText(err))
+		a.tell(t, locales.HistoryFetchStopped(filepath.Base(path), errText(err)))
 	})
 }
 

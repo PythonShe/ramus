@@ -81,6 +81,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 				a.sidebar(c, t)
 			}
 		}, main).SplitReset(220).Grow(1)
+		a.errorBar(c, t)
 		a.warningBar(c, t)
 	})
 }
