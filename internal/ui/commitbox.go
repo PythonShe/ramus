@@ -67,15 +67,11 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		cs.subject, cs.body = message.Split(cs.setup.Last)
 	}
 	cs.wasAmend = cs.amend
+	// The model is built off the main thread; until the first one is,
+	// nothing counts as staged.
 	staged := 0
-	if m := t.cv.model; m != nil && m.filter == "" {
-		staged = len(m.files[secStaged])
-	} else if st := t.s.State.Status; st != nil {
-		for i := range st.Len() {
-			if inSection(st, i, secStaged) {
-				staged++
-			}
-		}
+	if m := t.cv.model; m != nil {
+		staged = m.staged
 	}
 	head := t.s.State.Head
 	ui.Column(c).Padding(8).Gap(6).Background(th.Surface).FillWidth().Children(func() {

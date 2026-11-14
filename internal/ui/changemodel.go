@@ -58,6 +58,9 @@ type changeModel struct {
 	dirs   [sections][]dirSpan
 	dirBuf []byte
 	rows   []changeRow
+	// staged counts the staged entries, the filter aside, for the commit
+	// box.
+	staged int
 }
 
 type dirSpan struct{ start, end uint32 }
@@ -104,6 +107,9 @@ func buildChanges(st *status.Status, filter string, tree bool, open map[openKey]
 	m := &changeModel{st: st, filter: filter, tree: tree}
 	q := []byte(strings.ToLower(filter))
 	for i := range st.Len() {
+		if inSection(st, i, secStaged) {
+			m.staged++
+		}
 		if len(q) > 0 && !containsFold(st.Path(i), q) {
 			continue
 		}
