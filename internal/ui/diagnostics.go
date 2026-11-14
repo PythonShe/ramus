@@ -109,16 +109,16 @@ func (a *App) diagnosticsView(c *ui.Context) {
 	}
 	text := a.diagnostics()
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(640).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogWide).Children(func() {
 			ui.Text(c, "Diagnostics").Bold()
-			ui.Text(c, "Copy puts exactly this on the clipboard. Nothing is sent.").FontSize(12).TextColor(c.Theme().TextMuted)
+			ui.Text(c, "Copy puts exactly this on the clipboard. Nothing is sent.").FontSize(textSmall).TextColor(c.Theme().TextMuted)
 			ui.Scroll(c).MaxHeight(380).FillWidth().Background(c.Theme().Surface).Children(func() {
-				ui.Text(c, text).Font("monospace").FontSize(12).Selectable().Padding(8)
+				ui.Text(c, text).Font("monospace").FontSize(textSmall).Selectable().Padding(spaceM)
 			})
 			if d.crashName != "" {
 				ui.Checkbox(c, &d.withCrash, "Include the latest crash report ("+d.crashName+")")
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				if ui.Button(c, "Open Issue Page").Clicked() {
 					go tools.OpenDefault(issueURL)
 				}

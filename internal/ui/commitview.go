@@ -51,11 +51,8 @@ type sigResult struct {
 
 // commitDetail shows commit id in cv, reading it when id changes.
 func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
-	th := c.Theme()
 	if id == nil {
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "Choose a commit to see it").TextColor(th.TextMuted)
-		})
+		emptyState(c, "Choose a commit to see it")
 		return
 	}
 	if !bytes.Equal(cv.id, id) {
@@ -70,7 +67,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		})
 	}
 	if cv.d == nil {
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	}
 	d := cv.d
@@ -83,7 +80,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		}
 	}
 	if d.Err != nil {
-		ui.Text(c, errText(d.Err)).TextColor(th.Danger).Padding(12).Selectable()
+		errorMessage(c, errText(d.Err))
 		return
 	}
 	ui.SplitVertical(c, &cv.split, func() {
@@ -98,7 +95,7 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 	th := c.Theme()
 	cm := d.Commit
 	subject, body, _ := bytes.Cut(bytes.TrimRight(cm.Message, "\n"), []byte("\n"))
-	ui.Column(c).Padding(10, 12).Gap(6).FillWidth().Children(func() {
+	ui.Column(c).Padding(spaceM, insetX).Gap(spaceS).FillWidth().Children(func() {
 		a.loadLinks(t)
 		links := t.links.set
 		linkedText(c, redact.Control(string(subject)), links).Bold()
@@ -106,19 +103,19 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 			linkedText(c, redact.Control(string(b)), links).MaxHeight(160)
 		}
 		person := func(role string, p object.Signature) {
-			ui.Row(c).Gap(8).Children(func() {
-				ui.Text(c, role).FontSize(12).TextColor(th.TextMuted).Width(76)
-				ui.Text(c, fmt.Sprintf("%s <%s>", redact.Control(string(p.Name)), redact.Control(string(p.Email)))).FontSize(12).Selectable().Grow(1)
-				ui.Text(c, signatureTime(p).Format("2006-01-02 15:04:05 -0700")).FontSize(12).TextColor(th.TextMuted)
+			ui.Row(c).Gap(spaceM).Children(func() {
+				ui.Text(c, role).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, fmt.Sprintf("%s <%s>", redact.Control(string(p.Name)), redact.Control(string(p.Email)))).FontSize(textSmall).Selectable().Grow(1)
+				ui.Text(c, signatureTime(p).Format("2006-01-02 15:04:05 -0700")).FontSize(textSmall).TextColor(th.TextMuted)
 			})
 		}
 		person("Author", cm.Author)
 		if !samePerson(cm.Author, cm.Committer) {
 			person("Committer", cm.Committer)
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Commit").FontSize(12).TextColor(th.TextMuted).Width(76)
-			ui.Text(c, hex.EncodeToString(d.OID)).Font("monospace").FontSize(12).Selectable()
+		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "Commit").FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+			ui.Text(c, hex.EncodeToString(d.OID)).Font("monospace").FontSize(textSmall).Selectable()
 		})
 		if cm.Signed {
 			if !cv.sigAsked {
@@ -130,32 +127,32 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 					}
 				})
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Signature").FontSize(12).TextColor(th.TextMuted).Width(76)
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "Signature").FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				sigText(c, cv.sig)
 			})
 		}
 		if enc := string(cm.Encoding); !textenc.IsUTF8(enc) || d.Odd {
-			ui.Row(c).Gap(8).Children(func() {
-				ui.Text(c, "Encoding").FontSize(12).TextColor(th.TextMuted).Width(76)
+			ui.Row(c).Gap(spaceM).Children(func() {
+				ui.Text(c, "Encoding").FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				name := redact.Control(enc)
 				if textenc.IsUTF8(enc) {
 					name = "UTF-8"
 				}
 				if !d.Odd {
-					ui.Text(c, name).FontSize(12)
+					ui.Text(c, name).FontSize(textSmall)
 					return
 				}
-				ui.Text(c, "Not valid "+name+": bytes shown as \\xNN").FontSize(12).TextColor(th.Warning)
+				ui.Text(c, "Not valid "+name+": bytes shown as \\xNN").FontSize(textSmall).TextColor(th.Warning)
 			})
 		}
 		if len(d.Parents) > 0 {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				label := "Parent"
 				if len(d.Parents) > 1 {
 					label = "Parents"
 				}
-				ui.Text(c, label).FontSize(12).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, label).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				for _, p := range d.Parents {
 					if ui.Button(c, hex.EncodeToString(p)[:10]).Font("monospace").Clicked() {
 						a.chooseCommit(t, p)
@@ -164,8 +161,8 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 			})
 		}
 		if s := signatureText(d, t.s.State.Restricted); s != "" {
-			ui.Row(c).Gap(8).Children(func() {
-				ui.Text(c, "Signature").FontSize(12).TextColor(th.TextMuted).Width(76)
+			ui.Row(c).Gap(spaceM).Children(func() {
+				ui.Text(c, "Signature").FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				col := th.TextMuted
 				switch d.Signature {
 				case "G":
@@ -175,10 +172,10 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 				case "U", "X", "Y":
 					col = th.Warning
 				}
-				ui.Text(c, s).FontSize(12).TextColor(col).Selectable()
+				ui.Text(c, s).FontSize(textSmall).TextColor(col).Selectable()
 			})
 		}
-		ui.Row(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(spaceM).Children(func() {
 			if ui.Button(c, "Copy Hash").Clicked() {
 				a.clip = hex.EncodeToString(d.OID)
 			}
@@ -238,21 +235,21 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 	th := c.Theme()
 	f := d.Files
 	if f == nil && !d.Done {
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	}
 	if f == nil || f.Len() == 0 {
-		ui.Text(c, "No files changed").TextColor(th.TextMuted).Padding(8, 12)
+		ui.Text(c, "No files changed").TextColor(th.TextMuted).Padding(spaceM, insetX)
 		return
 	}
-	ui.Text(c, countFiles(f.Len())+" changed").FontSize(12).TextColor(th.TextMuted).Padding(4, 12)
+	ui.Text(c, countFiles(f.Len())+" changed").FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX)
 	cv.files.Selected = &cv.file
 	cv.files.Label = func(i int) string { return fileStatusWord(f.Status(i)) + " " + commitFileName(f, i) }
 	ui.List(c, &cv.files, f.Len(), func(i int) {
-		ui.Row(c).Padding(2, 12).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(12).Width(14).TextColor(fileStatusColor(th, f.Status(i)))
+		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
+			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, f.Status(i)))
 			shown, why := showPath(commitFileName(f, i))
-			txt := ui.Text(c, shown).FontSize(13).SingleLine().Grow(1)
+			txt := ui.Text(c, shown).SingleLine().Grow(1)
 			if why != "" {
 				txt.TextColor(th.Warning).Tooltip(why)
 			}
@@ -297,12 +294,9 @@ func fileStatusColor(th *ui.Theme, st byte) ui.Color {
 }
 
 func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
-	th := c.Theme()
 	f := d.Files
 	if f == nil || cv.file < 0 || cv.file >= f.Len() {
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "Choose a file to see its changes").TextColor(th.TextMuted)
-		})
+		emptyState(c, "Choose a file to see its changes")
 		return
 	}
 	paths := []string{string(f.Path(cv.file))}
@@ -337,7 +331,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		load()
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, cv.file))
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
 		})
@@ -357,11 +351,11 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 func sigText(c *ui.Context, r *sigResult) {
 	th := c.Theme()
 	if r == nil {
-		ui.Text(c, "Checking…").FontSize(12).TextColor(th.TextMuted)
+		ui.Text(c, "Checking…").FontSize(textSmall).TextColor(th.TextMuted)
 		return
 	}
 	if r.err != nil {
-		ui.Text(c, "Not checked: "+errText(r.err)).FontSize(12).TextColor(th.TextMuted).Selectable()
+		ui.Text(c, "Not checked: "+errText(r.err)).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 		return
 	}
 	st := r.st
@@ -381,5 +375,5 @@ func sigText(c *ui.Context, r *sigResult) {
 	if st.Key != "" {
 		text += ", key " + redact.Control(st.Key)
 	}
-	ui.Text(c, text).FontSize(12).TextColor(color).Selectable()
+	ui.Text(c, text).FontSize(textSmall).TextColor(color).Selectable()
 }

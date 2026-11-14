@@ -89,14 +89,14 @@ func (a *App) branchView(c *ui.Context) {
 	}
 	th := c.Theme()
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(420).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, "Create Branch at "+d.commit[:10]).Bold()
 			in := ui.TextInput(c, &d.name).Placeholder("Branch name").Label("Branch name").AutoFocus()
 			ui.Checkbox(c, &d.checkout, "Switch to it")
 			if d.err != "" {
-				ui.Text(c, d.err).FontSize(12).TextColor(th.Danger)
+				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger)
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false

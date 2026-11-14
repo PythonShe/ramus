@@ -118,10 +118,10 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 		submit(write.CheckoutRemote(t.s.Where(), d.remote, name, d.local.Commit, true, write.CarryChanges, t.s.Seen()))
 	}
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(500).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, "A local branch "+redact.Control(name)+" already exists").Bold()
 			ui.Text(c, redact.Control(text)).Selectable()
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				if !current && ui.Button(c, "Switch to "+redact.Control(name)).Clicked() {
 					submit(write.Switch(t.s.Where(), d.local.Name, t.s.Seen()), nil)
 				}
@@ -137,9 +137,9 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 				}
 			})
 			if behind && !ff {
-				ui.Text(c, "A reset backs up "+redact.Control(name)+" first; Undo brings it back.").FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, "A reset backs up "+redact.Control(name)+" first; Undo brings it back.").FontSize(textSmall).TextColor(th.TextMuted)
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 				in := ui.TextInput(c, &d.other).Label("New branch").Placeholder("New branch").Grow(1)
 				ok := strings.TrimSpace(d.other) != ""
 				if ui.Button(c, "Check Out as New Branch").Disabled(!ok).Clicked() || ok && in.Submitted() {
@@ -147,7 +147,7 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 				}
 			})
 			if d.err != "" {
-				ui.Text(c, d.err).FontSize(12).TextColor(th.Danger).Selectable()
+				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
 			ui.Row(c).Children(func() {
 				ui.Spacer(c)
@@ -166,10 +166,10 @@ func (a *App) elsewhereView(c *ui.Context) {
 	}
 	name := strings.TrimPrefix(d.branch, "refs/heads/")
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(480).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, "Branch "+redact.Control(name)+" is checked out in another worktree").Bold()
 			ui.Text(c, "git checks out a branch in one worktree at a time. It is checked out at "+d.folder+".").Selectable()
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false

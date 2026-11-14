@@ -100,7 +100,6 @@ type refLabel struct {
 
 // historyView is the history list beside the chosen commit.
 func (a *App) historyView(c *ui.Context, t *tab) {
-	th := c.Theme()
 	hv := &t.hist
 	a.loadRefPrefs(t)
 	t.s.LoadHistory()
@@ -123,7 +122,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 			a.historyBar(c, t, h)
 			switch {
 			case h.Snap == nil && h.Err == nil:
-				ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+				loading(c, "")
 				return
 			case h.Snap == nil || h.Snap.Len() == 0:
 				msg := "No commits yet"
@@ -133,9 +132,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 				if h.Err != nil {
 					msg = errText(h.Err)
 				}
-				ui.Column(c).Fill().Center().Children(func() {
-					ui.Text(c, msg).TextColor(th.TextMuted).Selectable()
-				})
+				emptyState(c, msg)
 				return
 			}
 			a.historyList(c, t, h)
@@ -156,21 +153,21 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 	th := c.Theme()
 	hv := &t.hist
-	ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 		in := ui.TextInput(c, &hv.jump).Placeholder("Go to hash or ref").Label("Go to hash or ref").Grow(1)
 		if in.Submitted() && strings.TrimSpace(hv.jump) != "" {
 			a.jumpTo(t, strings.TrimSpace(hv.jump))
 		}
 		if hv.jumpErr != "" {
-			ui.Text(c, hv.jumpErr).FontSize(12).TextColor(th.Danger).SingleLine()
+			ui.Text(c, hv.jumpErr).FontSize(textSmall).TextColor(th.Danger).SingleLine()
 		}
-		ui.Text(c, historyStatus(h)).FontSize(12).TextColor(th.TextMuted).SingleLine()
+		ui.Text(c, historyStatus(h)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 		a.filterButton(c, t)
 	})
 	a.filterBar(c, t)
 	if h.Advice != nil && h.Done {
-		ui.Row(c).Padding(4, 8).Gap(8).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-			ui.Text(c, h.Advice.Reason).FontSize(12).Grow(1)
+		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+			ui.Text(c, h.Advice.Reason).FontSize(textSmall).Grow(1)
 			if ui.Button(c, "Write Commit-Graph").Disabled(hv.writing).Clicked() {
 				if err := t.s.WriteCommitGraph(*h.Advice); err != nil {
 					a.notice = errText(err)
@@ -459,7 +456,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 	r, buf := snap.Row(i, cols, hv.buf)
 	hv.buf = buf
 	merge := r.Merges > 0
-	row := ui.Row(c).Height(historyRowHeight).Gap(8).Padding(0, 8).AlignItems(ui.Center).FillWidth()
+	row := ui.Row(c).Height(historyRowHeight).Gap(spaceM).Padding(0, insetX).AlignItems(ui.Center).FillWidth()
 	row.Children(func() {
 		ui.Box(c).Width(gw).Height(historyRowHeight).
 			Role(ui.RoleImage).Label(describeRow(r, hv.historyMerged(i))).
@@ -473,7 +470,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		labels := hv.labels[string(id)]
 		for j, l := range labels {
 			if j == 3 {
-				ui.Text(c, "+"+strconv.Itoa(len(labels)-3)).FontSize(11).TextColor(th.TextMuted)
+				ui.Text(c, "+"+strconv.Itoa(len(labels)-3)).FontSize(textCaption).TextColor(th.TextMuted)
 				break
 			}
 			refChip(c, l)
@@ -488,7 +485,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		}
 		ui.Text(c, author).SingleLine().Width(120).TextColor(th.TextMuted)
 		ui.Text(c, when.Format("2006-01-02 15:04")).SingleLine().Width(112).TextColor(th.TextMuted)
-		ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
+		ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 	})
 	row.ContextMenu(func(m *ui.Menu) {
 		ids, n := a.historyIDs(t, h, i)
@@ -542,7 +539,7 @@ func refChip(c *ui.Context, l refLabel) {
 	case labelBisectSkip:
 		col = th.TextMuted
 	}
-	chip := ui.Text(c, l.text).FontSize(11).SingleLine().MaxWidth(160).Padding(1, 6).Radius(4).Description(l.kind.word())
+	chip := ui.Text(c, l.text).FontSize(textCaption).SingleLine().MaxWidth(160).Padding(1, spaceS).Radius(4).Description(l.kind.word())
 	switch l.kind {
 	case labelTag:
 		// Outlined, so a tag is told from a branch of the same name by

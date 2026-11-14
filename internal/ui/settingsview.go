@@ -54,7 +54,7 @@ func (a *App) settingsView(c *ui.Context) {
 	}
 	th := c.Theme()
 	ui.Modal(c, &s.open, func() {
-		ui.Column(c).Width(540).Gap(14).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, "Settings").Bold()
 			ui.Field(c, "Appearance", func() {
 				ui.Segmented(c, &s.theme, "System", "Light", "Dark")
@@ -85,8 +85,8 @@ func (a *App) settingsView(c *ui.Context) {
 			if a.Program != "" {
 				ui.Field(c, "Git difftool and mergetool", func() {
 					snippet := cli.ToolConfig(a.Program)
-					ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-						ui.Text(c, strings.TrimSuffix(snippet, "\n")).Font("monospace").FontSize(11).Selectable().Grow(1)
+					ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+						ui.Text(c, strings.TrimSuffix(snippet, "\n")).Font("monospace").FontSize(textCaption).Selectable().Grow(1)
 						if ui.Button(c, "Copy").Clicked() {
 							a.clip = snippet
 						}
@@ -96,7 +96,7 @@ func (a *App) settingsView(c *ui.Context) {
 			if s.err != "" {
 				ui.Text(c, s.err).TextColor(th.Danger)
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				if ui.Button(c, "Keyboard Shortcuts…").Clicked() {
 					a.openKeys()
 				}

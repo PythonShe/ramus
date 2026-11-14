@@ -131,7 +131,7 @@ func within(root, abs string) (string, bool) {
 func (a *App) fileView(c *ui.Context, t *tab) {
 	fs := &t.file
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(fs.path)
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
 			if fs.blame == 0 {
@@ -190,7 +190,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 		ui.Column(c).Fill().Children(func() {
 			switch {
 			case fs.logErr != "":
-				ui.Text(c, fs.logErr).TextColor(th.Danger).Padding(12).Selectable()
+				errorMessage(c, fs.logErr)
 				return
 			case fs.commits == nil:
 				ui.Column(c).Fill().Center().Children(func() {
@@ -203,7 +203,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 				return
 			}
 			if fs.limited {
-				ui.Text(c, "The latest "+strconv.Itoa(session.MaxFileLog)+" commits").FontSize(12).TextColor(th.TextMuted).Padding(0, 12)
+				ui.Text(c, "The latest "+strconv.Itoa(session.MaxFileLog)+" commits").FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX)
 			}
 			cs := fs.commits
 			now := a.Now()
@@ -213,16 +213,16 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 			}
 			ui.List(c, &fs.list, len(cs), func(i int) {
 				fc := cs[i]
-				row := ui.Row(c).Padding(3, 12).Gap(8).AlignItems(ui.Center).FillWidth()
+				row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 				row.Children(func() {
 					ui.Text(c, redact.Control(fc.Subject)).SingleLine().Grow(1)
 					if fc.Path != "" && fc.Path != fs.path {
 						shown, _ := showPath(fc.Path)
-						ui.Text(c, "as "+shown).FontSize(12).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
+						ui.Text(c, "as "+shown).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
 					}
-					ui.Text(c, redact.Control(fc.Author)).FontSize(12).Width(120).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, ago(now, fc.Time)).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, hex.EncodeToString(fc.OID)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
+					ui.Text(c, redact.Control(fc.Author)).FontSize(textSmall).Width(120).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, ago(now, fc.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, hex.EncodeToString(fc.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 				})
 				row.ContextMenu(func(m *ui.Menu) {
 					if m.Item("Show in History").Chosen() {
@@ -304,17 +304,17 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 	fs := &t.file
 	a.loadBlame(t)
 	if fs.blameErr != "" {
-		ui.Text(c, fs.blameErr).TextColor(th.Danger).Padding(12).Selectable()
+		errorMessage(c, fs.blameErr)
 		return
 	}
 	if fs.text == nil {
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	}
 	if !fs.blameDone {
-		ui.Row(c).Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(0, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Spinner(c)
-			ui.Text(c, "Blaming").FontSize(12).TextColor(th.TextMuted)
+			ui.Text(c, "Blaming").FontSize(textSmall).TextColor(th.TextMuted)
 		})
 	}
 	text, starts, lc, cs := fs.text, fs.starts, fs.lineCommit, fs.bcommits
@@ -338,15 +338,15 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 	ui.List(c, &fs.blameList, len(starts), func(i int) {
 		k := lc[i]
 		first := i == 0 || lc[i-1] != k
-		row := ui.Row(c).Padding(0, 8).Gap(8).AlignItems(ui.Center).FillWidth()
+		row := ui.Row(c).Padding(0, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 		row.Children(func() {
 			who := ""
 			if first && k >= 0 && int(k) < len(cs) {
 				who = blameWho(cs[k], now)
 			}
-			ui.Text(c, who).FontSize(11).Width(260).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, strconv.Itoa(i+1)).Font("monospace").FontSize(12).Width(numW).TextColor(th.TextMuted)
-			ui.Text(c, line(i)).Font("monospace").FontSize(12).SingleLine().Grow(1)
+			ui.Text(c, who).FontSize(textCaption).Width(260).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, strconv.Itoa(i+1)).Font("monospace").FontSize(textSmall).Width(numW).TextColor(th.TextMuted)
+			ui.Text(c, line(i)).Font("monospace").FontSize(textSmall).SingleLine().Grow(1)
 		})
 		var id []byte
 		if k >= 0 && int(k) < len(cs) && !cs[k].Uncommitted {

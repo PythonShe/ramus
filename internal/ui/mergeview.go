@@ -157,7 +157,7 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 	ro := t.s.Queue == nil
 	w := t.s.Where()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(path)
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
 			if cf.Path != path || ms.loading && cf.Segments == nil {
@@ -170,7 +170,7 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 						done++
 					}
 				}
-				ui.Text(c, fmt.Sprintf("%d of %d resolved", done, n)).FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, fmt.Sprintf("%d of %d resolved", done, n)).FontSize(textSmall).TextColor(th.TextMuted)
 				if ui.Button(c, "All Ours").Clicked() {
 					fill(ms.choices, conflict.Ours)
 				}
@@ -183,20 +183,20 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 			}
 		})
 		if ms.err != "" {
-			ui.Text(c, ms.err).FontSize(12).TextColor(th.Danger).Padding(0, 12).Selectable()
+			ui.Text(c, ms.err).FontSize(textSmall).TextColor(th.Danger).Padding(0, insetX).Selectable()
 		}
 		switch {
 		case cf.Path != path:
-			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+			loading(c, "")
 			return
 		case !cf.Ours || !cf.Theirs || cf.Binary:
 			a.sidesOnly(c, t, cf)
 			return
 		case cf.Err != nil:
-			ui.Text(c, errText(cf.Err)).TextColor(th.Danger).Padding(12).Selectable()
+			errorMessage(c, errText(cf.Err))
 			return
 		case len(ms.choices) == 0:
-			ui.Column(c).Fill().Center().Gap(12).Children(func() {
+			ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 				ui.Text(c, "No conflict markers are left in this file").TextColor(th.TextMuted)
 				if ui.Button(c, "Mark Resolved").Disabled(ro).Clicked() {
 					a.submit(t, write.Stage(w, []string{path}), nil)
@@ -214,7 +214,7 @@ func (a *App) conflictList(c *ui.Context, ms *mergeState) {
 	th := c.Theme()
 	segs := ms.cf.Segments
 	if ms.shown == nil {
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	}
 	ms.list.Label = func(i int) string {
@@ -226,7 +226,7 @@ func (a *App) conflictList(c *ui.Context, ms *mergeState) {
 	ui.List(c, &ms.list, len(segs), func(i int) {
 		s := segs[i]
 		if s.Conflict == nil {
-			ui.Text(c, ms.shown[i].text).Font("monospace").FontSize(12).TextColor(th.TextMuted).Padding(4, 12).FillWidth()
+			ui.Text(c, ms.shown[i].text).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX).FillWidth()
 			return
 		}
 		a.conflictBlock(c, ms, ms.index[i], s.Conflict, ms.shown[i])
@@ -241,9 +241,9 @@ func fill(cs []conflict.Choice, ch conflict.Choice) {
 
 func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.Conflict, shown shownSegment) {
 	th := c.Theme()
-	ui.Column(c).Padding(8, 12).Gap(8).FillWidth().Background(th.Surface).Children(func() {
+	ui.Column(c).Padding(spaceM, insetX).Gap(spaceM).FillWidth().Background(th.Surface).Children(func() {
 		ui.Text(c, "Conflict "+strconv.Itoa(k+1)).Bold()
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 			for _, mc := range mergeChoices {
 				if mc.choice == conflict.Base && !cc.HasBase {
 					continue
@@ -265,11 +265,11 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 				}
 			}
 		})
-		ui.Row(c).Gap(8).FillWidth().Children(func() {
+		ui.Row(c).Gap(spaceM).FillWidth().Children(func() {
 			side := func(title string, text string) {
-				ui.Column(c).Grow(1).Gap(4).Children(func() {
-					ui.Text(c, title).FontSize(12).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, text).Font("monospace").FontSize(12).Selectable()
+				ui.Column(c).Grow(1).Gap(spaceXS).Children(func() {
+					ui.Text(c, title).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, text).Font("monospace").FontSize(textSmall).Selectable()
 				})
 			}
 			side("Ours: "+redact.Control(cc.OursLabel), shown.sides[0])
@@ -279,7 +279,7 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 			side("Theirs: "+redact.Control(cc.TheirsLabel), shown.sides[2])
 		})
 		if ms.choices[k] == conflict.Custom {
-			ui.TextArea(c, &ms.custom[k]).Font("monospace").FontSize(12).Label("Result of conflict " + strconv.Itoa(k+1)).Height(120)
+			ui.TextArea(c, &ms.custom[k]).Font("monospace").FontSize(textSmall).Label("Result of conflict " + strconv.Itoa(k+1)).Height(120)
 		}
 	})
 }
@@ -336,7 +336,7 @@ func (a *App) sidesOnly(c *ui.Context, t *tab, cf session.ConflictFile) {
 	ro := t.s.Queue == nil
 	w := t.s.Where()
 	paths := []string{cf.Path}
-	ui.Column(c).Fill().Center().Gap(12).Children(func() {
+	ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 		var what string
 		switch {
 		case !cf.Ours:
@@ -347,7 +347,7 @@ func (a *App) sidesOnly(c *ui.Context, t *tab, cf session.ConflictFile) {
 			what = "Binary file changed on both sides"
 		}
 		ui.Text(c, what).TextColor(th.TextMuted)
-		ui.Row(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(spaceM).Children(func() {
 			for _, s := range []struct {
 				label  string
 				side   write.Side
@@ -411,7 +411,7 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 	}
 	w := t.s.Where()
 	name := string(op)
-	ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		what := strings.ToUpper(name[:1]) + name[1:] + " stopped"
 		if conflicts > 0 {
 			what += ": " + plural(conflicts, "conflicted file") + " left"
@@ -481,7 +481,7 @@ func (a *App) mergeDialogView(c *ui.Context) {
 		into = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(520).Height(420).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogMedium).Height(420).Children(func() {
 			ui.Text(c, "Merge "+redact.Control(strings.TrimPrefix(d.what, "refs/heads/"))+" into "+redact.Control(into)).Bold()
 			ui.Segmented(c, &d.mode, "Fast-Forward If Possible", "Fast-Forward Only", "Always Merge Commit", "Squash")
 			p := d.preview
@@ -489,7 +489,7 @@ func (a *App) mergeDialogView(c *ui.Context) {
 			case d.err != "":
 				ui.Text(c, d.err).TextColor(th.Danger).Selectable()
 			case p == nil:
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 					ui.Spinner(c)
 					ui.Text(c, "Working out the merge").TextColor(th.TextMuted)
 				})
@@ -508,20 +508,20 @@ func (a *App) mergeDialogView(c *ui.Context) {
 				files := p.BothChanged
 				d.list.Label = func(i int) string { return files[i] }
 				ui.List(c, &d.list, len(files), func(i int) {
-					ui.Row(c).Padding(2, 4).Gap(8).FillWidth().Children(func() {
+					ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).FillWidth().Children(func() {
 						shown, _ := showPath(files[i])
-						ui.Text(c, shown).Font("monospace").FontSize(12).SingleLine().Grow(1)
+						ui.Text(c, shown).Font("monospace").FontSize(textSmall).SingleLine().Grow(1)
 						if conflicts[files[i]] {
-							ui.Text(c, "conflict").FontSize(12).TextColor(th.Warning)
+							ui.Text(c, "conflict").FontSize(textSmall).TextColor(th.Warning)
 						} else {
-							ui.Text(c, "merges").FontSize(12).TextColor(th.TextMuted)
+							ui.Text(c, "merges").FontSize(textSmall).TextColor(th.TextMuted)
 						}
 					})
 				}).Label("Files that would conflict").Grow(1)
 			} else {
 				ui.Spacer(c)
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false

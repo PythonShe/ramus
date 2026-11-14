@@ -76,13 +76,13 @@ func (a *App) worktreeView(c *ui.Context) {
 	th := c.Theme()
 	short := strings.TrimPrefix(strings.TrimPrefix(d.branch, "refs/heads/"), "refs/remotes/")
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(520).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, "New Worktree for "+redact.Control(short)).Bold()
 			submitted := false
 			if d.remote {
 				submitted = ui.TextInput(c, &d.name).Label("New branch").Placeholder("Branch name").AutoFocus().FillWidth().Submitted()
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 				p := ui.TextInput(c, &d.path).Label("Folder").Placeholder("Folder").Grow(1)
 				if !d.remote {
 					p.AutoFocus()
@@ -94,9 +94,9 @@ func (a *App) worktreeView(c *ui.Context) {
 			})
 			ui.Checkbox(c, &d.openTab, "Open in a new tab")
 			if d.err != "" {
-				ui.Text(c, d.err).FontSize(12).TextColor(th.Danger).Selectable()
+				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false
@@ -234,14 +234,14 @@ func (a *App) worktreeRemoveView(c *ui.Context) {
 	}
 	branch := strings.TrimPrefix(d.wt.Branch, "refs/heads/")
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(480).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, "Remove worktree "+filepath.Base(d.wt.Path)+"?").Bold()
 			ui.Text(c, "Its folder "+d.wt.Path+" is deleted.").Selectable()
 			if branch != "" {
 				ui.Checkbox(c, &d.withBranch, "Also delete branch "+redact.Control(branch))
 			}
 			ui.Checkbox(c, &d.force, "Remove even with changes or untracked files")
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				// The destructive choice is never the default one: Enter
 				// must not delete a folder, least of all with force on.
@@ -274,10 +274,10 @@ func (a *App) worktreeLockView(c *ui.Context) {
 		return
 	}
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(420).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, "Lock worktree "+filepath.Base(d.path)).Bold()
 			in := ui.TextInput(c, &d.reason).Label("Reason").Placeholder("Reason (optional)").AutoFocus().FillWidth()
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false

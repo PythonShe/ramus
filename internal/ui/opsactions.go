@@ -209,7 +209,7 @@ func (a *App) bisectBar(c *ui.Context, t *tab) {
 	th := c.Theme()
 	ro := t.s.Queue == nil
 	w := t.s.Where()
-	ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		var what string
 		switch {
 		case bs.FirstBad != "":
@@ -284,14 +284,14 @@ func (a *App) cleanView(c *ui.Context) {
 	th := c.Theme()
 	t := cs.t
 	ui.Modal(c, &cs.open, func() {
-		ui.Column(c).Width(560).Height(440).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogMedium).Height(440).Children(func() {
 			ui.Text(c, "Clean Untracked Files").Bold()
 			if ui.Checkbox(c, &cs.ignored, "Include ignored files").Changed() {
 				a.listClean()
 			}
 			switch {
 			case cs.loading:
-				ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c) })
+				loading(c, "")
 			case cs.err != "":
 				ui.Text(c, cs.err).TextColor(th.Danger).Selectable().Grow(1)
 			case len(cs.paths) == 0:
@@ -303,14 +303,14 @@ func (a *App) cleanView(c *ui.Context) {
 				cs.list.Label = func(i int) string { return paths[i] }
 				ui.List(c, &cs.list, len(paths), func(i int) {
 					shown, why := showPath(paths[i])
-					txt := ui.Text(c, shown).Font("monospace").FontSize(12).SingleLine().Padding(2, 4)
+					txt := ui.Text(c, shown).Font("monospace").FontSize(textSmall).SingleLine().Padding(rowPadY, insetX)
 					if why != "" {
 						txt.TextColor(th.Warning).Description(why)
 					}
 				}).Label("Files to delete").Grow(1)
 			}
 			n := len(cs.paths)
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				label := "Delete"
 				if n > 0 {

@@ -72,7 +72,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 	d.table.Label = func(i int) string { return worktreeLabel(wts[i]) }
 	var act func()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, fmt.Sprintf("%d worktrees", len(wts))).Bold().Grow(1)
 			picked := d.pickedTwo(wts)
 			if ui.Button(c, "Compare Folders").Disabled(picked == nil).Clicked() {
@@ -87,19 +87,19 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 			sum, read := d.sums[w.Path]
 			switch col {
 			case 0:
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 					ui.Checkbox(c, d.pickedRef(w.Path), "").Label("Compare " + filepath.Base(w.Path))
 					ui.Column(c).Grow(1).Children(func() {
 						name := ui.Text(c, filepath.Base(w.Path)).SingleLine()
 						if w.Current {
 							name.Bold()
 						}
-						sub := ui.Text(c, w.Path).FontSize(11).TextColor(th.TextMuted).SingleLine()
+						sub := ui.Text(c, w.Path).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
 						switch {
 						case w.Prunable:
 							sub.TextColor(th.Warning)
 						case read && sum.Err != nil:
-							ui.Text(c, errText(sum.Err)).FontSize(11).TextColor(th.Danger).SingleLine().Tooltip(errText(sum.Err))
+							ui.Text(c, errText(sum.Err)).FontSize(textCaption).TextColor(th.Danger).SingleLine().Tooltip(errText(sum.Err))
 						}
 					})
 				})
@@ -133,7 +133,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 					ui.Text(c, ago(now, active)).TextColor(th.TextMuted)
 				}
 			case 5:
-				if !w.Current && ui.Button(c, "Open").Label("Open "+filepath.Base(w.Path)).Padding(0, 8).Clicked() {
+				if !w.Current && ui.Button(c, "Open").Label("Open "+filepath.Base(w.Path)).Padding(0, spaceM).Clicked() {
 					act = func() { a.openWorktree(t, w) }
 				}
 			}

@@ -97,13 +97,12 @@ func (rv *reviewState) leave() {
 }
 
 func (a *App) reviewView(c *ui.Context, t *tab) {
-	th := c.Theme()
 	rv := &t.rev
 	st := t.s.State.Status
 	rv.tick++
 	rv.wanted = rv.wanted[:0]
 	if st == nil {
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	}
 	a.stampReview(t, st)
@@ -117,7 +116,7 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 	rv.list.Header = func(i int) bool { return i%2 == 0 }
 	var act func()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			what := countFiles(len(files)) + " to review"
 			if rv.onlyNew {
 				what = countFiles(len(files)) + " changed since seen"
@@ -131,17 +130,13 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 		a.diffBar(c, nil)
 		switch {
 		case rv.onlyNew && rv.stampedFor != st:
-			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+			loading(c, "")
 			return
 		case len(files) == 0 && rv.onlyNew:
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "Nothing changed since you marked it seen").TextColor(th.TextMuted)
-			})
+			emptyState(c, "Nothing changed since you marked it seen")
 			return
 		case len(files) == 0:
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "Nothing to review").TextColor(th.TextMuted)
-			})
+			emptyState(c, "Nothing to review")
 			return
 		}
 		ui.List(c, &rv.list, 2*len(files), func(i int) {
@@ -229,10 +224,10 @@ func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro b
 	rv := &t.rev
 	path := string(st.Path(e))
 	it := rv.item(path)
-	ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		shown, _ := showPath(path)
 		ui.Text(c, shown).Bold().SingleLine().Grow(1)
-		ui.Text(c, entryWords(st, e, secUnstaged)).FontSize(12).TextColor(th.TextMuted)
+		ui.Text(c, entryWords(st, e, secUnstaged)).FontSize(textSmall).TextColor(th.TextMuted)
 		lt := lineTarget{p: it.res.Parsed, path: path, pv: &it.pv}
 		if picked, n := it.pv.selectedLines(); partialOK(it.res, it.key) && n > 0 {
 			lines := fmt.Sprintf(" %d Lines", n)
@@ -283,14 +278,14 @@ func (a *App) reviewBody(c *ui.Context, t *tab, st *status.Status, e int, ro boo
 		rv.wanted = append(rv.wanted, reviewWant{it: it, key: key, sides: sides})
 	}
 	res, p, pv := it.res, it.res.Parsed, &it.pv
-	note := func(s string) { ui.Text(c, s).TextColor(th.TextMuted).Padding(12, 16) }
+	note := func(s string) { ui.Text(c, s).TextColor(th.TextMuted).Padding(spaceL, insetX) }
 	switch {
 	case res.Err != nil:
-		ui.Text(c, errText(res.Err)).TextColor(th.Danger).Padding(12, 16).Selectable()
+		errorMessage(c, errText(res.Err))
 	case p == nil:
-		ui.Row(c).Padding(12, 16).Children(func() { ui.Spinner(c) })
+		ui.Row(c).Padding(spaceL, insetX).Children(func() { ui.Spinner(c) })
 	case res.Truncated:
-		ui.Row(c).Padding(8, 16).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(spaceM, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Too large to review here").TextColor(th.TextMuted)
 			if ui.Button(c, "Show in Changes").Label("Show " + path + " in Changes").Clicked() {
 				t.sel, t.cv.want = "changes", path
@@ -306,11 +301,11 @@ func (a *App) reviewBody(c *ui.Context, t *tab, st *status.Status, e int, ro boo
 	case pv.failed:
 		note("This patch cannot be shown")
 	case pv.d == nil:
-		ui.Row(c).Padding(12, 16).Children(func() { ui.Spinner(c) })
+		ui.Row(c).Padding(spaceL, insetX).Children(func() { ui.Spinner(c) })
 	default:
 		if pv.endings != "" {
 			ui.Text(c, "Line endings change from "+pv.endings+" on every line shown").
-				FontSize(12).TextColor(th.Warning).Padding(4, 12)
+				FontSize(textSmall).TextColor(th.Warning).Padding(rowPadY, insetX)
 		}
 		var actions func(c *ui.Context, change int)
 		if partialOK(res, it.key) {

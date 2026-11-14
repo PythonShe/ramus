@@ -91,8 +91,8 @@ func (a *App) pagerNotice(c *ui.Context, p *patchPager, res session.PatchResult,
 	default:
 		return
 	}
-	ui.Row(c).Padding(4, 12).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-		ui.Text(c, msg).FontSize(12).TextColor(th.Warning).Grow(1)
+	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
+		ui.Text(c, msg).FontSize(textSmall).TextColor(th.Warning).Grow(1)
 		if offer && ui.Button(c, "Load Whole Patch").Disabled(loading).Clicked() {
 			p.stage = pageWhole
 			whole()

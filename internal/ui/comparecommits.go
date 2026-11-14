@@ -52,7 +52,7 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 		})
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(8, 12).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, redact.Control(cc.fromName)).Font("monospace").SingleLine()
 			ui.Text(c, "→").TextColor(th.TextMuted)
 			ui.Text(c, redact.Control(cc.toName)).Font("monospace").SingleLine().Grow(1)
@@ -62,11 +62,11 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 		})
 		d := cc.d
 		if d == nil {
-			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+			loading(c, "")
 			return
 		}
 		if d.Err != nil {
-			ui.Text(c, errText(d.Err)).TextColor(th.Danger).Padding(12).Selectable()
+			errorMessage(c, errText(d.Err))
 			return
 		}
 		ui.Split(c, &cc.split, func() { a.commitFiles(c, &cc.cv, d) }, func() { a.commitPatch(c, t, &cc.cv, d) }).SplitReset(360).Fill()

@@ -48,7 +48,7 @@ func (a *App) reflogView(c *ui.Context, t *tab) {
 	rs := &t.reflog
 	ui.Split(c, &rs.detailW, func() {
 		ui.Column(c).Fill().Children(func() {
-			ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Segmented(c, &rs.lostShown, "Reflog", "Lost Commits")
 				if rs.lostShown == 0 {
 					a.reflogRefMenu(c, t)
@@ -126,15 +126,13 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 	}
 	switch {
 	case rs.err != "":
-		ui.Text(c, rs.err).TextColor(th.Danger).Padding(12).Selectable()
+		errorMessage(c, rs.err)
 		return
 	case rs.entries == nil && rs.loading:
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	case len(rs.entries) == 0:
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "No reflog entries").TextColor(th.TextMuted)
-		})
+		emptyState(c, "No reflog entries")
 		return
 	}
 	entries := rs.entries
@@ -143,12 +141,12 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 	now := a.Now()
 	ui.List(c, &rs.list, len(entries), func(i int) {
 		e := entries[i]
-		row := ui.Row(c).Padding(3, 12).Gap(8).AlignItems(ui.Center).FillWidth()
+		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 		row.Children(func() {
-			ui.Text(c, e.Selector).Font("monospace").FontSize(12).Width(96).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, e.Selector).Font("monospace").FontSize(textSmall).Width(96).TextColor(th.TextMuted).SingleLine()
 			ui.Text(c, redact.Control(e.Message)).SingleLine().Grow(1)
-			ui.Text(c, ago(now, e.Time)).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, hex.EncodeToString(e.OID)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
+			ui.Text(c, ago(now, e.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, hex.EncodeToString(e.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 		})
 		row.ContextMenu(func(m *ui.Menu) { a.commitActions(m, t, e.OID) })
 	}).Label("Reflog entries").Grow(1)
@@ -161,7 +159,7 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	th := c.Theme()
 	rs := &t.reflog
 	if !rs.lostSearched {
-		ui.Column(c).Fill().Center().Gap(12).Children(func() {
+		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 			if ui.Button(c, "Find Lost Commits").Clicked() {
 				rs.lostSearched, rs.lostLoading = true, true
 				t.s.LostCommits(func(l []session.LostCommit, err error) {
@@ -176,15 +174,13 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	}
 	switch {
 	case rs.lostLoading:
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	case rs.lostErr != "":
-		ui.Text(c, rs.lostErr).TextColor(th.Danger).Padding(12).Selectable()
+		errorMessage(c, rs.lostErr)
 		return
 	case len(rs.lost) == 0:
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "No lost commits").TextColor(th.TextMuted)
-		})
+		emptyState(c, "No lost commits")
 		return
 	}
 	lost := rs.lost
@@ -193,12 +189,12 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	now := a.Now()
 	ui.List(c, &rs.lostList, len(lost), func(i int) {
 		l := lost[i]
-		row := ui.Row(c).Padding(3, 12).Gap(8).AlignItems(ui.Center).FillWidth()
+		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 		row.Children(func() {
 			ui.Text(c, redact.Control(l.Subject)).SingleLine().Grow(1)
-			ui.Text(c, redact.Control(l.Author)).FontSize(12).Width(120).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, ago(now, l.Time)).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, hex.EncodeToString(l.OID)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
+			ui.Text(c, redact.Control(l.Author)).FontSize(textSmall).Width(120).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, ago(now, l.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, hex.EncodeToString(l.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 		})
 		row.ContextMenu(func(m *ui.Menu) { a.commitActions(m, t, l.OID) })
 	}).Label("Lost commits").Grow(1)

@@ -143,20 +143,20 @@ func (a *App) mergeToolView(c *ui.Context) {
 	th := c.Theme()
 	ms := &mt.ms
 	a.toolFrame(c, &mt.open, func(box ui.Element) {
-		box.Gap(10).Padding(20, 0).Children(func() {
+		box.Gap(spaceL).Padding(dialogPad, 0).Children(func() {
 			n, done := len(ms.choices), 0
 			for _, ch := range ms.choices {
 				if ch != conflict.Unresolved {
 					done++
 				}
 			}
-			ui.Row(c).Padding(0, 20).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Row(c).Padding(0, dialogPad).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+				ui.Column(c).Grow(1).Gap(space2XS).Children(func() {
 					ui.Text(c, "Merge "+redact.Control(filepath.Base(mt.merged))).Bold().SingleLine()
-					ui.Text(c, redact.Control(mt.merged)).Font("monospace").FontSize(12).TextColor(th.TextMuted).SingleLine().Selectable()
+					ui.Text(c, redact.Control(mt.merged)).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
 				})
 				if n > 0 {
-					ui.Text(c, fmt.Sprintf("%d of %d resolved", done, n)).FontSize(12).TextColor(th.TextMuted)
+					ui.Text(c, fmt.Sprintf("%d of %d resolved", done, n)).FontSize(textSmall).TextColor(th.TextMuted)
 					if ui.Button(c, "All Ours").Clicked() {
 						fill(ms.choices, conflict.Ours)
 					}
@@ -182,15 +182,15 @@ func (a *App) mergeToolView(c *ui.Context) {
 				}
 			})
 			if mt.err != "" {
-				ui.Text(c, mt.err).FontSize(12).TextColor(th.Danger).Padding(0, 20).Selectable()
+				ui.Text(c, mt.err).FontSize(textSmall).TextColor(th.Danger).Padding(0, dialogPad).Selectable()
 			}
 			switch {
 			case mt.loading:
-				ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+				loading(c, "")
 			case mt.files.Binary:
-				ui.Column(c).Fill().Center().Gap(12).Children(func() {
+				ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 					ui.Text(c, "Binary files are merged by keeping one side whole").TextColor(th.TextMuted)
-					ui.Row(c).Gap(8).Children(func() {
+					ui.Row(c).Gap(spaceM).Children(func() {
 						for _, side := range []struct{ label, path string }{{"Keep Ours", mt.local}, {"Keep Theirs", mt.remote}} {
 							if ui.Button(c, side.label).Disabled(mt.saving).Clicked() {
 								a.saveMergeTool(nil, side.path)
@@ -200,9 +200,7 @@ func (a *App) mergeToolView(c *ui.Context) {
 				})
 			case mt.files.Segments == nil:
 			case n == 0:
-				ui.Column(c).Fill().Center().Children(func() {
-					ui.Text(c, "The sides merge without conflicts").TextColor(th.TextMuted)
-				})
+				emptyState(c, "The sides merge without conflicts")
 			default:
 				a.conflictList(c, ms)
 			}

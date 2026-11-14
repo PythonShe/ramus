@@ -240,10 +240,10 @@ func (a *App) paletteView(c *ui.Context) {
 				if cmd.hidden {
 					continue
 				}
-				cb.Item(cmd.label).Padding(6, 10).Gap(16).Children(func() {
+				cb.Item(cmd.label).Padding(spaceS, spaceL).Gap(spaceXL).Children(func() {
 					ui.Text(c, cmd.label).SingleLine().Grow(1)
 					if ks := km.byID[cmd.id]; cmd.id != "" && len(ks) > 0 {
-						ui.Text(c, ks[0].label()).FontSize(12).TextColor(c.Theme().TextMuted)
+						ui.Text(c, ks[0].label()).FontSize(textSmall).TextColor(c.Theme().TextMuted)
 					}
 				})
 			}

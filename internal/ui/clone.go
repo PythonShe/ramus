@@ -35,14 +35,14 @@ func (a *App) cloneDialog(c *ui.Context) {
 	}
 	th := c.Theme()
 	ui.Modal(c, &cs.open, func() {
-		ui.Column(c).Width(520).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, "Clone a repository").Bold()
 			busy := cs.job != nil || cs.starting
 			ui.Field(c, "URL", func() {
 				ui.TextInput(c, &cs.url).Label("Repository URL").Placeholder("https://github.com/owner/repo.git").AutoFocus().Disabled(busy)
 			})
 			ui.Field(c, "Folder", func() {
-				ui.Row(c).Gap(8).Children(func() {
+				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.TextInput(c, &cs.dir).Label("Folder to clone into").Placeholder(defaultCloneDir(cs.url)).Grow(1).Disabled(busy)
 					if ui.Button(c, "Choose…").Disabled(busy).Clicked() {
 						a.pickCloneParent()
@@ -52,12 +52,12 @@ func (a *App) cloneDialog(c *ui.Context) {
 			ui.Checkbox(c, &cs.submodules, "Clone submodules too").Disabled(busy)
 			if busy {
 				ui.Progress(c, float64(max(cs.percent, 0))/100)
-				ui.Text(c, cs.progress).SingleLine().FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, cs.progress).SingleLine().FontSize(textSmall).TextColor(th.TextMuted)
 			}
 			if cs.err != "" {
 				ui.Text(c, cs.err).TextColor(th.Danger).MaxWidth(480)
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
 				if busy {
 					if ui.Button(c, "Stop").Clicked() {
 						if cs.job != nil {

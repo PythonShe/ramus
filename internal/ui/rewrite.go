@@ -114,13 +114,13 @@ func (a *App) messageView(c *ui.Context) {
 	}
 	th := c.Theme()
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(520).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, d.title).Bold()
 			ui.TextArea(c, &d.message).Label("Message").Lines(4, 14).FillWidth().AutoFocus()
 			if d.err != "" {
-				ui.Text(c, d.err).FontSize(12).TextColor(th.Danger).Selectable()
+				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false
@@ -187,7 +187,7 @@ func (a *App) forcePushOffer(c *ui.Context, t *tab) {
 		return
 	}
 	th := c.Theme()
-	ui.Row(c).Padding(8, 12).Gap(12).AlignItems(ui.Center).Background(th.Surface).FillWidth().Children(func() {
+	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).FillWidth().Children(func() {
 		ui.Text(c, redact.Control(strings.TrimPrefix(fp.branch, "refs/heads/"))+" was rewritten after it was pushed to "+redact.Control(fp.upstream)).Grow(1)
 		if ui.Button(c, "Not Now").Clicked() {
 			t.forcePush = forcePush{}

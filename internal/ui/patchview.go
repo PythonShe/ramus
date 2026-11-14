@@ -44,7 +44,7 @@ func (a *App) diffOpts() *diffOptions {
 // wrapping is saved in the settings.
 func (a *App) diffBar(c *ui.Context, more func()) {
 	o := a.diffOpts()
-	ui.Row(c).Padding(0, 12, 6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(0, insetX, spaceS, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 		ws := []string{"All White Space", "Ignore Space Changes", "Ignore All Space"}
 		ui.PopoverMenuButton(c, ws[o.ws], func(m *ui.Menu) {
 			for i, label := range ws {
@@ -231,15 +231,13 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 	p := res.Parsed
 	switch {
 	case res.Err != nil:
-		ui.Text(c, errText(res.Err)).TextColor(th.Danger).Padding(12).Selectable()
+		errorMessage(c, errText(res.Err))
 		return
 	case p == nil:
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	case len(p.Files) == 0 || len(p.Hunks) == 0 && !p.Files[0].Binary:
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "No differences in content").TextColor(th.TextMuted)
-		})
+		emptyState(c, "No differences in content")
 		return
 	case pv.sub != nil && t != nil:
 		a.submoduleChange(c, t, pv.sub)
@@ -248,22 +246,18 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 		pictures(c, pv)
 		return
 	case p.Files[0].Binary:
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "Binary file").TextColor(th.TextMuted)
-		})
+		emptyState(c, "Binary file")
 		return
 	case pv.failed:
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "This patch cannot be shown").TextColor(th.TextMuted)
-		})
+		emptyState(c, "This patch cannot be shown")
 		return
 	case pv.d == nil:
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	}
 	if pv.endings != "" {
 		ui.Text(c, "Line endings change from "+pv.endings+" on every line shown").
-			FontSize(12).TextColor(th.Warning).Padding(4, 12)
+			FontSize(textSmall).TextColor(th.Warning).Padding(rowPadY, insetX)
 	}
 	d := pv.d
 	a.setDiffView(d, actions)
@@ -294,7 +288,7 @@ func (a *App) setDiffView(d *editor.DiffState, actions func(c *ui.Context, chang
 	d.RenderHunkActions = nil
 	if actions != nil {
 		d.RenderHunkActions = func(c *ui.Context, bar ui.Element, h *editor.DiffHunkActions) {
-			bar.Row().Gap(4)
+			bar.Row().Gap(spaceXS)
 			i := h.Index
 			bar.Children(func() { actions(c, i) })
 		}
@@ -333,17 +327,17 @@ func decodePicture(data []byte) (ui.ImageSource, string) {
 // pictures shows a picture before and after its change, side by side.
 func pictures(c *ui.Context, pv *patchView) {
 	th := c.Theme()
-	ui.Row(c).Fill().Gap(16).Padding(16).Children(func() {
+	ui.Row(c).Fill().Gap(spaceXL).Padding(spaceXL).Children(func() {
 		for k, title := range []string{"Before", "After"} {
 			if pv.images[k] == nil && pv.about[k] == "" {
 				continue
 			}
-			ui.Column(c).Key(k).Grow(1).Basis(0).FillHeight().Gap(8).Children(func() {
-				ui.Row(c).Gap(8).Children(func() {
-					ui.Text(c, title).FontSize(12).Bold()
-					ui.Text(c, pv.about[k]).FontSize(12).TextColor(th.TextMuted)
+			ui.Column(c).Key(k).Grow(1).Basis(0).FillHeight().Gap(spaceM).Children(func() {
+				ui.Row(c).Gap(spaceM).Children(func() {
+					ui.Text(c, title).FontSize(textSmall).Bold()
+					ui.Text(c, pv.about[k]).FontSize(textSmall).TextColor(th.TextMuted)
 				})
-				ui.Column(c).Grow(1).FillWidth().Center().Background(th.Surface).Radius(6).Padding(8).Children(func() {
+				ui.Column(c).Grow(1).FillWidth().Center().Background(th.Surface).Radius(6).Padding(spaceM).Children(func() {
 					if img := pv.images[k]; img != nil {
 						w, h := ui.ImageSize(img)
 						ui.Image(c, img).MaxWidth(w).MaxHeight(h).FillWidth().Label(title)
@@ -389,10 +383,10 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 			rows = append(rows, row{rc, true})
 		}
 	}
-	ui.Column(c).Fill().Gap(8).Padding(12).Children(func() {
+	ui.Column(c).Fill().Gap(spaceM).Padding(spaceL).Children(func() {
 		ui.Text(c, what).Bold().Selectable()
 		if sc.dirty {
-			ui.Text(c, "Its work tree has changes of its own").FontSize(12).TextColor(th.Warning)
+			ui.Text(c, "Its work tree has changes of its own").FontSize(textSmall).TextColor(th.Warning)
 		}
 		r := sc.rng
 		switch {
@@ -402,7 +396,7 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 		case r == nil:
 			return
 		case r.Err != nil:
-			ui.Text(c, errText(r.Err)).FontSize(12).TextColor(th.TextMuted).Selectable()
+			ui.Text(c, errText(r.Err)).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 			return
 		}
 		summary := fmt.Sprintf("%s added", commitCount(len(r.Added)))
@@ -412,7 +406,7 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 		if r.More {
 			summary += ", the latest 500 each way listed"
 		}
-		ui.Text(c, summary).FontSize(12).TextColor(th.TextMuted)
+		ui.Text(c, summary).FontSize(textSmall).TextColor(th.TextMuted)
 		sc.list.Label = func(i int) string {
 			verb := "added"
 			if rows[i].removed {
@@ -422,14 +416,14 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 		}
 		ui.List(c, &sc.list, len(rows), func(i int) {
 			rc := rows[i]
-			ui.Row(c).Padding(2, 4).Gap(8).FillWidth().Children(func() {
+			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).FillWidth().Children(func() {
 				sign, col := "+", th.Success
 				if rc.removed {
 					sign, col = "-", th.Danger
 				}
-				ui.Text(c, sign).Font("monospace").FontSize(12).TextColor(col).Width(12)
-				ui.Text(c, rc.c.ID[:min(10, len(rc.c.ID))]).Font("monospace").FontSize(12).TextColor(th.TextMuted)
-				ui.Text(c, redact.Control(rc.c.Subject)).FontSize(13).SingleLine().Grow(1)
+				ui.Text(c, sign).Font("monospace").FontSize(textSmall).TextColor(col).Width(12)
+				ui.Text(c, rc.c.ID[:min(10, len(rc.c.ID))]).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted)
+				ui.Text(c, redact.Control(rc.c.Subject)).SingleLine().Grow(1)
 			})
 		}).Label("Submodule commits").Grow(1)
 	})

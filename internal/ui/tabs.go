@@ -13,10 +13,10 @@ func (a *App) tabBar(c *ui.Context) {
 	parts := ui.TabsBase(c, &a.active, len(a.tabs))
 	from, to, closing, moving := -1, -1, -1, -1
 	var act func()
-	parts.List.Row().Gap(2).Padding(4, 8, 0, 8).Background(th.Surface).Children(func() {
+	parts.List.Row().Gap(space2XS).Padding(spaceXS, insetX, 0, insetX).Background(th.Surface).Children(func() {
 		for i, t := range a.tabs {
 			c.Key(t.id)
-			tb := parts.Tab(i).Drag(tabDrag{t.id}).Padding(6, 10).Radius(6, 6, 0, 0).Gap(6).AlignItems(ui.Center)
+			tb := parts.Tab(i).Drag(tabDrag{t.id}).Padding(spaceS, spaceL).Radius(6, 6, 0, 0).Gap(spaceS).AlignItems(ui.Center)
 			if i == a.active {
 				tb.Background(th.Background)
 			}
@@ -42,7 +42,7 @@ func (a *App) tabBar(c *ui.Context) {
 			})
 			tb.Label(name).Children(func() {
 				ui.Text(c, name).SingleLine().MaxWidth(200)
-				if ui.Button(c, "×").Label("Close "+name).Padding(0, 4).Clicked() {
+				if ui.Button(c, "×").Label("Close "+name).Padding(0, spaceXS).Clicked() {
 					closing = i
 				}
 			})

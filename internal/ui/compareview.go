@@ -208,11 +208,11 @@ func (a *App) compareView(c *ui.Context) {
 	th := c.Theme()
 	a.loadComparePatch(cs)
 	a.toolFrame(c, &cs.open, func(box ui.Element) {
-		box.Gap(10).Padding(20, 0).Children(func() {
-			ui.Column(c).Padding(0, 20).Gap(2).Children(func() {
+		box.Gap(spaceL).Padding(dialogPad, 0).Children(func() {
+			ui.Column(c).Padding(0, dialogPad).Gap(space2XS).Children(func() {
 				ui.Text(c, "Compare").Bold()
 				for _, p := range []string{cs.old, cs.new} {
-					ui.Text(c, redact.Control(p)).Font("monospace").FontSize(12).TextColor(th.TextMuted).SingleLine().Selectable()
+					ui.Text(c, redact.Control(p)).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
 				}
 			})
 			a.diffBar(c, func() {
@@ -222,9 +222,9 @@ func (a *App) compareView(c *ui.Context) {
 			})
 			switch {
 			case cs.err != "":
-				ui.Text(c, cs.err).TextColor(th.Danger).Padding(12, 20).Selectable()
+				ui.Text(c, cs.err).TextColor(th.Danger).Padding(spaceL, dialogPad).Selectable()
 			case cs.loading:
-				ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+				loading(c, "")
 			case cs.dir:
 				ui.Split(c, &cs.split, func() { a.comparedList(c, cs) }, func() { a.comparedPatch(c, cs) }).SplitReset(320).Fill()
 			default:
@@ -239,16 +239,14 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 	l := cs.list
 	ui.Column(c).Fill().Children(func() {
 		if l.Len() == 0 {
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "No differences").TextColor(th.TextMuted)
-			})
+			emptyState(c, "No differences")
 			return
 		}
 		count := countFiles(l.Len()) + " differ"
 		if l.Truncated {
 			count = "The first " + count
 		}
-		ui.Text(c, count).FontSize(12).TextColor(th.TextMuted).Padding(4, 12)
+		ui.Text(c, count).FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX)
 		name := func(i int) string {
 			switch {
 			case l.Old(i) == "":
@@ -261,10 +259,10 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 		cs.rows.Selected = &cs.chosen
 		cs.rows.Label = func(i int) string { return fileStatusWord(l.Status(i)) + " " + name(i) }
 		ui.List(c, &cs.rows, l.Len(), func(i int) {
-			ui.Row(c).Padding(2, 12).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(12).Width(14).TextColor(fileStatusColor(th, l.Status(i)))
+			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
+				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, l.Status(i)))
 				shown, why := showPath(name(i))
-				txt := ui.Text(c, shown).FontSize(13).SingleLine().Grow(1)
+				txt := ui.Text(c, shown).SingleLine().Grow(1)
 				if why != "" {
 					txt.TextColor(th.Warning).Tooltip(why)
 				}
@@ -274,11 +272,8 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 }
 
 func (a *App) comparedPatch(c *ui.Context, cs *compareState) {
-	th := c.Theme()
 	if _, _, ok := cs.comparedFiles(); !ok {
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "Choose a file to see its changes").TextColor(th.TextMuted)
-		})
+		emptyState(c, "Choose a file to see its changes")
 		return
 	}
 	ui.Column(c).Fill().Children(func() {

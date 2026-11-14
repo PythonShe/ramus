@@ -43,25 +43,25 @@ func (a *App) managerView(c *ui.Context) {
 	repos := m.repos
 	var act func()
 	ui.Modal(c, &m.open, func() {
-		ui.Column(c).Width(640).Height(560).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogWide).Height(560).Children(func() {
 			ui.Text(c, "Repositories").Bold()
 			ui.SearchField(c, &m.query).Label("Search repositories").Placeholder("Search every known repository").AutoFocus()
 			m.list.Selected = &m.chosen
 			m.list.Label = func(i int) string { return repos[i].Name }
 			l := ui.List(c, &m.list, len(repos), func(i int) {
 				r := repos[i]
-				ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+				ui.Row(c).Padding(rowTallPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 					star := "☆"
 					if r.Favourite {
 						star = "★"
 					}
-					if ui.Button(c, star).Label(favLabel(r)).Padding(0, 4).Clicked() {
+					if ui.Button(c, star).Label(favLabel(r)).Padding(0, spaceXS).Clicked() {
 						path, on := r.Path, !r.Favourite
 						act = func() { a.libraryWrite(func(l *library.Library) error { return l.SetFavourite(path, on) }) }
 					}
 					if ui.Column(c).Grow(1).Children(func() {
 						ui.Text(c, r.Name).SingleLine()
-						ui.Text(c, r.Path).SingleLine().FontSize(12).TextColor(th.TextMuted)
+						ui.Text(c, r.Path).SingleLine().FontSize(textSmall).TextColor(th.TextMuted)
 					}).ContextMenu(func(menu *ui.Menu) {
 						if menu.Item("Open").Chosen() {
 							p := r.Path
@@ -105,10 +105,10 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 	m := &a.manager
 	th := c.Theme()
 	groups := a.Library.Groups()
-	ui.Column(c).Gap(8).Children(func() {
+	ui.Column(c).Gap(spaceM).Children(func() {
 		ui.Text(c, "Groups").Bold()
 		for _, g := range groups {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf("%s (%d)", g.Name, len(g.Paths))).Grow(1)
 				if ui.Button(c, "Open "+g.Name).Clicked() {
 					paths := g.Paths
@@ -131,7 +131,7 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 			}
 			return
 		}
-		ui.Row(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(spaceM).Children(func() {
 			ui.TextInput(c, &m.groupName).Label("Group name").Placeholder("Group name").Grow(1)
 			if ui.Button(c, "Save Open Tabs as Group").Disabled(strings.TrimSpace(m.groupName) == "").Clicked() {
 				name := m.groupName

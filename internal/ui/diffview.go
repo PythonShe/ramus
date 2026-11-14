@@ -46,13 +46,10 @@ func (cv *changesState) chosenFile() (changeRow, bool) {
 }
 
 func (a *App) detail(c *ui.Context, t *tab) {
-	th := c.Theme()
 	cv := &t.cv
 	r, ok := cv.chosenFile()
 	if !ok {
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "Choose a file to see its changes").TextColor(th.TextMuted)
-		})
+		emptyState(c, "Choose a file to see its changes")
 		return
 	}
 	m := cv.model
@@ -189,10 +186,10 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	th := c.Theme()
 	d := &t.cv.diff
 	ro := t.s.Queue == nil
-	ui.Row(c).Padding(6, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 		shown, _ := showPath(string(m.st.Path(int(r.idx))))
 		ui.Text(c, shown).Bold().SingleLine().Grow(1)
-		ui.Text(c, entryWords(m.st, int(r.idx), r.sec)).FontSize(12).TextColor(th.TextMuted)
+		ui.Text(c, entryWords(m.st, int(r.idx), r.sec)).FontSize(textSmall).TextColor(th.TextMuted)
 		if picked, n := d.pv.selectedLines(); d.partialOK() && n > 0 {
 			lines := fmt.Sprintf(" %d Lines", n)
 			if n == 1 {

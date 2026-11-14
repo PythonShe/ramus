@@ -63,7 +63,7 @@ func (a *App) promptView(c *ui.Context) {
 	}
 	run := false
 	ui.Modal(c, &p.open, func() {
-		ui.Column(c).Width(480).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, p.action.Name).Bold()
 			for i, q := range p.questions {
 				ui.Field(c, q, func() {
@@ -76,7 +76,7 @@ func (a *App) promptView(c *ui.Context) {
 					}
 				})
 			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {
 					p.open = false
 				}
@@ -208,7 +208,7 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 // the entry chosen.
 func (a *App) logView(c *ui.Context, t *tab) {
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 8).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Children(func() {
 			ui.Segmented(c, &t.gitLog.mode, "Actions", "Git Commands")
 		})
 		if t.gitLog.mode == 1 {
@@ -225,9 +225,7 @@ func (a *App) actionLogView(c *ui.Context, t *tab) {
 	th := c.Theme()
 	log := t.s.Log
 	if len(log) == 0 {
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "Commands the app runs here show up in this log").TextColor(th.TextMuted)
-		})
+		emptyState(c, "Commands the app runs here show up in this log")
 		return
 	}
 	t.logList.Selected = &t.logChosen
@@ -235,12 +233,12 @@ func (a *App) actionLogView(c *ui.Context, t *tab) {
 	ui.Split(c, &t.listW, func() {
 		ui.List(c, &t.logList, len(log), func(i int) {
 			e := log[len(log)-1-i]
-			ui.Column(c).Padding(6, 8).Children(func() {
-				ui.Row(c).Gap(8).Children(func() {
+			ui.Column(c).Padding(rowTallPadY, insetX).Children(func() {
+				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.Text(c, e.Name).SingleLine().Grow(1)
-					ui.Text(c, entryStatus(e)).FontSize(12).TextColor(statusColor(th, e))
+					ui.Text(c, entryStatus(e)).FontSize(textSmall).TextColor(statusColor(th, e))
 				})
-				ui.Text(c, e.Started.Format(time.TimeOnly)).FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, e.Started.Format(time.TimeOnly)).FontSize(textSmall).TextColor(th.TextMuted)
 			})
 		}).Label("Commands run").Fill()
 	}, func() {
@@ -249,13 +247,13 @@ func (a *App) actionLogView(c *ui.Context, t *tab) {
 			return
 		}
 		e := log[k]
-		ui.Column(c).Fill().Padding(12).Gap(8).Children(func() {
-			ui.Text(c, e.Command).Font("monospace").FontSize(12).TextColor(th.TextMuted).Selectable()
+		ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
+			ui.Text(c, e.Command).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 			if e.Dropped > 0 {
-				ui.Text(c, fmt.Sprintf("%d earlier lines not kept", e.Dropped)).FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, fmt.Sprintf("%d earlier lines not kept", e.Dropped)).FontSize(textSmall).TextColor(th.TextMuted)
 			}
 			ui.List(c, &t.outList, len(e.Output), func(i int) {
-				ui.Text(c, e.Output[i]).Font("monospace").FontSize(12).Selectable()
+				ui.Text(c, e.Output[i]).Font("monospace").FontSize(textSmall).Selectable()
 			}).Label("Command output").Grow(1)
 			if e.Err != nil {
 				ui.Text(c, errText(e.Err)).TextColor(th.Danger).Selectable()

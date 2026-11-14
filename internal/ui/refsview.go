@@ -136,7 +136,7 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 		a.loadPulls(t)
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Segmented(c, &rs.kind, "Branches", "Tags", "Remotes")
 			if rs.kind != refsRemotes {
 				ui.TextInput(c, &rs.filter).Placeholder("Filter").Label("Filter").Width(200)
@@ -151,7 +151,7 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 					if len(d) == 1 {
 						what = "Deleted " + redact.Control(strings.TrimPrefix(d[0].Name, "refs/heads/")) + " at " + d[0].Commit[:min(10, len(d[0].Commit))]
 					}
-					ui.Text(c, what).FontSize(12).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, what).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 					if ui.Button(c, "Restore").Disabled(ro).Clicked() {
 						a.restoreBranches(t, d)
 					}
@@ -174,10 +174,10 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 		})
 		switch {
 		case rs.info == nil:
-			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+			loading(c, "")
 			return
 		case rs.info.Err != nil:
-			ui.Text(c, errText(rs.info.Err)).TextColor(th.Danger).Padding(12).Selectable()
+			errorMessage(c, errText(rs.info.Err))
 			return
 		}
 		switch rs.kind {
@@ -252,7 +252,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 		}()
 	}
 	if rs.rowsFor.info == nil || rs.rowsFor.kind != rs.kind {
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	}
 	// The rows index the ref details they were grouped from, which stay
@@ -285,7 +285,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 	var act func()
 	ui.List(c, &rs.list, len(rows), func(i int) {
 		r := rows[i]
-		row := ui.Row(c).Padding(3, 8).Gap(8).AlignItems(ui.Center).FillWidth()
+		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 		row.Children(func() {
 			if r.idx < 0 {
 				ui.Box(c).Width(float32(r.depth) * 16)
@@ -306,17 +306,17 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			if rs.kind == refsBranches {
 				b = info.Branches[r.idx]
 			}
-			ui.Row(c).Width(nameColumn).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Width(nameColumn).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Width(float32(r.depth)*16 + 20)
 				name := ui.Text(c, redact.Control(r.label)).SingleLine().Grow(1)
 				if rs.kind == refsBranches && !head.Detached && b.Name == head.Target {
 					name.Bold()
 				}
 				if b.Worktree != "" {
-					ui.Text(c, "in "+filepath.Base(b.Worktree)).FontSize(12).TextColor(th.TextMuted).SingleLine().Description("Checked out in " + b.Worktree)
+					ui.Text(c, "in "+filepath.Base(b.Worktree)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Description("Checked out in " + b.Worktree)
 				}
 				if on := stackedOn(info, b.Name); on != "" {
-					ui.Text(c, "on "+redact.Control(on)).FontSize(12).TextColor(th.TextMuted).SingleLine().Description("Stacked on " + redact.Control(on))
+					ui.Text(c, "on "+redact.Control(on)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Description("Stacked on " + redact.Control(on))
 				}
 				if p, ok := t.pulls.by[b.Name]; ok && a.Settings.PullRequests {
 					pullBadge(c, p)
@@ -326,14 +326,14 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				}
 			})
 			if rs.kind == refsBranches {
-				tr := ui.Text(c, tracking(b)).FontSize(12).Width(180).SingleLine()
+				tr := ui.Text(c, tracking(b)).FontSize(textSmall).Width(180).SingleLine()
 				if b.Gone {
 					tr.TextColor(th.Warning)
 				} else {
 					tr.TextColor(th.TextMuted)
 				}
-				ui.Text(c, redact.Control(b.Subject)).FontSize(12).TextColor(th.TextMuted).SingleLine().Grow(1)
-				ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
+				ui.Text(c, redact.Control(b.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
+				ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 				return
 			}
 			tg := info.Tags[r.idx]
@@ -344,13 +344,13 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			case tg.Annotated:
 				kind = "annotated"
 			}
-			ui.Text(c, kind).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, kind).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 			if v, ok := rs.sigs[tg.Object]; ok {
 				ui.Row(c).Grow(1).Children(func() { sigText(c, v) })
 			} else {
-				ui.Text(c, redact.Control(tg.Subject)).FontSize(12).TextColor(th.TextMuted).SingleLine().Grow(1)
+				ui.Text(c, redact.Control(tg.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
 			}
-			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 		})
 		if r.idx < 0 {
 			return
@@ -724,7 +724,7 @@ func (a *App) refDialogView(c *ui.Context, d *refDialog, t *tab) {
 	}
 	th := c.Theme()
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(460).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, d.title).Bold()
 			submitted := false
 			for i, l := range d.labels {
@@ -743,13 +743,13 @@ func (a *App) refDialogView(c *ui.Context, d *refDialog, t *tab) {
 				}
 			}
 			if d.err != "" {
-				ui.Text(c, d.err).FontSize(12).TextColor(th.Danger).Selectable()
+				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
 			empty := false
 			for _, v := range d.values {
 				empty = empty || strings.TrimSpace(v) == ""
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false
@@ -843,9 +843,7 @@ func (a *App) remoteList(c *ui.Context, t *tab) {
 	rs := &t.refs
 	remotes := rs.info.Remotes
 	if len(remotes) == 0 {
-		ui.Column(c).Fill().Center().Children(func() {
-			ui.Text(c, "No remotes").TextColor(th.TextMuted)
-		})
+		emptyState(c, "No remotes")
 		return
 	}
 	ro := t.s.Queue == nil
@@ -853,13 +851,13 @@ func (a *App) remoteList(c *ui.Context, t *tab) {
 	var act func()
 	ui.Column(c).Grow(1).Children(func() {
 		for _, r := range remotes {
-			row := ui.Row(c).Padding(6, 12).Gap(12).AlignItems(ui.Center).FillWidth().Key(r.Name)
+			row := ui.Row(c).Padding(barPadY, insetX).Gap(spaceL).AlignItems(ui.Center).FillWidth().Key(r.Name)
 			row.Children(func() {
 				ui.Text(c, redact.Control(r.Name)).Bold().Width(160).SingleLine()
 				ui.Column(c).Grow(1).Children(func() {
-					ui.Text(c, redact.Shown(r.URL)).FontSize(12).SingleLine().Selectable()
+					ui.Text(c, redact.Shown(r.URL)).FontSize(textSmall).SingleLine().Selectable()
 					if r.PushURL != "" && r.PushURL != r.URL {
-						ui.Text(c, "push: "+redact.Shown(r.PushURL)).FontSize(12).TextColor(th.TextMuted).SingleLine().Selectable()
+						ui.Text(c, "push: "+redact.Shown(r.PushURL)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
 					}
 				})
 			})
@@ -987,8 +985,8 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 	}
 	th := c.Theme()
 	ui.Modal(c, &cs.open, func() {
-		ui.Column(c).Width(640).Height(480).Gap(12).Padding(20).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		dialogBox(c).Width(dialogWide).Height(480).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "Branches That Can Go").Bold().Grow(1)
 				ui.Text(c, "Against").TextColor(th.TextMuted)
 				ui.PopoverMenuButton(c, redact.Control(strings.TrimPrefix(cs.base, "refs/heads/")), func(m *ui.Menu) {
@@ -1008,7 +1006,7 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 			})
 			switch {
 			case cs.loading:
-				ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c) })
+				loading(c, "")
 			case cs.err != "":
 				ui.Text(c, cs.err).TextColor(th.Danger).Selectable().Grow(1)
 			case len(cs.found) == 0:
@@ -1020,12 +1018,12 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 				cs.list.Label = func(i int) string { return strings.TrimPrefix(found[i].Branch.Name, "refs/heads/") }
 				ui.List(c, &cs.list, len(found), func(i int) {
 					f := found[i]
-					ui.Row(c).Padding(3, 4).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+					ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 						ui.Checkbox(c, &cs.picked[i], redact.Control(strings.TrimPrefix(f.Branch.Name, "refs/heads/"))).Grow(1)
 						if f.Branch.Worktree != "" {
-							ui.Text(c, "in "+filepath.Base(f.Branch.Worktree)).FontSize(12).TextColor(th.TextMuted).SingleLine()
+							ui.Text(c, "in "+filepath.Base(f.Branch.Worktree)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 						}
-						ui.Text(c, whyWords(f.Why)).FontSize(12).TextColor(th.TextMuted).Width(200).SingleLine()
+						ui.Text(c, whyWords(f.Why)).FontSize(textSmall).TextColor(th.TextMuted).Width(200).SingleLine()
 					})
 				}).Label("Branches to clean up").Grow(1)
 			}
@@ -1035,7 +1033,7 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 					n++
 				}
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					cs.open = false

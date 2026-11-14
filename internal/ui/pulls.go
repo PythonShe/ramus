@@ -134,9 +134,9 @@ func (a *App) forgeNotice(err error) {
 func pullBadge(c *ui.Context, p session.PullInfo) {
 	th := c.Theme()
 	ref := p.Ref(p.Repo.Kind)
-	ui.Link(c, ref, p.URL).FontSize(12).Tooltip(redact.Control(p.Title))
+	ui.Link(c, ref, p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
 	if p.Draft {
-		ui.Text(c, "draft").FontSize(12).TextColor(th.TextMuted)
+		ui.Text(c, "draft").FontSize(textSmall).TextColor(th.TextMuted)
 	}
 	mark, color := "", th.TextMuted
 	switch p.Checks {
@@ -148,7 +148,7 @@ func pullBadge(c *ui.Context, p session.PullInfo) {
 		mark = "●"
 	}
 	if mark != "" {
-		ui.Text(c, mark).FontSize(12).TextColor(color).Label(p.Checks.String()).Tooltip(p.Checks.String())
+		ui.Text(c, mark).FontSize(textSmall).TextColor(color).Label(p.Checks.String()).Tooltip(p.Checks.String())
 	}
 }
 
@@ -215,10 +215,10 @@ func (a *App) stackBadge(c *ui.Context, t *tab, info *session.RefInfo, b session
 	if st.Number > 0 {
 		what += fmt.Sprintf(", #%d", st.Number)
 	}
-	ui.Text(c, fmt.Sprintf("stack %d/%d", i+1, len(st.Branches))).FontSize(12).TextColor(th.TextMuted).SingleLine().Label(what).Tooltip(what)
+	ui.Text(c, fmt.Sprintf("stack %d/%d", i+1, len(st.Branches))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Label(what).Tooltip(what)
 	if _, asked := t.pulls.by[b.Name]; !asked || !a.Settings.PullRequests {
 		if br := st.Branches[i]; br.PR > 0 && br.URL != "" && !br.Merged {
-			ui.Link(c, fmt.Sprintf("#%d", br.PR), br.URL).FontSize(12)
+			ui.Link(c, fmt.Sprintf("#%d", br.PR), br.URL).FontSize(textSmall)
 		}
 	}
 }

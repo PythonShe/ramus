@@ -17,9 +17,9 @@ type welcomeState struct {
 func (a *App) welcomeView(c *ui.Context) {
 	th := c.Theme()
 	ui.Column(c).Fill().Center().Children(func() {
-		ui.Column(c).Width(560).Gap(16).Children(func() {
-			ui.Text(c, "Ramus").FontSize(26).Bold()
-			ui.Row(c).Gap(8).Children(func() {
+		ui.Column(c).Width(560).Gap(spaceXL).Children(func() {
+			ui.Text(c, "Ramus").FontSize(textDisplay).Bold()
+			ui.Row(c).Gap(spaceM).Children(func() {
 				if ui.PrimaryButton(c, "Open Repository…").Clicked() {
 					a.pickAndOpen()
 				}
@@ -50,9 +50,9 @@ func (a *App) welcomeView(c *ui.Context) {
 			open := ""
 			l := ui.List(c, &a.welcome.list, len(repos), func(i int) {
 				r := repos[i]
-				if ui.Column(c).Padding(6, 8).FillWidth().Children(func() {
+				if ui.Column(c).Padding(rowTallPadY, insetX).FillWidth().Children(func() {
 					ui.Text(c, r.Name).SingleLine()
-					ui.Text(c, r.Path).SingleLine().FontSize(12).TextColor(th.TextMuted)
+					ui.Text(c, r.Path).SingleLine().FontSize(textSmall).TextColor(th.TextMuted)
 				}).RowClicked() {
 					open = r.Path
 				}

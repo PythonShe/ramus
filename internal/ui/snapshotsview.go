@@ -39,7 +39,7 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 	ss := &t.snaps
 	a.loadSnapshots(t)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(8, 12).Gap(12).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Snapshots").Bold().Grow(1)
 			ro := t.s.Queue == nil
 			ui.Checkbox(c, &ss.ignored, "Include ignored files").Disabled(ro)
@@ -50,7 +50,7 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 			}
 		})
 		if ss.err != "" {
-			ui.Text(c, ss.err).TextColor(th.Danger).Padding(0, 12)
+			ui.Text(c, ss.err).TextColor(th.Danger).Padding(0, insetX)
 		}
 		if len(ss.list) == 0 {
 			ui.Column(c).Grow(1).Center().Children(func() {
@@ -69,9 +69,9 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 		ui.Split(c, &t.listW, func() {
 			ui.List(c, &ss.snapList, len(list), func(i int) {
 				s := list[i]
-				ui.Column(c).Padding(6, 8).Children(func() {
+				ui.Column(c).Padding(rowTallPadY, insetX).Children(func() {
 					ui.Text(c, s.Reason).SingleLine()
-					ui.Text(c, s.Time.Format(time.DateTime)).FontSize(12).TextColor(th.TextMuted)
+					ui.Text(c, s.Time.Format(time.DateTime)).FontSize(textSmall).TextColor(th.TextMuted)
 				})
 			}).Label("Saved snapshots").Fill()
 		}, func() {
@@ -126,7 +126,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 		})
 	}
 	files := ss.files
-	ui.Column(c).Fill().Padding(12).Gap(8).Children(func() {
+	ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
 		ui.Text(c, s.Reason).Bold()
 		var parts string
 		if s.Head != "" {
@@ -136,7 +136,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 			parts += ", ignored files included"
 		}
 		if parts != "" {
-			ui.Text(c, parts).FontSize(12).TextColor(th.TextMuted)
+			ui.Text(c, parts).FontSize(textSmall).TextColor(th.TextMuted)
 		}
 		if files == nil {
 			ui.Spinner(c)
@@ -152,7 +152,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 		ui.List(c, &ss.fileList, len(files), func(i int) {
 			f := files[i]
 			shown, flagged := showPath(f.Path)
-			ui.Row(c).Padding(3, 8).Gap(8).Children(func() {
+			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).Children(func() {
 				ui.Text(c, string(rune(f.Status))).Font("monospace").TextColor(th.TextMuted).Width(16)
 				name := ui.Text(c, shown).SingleLine().Grow(1)
 				if flagged != "" {
@@ -160,7 +160,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 				}
 			})
 		}).Label("Files in the snapshot").Grow(1)
-		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+		ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
 			ro := t.s.Queue == nil
 			n := ss.picked.Len()
 			if ui.Button(c, fmt.Sprintf("Restore Selected (%d)", n)).Disabled(ro || n == 0).Clicked() {

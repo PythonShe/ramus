@@ -63,12 +63,12 @@ func (a *App) gitLogView(c *ui.Context, t *tab) {
 	ui.Split(c, &t.listW, func() {
 		ui.List(c, &gl.list, n, func(i int) {
 			r := &recs[n-1-i]
-			ui.Column(c).Padding(6, 8).Children(func() {
-				ui.Row(c).Gap(8).Children(func() {
-					ui.Text(c, r.Short).Font("monospace").FontSize(12).SingleLine().Grow(1)
-					ui.Text(c, recordStatus(r)).FontSize(12).TextColor(recordColor(th, r))
+			ui.Column(c).Padding(rowTallPadY, insetX).Children(func() {
+				ui.Row(c).Gap(spaceM).Children(func() {
+					ui.Text(c, r.Short).Font("monospace").FontSize(textSmall).SingleLine().Grow(1)
+					ui.Text(c, recordStatus(r)).FontSize(textSmall).TextColor(recordColor(th, r))
 				})
-				ui.Text(c, r.Started.Format(time.TimeOnly)).FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, r.Started.Format(time.TimeOnly)).FontSize(textSmall).TextColor(th.TextMuted)
 			})
 		}).Label("Git commands run").Fill()
 	}, func() {
@@ -84,19 +84,19 @@ func (a *App) gitLogView(c *ui.Context, t *tab) {
 				gl.lines = nil
 			}
 		}
-		ui.Column(c).Fill().Padding(12).Gap(8).Children(func() {
-			ui.Text(c, r.Line).Font("monospace").FontSize(12).TextColor(th.TextMuted).Selectable()
+		ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
+			ui.Text(c, r.Line).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 			if r.Err != "" {
 				ui.Text(c, r.Err).TextColor(recordColor(th, r)).Selectable()
 			}
 			if r.Stderr != "" {
-				ui.Text(c, strings.TrimSpace(r.Stderr)).Font("monospace").FontSize(12).Selectable()
+				ui.Text(c, strings.TrimSpace(r.Stderr)).Font("monospace").FontSize(textSmall).Selectable()
 			}
 			ui.List(c, &gl.out, len(gl.lines), func(i int) {
-				ui.Text(c, gl.lines[i]).Font("monospace").FontSize(12).Selectable()
+				ui.Text(c, gl.lines[i]).Font("monospace").FontSize(textSmall).Selectable()
 			}).Label("Command output").Grow(1)
 			if more := r.StdoutLen - len(r.Stdout); r.StdoutLen > 0 && more > 0 {
-				ui.Text(c, fmt.Sprintf("%d more bytes not kept", more)).FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, fmt.Sprintf("%d more bytes not kept", more)).FontSize(textSmall).TextColor(th.TextMuted)
 			}
 		})
 	}).Fill()

@@ -108,10 +108,10 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 	a.loadLineHistory(t)
 	switch {
 	case lh.err != "":
-		ui.Text(c, lh.err).TextColor(th.Danger).Padding(12).Selectable()
+		errorMessage(c, lh.err)
 		return
 	case lh.log == nil:
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, "")
 		return
 	}
 	l := lh.log
@@ -126,7 +126,7 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 	ui.Split(c, &lh.detail, func() {
 		ui.Column(c).Fill().Children(func() {
 			if l.Limited {
-				ui.Text(c, "The latest "+strconv.Itoa(session.MaxLineLog)+" commits").FontSize(12).TextColor(th.TextMuted).Padding(0, 12)
+				ui.Text(c, "The latest "+strconv.Itoa(session.MaxLineLog)+" commits").FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX)
 			}
 			cs := l.Commits
 			now := a.Now()
@@ -136,16 +136,16 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 			}
 			ui.List(c, &lh.list, len(cs), func(i int) {
 				fc := cs[i]
-				row := ui.Row(c).Padding(3, 12).Gap(8).AlignItems(ui.Center).FillWidth()
+				row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 				row.Children(func() {
 					ui.Text(c, redact.Control(fc.Subject)).SingleLine().Grow(1)
 					if fc.Path != "" && fc.Path != fs.path {
 						shown, _ := showPath(fc.Path)
-						ui.Text(c, "as "+shown).FontSize(12).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
+						ui.Text(c, "as "+shown).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
 					}
-					ui.Text(c, redact.Control(fc.Author)).FontSize(12).Width(120).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, ago(now, fc.Time)).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, hex.EncodeToString(fc.OID)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
+					ui.Text(c, redact.Control(fc.Author)).FontSize(textSmall).Width(120).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, ago(now, fc.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, hex.EncodeToString(fc.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 				})
 				row.ContextMenu(func(m *ui.Menu) {
 					if m.Item("Show in History").Chosen() {

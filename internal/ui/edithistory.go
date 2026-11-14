@@ -116,7 +116,7 @@ func (a *App) historyEditView(c *ui.Context) {
 	t := he.t
 	th := c.Theme()
 	ui.Modal(c, &he.open, func() {
-		ui.Column(c).Width(760).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(760).Children(func() {
 			ui.Text(c, "Edit History from "+he.rw.Commit[:min(10, len(he.rw.Commit))]).Bold()
 			rows := he.rows
 			he.list.Selected = &he.chosen
@@ -127,7 +127,7 @@ func (a *App) historyEditView(c *ui.Context) {
 			he.list.Reorder = he.move
 			ui.List(c, &he.list, len(rows), func(i int) {
 				r := &rows[i]
-				ui.Row(c).Padding(3, 8).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+				ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 					ui.PopoverMenuButton(c, actionLabels[r.action], func(m *ui.Menu) {
 						for k, label := range actionLabels {
 							act := write.Action(k)
@@ -141,9 +141,9 @@ func (a *App) historyEditView(c *ui.Context) {
 						subject.TextColor(th.TextMuted).Strikethrough()
 					}
 					for _, b := range r.Branches {
-						ui.Text(c, strings.TrimPrefix(b, "refs/heads/")).FontSize(11).TextColor(th.TextMuted).SingleLine().MaxWidth(140)
+						ui.Text(c, strings.TrimPrefix(b, "refs/heads/")).FontSize(textCaption).TextColor(th.TextMuted).SingleLine().MaxWidth(140)
 					}
-					ui.Text(c, hex.EncodeToString(r.OID)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)
+					ui.Text(c, hex.EncodeToString(r.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 				})
 			}).Label("Commits, oldest first").Height(min(float32(len(rows))*30+8, 360))
 			if i := he.chosen; i >= 0 && i < len(rows) {
@@ -155,9 +155,9 @@ func (a *App) historyEditView(c *ui.Context) {
 				}
 			}
 			if he.err != "" {
-				ui.Text(c, he.err).FontSize(12).TextColor(th.Danger).Selectable()
+				ui.Text(c, he.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					he.open = false

@@ -85,16 +85,16 @@ func (a *App) askView(c *ui.Context) {
 	}
 	open := true
 	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(460).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, askTitle(q.Question)).Bold()
-			ui.Text(c, strings.TrimSpace(redact.Shown(q.Prompt))).Selectable().FontSize(12).TextColor(th.TextMuted)
+			ui.Text(c, strings.TrimSpace(redact.Shown(q.Prompt))).Selectable().FontSize(textSmall).TextColor(th.TextMuted)
 			switch q.Kind {
 			case askpass.Secret, askpass.Text:
 				in := ui.TextInput(c, &d.answer).Label(askTitle(q.Question)).AutoFocus().FillWidth()
 				if q.Kind == askpass.Secret {
 					in.Password()
 				}
-				ui.Row(c).Gap(8).Children(func() {
+				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.Spacer(c)
 					if ui.Button(c, "Cancel").Clicked() {
 						done("", false)
@@ -108,7 +108,7 @@ func (a *App) askView(c *ui.Context) {
 				if q.Kind == askpass.HostKey {
 					yes = "Connect"
 				}
-				ui.Row(c).Gap(8).Children(func() {
+				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.Spacer(c)
 					if ui.Button(c, "Cancel").Clicked() {
 						done("no", q.Kind == askpass.HostKey)

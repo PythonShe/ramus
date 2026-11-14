@@ -97,7 +97,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 	cv := &t.cv
 	a.rebuildChanges(t)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.SearchField(c, &cv.filter).Label("Filter changes by path").Placeholder("Filter by path").Grow(1)
 			ui.Segmented(c, &cv.mode, "List", "Tree")
 			ro := t.s.Queue == nil
@@ -115,7 +115,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		})
 		m := cv.model
 		if m == nil {
-			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+			loading(c, "")
 			return
 		}
 		if len(m.rows) == 0 {
@@ -171,7 +171,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 	cv := &t.cv
 	ro := t.s.Queue == nil
 	if r.kind == rowHeader {
-		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).FillWidth().Background(th.Surface).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Background(th.Surface).Children(func() {
 			ui.Text(c, fmt.Sprintf("%s (%d)", r.sec.title(), len(m.files[r.sec]))).Bold().Grow(1)
 			var label string
 			switch r.sec {
@@ -188,7 +188,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 		return
 	}
 	indent := float32(r.depth) * 16
-	row := ui.Row(c).Padding(3, 8).Gap(6).AlignItems(ui.Center).FillWidth().Children(func() {
+	row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceS).AlignItems(ui.Center).FillWidth().Children(func() {
 		ui.Box(c).Width(indent)
 		if r.kind == rowDir {
 			k := openKey{r.sec, m.dir(r.sec, r.idx)}
@@ -213,7 +213,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 			name.TextColor(th.Warning).Description(flagged)
 		}
 		if note := entryNote(m.st, i, r.sec); note != "" {
-			ui.Text(c, note).FontSize(12).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, note).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 		}
 	})
 	if row.RowDoubleClicked() {

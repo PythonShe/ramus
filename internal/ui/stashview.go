@@ -71,7 +71,7 @@ func (a *App) stashDialogView(c *ui.Context) {
 	}
 	th := c.Theme()
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(420).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogNarrow).Children(func() {
 			title := "Stash Changes"
 			if n := len(d.paths); n > 0 {
 				title = "Stash Changes to " + countOf(n, "File")
@@ -90,9 +90,9 @@ func (a *App) stashDialogView(c *ui.Context) {
 				ui.Checkbox(c, &d.keepIndex, "Keep staged changes in place")
 			}
 			if d.err != "" {
-				ui.Text(c, d.err).FontSize(12).TextColor(th.Danger)
+				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger)
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false
@@ -128,9 +128,9 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 	}
 	ui.Split(c, &ss.detailW, func() {
 		ui.Column(c).Fill().Children(func() {
-			ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				if d := ss.dropped; d != nil {
-					ui.Text(c, "Dropped "+hex.EncodeToString(d.OID)[:10]).FontSize(12).TextColor(th.TextMuted).SingleLine().Grow(1)
+					ui.Text(c, "Dropped "+hex.EncodeToString(d.OID)[:10]).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
 					if ui.Button(c, "Restore").Disabled(t.s.Queue == nil).Clicked() {
 						op, err := write.StashRestore(t.s.Where(), hex.EncodeToString(d.OID), d.Message)
 						a.submit(t, op, err)
@@ -145,7 +145,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			})
 			switch {
 			case ss.err != "":
-				ui.Text(c, ss.err).TextColor(th.Danger).Padding(12).Selectable()
+				errorMessage(c, ss.err)
 				return
 			case len(ss.entries) == 0:
 				ui.Column(c).Fill().Center().Children(func() {
@@ -164,11 +164,11 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			var act func()
 			ui.List(c, &ss.list, len(entries), func(i int) {
 				e := entries[i]
-				row := ui.Row(c).Padding(3, 12).Gap(8).AlignItems(ui.Center).FillWidth()
+				row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 				row.Children(func() {
-					ui.Text(c, "stash@{"+strconv.Itoa(i)+"}").Font("monospace").FontSize(12).Width(80).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, "stash@{"+strconv.Itoa(i)+"}").Font("monospace").FontSize(textSmall).Width(80).TextColor(th.TextMuted).SingleLine()
 					ui.Text(c, redact.Control(e.Message)).SingleLine().Grow(1)
-					ui.Text(c, ago(now, e.Time)).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, ago(now, e.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 				})
 				row.ContextMenu(func(m *ui.Menu) { a.stashMenu(m, t, i, e, &act) })
 			}).Label("Stash entries").Grow(1)

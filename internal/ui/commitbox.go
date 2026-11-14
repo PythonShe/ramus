@@ -76,8 +76,8 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	cs.wasAmend = cs.amend
 	a.keepDraft(t)
 	head := t.s.State.Head
-	ui.Column(c).Padding(8).Gap(6).Background(th.Surface).FillWidth().Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Padding(spaceM).Gap(spaceS).Background(th.Surface).FillWidth().Children(func() {
+		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &cs.subject).Label("Summary").Placeholder("Summary").Grow(1).Disabled(cs.busy)
 			if cs.setup != nil && len(cs.setup.Recent) > 0 {
 				recent := cs.setup.Recent
@@ -93,7 +93,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		})
 		ui.TextArea(c, &cs.body).Label("Description").Placeholder("Description").Lines(2, 8).FillWidth().Disabled(cs.busy)
 		ui.TextInput(c, &cs.coAuthors).Label("Co-authors").Placeholder("Co-authors: Name <email>, …").FillWidth().Disabled(cs.busy)
-		ui.Row(c).Gap(12).Children(func() {
+		ui.Row(c).Gap(spaceL).Children(func() {
 			ui.Checkbox(c, &cs.amend, "Amend").Disabled(cs.busy || head.Unborn || len(head.OID) == 0)
 			ui.Checkbox(c, &cs.signOff, "Sign off")
 			if cs.setup != nil && cs.setup.CanSign {
@@ -102,10 +102,10 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 			ui.Checkbox(c, &cs.noVerify, "Skip hooks")
 		})
 		if cs.err != "" {
-			ui.Text(c, cs.err).FontSize(12).TextColor(th.Danger).Selectable()
+			ui.Text(c, cs.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
 		}
 		ready := commitReady(t)
-		ui.Row(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(spaceM).Children(func() {
 			branch := strings.TrimPrefix(head.Target, "refs/heads/")
 			label := "Commit to " + branch
 			if head.Detached {

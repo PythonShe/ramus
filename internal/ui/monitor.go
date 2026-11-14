@@ -21,13 +21,13 @@ func (a *App) monitorOffer(c *ui.Context, t *tab) {
 	for _, cmd := range m.Cmds {
 		lines = append(lines, "git "+strings.Join(cmd.Args, " "))
 	}
-	ui.Column(c).Padding(8).Gap(6).Background(th.Surface).FillWidth().Children(func() {
-		ui.Text(c, m.Reason).FontSize(12)
-		ui.Text(c, redact.Control(strings.Join(lines, "\n"))).Font("monospace").FontSize(12).Selectable()
+	ui.Column(c).Padding(spaceM).Gap(spaceS).Background(th.Surface).FillWidth().Children(func() {
+		ui.Text(c, m.Reason).FontSize(textSmall)
+		ui.Text(c, redact.Control(strings.Join(lines, "\n"))).Font("monospace").FontSize(textSmall).Selectable()
 		if m.Daemon != "" {
-			ui.Text(c, m.Daemon).FontSize(12).TextColor(th.TextMuted).Selectable()
+			ui.Text(c, m.Daemon).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 		}
-		ui.Row(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(spaceM).Children(func() {
 			if ui.Button(c, "Turn On").Clicked() {
 				if _, err := t.s.TurnOnMonitor(*m); err != nil {
 					a.notice = errText(err)

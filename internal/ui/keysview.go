@@ -80,7 +80,7 @@ func (a *App) keysView(c *ui.Context) {
 		}
 	}
 	ui.Modal(c, &ks.open, func() {
-		ui.Column(c).Width(620).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogWide).Children(func() {
 			ui.Text(c, "Keyboard Shortcuts").Bold()
 			ui.TextInput(c, &ks.filter).Label("Filter").Placeholder("Filter").AutoFocus().FillWidth()
 			ks.list.Label = func(i int) string {
@@ -88,7 +88,7 @@ func (a *App) keysView(c *ui.Context) {
 			}
 			ui.List(c, &ks.list, len(shown), func(i int) {
 				k := shown[i]
-				ui.Row(c).Padding(3, 8).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+				ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 					ui.Text(c, k.name).SingleLine().Grow(1)
 					a.recorder(c, k, km)
 					_, set := a.Settings.Keys[k.id]
@@ -104,10 +104,10 @@ func (a *App) keysView(c *ui.Context) {
 				})
 			}).Label("Commands").Height(420)
 			for _, e := range km.errs {
-				ui.Text(c, e).FontSize(12).TextColor(th.Danger).Selectable()
+				ui.Text(c, e).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
 			if ks.note != "" {
-				ui.Text(c, ks.note).FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, ks.note).FontSize(textSmall).TextColor(th.TextMuted)
 			}
 			ui.Row(c).Children(func() {
 				ui.Spacer(c)

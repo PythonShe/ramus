@@ -104,11 +104,11 @@ func (a *App) linksView(c *ui.Context) {
 	th := c.Theme()
 	t := d.t
 	ui.Modal(c, &d.open, func() {
-		ui.Column(c).Width(640).Gap(12).Padding(20).Children(func() {
+		dialogBox(c).Width(dialogWide).Children(func() {
 			ui.Text(c, "Issue Links").Bold()
 			for i := range d.rules {
 				r := &d.rules[i]
-				ui.Row(c).Key(i).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Key(i).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 					ui.TextInput(c, &r.Pattern).Placeholder(`\bPROJ-(\d+)\b`).Label("Pattern").Font("monospace").Grow(1)
 					ui.TextInput(c, &r.URL).Placeholder("https://tracker.example.com/browse/PROJ-$1").Label("Link").Grow(2)
 					if ui.Button(c, "Remove").Clicked() {
@@ -120,7 +120,7 @@ func (a *App) linksView(c *ui.Context) {
 				}
 				if r.Pattern != "" || r.URL != "" {
 					if err := issuelink.Check(*r); err != nil {
-						ui.Text(c, errText(err)).FontSize(12).TextColor(th.Danger)
+						ui.Text(c, errText(err)).FontSize(textSmall).TextColor(th.Danger)
 					}
 				}
 			}
@@ -128,15 +128,15 @@ func (a *App) linksView(c *ui.Context) {
 				d.rules = append(d.rules, issuelink.Rule{})
 			}
 			for _, r := range t.links.remote {
-				ui.Row(c).Gap(8).Children(func() {
-					ui.Text(c, r.Pattern).Font("monospace").FontSize(12).TextColor(th.TextMuted).Grow(1)
-					ui.Text(c, r.URL).FontSize(12).TextColor(th.TextMuted).Grow(2)
+				ui.Row(c).Gap(spaceM).Children(func() {
+					ui.Text(c, r.Pattern).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).Grow(1)
+					ui.Text(c, r.URL).FontSize(textSmall).TextColor(th.TextMuted).Grow(2)
 				})
 			}
 			if d.err != "" {
 				ui.Text(c, d.err).TextColor(th.Danger)
 			}
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				if ui.Button(c, "Cancel").Clicked() {
 					d.open = false

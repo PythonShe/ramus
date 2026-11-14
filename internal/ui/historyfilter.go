@@ -191,8 +191,8 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 			apply = true
 		}
 	}
-	ui.Column(c).Padding(0, 8, 6, 8).Gap(6).FillWidth().Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+	ui.Column(c).Padding(0, insetX, spaceS, insetX).Gap(spaceS).FillWidth().Children(func() {
+		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			label := "All Branches"
 			if hf.only != "" {
 				label = redact.Control(shortRefName(hf.only))
@@ -212,17 +212,17 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 			field(&hf.message, "Message", 1)
 			field(&hf.path, "Path", 1)
 		})
-		ui.Row(c).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			field(&hf.changed, "Changed text", 2)
 			check(&hf.regexp, "Regular expression")
 			field(&hf.since, "Since", 1)
 			field(&hf.until, "Until", 1)
 		})
-		ui.Row(c).Gap(12).AlignItems(ui.Center).FillWidth().Children(func() {
+		ui.Row(c).Gap(spaceL).AlignItems(ui.Center).FillWidth().Children(func() {
 			check(&hf.firstParent, "First parent only")
 			check(&hf.noMerges, "Hide merges")
 			if hf.err != "" {
-				ui.Text(c, hf.err).FontSize(12).TextColor(th.Danger)
+				ui.Text(c, hf.err).FontSize(textSmall).TextColor(th.Danger)
 			}
 			ui.Spacer(c)
 			if ui.Button(c, "Clear").Disabled(hf.active() == 0).Clicked() {

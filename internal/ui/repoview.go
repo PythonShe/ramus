@@ -24,13 +24,13 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 	st := t.s.State
 	switch {
 	case st.Opening:
-		ui.Column(c).Fill().Center().Gap(12).Children(func() {
+		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 			ui.Spinner(c)
 			ui.Text(c, "Opening "+t.s.Path).TextColor(th.TextMuted)
 		})
 		return
 	case st.Err != nil:
-		ui.Column(c).Fill().Center().Gap(12).Children(func() {
+		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 			ui.Text(c, "Cannot open "+t.s.Path).Bold()
 			ui.Text(c, errText(st.Err)).TextColor(th.TextMuted).MaxWidth(560)
 			if ui.Button(c, "Close").Clicked() {
@@ -109,7 +109,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 
 func (a *App) trustBanner(c *ui.Context, t *tab) {
 	th := c.Theme()
-	ui.Row(c).Padding(8, 12).Gap(12).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		ui.Text(c, "Read-only: this repository's hooks, filters and config commands do not run until you trust it.").Grow(1)
 		if ui.Button(c, "Trust").Clicked() {
 			if err := t.s.Trust(); err != nil {
@@ -124,7 +124,7 @@ func (a *App) trustBanner(c *ui.Context, t *tab) {
 func (a *App) panicBanner(c *ui.Context, t *tab) {
 	th := c.Theme()
 	p := t.s.Panic
-	ui.Row(c).Padding(8, 12).Gap(12).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		ui.Text(c, "Something in Ramus failed while working on this repository: "+p.Value).TextColor(th.Danger).Grow(1).Selectable()
 		if ui.Button(c, "Copy Details").Clicked() {
 			a.clip = p.Value + "\n\n" + p.Stack
@@ -168,7 +168,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("%s (%d)", title, len(refs)), &open, func() {
 			for i, r := range refs {
 				if i == sideLimit {
-					ui.Text(c, fmt.Sprintf("%d more", len(refs)-sideLimit)).Padding(4, 12).TextColor(c.Theme().TextMuted)
+					ui.Text(c, fmt.Sprintf("%d more", len(refs)-sideLimit)).Padding(rowPadY, insetX).TextColor(c.Theme().TextMuted)
 					break
 				}
 				label := strings.TrimPrefix(r, prefix)
@@ -282,39 +282,39 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 	if a.Settings.NoStatusBar && running == nil && st.Operation == "" && a.gitWarning == "" && st.WatchErr == nil && st.RefreshErr == nil {
 		return
 	}
-	ui.Row(c).Padding(4, 12).Gap(16).Background(th.Surface).Children(func() {
+	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceXL).Background(th.Surface).Children(func() {
 		branch := strings.TrimPrefix(st.Head.Target, "refs/heads/")
 		if st.Head.Detached {
 			branch = "detached"
 		}
-		ui.Text(c, branch).FontSize(12)
+		ui.Text(c, branch).FontSize(textSmall)
 		if st.Operation != "" {
-			ui.Text(c, string(st.Operation)+" in progress").FontSize(12).TextColor(th.Warning)
+			ui.Text(c, string(st.Operation)+" in progress").FontSize(textSmall).TextColor(th.Warning)
 		}
 		if len(st.Fallbacks) > 0 {
-			ui.Text(c, "Through git: "+strings.Join(st.Fallbacks, ", ")).FontSize(12).TextColor(th.TextMuted)
+			ui.Text(c, "Through git: "+strings.Join(st.Fallbacks, ", ")).FontSize(textSmall).TextColor(th.TextMuted)
 		}
 		if e := running; e != nil {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, e.Name+": "+e.Progress).FontSize(12).TextColor(th.Accent).SingleLine().MaxWidth(520)
-				if ui.Button(c, "Cancel").Label("Cancel "+e.Name).Padding(0, 6).Clicked() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, e.Name+": "+e.Progress).FontSize(textSmall).TextColor(th.Accent).SingleLine().MaxWidth(520)
+				if ui.Button(c, "Cancel").Label("Cancel "+e.Name).Padding(0, spaceS).Clicked() {
 					e.Cancel()
 				}
 			})
 		}
 		ui.Spacer(c)
 		if a.gitWarning != "" {
-			ui.Text(c, a.gitWarning).FontSize(12).TextColor(th.Warning).SingleLine()
+			ui.Text(c, a.gitWarning).FontSize(textSmall).TextColor(th.Warning).SingleLine()
 		}
 		if st.WatchErr != nil {
 			what := "Not watching for changes: " + errText(st.WatchErr)
 			if errors.Is(st.WatchErr, watch.ErrLimit) {
 				what = "Too many folders to watch for changes"
 			}
-			ui.Text(c, what+"; refreshing when the window is focused").FontSize(12).TextColor(th.Warning).SingleLine().MaxWidth(560)
+			ui.Text(c, what+"; refreshing when the window is focused").FontSize(textSmall).TextColor(th.Warning).SingleLine().MaxWidth(560)
 		}
 		if st.RefreshErr != nil {
-			ui.Text(c, "Refresh failed: "+errText(st.RefreshErr)).FontSize(12).TextColor(th.Danger).SingleLine().MaxWidth(480)
+			ui.Text(c, "Refresh failed: "+errText(st.RefreshErr)).FontSize(textSmall).TextColor(th.Danger).SingleLine().MaxWidth(480)
 		}
 	})
 }
