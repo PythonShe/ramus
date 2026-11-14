@@ -99,7 +99,8 @@ type CaseResult struct {
 	// Facts are what the runs found, as the rows read, from the last run.
 	Facts map[string]string `json:",omitempty"`
 	// PeakApp is the most memory one run's process held, PeakGit the
-	// most one git it ran held; bytes.
+	// most one git it ran held; bytes, 0 when unknown (git's on Linux,
+	// both on Windows).
 	PeakApp, PeakGit int64
 }
 
@@ -203,7 +204,7 @@ func (r CaseResult) print() {
 		fmt.Printf("%s: failed, %s\n", r.Name, r.Err)
 		return
 	}
-	fmt.Printf("%s (%d runs), peak memory %s app, %s git\n", r.Name, r.Runs, mib(r.PeakApp), mib(r.PeakGit))
+	fmt.Printf("%s (%d runs), peak memory %s app, %s git\n", r.Name, r.Runs, peak(r.PeakApp), peak(r.PeakGit))
 	for _, d := range r.Times {
 		fmt.Printf("  %-34s p50 %-10v p95 %-10v min %-10v max %v\n", d.Name, round(d.P50), round(d.P95), round(d.Min), round(d.Max))
 	}
@@ -232,6 +233,14 @@ func round(d time.Duration) time.Duration {
 }
 
 func mib(b int64) string { return fmt.Sprintf("%.1f MiB", float64(b)/(1<<20)) }
+
+// peak is a peak memory, which 0 says was not read.
+func peak(b int64) string {
+	if b == 0 {
+		return "unknown"
+	}
+	return mib(b)
+}
 
 // runChild runs case name once and prints its result as the last line.
 func runChild(name string) int {

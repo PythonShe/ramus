@@ -25,7 +25,9 @@ Each case runs in a process of its own, so its memory is its own and
 nothing it loaded is warm for the next run. The operating system's file
 cache is warm, as it is for a user opening a repository again. Peak memory
 is the largest resident size of the app's process and, apart, of the
-largest git process it ran.
+largest git process it ran. Git's is read on macOS only: on Linux the
+kernel reports the app's peak for a process Go starts, so the bench shows
+it as unknown there.
 
 The app cases run the real `ui.App` without a window, through mygo's
 headless tester: a frame there is building, layout and painting in
@@ -93,7 +95,9 @@ and closes them all, round after round, then checks that goroutines, open
 files, git processes and memory came back. It fails if goroutines or open
 files grow by more than two or the heap more than doubles. Two minutes on
 the machine above: 240 rounds, goroutines 6 to 6, open files 6 to 6, heap
-3.5 to 7.4 MiB. The `Soak` workflow runs it for two hours every week.
+3.5 to 7.4 MiB. Ten minutes on GitHub's Linux runner: 2,278 rounds,
+goroutines 4 to 4, open files 9 to 9, heap 3.2 to 5.3 MiB. The `Soak`
+workflow runs it for two hours every week.
 
 ### Cold start
 
