@@ -196,3 +196,31 @@ func SetRemoteURL(w Where, name, url string) (Op, error) {
 	}
 	return Op{Name: "Change the URL of " + name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"remote", "set-url", "--", name, url}}}, nil
 }
+
+// StackBranch is one branch of a stack pushed: its local name and the
+// branch it goes to on the remote, both full ref names.
+type StackBranch struct {
+	Local, Remote string
+}
+
+// PushStack pushes the branches of a stack to remote in one push, each
+// overwriting its remote branch only if that is still where this
+// repository last saw it (a stack is rebased as a whole), and makes each
+// pushed branch track it.
+func PushStack(w Where, remote string, branches []StackBranch) (Op, error) {
+	if err := checkName("remote", remote); err != nil {
+		return Op{}, err
+	}
+	if len(branches) == 0 {
+		return Op{}, errors.New("write: a stack of no branches")
+	}
+	args := []string{"push", "--progress", "--force-with-lease", "--force-if-includes", "--set-upstream", "--", remote}
+	for _, b := range branches {
+		if !strings.HasPrefix(b.Local, "refs/heads/") || !strings.HasPrefix(b.Remote, "refs/heads/") {
+			return Op{}, fmt.Errorf("write: %q to %q is not a branch to a branch", b.Local, b.Remote)
+		}
+		args = append(args, b.Local+":"+b.Remote)
+	}
+	name := fmt.Sprintf("Push stack of %d branches to %s", len(branches), remote)
+	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout}}, nil
+}

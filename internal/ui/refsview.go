@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -308,6 +309,9 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				if b.Worktree != "" {
 					ui.Text(c, "in "+filepath.Base(b.Worktree)).FontSize(12).TextColor(th.TextMuted).SingleLine().Description("Checked out in " + b.Worktree)
 				}
+				if on := stackedOn(info, b.Name); on != "" {
+					ui.Text(c, "on "+redact.Control(on)).FontSize(12).TextColor(th.TextMuted).SingleLine().Description("Stacked on " + redact.Control(on))
+				}
 			})
 			if rs.kind == refsBranches {
 				tr := ui.Text(c, tracking(b)).FontSize(12).Width(180).SingleLine()
@@ -409,6 +413,16 @@ func fullRef(info *session.RefInfo, kind, idx int) string {
 	return info.Tags[idx].Name
 }
 
+// stackedOn is the branch name is stacked on, short, or "".
+func stackedOn(info *session.RefInfo, name string) string {
+	for _, s := range info.Stacks {
+		if i := slices.Index(s, name); i > 0 {
+			return strings.TrimPrefix(s[i-1], "refs/heads/")
+		}
+	}
+	return ""
+}
+
 // tracking says where a branch is against its upstream.
 func tracking(b session.BranchInfo) string {
 	if b.Upstream == "" {
@@ -452,6 +466,17 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 		*act = func() {
 			op, err := write.Rebase(w, b.Name, seen)
 			a.submit(t, op, err)
+		}
+	}
+	if info := t.refs.info; info != nil {
+		if st := info.StackOf(b.Name); len(st) > 1 {
+			if m.Item(fmt.Sprintf("Push Stack of %d Branches", len(st))).Disabled(ro).Chosen() {
+				*act = func() {
+					if _, err := t.s.PushStack(st); err != nil {
+						a.notice = errText(err)
+					}
+				}
+			}
 		}
 	}
 	m.Separator()
