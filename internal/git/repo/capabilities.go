@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 
 	"ramus/internal/git/config"
@@ -31,6 +33,9 @@ type Capabilities struct {
 	// Unknown lists extensions this version does not know; git refuses
 	// such a repository unless it knows them, so all of it goes to git.
 	Unknown []string
+	// FormatVersion is core.repositoryFormatVersion: 0 or 1, as git
+	// supports; past 1 git refuses the repository and so does the engine.
+	FormatVersion int
 }
 
 // known are the repository extensions the engine understands, or that do
@@ -44,14 +49,32 @@ var known = map[string]bool{
 // Check reads what the repository at loc needs, from its config (read
 // through git) and the files in its git directory.
 func Check(loc Location, cfg *config.Config) Capabilities {
-	c := Capabilities{HashSize: 20, ObjectFormat: "sha1", RefStorage: "files"}
-	if v, ok := cfg.Get("extensions.objectformat"); ok && strings.EqualFold(v, "sha256") {
+	c := Capabilities{HashSize: 20, ObjectFormat: "sha1", RefStorage: "files", FormatVersion: cfg.FormatVersion}
+	// git reads the format from the repository's own config alone, and
+	// in version 0 honours only the extensions that predate version 1;
+	// the others it ignores, or refuses the repository for (which
+	// cfg.UnknownExtensions reports).
+	exts := map[string]string{}
+	version := 0
+	for _, e := range cfg.Entries() {
+		if e.Scope != config.Local {
+			continue
+		}
+		if name, ok := strings.CutPrefix(e.Key, "extensions."); ok {
+			exts[name] = e.Value
+		} else if e.Key == "core.repositoryformatversion" {
+			version, _ = strconv.Atoi(strings.TrimSpace(e.Value))
+		}
+	}
+	c.FormatVersion = max(c.FormatVersion, version)
+	v1 := c.FormatVersion >= 1
+	if v, ok := exts["objectformat"]; ok && v1 && strings.EqualFold(v, "sha256") {
 		c.HashSize, c.ObjectFormat = 32, "sha256"
 	}
-	if v, ok := cfg.Get("extensions.refstorage"); ok {
+	if v, ok := exts["refstorage"]; ok && v1 {
 		c.RefStorage = strings.ToLower(v)
 	}
-	if _, ok := cfg.Get("extensions.partialclone"); ok {
+	if _, ok := exts["partialclone"]; ok {
 		c.PartialClone = true
 	}
 	for _, remote := range cfg.Subsections("remote", "promisor") {
@@ -59,12 +82,19 @@ func Check(loc Location, cfg *config.Config) Capabilities {
 			c.PartialClone = true
 		}
 	}
-	for _, e := range cfg.Entries() {
-		if name, ok := strings.CutPrefix(e.Key, "extensions."); ok && !known[name] && e.Scope != config.Command {
+	if v1 {
+		for name := range exts {
+			if !known[name] {
+				c.Unknown = append(c.Unknown, name)
+			}
+		}
+		slices.Sort(c.Unknown)
+	}
+	for _, name := range cfg.UnknownExtensions {
+		if !slices.Contains(c.Unknown, name) {
 			c.Unknown = append(c.Unknown, name)
 		}
 	}
-	c.Unknown = append(c.Unknown, cfg.UnknownExtensions...)
 	c.CommitGraphOff = !cfg.Bool("core.commitgraph", true)
 	c.Shallow = exists(filepath.Join(loc.CommonDir, "shallow"))
 	c.Grafts = exists(filepath.Join(loc.CommonDir, "info", "grafts"))
@@ -79,28 +109,32 @@ func Check(loc Location, cfg *config.Config) Capabilities {
 	return c
 }
 
+// formatKnown reports whether git would work in the repository at all,
+// and the engine with it.
+func (c Capabilities) formatKnown() bool { return len(c.Unknown) == 0 && c.FormatVersion <= 1 }
+
 // NativeRefs reports whether the engine's own ref readers (files or
 // reftable) serve the repository.
 func (c Capabilities) NativeRefs() bool {
-	return (c.RefStorage == "files" || c.RefStorage == "reftable") && len(c.Unknown) == 0
+	return (c.RefStorage == "files" || c.RefStorage == "reftable") && c.formatKnown()
 }
 
 // NativeIndex reports whether the index reader serves the work tree.
 func (c Capabilities) NativeIndex() bool {
-	return !c.SplitIndex && !c.SparseIndex && c.HashSize == 20 && len(c.Unknown) == 0
+	return !c.SplitIndex && !c.SparseIndex && c.HashSize == 20 && c.formatKnown()
 }
 
 // NativeObjects reports whether objects may be read without asking git
 // where they are: a partial clone's missing objects must not be guessed
 // at, and SHA-256 waits for the readers to be tested on it.
 func (c Capabilities) NativeObjects() bool {
-	return !c.PartialClone && c.HashSize == 20 && len(c.Unknown) == 0
+	return !c.PartialClone && c.HashSize == 20 && c.formatKnown()
 }
 
 // CommitGraphUsable reports whether a commit-graph, if present, describes
 // the history git would show.
 func (c Capabilities) CommitGraphUsable() bool {
-	return !c.CommitGraphOff && !c.Grafts && !c.ReplaceRefs && !c.Shallow && len(c.Unknown) == 0
+	return !c.CommitGraphOff && !c.Grafts && !c.ReplaceRefs && !c.Shallow && c.formatKnown()
 }
 
 // Fallbacks names what goes to git, for the repository's status line.
@@ -119,6 +153,7 @@ func (c Capabilities) Fallbacks() []string {
 	add(c.Shallow, "shallow history")
 	add(c.Grafts, "grafts")
 	add(c.ReplaceRefs, "replace refs")
+	add(c.FormatVersion > 1, "repository format version "+strconv.Itoa(c.FormatVersion))
 	for _, u := range c.Unknown {
 		out = append(out, "extension "+u)
 	}

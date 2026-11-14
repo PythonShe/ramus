@@ -86,3 +86,42 @@ func TestCapabilities(t *testing.T) {
 		t.Fatalf("unknown extension: %+v", c)
 	}
 }
+
+// In format version 0 git ignores extensions it does not know, honours
+// those older than version 1, and refuses a repository naming one that
+// only version 1 allows; past version 1 it refuses the repository.
+func TestFormatVersion(t *testing.T) {
+	for _, tc := range []struct {
+		version, ext, value string
+		works               bool
+	}{
+		{"0", "somethingnew", "true", true},
+		{"0", "partialclone", "origin", true},
+		{"0", "worktreeconfig", "true", true},
+		{"0", "objectformat", "sha256", false},
+		{"0", "refstorage", "reftable", false},
+		{"1", "somethingnew", "true", false},
+		{"2", "", "", false},
+	} {
+		r := gittest.Init(t)
+		r.Commit("one")
+		r.Git("config", "core.repositoryformatversion", tc.version)
+		if tc.ext != "" {
+			r.Git("config", "extensions."+tc.ext, tc.value)
+		}
+		_, err := r.Run(nil, "rev-parse", "HEAD")
+		if gitWorks := err == nil; gitWorks != tc.works {
+			t.Fatalf("v%s %s: git works %v", tc.version, tc.ext, gitWorks)
+		}
+		c := caps(t, r)
+		if c.NativeRefs() != tc.works || c.NativeObjects() != (tc.works && tc.ext != "partialclone") || c.HashSize != 20 {
+			t.Errorf("v%s %s: %+v", tc.version, tc.ext, c)
+		}
+		if tc.ext == "partialclone" && !c.PartialClone {
+			t.Errorf("v0 partialclone not honoured: %+v", c)
+		}
+		if !tc.works && len(c.Fallbacks()) == 0 {
+			t.Errorf("v%s %s: no fallback named", tc.version, tc.ext)
+		}
+	}
+}

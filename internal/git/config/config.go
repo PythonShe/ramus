@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -41,10 +42,15 @@ type Entry struct {
 // Config is a snapshot of every entry, in git's order: later entries win.
 type Config struct {
 	entries []Entry
-	// UnknownExtensions are repository extensions this git does not know.
-	// git then leaves the repository's own config out of the list, and
-	// refuses to work in it, so the repository is out of reach entirely.
+	// UnknownExtensions are repository extensions that make git refuse
+	// the repository: ones it does not know in format version 1, and ones
+	// only version 1 allows in version 0. git then leaves the repository's
+	// own config out of the list and refuses to work in it, so the
+	// repository is out of reach entirely.
 	UnknownExtensions []string
+	// FormatVersion is a core.repositoryFormatVersion git refused as too
+	// new, with the same effect; 0 when it refused none.
+	FormatVersion int
 }
 
 // Read runs git config --list for the repository.
@@ -82,7 +88,7 @@ func Read(ctx context.Context, r *run.Runner, gitDir string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.UnknownExtensions = unknownExtensions(res.Stderr)
+	c.UnknownExtensions, c.FormatVersion = refusedFormat(res.Stderr)
 	return c, nil
 }
 
@@ -98,24 +104,34 @@ func busy(stderr string) bool {
 	return strings.Contains(stderr, "unable to access") && strings.Contains(stderr, "Permission denied")
 }
 
-// unknownExtensions reads git's warning:
+// refusedFormat reads git's warnings about a repository format it
+// refuses, the extensions they name and a version too new:
 //
 //	warning: unknown repository extension found:
 //		somethingnew
-func unknownExtensions(stderr string) []string {
-	var out []string
+//	warning: repo version is 0, but v1-only extension found:
+//		objectformat
+//	warning: Expected git repo version <= 1, found 2
+func refusedFormat(stderr string) (exts []string, version int) {
 	in := false
 	for _, line := range strings.Split(stderr, "\n") {
 		switch {
-		case strings.Contains(line, "unknown repository extension"):
+		case strings.Contains(line, "unknown repository extension") || strings.Contains(line, "but v1-only extension"):
 			in = true
 		case in && strings.HasPrefix(line, "\t"):
-			out = append(out, strings.TrimSpace(line))
+			if e := strings.TrimSpace(line); !slices.Contains(exts, e) {
+				exts = append(exts, e)
+			}
 		default:
 			in = false
+			if _, v, ok := strings.Cut(line, "Expected git repo version <= 1, found "); ok {
+				if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 1 {
+					version = n
+				}
+			}
 		}
 	}
-	return out
+	return exts, version
 }
 
 // Parse reads the output of git config --list -z --show-origin
