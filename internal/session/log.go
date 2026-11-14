@@ -117,7 +117,7 @@ func (s *Session) follow(e *LogEntry, j *write.Job) {
 		_, err := j.Result()
 		b.finish(err, s.timeNow())
 		s.update(func() { s.Writes++ })
-		s.Refresh(repo.Rescan)
+		s.refreshNow(repo.Rescan)
 	}()
 }
 
@@ -138,7 +138,7 @@ func (s *Session) RunAction(name string, argv []string) *LogEntry {
 	r.Life().Go(func(ctx context.Context) {
 		err := actions.Run(ctx, argv, dir, b.line)
 		b.finish(err, s.timeNow())
-		s.Refresh(repo.Rescan)
+		s.refreshNow(repo.Rescan)
 	})
 	return e
 }

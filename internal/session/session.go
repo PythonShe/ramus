@@ -79,9 +79,12 @@ type Session struct {
 	// one named none (dirtyAll).
 	dirtyPaths []string
 	dirtyAll   bool
-	wake       chan struct{}
-	closed     bool
-	timeNow    func() time.Time
+	// now asks the next refresh not to wait for changes to go quiet: a
+	// write of the app's own has ended, and the user waits on it.
+	now     bool
+	wake    chan struct{}
+	closed  bool
+	timeNow func() time.Time
 	// stop cancels an open in progress; opened is the repository once
 	// open, before the main thread has taken it, so Close reaches both.
 	stop   context.CancelFunc
@@ -252,6 +255,21 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 // Refresh asks for what changed to be read again; bursts are merged.
 func (s *Session) Refresh(what repo.Change) { s.refreshPaths(what, nil) }
 
+// refreshNow is Refresh at once, for the end of a write the user waits
+// on: what it changed shows before the user acts again on what was.
+func (s *Session) refreshNow(what repo.Change) {
+	s.mu.Lock()
+	s.now = true
+	s.mu.Unlock()
+	s.Refresh(what)
+}
+
+func (s *Session) urgent() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.now
+}
+
 // Reload reads everything again, for a refresh the user asks for: the
 // config, refs, a full status and history, with the patches and commits
 // kept dropped. Main thread only.
@@ -303,7 +321,7 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 		case <-ctx.Done():
 			return
 		}
-		if !quiet(ctx, s.wake) {
+		if !quiet(ctx, s.wake, s.urgent) {
 			return
 		}
 		s.mu.Lock()
@@ -311,7 +329,7 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 		if s.dirtyAll {
 			paths = nil
 		}
-		s.dirty, s.dirtyPaths, s.dirtyAll = 0, nil, false
+		s.dirty, s.dirtyPaths, s.dirtyAll, s.now = 0, nil, false, false
 		s.mu.Unlock()
 		if what != 0 {
 			s.read(ctx, r, what, paths, &seen)
@@ -320,8 +338,11 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 }
 
 // quiet waits until wake has been still for Debounce, or MaxDebounce
-// has passed; false when ctx ended first.
-func quiet(ctx context.Context, wake <-chan struct{}) bool {
+// has passed, or urgent holds; false when ctx ended first.
+func quiet(ctx context.Context, wake <-chan struct{}, urgent func() bool) bool {
+	if urgent() {
+		return true
+	}
 	limit := time.NewTimer(MaxDebounce)
 	defer limit.Stop()
 	still := time.NewTimer(Debounce)
@@ -329,6 +350,9 @@ func quiet(ctx context.Context, wake <-chan struct{}) bool {
 	for {
 		select {
 		case <-wake:
+			if urgent() {
+				return true
+			}
 			still.Reset(Debounce)
 		case <-still.C:
 			return true
