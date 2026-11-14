@@ -13,11 +13,14 @@ survey of existing clients this design answers. Never commit them.
 go tool mygo dev      # run with live reload
 go tool mygo build    # package the app into build/
 scripts/check.sh      # the full gate: gofmt, vet, engine import boundary, tests
+go run ./scripts/coldstart <binary>  # time to first frame; CI runs it, it opens AppKit
 ```
 
 ## Layout
 
-- `main.go`: opens the window; nothing else lives here.
+- `main.go`: opens the window; nothing else lives here. `probe.go` is
+  its cold-start probe mode (`RAMUS_PROBE_STARTUP`), which
+  `scripts/coldstart` times; `.github/workflows/ci.yml` runs both.
 - `internal/ui/`: app state and views. Views are tested without a window
   through `ui.NewTester`.
 - `internal/git/`: the engine. It imports nothing from mygo; `check.sh` fails

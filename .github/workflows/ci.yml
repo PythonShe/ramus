@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Check
+        run: scripts/check.sh
+      - name: Cold start to first frame
+        run: |
+          go build -o "$RUNNER_TEMP/ramus" .
+          go run ./scripts/coldstart -runs 10 -budget 200ms "$RUNNER_TEMP/ramus"

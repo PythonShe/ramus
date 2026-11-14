@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo"
 	mygoui "github.com/egoist/mygo/ui"
@@ -26,6 +27,7 @@ import (
 const maxProcesses = 8
 
 func main() {
+	mainStart = time.Now()
 	cwd, _ := os.Getwd()
 	req, err := cli.Parse(os.Args[1:], cwd)
 	if err != nil {
@@ -40,7 +42,8 @@ func main() {
 		runTool(req)
 		return
 	}
-	if !mygo.App.RequestSingleInstanceLock() {
+	probe := startProbe()
+	if probe == "" && !mygo.App.RequestSingleInstanceLock() {
 		return // the running instance has the request
 	}
 	dir, err := mygo.App.Path(mygo.PathUserData)
@@ -48,6 +51,9 @@ func main() {
 		log.Fatal(err)
 	}
 	cacheDir, _ := mygo.App.Path(mygo.PathCache) // none is only slower
+	if probe != "" {
+		dir, cacheDir = probe, probe
+	}
 	cfgPath := filepath.Join(dir, "settings.json")
 	cfg, cfgErr := settings.Load(cfgPath)
 	mygo.Theme.SetSource(mygo.ThemeSource(cfg.Theme))
@@ -128,7 +134,7 @@ func main() {
 	})
 	mygo.App.WhenReady(func() {
 		mygo.App.SetMenu(menu(app))
-		win = mygo.NewWindow(mygo.WindowOptions{
+		opts := mygo.WindowOptions{
 			Title:     "Ramus",
 			Width:     1200,
 			Height:    800,
@@ -136,7 +142,14 @@ func main() {
 			MinHeight: 480,
 			StateKey:  "main",
 			Content:   mygoui.View(app.View),
-		})
+		}
+		if probe != "" {
+			opts.Hidden, opts.StateKey = true, ""
+		}
+		win = mygo.NewWindow(opts)
+		if probe != "" {
+			probeWindow(win, probe)
+		}
 		win.OnClosed(app.CloseAll)
 		win.OnFocus(app.WindowFocused)
 		findGit(win, app)
