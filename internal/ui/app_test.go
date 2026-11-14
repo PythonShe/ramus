@@ -497,11 +497,12 @@ func TestChangesStageAndDiscard(t *testing.T) {
 	r.Write("dir/deep.txt", "changed\n")
 	r.Write("loose/x", "x\n")
 	h.click("Tree")
-	h.until("the folder", h.shows("dir/"))
+	// Both writes: a status read can come between them.
+	h.until("the folders", func() bool { return h.tt.HasText("dir/") && h.tt.HasText("loose/") })
 	if h.tt.HasText("deep.txt") {
 		t.Fatal("a closed folder shows its files")
 	}
-	if !h.tt.HasText("loose/") || h.tt.HasText("Folder loose") {
+	if h.tt.HasText("Folder loose") {
 		t.Fatalf("an untracked folder is not one row: %q", h.tt.Texts())
 	}
 	h.click("▸")
