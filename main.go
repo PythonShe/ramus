@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	_ "ramus/locales"
 	"strings"
 	"time"
 
