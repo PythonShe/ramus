@@ -6,20 +6,26 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/settings"
+	"ramus/locales"
 )
 
 // sidebarParts are the sidebar's items and sections that can be left
-// out, by key, with their names.
-var sidebarParts = []struct{ key, name string }{
-	{"review", "Review Changes"}, {"history", "History"}, {"reflog", "Reflog"}, {"refs", "Branches and Tags"}, {"stats", "Statistics"},
-	{"log", "Command Log"}, {"snapshots", "Snapshots"}, {"branches", "Branches"}, {"remotes", "Remotes"},
-	{"tags", "Tags"}, {"stashes", "Stashes"}, {"worktrees", "Worktrees"}, {"submodules", "Submodules"},
+// out, by key, with their names, said in the language shown when asked.
+var sidebarParts = []struct {
+	key  string
+	name func() string
+}{
+	{"review", locales.RepoSectionReview}, {"history", locales.RepoSectionHistory}, {"reflog", locales.RepoSectionReflog},
+	{"refs", locales.RepoSectionRefs}, {"stats", locales.RepoSectionStats}, {"log", locales.RepoSectionLog},
+	{"snapshots", locales.RepoSectionSnapshots}, {"branches", locales.RepoSectionBranches}, {"remotes", locales.RepoSectionRemotes},
+	{"tags", locales.RepoSectionTags}, {"stashes", locales.RepoSectionStashes}, {"worktrees", locales.RepoSectionWorktrees},
+	{"submodules", locales.RepoSectionSubmodules},
 }
 
 func partName(key string) string {
 	for _, p := range sidebarParts {
 		if p.key == key {
-			return p.name
+			return p.name()
 		}
 	}
 	return key
@@ -38,7 +44,7 @@ func (a *App) partMenu(el ui.Element, key string, items func(*ui.Menu, *func()))
 		if items != nil {
 			items(m, &act)
 		}
-		if m.Item("Hide " + partName(key) + " from the Sidebar").Chosen() {
+		if m.Item(locales.HidingHideFromSidebar(partName(key))).Chosen() {
 			act = func() { a.setShown(key, false) }
 		}
 		if act != nil {
@@ -70,18 +76,18 @@ func (a *App) hidingCommands() []command {
 	for _, p := range sidebarParts {
 		if !a.shown(p.key) {
 			key := p.key
-			cmds = append(cmds, command{label: "Show " + p.name + " in the Sidebar", run: func() { a.setShown(key, true) }})
+			cmds = append(cmds, command{label: locales.HidingShowInSidebar(p.name()), run: func() { a.setShown(key, true) }})
 		}
 	}
 	if a.Settings.NoSidebar {
-		cmds = append(cmds, command{id: "toggle-sidebar", label: "Show Sidebar", run: func() { a.setSidebar(true) }})
+		cmds = append(cmds, command{id: "toggle-sidebar", label: locales.HidingShowSidebar(), run: func() { a.setSidebar(true) }})
 	} else {
-		cmds = append(cmds, command{id: "toggle-sidebar", label: "Hide Sidebar", run: func() { a.setSidebar(false) }})
+		cmds = append(cmds, command{id: "toggle-sidebar", label: locales.HidingHideSidebar(), run: func() { a.setSidebar(false) }})
 	}
 	if a.Settings.NoStatusBar {
-		cmds = append(cmds, command{id: "toggle-status-bar", label: "Show Status Bar", run: func() { a.Settings.NoStatusBar = false; a.keepSettings() }})
+		cmds = append(cmds, command{id: "toggle-status-bar", label: locales.HidingShowStatusBar(), run: func() { a.Settings.NoStatusBar = false; a.keepSettings() }})
 	} else {
-		cmds = append(cmds, command{id: "toggle-status-bar", label: "Hide Status Bar", run: func() { a.Settings.NoStatusBar = true; a.keepSettings() }})
+		cmds = append(cmds, command{id: "toggle-status-bar", label: locales.HidingHideStatusBar(), run: func() { a.Settings.NoStatusBar = true; a.keepSettings() }})
 	}
 	return cmds
 }
@@ -97,7 +103,7 @@ func (a *App) keepSettings() {
 	path, saved, update := a.SettingsPath, a.Settings, a.Update
 	go func() {
 		if err := settings.Save(path, saved); err != nil {
-			update(func() { a.notice = "Settings not saved: " + errText(err) })
+			update(func() { a.notice = locales.HidingSettingsNotSaved(errText(err)) })
 		}
 	}()
 }

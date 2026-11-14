@@ -2,7 +2,6 @@ package ui
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/watch"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // repoView shows one open repository: the sidebar, the changes, and the
@@ -26,14 +26,14 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 	case st.Opening:
 		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 			ui.Spinner(c)
-			ui.Text(c, "Opening "+t.s.Path).TextColor(th.TextMuted)
+			ui.Text(c, locales.RepoOpening(t.s.Path)).TextColor(th.TextMuted)
 		})
 		return
 	case st.Err != nil:
 		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
-			ui.Text(c, "Cannot open "+t.s.Path).Bold()
+			ui.Text(c, locales.RepoCannotOpen(t.s.Path)).Bold()
 			ui.Text(c, errText(st.Err)).TextColor(th.TextMuted).MaxWidth(560)
-			if ui.Button(c, "Close").Clicked() {
+			if ui.Button(c, locales.CommonClose()).Clicked() {
 				a.Close(a.active)
 			}
 		})
@@ -110,8 +110,8 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 func (a *App) trustBanner(c *ui.Context, t *tab) {
 	th := c.Theme()
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-		ui.Text(c, "Read-only: this repository's hooks, filters and config commands do not run until you trust it.").Grow(1)
-		if ui.Button(c, "Trust").Clicked() {
+		ui.Text(c, locales.RepoTrustBanner()).Grow(1)
+		if ui.Button(c, locales.RepoTrust()).Clicked() {
 			if err := t.s.Trust(); err != nil {
 				a.notice = errText(err)
 			}
@@ -125,11 +125,11 @@ func (a *App) panicBanner(c *ui.Context, t *tab) {
 	th := c.Theme()
 	p := t.s.Panic
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-		ui.Text(c, "Something in Ramus failed while working on this repository: "+p.Value).TextColor(th.Danger).Grow(1).Selectable()
-		if ui.Button(c, "Copy Details").Clicked() {
+		ui.Text(c, locales.RepoPanic(p.Value)).TextColor(th.Danger).Grow(1).Selectable()
+		if ui.Button(c, locales.RepoCopyDetails()).Clicked() {
 			a.clip = p.Value + "\n\n" + p.Stack
 		}
-		if ui.Button(c, "Reopen").Clicked() {
+		if ui.Button(c, locales.RepoReopen()).Clicked() {
 			a.reopen(t)
 		}
 	})
@@ -160,15 +160,15 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	sr := t.sideRefs.build(t)
 	heads, remotes, tags := sr.heads, sr.remotes, sr.tags
 	th := c.Theme()
-	section := func(key, title string, refs []string, prefix string) {
+	section := func(key string, title func(int) string, refs []string, prefix string) {
 		if !a.shown(key) {
 			return
 		}
 		open := t.open[key]
-		a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("%s (%d)", title, len(refs)), &open, func() {
+		a.hideMenu(ui.SidebarSection(c, title(len(refs)), &open, func() {
 			for i, r := range refs {
 				if i == sideLimit {
-					ui.Text(c, fmt.Sprintf("%d more", len(refs)-sideLimit)).Padding(rowPadY, insetX).TextColor(c.Theme().TextMuted)
+					ui.Text(c, locales.RepoMore(len(refs)-sideLimit)).Padding(rowPadY, insetX).TextColor(c.Theme().TextMuted)
 					break
 				}
 				label := strings.TrimPrefix(r, prefix)
@@ -177,7 +177,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 					it.Bold()
 				}
 				if slices.Contains(t.prefs.hidden, r) {
-					it.TextColor(th.TextMuted).Tooltip("Hidden in history")
+					it.TextColor(th.TextMuted).Tooltip(locales.RepoHiddenInHistory())
 				}
 				a.sidebarRefMenu(it, t, r)
 			}
@@ -190,29 +190,29 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		}
 	}
 	side := ui.Sidebar(c, &t.sel, func() {
-		ui.SidebarItem(c, "changes", nil, changesLabel(st))
-		item("review", "Review Changes")
-		item("history", "History")
-		item("reflog", "Reflog")
-		item("refs", "Branches and Tags")
-		item("stats", "Statistics")
-		item("log", "Command Log")
-		item("snapshots", "Snapshots")
-		section("branches", "Branches", heads, "refs/heads/")
-		section("remotes", "Remotes", remotes, "refs/remotes/")
-		section("tags", "Tags", tags, "refs/tags/")
+		ui.SidebarItem(c, sideChanges, nil, changesLabel(st))
+		item("review", locales.RepoSectionReview())
+		item("history", locales.RepoSectionHistory())
+		item("reflog", locales.RepoSectionReflog())
+		item("refs", locales.RepoSectionRefs())
+		item("stats", locales.RepoSectionStats())
+		item("log", locales.RepoSectionLog())
+		item("snapshots", locales.RepoSectionSnapshots())
+		section("branches", locales.RepoSectionBranchesCount, heads, "refs/heads/")
+		section("remotes", locales.RepoSectionRemotesCount, remotes, "refs/remotes/")
+		section("tags", locales.RepoSectionTagsCount, tags, "refs/tags/")
 		if t.cmp.to != nil {
-			ui.SidebarItem(c, "compare", nil, "Comparison")
+			ui.SidebarItem(c, sideCompare, nil, locales.RepoSectionComparison())
 		}
 		if st.Status != nil && st.Status.Branch.Stashes > 0 {
-			item("stashes", fmt.Sprintf("Stashes (%d)", st.Status.Branch.Stashes))
+			item("stashes", locales.RepoSectionStashesCount(st.Status.Branch.Stashes))
 		}
 		if len(st.Worktrees) > 1 && a.shown("worktrees") {
 			open := t.open["worktrees"]
-			a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("Worktrees (%d)", len(st.Worktrees)), &open, func() {
-				ui.SidebarItem(c, "worktrees", nil, "All Worktrees")
+			a.hideMenu(ui.SidebarSection(c, locales.RepoSectionWorktreesCount(len(st.Worktrees)), &open, func() {
+				ui.SidebarItem(c, sideWorktrees, nil, locales.RepoAllWorktrees())
 				for i, w := range st.Worktrees {
-					it := ui.SidebarItem(c, "worktree:"+w.Path, nil, worktreeLabel(w))
+					it := ui.SidebarItem(c, sideWorktree+w.Path, nil, worktreeLabel(w))
 					switch {
 					case w.Current:
 						it.Bold()
@@ -226,9 +226,9 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		}
 		if len(st.Submodules) > 0 && a.shown("submodules") {
 			open := t.open["submodules"]
-			a.partMenu(ui.SidebarSection(c, fmt.Sprintf("Submodules (%d)", len(st.Submodules)), &open, func() {
+			a.partMenu(ui.SidebarSection(c, locales.RepoSectionSubmodulesCount(len(st.Submodules)), &open, func() {
 				for _, m := range st.Submodules {
-					it := ui.SidebarItem(c, "submodule:"+m.Path, nil, submoduleLabel(m))
+					it := ui.SidebarItem(c, sideSubmodule+m.Path, nil, submoduleLabel(m))
 					if !m.Present {
 						it.TextColor(th.TextMuted)
 					}
@@ -237,12 +237,23 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 			}), "submodules", a.submodulesMenu(t))
 			t.open["submodules"] = open
 		}
-	}).Label("Repository sections")
+	}).Label(locales.RepoSections())
 	if side.Changed() {
 		a.chooseSidebar(t)
 	}
 	side.FillHeight()
 }
+
+// The ids of sidebar items the sidebar makes itself; the others are the
+// keys of its parts (sidebarParts) and ref names. A worktree's or a
+// submodule's id is the prefix and its path.
+const (
+	sideChanges   = "changes"
+	sideCompare   = "compare"
+	sideWorktrees = "worktrees"
+	sideWorktree  = "worktree:"
+	sideSubmodule = "submodule:"
+)
 
 // chooseSidebar acts on a sidebar item chosen: a worktree or submodule
 // opens in its own tab.
@@ -270,9 +281,9 @@ func (a *App) chooseSidebar(t *tab) {
 
 func changesLabel(st session.State) string {
 	if st.Status == nil || st.Status.Len() == 0 {
-		return "Changes"
+		return locales.RepoSectionChanges()
 	}
-	return fmt.Sprintf("Changes (%d)", st.Status.Len())
+	return locales.RepoSectionChangesCount(st.Status.Len())
 }
 
 func (a *App) statusBar(c *ui.Context, t *tab) {
@@ -285,19 +296,19 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceXL).Background(th.Surface).Children(func() {
 		branch := strings.TrimPrefix(st.Head.Target, "refs/heads/")
 		if st.Head.Detached {
-			branch = "detached"
+			branch = locales.RepoDetached()
 		}
 		ui.Text(c, branch).FontSize(textSmall)
 		if st.Operation != "" {
-			ui.Text(c, string(st.Operation)+" in progress").FontSize(textSmall).TextColor(th.Warning)
+			ui.Text(c, locales.RepoOperationInProgress(string(st.Operation))).FontSize(textSmall).TextColor(th.Warning)
 		}
 		if len(st.Fallbacks) > 0 {
-			ui.Text(c, "Through git: "+strings.Join(st.Fallbacks, ", ")).FontSize(textSmall).TextColor(th.TextMuted)
+			ui.Text(c, locales.RepoThroughGit(strings.Join(st.Fallbacks, ", "))).FontSize(textSmall).TextColor(th.TextMuted)
 		}
 		if e := running; e != nil {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, e.Name+": "+e.Progress).FontSize(textSmall).TextColor(th.Accent).SingleLine().MaxWidth(520)
-				if ui.Button(c, "Cancel").Label("Cancel "+e.Name).Padding(0, spaceS).Clicked() {
+				ui.Text(c, locales.RepoRunning(e.Name, e.Progress)).FontSize(textSmall).TextColor(th.Accent).SingleLine().MaxWidth(520)
+				if ui.Button(c, locales.CommonCancel()).Label(locales.RepoCancelRunning(e.Name)).Padding(0, spaceS).Clicked() {
 					e.Cancel()
 				}
 			})
@@ -307,14 +318,14 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 			ui.Text(c, a.gitWarning).FontSize(textSmall).TextColor(th.Warning).SingleLine()
 		}
 		if st.WatchErr != nil {
-			what := "Not watching for changes: " + errText(st.WatchErr)
+			what := locales.RepoNotWatching(errText(st.WatchErr))
 			if errors.Is(st.WatchErr, watch.ErrLimit) {
-				what = "Too many folders to watch for changes"
+				what = locales.RepoTooManyFolders()
 			}
-			ui.Text(c, what+"; refreshing when the window is focused").FontSize(textSmall).TextColor(th.Warning).SingleLine().MaxWidth(560)
+			ui.Text(c, what).FontSize(textSmall).TextColor(th.Warning).SingleLine().MaxWidth(560)
 		}
 		if st.RefreshErr != nil {
-			ui.Text(c, "Refresh failed: "+errText(st.RefreshErr)).FontSize(textSmall).TextColor(th.Danger).SingleLine().MaxWidth(480)
+			ui.Text(c, locales.RepoRefreshFailed(errText(st.RefreshErr))).FontSize(textSmall).TextColor(th.Danger).SingleLine().MaxWidth(480)
 		}
 	})
 }
@@ -346,19 +357,19 @@ func showPath(p string) (shown, why string) {
 	}
 	var reasons []string
 	if !valid {
-		reasons = append(reasons, `is not UTF-8, its other bytes shown as \xNN`)
+		reasons = append(reasons, locales.RepoPathNotUTF8())
 	}
 	if f&pathsafe.DotGit != 0 {
-		reasons = append(reasons, "looks like .git")
+		reasons = append(reasons, locales.RepoPathDotGit())
 	}
 	if f&pathsafe.DotDot != 0 {
-		reasons = append(reasons, "has . or .. in it")
+		reasons = append(reasons, locales.RepoPathDotDot())
 	}
 	if f&pathsafe.LineBreak != 0 {
-		reasons = append(reasons, "has a line break or control character")
+		reasons = append(reasons, locales.RepoPathLineBreak())
 	}
 	if f&pathsafe.Absolute != 0 {
-		reasons = append(reasons, "is absolute")
+		reasons = append(reasons, locales.RepoPathAbsolute())
 	}
-	return "⚠ " + strconv.Quote(p), "This path " + strings.Join(reasons, ", ")
+	return "⚠ " + strconv.Quote(p), locales.RepoPathFlagged(strings.Join(reasons, ", "))
 }

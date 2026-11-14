@@ -11,6 +11,7 @@ import (
 
 	"ramus/internal/session"
 	"ramus/internal/ui/pathtree"
+	"ramus/locales"
 )
 
 // treemapData is one treemap's files as a tree, each node weighed: a
@@ -156,7 +157,7 @@ func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) stri
 		return
 	}
 	if d.tree == nil {
-		emptyState(c, "No files")
+		emptyState(c, locales.TreemapNoFiles())
 		return
 	}
 	cur := pathtree.Root
@@ -164,7 +165,7 @@ func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) stri
 		cur = ts.path[len(ts.path)-1]
 	}
 	ui.Row(c).Gap(spaceXS).Padding(0, 0, spaceM, 0).AlignItems(ui.Center).Children(func() {
-		if ui.Button(c, "All Files").Disabled(len(ts.path) == 0).Clicked() {
+		if ui.Button(c, locales.TreemapAllFiles()).Disabled(len(ts.path) == 0).Clicked() {
 			ts.path = nil
 		}
 		for i, n := range ts.path {
@@ -249,15 +250,15 @@ func (a *App) treemapTile(c *ui.Context, ts *treemapState, d *treemapData, t til
 	var name, tip string
 	dir := false
 	if t.other > 0 {
-		name = strconv.Itoa(t.other) + " more"
-		tip = fmt.Sprintf("%d smaller entries: %s", t.other, unit(int64(t.w)))
+		name = locales.RepoMore(t.other)
+		tip = locales.TreemapSmaller(t.other, unit(int64(t.w)))
 	} else {
 		name = d.tree.Name(t.node)
 		dir = d.tree.IsDir(t.node)
 		if dir {
 			name += "/"
 		}
-		tip = fmt.Sprintf("%s: %s, %.1f%%", name, unit(int64(t.w)), 100*t.w/total)
+		tip = locales.TreemapTile(t.w/total, name, unit(int64(t.w)))
 	}
 	bg := th.Accent.Alpha(0.22)
 	if dir {

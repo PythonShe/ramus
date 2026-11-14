@@ -961,5 +961,480 @@
   "rewriteNeedsNewerGit": "this git cannot do it; git 2.55 or later can",
   "rewritePushedOffer": "{branch} was rewritten after it was pushed to {upstream}",
   "rewriteNotNow": "Not Now",
-  "rewriteForcePush": "Force Push with Lease"
+  "rewriteForcePush": "Force Push with Lease",
+  "opsCherryPick": "{count, plural, =1 {Cherry-Pick Commit onto {branch}} one {Cherry-Pick # Commit onto {branch}} other {Cherry-Pick # Commits onto {branch}}}",
+  "@opsCherryPick": {
+    "description": "A commit's menu item; branch is the current branch, or HEAD."
+  },
+  "opsRevert": "{count, plural, =1 {Revert Commit} one {Revert # Commit} other {Revert # Commits}}",
+  "opsSaveAsPatch": "{count, plural, =1 {Save Commit as Patch…} one {Save # Commit as Patch…} other {Save # Commits as Patch…}}",
+  "opsCompareTheseCommits": "Compare These Commits",
+  "opsCompareWithHead": "Compare with HEAD",
+  "opsBisectBetween": "Bisect Between These",
+  "opsBisect": "Bisect",
+  "@opsBisect": {
+    "description": "A submenu of a commit's menu, holding the bisect marks."
+  },
+  "opsMarkBad": "Mark Bad",
+  "opsMarkGood": "Mark Good",
+  "opsBisectSkip": "Skip",
+  "@opsBisectSkip": {
+    "description": "Verb: a bisect mark that skips the commit."
+  },
+  "opsBisectGood": "Good",
+  "@opsBisectGood": {
+    "description": "A button marking the commit checked out good, in a bisect."
+  },
+  "opsBisectBad": "Bad",
+  "@opsBisectBad": {
+    "description": "A button marking the commit checked out bad, in a bisect."
+  },
+  "opsSavePatchTitle": "Save Patch",
+  "@opsSavePatchTitle": {
+    "description": "The title of the save dialog for a patch."
+  },
+  "opsApplyPatchTitle": "Apply Patch",
+  "@opsApplyPatchTitle": {
+    "description": "The title of the open dialog choosing a patch file."
+  },
+  "opsApplyMoreFiles": "{files} and {n} more",
+  "@opsApplyMoreFiles": {
+    "description": "The first five files a patch changes, and how many more.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "opsApplyTitle": "Apply {name}?",
+  "opsApplyMessage": "It changes {count, plural, one {# file} other {# files}}: {files}.",
+  "opsApplyMailboxTitle": "Apply {name} as commits?",
+  "opsApplyMailboxMessage": "It changes {count, plural, one {# file} other {# files}}: {files}. Each patch in it becomes a commit on the current branch.",
+  "opsApply": "Apply",
+  "opsBisectFirstBad": "First bad commit: {commit}",
+  "opsBisectProgress": "Bisecting: {left} left to test, about {steps, plural, one {# step} other {# steps}}",
+  "@opsBisectProgress": {
+    "placeholders": {
+      "left": {
+        "type": "int"
+      }
+    }
+  },
+  "opsBisectMarkBad": "Bisecting: mark a bad commit",
+  "opsBisectMarkGood": "Bisecting: mark a good commit",
+  "opsBisectShow": "Show",
+  "@opsBisectShow": {
+    "description": "Shows the first bad commit a bisect found."
+  },
+  "opsEndBisect": "End Bisect",
+  "opsCleanTitle": "Clean Untracked Files",
+  "opsIncludeIgnoredFiles": "Include ignored files",
+  "opsNothingToClean": "Nothing to clean",
+  "opsFilesToDelete": "Files to delete",
+  "opsDeleteItems": "{count, plural, one {Delete # Item} other {Delete # Items}}",
+  "repoOpening": "Opening {path}",
+  "repoCannotOpen": "Cannot open {path}",
+  "repoTrustBanner": "Read-only: this repository's hooks, filters and config commands do not run until you trust it.",
+  "repoTrust": "Trust",
+  "@repoTrust": {
+    "description": "Verb: trusts the repository, so its hooks and filters run."
+  },
+  "repoPanic": "Something in Ramus failed while working on this repository: {error}",
+  "repoCopyDetails": "Copy Details",
+  "repoReopen": "Reopen",
+  "repoMore": "{n} more",
+  "@repoMore": {
+    "description": "Stands for the entries not shown: refs past a sidebar section's limit, or a treemap's smallest tiles.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "repoHiddenInHistory": "Hidden in history",
+  "repoSectionChanges": "Changes",
+  "@repoSectionChanges": {
+    "description": "Noun: the sidebar item listing the work tree's changes."
+  },
+  "repoSectionChangesCount": "Changes ({n})",
+  "@repoSectionChangesCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "repoSectionReview": "Review Changes",
+  "repoSectionHistory": "History",
+  "@repoSectionHistory": {
+    "description": "A sidebar item, and the file view's mode listing a file's commits."
+  },
+  "repoSectionReflog": "Reflog",
+  "repoSectionRefs": "Branches and Tags",
+  "repoSectionStats": "Statistics",
+  "repoSectionLog": "Command Log",
+  "repoSectionSnapshots": "Snapshots",
+  "repoSectionBranches": "Branches",
+  "repoSectionBranchesCount": "Branches ({n})",
+  "@repoSectionBranchesCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "repoSectionRemotes": "Remotes",
+  "repoSectionRemotesCount": "Remotes ({n})",
+  "@repoSectionRemotesCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "repoSectionTags": "Tags",
+  "repoSectionTagsCount": "Tags ({n})",
+  "@repoSectionTagsCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "repoSectionStashes": "Stashes",
+  "@repoSectionStashes": {
+    "description": "Noun: the sidebar item listing the stashes."
+  },
+  "repoSectionStashesCount": "Stashes ({n})",
+  "@repoSectionStashesCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "repoSectionWorktrees": "Worktrees",
+  "repoSectionWorktreesCount": "Worktrees ({n})",
+  "@repoSectionWorktreesCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "repoSectionSubmodules": "Submodules",
+  "repoSectionSubmodulesCount": "Submodules ({n})",
+  "@repoSectionSubmodulesCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "repoSectionComparison": "Comparison",
+  "repoAllWorktrees": "All Worktrees",
+  "repoSections": "Repository sections",
+  "repoDetached": "detached",
+  "@repoDetached": {
+    "description": "The status bar, in place of the branch name when HEAD is detached."
+  },
+  "repoOperationInProgress": "{operation} in progress",
+  "@repoOperationInProgress": {
+    "description": "The status bar; operation is git's name for it: merge, rebase, am, cherry-pick, revert or bisect."
+  },
+  "repoThroughGit": "Through git: {what}",
+  "@repoThroughGit": {
+    "description": "The status bar: what the app hands to git instead of reading itself."
+  },
+  "repoRunning": "{name}: {progress}",
+  "@repoRunning": {
+    "description": "The status bar: a write running, and what it printed last."
+  },
+  "repoCancelRunning": "Cancel {name}",
+  "repoNotWatching": "Not watching for changes: {error}; refreshing when the window is focused",
+  "repoTooManyFolders": "Too many folders to watch for changes; refreshing when the window is focused",
+  "repoRefreshFailed": "Refresh failed: {error}",
+  "repoPathFlagged": "This path {reasons}",
+  "@repoPathFlagged": {
+    "description": "Why a path is flagged; reasons are one or more of the repoPath* reasons, joined by commas."
+  },
+  "repoPathNotUTF8": "is not UTF-8, its other bytes shown as \\xNN",
+  "@repoPathNotUTF8": {
+    "description": "Completes \"This path …\"."
+  },
+  "repoPathDotGit": "looks like .git",
+  "@repoPathDotGit": {
+    "description": "Completes \"This path …\"."
+  },
+  "repoPathDotDot": "has . or .. in it",
+  "@repoPathDotDot": {
+    "description": "Completes \"This path …\"."
+  },
+  "repoPathLineBreak": "has a line break or control character",
+  "@repoPathLineBreak": {
+    "description": "Completes \"This path …\"."
+  },
+  "repoPathAbsolute": "is absolute",
+  "@repoPathAbsolute": {
+    "description": "Completes \"This path …\"."
+  },
+  "historyNoCommits": "No commits yet",
+  "historyNoMatch": "No commits match",
+  "historyGoTo": "Go to hash or ref",
+  "historyWriteCommitGraph": "Write Commit-Graph",
+  "historySearching": "Searching, {n} found",
+  "@historySearching": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "historyCommitsSoFar": "{count, plural, one {# commit so far} other {# commits so far}}",
+  "historyCommitCount": "{count, plural, one {# commit} other {# commits}}",
+  "historyBisectBad": "bad",
+  "@historyBisectBad": {
+    "description": "A label on the commit a bisect marked bad."
+  },
+  "historyBisectGood": "good",
+  "@historyBisectGood": {
+    "description": "A label on a commit a bisect marked good."
+  },
+  "historyBisectSkipped": "skipped",
+  "@historyBisectSkipped": {
+    "description": "A label on a commit a bisect skipped."
+  },
+  "historyRowLoading": "commit, loading",
+  "@historyRowLoading": {
+    "description": "What a screen reader reads for a history row whose text is not read yet."
+  },
+  "historyRow": "{subject}, {author}, {date}",
+  "@historyRow": {
+    "description": "What a screen reader reads for a history row."
+  },
+  "historyRowMerge": "merge of {parents}, {subject}, {author}, {date}",
+  "@historyRowMerge": {
+    "description": "What a screen reader reads for a merge's history row; parents are abbreviated hashes."
+  },
+  "historyRowAt": "{row}, at {refs}",
+  "@historyRowAt": {
+    "description": "A history row and the refs at its commit, for a screen reader."
+  },
+  "historyRefNamed": "{kind} {name}",
+  "@historyRefNamed": {
+    "description": "A ref at a commit, for a screen reader: kind is one of the historyKind* words."
+  },
+  "historyCommits": "Commits",
+  "historyBadEncoding": "Not valid in its encoding: bytes shown as \\xNN",
+  "historyGraphCommit": "commit",
+  "@historyGraphCommit": {
+    "description": "Noun: what a screen reader reads for a row of the history's graph."
+  },
+  "historyGraphMergeOf": "merge of {parents}",
+  "historyGraphMergeParents": "{count, plural, one {merge of # parent} other {merge of # parents}}",
+  "historyGraphHidden": "{what}, {count, plural, one {# more branch line not drawn} other {# more branch lines not drawn}}",
+  "historyKindBranch": "branch",
+  "historyKindCurrentBranch": "current branch",
+  "historyKindRemoteBranch": "remote branch",
+  "historyKindTag": "tag",
+  "@historyKindTag": {
+    "description": "Noun: the kind of a ref label, for a screen reader."
+  },
+  "historyKindStash": "stash",
+  "@historyKindStash": {
+    "description": "Noun: the kind of a ref label, for a screen reader."
+  },
+  "historyKindBisectMark": "bisect mark",
+  "historyKindDetachedHead": "detached HEAD",
+  "historyCopyMessage": "Copy Message",
+  "historyCopyPatch": "Copy Patch",
+  "historyDateFormat": "Dates are written as 2024-01-31",
+  "historyFilterCount": "Filter ({n})",
+  "@historyFilterCount": {
+    "description": "The button opening the history filter, with how many filters are set.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "historyAllBranches": "All Branches",
+  "historyFilterAuthor": "Author",
+  "historyFilterPath": "Path",
+  "historyFilterChanged": "Changed text",
+  "historyFilterRegexp": "Regular expression",
+  "historyFilterSince": "Since",
+  "historyFilterUntil": "Until",
+  "historyFilterFirstParent": "First parent only",
+  "historyFilterNoMerges": "Hide merges",
+  "historyFilterClear": "Clear",
+  "historyFetchStopped": "Background fetch stopped for {repo}: {error}",
+  "reflogLostCommits": "Lost Commits",
+  "reflogNoEntries": "No reflog entries",
+  "reflogEntry": "{selector}, {message}",
+  "@reflogEntry": {
+    "description": "What a screen reader reads for a reflog entry; selector is git's name for it."
+  },
+  "reflogEntries": "Reflog entries",
+  "reflogFindLost": "Find Lost Commits",
+  "reflogNoLost": "No lost commits",
+  "reflogLost": "{subject}, {author}",
+  "@reflogLost": {
+    "description": "What a screen reader reads for a lost commit."
+  },
+  "reflogLostList": "Lost commits",
+  "reflogJustNow": "just now",
+  "reflogMinutesAgo": "{count, plural, one {# minute ago} other {# minutes ago}}",
+  "reflogHoursAgo": "{count, plural, one {# hour ago} other {# hours ago}}",
+  "reflogDaysAgo": "{count, plural, one {# day ago} other {# days ago}}",
+  "fileHistoryLinesItem": "{count, plural, =1 {History of This Line} one {History of # Line} other {History of These # Lines}}",
+  "fileHistoryLine": "Line {line, number, ::group-off}",
+  "@fileHistoryLine": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      }
+    }
+  },
+  "fileHistoryLines": "Lines {from, number, ::group-off}–{to, number, ::group-off}",
+  "@fileHistoryLines": {
+    "placeholders": {
+      "from": {
+        "type": "int"
+      },
+      "to": {
+        "type": "int"
+      }
+    }
+  },
+  "fileHistoryLatest": "The latest {n} commits",
+  "@fileHistoryLatest": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "fileHistoryCommit": "{subject}, {author}, {when}",
+  "@fileHistoryCommit": {
+    "description": "What a screen reader reads for a commit of a file's history; when is as 3 days ago."
+  },
+  "fileHistoryAsPath": "as {path}",
+  "@fileHistoryAsPath": {
+    "description": "The path a file had in a commit, when it was renamed since."
+  },
+  "fileHistoryShowInHistory": "Show in History",
+  "fileHistoryLineCommits": "Commits that changed the lines",
+  "fileHistoryFollowRenames": "Follow Renames",
+  "fileHistoryHideMerges": "Hide Merges",
+  "fileHistoryBlame": "Blame",
+  "@fileHistoryBlame": {
+    "description": "Noun: the file view's mode showing the commit each line comes from."
+  },
+  "fileHistoryNoCommits": "No commits changed this path",
+  "fileHistoryFileCommits": "Commits of the file",
+  "fileHistoryBlaming": "Blaming",
+  "fileHistoryNotBlamed": "not blamed yet",
+  "fileHistoryBlameLine": "Line {line, number, ::group-off}, {who}: {text}",
+  "@fileHistoryBlameLine": {
+    "description": "What a screen reader reads for a blamed line: who names the commit, text is the line.",
+    "placeholders": {
+      "line": {
+        "type": "int"
+      }
+    }
+  },
+  "fileHistoryShowCommit": "Show Commit in History",
+  "fileHistoryBlameLines": "Lines by commit",
+  "fileHistoryNotCommitted": "not committed",
+  "fileHistoryBlameWho": "{commit}  {author}, {when}",
+  "@fileHistoryBlameWho": {
+    "description": "The commit a line is blamed on: its abbreviated hash, author, and when, as 3 days ago."
+  },
+  "fileHistoryRestoreFile": "Restore File as of This Commit…",
+  "fileHistoryRestoreFolder": "Restore Folder as of This Commit…",
+  "fileHistoryRestoreTitle": "Restore {path}?",
+  "fileHistoryRestoreMessage": "The work tree copy becomes as it was in {commit}; the change is left unstaged.\n\nA snapshot is kept: Undo or the Snapshots view brings it back.",
+  "fileHistoryRestore": "Restore",
+  "reviewToReview": "{count, plural, one {# file to review} other {# files to review}}",
+  "reviewChangedSinceSeenCount": "{count, plural, one {# file changed since seen} other {# files changed since seen}}",
+  "reviewChangedSinceSeen": "Changed Since Seen",
+  "reviewMarkAllSeen": "Mark All Seen",
+  "reviewNothingSinceSeen": "Nothing changed since you marked it seen",
+  "reviewNothing": "Nothing to review",
+  "reviewChanges": "Changes to review",
+  "reviewDiscardLines": "{count, plural, one {Discard # Line…} other {Discard # Lines…}}",
+  "reviewKeepLines": "{count, plural, one {Keep # Line} other {Keep # Lines}}",
+  "@reviewKeepLines": {
+    "description": "Stages the lines chosen."
+  },
+  "reviewDiscardFile": "Discard File…",
+  "reviewDiscardPath": "Discard {path}…",
+  "reviewKeepFile": "Keep File",
+  "@reviewKeepFile": {
+    "description": "Stages the file."
+  },
+  "reviewKeepPath": "Keep {path}",
+  "reviewTooLarge": "Too large to review here",
+  "reviewShowInChanges": "Show in Changes",
+  "reviewShowPathInChanges": "Show {path} in Changes",
+  "reviewNoDifferences": "No differences in content",
+  "reviewSubmoduleChange": "Submodule change",
+  "reviewBinary": "Binary file",
+  "reviewCannotShow": "This patch cannot be shown",
+  "reviewLineEndings": "Line endings change from {endings} on every line shown",
+  "@reviewLineEndings": {
+    "description": "endings is \"CRLF to LF\" or \"LF to CRLF\"."
+  },
+  "reviewDiscardChange": "Discard…",
+  "reviewKeep": "Keep",
+  "@reviewKeep": {
+    "description": "Verb: stages one change of a file."
+  },
+  "snapshotsNow": "Snapshot Now",
+  "snapshotsNone": "No snapshots. One is kept before anything the app does that drops changes.",
+  "snapshotsReading": "Reading snapshots…",
+  "snapshotsSaved": "Saved snapshots",
+  "snapshotsTakenOn": "Taken on {commit}",
+  "snapshotsTakenOnIgnored": "Taken on {commit}, ignored files included",
+  "snapshotsIgnoredIncluded": ", ignored files included",
+  "@snapshotsIgnoredIncluded": {
+    "description": "Under a snapshot whose commit is not known, when it holds ignored files too."
+  },
+  "snapshotsNothingDiffers": "Nothing in it differs from the commit it was taken on",
+  "snapshotsFiles": "Files in the snapshot",
+  "snapshotsRestoreSelected": "Restore Selected ({n})",
+  "@snapshotsRestoreSelected": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "snapshotsRestoreAll": "Restore All",
+  "hidingHideFromSidebar": "Hide {part} from the Sidebar",
+  "@hidingHideFromSidebar": {
+    "description": "part is a sidebar section's name, one of the repoSection* messages."
+  },
+  "hidingShowInSidebar": "Show {part} in the Sidebar",
+  "@hidingShowInSidebar": {
+    "description": "part is a sidebar section's name, one of the repoSection* messages."
+  },
+  "hidingShowSidebar": "Show Sidebar",
+  "hidingHideSidebar": "Hide Sidebar",
+  "hidingShowStatusBar": "Show Status Bar",
+  "hidingHideStatusBar": "Hide Status Bar",
+  "hidingSettingsNotSaved": "Settings not saved: {error}",
+  "treemapNoFiles": "No files",
+  "treemapAllFiles": "All Files",
+  "treemapSmaller": "{count, plural, one {# smaller entry: {size}} other {# smaller entries: {size}}}",
+  "treemapTile": "{name}: {size}, {share, number, ::percent .0}",
+  "@treemapTile": {
+    "description": "A treemap tile's tooltip: a file or folder, its size or changes, and its share of the folder shown.",
+    "placeholders": {
+      "share": {
+        "type": "double"
+      }
+    }
+  }
 }

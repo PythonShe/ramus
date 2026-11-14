@@ -15,6 +15,7 @@ import (
 	"ramus/internal/git/refs"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // fileState is a tab's view of one file or folder: its history, or its
@@ -136,12 +137,12 @@ func (a *App) fileView(c *ui.Context, t *tab) {
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
 			if fs.blame == 0 {
 				if !strings.HasSuffix(fs.path, "/") {
-					ui.Checkbox(c, &fs.follow, "Follow Renames")
+					ui.Checkbox(c, &fs.follow, locales.FileHistoryFollowRenames())
 				}
-				ui.Checkbox(c, &fs.noMerges, "Hide Merges")
+				ui.Checkbox(c, &fs.noMerges, locales.FileHistoryHideMerges())
 			}
 			if !strings.HasSuffix(fs.path, "/") {
-				modes := []string{"History", "Blame"}
+				modes := []string{locales.RepoSectionHistory(), locales.FileHistoryBlame()}
 				if fs.lines.from > 0 {
 					modes = append(modes, fs.lines.label())
 				}
@@ -198,18 +199,18 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 						ui.Spinner(c)
 						return
 					}
-					ui.Text(c, "No commits changed this path").TextColor(th.TextMuted)
+					ui.Text(c, locales.FileHistoryNoCommits()).TextColor(th.TextMuted)
 				})
 				return
 			}
 			if fs.limited {
-				ui.Text(c, "The latest "+strconv.Itoa(session.MaxFileLog)+" commits").FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX)
+				ui.Text(c, locales.FileHistoryLatest(session.MaxFileLog)).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX)
 			}
 			cs := fs.commits
 			now := a.Now()
 			fs.list.Selected = &fs.chosen
 			fs.list.Label = func(i int) string {
-				return redact.Control(cs[i].Subject) + ", " + redact.Control(cs[i].Author) + ", " + ago(now, cs[i].Time)
+				return locales.FileHistoryCommit(redact.Control(cs[i].Subject), redact.Control(cs[i].Author), ago(now, cs[i].Time))
 			}
 			ui.List(c, &fs.list, len(cs), func(i int) {
 				fc := cs[i]
@@ -218,18 +219,18 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 					ui.Text(c, redact.Control(fc.Subject)).SingleLine().Grow(1)
 					if fc.Path != "" && fc.Path != fs.path {
 						shown, _ := showPath(fc.Path)
-						ui.Text(c, "as "+shown).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
+						ui.Text(c, locales.FileHistoryAsPath(shown)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
 					}
 					ui.Text(c, redact.Control(fc.Author)).FontSize(textSmall).Width(120).TextColor(th.TextMuted).SingleLine()
 					ui.Text(c, ago(now, fc.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 					ui.Text(c, hex.EncodeToString(fc.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 				})
 				row.ContextMenu(func(m *ui.Menu) {
-					if m.Item("Show in History").Chosen() {
+					if m.Item(locales.FileHistoryShowInHistory()).Chosen() {
 						t.sel = "history"
 						a.chooseCommit(t, fc.OID)
 					}
-					if m.Item("Copy Hash").Chosen() {
+					if m.Item(locales.CommonCopyHash()).Chosen() {
 						a.clip = hex.EncodeToString(fc.OID)
 					}
 					if fc.Path == "" || fc.Path == fs.path {
@@ -237,7 +238,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 					}
 					a.commitActions(m, t, fc.OID)
 				})
-			}).Label("Commits of the file").Grow(1)
+			}).Label(locales.FileHistoryFileCommits()).Grow(1)
 		})
 	}, func() {
 		var id []byte
@@ -314,7 +315,7 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 	if !fs.blameDone {
 		ui.Row(c).Padding(0, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Spinner(c)
-			ui.Text(c, "Blaming").FontSize(textSmall).TextColor(th.TextMuted)
+			ui.Text(c, locales.FileHistoryBlaming()).FontSize(textSmall).TextColor(th.TextMuted)
 		})
 	}
 	text, starts, lc, cs := fs.text, fs.starts, fs.lineCommit, fs.bcommits
@@ -328,11 +329,11 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 	now := a.Now()
 	numW := float32(len(strconv.Itoa(len(starts))))*8 + 8
 	fs.blameList.Label = func(i int) string {
-		who := "not blamed yet"
+		who := locales.FileHistoryNotBlamed()
 		if k := lc[i]; k >= 0 && int(k) < len(cs) {
 			who = blameWho(cs[k], now)
 		}
-		return "Line " + strconv.Itoa(i+1) + ", " + who + ": " + line(i)
+		return locales.FileHistoryBlameLine(i+1, who, line(i))
 	}
 	fs.blameList.Selection, fs.blameList.DragSelect = &fs.bpicked, true
 	ui.List(c, &fs.blameList, len(starts), func(i int) {
@@ -358,23 +359,23 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 				return
 			}
 			m.Separator()
-			if m.Item("Show Commit in History").Chosen() {
+			if m.Item(locales.FileHistoryShowCommit()).Chosen() {
 				t.sel = "history"
 				a.chooseCommit(t, id)
 			}
-			if m.Item("Copy Hash").Chosen() {
+			if m.Item(locales.CommonCopyHash()).Chosen() {
 				a.clip = hex.EncodeToString(id)
 			}
 		})
-	}).Label("Lines by commit").Grow(1)
+	}).Label(locales.FileHistoryBlameLines()).Grow(1)
 }
 
 // blameWho is the short line naming a blamed commit.
 func blameWho(bc session.BlameCommit, now time.Time) string {
 	if bc.Uncommitted {
-		return "not committed"
+		return locales.FileHistoryNotCommitted()
 	}
-	return hex.EncodeToString(bc.OID)[:8] + "  " + redact.Control(bc.Author) + ", " + ago(now, bc.Time)
+	return locales.FileHistoryBlameWho(hex.EncodeToString(bc.OID)[:8], redact.Control(bc.Author), ago(now, bc.Time))
 }
 
 // statDir reports whether p is a folder.
@@ -389,11 +390,11 @@ func statDir(p string) (bool, error) {
 // restoreFromItem offers to put path in the work tree back as it is in
 // commit, which keeps it in a snapshot first.
 func (a *App) restoreFromItem(m *ui.Menu, t *tab, path, commit string) {
-	what := "File"
+	label := locales.FileHistoryRestoreFile()
 	if strings.HasSuffix(path, "/") {
-		what = "Folder"
+		label = locales.FileHistoryRestoreFolder()
 	}
-	if !m.Item("Restore " + what + " as of This Commit…").Disabled(t.s.Queue == nil).Chosen() {
+	if !m.Item(label).Disabled(t.s.Queue == nil).Chosen() {
 		return
 	}
 	op, err := write.RestoreFrom(t.s.Where(), path, commit)
@@ -402,7 +403,7 @@ func (a *App) restoreFromItem(m *ui.Menu, t *tab, path, commit string) {
 		return
 	}
 	shown, _ := showPath(path)
-	a.confirm = confirmState{open: true, title: "Restore " + shown + "?",
-		message: "The work tree copy becomes as it was in " + commit[:8] + "; the change is left unstaged.\n\nA snapshot is kept: Undo or the Snapshots view brings it back.",
-		button:  "Restore", run: func() { a.submit(t, op, nil) }}
+	a.confirm = confirmState{open: true, title: locales.FileHistoryRestoreTitle(shown),
+		message: locales.FileHistoryRestoreMessage(commit[:8]),
+		button:  locales.FileHistoryRestore(), run: func() { a.submit(t, op, nil) }}
 }

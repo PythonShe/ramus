@@ -1,13 +1,13 @@
 package ui
 
 import (
-	"fmt"
 	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/snapshot"
+	"ramus/locales"
 )
 
 // snapState is a tab's recovery view: its snapshots, and the files of
@@ -40,10 +40,10 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 	a.loadSnapshots(t)
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Snapshots").Bold().Grow(1)
+			ui.Text(c, locales.RepoSectionSnapshots()).Bold().Grow(1)
 			ro := t.s.Queue == nil
-			ui.Checkbox(c, &ss.ignored, "Include ignored files").Disabled(ro)
-			if ui.Button(c, "Snapshot Now").Disabled(ro).Clicked() {
+			ui.Checkbox(c, &ss.ignored, locales.OpsIncludeIgnoredFiles()).Disabled(ro)
+			if ui.Button(c, locales.SnapshotsNow()).Disabled(ro).Clicked() {
 				if _, err := t.s.SnapshotNow(ss.ignored); err != nil {
 					a.notice = errText(err)
 				}
@@ -54,9 +54,9 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 		}
 		if len(ss.list) == 0 {
 			ui.Column(c).Grow(1).Center().Children(func() {
-				msg := "No snapshots. One is kept before anything the app does that drops changes."
+				msg := locales.SnapshotsNone()
 				if ss.loading {
-					msg = "Reading snapshots…"
+					msg = locales.SnapshotsReading()
 				}
 				ui.Text(c, msg).TextColor(th.TextMuted)
 			})
@@ -73,7 +73,7 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 					ui.Text(c, s.Reason).SingleLine()
 					ui.Text(c, s.Time.Format(time.DateTime)).FontSize(textSmall).TextColor(th.TextMuted)
 				})
-			}).Label("Saved snapshots").Fill()
+			}).Label(locales.SnapshotsSaved()).Fill()
 		}, func() {
 			if ss.chosen < 0 || ss.chosen >= len(list) {
 				return
@@ -129,11 +129,13 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 	ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
 		ui.Text(c, s.Reason).Bold()
 		var parts string
-		if s.Head != "" {
-			parts = "Taken on " + s.Head[:min(len(s.Head), 12)]
-		}
-		if s.Ignored {
-			parts += ", ignored files included"
+		switch head := s.Head[:min(len(s.Head), 12)]; {
+		case head != "" && s.Ignored:
+			parts = locales.SnapshotsTakenOnIgnored(head)
+		case head != "":
+			parts = locales.SnapshotsTakenOn(head)
+		case s.Ignored:
+			parts = locales.SnapshotsIgnoredIncluded()
 		}
 		if parts != "" {
 			ui.Text(c, parts).FontSize(textSmall).TextColor(th.TextMuted)
@@ -143,7 +145,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 			return
 		}
 		if len(files) == 0 {
-			ui.Text(c, "Nothing in it differs from the commit it was taken on").TextColor(th.TextMuted)
+			ui.Text(c, locales.SnapshotsNothingDiffers()).TextColor(th.TextMuted)
 			return
 		}
 		ss.fileList.Key = func(i int) any { return files[i].Path }
@@ -159,11 +161,11 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 					name.TextColor(th.Warning).Description(flagged)
 				}
 			})
-		}).Label("Files in the snapshot").Grow(1)
+		}).Label(locales.SnapshotsFiles()).Grow(1)
 		ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
 			ro := t.s.Queue == nil
 			n := ss.picked.Len()
-			if ui.Button(c, fmt.Sprintf("Restore Selected (%d)", n)).Disabled(ro || n == 0).Clicked() {
+			if ui.Button(c, locales.SnapshotsRestoreSelected(n)).Disabled(ro || n == 0).Clicked() {
 				var paths []string
 				for _, f := range files {
 					if ss.picked.Has(f.Path) {
@@ -172,7 +174,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 				}
 				a.restore(t, s, paths)
 			}
-			if ui.Button(c, "Restore All").Disabled(ro).Clicked() {
+			if ui.Button(c, locales.SnapshotsRestoreAll()).Disabled(ro).Clicked() {
 				paths := make([]string, len(files))
 				for i, f := range files {
 					paths[i] = f.Path

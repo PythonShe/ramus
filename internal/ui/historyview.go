@@ -2,7 +2,6 @@ package ui
 
 import (
 	"encoding/hex"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"ramus/internal/git/refs"
 	"ramus/internal/session"
 	"ramus/internal/ui/graph"
+	"ramus/locales"
 )
 
 const (
@@ -93,9 +93,23 @@ const (
 	labelBisectSkip
 )
 
+// refLabel is a ref at a commit: text is its name, "" for a bisect mark,
+// which name says in the language shown.
 type refLabel struct {
 	text string
 	kind labelKind
+}
+
+func (l refLabel) name() string {
+	switch l.kind {
+	case labelBisectBad:
+		return locales.HistoryBisectBad()
+	case labelBisectGood:
+		return locales.HistoryBisectGood()
+	case labelBisectSkip:
+		return locales.HistoryBisectSkipped()
+	}
+	return l.text
 }
 
 // historyView is the history list beside the chosen commit.
@@ -125,9 +139,9 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 				loading(c, "")
 				return
 			case h.Snap == nil || h.Snap.Len() == 0:
-				msg := "No commits yet"
+				msg := locales.HistoryNoCommits()
 				if h.Filtered {
-					msg = "No commits match"
+					msg = locales.HistoryNoMatch()
 				}
 				if h.Err != nil {
 					msg = errText(h.Err)
@@ -154,7 +168,7 @@ func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 	th := c.Theme()
 	hv := &t.hist
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-		in := ui.TextInput(c, &hv.jump).Placeholder("Go to hash or ref").Label("Go to hash or ref").Grow(1)
+		in := ui.TextInput(c, &hv.jump).Placeholder(locales.HistoryGoTo()).Label(locales.HistoryGoTo()).Grow(1)
 		if in.Submitted() && strings.TrimSpace(hv.jump) != "" {
 			a.jumpTo(t, strings.TrimSpace(hv.jump))
 		}
@@ -168,7 +182,7 @@ func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 	if h.Advice != nil && h.Done {
 		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 			ui.Text(c, h.Advice.Reason).FontSize(textSmall).Grow(1)
-			if ui.Button(c, "Write Commit-Graph").Disabled(hv.writing).Clicked() {
+			if ui.Button(c, locales.HistoryWriteCommitGraph()).Disabled(hv.writing).Clicked() {
 				if err := t.s.WriteCommitGraph(*h.Advice); err != nil {
 					a.notice = errText(err)
 				} else {
@@ -183,17 +197,14 @@ func historyStatus(h session.HistoryState) string {
 	if h.Snap == nil {
 		return ""
 	}
-	n := strconv.Itoa(h.Snap.Len())
+	n := h.Snap.Len()
 	switch {
 	case !h.Done && h.Filtered:
-		return "Searching, " + n + " found"
+		return locales.HistorySearching(n)
 	case !h.Done:
-		return n + " commits so far"
+		return locales.HistoryCommitsSoFar(n)
 	}
-	if h.Snap.Len() == 1 {
-		return "1 commit"
-	}
-	return n + " commits"
+	return locales.HistoryCommitCount(n)
 }
 
 // jumpTo chooses the commit rev names: in the list when history reaches
@@ -306,16 +317,16 @@ func labelMap(st session.State, h session.HistoryState) map[string][]refLabel {
 				}
 				add(id, refLabel{strings.TrimPrefix(name, "refs/tags/"), labelTag})
 			case name == "refs/bisect/bad":
-				add(list.OID(i), refLabel{"bad", labelBisectBad})
+				add(list.OID(i), refLabel{"", labelBisectBad})
 			case strings.HasPrefix(name, "refs/bisect/good-"):
-				add(list.OID(i), refLabel{"good", labelBisectGood})
+				add(list.OID(i), refLabel{"", labelBisectGood})
 			case strings.HasPrefix(name, "refs/bisect/skip-"):
-				add(list.OID(i), refLabel{"skipped", labelBisectSkip})
+				add(list.OID(i), refLabel{"", labelBisectSkip})
 			}
 		}
 	}
 	for i, s := range h.Stashes {
-		add(s.Base, refLabel{fmt.Sprintf("stash@{%d}", i), labelStash})
+		add(s.Base, refLabel{"stash@{" + strconv.Itoa(i) + "}", labelStash})
 	}
 	return labels
 }
@@ -427,22 +438,23 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	hv.list.Label = func(i int) string {
 		s, au, w, ok := a.historyRow(t, h, i)
 		if !ok {
-			return "commit, loading"
+			return locales.HistoryRowLoading()
 		}
-		out := s + ", " + au + ", " + w.Format("2006-01-02 15:04")
+		date := w.Format("2006-01-02 15:04")
+		out := locales.HistoryRow(s, au, date)
 		if m := hv.historyMerged(i); m != "" {
-			out = "merge of " + m + ", " + out
+			out = locales.HistoryRowMerge(m, s, au, date)
 		}
 		if labels := hv.labels[string(h.OID(snap.Commit(i)))]; len(labels) > 0 {
 			names := make([]string, len(labels))
 			for j, l := range labels {
-				names[j] = l.kind.word() + " " + l.text
+				names[j] = locales.HistoryRefNamed(l.kind.word(), l.name())
 			}
-			out += ", at " + strings.Join(names, ", ")
+			out = locales.HistoryRowAt(out, strings.Join(names, ", "))
 		}
 		return out
 	}
-	ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Label("Commits").Grow(1)
+	ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Label(locales.HistoryCommits()).Grow(1)
 }
 
 func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int) {
@@ -481,7 +493,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		}
 		subj := ui.Text(c, subject).SingleLine().Grow(1)
 		if ch := hv.loaded(i); ch != nil && ch.Odd(i) {
-			subj.TextColor(th.Warning).Description("Not valid in its encoding: bytes shown as \\xNN")
+			subj.TextColor(th.Warning).Description(locales.HistoryBadEncoding())
 		}
 		ui.Text(c, author).SingleLine().Width(120).TextColor(th.TextMuted)
 		ui.Text(c, when.Format("2006-01-02 15:04")).SingleLine().Width(112).TextColor(th.TextMuted)
@@ -509,15 +521,15 @@ func graphWidth(snap *lanes.Snapshot) float32 {
 // describeRow is what a graph row reads as: a merge names the commits it
 // merges once its text is loaded.
 func describeRow(r lanes.Row, merged string) string {
-	what := "commit"
+	what := locales.HistoryGraphCommit()
 	switch {
 	case merged != "":
-		what = "merge of " + merged
+		what = locales.HistoryGraphMergeOf(merged)
 	case r.Merges > 0:
-		what = fmt.Sprintf("merge of %d parents", r.Merges+1)
+		what = locales.HistoryGraphMergeParents(r.Merges + 1)
 	}
 	if r.Hidden > 0 {
-		what += fmt.Sprintf(", %d more branch lines not drawn", r.Hidden)
+		what = locales.HistoryGraphHidden(what, r.Hidden)
 	}
 	return what
 }
@@ -539,7 +551,7 @@ func refChip(c *ui.Context, l refLabel) {
 	case labelBisectSkip:
 		col = th.TextMuted
 	}
-	chip := ui.Text(c, l.text).FontSize(textCaption).SingleLine().MaxWidth(160).Padding(1, spaceS).Radius(4).Description(l.kind.word())
+	chip := ui.Text(c, l.name()).FontSize(textCaption).SingleLine().MaxWidth(160).Padding(1, spaceS).Radius(4).Description(l.kind.word())
 	switch l.kind {
 	case labelTag:
 		// Outlined, so a tag is told from a branch of the same name by
@@ -556,19 +568,19 @@ func refChip(c *ui.Context, l refLabel) {
 func (k labelKind) word() string {
 	switch k {
 	case labelCurrent:
-		return "current branch"
+		return locales.HistoryKindCurrentBranch()
 	case labelRemote:
-		return "remote branch"
+		return locales.HistoryKindRemoteBranch()
 	case labelTag:
-		return "tag"
+		return locales.HistoryKindTag()
 	case labelStash:
-		return "stash"
+		return locales.HistoryKindStash()
 	case labelBisectBad, labelBisectGood, labelBisectSkip:
-		return "bisect mark"
+		return locales.HistoryKindBisectMark()
 	case labelHead:
-		return "detached HEAD"
+		return locales.HistoryKindDetachedHead()
 	}
-	return "branch"
+	return locales.HistoryKindBranch()
 }
 
 // commitMenu is a commit's context menu: copying its hash, message or
@@ -579,10 +591,10 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() [
 		a.rewriteMany(m, t, ids, n)
 		return
 	}
-	if m.Item("Copy Hash").Chosen() {
+	if m.Item(locales.CommonCopyHash()).Chosen() {
 		a.clip = hex.EncodeToString(id)
 	}
-	if m.Item("Copy Message").Chosen() {
+	if m.Item(locales.HistoryCopyMessage()).Chosen() {
 		t.s.LoadCommit(id, func(d session.CommitDetail) {
 			switch {
 			case d.Err != nil:
@@ -592,7 +604,7 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() [
 			}
 		})
 	}
-	if m.Item("Copy Patch").Disabled(merge).Chosen() {
+	if m.Item(locales.HistoryCopyPatch()).Disabled(merge).Chosen() {
 		a.copyPatch(t, id)
 	}
 	m.Separator()

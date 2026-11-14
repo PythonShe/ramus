@@ -11,6 +11,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // lineHistory is the history of a run of a file's lines, as git log -L
@@ -52,11 +53,7 @@ func (fs *fileState) lineRange(i int) (from, to int) {
 func (a *App) lineHistoryItem(m *ui.Menu, t *tab, i int) {
 	fs := &t.file
 	from, to := fs.lineRange(i)
-	label := "History of This Line"
-	if to > from {
-		label = "History of These " + strconv.Itoa(to-from+1) + " Lines"
-	}
-	if m.Item(label).Chosen() {
+	if m.Item(locales.FileHistoryLinesItem(to - from + 1)).Chosen() {
 		fs.lines = lineHistory{from: from, to: to, chosen: -1, shown: -1, detail: 560}
 		fs.blame = linesMode
 	}
@@ -65,9 +62,9 @@ func (a *App) lineHistoryItem(m *ui.Menu, t *tab, i int) {
 // label names the lines a history follows.
 func (lh *lineHistory) label() string {
 	if lh.to == lh.from {
-		return "Line " + strconv.Itoa(lh.from)
+		return locales.FileHistoryLine(lh.from)
 	}
-	return "Lines " + strconv.Itoa(lh.from) + "–" + strconv.Itoa(lh.to)
+	return locales.FileHistoryLines(lh.from, lh.to)
 }
 
 func (a *App) loadLineHistory(t *tab) {
@@ -126,13 +123,13 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 	ui.Split(c, &lh.detail, func() {
 		ui.Column(c).Fill().Children(func() {
 			if l.Limited {
-				ui.Text(c, "The latest "+strconv.Itoa(session.MaxLineLog)+" commits").FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX)
+				ui.Text(c, locales.FileHistoryLatest(session.MaxLineLog)).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX)
 			}
 			cs := l.Commits
 			now := a.Now()
 			lh.list.Selected = &lh.chosen
 			lh.list.Label = func(i int) string {
-				return redact.Control(cs[i].Subject) + ", " + redact.Control(cs[i].Author) + ", " + ago(now, cs[i].Time)
+				return locales.FileHistoryCommit(redact.Control(cs[i].Subject), redact.Control(cs[i].Author), ago(now, cs[i].Time))
 			}
 			ui.List(c, &lh.list, len(cs), func(i int) {
 				fc := cs[i]
@@ -141,23 +138,23 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 					ui.Text(c, redact.Control(fc.Subject)).SingleLine().Grow(1)
 					if fc.Path != "" && fc.Path != fs.path {
 						shown, _ := showPath(fc.Path)
-						ui.Text(c, "as "+shown).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
+						ui.Text(c, locales.FileHistoryAsPath(shown)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(200)
 					}
 					ui.Text(c, redact.Control(fc.Author)).FontSize(textSmall).Width(120).TextColor(th.TextMuted).SingleLine()
 					ui.Text(c, ago(now, fc.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 					ui.Text(c, hex.EncodeToString(fc.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 				})
 				row.ContextMenu(func(m *ui.Menu) {
-					if m.Item("Show in History").Chosen() {
+					if m.Item(locales.FileHistoryShowInHistory()).Chosen() {
 						t.sel = "history"
 						a.chooseCommit(t, fc.OID)
 					}
-					if m.Item("Copy Hash").Chosen() {
+					if m.Item(locales.CommonCopyHash()).Chosen() {
 						a.clip = hex.EncodeToString(fc.OID)
 					}
 					a.commitActions(m, t, fc.OID)
 				})
-			}).Label("Commits that changed the lines").Grow(1)
+			}).Label(locales.FileHistoryLineCommits()).Grow(1)
 		})
 	}, func() {
 		if lh.shown < 0 {

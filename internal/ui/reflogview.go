@@ -11,6 +11,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // reflogState is a tab's reflog view: where HEAD or a branch has been,
@@ -49,7 +50,7 @@ func (a *App) reflogView(c *ui.Context, t *tab) {
 	ui.Split(c, &rs.detailW, func() {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Segmented(c, &rs.lostShown, "Reflog", "Lost Commits")
+				ui.Segmented(c, &rs.lostShown, locales.RepoSectionReflog(), locales.ReflogLostCommits())
 				if rs.lostShown == 0 {
 					a.reflogRefMenu(c, t)
 				}
@@ -132,12 +133,14 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 		loading(c, "")
 		return
 	case len(rs.entries) == 0:
-		emptyState(c, "No reflog entries")
+		emptyState(c, locales.ReflogNoEntries())
 		return
 	}
 	entries := rs.entries
 	rs.list.Selected = &rs.chosen
-	rs.list.Label = func(i int) string { return entries[i].Selector + ", " + redact.Control(entries[i].Message) }
+	rs.list.Label = func(i int) string {
+		return locales.ReflogEntry(entries[i].Selector, redact.Control(entries[i].Message))
+	}
 	now := a.Now()
 	ui.List(c, &rs.list, len(entries), func(i int) {
 		e := entries[i]
@@ -149,7 +152,7 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 			ui.Text(c, hex.EncodeToString(e.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 		})
 		row.ContextMenu(func(m *ui.Menu) { a.commitActions(m, t, e.OID) })
-	}).Label("Reflog entries").Grow(1)
+	}).Label(locales.ReflogEntries()).Grow(1)
 	if rs.chosen >= 0 && rs.chosen < len(entries) {
 		rs.chosenID = entries[rs.chosen].OID
 	}
@@ -160,7 +163,7 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	rs := &t.reflog
 	if !rs.lostSearched {
 		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
-			if ui.Button(c, "Find Lost Commits").Clicked() {
+			if ui.Button(c, locales.ReflogFindLost()).Clicked() {
 				rs.lostSearched, rs.lostLoading = true, true
 				t.s.LostCommits(func(l []session.LostCommit, err error) {
 					rs.lostLoading, rs.lost, rs.lostErr, rs.lostChosen = false, l, "", -1
@@ -180,12 +183,12 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 		errorMessage(c, rs.lostErr)
 		return
 	case len(rs.lost) == 0:
-		emptyState(c, "No lost commits")
+		emptyState(c, locales.ReflogNoLost())
 		return
 	}
 	lost := rs.lost
 	rs.lostList.Selected = &rs.lostChosen
-	rs.lostList.Label = func(i int) string { return redact.Control(lost[i].Subject) + ", " + lost[i].Author }
+	rs.lostList.Label = func(i int) string { return locales.ReflogLost(redact.Control(lost[i].Subject), lost[i].Author) }
 	now := a.Now()
 	ui.List(c, &rs.lostList, len(lost), func(i int) {
 		l := lost[i]
@@ -197,7 +200,7 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 			ui.Text(c, hex.EncodeToString(l.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 		})
 		row.ContextMenu(func(m *ui.Menu) { a.commitActions(m, t, l.OID) })
-	}).Label("Lost commits").Grow(1)
+	}).Label(locales.ReflogLostList()).Grow(1)
 }
 
 // ago says how long before now t was, roughly.
@@ -208,13 +211,13 @@ func ago(now, t time.Time) string {
 	d := now.Sub(t)
 	switch {
 	case d < time.Minute:
-		return "just now"
+		return locales.ReflogJustNow()
 	case d < time.Hour:
-		return plural(int(d/time.Minute), "minute") + " ago"
+		return locales.ReflogMinutesAgo(int(d / time.Minute))
 	case d < 24*time.Hour:
-		return plural(int(d/time.Hour), "hour") + " ago"
+		return locales.ReflogHoursAgo(int(d / time.Hour))
 	case d < 60*24*time.Hour:
-		return plural(int(d/(24*time.Hour)), "day") + " ago"
+		return locales.ReflogDaysAgo(int(d / (24 * time.Hour)))
 	}
 	return t.Format("2006-01-02")
 }

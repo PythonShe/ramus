@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +12,7 @@ import (
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // Bounds on the review: the patch and whole sides read for one file, the
@@ -117,13 +117,13 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 	var act func()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			what := countFiles(len(files)) + " to review"
+			what := locales.ReviewToReview(len(files))
 			if rv.onlyNew {
-				what = countFiles(len(files)) + " changed since seen"
+				what = locales.ReviewChangedSinceSeenCount(len(files))
 			}
 			ui.Text(c, what).Bold().Grow(1)
-			ui.Checkbox(c, &rv.onlyNew, "Changed Since Seen").Disabled(rv.seen == nil)
-			if ui.Button(c, "Mark All Seen").Disabled(rv.stampedFor != st || rv.stamps == nil).Clicked() {
+			ui.Checkbox(c, &rv.onlyNew, locales.ReviewChangedSinceSeen()).Disabled(rv.seen == nil)
+			if ui.Button(c, locales.ReviewMarkAllSeen()).Disabled(rv.stampedFor != st || rv.stamps == nil).Clicked() {
 				rv.seen, rv.builtFor = rv.stamps, nil
 			}
 		})
@@ -133,10 +133,10 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 			loading(c, "")
 			return
 		case len(files) == 0 && rv.onlyNew:
-			emptyState(c, "Nothing changed since you marked it seen")
+			emptyState(c, locales.ReviewNothingSinceSeen())
 			return
 		case len(files) == 0:
-			emptyState(c, "Nothing to review")
+			emptyState(c, locales.ReviewNothing())
 			return
 		}
 		ui.List(c, &rv.list, 2*len(files), func(i int) {
@@ -146,7 +146,7 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 			} else {
 				a.reviewBody(c, t, st, e, ro)
 			}
-		}).Label("Changes to review").Grow(1)
+		}).Label(locales.ReviewChanges()).Grow(1)
 	})
 	a.confirmView(c, &rv.confirm)
 	if act != nil {
@@ -230,18 +230,14 @@ func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro b
 		ui.Text(c, entryWords(st, e, secUnstaged)).FontSize(textSmall).TextColor(th.TextMuted)
 		lt := lineTarget{p: it.res.Parsed, path: path, pv: &it.pv}
 		if picked, n := it.pv.selectedLines(); partialOK(it.res, it.key) && n > 0 {
-			lines := fmt.Sprintf(" %d Lines", n)
-			if n == 1 {
-				lines = " 1 Line"
-			}
-			if ui.Button(c, "Discard"+lines+"…").Disabled(ro).Clicked() {
+			if ui.Button(c, locales.ReviewDiscardLines(n)).Disabled(ro).Clicked() {
 				*act = func() { a.askDiscardLinesOf(t, lt, &rv.confirm, picked) }
 			}
-			if ui.Button(c, "Keep"+lines).Disabled(ro).Clicked() {
+			if ui.Button(c, locales.ReviewKeepLines(n)).Disabled(ro).Clicked() {
 				*act = func() { a.applyLinesOf(t, lt, picked, true, false) }
 			}
 		}
-		if ui.Button(c, "Discard File…").Label("Discard " + shown + "…").Disabled(ro).Clicked() {
+		if ui.Button(c, locales.ReviewDiscardFile()).Label(locales.ReviewDiscardPath(shown)).Disabled(ro).Clicked() {
 			*act = func() {
 				if st.Kind(e) == status.Untracked {
 					a.askDiscardPaths(t, &rv.confirm, nil, []string{path})
@@ -250,7 +246,7 @@ func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro b
 				}
 			}
 		}
-		if ui.Button(c, "Keep File").Label("Keep " + shown).Disabled(ro).Clicked() {
+		if ui.Button(c, locales.ReviewKeepFile()).Label(locales.ReviewKeepPath(shown)).Disabled(ro).Clicked() {
 			ps := paths(st, []int32{int32(e)})
 			*act = func() {
 				if _, err := t.s.Submit(write.Stage(t.s.Where(), ps)); err != nil {
@@ -286,25 +282,25 @@ func (a *App) reviewBody(c *ui.Context, t *tab, st *status.Status, e int, ro boo
 		ui.Row(c).Padding(spaceL, insetX).Children(func() { ui.Spinner(c) })
 	case res.Truncated:
 		ui.Row(c).Padding(spaceM, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Too large to review here").TextColor(th.TextMuted)
-			if ui.Button(c, "Show in Changes").Label("Show " + path + " in Changes").Clicked() {
+			ui.Text(c, locales.ReviewTooLarge()).TextColor(th.TextMuted)
+			if ui.Button(c, locales.ReviewShowInChanges()).Label(locales.ReviewShowPathInChanges(path)).Clicked() {
 				t.sel, t.cv.want = "changes", path
 				t.cv.findWanted()
 			}
 		})
 	case len(p.Files) == 0 || len(p.Hunks) == 0 && !p.Files[0].Binary:
-		note("No differences in content")
+		note(locales.ReviewNoDifferences())
 	case pv.sub != nil:
-		note("Submodule change")
+		note(locales.ReviewSubmoduleChange())
 	case p.Files[0].Binary:
-		note("Binary file")
+		note(locales.ReviewBinary())
 	case pv.failed:
-		note("This patch cannot be shown")
+		note(locales.ReviewCannotShow())
 	case pv.d == nil:
 		ui.Row(c).Padding(spaceL, insetX).Children(func() { ui.Spinner(c) })
 	default:
 		if pv.endings != "" {
-			ui.Text(c, "Line endings change from "+pv.endings+" on every line shown").
+			ui.Text(c, locales.ReviewLineEndings(pv.endings)).
 				FontSize(textSmall).TextColor(th.Warning).Padding(rowPadY, insetX)
 		}
 		var actions func(c *ui.Context, change int)
@@ -312,10 +308,10 @@ func (a *App) reviewBody(c *ui.Context, t *tab, st *status.Status, e int, ro boo
 			lt := lineTarget{p: p, path: path, pv: pv}
 			actions = func(c *ui.Context, change int) {
 				lines := pv.changeLines(change)
-				if ui.Button(c, "Discard…").Disabled(ro).Clicked() {
+				if ui.Button(c, locales.ReviewDiscardChange()).Disabled(ro).Clicked() {
 					a.askDiscardLinesOf(t, lt, &rv.confirm, lines)
 				}
-				if ui.Button(c, "Keep").Disabled(ro).Clicked() {
+				if ui.Button(c, locales.ReviewKeep()).Disabled(ro).Clicked() {
 					a.applyLinesOf(t, lt, lines, true, false)
 				}
 			}

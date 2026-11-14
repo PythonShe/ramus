@@ -3,7 +3,6 @@ package ui
 import (
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"ramus/internal/git/refs"
 	"ramus/internal/library"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // historyFilter is the history's filter bar as typed; apply hands it to
@@ -113,14 +113,14 @@ func (hf *historyFilter) filter(now time.Time) (history.Filter, string) {
 	if s := strings.TrimSpace(hf.since); s != "" {
 		d, ok := day(s)
 		if !ok {
-			return f, "Dates are written as 2024-01-31"
+			return f, locales.HistoryDateFormat()
 		}
 		f.Since = d
 	}
 	if s := strings.TrimSpace(hf.until); s != "" {
 		d, ok := day(s)
 		if !ok {
-			return f, "Dates are written as 2024-01-31"
+			return f, locales.HistoryDateFormat()
 		}
 		// The day named is included.
 		f.Until = d.AddDate(0, 0, 1).Add(-time.Second)
@@ -163,9 +163,9 @@ func (hf *historyFilter) active() int {
 // filterButton opens and closes the filter bar.
 func (a *App) filterButton(c *ui.Context, t *tab) {
 	hf := &t.hist.filter
-	label := "Filter"
+	label := locales.CommonFilter()
 	if n := hf.active(); n > 0 {
-		label += " (" + strconv.Itoa(n) + ")"
+		label = locales.HistoryFilterCount(n)
 	}
 	if ui.Button(c, label).Clicked() {
 		hf.open = !hf.open
@@ -193,12 +193,12 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 	}
 	ui.Column(c).Padding(0, insetX, spaceS, insetX).Gap(spaceS).FillWidth().Children(func() {
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-			label := "All Branches"
+			label := locales.HistoryAllBranches()
 			if hf.only != "" {
 				label = redact.Control(shortRefName(hf.only))
 			}
 			ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
-				if m.Item("All Branches").Radio(hf.only == "").Chosen() {
+				if m.Item(locales.HistoryAllBranches()).Radio(hf.only == "").Chosen() {
 					hf.only, apply = "", true
 				}
 				m.Separator()
@@ -208,24 +208,24 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 					}
 				}
 			})
-			field(&hf.author, "Author", 1)
-			field(&hf.message, "Message", 1)
-			field(&hf.path, "Path", 1)
+			field(&hf.author, locales.HistoryFilterAuthor(), 1)
+			field(&hf.message, locales.CommonMessage(), 1)
+			field(&hf.path, locales.HistoryFilterPath(), 1)
 		})
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-			field(&hf.changed, "Changed text", 2)
-			check(&hf.regexp, "Regular expression")
-			field(&hf.since, "Since", 1)
-			field(&hf.until, "Until", 1)
+			field(&hf.changed, locales.HistoryFilterChanged(), 2)
+			check(&hf.regexp, locales.HistoryFilterRegexp())
+			field(&hf.since, locales.HistoryFilterSince(), 1)
+			field(&hf.until, locales.HistoryFilterUntil(), 1)
 		})
 		ui.Row(c).Gap(spaceL).AlignItems(ui.Center).FillWidth().Children(func() {
-			check(&hf.firstParent, "First parent only")
-			check(&hf.noMerges, "Hide merges")
+			check(&hf.firstParent, locales.HistoryFilterFirstParent())
+			check(&hf.noMerges, locales.HistoryFilterNoMerges())
 			if hf.err != "" {
 				ui.Text(c, hf.err).FontSize(textSmall).TextColor(th.Danger)
 			}
 			ui.Spacer(c)
-			if ui.Button(c, "Clear").Disabled(hf.active() == 0).Clicked() {
+			if ui.Button(c, locales.HistoryFilterClear()).Disabled(hf.active() == 0).Clicked() {
 				open := hf.open
 				*hf = historyFilter{open: open}
 				apply = true
@@ -305,7 +305,7 @@ func (a *App) keepFetching(t *tab) {
 	}
 	path := t.s.Path
 	t.s.SetBackgroundFetch(every, func(err error) {
-		a.notice = "Background fetch stopped for " + filepath.Base(path) + ": " + errText(err)
+		a.notice = locales.HistoryFetchStopped(filepath.Base(path), errText(err))
 	})
 }
 

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"encoding/hex"
-	"fmt"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // commitOps adds what acts on commits (hex, newest first) to a menu:
@@ -26,54 +26,50 @@ func (a *App) commitOps(m *ui.Menu, t *tab, ids func() []string, n int) {
 	if !head.Detached {
 		onto = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
-	what := "Commit"
-	if n > 1 {
-		what = fmt.Sprintf("%d Commits", n)
-	}
 	m.Separator()
-	if m.Item("Cherry-Pick " + what + " onto " + redact.Control(onto)).Disabled(ro || len(head.OID) == 0).Chosen() {
+	if m.Item(locales.OpsCherryPick(n, redact.Control(onto))).Disabled(ro || len(head.OID) == 0).Chosen() {
 		list := ids()
 		slices.Reverse(list)
 		op, err := write.CherryPick(t.s.Where(), list, t.s.Seen())
 		a.submit(t, op, err)
 	}
-	if m.Item("Revert " + what).Disabled(ro || len(head.OID) == 0).Chosen() {
+	if m.Item(locales.OpsRevert(n)).Disabled(ro || len(head.OID) == 0).Chosen() {
 		op, err := write.Revert(t.s.Where(), ids(), t.s.Seen())
 		a.submit(t, op, err)
 	}
-	if m.Item("Save " + what + " as Patch…").Disabled(a.SaveFile == nil).Chosen() {
+	if m.Item(locales.OpsSaveAsPatch(n)).Disabled(a.SaveFile == nil).Chosen() {
 		list := ids()
 		slices.Reverse(list)
 		name := list[0][:10] + ".patch"
 		if len(list) > 1 {
-			name = fmt.Sprintf("%d-commits.patch", len(list))
+			name = strconv.Itoa(len(list)) + "-commits.patch"
 		}
 		a.savePatch(t, session.PatchSave{Commits: list}, name)
 	}
-	if n == 2 && m.Item("Compare These Commits").Chosen() {
+	if n == 2 && m.Item(locales.OpsCompareTheseCommits()).Chosen() {
 		list := ids() // newest first
 		from, _ := hex.DecodeString(list[1])
 		to, _ := hex.DecodeString(list[0])
 		a.compareCommits(t, from, to, list[1][:10], list[0][:10])
 	}
-	if n == 1 && len(head.OID) > 0 && m.Item("Compare with HEAD").Chosen() {
+	if n == 1 && len(head.OID) > 0 && m.Item(locales.OpsCompareWithHead()).Chosen() {
 		from, _ := hex.DecodeString(ids()[0])
 		a.compareCommits(t, from, head.OID, shortID(from), "HEAD")
 	}
 	bs := t.bisect.state
 	if n == 2 && !bs.Active {
-		if m.Item("Bisect Between These").Disabled(ro).Chosen() {
+		if m.Item(locales.OpsBisectBetween()).Disabled(ro).Chosen() {
 			list := ids()
 			op, err := write.BisectStart(t.s.Where(), list[0], list[1:], t.s.Seen())
 			a.submit(t, op, err)
 		}
 	}
 	if n == 1 {
-		m.Submenu("Bisect", func(sub *ui.Menu) {
+		m.Submenu(locales.OpsBisect(), func(sub *ui.Menu) {
 			for _, v := range []struct {
 				label string
 				v     write.BisectVerdict
-			}{{"Mark Bad", write.BisectBad}, {"Mark Good", write.BisectGood}, {"Skip", write.BisectSkip}} {
+			}{{locales.OpsMarkBad(), write.BisectBad}, {locales.OpsMarkGood(), write.BisectGood}, {locales.OpsBisectSkip(), write.BisectSkip}} {
 				if sub.Item(v.label).Disabled(ro || v.v == write.BisectSkip && !bs.Active).Chosen() {
 					op, err := write.BisectMark(t.s.Where(), v.v, ids()[0], !bs.Active)
 					a.submit(t, op, err)
@@ -113,7 +109,7 @@ func (a *App) savePatch(t *tab, req session.PatchSave, name string) {
 	}
 	save, update := a.SaveFile, a.Update
 	go func() {
-		file, err := save("Save Patch", name)
+		file, err := save(locales.OpsSavePatchTitle(), name)
 		update(func() {
 			switch {
 			case err != nil:
@@ -137,7 +133,7 @@ func (a *App) applyPatchFile(t *tab) {
 	}
 	pick, update := a.PickFile, a.Update
 	go func() {
-		file, err := pick("Apply Patch")
+		file, err := pick(locales.OpsApplyPatchTitle())
 		update(func() {
 			switch {
 			case err != nil:
@@ -159,19 +155,19 @@ func (a *App) askApply(t *tab, pf session.PatchFile) {
 	base := filepath.Base(pf.Path)
 	files := strings.Join(pf.Files[:min(len(pf.Files), 5)], ", ")
 	if len(pf.Files) > 5 {
-		files += fmt.Sprintf(" and %d more", len(pf.Files)-5)
+		files = locales.OpsApplyMoreFiles(len(pf.Files)-5, files)
 	}
-	title, msg := "Apply "+base+"?", "It changes "+plural(len(pf.Files), "file")+": "+redact.Control(files)+"."
+	files = redact.Control(files)
+	title, msg := locales.OpsApplyTitle(base), locales.OpsApplyMessage(len(pf.Files), files)
 	if pf.Mailbox {
-		title = "Apply " + base + " as commits?"
-		msg += " Each patch in it becomes a commit on the current branch."
+		title, msg = locales.OpsApplyMailboxTitle(base), locales.OpsApplyMailboxMessage(len(pf.Files), files)
 	}
 	op, err := write.ApplyPatch(t.s.Where(), pf.Path, pf.Mailbox, pf.Files, t.s.Seen())
 	if err != nil {
 		a.notice = errText(err)
 		return
 	}
-	a.confirm = confirmState{open: true, title: title, message: msg, button: "Apply", run: func() { a.submit(t, op, nil) }}
+	a.confirm = confirmState{open: true, title: title, message: msg, button: locales.OpsApply(), run: func() { a.submit(t, op, nil) }}
 }
 
 // bisectState is a tab's bisect in progress, read again as refs change.
@@ -213,17 +209,17 @@ func (a *App) bisectBar(c *ui.Context, t *tab) {
 		var what string
 		switch {
 		case bs.FirstBad != "":
-			what = "First bad commit: " + bs.FirstBad[:10]
+			what = locales.OpsBisectFirstBad(bs.FirstBad[:10])
 		case bs.Left >= 0:
-			what = "Bisecting: " + strconv.Itoa(bs.Left) + " left to test, about " + plural(bs.Steps, "step")
+			what = locales.OpsBisectProgress(bs.Left, bs.Steps)
 		case bs.Bad == "":
-			what = "Bisecting: mark a bad commit"
+			what = locales.OpsBisectMarkBad()
 		default:
-			what = "Bisecting: mark a good commit"
+			what = locales.OpsBisectMarkGood()
 		}
 		ui.Text(c, what).Bold().SingleLine().Grow(1)
 		if bs.FirstBad != "" {
-			if ui.Button(c, "Show").Clicked() {
+			if ui.Button(c, locales.OpsBisectShow()).Clicked() {
 				id, _ := hex.DecodeString(bs.FirstBad)
 				a.chooseCommit(t, id)
 			}
@@ -231,14 +227,14 @@ func (a *App) bisectBar(c *ui.Context, t *tab) {
 			for _, v := range []struct {
 				label string
 				v     write.BisectVerdict
-			}{{"Good", write.BisectGood}, {"Bad", write.BisectBad}, {"Skip", write.BisectSkip}} {
+			}{{locales.OpsBisectGood(), write.BisectGood}, {locales.OpsBisectBad(), write.BisectBad}, {locales.OpsBisectSkip(), write.BisectSkip}} {
 				if ui.Button(c, v.label).Disabled(ro).Clicked() {
 					op, err := write.BisectMark(w, v.v, "", false)
 					a.submit(t, op, err)
 				}
 			}
 		}
-		if ui.Button(c, "End Bisect").Disabled(ro).Clicked() {
+		if ui.Button(c, locales.OpsEndBisect()).Disabled(ro).Clicked() {
 			a.submit(t, write.BisectReset(w), nil)
 		}
 	})
@@ -285,8 +281,8 @@ func (a *App) cleanView(c *ui.Context) {
 	t := cs.t
 	ui.Modal(c, &cs.open, func() {
 		dialogBox(c).Width(dialogMedium).Height(440).Children(func() {
-			ui.Text(c, "Clean Untracked Files").Bold()
-			if ui.Checkbox(c, &cs.ignored, "Include ignored files").Changed() {
+			ui.Text(c, locales.OpsCleanTitle()).Bold()
+			if ui.Checkbox(c, &cs.ignored, locales.OpsIncludeIgnoredFiles()).Changed() {
 				a.listClean()
 			}
 			switch {
@@ -296,7 +292,7 @@ func (a *App) cleanView(c *ui.Context) {
 				ui.Text(c, cs.err).TextColor(th.Danger).Selectable().Grow(1)
 			case len(cs.paths) == 0:
 				ui.Column(c).Grow(1).Center().Children(func() {
-					ui.Text(c, "Nothing to clean").TextColor(th.TextMuted)
+					ui.Text(c, locales.OpsNothingToClean()).TextColor(th.TextMuted)
 				})
 			default:
 				paths := cs.paths
@@ -307,14 +303,14 @@ func (a *App) cleanView(c *ui.Context) {
 					if why != "" {
 						txt.TextColor(th.Warning).Description(why)
 					}
-				}).Label("Files to delete").Grow(1)
+				}).Label(locales.OpsFilesToDelete()).Grow(1)
 			}
 			n := len(cs.paths)
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				label := "Delete"
+				label := locales.CommonDelete()
 				if n > 0 {
-					label = "Delete " + plural(n, "Item")
+					label = locales.OpsDeleteItems(n)
 				}
 				// The destructive choice is never the default one.
 				if ui.Button(c, label).Disabled(n == 0 || cs.loading || t.s.Queue == nil).Clicked() {
@@ -322,7 +318,7 @@ func (a *App) cleanView(c *ui.Context) {
 					a.submit(t, op, err)
 					cs.open = false
 				}
-				if ui.PrimaryButton(c, "Cancel").Clicked() {
+				if ui.PrimaryButton(c, locales.CommonCancel()).Clicked() {
 					cs.open = false
 				}
 			})
