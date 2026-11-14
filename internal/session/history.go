@@ -467,10 +467,15 @@ type CommitDetail struct {
 // it as it is read: the message first, then its changed files, then its
 // signature, so a commit of 10,000 files or a slow signature check holds
 // back nothing read before. cancel stops the reading; done is not called
-// after it.
+// after it. A commit read before is handed over whole, at once.
 func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
+		return func() {}
+	}
+	key := commitKey(oid)
+	if a, ok := s.answers().Get(key); ok {
+		done(*a.detail)
 		return func() {}
 	}
 	ctx, stop := context.WithCancel(s.viewContext(r))
@@ -478,6 +483,9 @@ func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()
 	dropped := false
 	deliver := func(d CommitDetail) {
 		s.update(func() {
+			if d.Done && d.Err == nil {
+				s.keep(key, answer{detail: &d})
+			}
 			if !dropped {
 				done(d)
 			}
@@ -564,7 +572,8 @@ func emptyTree(hashSize int) []byte {
 // CommitPatch reads the patch of paths in commit d against its first
 // parent off the main thread, leaving out the white space ws says, and
 // hands it to done on it, with the whole files sides names. A newer call
-// cancels a read still running, whose done is not called.
+// cancels a read still running, whose done is not called. A patch read
+// before is handed over at once.
 func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws diff.Whitespace, sides Sides, done func(PatchResult)) {
 	r := s.Repo
 	if r == nil {
@@ -583,8 +592,13 @@ func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws d
 	ctx, cancel := context.WithCancel(s.viewContext(r))
 	s.commitPatch.cancel = cancel
 	s.commitPatch.mu.Unlock()
+	key := commitPatchKey(parent, d.OID, paths, maxBytes, ws, sides)
+	if a, ok := s.answers().Get(key); ok {
+		cancel()
+		done(*a.patch)
+		return
+	}
 	r.Life().Go(func(context.Context) {
-		defer cancel()
 		pt, err := diff.CommitPatch(ctx, r.Runner, r.GitDir, parent, d.OID, paths, -1, maxBytes, ws)
 		var res PatchResult
 		if err == nil {
@@ -596,9 +610,19 @@ func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws d
 		}
 		res.Err = err
 		if ctx.Err() != nil {
+			cancel()
 			return
 		}
-		update(func() { done(res) })
+		update(func() {
+			live := ctx.Err() == nil
+			cancel()
+			if err == nil {
+				s.keep(key, answer{patch: &res})
+			}
+			if live {
+				done(res)
+			}
+		})
 	})
 }
 

@@ -7,6 +7,7 @@ package session
 import (
 	"context"
 	"errors"
+	"ramus/internal/git/cache"
 	"runtime"
 	"slices"
 	"sync"
@@ -92,6 +93,8 @@ type Session struct {
 	historyViewN int
 	// commitPatch cancels a commit patch read that a newer one replaced.
 	commitPatch patches
+	// answerCache holds what views read, on the main thread; see answers.
+	answerCache *cache.Cache[string, answer]
 	stats       statsLoad
 	tools       diffTools
 	refInfo     refLoad

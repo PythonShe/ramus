@@ -18,6 +18,33 @@ import (
 	"ramus/internal/git/repo"
 )
 
+// loggedRunner runs git through a script that logs each command line;
+// logged returns the lines so far.
+func loggedRunner(t *testing.T) (runner *run.Runner, logged func() []string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as git")
+	}
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip(err)
+	}
+	bin := t.TempDir()
+	logFile := filepath.Join(bin, "log")
+	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\nexec " + real + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g, err := gitexe.Find(context.Background(), bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return run.New(g, gittest.Env(), 8), func() []string {
+		data, _ := os.ReadFile(logFile)
+		return strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	}
+}
+
 // pump runs what the session hands the main thread for d.
 func (m mainThread) pump(d time.Duration) {
 	end := time.After(d)
@@ -69,27 +96,9 @@ func TestRefreshKeyedOnContent(t *testing.T) {
 // An edit to a file git knows is read on its own, and the status that
 // results is the one git gives; a new file reads the whole work tree.
 func TestRefreshRechecksEditedFiles(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("uses a shell script as git")
-	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
-	bin := t.TempDir()
-	logFile := filepath.Join(bin, "log")
-	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\nexec " + real + " \"$@\"\n"
-	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	g, err := gitexe.Find(context.Background(), bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	runner := run.New(g, gittest.Env(), 8)
+	runner, logged := loggedRunner(t)
 	statusRuns := func() (full, rechecks int) {
-		data, _ := os.ReadFile(logFile)
-		for _, l := range strings.Split(string(data), "\n") {
+		for _, l := range logged() {
 			if !strings.Contains(l, " status --porcelain=v2") {
 				continue
 			}

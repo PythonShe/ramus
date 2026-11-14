@@ -112,16 +112,17 @@ func (a *App) detail(c *ui.Context, t *tab) {
 // or HEAD holds, and the work tree's file or the index's.
 func patchSides(st *status.Status, i int, src diff.Source) session.Sides {
 	path := string(st.Path(i))
+	modes := st.Modes(i)
 	switch src {
 	case diff.Untracked:
 		return session.Sides{WorkTreePath: path}
 	case diff.Staged:
 		if ids := st.OIDs(i); len(ids) == 2 {
-			return session.Sides{Old: ids[0], New: ids[1]}
+			return session.Sides{Old: ids[0], New: ids[1], Modes: [2]uint32{modes[0], modes[1]}}
 		}
 	default:
 		if ids := st.OIDs(i); len(ids) == 2 {
-			return session.Sides{Old: ids[1], WorkTreePath: path}
+			return session.Sides{Old: ids[1], WorkTreePath: path, Modes: [2]uint32{modes[1], modes[2]}}
 		}
 	}
 	return session.Sides{}

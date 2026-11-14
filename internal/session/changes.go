@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"ramus/internal/git/diff"
 	"ramus/internal/git/repo"
@@ -43,6 +44,9 @@ type Sides struct {
 	WorkTreePath string
 	// Max bounds each side read whole; 0 is DefaultMaxSide.
 	Max int
+	// Modes are the old and new sides' modes, which a patch shows and is
+	// kept by along with the ids.
+	Modes [2]uint32
 }
 
 // DefaultMaxSide bounds a whole file read for the view.
@@ -116,7 +120,8 @@ type patches struct {
 
 // Patch reads a work-tree patch off the main thread, in the form git
 // apply takes back, and hands it to done on it. A newer call cancels a
-// read still running, whose done is not called.
+// read still running, whose done is not called. A patch read before from
+// the same objects and work tree file is handed over at once.
 //
 // sides names the whole files, for the view to unfold lines from.
 func (s *Session) Patch(req diff.PatchRequest, sides Sides, done func(PatchResult)) {
@@ -134,8 +139,18 @@ func (s *Session) Patch(req diff.PatchRequest, sides Sides, done func(PatchResul
 	ctx, cancel := context.WithCancel(s.viewContext(r))
 	s.patch.cancel = cancel
 	s.patch.mu.Unlock()
-	r.Life().Go(func(context.Context) {
-		defer cancel()
+	key, work := workPatchKey(req, sides)
+	if key != "" && !work {
+		if a, ok := s.answers().Get(key); ok {
+			cancel()
+			done(*a.patch)
+			return
+		}
+	}
+	file := filepath.Join(r.WorkTree, filepath.FromSlash(sides.WorkTreePath))
+	// read runs git, off the main thread; before is the key of the work
+	// tree file the patch is kept by, read before git ran.
+	read := func(key string, before fileKey) {
 		pt, err := diff.WorkTreePatch(ctx, r.Runner, r.GitDir, r.WorkTree, req)
 		var res PatchResult
 		if err == nil {
@@ -146,9 +161,48 @@ func (s *Session) Patch(req diff.PatchRequest, sides Sides, done func(PatchResul
 			readSides(r, sides, &res)
 		}
 		res.Err = err
+		keep := key != "" && err == nil && ctx.Err() == nil
+		if keep && work {
+			after, ok := readFileKey(file, time.Now())
+			keep = ok && after == before
+		}
 		if ctx.Err() != nil {
+			cancel()
 			return
 		}
-		update(func() { done(res) })
+		update(func() {
+			live := ctx.Err() == nil
+			cancel()
+			if keep {
+				s.keep(key, answer{patch: &res})
+			}
+			if live {
+				done(res)
+			}
+		})
+	}
+	if !work {
+		r.Life().Go(func(context.Context) { read(key, fileKey{}) })
+		return
+	}
+	r.Life().Go(func(context.Context) {
+		fk, ok := readFileKey(file, time.Now())
+		if !ok {
+			read("", fileKey{})
+			return
+		}
+		full := key + fk.String()
+		update(func() {
+			if ctx.Err() != nil {
+				cancel()
+				return
+			}
+			if a, ok := s.answers().Get(full); ok {
+				cancel()
+				done(*a.patch)
+				return
+			}
+			r.Life().Go(func(context.Context) { read(full, fk) })
+		})
 	})
 }

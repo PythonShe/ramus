@@ -25,5 +25,5 @@ func ReadIndexKey(gitDir string) (IndexKey, error) {
 	if err != nil {
 		return IndexKey{}, err
 	}
-	return IndexKey{Size: fi.Size(), MTime: fi.ModTime().UnixNano(), ID: fileID(fi)}, nil
+	return IndexKey{Size: fi.Size(), MTime: fi.ModTime().UnixNano(), ID: FileID(fi)}, nil
 }

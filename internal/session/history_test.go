@@ -209,6 +209,8 @@ func TestLoadCommitParts(t *testing.T) {
 		}
 	}
 
+	// Read again, not handed over from what was kept.
+	s.DropAnswers()
 	stale := 0
 	cancel := s.LoadCommit(big, func(CommitDetail) { stale++ })
 	cancel()

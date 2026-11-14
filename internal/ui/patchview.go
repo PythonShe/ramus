@@ -117,6 +117,11 @@ type subChange struct {
 // files when res has them and the patch makes one from the other, so the
 // lines around its hunks unfold, else of the patch alone.
 func (a *App) setPatch(pv *patchView, res session.PatchResult) {
+	if res.Parsed != nil && res.Parsed == pv.p {
+		// A refresh that left the file as it was hands back the patch
+		// kept; the viewer, its scroll and its selection stay.
+		return
+	}
 	pv.gen++
 	gen, update := pv.gen, a.Update
 	scroll := -1.0
