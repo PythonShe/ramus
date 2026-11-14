@@ -61,11 +61,24 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 				r.Title(a.pageTitle(t))
 			})
 		}
-		if a.Settings.NoSidebar {
-			ui.Column(c).Grow(1).FillWidth().Children(main)
-		} else {
-			ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, main).SplitReset(220).Grow(1)
+		// The split stays as the sidebar hides, its pane closed: the
+		// panes beside it, built in another place, would start over,
+		// losing what they measured and where they scrolled.
+		hidden := a.Settings.NoSidebar
+		if hidden && t.sideOut > 0 {
+			// Its divider, at the window's edge, was dragged out.
+			t.sideW, t.sideOut, hidden = t.sideOut, 0, false
+			a.setSidebar(true)
 		}
+		size := &t.sideW
+		if hidden {
+			size = &t.sideOut
+		}
+		ui.Split(c, size, func() {
+			if !hidden {
+				a.sidebar(c, t)
+			}
+		}, main).SplitReset(220).Grow(1)
 		a.statusBar(c, t)
 	})
 }

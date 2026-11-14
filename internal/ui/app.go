@@ -195,6 +195,9 @@ type tab struct {
 	// expired is set once old snapshots were cleared on open.
 	expired bool
 	sideW   float32
+	// sideOut is the width of the hidden sidebar's pane, 0 until its
+	// divider is dragged out.
+	sideOut float32
 	listW   float32
 	nav     tabNav
 }

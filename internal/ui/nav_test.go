@@ -63,4 +63,21 @@ func TestSidebarToggle(t *testing.T) {
 	}
 	h.click("Show Sidebar")
 	h.until("the sidebar", h.shows("Repository sections"))
+
+	// The panes beside the sidebar stay as it comes and goes: the focus
+	// stays in the field it was in.
+	h.click("History")
+	h.until("the history", h.shows("Go to hash or ref"))
+	field := "Go to hash or ref"
+	h.click(field)
+	if !h.tt.Focused(field) {
+		t.Fatal("the field did not take the focus")
+	}
+	for range 2 {
+		h.app.runCommand("toggle-sidebar")
+		h.tt.Frame()
+		if !h.tt.Focused(field) {
+			t.Fatalf("the field lost the focus as the sidebar toggled (hidden %v)", h.app.Settings.NoSidebar)
+		}
+	}
 }
