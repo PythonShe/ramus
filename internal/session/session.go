@@ -434,15 +434,21 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 	}
 	if what&(repo.RefsChanged|repo.OperationChanged) != 0 {
 		if rd := r.Refs(); rd != nil {
+			prev := seen.head
 			h, err := rd.Head()
 			fail(err)
+			// A detached HEAD that moved, or one that detached or came
+			// back to a branch, changes no ref, yet history starts from it:
+			// a new list has it read again.
+			headMoved := false
 			if err == nil {
+				headMoved = prev != nil && (prev.Detached != h.Detached || h.Detached && !bytes.Equal(prev.OID, h.OID))
 				res.head = &h
 				seen.head = &h
 			}
 			l, err := rd.List()
 			fail(err)
-			if err == nil && l.Equal(seen.refs) {
+			if err == nil && l.Equal(seen.refs) && !headMoved {
 				l = nil
 			} else if err == nil {
 				seen.refs = l
