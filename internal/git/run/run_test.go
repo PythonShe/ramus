@@ -167,3 +167,30 @@ func TestStderrLive(t *testing.T) {
 		t.Fatalf("live %q, returned %v", live.String(), err)
 	}
 }
+
+// The prompt environment reaches a command that may ask, never a read or
+// one marked NoPrompt; a shell alias prints what git ran with.
+func TestPrompt(t *testing.T) {
+	r := gittest.Init(t)
+	run := runner(t, 2)
+	run.SetPrompt([]string{"RAMUS_PROMPT_TEST=yes"})
+	got := func(c Cmd) string {
+		c.GitDir, c.WorkTree = r.GitDir(), r.Dir
+		c.Config = []string{`alias.e=!echo "[$RAMUS_PROMPT_TEST]"`}
+		c.Args = []string{"e"}
+		res, err := run.Run(context.Background(), &c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(string(res.Stdout))
+	}
+	if s := got(Cmd{}); s != "[yes]" {
+		t.Errorf("write: %q", s)
+	}
+	if s := got(Cmd{Read: true}); s != "[]" {
+		t.Errorf("read: %q", s)
+	}
+	if s := got(Cmd{NoPrompt: true}); s != "[]" {
+		t.Errorf("no prompt: %q", s)
+	}
+}

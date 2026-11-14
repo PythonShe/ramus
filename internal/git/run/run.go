@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -46,6 +47,9 @@ type Runner struct {
 	// hardening is its overrides, replaced when the config changes.
 	hardened  bool
 	hardening atomic.Pointer[[]string]
+	// prompt is the environment that lets a command ask the user, as
+	// for a password; see SetPrompt.
+	prompt []string
 }
 
 // pool is shared by a runner and the hardened runners made from it.
@@ -68,6 +72,12 @@ func New(git *gitexe.Git, env []string, max int) *Runner {
 	}
 	return &Runner{git: git, env: clean, pool: &pool{slots: make(chan struct{}, max)}}
 }
+
+// SetPrompt has every command that is not Read nor NoPrompt run with
+// env, the app's askpass helper, so that git and ssh can ask the user.
+// Call it before the first command. A runner from Hardened, which runs
+// reads only, never asks.
+func (r *Runner) SetPrompt(env []string) { r.prompt = slices.Clone(env) }
 
 // Hardened returns a runner, sharing this one's process limit, for a
 // repository that is not trusted: config adds -c overrides after every
@@ -151,6 +161,9 @@ type Cmd struct {
 	// whose stderr the engine reads. Other commands keep the user's
 	// language, since their errors are shown as they are.
 	Untranslated bool
+	// NoPrompt keeps git and ssh from asking the user, for a command no
+	// one waits on, as a background fetch: it fails instead.
+	NoPrompt bool
 }
 
 // Line returns the command as a user would type it, for the command log
@@ -277,6 +290,9 @@ func (r *Runner) command(ctx context.Context, c *Cmd) *exec.Cmd {
 		cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
 	}
 	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
+	if !c.Read && !c.NoPrompt {
+		cmd.Env = append(cmd.Env, r.prompt...)
+	}
 	if c.Untranslated {
 		// LC_ALL would override LC_MESSAGES; the C locale ignores LANGUAGE.
 		// LANG and LC_CTYPE stay, so paths and text decode as before.

@@ -84,6 +84,7 @@ func (s *Session) fetchNow() {
 	}
 	op.Name = "Fetch all remotes in the background"
 	op.Cmd.Timeout = fetchTimeout
+	op.Cmd.NoPrompt = true // no one is there to answer
 	j, err := s.Submit(op)
 	if err != nil {
 		return
