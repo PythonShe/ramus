@@ -10147,6 +10147,40 @@ func (msgs Messages) BranchPickerNone() string {
 	return Catalog.Format(msgs.locale, "branchPickerNone", nil)
 }
 
+// BranchPickerFetching says "Fetching"
+// in the language the app shows.
+//
+// What assistive technology calls the spinner in the branch picker while it
+// fetches the remotes.
+func BranchPickerFetching() string { return In(i18n.Locale()).BranchPickerFetching() }
+
+// BranchPickerFetching says "Fetching"
+// in the language of msgs.
+//
+// What assistive technology calls the spinner in the branch picker while it
+// fetches the remotes.
+func (msgs Messages) BranchPickerFetching() string {
+	return Catalog.Format(msgs.locale, "branchPickerFetching", nil)
+}
+
+// BranchPickerFetchFailed says "Could not fetch: {error}"
+// in the language the app shows.
+//
+// Below the branch picker's list, when the fetch it started as it opened
+// failed; the remote branches are as the last fetch left them.
+func BranchPickerFetchFailed(error string) string {
+	return In(i18n.Locale()).BranchPickerFetchFailed(error)
+}
+
+// BranchPickerFetchFailed says "Could not fetch: {error}"
+// in the language of msgs.
+//
+// Below the branch picker's list, when the fetch it started as it opened
+// failed; the remote branches are as the last fetch left them.
+func (msgs Messages) BranchPickerFetchFailed(error string) string {
+	return Catalog.Format(msgs.locale, "branchPickerFetchFailed", map[string]any{"error": error})
+}
+
 // KeysGoToTab says "Go to Tab {n}"
 // in the language the app shows.
 func KeysGoToTab(n int) string { return In(i18n.Locale()).KeysGoToTab(n) }

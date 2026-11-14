@@ -1980,6 +1980,14 @@
     "description": "The heading of the remote branches in the branch picker."
   },
   "branchPickerNone": "No matching branches",
+  "branchPickerFetching": "Fetching",
+  "@branchPickerFetching": {
+    "description": "What assistive technology calls the spinner in the branch picker while it fetches the remotes."
+  },
+  "branchPickerFetchFailed": "Could not fetch: {error}",
+  "@branchPickerFetchFailed": {
+    "description": "Below the branch picker's list, when the fetch it started as it opened failed; the remote branches are as the last fetch left them."
+  },
   "keysGoToTab": "Go to Tab {n}",
   "@keysGoToTab": {
     "placeholders": {

@@ -7,8 +7,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The branch button in the tab bar names the branch; its panel filters
-// the branches by what is typed, and a click or Enter switches.
+// The branch button in the tab bar names the branch; its panel fetches,
+// filters the branches by what is typed, and a click or Enter switches.
 func TestBranchPicker(t *testing.T) {
 	h := newHarness(t)
 	up := h.repoWith()
@@ -22,6 +22,7 @@ func TestBranchPicker(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("No changes"))
 	tb := h.app.current()
+	up.Git("branch", "pushed-since")
 
 	h.click("Branch main")
 	shown := func(want ...string) func() bool {
@@ -33,7 +34,13 @@ func TestBranchPicker(t *testing.T) {
 			return slices.Equal(got, want)
 		}
 	}
-	h.until("the branches", func() bool { return len(tb.pick.rows) == 6 }) // 3 local, the heading, 2 remote
+	// Opening it fetches: a branch pushed since shows.
+	h.until("the fetched branch", func() bool {
+		return slices.ContainsFunc(tb.pick.rows, func(r pickRow) bool { return r.ref == "refs/remotes/origin/pushed-since" })
+	})
+	if len(tb.pick.rows) != 7 { // 3 local, the heading, 3 remote
+		t.Fatalf("rows %v", tb.pick.rows)
+	}
 	h.tt.Type("bet")
 	h.until("the filter", shown("refs/heads/feature/beta"))
 	h.tt.Key(0, ui.KeyEnter)

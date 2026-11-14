@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"context"
 	"encoding/hex"
+	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -25,6 +28,9 @@ type branchPick struct {
 	// arrows.
 	hover int
 	list  ui.ListState
+	// fetchErr is why the fetch the picker started failed, "" when it
+	// did not.
+	fetchErr string
 	// rows are those matching query, rebuilt as it or the refs change.
 	rows []pickRow
 	// rowsFor is the refs they were built from, and their pins.
@@ -40,6 +46,9 @@ type pickRow struct {
 }
 
 const (
+	// pickFresh is how long a fetch keeps the picker from starting
+	// another.
+	pickFresh = time.Minute
 	pickWidth = 320
 	pickRows  = 10 // shown before the list scrolls
 )
@@ -79,7 +88,13 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 	newBranch := false
 	ui.Popover(c, b, &p.open, func() {
 		ui.Column(c).Width(pickWidth).Gap(spaceS).Children(func() {
-			f := ui.SearchField(c, &p.query).Label(locales.BranchPickerSearch()).Placeholder(locales.BranchPickerSearch()).AutoFocus().FillWidth()
+			var f ui.Element
+			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
+				f = ui.SearchField(c, &p.query).Label(locales.BranchPickerSearch()).Placeholder(locales.BranchPickerSearch()).AutoFocus().Grow(1)
+				if t.s.Fetching() {
+					ui.Spinner(c).FontSize(textSmall).Label(locales.BranchPickerFetching())
+				}
+			})
 			rows := p.build(t)
 			move := func(d int) {
 				for i := p.hi + d; i >= 0 && i < len(rows); i += d {
@@ -122,6 +137,9 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 					}
 				}
 			}
+			if p.fetchErr != "" {
+				ui.Text(c, p.fetchErr).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, spaceS)
+			}
 			if !t.s.State.Head.Unborn && len(t.s.State.Head.OID) > 0 {
 				ui.Divider(c)
 				// Its text starts where the branches' names do, past the check.
@@ -149,8 +167,18 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 // openPicker opens the branch picker of tab t, empty of a query.
 func (a *App) openPicker(t *tab) {
 	p := &t.pick
-	p.open, p.query, p.hi, p.hover, p.rowsFor = true, "", -1, -1, nil
+	p.open, p.query, p.hi, p.hover, p.rowsFor, p.fetchErr = true, "", -1, -1, nil, ""
 	a.loadRefs(t)
+	// The remote branches are as the last fetch left them: fetch, unless
+	// one just ran or the user stopped this repository fetching.
+	a.loadRefPrefs(t)
+	if !t.prefs.fetchOff {
+		t.s.FetchFresh(pickFresh, func(err error) {
+			if err != nil && !errors.Is(err, context.Canceled) {
+				p.fetchErr = locales.BranchPickerFetchFailed(errText(err))
+			}
+		})
+	}
 }
 
 // pickRowView builds a row of the picker: a heading, or a branch with a
@@ -185,6 +213,12 @@ func (p *branchPick) build(t *tab) []pickRow {
 	if p.rowsFor == sr.refs && p.rowsFor != nil && p.rowsGen == sr.gen && p.rowsWith == p.query {
 		return p.rows
 	}
+	// A fetch landing while the picker is open keeps the arrows on the
+	// branch they were on.
+	keep := ""
+	if p.rowsWith == p.query && p.hi >= 0 && p.hi < len(p.rows) {
+		keep = p.rows[p.hi].ref
+	}
 	p.rowsFor, p.rowsGen, p.rowsWith, p.rows = sr.refs, sr.gen, p.query, nil
 	words := strings.Fields(strings.ToLower(p.query))
 	matches := func(ref string) bool {
@@ -215,6 +249,14 @@ func (p *branchPick) build(t *tab) []pickRow {
 	// The arrows start on the first branch: the current one, when there
 	// is no query, is first only if it is pinned, so start past it.
 	p.hi = -1
+	if keep != "" {
+		for i, r := range p.rows {
+			if r.ref == keep {
+				p.hi = i
+				return p.rows
+			}
+		}
+	}
 	for i, r := range p.rows {
 		if r.heading == "" && (len(words) > 0 || r.ref != t.s.State.Head.Target) {
 			p.hi = i
