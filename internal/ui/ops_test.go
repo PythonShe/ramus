@@ -12,6 +12,8 @@ import (
 
 func (h *harness) menu(row string, path ...string) {
 	h.t.Helper()
+	// A list read again after a write shows its rows a frame or more later.
+	h.until("the row "+row, h.shows(row))
 	if err := h.tt.RightClick(row); err != nil {
 		h.t.Fatalf("right-click %q: %v; texts %q", row, err, h.tt.Texts())
 	}
