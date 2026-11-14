@@ -3,7 +3,6 @@ package ui
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -219,11 +218,15 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		}
 		if len(st.Submodules) > 0 && a.shown("submodules") {
 			open := t.open["submodules"]
-			a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("Submodules (%d)", len(st.Submodules)), &open, func() {
+			a.partMenu(ui.SidebarSection(c, fmt.Sprintf("Submodules (%d)", len(st.Submodules)), &open, func() {
 				for _, m := range st.Submodules {
-					ui.SidebarItem(c, "submodule:"+m.Path, nil, m.Path)
+					it := ui.SidebarItem(c, "submodule:"+m.Path, nil, submoduleLabel(m))
+					if !m.Present {
+						it.TextColor(th.TextMuted)
+					}
+					a.submoduleMenu(it, t, m)
 				}
-			}), "submodules")
+			}), "submodules", a.submodulesMenu(t))
 			t.open["submodules"] = open
 		}
 	}).Label("Repository sections")
@@ -252,7 +255,7 @@ func (a *App) chooseSidebar(t *tab) {
 			}
 		}
 	case "submodule":
-		a.Open(filepath.Join(t.s.Path, filepath.FromSlash(path)))
+		a.chooseSubmodule(t, path)
 	}
 	t.sel = "changes"
 }

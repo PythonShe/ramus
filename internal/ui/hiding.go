@@ -29,10 +29,20 @@ func partName(key string) string {
 func (a *App) shown(key string) bool { return !slices.Contains(a.Settings.HiddenSections, key) }
 
 // hideMenu gives el, the sidebar's part key, a menu item leaving it out.
-func (a *App) hideMenu(el ui.Element, key string) {
+func (a *App) hideMenu(el ui.Element, key string) { a.partMenu(el, key, nil) }
+
+// partMenu is hideMenu with the part's own items first.
+func (a *App) partMenu(el ui.Element, key string, items func(*ui.Menu, *func())) {
 	el.ContextMenu(func(m *ui.Menu) {
+		var act func()
+		if items != nil {
+			items(m, &act)
+		}
 		if m.Item("Hide " + partName(key) + " from the Sidebar").Chosen() {
-			a.setShown(key, false)
+			act = func() { a.setShown(key, false) }
+		}
+		if act != nil {
+			act()
 		}
 	})
 }
