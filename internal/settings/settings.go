@@ -64,10 +64,12 @@ type Settings struct {
 }
 
 // Column is a list column as the user left it: its width, 0 for the
-// list's own, and whether it is collapsed.
+// list's own, and whether it is shut, or, for the history's graph, in its
+// thin form.
 type Column struct {
 	Width  float32 `json:"width,omitempty"`
 	Hidden bool    `json:"hidden,omitempty"`
+	Thin   bool    `json:"thin,omitempty"`
 }
 
 // MinFetchMinutes is the shortest wait between background fetches.

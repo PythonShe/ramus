@@ -1246,6 +1246,14 @@
   "@historyColumnCommit": {
     "description": "Heads the history list's column of abbreviated commit hashes."
   },
+  "historyGraphCollapse": "Collapse Graph",
+  "@historyGraphCollapse": {
+    "description": "Narrows the history's graph to its thin form: from the header's menu, or a click on the graph's divider."
+  },
+  "historyGraphExpand": "Expand Graph",
+  "@historyGraphExpand": {
+    "description": "Widens the history's graph from its thin form."
+  },
   "historyColumnsReset": "Reset Columns",
   "@historyColumnsReset": {
     "description": "In the history header's menu: shows every column again at its own width."

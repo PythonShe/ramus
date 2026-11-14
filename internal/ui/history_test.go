@@ -527,3 +527,76 @@ func TestHistoryColumns(t *testing.T) {
 		}
 	}
 }
+
+// The graph collapses to a thin form rather than shutting: by a click on
+// its divider, which expands it again, or dragged most of the way there.
+// Thin, its lanes are drawn closer together, all of them still shown.
+func TestHistoryGraphCollapses(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	for b := range 3 {
+		r.Git("checkout", "-q", "-b", fmt.Sprintf("topic%d", b), "main")
+		r.Write(fmt.Sprintf("t%d.txt", b), "x\n")
+		r.Commit(fmt.Sprintf("topic %d", b))
+	}
+	r.Git("checkout", "-q", "main")
+	for b := range 3 {
+		r.Git("merge", "-q", "--no-ff", "-m", fmt.Sprintf("merge %d", b), fmt.Sprintf("topic%d", b))
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the rows", h.shows("merge 2"))
+	h.tt.Frame()
+	hv := &h.app.current().hist
+	snap := h.app.current().s.History.Snap
+	full, thin := graphWidth(snap), graphThin(snap)
+	if hv.cols.w[colGraph] != full || thin >= full {
+		t.Fatalf("graph %v wide, fitted %v, thin %v", hv.cols.w[colGraph], full, thin)
+	}
+	// divider is the graph's divider, left of the message's title.
+	divider := func() (float32, float32) {
+		m, _ := h.tt.Find("Message")
+		return m.X - spaceM/2, m.Y + m.H/2
+	}
+	settle := func() {
+		h.tt.Frame()
+		h.tt.Advance(time.Second)
+	}
+
+	h.tt.ClickAt(divider())
+	settle()
+	if hv.cols.w[colGraph] != thin || !h.app.Settings.HistoryColumns["graph"].Thin {
+		t.Fatalf("clicked, graph %v wide, want thin %v", hv.cols.w[colGraph], thin)
+	}
+	if st := hv.cols.graphStyle(); st.Columns(thin) < snap.Width() {
+		t.Fatalf("thin, %d of %d lanes drawn", st.Columns(thin), snap.Width())
+	}
+	h.tt.ClickAt(divider())
+	settle()
+	if hv.cols.w[colGraph] != full {
+		t.Fatalf("clicked again, graph %v wide, want %v", hv.cols.w[colGraph], full)
+	}
+
+	// Dragged to the end, it settles thin; dragged out, full again.
+	drag := func(dx float32) {
+		x, y := divider()
+		h.tt.Press(x, y)
+		h.tt.Frame()
+		for _, f := range []float32{0.5, 1} {
+			h.tt.Move(x+dx*f, y)
+			h.tt.Frame()
+		}
+		h.tt.Release(x+dx, y)
+		settle()
+	}
+	drag(-full)
+	if hv.cols.w[colGraph] != thin {
+		t.Fatalf("dragged to the end, graph %v wide, want thin %v", hv.cols.w[colGraph], thin)
+	}
+	drag(full)
+	if p := h.app.Settings.HistoryColumns["graph"]; p.Thin || hv.cols.w[colGraph] != thin+full {
+		t.Fatalf("dragged out, graph %v wide, kept %+v", hv.cols.w[colGraph], p)
+	}
+}

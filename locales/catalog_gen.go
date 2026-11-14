@@ -6713,6 +6713,36 @@ func (msgs Messages) HistoryColumnCommit() string {
 	return Catalog.Format(msgs.locale, "historyColumnCommit", nil)
 }
 
+// HistoryGraphCollapse says "Collapse Graph"
+// in the language the app shows.
+//
+// Narrows the history's graph to its thin form: from the header's menu, or
+// a click on the graph's divider.
+func HistoryGraphCollapse() string { return In(i18n.Locale()).HistoryGraphCollapse() }
+
+// HistoryGraphCollapse says "Collapse Graph"
+// in the language of msgs.
+//
+// Narrows the history's graph to its thin form: from the header's menu, or
+// a click on the graph's divider.
+func (msgs Messages) HistoryGraphCollapse() string {
+	return Catalog.Format(msgs.locale, "historyGraphCollapse", nil)
+}
+
+// HistoryGraphExpand says "Expand Graph"
+// in the language the app shows.
+//
+// Widens the history's graph from its thin form.
+func HistoryGraphExpand() string { return In(i18n.Locale()).HistoryGraphExpand() }
+
+// HistoryGraphExpand says "Expand Graph"
+// in the language of msgs.
+//
+// Widens the history's graph from its thin form.
+func (msgs Messages) HistoryGraphExpand() string {
+	return Catalog.Format(msgs.locale, "historyGraphExpand", nil)
+}
+
 // HistoryColumnsReset says "Reset Columns"
 // in the language the app shows.
 //

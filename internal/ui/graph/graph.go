@@ -32,8 +32,21 @@ var cut = ui.Hex("#9ca3af")
 func Color(i uint16) ui.Color { return palette[int(i)%len(palette)] }
 
 // Columns returns how many columns fit in width.
+// MinLaneWidth is the closest Fit puts the lanes.
+const MinLaneWidth = 4
+
+// Fit returns s with lanes lanes fitted to width: closer together, down to
+// MinLaneWidth, and their lines and nodes thinner as they close up, so a
+// narrow graph shows the whole history's shape rather than cutting it.
+func (s Style) Fit(width float32, lanes int) Style {
+	gap := min(s.LaneWidth, max(MinLaneWidth, width/float32(max(1, lanes))))
+	t := (gap - MinLaneWidth) / (s.LaneWidth - MinLaneWidth)
+	return Style{LaneWidth: gap, Line: 1 + (s.Line-1)*t, Node: 2.5 + (s.Node-2.5)*t}
+}
+
 func (s Style) Columns(width float32) int {
-	return max(1, int(width/s.LaneWidth))
+	// A hair over, for a width Fit divided to come back whole.
+	return max(1, int(width/s.LaneWidth+1e-3))
 }
 
 // Paint draws one row's lines and node into r; bg is the row background,

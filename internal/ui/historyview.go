@@ -498,7 +498,8 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 	id := h.OID(snap.Commit(i))
 	lay := &hv.cols
 	gw := lay.w[colGraph]
-	cols := graph.DefaultStyle.Columns(gw)
+	style := lay.graphStyle()
+	cols := style.Columns(gw)
 	r, buf := snap.Row(i, cols, hv.buf)
 	hv.buf = buf
 	merge := r.Merges > 0
@@ -513,7 +514,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 					// the next row.
 					var lr lanes.Row
 					lr, hv.buf = snap.Row(i, cols, hv.buf)
-					graph.Paint(p, rect, lr, graph.DefaultStyle, th.Background, &hv.path)
+					graph.Paint(p, rect, lr, style, th.Background, &hv.path)
 				})
 		}
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Grow(1).Shrink(1).MarginStart(lay.gap(colGraph)).Children(func() {
