@@ -44,7 +44,7 @@ func TestLoadTextMerged(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	c, err := LoadText(p, func(id uint32) []byte { return ids[id] }, 0, len(ids), func(row int) uint32 { return uint32(row) })
+	c, err := LoadText(p, func(id uint32) []byte { return ids[id] }, 0, len(ids), func(row int) uint32 { return uint32(row) }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestLoadTextEncodings(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	c, err := LoadText(p, func(id uint32) []byte { return ids[id] }, 0, len(ids), func(row int) uint32 { return uint32(row) })
+	c, err := LoadText(p, func(id uint32) []byte { return ids[id] }, 0, len(ids), func(row int) uint32 { return uint32(row) }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"ramus/internal/git/catfile"
+	"ramus/internal/git/mailmap"
 	"ramus/internal/git/object"
 	"ramus/internal/git/textenc"
 )
@@ -69,8 +70,9 @@ const mergedShort = 7
 // LoadText reads the text of rows first to first+n-1 through a cat-file
 // process. commit gives a row's commit number and oid that number's object
 // id: a commit-graph position and Graph.OID, or a commit store number and
-// its snapshot's OID.
-func LoadText(p *catfile.Process, oid func(id uint32) []byte, first, n int, commit func(row int) uint32) (*TextChunk, error) {
+// its snapshot's OID. Authors are named as mm maps them, which may be
+// nil, as git log names them through the mailmap.
+func LoadText(p *catfile.Process, oid func(id uint32) []byte, first, n int, commit func(row int) uint32, mm *mailmap.Map) (*TextChunk, error) {
 	ids := make([][]byte, n)
 	for i := range ids {
 		ids[i] = oid(commit(first + i))
@@ -91,6 +93,10 @@ func LoadText(p *catfile.Process, oid func(id uint32) []byte, first, n int, comm
 		enc := string(cm.Encoding)
 		subject, ok1 := textenc.Decode(object.Subject(cm.Message), enc)
 		author, ok2 := textenc.Decode(cm.Author.Name, enc)
+		if mm.Len() > 0 {
+			email, _ := textenc.Decode(cm.Author.Email, enc)
+			author, _ = mm.Lookup(author, email)
+		}
 		c.odd = append(c.odd, !ok1 || !ok2)
 		c.buf = append(c.buf, subject...)
 		c.ends = append(c.ends, uint32(len(c.buf)))

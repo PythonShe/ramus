@@ -97,7 +97,12 @@ func (m *Map) add(oldName, oldEmail, newName, newEmail string) {
 }
 
 // Len returns the number of addresses m maps.
-func (m *Map) Len() int { return len(m.byEmail) }
+func (m *Map) Len() int {
+	if m == nil {
+		return 0
+	}
+	return len(m.byEmail)
+}
 
 // Lookup returns the canonical name and address of an identity; one m
 // does not name comes back as it is. Names and addresses match ignoring

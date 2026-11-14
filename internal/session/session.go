@@ -68,6 +68,8 @@ type Session struct {
 	runner *run.Runner
 	trust  *trust.Store
 	update func(func())
+	// people maps the names shown; any goroutine.
+	people people
 
 	// Main thread only.
 	State State

@@ -866,3 +866,23 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 		t.Fatalf("message %v, kept at %v, columns %v", now.W, h.app.Settings.HistoryMessage, hv.cols.shown)
 	}
 }
+
+// The history and a commit's detail name people as the mailmap does, as
+// git log and git show do, and follow a change to it.
+func TestHistoryMailmap(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("commit", "-q", "--allow-empty", "-m", "merged on the web", "--author", "Full Name <me@example.com>")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commit", h.shows("merged on the web"))
+	h.until("the name", h.shows("Full Name"))
+
+	r.Write(".mailmap", "handle <me@example.com>\n")
+	r.Commit("add a mailmap")
+	h.until("mapped", func() bool { return hasExact(h, "handle") && !hasExact(h, "Full Name") })
+	h.click("merged on the web")
+	h.until("the detail", h.shows("handle <me@example.com>"))
+}

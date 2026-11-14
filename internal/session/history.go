@@ -434,11 +434,11 @@ func (s *Session) HistoryText(h HistoryState, first, n int, done func(*history.T
 		ids[i] = h.Snap.Commit(first + i)
 	}
 	update := s.update
-	r.Life().Go(func(context.Context) {
+	r.Life().Go(func(ctx context.Context) {
 		cat, err := r.CatFile()
 		var c *history.TextChunk
 		if err == nil {
-			c, err = history.LoadText(cat, h.OID, first, n, func(row int) uint32 { return ids[row-first] })
+			c, err = history.LoadText(cat, h.OID, first, n, func(row int) uint32 { return ids[row-first] }, s.mailmap(ctx, r))
 		}
 		update(func() { done(c, err) })
 	})
@@ -536,6 +536,12 @@ func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitD
 		*f, ok = []byte(text), ok && valid
 	}
 	d.Odd = !ok
+	// Each person as the mailmap names them, as git show does.
+	mm := s.mailmap(ctx, r)
+	for _, p := range []*object.Signature{&d.Commit.Author, &d.Commit.Committer} {
+		name, email := mm.Lookup(string(p.Name), string(p.Email))
+		p.Name, p.Email = []byte(name), []byte(email)
+	}
 	for _, p := range object.ParentIDs(data) {
 		if id, err := hex.DecodeString(string(p)); err == nil {
 			d.Parents = append(d.Parents, id)
