@@ -491,6 +491,35 @@ func TestHistoryColumns(t *testing.T) {
 	if hasExact(h, "Commit") || !h.app.Settings.HistoryColumns["hash"].Hidden {
 		t.Fatalf("hash column %+v not shut", h.app.Settings.HistoryColumns["hash"])
 	}
+	// Shut, it keeps its divider, past the date's, to drag it out again.
+	date, _ := h.tt.Find("Date")
+	x, y := date.X+date.W+spaceM/2, date.Y+date.H/2
+	h.tt.Move(x, y)
+	h.tt.Frame()
+	if h.tt.Cursor() != ui.CursorResizeEW {
+		t.Fatalf("cursor over a shut column's divider is %v", h.tt.Cursor())
+	}
+	h.tt.Press(x, y)
+	h.tt.Frame()
+	for _, dx := range []float32{-40, -80} {
+		h.tt.Move(x+dx, y)
+		h.tt.Frame()
+	}
+	h.tt.Release(x-80, y)
+	h.tt.Frame()
+	h.tt.Advance(time.Second)
+	if b, _ := h.tt.Find("Commit"); b.W != 80 || h.app.Settings.HistoryColumns["hash"].Hidden {
+		t.Fatalf("hash column dragged out to %v, kept %+v", b, h.app.Settings.HistoryColumns["hash"])
+	}
+	if cell, _ := h.tt.Find("Ramus Test"); cell.W != 180 {
+		t.Fatalf("author cells %v wide after the hash came back", cell.W)
+	}
+
+	// Or the header's menu brings it back.
+	drag("Commit", 80)
+	if hasExact(h, "Commit") {
+		t.Fatal("hash column not shut again")
+	}
 	if err := h.tt.RightClick("Message"); err != nil {
 		t.Fatal(err)
 	}
@@ -499,7 +528,7 @@ func TestHistoryColumns(t *testing.T) {
 	}
 	h.tt.Frame()
 	h.tt.Advance(time.Second)
-	if b, _ := h.tt.Find("Commit"); b.W != histColumnMin[colHash] {
+	if b, _ := h.tt.Find("Commit"); b.W != 80 {
 		t.Fatalf("hash column back at %v", b)
 	}
 
@@ -525,6 +554,29 @@ func TestHistoryColumns(t *testing.T) {
 		if msg, _ := h.tt.Find("Message"); msg.W < historyMessageMin-1 {
 			t.Fatalf("a list %v wide leaves the message %v", c.w, msg.W)
 		}
+	}
+
+	// Widened in a list that shut the date and the hash, a column takes
+	// the room they left to the message, no more.
+	hv.detailW = 480
+	h.tt.Frame()
+	h.tt.Advance(time.Second)
+	drag("Author", -20)
+	if cell, _ := h.tt.Find("Ramus Test"); cell.W != 140 {
+		t.Fatalf("author widened to %v in a narrow list, want 140", cell.W)
+	}
+	// Past the room it stops, short of the pointer.
+	b, _ := h.tt.Find("Author")
+	x, y = b.X-spaceM/2, b.Y+b.H/2
+	h.tt.Press(x, y)
+	h.tt.Frame()
+	h.tt.Move(x-200, y)
+	h.tt.Frame()
+	h.tt.Release(x-200, y)
+	h.tt.Frame()
+	h.tt.Advance(time.Second)
+	if msg, _ := h.tt.Find("Message"); msg.W < historyMessageMin-1 || !hasExact(h, "Author") {
+		t.Fatalf("author widened past the room: message %v", msg.W)
 	}
 }
 

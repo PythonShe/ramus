@@ -538,17 +538,24 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		if !ok {
 			return
 		}
-		cell := func(k histColumn, e ui.Element) {
+		for k := colAuthor; k < histColumns; k++ {
+			if !lay.shown[k] {
+				if lay.handle[k] {
+					// The room of a shut column's divider in the header.
+					ui.Box(c).Width(lay.gap(k))
+				}
+				continue
+			}
+			var e ui.Element
+			switch k {
+			case colAuthor:
+				e = ui.Text(c, author)
+			case colDate:
+				e = ui.Text(c, when.Format("2006-01-02 15:04"))
+			default:
+				e = ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall)
+			}
 			e.SingleLine().Width(lay.w[k]).MarginStart(lay.gap(k)).Opacity(lay.fade(k)).TextColor(th.TextMuted)
-		}
-		if lay.shown[colAuthor] {
-			cell(colAuthor, ui.Text(c, author))
-		}
-		if lay.shown[colDate] {
-			cell(colDate, ui.Text(c, when.Format("2006-01-02 15:04")))
-		}
-		if lay.shown[colHash] {
-			cell(colHash, ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall))
 		}
 	})
 	row.ContextMenu(func(m *ui.Menu) {

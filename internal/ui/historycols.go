@@ -90,6 +90,9 @@ type histLayout struct {
 	least [histColumns]float32
 	// lanes is how many lanes the graph has.
 	lanes int
+	// handle marks the columns whose divider stays as they shut: those
+	// the user shut, to drag out again, and the one being dragged.
+	handle [histColumns]bool
 }
 
 // graphStyle draws the graph as wide as it is.
@@ -97,8 +100,16 @@ func (l *histLayout) graphStyle() graph.Style {
 	return graph.DefaultStyle.Fit(l.w[colGraph], l.lanes)
 }
 
-// gap is the space before a column w wide, closing with it.
-func (l *histLayout) gap(k histColumn) float32 { return min(spaceM, l.w[k]) }
+// gap is the space before column k: its divider's, which closes with
+// the column but for a handle.
+func (l *histLayout) gap(k histColumn) float32 { return columnGap(l.w[k], l.handle[k]) }
+
+func columnGap(w float32, handle bool) float32 {
+	if handle {
+		return spaceM
+	}
+	return min(spaceM, w)
+}
 
 // fade is how opaque column k is: it fades under its least width.
 func (l *histLayout) fade(k histColumn) float32 {
@@ -125,8 +136,9 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 	// Built are the columns shown, opening or still shutting.
 	var built [histColumns]bool
 	to := a.columnWidths(hv, snap)
+	handles := a.columnHandles(hv)
 	for k := range histColumns {
-		built[k] = to[k] >= 0.5 || hv.cols.shown[k] || hv.colDrag.active && hv.colDrag.col == k
+		built[k] = to[k] >= 0.5 || hv.cols.shown[k] || handles[k]
 	}
 	// No gap: the dividers stand in the rows' gaps.
 	head := ui.Row(c).Key("columns").Height(rowHeight).Padding(0, insetX).AlignItems(ui.Center).FillWidth()
@@ -148,7 +160,7 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 	for k := range histColumns {
 		if built[k] {
 			titles[k].Width(l.w[k]).Opacity(l.fade(k)).Hidden(!l.shown[k])
-			dividers[k].Width(l.gap(k)).Hidden(!l.shown[k])
+			dividers[k].Width(l.gap(k)).Hidden(!l.shown[k] && !l.handle[k])
 		}
 	}
 	head.ContextMenu(func(m *ui.Menu) {
@@ -193,20 +205,20 @@ func (a *App) historyColumns(head ui.Element, hv *historyState, snap *lanes.Snap
 			// graph's least; the width it had stays, for when it
 			// expands.
 			thin, least := graphThin(snap), graphLeast(snap)
-			p.Thin = d.raw < (thin+least)/2
+			p.Hidden, p.Thin = false, d.raw < (thin+least)/2
 			if !p.Thin {
 				p.Width = max(least, want[k])
 			}
 		case d.raw < least/2:
 			p.Hidden = true // the width it had stays, for when it is back
 		default:
-			p.Width = max(least, want[k])
+			p.Hidden, p.Width = false, max(least, want[k])
 		}
 		*d = colDrag{}
 		a.setHistoryColumn(k, p)
 		want = a.columnWidths(hv, snap)
 	}
-	l := histLayout{least: histColumnMin, lanes: snap.Width()}
+	l := histLayout{least: histColumnMin, lanes: snap.Width(), handle: a.columnHandles(hv)}
 	l.least[colGraph] = graphThin(snap)
 	for k := range histColumns {
 		if d.active && d.col == k {
@@ -221,9 +233,19 @@ func (a *App) historyColumns(head ui.Element, hv *historyState, snap *lanes.Snap
 	return l
 }
 
+// columnHandles are the columns whose divider stays as they shut: those
+// the user shut and the one being dragged.
+func (a *App) columnHandles(hv *historyState) (handles [histColumns]bool) {
+	for k := range histColumns {
+		handles[k] = a.Settings.HistoryColumns[histColumnKeys[k]].Hidden || hv.colDrag.active && hv.colDrag.col == k
+	}
+	return handles
+}
+
 // columnWidths are the widths the columns go to: those the user gave
-// them or their own, the dragged one's under the pointer, and those at
-// the end given way where the list is too narrow for the message.
+// them or their own, those at the end given way where the list is too
+// narrow for the message, and the dragged one's under the pointer, in
+// the room the others leave.
 func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) [histColumns]float32 {
 	var want [histColumns]float32
 	for k := range histColumns {
@@ -245,50 +267,40 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) [histColumns]
 	dragged := histColumn(-1)
 	if d.active {
 		dragged = d.col
-		want[dragged] = max(0, d.raw)
-		if dragged == colGraph {
-			want[dragged] = min(want[dragged], historyGraphMax)
+	}
+	handles := a.columnHandles(hv)
+	// The room the columns leave the message over its least, as they
+	// were before any drag.
+	room := float32(historyGraphMax + 1e6)
+	if hv.rowW > 0 {
+		room = hv.rowW - 2*insetX - historyMessageMin
+		for k := range histColumns {
+			room -= want[k] + columnGap(want[k], handles[k])
+		}
+		// Short of room, the columns at the end give way first, each
+		// whole: a column shows its values in full or not at all. Then
+		// the graph goes thin.
+		for k := colHash; k > colGraph && room < 0; k-- {
+			if k != dragged && want[k] > 0 {
+				room += want[k] + columnGap(want[k], handles[k]) - columnGap(0, handles[k])
+				want[k] = 0
+			}
+		}
+		if thin := graphThin(snap); room < 0 && dragged != colGraph && want[colGraph] > thin {
+			room += want[colGraph] - thin
+			want[colGraph] = thin
 		}
 	}
-	if hv.rowW == 0 {
-		return want
-	}
-	// The room the columns share, the message keeping its least.
-	room := hv.rowW - 2*insetX - historyMessageMin
-	for k := range histColumns {
-		if k != dragged {
-			room -= columnRoom(want[k])
-		}
-	}
-	// A column widened by hand takes the message's room alone.
+	// The column dragged follows the pointer, widening into the room the
+	// others leave, not over them.
 	if dragged >= 0 {
-		want[dragged] = min(want[dragged], columnWidth(room))
-		room -= columnRoom(want[dragged])
-	}
-	// Short of room, the columns at the end give way first, each whole:
-	// a column shows its values in full or not at all.
-	for k := colHash; k > colGraph && room < 0; k-- {
-		if k != dragged {
-			room += columnRoom(want[k])
-			want[k] = 0
+		w := min(max(0, d.raw), want[dragged]+max(0, room))
+		if dragged == colGraph {
+			w = min(w, historyGraphMax)
 		}
-	}
-	if thin := graphThin(snap); room < 0 && dragged != colGraph && want[colGraph] > thin {
-		room += columnRoom(want[colGraph]) - columnRoom(thin)
-		want[colGraph] = thin
+		want[dragged] = w
 	}
 	return want
-}
-
-// columnRoom is the room a column w wide takes with the gap before it;
-// columnWidth the width of one taking room r.
-func columnRoom(w float32) float32 { return w + min(spaceM, w) }
-
-func columnWidth(r float32) float32 {
-	if r >= 2*spaceM {
-		return r - spaceM
-	}
-	return max(0, r/2)
 }
 
 func histColumnName(k histColumn) string {
@@ -338,7 +350,12 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 		g.Tooltip(label)
 		// The click that ends a drag is the drag's.
 		if g.Clicked() && !(d.active && d.col == k && d.moved) {
-			a.toggleThinGraph()
+			if p := a.Settings.HistoryColumns[histColumnKeys[k]]; p.Hidden {
+				p.Hidden = false
+				a.setHistoryColumn(k, p)
+			} else {
+				a.toggleThinGraph()
+			}
 		}
 	} else if g.DoubleClicked() {
 		p := a.Settings.HistoryColumns[histColumnKeys[k]]
@@ -348,8 +365,11 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 	on := g.Hovered() || held
 	g.Draw(func(p *ui.Painter, r ui.Rect) {
 		col := th.Border
-		if on {
+		switch {
+		case on:
 			col = th.Accent
+		case !hv.cols.shown[k]:
+			return // a shut column's divider shows as it is pointed at
 		}
 		p.Fill(ui.Rect{X: r.X + r.W/2 - 0.5, Y: r.Y + r.H/4, W: 1, H: r.H / 2}, col, 0)
 	})
