@@ -46,7 +46,8 @@ type Store struct {
 	mu      sync.Mutex
 	pending map[string]Draft
 	busy    bool
-	// write serializes writes, Keep's and Flush's.
+	// write serializes writes, Keep's and Flush's, and reads with them:
+	// Windows will not open a file while a rename replaces it.
 	write sync.Mutex
 }
 
@@ -61,6 +62,8 @@ func (s *Store) name(path string) string {
 // Load reads the draft of the repository at path, none when there is
 // none. It reads the disk: never call it on the main thread.
 func (s *Store) Load(path string) (Draft, error) {
+	s.write.Lock()
+	defer s.write.Unlock()
 	s.mu.Lock()
 	d, ok := s.pending[path]
 	s.mu.Unlock()
