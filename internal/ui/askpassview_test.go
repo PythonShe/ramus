@@ -12,9 +12,15 @@ import (
 )
 
 // git asks for a user name and a password in the window, the host it
-// goes to named; a question whose helper is gone leaves the window.
+// goes to named when a remote of the repository asking is on it; a
+// question whose helper is gone leaves the window.
 func TestAskpassDialog(t *testing.T) {
 	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "https://git.example/r.git")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
 	program, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +39,7 @@ func TestAskpassDialog(t *testing.T) {
 	env = append(env, s.Env(program)...)
 
 	cmd := exec.Command("git", "-c", "credential.helper=", "credential", "fill")
-	cmd.Env, cmd.Dir = env, t.TempDir()
+	cmd.Env, cmd.Dir = env, r.Dir
 	cmd.Stdin = strings.NewReader("url=https://git.example/r.git\n\n")
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
@@ -57,6 +63,28 @@ func TestAskpassDialog(t *testing.T) {
 	}
 	if s := out.String(); !strings.Contains(s, "username=me\n") || !strings.Contains(s, "password=s3cret\n") {
 		t.Fatalf("git got\n%s", s)
+	}
+
+	// An ssh server's keyboard-interactive question imitating git's, or a
+	// question from a folder no repository open here holds, names no host
+	// in its title: the prompt alone says it.
+	for _, tc := range []struct{ dir, prompt string }{
+		{r.Dir, "(git@evil.example) Password for 'https://git.example': "},
+		{t.TempDir(), "Password for 'https://git.example': "},
+	} {
+		helper := exec.Command(program, tc.prompt)
+		helper.Env, helper.Dir = env, tc.dir
+		if err := helper.Start(); err != nil {
+			t.Fatal(err)
+		}
+		h.until("the question", h.shows(strings.TrimSpace(tc.prompt)))
+		h.settle()
+		if !h.tt.HasText("Password") || h.tt.HasText("Password for git.example") || h.tt.HasText("Password for evil.example") {
+			t.Fatalf("%q titled: %q", tc.prompt, h.tt.Texts())
+		}
+		h.click("Cancel")
+		helper.Wait()
+		h.until("the question gone", func() bool { return len(h.app.asking.list) == 0 })
 	}
 
 	// A notice to touch a key goes when ssh ends the helper.

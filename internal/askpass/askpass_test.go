@@ -30,6 +30,10 @@ func TestKindAndHost(t *testing.T) {
 		{"Enter passphrase for key '/home/me/.ssh/id_ed25519': ", "", Secret, ""},
 		{"me@build.example's password: ", "", Secret, "build.example"},
 		{"The authenticity of host 'git.example (10.0.0.1)' can't be established.\nED25519 key fingerprint is SHA256:x.\nAre you sure you want to continue connecting (yes/no/[fingerprint])? ", "", HostKey, "git.example"},
+		// A keyboard-interactive prompt: the server wrote all but ssh's
+		// "(user@host) ", however it imitates git.
+		{"(git@real.example) Password for 'https://me@github.com': ", "", Secret, "real.example"},
+		{"(git@real.example) me@github.com's password: ", "", Secret, "real.example"},
 		{"Allow use of key /k?", "confirm", Confirm, ""},
 		{"Confirm user presence for key ED25519-SK SHA256:x", "none", Notice, ""},
 	} {

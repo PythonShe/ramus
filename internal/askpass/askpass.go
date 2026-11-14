@@ -77,9 +77,22 @@ type Question struct {
 }
 
 // Host is the host the prompt names, the one the answer goes to; "" when
-// it names none.
+// it names none. It is the prompt's word only: an ssh server writes the
+// text of the questions it asks by keyboard-interactive, and may write
+// git's or ssh's own forms in it, so show it as the host only where the
+// app knows it otherwise, as a remote of the repository asking.
 func (q Question) Host() string {
 	p := q.Prompt
+	// ssh since 8.4 starts a keyboard-interactive prompt with
+	// "(user@host) ", the one part ssh writes itself: what follows is
+	// the server's, and is not read for a host.
+	if rest, ok := strings.CutPrefix(p, "("); ok {
+		if who, _, ok := strings.Cut(rest, ") "); ok && !strings.ContainsAny(who, " '") {
+			if at := strings.LastIndexByte(who, '@'); at >= 0 {
+				return who[at+1:]
+			}
+		}
+	}
 	if i, j := strings.IndexByte(p, '\''), strings.LastIndexByte(p, '\''); i >= 0 && j > i {
 		quoted := p[i+1 : j]
 		// git: "Password for 'https://user@host': ".
