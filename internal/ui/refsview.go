@@ -465,7 +465,7 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	if m.Item("Rebase " + redact.Control(into) + " onto This").Disabled(ro || current || head.Detached).Chosen() {
 		*act = func() {
 			op, err := write.Rebase(w, b.Name, t.s.LocalBranches(), seen)
-			a.submit(t, op, err)
+			a.submitRewrite(t, op, err)
 		}
 	}
 	if m.Item("Compare with " + redact.Control(into)).Disabled(current || len(head.OID) == 0).Chosen() {

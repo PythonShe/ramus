@@ -186,11 +186,15 @@ func (a *App) commit(t *tab, push bool) {
 	opt := write.CommitOptions{Message: msg, Amend: cs.amend, SignOff: cs.signOff, NoVerify: cs.noVerify, CoAuthors: coAuthorList(cs.coAuthors)}
 	opt.Encoding = cs.encoding
 	cs.busy = true
+	seen := t.s.Seen()
 	err := t.s.Commit(opt, push, func(err error) {
 		cs.busy = false
 		if err != nil {
 			cs.err = errText(err)
 			return
+		}
+		if opt.Amend {
+			a.checkPushed(t, seen)
 		}
 		cs.subject, cs.body, cs.coAuthors, cs.amend, cs.err = "", "", "", false, ""
 		// Recent messages and HEAD's message changed.

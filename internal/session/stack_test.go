@@ -3,6 +3,7 @@ package session
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
@@ -93,5 +94,44 @@ func TestPushStack(t *testing.T) {
 	r.Commit("mine")
 	if err := push(); err == nil {
 		t.Fatal("overwrote a push made elsewhere")
+	}
+}
+
+// A rewrite of commits already pushed is told apart from one of commits
+// not pushed yet, and from a branch behind a push made elsewhere.
+func TestPushedRewrite(t *testing.T) {
+	remote := gittest.Init(t, "--bare")
+	r := gittest.Init(t)
+	r.Write("f", "0")
+	r.Commit("base")
+	r.Git("remote", "add", "origin", remote.Dir)
+	r.Git("push", "-q", "-u", "origin", "main")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	head := func() string { return strings.TrimSpace(r.Git("rev-parse", "HEAD")) }
+	check := func(old string) string {
+		got, done := "", false
+		s.PushedRewrite("refs/heads/main", old, func(up string) { got = up })
+		// The check runs at most three commands; give it their time.
+		go func() { time.Sleep(2 * time.Second); m.update(func() { done = true }) }()
+		m.until(t, "the check", func() bool { return got != "" || done })
+		return got
+	}
+
+	old := head()
+	r.Git("commit", "-q", "--amend", "-m", "base, amended")
+	if up := check(old); up != "origin/main" {
+		t.Fatalf("an amended pushed commit: %q", up)
+	}
+	r.Git("reset", "-q", "--hard", old)
+
+	r.Write("g", "1")
+	r.Commit("local")
+	old = head()
+	r.Git("commit", "-q", "--amend", "-m", "local, amended")
+	if up := check(old); up != "" {
+		t.Fatalf("an amended commit never pushed: %q", up)
 	}
 }

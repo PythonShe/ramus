@@ -123,6 +123,7 @@ type tab struct {
 	bisect    bisectState
 	stats     statsState
 	cmp       commitCompare
+	forcePush forcePush
 	links     tabLinks
 	prefs     refPrefs
 	sideRefs  sideRefs

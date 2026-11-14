@@ -3,10 +3,12 @@ package ui
 import (
 	"bytes"
 	"errors"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/gitexe"
+	"ramus/internal/git/redact"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
@@ -40,7 +42,7 @@ func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 	if m.Item("Fix Up with Staged Changes").Disabled(ro || !staged).Chosen() {
 		a.withCommit(t, id, func(d session.CommitDetail) {
 			op, err := write.FixupInto(t.s.Where(), t.s.Rewrite(d), "", t.s.Seen())
-			a.submit(t, op, err)
+			a.submitRewrite(t, op, err)
 		})
 	}
 	if !ro && t.s.Repo.Runner.Git().Version.Has(gitexe.HistoryFixup) {
@@ -66,7 +68,7 @@ func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 				title:   "Drop " + shortID(id) + "?",
 				message: "“" + string(subject) + "” and its changes leave the history; the commits after it are rewritten. Undo brings it back.",
 				button:  "Drop",
-				run:     func() { a.submit(t, op, nil) },
+				run:     func() { a.submitRewrite(t, op, nil) },
 			}
 		})
 	}
@@ -122,9 +124,6 @@ func (a *App) messageView(c *ui.Context) {
 				}
 				if ui.PrimaryButton(c, d.button).Disabled(len(bytes.TrimSpace([]byte(d.message))) == 0).Clicked() {
 					op, err := d.run(d.message + "\n")
-					if err == nil {
-						_, err = d.t.s.Submit(op)
-					}
 					if err != nil {
 						if errors.Is(err, write.ErrNeedsNewerGit) {
 							err = errors.New("this git cannot do it; git 2.55 or later can")
@@ -133,8 +132,66 @@ func (a *App) messageView(c *ui.Context) {
 						return
 					}
 					d.open = false
+					a.submitRewrite(d.t, op, nil)
 				}
 			})
 		})
+	})
+}
+
+// forcePush offers to force a branch that a rewrite left apart from what
+// was pushed.
+type forcePush struct {
+	branch, upstream string
+}
+
+// submitRewrite runs a write that rewrites history, and offers a force
+// push when it rewrote commits already pushed.
+func (a *App) submitRewrite(t *tab, op write.Op, err error) {
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
+	seen := t.s.Seen()
+	j, err := t.s.Submit(op)
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
+	t.s.Then(j, func(err error) {
+		if err == nil {
+			a.checkPushed(t, seen)
+		}
+	})
+}
+
+// checkPushed offers a force push when the branch seen no longer holds
+// what its upstream got from it.
+func (a *App) checkPushed(t *tab, seen write.Seen) {
+	t.s.PushedRewrite(seen.Branch, seen.Head, func(up string) {
+		t.forcePush = forcePush{branch: seen.Branch, upstream: up}
+	})
+}
+
+// forcePushOffer is the offer, while HEAD is on the branch rewritten.
+func (a *App) forcePushOffer(c *ui.Context, t *tab) {
+	fp := t.forcePush
+	if fp.upstream == "" {
+		return
+	}
+	if h := t.s.State.Head; h.Detached || h.Target != fp.branch {
+		t.forcePush = forcePush{}
+		return
+	}
+	th := c.Theme()
+	ui.Row(c).Padding(8, 12).Gap(12).AlignItems(ui.Center).Background(th.Surface).FillWidth().Children(func() {
+		ui.Text(c, redact.Control(strings.TrimPrefix(fp.branch, "refs/heads/"))+" was rewritten after it was pushed to "+redact.Control(fp.upstream)).Grow(1)
+		if ui.Button(c, "Not Now").Clicked() {
+			t.forcePush = forcePush{}
+		}
+		if ui.PrimaryButton(c, "Force Push with Lease").Disabled(t.s.Queue == nil).Clicked() {
+			t.forcePush = forcePush{}
+			a.submit(t, write.Push(t.s.Where(), write.PushOptions{ForceWithLease: true}), nil)
+		}
 	})
 }

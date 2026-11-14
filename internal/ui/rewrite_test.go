@@ -67,3 +67,34 @@ func TestRewriteFromHistory(t *testing.T) {
 	h.menu("add c", "Create Tag Here…")
 	h.until("the tag dialog", h.shows("Create Tag at"))
 }
+
+// Rewording a commit already pushed offers a force push with lease, which
+// sends the rewritten branch.
+func TestForcePushOffer(t *testing.T) {
+	h := newHarness(t)
+	up := h.repoWith()
+	up.Git("config", "receive.denyCurrentBranch", "ignore")
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", up.Dir)
+	r.Git("fetch", "-q", "origin")
+	r.Git("reset", "-q", "--hard", "origin/main")
+	r.Git("branch", "-q", "--set-upstream-to", "origin/main")
+	r.Write("a.txt", "a\n")
+	r.Commit("add a")
+	r.Git("push", "-q", "origin", "main")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	h.click("History")
+	h.until("history", h.shows("add a"))
+	h.menu("add a", "Reword…")
+	h.until("the dialog", func() bool { return h.app.message.open })
+	h.app.message.message = "add a, reworded"
+	h.click("Reword")
+	h.until("the offer", h.shows("was rewritten after it was pushed to origin/main"))
+	h.click("Force Push with Lease")
+	h.until("the push", func() bool {
+		out, _ := up.Run(nil, "log", "-1", "--format=%s", "main")
+		return strings.TrimSpace(out) == "add a, reworded"
+	})
+}

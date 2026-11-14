@@ -70,7 +70,7 @@ func (a *App) submit(t *tab, op write.Op, err error) {
 func (a *App) reset(t *tab, commit string, mode write.ResetMode) {
 	op, err := write.Reset(t.s.Where(), commit, mode, t.s.Seen())
 	if err != nil || mode != write.ResetHard {
-		a.submit(t, op, err)
+		a.submitRewrite(t, op, err)
 		return
 	}
 	a.confirm = confirmState{
@@ -78,7 +78,7 @@ func (a *App) reset(t *tab, commit string, mode write.ResetMode) {
 		title:   "Drop local changes and reset to " + commit[:10] + "?",
 		message: "Changed files are kept in a snapshot first, and the branch in a backup; Undo brings both back.",
 		button:  "Reset",
-		run:     func() { a.submit(t, op, nil) },
+		run:     func() { a.submitRewrite(t, op, nil) },
 	}
 }
 

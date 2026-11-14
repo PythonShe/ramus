@@ -48,6 +48,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 			a.trustBanner(c, t)
 		}
 		a.operationBar(c, t)
+		a.forcePushOffer(c, t)
 		ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, func() {
 			// After the sidebar, which may have chosen another view.
 			a.showView(t)
