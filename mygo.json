@@ -8,5 +8,17 @@
   "macos": {
     "icon": "assets/app-icon/monogram/AppIcon.icon"
   },
-  "out": "build"
+  "out": "build",
+  "linux": {
+    "comment": "A fast git client",
+    "categories": [
+      "Development",
+      "RevisionControl"
+    ],
+    "webview": false,
+    "command": "ramus",
+    "depends": [
+      "git"
+    ]
+  }
 }
