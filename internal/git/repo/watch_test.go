@@ -29,6 +29,11 @@ func TestClassifyGit(t *testing.T) {
 		"logs/HEAD":                    0,
 		"worktrees/wt/HEAD":            RefsChanged,
 		"worktrees/wt/index":           0,
+		"worktrees/wt/logs/HEAD":       0,
+		"worktrees":                    RefsChanged,
+		"worktrees/wt":                 RefsChanged,
+		"worktrees/wt/gitdir":          RefsChanged,
+		"worktrees/wt/locked":          RefsChanged,
 		"COMMIT_EDITMSG":               0,
 	} {
 		if got := classifyGit(rel); got != want {

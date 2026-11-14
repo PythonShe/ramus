@@ -38,7 +38,7 @@ type Notice struct {
 // classifyGit names what a change to a path in a git directory (relative
 // to it) touched.
 func classifyGit(rel string) Change {
-	first, _, _ := strings.Cut(rel, "/")
+	first, rest, _ := strings.Cut(rel, "/")
 	switch {
 	case strings.HasSuffix(rel, ".lock"):
 		return 0 // the file it guards changes when the lock is taken over
@@ -54,8 +54,11 @@ func classifyGit(rel string) Change {
 	case rel == "objects/info/commit-graph" || strings.HasPrefix(rel, "objects/info/commit-graphs"):
 		return GraphChanged
 	case first == "worktrees":
-		// Another work tree's HEAD or state: only its refs matter here.
-		if _, sub, ok := strings.Cut(rel[len("worktrees/"):], "/"); ok && (sub == "HEAD" || strings.HasPrefix(sub, "refs/")) {
+		// Another work tree's HEAD and refs, and a work tree added, removed
+		// or locked, the folder itself when the last one is pruned; not
+		// its index.
+		_, sub, _ := strings.Cut(rest, "/")
+		if sub == "" || sub == "HEAD" || sub == "gitdir" || sub == "locked" || strings.HasPrefix(sub, "refs/") {
 			return RefsChanged
 		}
 	}
