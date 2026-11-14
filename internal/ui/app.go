@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/crashlog"
+	"ramus/internal/drafts"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
@@ -64,6 +65,9 @@ type Deps struct {
 	// SettingsChanged is called on the main thread with the settings this
 	// window changed, for the other windows to use them.
 	SettingsChanged func(settings.Settings)
+	// Drafts keeps each repository's unfinished commit message; nil
+	// keeps none.
+	Drafts *drafts.Store
 	// LayoutChanged is called on the main thread when the tabs open, or
 	// what is chosen in them, changed, for Layout to be kept.
 	LayoutChanged func()

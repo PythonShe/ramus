@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/drafts"
 	"ramus/internal/git/message"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
@@ -32,6 +33,10 @@ type commitState struct {
 	// when amend is turned on over an empty editor.
 	wasAmend bool
 	confirm  confirmState
+	// draftRead is set once the draft kept from the last run was read,
+	// draftLoading meanwhile; kept is the draft last handed to the store.
+	draftRead, draftLoading bool
+	kept                    drafts.Draft
 }
 
 var personsRE = regexp.MustCompile(`[^<>,;\n]+<[^<>\s]+>`)
@@ -58,15 +63,15 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		t.s.LoadCommitSetup(func(setup session.CommitSetup) {
 			cs.loading, cs.setup = false, &setup
 			cs.encoding, cs.encodingRead = setup.Encoding, true
-			if cs.subject == "" && cs.body == "" && setup.Template != "" {
-				cs.subject, cs.body = message.Split(setup.Template)
-			}
+			cs.fillTemplate()
 		})
 	}
+	a.loadDraft(t)
 	if cs.amend && !cs.wasAmend && cs.subject == "" && cs.body == "" && cs.setup != nil {
 		cs.subject, cs.body = message.Split(cs.setup.Last)
 	}
 	cs.wasAmend = cs.amend
+	a.keepDraft(t)
 	head := t.s.State.Head
 	ui.Column(c).Padding(8).Gap(6).Background(th.Surface).FillWidth().Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -112,6 +117,61 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		})
 	})
 	a.confirmView(c, &cs.confirm)
+}
+
+// fillTemplate puts the commit template in an empty editor, once the
+// draft from the last run, which comes first, was read.
+func (cs *commitState) fillTemplate() {
+	if s := cs.setup; s != nil && cs.draftRead && cs.subject == "" && cs.body == "" && s.Template != "" {
+		cs.subject, cs.body = message.Split(s.Template)
+	}
+}
+
+// loadDraft reads the message left unfinished in the repository when
+// the app last ran, off the main thread, into an editor still empty.
+func (a *App) loadDraft(t *tab) {
+	cs := &t.commit
+	if cs.draftRead || cs.draftLoading {
+		return
+	}
+	if a.Drafts == nil {
+		cs.draftRead = true
+		return
+	}
+	cs.draftLoading = true
+	store, path, update := a.Drafts, t.s.Path, a.Update
+	go func() {
+		d, err := store.Load(path)
+		update(func() {
+			cs.draftLoading, cs.draftRead = false, true
+			if err != nil {
+				a.notice = errText(err)
+			}
+			if cs.subject == "" && cs.body == "" && cs.coAuthors == "" {
+				cs.subject, cs.body, cs.coAuthors = d.Subject, d.Body, d.CoAuthors
+			}
+			cs.kept = d
+			cs.fillTemplate()
+		})
+	}()
+}
+
+// keepDraft hands the message to the store when it changed. The commit
+// template alone is not a draft.
+func (a *App) keepDraft(t *tab) {
+	cs := &t.commit
+	if a.Drafts == nil || !cs.draftRead {
+		return
+	}
+	d := drafts.Draft{Subject: cs.subject, Body: cs.body, CoAuthors: cs.coAuthors}
+	if s := cs.setup; s != nil && s.Template != "" && d.CoAuthors == "" && message.Join(d.Subject, d.Body) == message.Join(message.Split(s.Template)) {
+		d = drafts.Draft{}
+	}
+	if d == cs.kept {
+		return
+	}
+	cs.kept = d
+	a.Drafts.Keep(t.s.Path, d)
 }
 
 // commitReady reports whether the commit box can commit now.

@@ -14,6 +14,7 @@ import (
 
 	"ramus/internal/cli"
 	"ramus/internal/crashlog"
+	"ramus/internal/drafts"
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/lifetime"
 	"ramus/internal/git/run"
@@ -86,6 +87,8 @@ func main() {
 		saved, layoutErr = layout.Load(layoutPath)
 		ws.keep = layout.NewKeeper(layoutPath)
 		ws.keep.OnError = func(err error) { log.Print(err) }
+		ws.deps.Drafts = drafts.New(filepath.Join(dir, "drafts"))
+		ws.deps.Drafts.OnError = func(err error) { log.Print(err) }
 	}
 	first := ws.add()
 	// What was open when the app last ran opens again, before the
@@ -139,7 +142,7 @@ func main() {
 		ws.raise(handle(r))
 	})
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
-		ws.flushLayout()
+		ws.flush()
 		ws.quitting = true
 	})
 	mygo.App.OnQuitCanceled(func() { ws.quitting = false })

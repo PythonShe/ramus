@@ -74,10 +74,15 @@ func (ws *windows) layoutChanged() {
 	})
 }
 
-// flushLayout writes the layout at the start of a quit. It is the one
-// write the main thread waits on: the OS may end the process as soon as
-// the quit's listeners return, and the file is a few hundred bytes.
-func (ws *windows) flushLayout() {
+// flush writes the layout and the drafts at the start of a quit. They
+// are the writes the main thread waits on: the OS may end the process as
+// soon as the quit's listeners return, and the files are small.
+func (ws *windows) flush() {
+	if d := ws.deps.Drafts; d != nil {
+		if err := d.Flush(); err != nil {
+			log.Print(err)
+		}
+	}
 	if ws.keep == nil || !ws.found || ws.gitErr != nil || len(ws.list) == 0 {
 		return
 	}
@@ -168,7 +173,7 @@ func (ws *windows) show(w *window) {
 	}
 	w.win.OnClosed(func() {
 		if len(ws.list) == 1 && !ws.quitting {
-			ws.flushLayout() // the app quits with its last window
+			ws.flush() // the app quits with its last window
 			ws.quitting = true
 		}
 		w.app.CloseAll()
