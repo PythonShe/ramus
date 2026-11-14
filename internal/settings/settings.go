@@ -10,7 +10,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 )
 
 // Settings are the user's choices. The zero value of a field means its
@@ -134,7 +136,9 @@ func Save(path string, s Settings) error {
 	}
 	var fields map[string]json.RawMessage
 	json.Unmarshal(known, &fields)
-	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit", "actions", "emails", "diffSplit", "diffWrap", "noFocusRefresh"} {
+	// Every key of this version is dropped first: one left out of the
+	// new file is at its default and must not keep its old value.
+	for _, k := range knownKeys() {
 		delete(merged, k)
 	}
 	for k, v := range fields {
@@ -145,6 +149,18 @@ func Save(path string, s Settings) error {
 		return err
 	}
 	return WriteFile(path, append(data, '\n'))
+}
+
+// knownKeys are the JSON names of the fields of Settings.
+func knownKeys() []string {
+	var keys []string
+	t := reflect.TypeFor[Settings]()
+	for i := range t.NumField() {
+		if name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ","); name != "" && name != "-" {
+			keys = append(keys, name)
+		}
+	}
+	return keys
 }
 
 // WriteFile replaces path with data through a temporary file beside it.

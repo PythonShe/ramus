@@ -57,3 +57,28 @@ func TestFetchMinutes(t *testing.T) {
 		}
 	}
 }
+
+// A field turned back to its default leaves the file, whichever field.
+func TestSaveClearsEveryField(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	on := Settings{Theme: "dark", Editor: []string{"e"}, Terminal: []string{"t"}, SnapshotDays: 3, RecentLimit: 4,
+		Actions: []Action{{Name: "a", Command: []string{"/bin/true"}}}, Emails: []string{"x@example.com"},
+		DiffSplit: true, DiffWrap: true, NoFocusRefresh: true, FetchMinutes: 10, HiddenSections: []string{"tags"},
+		NoSidebar: true, NoStatusBar: true}
+	// Every field set: a field added later without a value here fails.
+	v := reflect.ValueOf(on)
+	for i := range v.NumField() {
+		if v.Field(i).IsZero() {
+			t.Fatalf("field %s not set in the test", v.Type().Field(i).Name)
+		}
+	}
+	if err := Save(p, on); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(p, Defaults); err != nil {
+		t.Fatal(err)
+	}
+	if back, err := Load(p); err != nil || !reflect.DeepEqual(back, Defaults) {
+		t.Fatalf("back %+v %v", back, err)
+	}
+}
