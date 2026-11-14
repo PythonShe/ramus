@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/repo"
+	"ramus/internal/session"
 )
 
 // named are the roles a screen reader must have a name for.
@@ -113,7 +114,12 @@ func TestAccessibility(t *testing.T) {
 		{"remove worktree", func() {
 			h.app.worktreeRemoveUI = worktreeRemoval{open: true, t: tb, wt: repo.Worktree{Path: r.Dir + "-x", Branch: "refs/heads/side"}}
 		}},
-		{"lock worktree", func() { h.app.worktreeLockUI = worktreeLock{open: true, t: tb, path: r.Dir + "-x"} }}} {
+		{"lock worktree", func() { h.app.worktreeLockUI = worktreeLock{open: true, t: tb, path: r.Dir + "-x"} }},
+		{"remote checkout", func() {
+			h.app.remoteUI = remoteCheckout{open: true, t: tb, remote: "refs/remotes/origin/side", other: "origin-side",
+				local: session.BranchInfo{Name: "refs/heads/side", Upstream: "refs/remotes/origin/side", Ahead: 1, Behind: 2}}
+		}},
+		{"elsewhere", func() { h.app.elsewhereUI = elsewhere{open: true, branch: "refs/heads/side", folder: r.Dir + "-x"} }}} {
 		open.fn()
 		h.settle()
 		unnamed(h, open.name)

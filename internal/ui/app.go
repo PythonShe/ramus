@@ -101,11 +101,15 @@ type App struct {
 	worktreeUI       worktreeDialog
 	worktreeRemoveUI worktreeRemoval
 	worktreeLockUI   worktreeLock
-	message          messageDialog
-	history          historyEdit
-	stashUI          stashDialog
-	cleanUI          cleanState
-	mergeUI          mergeDialog
+	// remoteUI checks out a remote branch a local one has the name of;
+	// elsewhereUI explains a branch checked out in another worktree.
+	remoteUI    remoteCheckout
+	elsewhereUI elsewhere
+	message     messageDialog
+	history     historyEdit
+	stashUI     stashDialog
+	cleanUI     cleanState
+	mergeUI     mergeDialog
 	// pendingFile is a file to show once its repository is open.
 	pendingFile pendingFile
 	compareUI   compareState
@@ -400,6 +404,8 @@ func (a *App) View(c *ui.Context) {
 	a.worktreeView(c)
 	a.worktreeRemoveView(c)
 	a.worktreeLockView(c)
+	a.remoteCheckoutView(c)
+	a.elsewhereView(c)
 	a.messageView(c)
 	a.historyEditView(c)
 	if t := a.current(); t != nil {

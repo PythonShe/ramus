@@ -364,7 +364,11 @@ func (a *App) sidebarRefMenu(it ui.Element, t *tab, name string) {
 	if strings.HasPrefix(name, "refs/remotes/") {
 		it.ContextMenu(func(m *ui.Menu) {
 			var act func()
-			if m.Item("New Worktree…").Disabled(t.s.Queue == nil).Chosen() {
+			ro := t.s.Queue == nil
+			if m.Item("Check Out").Disabled(ro || strings.HasSuffix(name, "/HEAD")).Chosen() {
+				act = func() { a.checkOutRemote(t, name) }
+			}
+			if m.Item("New Worktree…").Disabled(ro).Chosen() {
 				act = func() { a.openAddWorktree(t, name) }
 			}
 			a.historyRefItems(m, t, name, &act)
@@ -455,7 +459,7 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	current := !head.Detached && head.Target == b.Name
 	short := strings.TrimPrefix(b.Name, "refs/heads/")
 	w, seen := t.s.Where(), t.s.Seen()
-	if m.Item("Check Out").Disabled(ro || current || b.Worktree != "").Chosen() {
+	if m.Item("Check Out").Disabled(ro || current).Chosen() {
 		*act = func() { a.checkOut(t, b) }
 	}
 	if m.Item("New Worktree…").Disabled(ro || current || b.Worktree != "").Chosen() {
@@ -549,7 +553,11 @@ func (a *App) historyRefItems(m *ui.Menu, t *tab, name string, act *func()) {
 // checkOut switches to a branch, asking first what to do with local
 // changes when there are some.
 func (a *App) checkOut(t *tab, b session.BranchInfo) {
-	if t.s.Queue == nil || b.Worktree != "" {
+	if t.s.Queue == nil {
+		return
+	}
+	if b.Worktree != "" {
+		a.elsewhereUI = elsewhere{open: true, branch: b.Name, folder: b.Worktree}
 		return
 	}
 	if st := t.s.State.Status; st != nil && st.Len() > 0 {
