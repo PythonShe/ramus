@@ -22,12 +22,18 @@ type answer struct {
 	detail *CommitDetail
 }
 
-// AnswersBudget bounds the answers a session keeps.
+// AnswersBudget bounds the answers a session keeps. With the history
+// view's text budget, it is what an open repository holds beyond its
+// structure (commits, lanes, refs, status), which is the size of the
+// repository, not of how long it has been browsed.
 const AnswersBudget = 64 << 20
 
 // maxAnswer is the largest answer kept, so that one long patch does not
 // push out every other.
 const maxAnswer = AnswersBudget / 4
+
+// SetAnswersBudget changes the bytes the session's answers may hold.
+func (s *Session) SetAnswersBudget(n int) { s.answers().SetBudget(n) }
 
 // racyWindow is how recently a work tree file may have changed and still
 // have its patch kept: a write within the same timestamp tick as the
@@ -43,8 +49,9 @@ func (s *Session) answers() *cache.Cache[string, answer] {
 
 // keep stores a, unless it is too large to be worth it.
 func (s *Session) keep(key string, a answer) {
-	if a.bytes() <= maxAnswer {
-		s.answers().Put(key, a)
+	c := s.answers()
+	if n := a.bytes(); n <= maxAnswer && n <= c.Budget()/4 {
+		c.Put(key, a)
 	}
 }
 
