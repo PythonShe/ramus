@@ -39,5 +39,24 @@ if grep -rn -E 'mygo\.(Updater|Network|Protocol|Cookies)\b' --include='*.go' *.g
 	exit 1
 fi
 
+# The session package is where the main thread meets background work,
+# so it runs under the race detector where that works: it needs cgo but
+# on macOS, and is left out on Windows. Its time is git's, so the
+# detector adds little, and it runs beside the rest, which the ui package
+# outlasts.
+race=
+case $(go env GOOS) in
+darwin) race=1 ;;
+linux) [ "$(go env CGO_ENABLED)" = 1 ] && race=1 ;;
+esac
+
 # mygo is pure Go; building without cgo keeps cross-compiling working.
-CGO_ENABLED=0 go test ./...
+if [ -n "$race" ]; then
+	go test -race ./internal/session/ &
+	racing=$!
+	trap 'kill "$racing" 2>/dev/null || true' EXIT
+	CGO_ENABLED=0 go test $(go list ./... | grep -v '^ramus/internal/session$')
+	wait "$racing"
+else
+	CGO_ENABLED=0 go test ./...
+fi
