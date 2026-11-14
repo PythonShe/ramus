@@ -103,3 +103,26 @@ func TestIssueLinks(t *testing.T) {
 		t.Fatalf("rules %+v", got)
 	}
 }
+
+func TestRefPrefs(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "proj")
+	os.MkdirAll(repo, 0o755)
+	p := filepath.Join(root, "library.json")
+	l, _ := Load(p)
+	pinned, hidden := []string{"refs/heads/main"}, []string{"refs/remotes/origin/old"}
+	if err := l.SetRefPrefs(repo, pinned, hidden); err == nil {
+		t.Fatal("prefs set for a repository not in the library")
+	}
+	l.Opened(repo, time.Unix(1, 0))
+	if err := l.SetRefPrefs(repo, pinned, hidden); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, h := again.RefPrefs(repo); !slices.Equal(p, pinned) || !slices.Equal(h, hidden) {
+		t.Fatalf("pinned %v hidden %v", p, h)
+	}
+}

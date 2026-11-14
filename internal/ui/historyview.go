@@ -32,7 +32,7 @@ type historyState struct {
 	chosen int
 	// textFor is the load the text chunks were read for: rows of another
 	// load are other commits.
-	textFor  *refs.List
+	textFor  histLoad
 	text     map[int]*history.TextChunk
 	used     map[int]uint64
 	asked    map[int]bool
@@ -59,7 +59,16 @@ type historyState struct {
 	detail   commitView
 	detailW  float32
 	chosenID []byte
+	filter   historyFilter
 }
+
+// histLoad names one load of history: the refs and the view it was for.
+type histLoad struct {
+	refs *refs.List
+	view int
+}
+
+func loadOf(h session.HistoryState) histLoad { return histLoad{h.For, h.View} }
 
 func newHistoryState() historyState {
 	return historyState{chosen: -1, detailW: 640, detail: commitView{split: 360}, text: map[int]*history.TextChunk{}, used: map[int]uint64{}, asked: map[int]bool{}}
@@ -88,14 +97,15 @@ type refLabel struct {
 func (a *App) historyView(c *ui.Context, t *tab) {
 	th := c.Theme()
 	hv := &t.hist
+	a.loadRefPrefs(t)
 	t.s.LoadHistory()
 	h := t.s.History
 	hv.frame++
-	if hv.textFor != h.For {
-		if hv.textFor != nil && hv.chosenID != nil {
+	if hv.textFor != loadOf(h) {
+		if hv.textFor.refs != nil && hv.chosenID != nil {
 			hv.want, hv.wantFor = hv.chosenID, nil
 		}
-		hv.textFor, hv.chosen, hv.writing = h.For, -1, false
+		hv.textFor, hv.chosen, hv.writing = loadOf(h), -1, false
 		clear(hv.text)
 		clear(hv.used)
 		clear(hv.asked)
@@ -112,6 +122,9 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 				return
 			case h.Snap == nil || h.Snap.Len() == 0:
 				msg := "No commits yet"
+				if h.Filtered {
+					msg = "No commits match"
+				}
 				if h.Err != nil {
 					msg = errText(h.Err)
 				}
@@ -143,7 +156,9 @@ func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 			ui.Text(c, hv.jumpErr).FontSize(12).TextColor(th.Danger).SingleLine()
 		}
 		ui.Text(c, historyStatus(h)).FontSize(12).TextColor(th.TextMuted).SingleLine()
+		a.filterButton(c, t)
 	})
+	a.filterBar(c, t)
 	if h.Advice != nil && h.Done {
 		ui.Row(c).Padding(4, 8).Gap(8).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 			ui.Text(c, h.Advice.Reason).FontSize(12).Grow(1)
@@ -163,7 +178,10 @@ func historyStatus(h session.HistoryState) string {
 		return ""
 	}
 	n := strconv.Itoa(h.Snap.Len())
-	if !h.Done {
+	switch {
+	case !h.Done && h.Filtered:
+		return "Searching, " + n + " found"
+	case !h.Done:
 		return n + " commits so far"
 	}
 	if h.Snap.Len() == 1 {
@@ -212,7 +230,7 @@ func (a *App) findWanted(t *tab, h session.HistoryState) {
 			}
 			return
 		}
-		if t.s.History.For != hv.textFor {
+		if loadOf(t.s.History) != hv.textFor {
 			return
 		}
 		hv.want, hv.chosen, hv.chosenID = nil, row, want
@@ -289,7 +307,7 @@ func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author
 			// A chunk at the end of a list still loading is read again
 			// once the list has grown past it.
 			partial := n < history.TextChunkRows && !h.Done
-			For := h.For
+			For := loadOf(h)
 			t.s.HistoryText(h, first, n, func(ch *history.TextChunk, err error) {
 				hv.inflight--
 				if hv.textFor != For {

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -322,6 +323,16 @@ const nameColumn = 340
 // sidebarRefMenu gives a branch or tag in the sidebar the menu it has in
 // the branches view, once the refs are read.
 func (a *App) sidebarRefMenu(it ui.Element, t *tab, name string) {
+	if strings.HasPrefix(name, "refs/remotes/") {
+		it.ContextMenu(func(m *ui.Menu) {
+			var act func()
+			a.historyRefItems(m, t, name, &act)
+			if act != nil {
+				act()
+			}
+		})
+		return
+	}
 	if !strings.HasPrefix(name, "refs/heads/") && !strings.HasPrefix(name, "refs/tags/") {
 		return
 	}
@@ -427,6 +438,39 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	m.Separator()
 	if m.Item("Copy Name").Chosen() {
 		a.clip = short
+	}
+	m.Separator()
+	pin := "Pin to Top"
+	if slices.Contains(t.prefs.pinned, b.Name) {
+		pin = "Unpin"
+	}
+	if m.Item(pin).Disabled(!t.prefs.loaded).Chosen() {
+		*act = func() { a.toggleRef(t, &t.prefs.pinned, b.Name) }
+	}
+	a.historyRefItems(m, t, b.Name, act)
+}
+
+// historyRefItems hide a ref from history, show it again, or show it
+// alone.
+func (a *App) historyRefItems(m *ui.Menu, t *tab, name string, act *func()) {
+	hide := "Hide in History"
+	if slices.Contains(t.prefs.hidden, name) {
+		hide = "Show in History"
+	}
+	if m.Item(hide).Disabled(!t.prefs.loaded).Chosen() {
+		*act = func() { a.toggleRef(t, &t.prefs.hidden, name) }
+	}
+	if m.Item("Show Only This in History").Chosen() {
+		*act = func() {
+			hf := &t.hist.filter
+			hf.only, hf.open = name, true
+			if i := slices.Index(t.prefs.hidden, name); i >= 0 {
+				a.toggleRef(t, &t.prefs.hidden, name)
+			} else {
+				a.applyHistoryFilter(t)
+			}
+			t.sel = "history"
+		}
 	}
 }
 

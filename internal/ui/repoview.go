@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -103,22 +104,10 @@ const sideLimit = 500
 
 func (a *App) sidebar(c *ui.Context, t *tab) {
 	st := t.s.State
-	var heads, remotes, tags []string
-	if st.Refs != nil {
-		for i := range st.Refs.Len() {
-			name := st.Refs.Name(i)
-			switch {
-			case strings.HasPrefix(name, "refs/heads/"):
-				heads = append(heads, name)
-			case strings.HasPrefix(name, "refs/remotes/"):
-				if !strings.HasSuffix(name, "/HEAD") {
-					remotes = append(remotes, name)
-				}
-			case strings.HasPrefix(name, "refs/tags/"):
-				tags = append(tags, name)
-			}
-		}
-	}
+	a.loadRefPrefs(t)
+	sr := t.sideRefs.build(t)
+	heads, remotes, tags := sr.heads, sr.remotes, sr.tags
+	th := c.Theme()
 	section := func(key, title string, refs []string, prefix string) {
 		open := t.open[key]
 		ui.SidebarSection(c, fmt.Sprintf("%s (%d)", title, len(refs)), &open, func() {
@@ -131,6 +120,9 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 				it := ui.SidebarItem(c, r, nil, label)
 				if r == st.Head.Target {
 					it.Bold()
+				}
+				if slices.Contains(t.prefs.hidden, r) {
+					it.TextColor(th.TextMuted).Tooltip("Hidden in history")
 				}
 				a.sidebarRefMenu(it, t, r)
 			}

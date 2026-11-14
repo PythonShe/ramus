@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,8 +41,13 @@ type HistoryState struct {
 	Advice *history.Advice
 	// First is how long the first screen took; Took the whole history.
 	First, Took time.Duration
-	// For is the refs it was loaded for.
-	For *refs.List
+	// For is the refs it was loaded for, and View the HistoryView, by
+	// the number SetHistoryView gave it.
+	For  *refs.List
+	View int
+	// Filtered is set when a filter picked the commits; until Done, git
+	// is still searching.
+	Filtered bool
 	// TagCommits maps a loose annotated tag's object id to the commit it
 	// names, for tags whose ref has no peeled value.
 	TagCommits map[string][]byte
@@ -55,20 +61,58 @@ type Stash struct {
 	Message   string
 }
 
+// HistoryView is what history shows: the refs it starts from and the
+// commits it keeps.
+type HistoryView struct {
+	Filter history.Filter
+	// Hidden are refs left out, by full name. Only, when not empty, are
+	// the only refs shown; HEAD shows when its branch is among them.
+	Hidden, Only []string
+}
+
+// shows reports whether history starts from the ref named name.
+func (v HistoryView) shows(name string) bool {
+	if slices.Contains(v.Hidden, name) {
+		return false
+	}
+	return len(v.Only) == 0 || slices.Contains(v.Only, name)
+}
+
+// showsHead reports whether history starts from HEAD.
+func (v HistoryView) showsHead(head refs.Head) bool {
+	if head.Detached || head.Target == "" {
+		return len(v.Only) == 0
+	}
+	return v.shows(head.Target)
+}
+
 // hist is the loading of history behind the main thread's HistoryState.
 type hist struct {
 	mu      sync.Mutex
 	cancel  context.CancelFunc
 	loading *refs.List
+	view    int
 	// gen numbers the loads; only the latest publishes.
 	gen int
 }
+
+// SetHistoryView changes what history shows, and loads it again.
+func (s *Session) SetHistoryView(v HistoryView) {
+	s.historyView = v
+	s.historyViewN++
+}
+
+// HistoryView returns what history shows.
+func (s *Session) HistoryView() HistoryView { return s.historyView }
 
 func (h *hist) current(gen int) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.gen == gen
 }
+
+// filterPublish is how often a search publishes what it found.
+const filterPublish = 250 * time.Millisecond
 
 // firstScreen is the rows published first; later publishes come at four
 // times the rows before, so a long history is published a dozen times.
@@ -78,13 +122,13 @@ const firstScreen = 1000
 // loaded or loading for them already. A load for older refs is cancelled;
 // its rows stay shown until the new first screen comes.
 func (s *Session) LoadHistory() {
-	r, list := s.Repo, s.State.Refs
-	if r == nil || list == nil || s.History.For == list {
+	r, list, vn := s.Repo, s.State.Refs, s.historyViewN
+	if r == nil || list == nil || s.History.For == list && s.History.View == vn {
 		return
 	}
 	s.hist.mu.Lock()
 	defer s.hist.mu.Unlock()
-	if s.hist.loading == list {
+	if s.hist.loading == list && s.hist.view == vn {
 		return
 	}
 	if s.hist.cancel != nil {
@@ -92,15 +136,15 @@ func (s *Session) LoadHistory() {
 	}
 	ctx, cancel := context.WithCancel(r.Life().Context())
 	s.hist.gen++
-	s.hist.cancel, s.hist.loading = cancel, list
-	head, gen := s.State.Head, s.hist.gen
+	s.hist.cancel, s.hist.loading, s.hist.view = cancel, list, vn
+	head, gen, view := s.State.Head, s.hist.gen, s.historyView
 	r.Life().Go(func(context.Context) {
 		defer cancel()
-		s.loadHistory(ctx, gen, r, list, head)
+		s.loadHistory(ctx, gen, r, list, head, view, vn)
 	})
 }
 
-func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, list *refs.List, head refs.Head) {
+func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, list *refs.List, head refs.Head, view HistoryView, vn int) {
 	t0 := time.Now()
 	var tagCommits map[string][]byte
 	var stashes []Stash
@@ -113,8 +157,8 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		h.TagCommits, h.Stashes = tagCommits, stashes
 		s.update(func() {
 			if s.hist.current(gen) {
-				h.For = list
-				if s.History.For == list && s.History.First > 0 && h.First == 0 {
+				h.For, h.View, h.Filtered = list, vn, !view.Filter.IsZero()
+				if s.History.For == list && s.History.View == vn && s.History.First > 0 && h.First == 0 {
 					h.First = s.History.First
 				}
 				s.History = h
@@ -129,7 +173,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		fail(err)
 		return
 	}
-	tips, tc, err := historyTips(cat, list, head)
+	tips, tc, err := historyTips(cat, list, head, view)
 	if err != nil {
 		fail(err)
 		return
@@ -168,6 +212,33 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		next *= 4
 		h.Snap, h.First, h.Advice = l.Snapshot(), first, advice
 		publish(h)
+	}
+	if !view.Filter.IsZero() {
+		// A search may find a match a minute: what it found shows at
+		// once, then every so often, whatever the count.
+		store := commits.New(r.Caps.HashSize)
+		var last time.Time
+		next = 1
+		err = history.Filtered(ctx, r.Runner, r.GitDir, tips, view.Filter, store, func(id uint32, parents []uint32) error {
+			l.Append(id, parents)
+			if l.Len() >= next || time.Since(last) >= filterPublish {
+				if first == 0 {
+					first = time.Since(t0)
+				}
+				last, next = time.Now(), 4*l.Len()
+				publish(HistoryState{Snap: l.Snapshot(), OID: store.Snapshot().OID, First: first})
+			}
+			return nil
+		})
+		if ctx.Err() != nil {
+			return
+		}
+		if first == 0 {
+			first = time.Since(t0)
+		}
+		snap := store.Snapshot()
+		publish(HistoryState{Snap: l.Snapshot(), OID: snap.OID, Done: true, Err: err, First: first, Took: time.Since(t0)})
+		return
 	}
 	if covered {
 		oid := g.OID
@@ -211,7 +282,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 // historyTips are the commits history starts from: HEAD, and the
 // branches, remote branches and tags, annotated tags peeled. Ramus's own
 // refs (snapshots, backups) and the stash are left out.
-func historyTips(cat *catfile.Process, list *refs.List, head refs.Head) ([][]byte, map[string][]byte, error) {
+func historyTips(cat *catfile.Process, list *refs.List, head refs.Head, view HistoryView) ([][]byte, map[string][]byte, error) {
 	var tips, tags [][]byte
 	// from is the tag ref's own object id each tag read stands for.
 	var from [][]byte
@@ -223,9 +294,14 @@ func historyTips(cat *catfile.Process, list *refs.List, head refs.Head) ([][]byt
 			tips = append(tips, id)
 		}
 	}
-	add(head.OID)
+	if view.showsHead(head) {
+		add(head.OID)
+	}
 	for i := range list.Len() {
 		name := list.Name(i)
+		if !view.shows(name) {
+			continue
+		}
 		switch {
 		case strings.HasPrefix(name, "refs/heads/"), strings.HasPrefix(name, "refs/remotes/"):
 			if list.Symbolic(i) == "" {

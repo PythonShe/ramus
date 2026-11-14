@@ -96,7 +96,7 @@ func countStats(ctx context.Context, r *repo.Repository, req StatsRequest, list 
 	}
 	var tips [][]byte
 	if req.Branch == "" {
-		if tips, _, err = historyTips(cat, list, head); err != nil {
+		if tips, _, err = historyTips(cat, list, head, HistoryView{}); err != nil {
 			return StatsResult{}, err
 		}
 	} else {

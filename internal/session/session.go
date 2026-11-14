@@ -78,6 +78,9 @@ type Session struct {
 	done    chan struct{}
 	patch   patches
 	hist    hist
+	// historyView is what history shows, numbered by historyViewN.
+	historyView  HistoryView
+	historyViewN int
 	// commitPatch cancels a commit patch read that a newer one replaced.
 	commitPatch patches
 	stats       statsLoad

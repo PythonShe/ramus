@@ -28,6 +28,10 @@ type Repo struct {
 	// IssueLinks are the repository's own rules for links in commit
 	// messages, tried before those its remote's host implies.
 	IssueLinks []issuelink.Rule `json:"issueLinks,omitempty"`
+	// Pinned branches list first; Hidden refs stay out of history. Both
+	// hold full ref names.
+	Pinned []string `json:"pinned,omitempty"`
+	Hidden []string `json:"hidden,omitempty"`
 }
 
 // Group is a named set of repositories, opened together.
@@ -139,6 +143,33 @@ func (l *Library) SetIssueLinks(path string, rules []issuelink.Rule) error {
 	i := l.find(path)
 	if i >= 0 {
 		l.repos[i].IssueLinks = slices.Clone(rules)
+	}
+	l.mu.Unlock()
+	if i < 0 {
+		return errors.New("library: " + path + " is not a known repository")
+	}
+	return l.save()
+}
+
+// RefPrefs returns a repository's pinned branches and the refs hidden
+// from its history.
+func (l *Library) RefPrefs(path string) (pinned, hidden []string) {
+	path = Clean(path)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if i := l.find(path); i >= 0 {
+		return slices.Clone(l.repos[i].Pinned), slices.Clone(l.repos[i].Hidden)
+	}
+	return nil, nil
+}
+
+// SetRefPrefs sets a known repository's pinned branches and hidden refs.
+func (l *Library) SetRefPrefs(path string, pinned, hidden []string) error {
+	path = Clean(path)
+	l.mu.Lock()
+	i := l.find(path)
+	if i >= 0 {
+		l.repos[i].Pinned, l.repos[i].Hidden = slices.Clone(pinned), slices.Clone(hidden)
 	}
 	l.mu.Unlock()
 	if i < 0 {

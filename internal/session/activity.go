@@ -45,7 +45,7 @@ func FindActivity(ctx context.Context, r *repo.Repository) (ActivitySource, erro
 		if err != nil {
 			return ActivitySource{}, err
 		}
-		if tips, _, err = historyTips(cat, list, head); err != nil {
+		if tips, _, err = historyTips(cat, list, head, HistoryView{}); err != nil {
 			return ActivitySource{}, err
 		}
 	} else if tips, err = gitTips(ctx, r); err != nil {

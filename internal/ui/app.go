@@ -117,6 +117,8 @@ type tab struct {
 	bisect    bisectState
 	stats     statsState
 	links     tabLinks
+	prefs     refPrefs
+	sideRefs  sideRefs
 	// expired is set once old snapshots were cleared on open.
 	expired bool
 	sideW   float32
