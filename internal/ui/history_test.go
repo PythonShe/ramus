@@ -257,3 +257,41 @@ func TestHistoryTextBudget(t *testing.T) {
 	}
 	t.Logf("peak %d bytes, %d chunks kept", peak, len(hv.text))
 }
+
+// A commit message longer than the header gives it scrolls in its own box,
+// instead of being drawn over the rows below it.
+func TestLongCommitMessageStaysInItsBox(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	var lines []string
+	for i := range 30 {
+		lines = append(lines, fmt.Sprintf("body line %d", i+1))
+	}
+	r.Write("a.txt", "alpha\n")
+	r.Commit("long message\n\n" + strings.Join(lines, "\n"))
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commits", h.shows("long message"))
+	h.click("long message")
+	h.until("the detail", h.shows("Author"))
+
+	// Between the end of the word Author and the name after it, the row
+	// shows nothing; a message drawn past its box would cross it.
+	a, _ := h.tt.Find("Author")
+	img := h.tt.Image()
+	bg := img.RGBAAt(img.Bounds().Max.X-4, img.Bounds().Max.Y-4)
+	ink := 0
+	for y := int(a.Y); y < int(a.Y+a.H); y++ {
+		for x := int(a.X) + 56; x < int(a.X)+82; x++ {
+			c := img.RGBAAt(x, y)
+			if d := int(c.R) + int(c.G) + int(c.B) - int(bg.R) - int(bg.G) - int(bg.B); d > 60 || d < -60 {
+				ink++
+			}
+		}
+	}
+	if ink > 0 {
+		t.Fatalf("%d pixels drawn beside the Author label", ink)
+	}
+}

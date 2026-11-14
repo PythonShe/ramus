@@ -92,6 +92,10 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 	}, func() { a.commitPatch(c, t, cv, d) }).SplitReset(360).Fill()
 }
 
+// commitBodyMax is the most a commit message body takes of the header;
+// more scrolls.
+const commitBodyMax = 160
+
 func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
 	cm := d.Commit
@@ -101,7 +105,11 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 		links := t.links.set
 		linkedText(c, redact.Control(string(subject)), links).Bold()
 		if b := bytes.TrimSpace(body); len(b) > 0 {
-			linkedText(c, redact.Control(string(b)), links).MaxHeight(160)
+			// A long message scrolls in its own box: capped text alone
+			// still draws past its height, over the rows below.
+			ui.Scroll(c).Key("message").MaxHeight(commitBodyMax).FillWidth().Children(func() {
+				linkedText(c, redact.Control(string(b)), links).FillWidth()
+			})
 		}
 		person := func(role string, p object.Signature) {
 			ui.Row(c).Gap(spaceM).Children(func() {
