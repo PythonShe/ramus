@@ -473,7 +473,7 @@ func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()
 	if r == nil {
 		return func() {}
 	}
-	ctx, stop := context.WithCancel(r.Life().Context())
+	ctx, stop := context.WithCancel(s.viewContext(r))
 	// dropped is read and written on the main thread only.
 	dropped := false
 	deliver := func(d CommitDetail) {
@@ -580,7 +580,7 @@ func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws d
 	if s.commitPatch.cancel != nil {
 		s.commitPatch.cancel()
 	}
-	ctx, cancel := context.WithCancel(r.Life().Context())
+	ctx, cancel := context.WithCancel(s.viewContext(r))
 	s.commitPatch.cancel = cancel
 	s.commitPatch.mu.Unlock()
 	r.Life().Go(func(context.Context) {

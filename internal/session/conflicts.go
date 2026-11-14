@@ -136,7 +136,7 @@ func (s *Session) LoadConflict(path string, done func(ConflictFile)) {
 		return
 	}
 	update := s.update
-	r.Life().Go(func(ctx context.Context) {
+	s.goView(r, func(ctx context.Context) {
 		cf := loadConflict(ctx, r.Runner, r.GitDir, r.WorkTree, path)
 		if ctx.Err() == nil {
 			update(func() { done(cf) })

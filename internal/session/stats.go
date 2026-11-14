@@ -60,7 +60,7 @@ func (s *Session) LoadStats(req StatsRequest, publish func(StatsResult)) {
 	if s.stats.cancel != nil {
 		s.stats.cancel()
 	}
-	ctx, cancel := context.WithCancel(r.Life().Context())
+	ctx, cancel := context.WithCancel(s.viewContext(r))
 	s.stats.gen++
 	gen := s.stats.gen
 	s.stats.cancel = cancel

@@ -113,7 +113,7 @@ func (s *Session) LostCommits(done func([]LostCommit, error)) {
 		return
 	}
 	update := s.update
-	r.Life().Go(func(ctx context.Context) {
+	s.goView(r, func(ctx context.Context) {
 		lost, err := s.lostCommits(ctx, r.Runner, r.GitDir)
 		update(func() { done(lost, err) })
 	})

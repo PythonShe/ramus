@@ -49,6 +49,8 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		}
 		a.operationBar(c, t)
 		ui.Split(c, &t.sideW, func() { a.sidebar(c, t) }, func() {
+			// After the sidebar, which may have chosen another view.
+			a.showView(t)
 			switch t.sel {
 			case "log":
 				a.logView(c, t)

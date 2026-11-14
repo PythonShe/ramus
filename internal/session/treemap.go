@@ -44,7 +44,7 @@ func (s *Session) FileSizes(rev string, done func(PathWeights)) {
 		rev = "HEAD"
 	}
 	update := s.update
-	r.Life().Go(func(ctx context.Context) {
+	s.goView(r, func(ctx context.Context) {
 		pw := fileSizes(ctx, r, rev)
 		update(func() { done(pw) })
 	})
@@ -89,7 +89,7 @@ func (s *Session) ChangeCounts(req StatsRequest, done func(PathWeights)) {
 		return
 	}
 	update := s.update
-	r.Life().Go(func(ctx context.Context) {
+	s.goView(r, func(ctx context.Context) {
 		pw := changeCounts(ctx, r, req)
 		update(func() { done(pw) })
 	})

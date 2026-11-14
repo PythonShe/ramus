@@ -69,7 +69,7 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 	if s.blame.cancel != nil {
 		s.blame.cancel()
 	}
-	ctx, stop := context.WithCancel(r.Life().Context())
+	ctx, stop := context.WithCancel(s.viewContext(r))
 	s.blame.cancel = stop
 	s.blame.mu.Unlock()
 	post := s.update

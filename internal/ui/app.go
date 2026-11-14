@@ -93,13 +93,18 @@ type App struct {
 	}
 	// confirm asks before a write that drops something.
 	confirm confirmState
+	// shownTab is the tab shown on the last frame, to put the one left in
+	// the background.
+	shownTab *tab
 }
 
 // tab is one open repository.
 type tab struct {
-	id     int
-	s      *session.Session
-	sel    string // sidebar item chosen
+	id  int
+	s   *session.Session
+	sel string // sidebar item chosen
+	// shown is the view the session was last told is shown.
+	shown  string
 	open   map[string]bool
 	cv     changesState
 	commit commitState
@@ -311,6 +316,12 @@ func (a *App) View(c *ui.Context) {
 	root.Children(func() {
 		if len(a.tabs) > 0 {
 			a.tabBar(c)
+		}
+		if t := a.current(); t != a.shownTab {
+			if a.shownTab != nil && slices.Contains(a.tabs, a.shownTab) {
+				a.hideTab(a.shownTab)
+			}
+			a.shownTab = t
 		}
 		if t := a.current(); t != nil {
 			a.repoView(c, t)

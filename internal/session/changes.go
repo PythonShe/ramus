@@ -110,7 +110,7 @@ func (s *Session) Patch(req diff.PatchRequest, sides Sides, done func(PatchResul
 	if s.patch.cancel != nil {
 		s.patch.cancel()
 	}
-	ctx, cancel := context.WithCancel(r.Life().Context())
+	ctx, cancel := context.WithCancel(s.viewContext(r))
 	s.patch.cancel = cancel
 	s.patch.mu.Unlock()
 	r.Life().Go(func(context.Context) {

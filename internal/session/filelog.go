@@ -52,7 +52,7 @@ func (s *Session) FileLog(path string, opt FileLogOptions, done func(commits []F
 	}
 	args = append(args, "--", path)
 	update := s.update
-	r.Life().Go(func(ctx context.Context) {
+	s.goView(r, func(ctx context.Context) {
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true, MaxOutput: 256 << 20,
 			Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: args})
 		var out []FileCommit

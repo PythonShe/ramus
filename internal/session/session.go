@@ -87,6 +87,7 @@ type Session struct {
 	tools       diffTools
 	refInfo     refLoad
 	blame       blames
+	view        viewScope
 }
 
 // refreshSeen is what the last refresh of one repository read, to tell what a change
