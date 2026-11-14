@@ -18,6 +18,8 @@ jobs:
           go-version-file: go.mod
       - name: Check
         run: scripts/check.sh
+      - name: What starting git costs
+        run: RAMUS_MEASURE=1 go test ./spike/spawn -run Spawn -v
       - name: Build without cgo
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ramus" .
       - name: The binary links only the system
@@ -45,6 +47,8 @@ jobs:
         run: git --version
       - name: Check
         run: scripts/check.sh
+      - name: What starting git costs
+        run: RAMUS_MEASURE=1 go test ./spike/spawn -run Spawn -v
       - name: Build without cgo
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ramus" .
 
@@ -80,3 +84,24 @@ jobs:
           set -e
           cat err.txt
           test "$code" = 2 && grep -q '^usage:' err.txt
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The tree is LF; converting it on checkout would fail gofmt.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Git version
+        run: git --version
+      - name: Check
+        run: scripts/check.sh
+      - name: What starting git costs
+        run: RAMUS_MEASURE=1 go test ./spike/spawn -run Spawn -v
+      - name: Build without cgo
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ramus.exe" .
