@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/cli"
@@ -16,6 +17,7 @@ type settingsState struct {
 	// edit is the form; it is saved when the user presses Save.
 	edit             settings.Settings
 	theme            int
+	lang             string
 	editor, terminal string
 	emails           string
 	days, recent     float64
@@ -37,6 +39,21 @@ func (a *App) openSettings() {
 	s.focusRefresh = !s.edit.NoFocusRefresh
 	s.fetch, s.fetchMinutes = s.edit.FetchMinutes > 0, float64(max(s.edit.FetchMinutes, 15))
 	s.pulls = s.edit.PullRequests
+	if a.ChosenLocale != nil {
+		tags, names := a.languageChoices()
+		s.lang = names[max(0, indexOf(tags, a.ChosenLocale()))]
+	}
+}
+
+// languageChoices are what Settings offers as the app's language: the
+// system's first, then each language the app is written in, named in
+// itself.
+func (a *App) languageChoices() (tags, names []string) {
+	tags, names = []string{""}, []string{locales.SettingsLanguageSystem()}
+	for _, tag := range a.Languages {
+		tags, names = append(tags, tag), append(names, i18n.Autonym(tag))
+	}
+	return tags, names
 }
 
 func indexOf(xs []string, x string) int {
@@ -60,6 +77,12 @@ func (a *App) settingsView(c *ui.Context) {
 			ui.Field(c, locales.SettingsAppearance(), func() {
 				ui.Segmented(c, &s.theme, locales.SettingsThemeSystem(), locales.SettingsThemeLight(), locales.SettingsThemeDark())
 			})
+			if a.SetLocale != nil {
+				ui.Field(c, locales.SettingsLanguage(), func() {
+					_, names := a.languageChoices()
+					ui.Select(c, &s.lang, names)
+				})
+			}
 			ui.Field(c, locales.SettingsEditor(), func() {
 				ui.TextInput(c, &s.editor).Placeholder("/usr/local/bin/code --wait")
 			})
@@ -153,6 +176,12 @@ func (a *App) saveSettings() {
 	a.findTools()
 	if a.ApplyTheme != nil {
 		a.ApplyTheme(a.Settings.Theme)
+	}
+	if a.SetLocale != nil && a.ChosenLocale != nil {
+		tags, names := a.languageChoices()
+		if tag := tags[max(0, indexOf(names, s.lang))]; tag != a.ChosenLocale() {
+			a.SetLocale(tag)
+		}
 	}
 	if a.SettingsPath != "" {
 		path, saved, update := a.SettingsPath, next, a.Update

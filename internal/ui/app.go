@@ -73,6 +73,14 @@ type Deps struct {
 	// LayoutChanged is called on the main thread when the tabs open, or
 	// what is chosen in them, changed, for Layout to be kept.
 	LayoutChanged func()
+	// Languages are the languages the app is written in, as BCP 47 tags.
+	// ChosenLocale returns the one chosen in Settings, "" while the app
+	// follows the system's, and SetLocale chooses one, "" to follow the
+	// system again; mygo keeps the choice across launches. Settings
+	// offers no language while SetLocale is nil.
+	Languages    []string
+	ChosenLocale func() string
+	SetLocale    func(tag string)
 }
 
 // App is the state the main window shows. View reads it on the main

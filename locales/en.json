@@ -1470,6 +1470,11 @@
     "description": "The settings dialog's title."
   },
   "settingsAppearance": "Appearance",
+  "settingsLanguage": "Language",
+  "settingsLanguageSystem": "System",
+  "@settingsLanguageSystem": {
+    "description": "The language choice that follows the system's language, first in the Language menu of Settings."
+  },
   "settingsThemeSystem": "System",
   "@settingsThemeSystem": {
     "description": "Appearance: follow the system's light or dark mode."

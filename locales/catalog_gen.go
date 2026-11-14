@@ -7915,6 +7915,32 @@ func (msgs Messages) SettingsAppearance() string {
 	return Catalog.Format(msgs.locale, "settingsAppearance", nil)
 }
 
+// SettingsLanguage says "Language"
+// in the language the app shows.
+func SettingsLanguage() string { return In(i18n.Locale()).SettingsLanguage() }
+
+// SettingsLanguage says "Language"
+// in the language of msgs.
+func (msgs Messages) SettingsLanguage() string {
+	return Catalog.Format(msgs.locale, "settingsLanguage", nil)
+}
+
+// SettingsLanguageSystem says "System"
+// in the language the app shows.
+//
+// The language choice that follows the system's language, first in the
+// Language menu of Settings.
+func SettingsLanguageSystem() string { return In(i18n.Locale()).SettingsLanguageSystem() }
+
+// SettingsLanguageSystem says "System"
+// in the language of msgs.
+//
+// The language choice that follows the system's language, first in the
+// Language menu of Settings.
+func (msgs Messages) SettingsLanguageSystem() string {
+	return Catalog.Format(msgs.locale, "settingsLanguageSystem", nil)
+}
+
 // SettingsThemeSystem says "System"
 // in the language the app shows.
 //

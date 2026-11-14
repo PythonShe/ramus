@@ -137,6 +137,7 @@ func (ws *windows) add() *window {
 		}
 	}
 	d.LayoutChanged = ws.layoutChanged
+	d.Languages, d.ChosenLocale, d.SetLocale = mygo.App.Languages(), mygo.App.ChosenLocale, mygo.App.SetLocale
 	w.app = ui.NewApp(d)
 	w.app.KeysChanged = func() { mygo.App.SetMenu(menu(ws)) }
 	if ws.found {

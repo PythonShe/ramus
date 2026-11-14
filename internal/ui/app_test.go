@@ -292,9 +292,19 @@ func TestSettings(t *testing.T) {
 	h.app.SettingsPath = filepath.Join(t.TempDir(), "settings.json")
 	var theme string
 	h.app.ApplyTheme = func(s string) { theme = s }
+	chosen := ""
+	h.app.Languages = []string{"en"}
+	h.app.ChosenLocale = func() string { return chosen }
+	h.app.SetLocale = func(tag string) { chosen = tag }
 	h.tt.Frame()
 	h.tt.Key(ui.Cmd, ui.KeyComma)
 	h.until("the settings", h.shows("Appearance"))
+	// The language follows the system's until one is chosen, and each is
+	// named in itself.
+	if !h.tt.HasText("Language") || h.app.settingsUI.lang != "System" {
+		t.Fatalf("language %q; texts %q", h.app.settingsUI.lang, h.tt.Texts())
+	}
+	h.app.settingsUI.lang = "English"
 	h.app.settingsUI.theme = 2
 	h.app.settingsUI.editor = "code --wait"
 	h.tt.Frame()
@@ -309,6 +319,14 @@ func TestSettings(t *testing.T) {
 	if theme != "dark" || h.app.Settings.Theme != "dark" || len(h.app.Settings.Editor) != 2 || h.app.Settings.Editor[0] != exe {
 		t.Fatalf("applied %q %+v", theme, h.app.Settings)
 	}
+	if chosen != "en" {
+		t.Fatalf("language chosen %q", chosen)
+	}
+	h.app.openSettings()
+	if h.app.settingsUI.lang != "English" {
+		t.Fatalf("language shown again as %q", h.app.settingsUI.lang)
+	}
+	h.app.settingsUI.open = false
 	h.until("the file", func() bool {
 		s, err := settings.Load(h.app.SettingsPath)
 		return err == nil && s.Theme == "dark"
