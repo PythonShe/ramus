@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -97,14 +98,51 @@ func (a *App) promptView(c *ui.Context) {
 	}
 }
 
-// editor is the tool files open in: the user's own, else the first found.
-func (a *App) editor() (tools.Tool, bool) {
+// editor is the tool t's files open in: the one chosen for the
+// repository, else the user's own, else the first found.
+func (a *App) editor(t *tab) (tools.Tool, bool) {
+	if name := t.prefs.editor; name != "" {
+		for _, tl := range a.palette.tools {
+			if tl.Kind == tools.Editor && tl.Name == name {
+				return tl, true
+			}
+		}
+	}
 	for _, tl := range a.palette.tools {
 		if tl.Kind == tools.Editor {
 			return tl, true
 		}
 	}
 	return tools.Tool{}, false
+}
+
+// editorMenu chooses the editor a repository's files open in.
+func (a *App) editorMenu(m *ui.Menu, t *tab, act *func()) {
+	var eds []string
+	for _, tl := range a.palette.tools {
+		if tl.Kind == tools.Editor && !slices.Contains(eds, tl.Name) {
+			eds = append(eds, tl.Name)
+		}
+	}
+	if len(eds) < 2 {
+		return
+	}
+	a.loadRefPrefs(t) // a tab never shown has not read them
+	path, cur := t.s.Path, t.prefs.editor
+	if !slices.Contains(eds, cur) {
+		cur = ""
+	}
+	m.Submenu("Open Files In", func(sub *ui.Menu) {
+		if sub.Item("Default (" + eds[0] + ")").Checked(cur == "").Chosen() {
+			*act = func() { a.setEditor(path, "") }
+		}
+		sub.Separator()
+		for _, name := range eds {
+			if sub.Item(name).Checked(cur == name).Chosen() {
+				*act = func() { a.setEditor(path, name) }
+			}
+		}
+	})
 }
 
 // fileMenu is the context menu of a changed file. Each choice checks
@@ -135,7 +173,7 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 	if m.Item("Blame").Disabled(root == "").Chosen() {
 		*act = func() { a.showFile(t, rel, true) }
 	}
-	ed, ok := a.editor()
+	ed, ok := a.editor(t)
 	if m.Item("Open in Editor").Disabled(!ok || root == "").Chosen() {
 		*act = withPath(func(abs string) error { return ed.Open(abs, 0) })
 	}

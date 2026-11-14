@@ -12,6 +12,7 @@ func (a *App) tabBar(c *ui.Context) {
 	th := c.Theme()
 	parts := ui.TabsBase(c, &a.active, len(a.tabs))
 	from, to, closing, moving := -1, -1, -1, -1
+	var act func()
 	parts.List.Row().Gap(2).Padding(4, 8, 0, 8).Background(th.Surface).Children(func() {
 		for i, t := range a.tabs {
 			c.Key(t.id)
@@ -33,6 +34,8 @@ func (a *App) tabBar(c *ui.Context) {
 				if a.NewWindow != nil && m.Item("Move to New Window").Disabled(len(a.tabs) < 2).Chosen() {
 					moving = i
 				}
+				a.editorMenu(m, t, &act)
+				m.Separator()
 				if m.Item("Close Tab").Chosen() {
 					closing = i
 				}
@@ -45,6 +48,9 @@ func (a *App) tabBar(c *ui.Context) {
 			})
 		}
 	})
+	if act != nil {
+		act()
+	}
 	if from >= 0 {
 		a.Move(from, to)
 	}

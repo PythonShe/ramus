@@ -35,6 +35,9 @@ type refPrefs struct {
 	pinned, hidden []string
 	// fetchOff keeps the repository from fetching in the background.
 	fetchOff bool
+	// editor names the editor the repository's files open in, "" the
+	// app's own choice.
+	editor string
 	// gen counts changes, for what is built from them.
 	gen int
 }
@@ -54,10 +57,10 @@ func (a *App) loadRefPrefs(t *tab) {
 	lib, path, update := a.Library, t.s.Path, a.Update
 	go func() {
 		pinned, hidden := lib.RefPrefs(path)
-		fetchOff := lib.FetchOff(path)
+		fetchOff, editor := lib.FetchOff(path), lib.Editor(path)
 		update(func() {
 			rp.loading, rp.loaded = false, true
-			rp.fetchOff = fetchOff
+			rp.fetchOff, rp.editor = fetchOff, editor
 			rp.pinned, rp.hidden = pinned, hidden
 			rp.gen++
 			if len(hidden) > 0 {
@@ -304,6 +307,17 @@ func (a *App) keepFetching(t *tab) {
 	t.s.SetBackgroundFetch(every, func(err error) {
 		a.notice = "Background fetch stopped for " + filepath.Base(path) + ": " + errText(err)
 	})
+}
+
+// setEditor has the files of the repository at path open in the editor
+// named, "" in the app's own choice, in its open tab and in the library.
+func (a *App) setEditor(path, name string) {
+	for _, t := range a.tabs {
+		if t.s.Path == path {
+			t.prefs.editor = name
+		}
+	}
+	a.libraryWrite(func(l *library.Library) error { return l.SetEditor(path, name) })
 }
 
 // setFetchOff keeps the repository at path from fetching in the
