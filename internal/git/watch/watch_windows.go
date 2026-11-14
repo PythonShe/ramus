@@ -63,7 +63,15 @@ func (ww *windowsWatch) read() {
 	buf := make([]byte, bufferSize)
 	for {
 		var n uint32
+		// A read is issued under the lock close takes to cancel, so that
+		// none starts after the cancel and waits for ever.
+		ww.mu.Lock()
+		if ww.closed {
+			ww.mu.Unlock()
+			return
+		}
 		err := windows.ReadDirectoryChanges(ww.h, &buf[0], uint32(len(buf)), true, notifyFilter, nil, &ww.ov, 0)
+		ww.mu.Unlock()
 		if err == nil {
 			err = windows.GetOverlappedResult(ww.h, &ww.ov, &n, true)
 		}
@@ -98,11 +106,11 @@ func (ww *windowsWatch) read() {
 }
 
 func (ww *windowsWatch) close() error {
+	// Wake the blocked read, then wait for it before closing the handle.
 	ww.mu.Lock()
 	ww.closed = true
-	ww.mu.Unlock()
-	// Wake the blocked read, then wait for it before closing the handle.
 	windows.CancelIoEx(ww.h, &ww.ov)
+	ww.mu.Unlock()
 	ww.done.Wait()
 	windows.CloseHandle(ww.ov.HEvent)
 	return windows.CloseHandle(ww.h)
