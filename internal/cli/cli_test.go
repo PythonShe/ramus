@@ -2,6 +2,8 @@ package cli
 
 import (
 	"errors"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -57,5 +59,45 @@ func TestToolCommands(t *testing.T) {
 	}
 	if d, _ := ToolCommands("/opt/My Apps/ramus"); !strings.HasPrefix(d, `'/opt/My Apps/ramus' diff`) {
 		t.Fatal(d)
+	}
+}
+
+// A path with any character a shell gives a meaning to is quoted, and the
+// shell git runs the command in then sees the path as it is: a
+// downloaded folder named a;b runs nothing.
+func TestQuoteShell(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no sh")
+	}
+	for _, p := range []string{"/usr/local/bin/ramus", "/a/b-c_d.e+f,g:h@i=j/ramus", "C:/Ramus/ramus.exe"} {
+		if q := quote(p); q != p {
+			t.Errorf("quote(%q) = %q, want it bare", p, q)
+		}
+	}
+	marks := []string{";", "&", "|", "(", ")", "<", ">", "*", "?", "#", "$", "`", "!", "~", "[", "]", "{", "}",
+		"'", `"`, `\`, " ", "\t", "\n", "%", "^", "$(touch x)", "a=b"}
+	dir := t.TempDir()
+	for _, m := range marks {
+		p := "/opt/r" + m + "x/ramus"
+		if m == "a=b" {
+			p = m
+		}
+		q := quote(p)
+		if q == p {
+			t.Errorf("quote(%q) left it bare", p)
+			continue
+		}
+		cmd := exec.Command("sh", "-c", "printf %s "+q)
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil || string(out) != p {
+			t.Errorf("sh read quote(%q) = %s as %q, %v", p, q, out, err)
+		}
+	}
+	if q := quote(""); q != "''" {
+		t.Errorf("quote of nothing %q", q)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Fatalf("the shell ran something: %v", entries)
 	}
 }

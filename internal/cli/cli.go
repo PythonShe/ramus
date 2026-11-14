@@ -173,9 +173,16 @@ func ToolCommands(program string) (diff, merge string) {
 }
 
 // quote writes program for git's config and the shell git runs cmd in.
+// Only a path of characters no shell gives a meaning to goes bare; any
+// other is single-quoted, so a ; or a $( in the app's path, which may be
+// a folder the user downloaded into, never runs as a command.
 func quote(p string) string {
-	if !strings.ContainsAny(p, " \t'\"\\$`") {
+	// A first word like a=b would be an assignment, not the program.
+	assigns := strings.Contains(p, "=") && !strings.HasPrefix(p, "/")
+	if p != "" && strings.Trim(p, shellSafe) == "" && !assigns {
 		return p
 	}
 	return "'" + strings.ReplaceAll(p, "'", `'\''`) + "'"
 }
+
+const shellSafe = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-+,:@="
