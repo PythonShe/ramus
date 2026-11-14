@@ -53,6 +53,7 @@ type pool struct {
 	slots chan struct{}
 	// running counts processes alive, for the soak test and diagnostics.
 	running atomic.Int64
+	journal Journal
 }
 
 // New returns a runner for git with env (the resolved user environment)
@@ -104,6 +105,9 @@ var ErrRestricted = errors.New("run: the repository is not trusted, so git may o
 
 // Git returns the executable the runner starts.
 func (r *Runner) Git() *gitexe.Git { return r.git }
+
+// Journal returns the record of the commands the runner started.
+func (r *Runner) Journal() *Journal { return &r.journal }
 
 // Running returns the number of processes alive.
 func (r *Runner) Running() int { return int(r.running.Load()) }
@@ -247,6 +251,7 @@ func (r *Runner) Run(ctx context.Context, c *Cmd) (Result, error) {
 func (r *Runner) Command(ctx context.Context, c *Cmd) *exec.Cmd {
 	cmd := r.command(ctx, c)
 	cmd.WaitDelay = 2 * time.Second
+	r.journal.record(c, c.Line(), time.Now(), Result{}, nil, true)
 	return cmd
 }
 
@@ -324,12 +329,13 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 		case errors.As(err, &exit):
 			e.ExitCode = exit.ExitCode()
 		}
+		r.journal.record(c, e.Line, t0, res, e, false)
 		return res, e
 	}
+	r.journal.record(c, c.Line(), t0, res, nil, false)
 	return res, nil
 }
 
-// capped keeps the first max bytes written to it.
 // bounded collects output up to max bytes and then stops the command.
 type bounded struct {
 	buf    []byte
@@ -348,6 +354,7 @@ func (b *bounded) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// capped keeps the first max bytes written to it.
 type capped struct {
 	buf bytes.Buffer
 	max int

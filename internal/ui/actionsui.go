@@ -169,6 +169,21 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 // logView lists what the app ran in the repository, and the output of
 // the entry chosen.
 func (a *App) logView(c *ui.Context, t *tab) {
+	ui.Column(c).Fill().Children(func() {
+		ui.Row(c).Padding(6, 8).Children(func() {
+			ui.Segmented(c, &t.gitLog.mode, "Actions", "Git Commands")
+		})
+		if t.gitLog.mode == 1 {
+			a.gitLogView(c, t)
+		} else {
+			a.actionLogView(c, t)
+		}
+	})
+}
+
+// actionLogView lists the writes and actions run for the user, and the
+// output of the entry chosen as it came.
+func (a *App) actionLogView(c *ui.Context, t *tab) {
 	th := c.Theme()
 	log := t.s.Log
 	if len(log) == 0 {

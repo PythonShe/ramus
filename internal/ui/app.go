@@ -114,6 +114,7 @@ type tab struct {
 	logList   ui.ListState
 	logChosen int
 	outList   ui.ListState
+	gitLog    gitLogState
 	snaps     snapState
 	hist      historyState
 	reflog    reflogState

@@ -9,6 +9,7 @@ import (
 	"ramus/internal/actions"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
+	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 )
 
@@ -149,3 +150,24 @@ type shownError struct{ err error }
 
 func (e shownError) Error() string { return redact.Shown(e.err.Error()) }
 func (e shownError) Unwrap() error { return e.err }
+
+// CommandsVersion changes whenever git runs a command anywhere in the app,
+// so a view of GitCommands can tell it is behind without a lock.
+func (s *Session) CommandsVersion() uint64 { return s.runner.Journal().Version() }
+
+// GitCommands reads, off the main thread, the git commands of this
+// repository the runner still keeps, reads included, oldest first, and
+// hands them to done on it.
+func (s *Session) GitCommands(done func([]run.Record)) {
+	r := s.Repo
+	if r == nil {
+		return
+	}
+	j, update := s.runner.Journal(), s.update
+	r.Life().Go(func(ctx context.Context) {
+		recs := j.For(r.GitDir)
+		if ctx.Err() == nil {
+			update(func() { done(recs) })
+		}
+	})
+}
