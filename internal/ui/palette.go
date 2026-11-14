@@ -53,6 +53,9 @@ func (a *App) commands() []command {
 		cmds = append(cmds, cmd("crash-reports", func() { go tools.Reveal(dir) }))
 	}
 	cmds = append(cmds, cmd("diagnostics", a.openDiagnostics))
+	if a.NewWindow != nil {
+		cmds = append(cmds, cmd("new-window", func() { a.NewWindow(nil) }))
+	}
 	t := a.current()
 	if t != nil {
 		cmds = append(cmds, a.tabCommands(t)...)
@@ -86,6 +89,9 @@ func (a *App) tabCommands(t *tab) []command {
 	cmds := []command{
 		cmd("close-tab", func() { a.Close(a.active) }),
 		cmd("refresh", func() { a.reload(t) }),
+	}
+	if a.NewWindow != nil && len(a.tabs) > 1 {
+		cmds = append(cmds, cmd("move-to-window", func() { a.moveToNewWindow(a.active) }))
 	}
 	if t.s.State.Restricted {
 		cmds = append(cmds, cmd("trust", func() { t.s.Trust() }))

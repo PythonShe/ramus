@@ -18,9 +18,11 @@ go run ./scripts/coldstart <binary>  # time to first frame; CI runs it, it opens
 
 ## Layout
 
-- `main.go`: opens the window; nothing else lives here. `probe.go` is
-  its cold-start probe mode (`RAMUS_PROBE_STARTUP`), which
-  `scripts/coldstart` times; `.github/workflows/ci.yml` runs both.
+- `main.go`: starts the app and opens its first window; nothing else
+  lives here. `windows.go` keeps the windows, one `ui.App` each, sharing
+  the stores, the settings and git. `probe.go` is the cold-start probe
+  mode (`RAMUS_PROBE_STARTUP`), which `scripts/coldstart` times;
+  `.github/workflows/ci.yml` runs both.
 - `internal/ui/`: app state and views. Views are tested without a window
   through `ui.NewTester`.
 - `internal/git/`: the engine. It imports nothing from mygo; `check.sh` fails

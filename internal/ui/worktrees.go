@@ -183,6 +183,9 @@ func (a *App) worktreeMenu(it ui.Element, t *tab, w repo.Worktree, main bool) {
 		if m.Item("Open in New Tab").Disabled(w.Current || w.Prunable).Chosen() {
 			act = func() { a.Open(w.Path) }
 		}
+		if a.NewWindow != nil && m.Item("Open in New Window").Disabled(w.Current || w.Prunable).Chosen() {
+			act = func() { a.NewWindow([]string{w.Path}) }
+		}
 		if m.Item("Copy Path").Chosen() {
 			act = func() { a.clip = w.Path }
 		}

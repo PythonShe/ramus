@@ -11,7 +11,7 @@ type tabDrag struct{ id int }
 func (a *App) tabBar(c *ui.Context) {
 	th := c.Theme()
 	parts := ui.TabsBase(c, &a.active, len(a.tabs))
-	from, to, closing := -1, -1, -1
+	from, to, closing, moving := -1, -1, -1, -1
 	parts.List.Row().Gap(2).Padding(4, 8, 0, 8).Background(th.Surface).Children(func() {
 		for i, t := range a.tabs {
 			c.Key(t.id)
@@ -29,6 +29,14 @@ func (a *App) tabBar(c *ui.Context) {
 				tb.Opacity(0.5)
 			}
 			name := a.title(t)
+			tb.ContextMenu(func(m *ui.Menu) {
+				if a.NewWindow != nil && m.Item("Move to New Window").Disabled(len(a.tabs) < 2).Chosen() {
+					moving = i
+				}
+				if m.Item("Close Tab").Chosen() {
+					closing = i
+				}
+			})
 			tb.Label(name).Children(func() {
 				ui.Text(c, name).SingleLine().MaxWidth(200)
 				if ui.Button(c, "×").Label("Close "+name).Padding(0, 4).Clicked() {
@@ -40,8 +48,11 @@ func (a *App) tabBar(c *ui.Context) {
 	if from >= 0 {
 		a.Move(from, to)
 	}
-	if closing >= 0 {
+	switch {
+	case closing >= 0:
 		a.Close(closing)
+	case moving >= 0:
+		a.moveToNewWindow(moving)
 	}
 }
 

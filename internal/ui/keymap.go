@@ -169,6 +169,8 @@ var bindable = []struct{ id, name string }{
 	{"library-stats", "Library Statistics…"},
 	{"crash-reports", "Show Crash Reports"},
 	{"diagnostics", "Diagnostics…"},
+	{"new-window", "New Window"},
+	{"move-to-window", "Move Tab to New Window"},
 	{"close-tab", "Close Tab"},
 	{"refresh", "Refresh"},
 	{"undo", "Undo"},
@@ -214,6 +216,7 @@ var defaultKeys = map[string][]string{
 	"repositories": {"CmdOrCtrl+Shift+O"},
 	"settings":     {"CmdOrCtrl+,"},
 	"close-tab":    {"CmdOrCtrl+W"},
+	"new-window":   {"CmdOrCtrl+Shift+N"},
 	"refresh":      {"CmdOrCtrl+R"},
 	"undo":         {"CmdOrCtrl+Z"},
 	"redo":         {"CmdOrCtrl+Shift+Z"},
@@ -322,8 +325,16 @@ func (a *App) keys() *keymap {
 
 // Accelerator is the first shortcut of command id, for the app menu; ""
 // when it has none.
-func (a *App) Accelerator(id string) string {
-	if ks := a.keys().byID[id]; len(ks) > 0 {
+func (a *App) Accelerator(id string) string { return accelerator(a.keys(), id) }
+
+// Accelerator is the first shortcut of command id with the user's keys
+// from the settings, for a menu built with no window open.
+func Accelerator(user map[string][]string, id string) string {
+	return accelerator(newKeymap(user), id)
+}
+
+func accelerator(km *keymap, id string) string {
+	if ks := km.byID[id]; len(ks) > 0 {
 		return ks[0].String()
 	}
 	return ""

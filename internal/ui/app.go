@@ -57,6 +57,12 @@ type Deps struct {
 	// KeysChanged is called on the main thread when the shortcuts
 	// change, for the app menu to show them; Accelerator reads them.
 	KeysChanged func()
+	// NewWindow opens a window showing the repositories at paths, none
+	// for an empty one; nil offers no other window.
+	NewWindow func(paths []string)
+	// SettingsChanged is called on the main thread with the settings this
+	// window changed, for the other windows to use them.
+	SettingsChanged func(settings.Settings)
 }
 
 // App is the state the main window shows. View reads it on the main

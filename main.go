@@ -74,74 +74,53 @@ func main() {
 	lib, libErr := library.Load(filepath.Join(dir, "library.json"))
 
 	program, _ := os.Executable() // none only leaves the tool config out
-	var win *mygo.Window          // set and read on the main thread
-	app := ui.NewApp(ui.Deps{
+	ws := &windows{probe: probe, deps: ui.Deps{
 		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, CacheDir: cacheDir, Program: program, Crash: crash,
 		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
-		Update: func(fn func()) {
-			mygo.RunOnMain(func() {
-				if win == nil {
-					fn() // no view yet to rebuild
-					return
-				}
-				win.Update(fn)
-			})
-		},
-		PickFolder: func(title string) (string, error) {
-			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: title, Directory: true, CreateDirectories: true})
-			if err != nil || len(paths) == 0 {
-				return "", err
-			}
-			return paths[0], nil
-		},
-		PickFile: func(title string) (string, error) {
-			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: title})
-			if err != nil || len(paths) == 0 {
-				return "", err
-			}
-			return paths[0], nil
-		},
-		SaveFile: func(title, name string) (string, error) {
-			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: title, DefaultPath: name, CreateDirectories: true})
-		},
-	})
-	app.KeysChanged = func() { mygo.App.SetMenu(menu(app)) }
+	}}
+	first := ws.add()
 	for _, e := range []error{cfgErr, libErr} {
 		if e != nil {
-			app.Notify(e.Error())
+			first.app.Notify(e.Error())
 		}
 	}
-	handle := func(r cli.Request) {
+	// handle carries out a request in the window it belongs in, and
+	// returns that window.
+	handle := func(r cli.Request) *window {
+		w := ws.focused
+		if r.Kind == cli.Open {
+			if o := ws.showing(r.Paths[0]); o != nil {
+				w = o
+			}
+		}
+		if w == nil {
+			w = ws.target()
+		}
 		switch r.Kind {
 		case cli.Open:
-			app.Open(r.Paths[0])
+			w.app.Open(r.Paths[0])
 		case cli.Diff:
-			app.Compare(r.Paths[0], r.Paths[1], nil)
+			w.app.Compare(r.Paths[0], r.Paths[1], nil)
 		case cli.Log, cli.Blame:
-			app.ShowFile(r.Paths[0], r.Kind == cli.Blame)
+			w.app.ShowFile(r.Paths[0], r.Kind == cli.Blame)
 		case cli.Merge:
-			app.MergeTool(r.Paths[0], r.Paths[1], r.Paths[2], r.Paths[3], nil)
+			w.app.MergeTool(r.Paths[0], r.Paths[1], r.Paths[2], r.Paths[3], nil)
 		}
+		return w
 	}
 	handle(req)
 	mygo.App.OnSecondInstance(func(args []string, wd string) {
 		r, err := cli.Parse(args, wd)
 		if err != nil {
-			app.Notify(err.Error())
-		} else {
-			handle(r)
+			w := ws.target()
+			w.app.Notify(err.Error())
+			ws.raise(w)
+			return
 		}
-		if win != nil {
-			win.Invalidate()
-			win.Restore()
-			win.Focus()
-		}
+		ws.raise(handle(r))
 	})
 	mygo.App.OnOpenFile(func(p string) {
-		app.Open(p)
-		if win != nil {
-			win.Invalidate()
-		}
+		ws.raise(handle(cli.Request{Kind: cli.Open, Paths: []string{p}}))
 	})
 	if probe != "" {
 		probeMark("app")
@@ -150,50 +129,51 @@ func main() {
 		if probe != "" {
 			probeMark("ready")
 		}
-		mygo.App.SetMenu(menu(app))
-		opts := mygo.WindowOptions{
-			Title:     "Ramus",
-			Width:     1200,
-			Height:    800,
-			MinWidth:  720,
-			MinHeight: 480,
-			StateKey:  "main",
-			Content:   mygoui.View(app.View),
-		}
-		if probe != "" {
-			opts.Hidden, opts.StateKey = true, ""
-		}
-		win = mygo.NewWindow(opts)
-		if probe != "" {
-			probeMark("window")
-			probeWindow(win, probe)
-		}
-		win.OnClosed(app.CloseAll)
-		win.OnFocus(app.WindowFocused)
-		findGit(win, app, crash)
+		ws.ready = true
+		mygo.App.SetMenu(menu(ws))
+		ws.show(first)
+		findGit(ws, crash)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// findGit finds git off the main thread and hands it to the app. The
-// user's PATH comes from their login shell when the app was not started
-// from a terminal; asking it takes a moment, so the window opens first.
-func findGit(win *mygo.Window, app *ui.App, crash *crashlog.Log) {
+// findGit finds git off the main thread and hands it to every window.
+// The user's PATH comes from their login shell when the app was not
+// started from a terminal; asking it takes a moment, so the window opens
+// first.
+func findGit(ws *windows, crash *crashlog.Log) {
 	go func() {
-		env := os.Environ()
-		if userenv.NeedsResolving() {
-			env = userenv.Resolve(context.Background()).Env
+		r, err := lookGit()
+		if err == nil && crash != nil {
+			crash.SetGit(r.Git(), r.Journal())
 		}
-		g, err := gitexe.Find(context.Background(), lookup(env, "PATH"))
-		var r *run.Runner
-		if err == nil {
-			r = run.New(g, env, maxProcesses)
-			crash.SetGit(g, r.Journal())
-		}
-		win.Update(func() { app.SetRunner(r, err) })
+		mygo.RunOnMain(func() {
+			ws.git, ws.gitErr, ws.found = r, err, true
+			for _, w := range ws.list {
+				if w.win == nil {
+					w.app.SetRunner(r, err)
+				} else {
+					w.win.Update(func() { w.app.SetRunner(r, err) })
+				}
+			}
+		})
 	}()
+}
+
+// lookGit finds git on the user's PATH and makes the runner of every
+// git process.
+func lookGit() (*run.Runner, error) {
+	env := os.Environ()
+	if userenv.NeedsResolving() {
+		env = userenv.Resolve(context.Background()).Env
+	}
+	g, err := gitexe.Find(context.Background(), lookup(env, "PATH"))
+	if err != nil {
+		return nil, err
+	}
+	return run.New(g, env, maxProcesses), nil
 }
 
 // runTool runs the app as git's difftool or mergetool: one window with
@@ -239,7 +219,10 @@ func runTool(req cli.Request) {
 			StateKey: "tool", Content: mygoui.View(app.ToolView),
 		})
 		win.OnClosed(func() { mygo.App.Exit(code) })
-		findGit(win, app, nil)
+		go func() {
+			r, err := lookGit()
+			win.Update(func() { app.SetRunner(r, err) })
+		}()
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
@@ -256,36 +239,34 @@ func lookup(env []string, key string) string {
 	return ""
 }
 
-func menu(app *ui.App) *mygo.Menu {
+// menu is the app's menu; an item acts in the window it was chosen in,
+// else the one last focused.
+func menu(ws *windows) *mygo.Menu {
+	key := func(id string) string { return ui.Accelerator(ws.deps.Settings.Keys, id) }
+	act := func(fn func(*ui.App)) func(*mygo.MenuItem, *mygo.Window) {
+		return func(_ *mygo.MenuItem, win *mygo.Window) {
+			w := ws.of(win)
+			if w == nil {
+				w = ws.target()
+			}
+			fn(w.app)
+			if w.win != nil {
+				w.win.Invalidate()
+			}
+		}
+	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: "File", Submenu: []*mygo.MenuItem{
-			{Label: "Open Repository…", Accelerator: app.Accelerator("open"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
-				app.PickAndOpen()
-				w.Invalidate()
-			}},
-			{Label: "Clone Repository…", Accelerator: app.Accelerator("clone"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
-				app.ShowClone()
-				w.Invalidate()
-			}},
-			{Label: "Repositories…", Accelerator: app.Accelerator("repositories"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
-				app.ShowManager()
-				w.Invalidate()
-			}},
+			{Label: "New Window", Accelerator: key("new-window"), Click: func(*mygo.MenuItem, *mygo.Window) { ws.open(nil) }},
+			{Label: "Open Repository…", Accelerator: key("open"), Click: act((*ui.App).PickAndOpen)},
+			{Label: "Clone Repository…", Accelerator: key("clone"), Click: act((*ui.App).ShowClone)},
+			{Label: "Repositories…", Accelerator: key("repositories"), Click: act((*ui.App).ShowManager)},
 			{Role: mygo.RoleOpenRecent},
 			mygo.Separator(),
-			{Label: "Settings…", Accelerator: app.Accelerator("settings"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
-				app.ShowSettings()
-				w.Invalidate()
-			}},
-			{Label: "Command Palette", Accelerator: app.Accelerator("palette"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
-				app.ShowPalette()
-				w.Invalidate()
-			}},
-			{Label: "Refresh", Accelerator: app.Accelerator("refresh"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
-				app.Reload()
-				w.Invalidate()
-			}},
+			{Label: "Settings…", Accelerator: key("settings"), Click: act((*ui.App).ShowSettings)},
+			{Label: "Command Palette", Accelerator: key("palette"), Click: act((*ui.App).ShowPalette)},
+			{Label: "Refresh", Accelerator: key("refresh"), Click: act((*ui.App).Reload)},
 			mygo.Separator(),
 			{Role: mygo.RoleClose},
 		}},

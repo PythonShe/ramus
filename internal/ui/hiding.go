@@ -78,6 +78,9 @@ func (a *App) hidingCommands() []command {
 
 // keepSettings saves the settings off the main thread.
 func (a *App) keepSettings() {
+	if a.SettingsChanged != nil {
+		a.SettingsChanged(a.Settings)
+	}
 	if a.SettingsPath == "" {
 		return
 	}
