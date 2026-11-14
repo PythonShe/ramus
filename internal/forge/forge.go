@@ -127,6 +127,26 @@ func (r Repo) BranchPulls(branch string) string {
 	return r.Web() + "/pulls?q=" + url.QueryEscape("is:pr head:"+branch)
 }
 
+// PullURL is the page of r's pull request n: given, the URL the tool
+// answered, when it is a web page on r's host, else the one built from r
+// and n, "" without a number. The answer is opened in the browser, and a
+// host may be one the remote chose, so it goes nowhere else: no other
+// scheme, host or user name. http is taken from a self-hosted host only,
+// which may serve no https.
+func (r Repo) PullURL(given string, n int) string {
+	if u, err := url.Parse(given); err == nil && u.User == nil && u.Opaque == "" && strings.EqualFold(u.Hostname(), r.Host) &&
+		(u.Scheme == "https" || u.Scheme == "http" && r.Host != "github.com" && r.Host != "gitlab.com") {
+		return given
+	}
+	if n <= 0 {
+		return ""
+	}
+	if r.Kind == GitLab {
+		return r.Web() + "/-/merge_requests/" + strconv.Itoa(n)
+	}
+	return r.Web() + "/pull/" + strconv.Itoa(n)
+}
+
 // Owner is the user or group the repository is under.
 func (r Repo) Owner() string {
 	owner, _, _ := strings.Cut(r.Path, "/")

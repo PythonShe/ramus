@@ -202,7 +202,8 @@ func TestCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := c.Pulls(context.Background(), r, r, []string{"x"})
-	if err != nil || got["x"].Number != 1 {
+	// The tool's "u" is no page: the one built from the number stands.
+	if err != nil || got["x"].Number != 1 || got["x"].URL != "https://github.com/o/r/pull/1" {
 		t.Fatalf("%+v, %v", got, err)
 	}
 	// Asked for a fork's branches, the same answer names none of them.
@@ -339,6 +340,40 @@ func TestStacks(t *testing.T) {
 	}
 	if got := lastFailure("Pushing...\n✗ failed to push: rejected\nhint: x\n"); got != "failed to push: rejected" {
 		t.Fatalf("lastFailure %q", got)
+	}
+}
+
+// A pull request's URL, as the tool answers it, is opened only when it is
+// a web page on the host asked; else it is built from the number.
+func TestPullURL(t *testing.T) {
+	gh := Repo{GitHub, "github.com", "o/r"}
+	gl := Repo{GitLab, "gitlab.com", "g/p"}
+	self := Repo{GitLab, "gitlab.corp.example", "g/p"}
+	for _, tc := range []struct {
+		r     Repo
+		given string
+		n     int
+		want  string
+	}{
+		{gh, "https://github.com/o/r/pull/7", 7, "https://github.com/o/r/pull/7"},
+		{gh, "https://GitHub.com/o/r/pull/7", 7, "https://GitHub.com/o/r/pull/7"},
+		{gh, "http://github.com/o/r/pull/7", 7, "https://github.com/o/r/pull/7"},
+		{gh, "https://github.com.evil.example/o/r/pull/7", 7, "https://github.com/o/r/pull/7"},
+		{gh, "https://github.com@evil.example/pull/7", 7, "https://github.com/o/r/pull/7"},
+		{gh, "https://me@github.com/o/r/pull/7", 7, "https://github.com/o/r/pull/7"},
+		{gh, "javascript:alert(1)", 7, "https://github.com/o/r/pull/7"},
+		{gh, "file:///etc/passwd", 7, "https://github.com/o/r/pull/7"},
+		{gh, "x-github-client://open", 0, ""},
+		{gh, "", 3, "https://github.com/o/r/pull/3"},
+		{gl, "https://gitlab.com/g/p/-/merge_requests/3", 3, "https://gitlab.com/g/p/-/merge_requests/3"},
+		{gl, "https://evil.example/g/p/-/merge_requests/3", 3, "https://gitlab.com/g/p/-/merge_requests/3"},
+		{self, "http://gitlab.corp.example/g/p/-/merge_requests/3", 3, "http://gitlab.corp.example/g/p/-/merge_requests/3"},
+		{self, "http://gitlab.corp.example:8080/g/p/-/merge_requests/3", 3, "http://gitlab.corp.example:8080/g/p/-/merge_requests/3"},
+		{self, "http://other.example/g/p/-/merge_requests/3", 3, "https://gitlab.corp.example/g/p/-/merge_requests/3"},
+	} {
+		if got := tc.r.PullURL(tc.given, tc.n); got != tc.want {
+			t.Errorf("PullURL(%q, %d) on %s = %q, want %q", tc.given, tc.n, tc.r.Host, got, tc.want)
+		}
 	}
 }
 

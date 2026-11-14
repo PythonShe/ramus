@@ -252,8 +252,11 @@ func (a *App) stackBadge(c *ui.Context, t *tab, info *session.RefInfo, b session
 	}
 	ui.Text(c, locales.PullsStackPosition(i+1, len(st.Branches))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Label(what).Tooltip(what)
 	if _, asked := t.pulls.by[b.Name]; !asked || !a.Settings.PullRequests {
-		if br := st.Branches[i]; br.PR > 0 && br.URL != "" && !br.Merged {
-			ui.Link(c, fmt.Sprintf("#%d", br.PR), br.URL).FontSize(textSmall)
+		// The file is in the git directory, which a repository handed over
+		// as a folder brings along: its link goes to the remote's host only.
+		repo, _, isOn := session.BranchRepo(b, info.Remotes)
+		if br := st.Branches[i]; br.PR > 0 && br.URL != "" && !br.Merged && isOn && repo.Kind == forge.GitHub {
+			ui.Link(c, fmt.Sprintf("#%d", br.PR), session.PullsRepo(repo, info.Remotes).PullURL(br.URL, br.PR)).FontSize(textSmall)
 		}
 	}
 }

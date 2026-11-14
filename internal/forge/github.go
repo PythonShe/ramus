@@ -161,8 +161,17 @@ func (p restPull) pull() Pull {
 // one, else an open one. When GitHub names none, hint, the number the
 // subject ends with (see SquashHint), is asked for by itself; 0 asks
 // nothing more. ok is false when there is none. A host the tool does
-// not know (Knows) is not asked: ErrUnknownHost.
+// not know (Knows) is not asked: ErrUnknownHost. Its URL is on r's host
+// (PullURL).
 func (c *CLI) CommitPull(ctx context.Context, r Repo, sha string, hint int) (p Pull, ok bool, err error) {
+	p, ok, err = c.commitPull(ctx, r, sha, hint)
+	if ok {
+		p.URL = r.PullURL(p.URL, p.Number)
+	}
+	return p, ok, err
+}
+
+func (c *CLI) commitPull(ctx context.Context, r Repo, sha string, hint int) (p Pull, ok bool, err error) {
 	if r.Kind != GitHub || c.Kind != GitHub {
 		return Pull{}, false, ErrNoCLI
 	}

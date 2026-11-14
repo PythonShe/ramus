@@ -198,7 +198,7 @@ func (w *capped) Write(p []byte) (int, error) {
 // go to base. A branch's open pull request wins, else its latest merged
 // or closed one; a branch with none is left out. At most MaxBranches are
 // asked about. A host the tool does not know (Knows) is not asked:
-// ErrUnknownHost.
+// ErrUnknownHost. Their URLs are on base's host (PullURL).
 func (c *CLI) Pulls(ctx context.Context, base, head Repo, branches []string) (map[string]Pull, error) {
 	if base.Kind != c.Kind || head.Kind != c.Kind {
 		return nil, ErrNoCLI
@@ -221,6 +221,10 @@ func (c *CLI) Pulls(ctx context.Context, base, head Repo, branches []string) (ma
 		if err != nil {
 			return nil, err
 		}
+	}
+	for b, p := range out {
+		p.URL = base.PullURL(p.URL, p.Number)
+		out[b] = p
 	}
 	return out, nil
 }
