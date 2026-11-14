@@ -227,3 +227,1607 @@ func CommonURL() string { return In(i18n.Locale()).CommonURL() }
 func (msgs Messages) CommonURL() string {
 	return Catalog.Format(msgs.locale, "commonURL", nil)
 }
+
+// RefsBranches says "Branches"
+// in the language the app shows.
+func RefsBranches() string { return In(i18n.Locale()).RefsBranches() }
+
+// RefsBranches says "Branches"
+// in the language of msgs.
+func (msgs Messages) RefsBranches() string {
+	return Catalog.Format(msgs.locale, "refsBranches", nil)
+}
+
+// RefsTags says "Tags"
+// in the language the app shows.
+func RefsTags() string { return In(i18n.Locale()).RefsTags() }
+
+// RefsTags says "Tags"
+// in the language of msgs.
+func (msgs Messages) RefsTags() string {
+	return Catalog.Format(msgs.locale, "refsTags", nil)
+}
+
+// RefsRemotes says "Remotes"
+// in the language the app shows.
+func RefsRemotes() string { return In(i18n.Locale()).RefsRemotes() }
+
+// RefsRemotes says "Remotes"
+// in the language of msgs.
+func (msgs Messages) RefsRemotes() string {
+	return Catalog.Format(msgs.locale, "refsRemotes", nil)
+}
+
+// RefsDeletedBranches says "{count, plural, one {Deleted # branch} other {Deleted # branches}}"
+// in the language the app shows.
+func RefsDeletedBranches(count int) string { return In(i18n.Locale()).RefsDeletedBranches(count) }
+
+// RefsDeletedBranches says "{count, plural, one {Deleted # branch} other {Deleted # branches}}"
+// in the language of msgs.
+func (msgs Messages) RefsDeletedBranches(count int) string {
+	return Catalog.Format(msgs.locale, "refsDeletedBranches", map[string]any{"count": count})
+}
+
+// RefsDeletedBranch says "Deleted {name} at {commit}"
+// in the language the app shows.
+//
+// The branches view's bar, after a branch was deleted; commit is a short
+// hash.
+func RefsDeletedBranch(name string, commit string) string {
+	return In(i18n.Locale()).RefsDeletedBranch(name, commit)
+}
+
+// RefsDeletedBranch says "Deleted {name} at {commit}"
+// in the language of msgs.
+//
+// The branches view's bar, after a branch was deleted; commit is a short
+// hash.
+func (msgs Messages) RefsDeletedBranch(name string, commit string) string {
+	return Catalog.Format(msgs.locale, "refsDeletedBranch", map[string]any{"name": name, "commit": commit})
+}
+
+// RefsRestore says "Restore"
+// in the language the app shows.
+//
+// A button: makes the branches just deleted again.
+func RefsRestore() string { return In(i18n.Locale()).RefsRestore() }
+
+// RefsRestore says "Restore"
+// in the language of msgs.
+//
+// A button: makes the branches just deleted again.
+func (msgs Messages) RefsRestore() string {
+	return Catalog.Format(msgs.locale, "refsRestore", nil)
+}
+
+// RefsCleanUp says "Clean Up…"
+// in the language the app shows.
+//
+// A button: lists the branches that can be deleted.
+func RefsCleanUp() string { return In(i18n.Locale()).RefsCleanUp() }
+
+// RefsCleanUp says "Clean Up…"
+// in the language of msgs.
+//
+// A button: lists the branches that can be deleted.
+func (msgs Messages) RefsCleanUp() string {
+	return Catalog.Format(msgs.locale, "refsCleanUp", nil)
+}
+
+// RefsNewTag says "New Tag…"
+// in the language the app shows.
+func RefsNewTag() string { return In(i18n.Locale()).RefsNewTag() }
+
+// RefsNewTag says "New Tag…"
+// in the language of msgs.
+func (msgs Messages) RefsNewTag() string {
+	return Catalog.Format(msgs.locale, "refsNewTag", nil)
+}
+
+// RefsAddRemote says "Add Remote…"
+// in the language the app shows.
+func RefsAddRemote() string { return In(i18n.Locale()).RefsAddRemote() }
+
+// RefsAddRemote says "Add Remote…"
+// in the language of msgs.
+func (msgs Messages) RefsAddRemote() string {
+	return Catalog.Format(msgs.locale, "refsAddRemote", nil)
+}
+
+// RefsAddRemoteTitle says "Add Remote"
+// in the language the app shows.
+func RefsAddRemoteTitle() string { return In(i18n.Locale()).RefsAddRemoteTitle() }
+
+// RefsAddRemoteTitle says "Add Remote"
+// in the language of msgs.
+func (msgs Messages) RefsAddRemoteTitle() string {
+	return Catalog.Format(msgs.locale, "refsAddRemoteTitle", nil)
+}
+
+// RefsName says "Name"
+// in the language the app shows.
+//
+// The field for a new remote's name.
+func RefsName() string { return In(i18n.Locale()).RefsName() }
+
+// RefsName says "Name"
+// in the language of msgs.
+//
+// The field for a new remote's name.
+func (msgs Messages) RefsName() string {
+	return Catalog.Format(msgs.locale, "refsName", nil)
+}
+
+// RefsAdd says "Add"
+// in the language the app shows.
+//
+// A button: adds the remote.
+func RefsAdd() string { return In(i18n.Locale()).RefsAdd() }
+
+// RefsAdd says "Add"
+// in the language of msgs.
+//
+// A button: adds the remote.
+func (msgs Messages) RefsAdd() string {
+	return Catalog.Format(msgs.locale, "refsAdd", nil)
+}
+
+// RefsNoBranches says "No branches"
+// in the language the app shows.
+func RefsNoBranches() string { return In(i18n.Locale()).RefsNoBranches() }
+
+// RefsNoBranches says "No branches"
+// in the language of msgs.
+func (msgs Messages) RefsNoBranches() string {
+	return Catalog.Format(msgs.locale, "refsNoBranches", nil)
+}
+
+// RefsNoBranchesMatch says "No branches match"
+// in the language the app shows.
+func RefsNoBranchesMatch() string { return In(i18n.Locale()).RefsNoBranchesMatch() }
+
+// RefsNoBranchesMatch says "No branches match"
+// in the language of msgs.
+func (msgs Messages) RefsNoBranchesMatch() string {
+	return Catalog.Format(msgs.locale, "refsNoBranchesMatch", nil)
+}
+
+// RefsNoTags says "No tags"
+// in the language the app shows.
+func RefsNoTags() string { return In(i18n.Locale()).RefsNoTags() }
+
+// RefsNoTags says "No tags"
+// in the language of msgs.
+func (msgs Messages) RefsNoTags() string {
+	return Catalog.Format(msgs.locale, "refsNoTags", nil)
+}
+
+// RefsNoTagsMatch says "No tags match"
+// in the language the app shows.
+func RefsNoTagsMatch() string { return In(i18n.Locale()).RefsNoTagsMatch() }
+
+// RefsNoTagsMatch says "No tags match"
+// in the language of msgs.
+func (msgs Messages) RefsNoTagsMatch() string {
+	return Catalog.Format(msgs.locale, "refsNoTagsMatch", nil)
+}
+
+// RefsInWorktree says "in {folder}"
+// in the language the app shows.
+//
+// After a branch's name: the folder of the other worktree it is checked out
+// in.
+func RefsInWorktree(folder string) string { return In(i18n.Locale()).RefsInWorktree(folder) }
+
+// RefsInWorktree says "in {folder}"
+// in the language of msgs.
+//
+// After a branch's name: the folder of the other worktree it is checked out
+// in.
+func (msgs Messages) RefsInWorktree(folder string) string {
+	return Catalog.Format(msgs.locale, "refsInWorktree", map[string]any{"folder": folder})
+}
+
+// RefsCheckedOutIn says "Checked out in {path}"
+// in the language the app shows.
+func RefsCheckedOutIn(path string) string { return In(i18n.Locale()).RefsCheckedOutIn(path) }
+
+// RefsCheckedOutIn says "Checked out in {path}"
+// in the language of msgs.
+func (msgs Messages) RefsCheckedOutIn(path string) string {
+	return Catalog.Format(msgs.locale, "refsCheckedOutIn", map[string]any{"path": path})
+}
+
+// RefsOnBranch says "on {branch}"
+// in the language the app shows.
+//
+// After a branch's name: the branch it is stacked on.
+func RefsOnBranch(branch string) string { return In(i18n.Locale()).RefsOnBranch(branch) }
+
+// RefsOnBranch says "on {branch}"
+// in the language of msgs.
+//
+// After a branch's name: the branch it is stacked on.
+func (msgs Messages) RefsOnBranch(branch string) string {
+	return Catalog.Format(msgs.locale, "refsOnBranch", map[string]any{"branch": branch})
+}
+
+// RefsStackedOn says "Stacked on {branch}"
+// in the language the app shows.
+func RefsStackedOn(branch string) string { return In(i18n.Locale()).RefsStackedOn(branch) }
+
+// RefsStackedOn says "Stacked on {branch}"
+// in the language of msgs.
+func (msgs Messages) RefsStackedOn(branch string) string {
+	return Catalog.Format(msgs.locale, "refsStackedOn", map[string]any{"branch": branch})
+}
+
+// RefsTagKindLightweight says "lightweight"
+// in the language the app shows.
+//
+// A column of the tag list: the kind of tag.
+func RefsTagKindLightweight() string { return In(i18n.Locale()).RefsTagKindLightweight() }
+
+// RefsTagKindLightweight says "lightweight"
+// in the language of msgs.
+//
+// A column of the tag list: the kind of tag.
+func (msgs Messages) RefsTagKindLightweight() string {
+	return Catalog.Format(msgs.locale, "refsTagKindLightweight", nil)
+}
+
+// RefsTagKindAnnotated says "annotated"
+// in the language the app shows.
+//
+// A column of the tag list: the kind of tag.
+func RefsTagKindAnnotated() string { return In(i18n.Locale()).RefsTagKindAnnotated() }
+
+// RefsTagKindAnnotated says "annotated"
+// in the language of msgs.
+//
+// A column of the tag list: the kind of tag.
+func (msgs Messages) RefsTagKindAnnotated() string {
+	return Catalog.Format(msgs.locale, "refsTagKindAnnotated", nil)
+}
+
+// RefsTagKindSigned says "signed"
+// in the language the app shows.
+//
+// A column of the tag list: the kind of tag.
+func RefsTagKindSigned() string { return In(i18n.Locale()).RefsTagKindSigned() }
+
+// RefsTagKindSigned says "signed"
+// in the language of msgs.
+//
+// A column of the tag list: the kind of tag.
+func (msgs Messages) RefsTagKindSigned() string {
+	return Catalog.Format(msgs.locale, "refsTagKindSigned", nil)
+}
+
+// RefsListLabel says "Branches, tags and remotes"
+// in the language the app shows.
+func RefsListLabel() string { return In(i18n.Locale()).RefsListLabel() }
+
+// RefsListLabel says "Branches, tags and remotes"
+// in the language of msgs.
+func (msgs Messages) RefsListLabel() string {
+	return Catalog.Format(msgs.locale, "refsListLabel", nil)
+}
+
+// RefsCheckOut says "Check Out"
+// in the language the app shows.
+//
+// A verb: checks out a branch, tag or submodule.
+func RefsCheckOut() string { return In(i18n.Locale()).RefsCheckOut() }
+
+// RefsCheckOut says "Check Out"
+// in the language of msgs.
+//
+// A verb: checks out a branch, tag or submodule.
+func (msgs Messages) RefsCheckOut() string {
+	return Catalog.Format(msgs.locale, "refsCheckOut", nil)
+}
+
+// RefsNewWorktree says "New Worktree…"
+// in the language the app shows.
+func RefsNewWorktree() string { return In(i18n.Locale()).RefsNewWorktree() }
+
+// RefsNewWorktree says "New Worktree…"
+// in the language of msgs.
+func (msgs Messages) RefsNewWorktree() string {
+	return Catalog.Format(msgs.locale, "refsNewWorktree", nil)
+}
+
+// RefsMergeInto says "Merge into {branch}…"
+// in the language the app shows.
+func RefsMergeInto(branch string) string { return In(i18n.Locale()).RefsMergeInto(branch) }
+
+// RefsMergeInto says "Merge into {branch}…"
+// in the language of msgs.
+func (msgs Messages) RefsMergeInto(branch string) string {
+	return Catalog.Format(msgs.locale, "refsMergeInto", map[string]any{"branch": branch})
+}
+
+// RefsRebaseOnto says "Rebase {branch} onto This"
+// in the language the app shows.
+func RefsRebaseOnto(branch string) string { return In(i18n.Locale()).RefsRebaseOnto(branch) }
+
+// RefsRebaseOnto says "Rebase {branch} onto This"
+// in the language of msgs.
+func (msgs Messages) RefsRebaseOnto(branch string) string {
+	return Catalog.Format(msgs.locale, "refsRebaseOnto", map[string]any{"branch": branch})
+}
+
+// RefsCompareWith says "Compare with {branch}"
+// in the language the app shows.
+func RefsCompareWith(branch string) string { return In(i18n.Locale()).RefsCompareWith(branch) }
+
+// RefsCompareWith says "Compare with {branch}"
+// in the language of msgs.
+func (msgs Messages) RefsCompareWith(branch string) string {
+	return Catalog.Format(msgs.locale, "refsCompareWith", map[string]any{"branch": branch})
+}
+
+// RefsPushStack says "{count, plural, one {Push Stack of # Branch} other {Push Stack of # Branches}}"
+// in the language the app shows.
+func RefsPushStack(count int) string { return In(i18n.Locale()).RefsPushStack(count) }
+
+// RefsPushStack says "{count, plural, one {Push Stack of # Branch} other {Push Stack of # Branches}}"
+// in the language of msgs.
+func (msgs Messages) RefsPushStack(count int) string {
+	return Catalog.Format(msgs.locale, "refsPushStack", map[string]any{"count": count})
+}
+
+// RefsCreateTagHere says "Create Tag Here…"
+// in the language the app shows.
+func RefsCreateTagHere() string { return In(i18n.Locale()).RefsCreateTagHere() }
+
+// RefsCreateTagHere says "Create Tag Here…"
+// in the language of msgs.
+func (msgs Messages) RefsCreateTagHere() string {
+	return Catalog.Format(msgs.locale, "refsCreateTagHere", nil)
+}
+
+// RefsRenameItem says "Rename…"
+// in the language the app shows.
+func RefsRenameItem() string { return In(i18n.Locale()).RefsRenameItem() }
+
+// RefsRenameItem says "Rename…"
+// in the language of msgs.
+func (msgs Messages) RefsRenameItem() string {
+	return Catalog.Format(msgs.locale, "refsRenameItem", nil)
+}
+
+// RefsRenameTitle says "Rename {name}"
+// in the language the app shows.
+func RefsRenameTitle(name string) string { return In(i18n.Locale()).RefsRenameTitle(name) }
+
+// RefsRenameTitle says "Rename {name}"
+// in the language of msgs.
+func (msgs Messages) RefsRenameTitle(name string) string {
+	return Catalog.Format(msgs.locale, "refsRenameTitle", map[string]any{"name": name})
+}
+
+// RefsNewName says "New name"
+// in the language the app shows.
+func RefsNewName() string { return In(i18n.Locale()).RefsNewName() }
+
+// RefsNewName says "New name"
+// in the language of msgs.
+func (msgs Messages) RefsNewName() string {
+	return Catalog.Format(msgs.locale, "refsNewName", nil)
+}
+
+// RefsDeleteItem says "Delete…"
+// in the language the app shows.
+func RefsDeleteItem() string { return In(i18n.Locale()).RefsDeleteItem() }
+
+// RefsDeleteItem says "Delete…"
+// in the language of msgs.
+func (msgs Messages) RefsDeleteItem() string {
+	return Catalog.Format(msgs.locale, "refsDeleteItem", nil)
+}
+
+// RefsCopyName says "Copy Name"
+// in the language the app shows.
+func RefsCopyName() string { return In(i18n.Locale()).RefsCopyName() }
+
+// RefsCopyName says "Copy Name"
+// in the language of msgs.
+func (msgs Messages) RefsCopyName() string {
+	return Catalog.Format(msgs.locale, "refsCopyName", nil)
+}
+
+// RefsPinToTop says "Pin to Top"
+// in the language the app shows.
+func RefsPinToTop() string { return In(i18n.Locale()).RefsPinToTop() }
+
+// RefsPinToTop says "Pin to Top"
+// in the language of msgs.
+func (msgs Messages) RefsPinToTop() string {
+	return Catalog.Format(msgs.locale, "refsPinToTop", nil)
+}
+
+// RefsUnpin says "Unpin"
+// in the language the app shows.
+func RefsUnpin() string { return In(i18n.Locale()).RefsUnpin() }
+
+// RefsUnpin says "Unpin"
+// in the language of msgs.
+func (msgs Messages) RefsUnpin() string {
+	return Catalog.Format(msgs.locale, "refsUnpin", nil)
+}
+
+// RefsHideInHistory says "Hide in History"
+// in the language the app shows.
+func RefsHideInHistory() string { return In(i18n.Locale()).RefsHideInHistory() }
+
+// RefsHideInHistory says "Hide in History"
+// in the language of msgs.
+func (msgs Messages) RefsHideInHistory() string {
+	return Catalog.Format(msgs.locale, "refsHideInHistory", nil)
+}
+
+// RefsShowInHistory says "Show in History"
+// in the language the app shows.
+func RefsShowInHistory() string { return In(i18n.Locale()).RefsShowInHistory() }
+
+// RefsShowInHistory says "Show in History"
+// in the language of msgs.
+func (msgs Messages) RefsShowInHistory() string {
+	return Catalog.Format(msgs.locale, "refsShowInHistory", nil)
+}
+
+// RefsShowOnlyInHistory says "Show Only This in History"
+// in the language the app shows.
+func RefsShowOnlyInHistory() string { return In(i18n.Locale()).RefsShowOnlyInHistory() }
+
+// RefsShowOnlyInHistory says "Show Only This in History"
+// in the language of msgs.
+func (msgs Messages) RefsShowOnlyInHistory() string {
+	return Catalog.Format(msgs.locale, "refsShowOnlyInHistory", nil)
+}
+
+// RefsSwitchTitle says "Switch to {name} with local changes?"
+// in the language the app shows.
+func RefsSwitchTitle(name string) string { return In(i18n.Locale()).RefsSwitchTitle(name) }
+
+// RefsSwitchTitle says "Switch to {name} with local changes?"
+// in the language of msgs.
+func (msgs Messages) RefsSwitchTitle(name string) string {
+	return Catalog.Format(msgs.locale, "refsSwitchTitle", map[string]any{"name": name})
+}
+
+// RefsSwitchMessage says "Carried changes stay in the files; git stops if one would be overwritten. Stashed changes go to the stash list."
+// in the language the app shows.
+func RefsSwitchMessage() string { return In(i18n.Locale()).RefsSwitchMessage() }
+
+// RefsSwitchMessage says "Carried changes stay in the files; git stops if one would be overwritten. Stashed changes go to the stash list."
+// in the language of msgs.
+func (msgs Messages) RefsSwitchMessage() string {
+	return Catalog.Format(msgs.locale, "refsSwitchMessage", nil)
+}
+
+// RefsCarryThem says "Carry Them"
+// in the language the app shows.
+func RefsCarryThem() string { return In(i18n.Locale()).RefsCarryThem() }
+
+// RefsCarryThem says "Carry Them"
+// in the language of msgs.
+func (msgs Messages) RefsCarryThem() string {
+	return Catalog.Format(msgs.locale, "refsCarryThem", nil)
+}
+
+// RefsStashThem says "Stash Them"
+// in the language the app shows.
+func RefsStashThem() string { return In(i18n.Locale()).RefsStashThem() }
+
+// RefsStashThem says "Stash Them"
+// in the language of msgs.
+func (msgs Messages) RefsStashThem() string {
+	return Catalog.Format(msgs.locale, "refsStashThem", nil)
+}
+
+// RefsDeleteBranchesTitle says "{count, plural, one {Delete # branch?} other {Delete # branches?}}"
+// in the language the app shows.
+func RefsDeleteBranchesTitle(count int) string {
+	return In(i18n.Locale()).RefsDeleteBranchesTitle(count)
+}
+
+// RefsDeleteBranchesTitle says "{count, plural, one {Delete # branch?} other {Delete # branches?}}"
+// in the language of msgs.
+func (msgs Messages) RefsDeleteBranchesTitle(count int) string {
+	return Catalog.Format(msgs.locale, "refsDeleteBranchesTitle", map[string]any{"count": count})
+}
+
+// RefsDeleteBranchTitle says "Delete branch {name} at {commit}?"
+// in the language the app shows.
+func RefsDeleteBranchTitle(name string, commit string) string {
+	return In(i18n.Locale()).RefsDeleteBranchTitle(name, commit)
+}
+
+// RefsDeleteBranchTitle says "Delete branch {name} at {commit}?"
+// in the language of msgs.
+func (msgs Messages) RefsDeleteBranchTitle(name string, commit string) string {
+	return Catalog.Format(msgs.locale, "refsDeleteBranchTitle", map[string]any{"name": name, "commit": commit})
+}
+
+// RefsDeleteBranchesMessage says "Each is backed up first; Undo brings it back."
+// in the language the app shows.
+func RefsDeleteBranchesMessage() string { return In(i18n.Locale()).RefsDeleteBranchesMessage() }
+
+// RefsDeleteBranchesMessage says "Each is backed up first; Undo brings it back."
+// in the language of msgs.
+func (msgs Messages) RefsDeleteBranchesMessage() string {
+	return Catalog.Format(msgs.locale, "refsDeleteBranchesMessage", nil)
+}
+
+// RefsDeleteBranchesWorktreesMessage says "Each is backed up first; Undo brings it back. The worktree at {folders} is removed with its branch; git refuses if it…"
+// in the language the app shows.
+//
+// folders is a comma-separated list of paths.
+func RefsDeleteBranchesWorktreesMessage(folders string) string {
+	return In(i18n.Locale()).RefsDeleteBranchesWorktreesMessage(folders)
+}
+
+// RefsDeleteBranchesWorktreesMessage says "Each is backed up first; Undo brings it back. The worktree at {folders} is removed with its branch; git refuses if it…"
+// in the language of msgs.
+//
+// folders is a comma-separated list of paths.
+func (msgs Messages) RefsDeleteBranchesWorktreesMessage(folders string) string {
+	return Catalog.Format(msgs.locale, "refsDeleteBranchesWorktreesMessage", map[string]any{"folders": folders})
+}
+
+// RefsRestoreBranchJob says "Restore branch {name} at {commit}"
+// in the language the app shows.
+//
+// The name of a write in the activity list.
+func RefsRestoreBranchJob(name string, commit string) string {
+	return In(i18n.Locale()).RefsRestoreBranchJob(name, commit)
+}
+
+// RefsRestoreBranchJob says "Restore branch {name} at {commit}"
+// in the language of msgs.
+//
+// The name of a write in the activity list.
+func (msgs Messages) RefsRestoreBranchJob(name string, commit string) string {
+	return Catalog.Format(msgs.locale, "refsRestoreBranchJob", map[string]any{"name": name, "commit": commit})
+}
+
+// RefsPushTo says "Push to"
+// in the language the app shows.
+//
+// A submenu of a tag's menu, listing the remotes.
+func RefsPushTo() string { return In(i18n.Locale()).RefsPushTo() }
+
+// RefsPushTo says "Push to"
+// in the language of msgs.
+//
+// A submenu of a tag's menu, listing the remotes.
+func (msgs Messages) RefsPushTo() string {
+	return Catalog.Format(msgs.locale, "refsPushTo", nil)
+}
+
+// RefsDeleteTagTitle says "Delete tag {name} at {object}?"
+// in the language the app shows.
+func RefsDeleteTagTitle(name string, object string) string {
+	return In(i18n.Locale()).RefsDeleteTagTitle(name, object)
+}
+
+// RefsDeleteTagTitle says "Delete tag {name} at {object}?"
+// in the language of msgs.
+func (msgs Messages) RefsDeleteTagTitle(name string, object string) string {
+	return Catalog.Format(msgs.locale, "refsDeleteTagTitle", map[string]any{"name": name, "object": object})
+}
+
+// RefsDeleteTagMessage says "Only here; a tag already pushed stays on the remote. Undo brings it back."
+// in the language the app shows.
+func RefsDeleteTagMessage() string { return In(i18n.Locale()).RefsDeleteTagMessage() }
+
+// RefsDeleteTagMessage says "Only here; a tag already pushed stays on the remote. Undo brings it back."
+// in the language of msgs.
+func (msgs Messages) RefsDeleteTagMessage() string {
+	return Catalog.Format(msgs.locale, "refsDeleteTagMessage", nil)
+}
+
+// RefsCheckSignature says "Check Signature"
+// in the language the app shows.
+func RefsCheckSignature() string { return In(i18n.Locale()).RefsCheckSignature() }
+
+// RefsCheckSignature says "Check Signature"
+// in the language of msgs.
+func (msgs Messages) RefsCheckSignature() string {
+	return Catalog.Format(msgs.locale, "refsCheckSignature", nil)
+}
+
+// RefsCreateTagTitle says "Create Tag at {commit}"
+// in the language the app shows.
+func RefsCreateTagTitle(commit string) string { return In(i18n.Locale()).RefsCreateTagTitle(commit) }
+
+// RefsCreateTagTitle says "Create Tag at {commit}"
+// in the language of msgs.
+func (msgs Messages) RefsCreateTagTitle(commit string) string {
+	return Catalog.Format(msgs.locale, "refsCreateTagTitle", map[string]any{"commit": commit})
+}
+
+// RefsTagName says "Tag name"
+// in the language the app shows.
+func RefsTagName() string { return In(i18n.Locale()).RefsTagName() }
+
+// RefsTagName says "Tag name"
+// in the language of msgs.
+func (msgs Messages) RefsTagName() string {
+	return Catalog.Format(msgs.locale, "refsTagName", nil)
+}
+
+// RefsTagLightweight says "Lightweight"
+// in the language the app shows.
+func RefsTagLightweight() string { return In(i18n.Locale()).RefsTagLightweight() }
+
+// RefsTagLightweight says "Lightweight"
+// in the language of msgs.
+func (msgs Messages) RefsTagLightweight() string {
+	return Catalog.Format(msgs.locale, "refsTagLightweight", nil)
+}
+
+// RefsTagAnnotated says "Annotated"
+// in the language the app shows.
+func RefsTagAnnotated() string { return In(i18n.Locale()).RefsTagAnnotated() }
+
+// RefsTagAnnotated says "Annotated"
+// in the language of msgs.
+func (msgs Messages) RefsTagAnnotated() string {
+	return Catalog.Format(msgs.locale, "refsTagAnnotated", nil)
+}
+
+// RefsTagSigned says "Signed"
+// in the language the app shows.
+func RefsTagSigned() string { return In(i18n.Locale()).RefsTagSigned() }
+
+// RefsTagSigned says "Signed"
+// in the language of msgs.
+func (msgs Messages) RefsTagSigned() string {
+	return Catalog.Format(msgs.locale, "refsTagSigned", nil)
+}
+
+// RefsFetch says "Fetch"
+// in the language the app shows.
+//
+// A verb: a menu button and a remote's menu item.
+func RefsFetch() string { return In(i18n.Locale()).RefsFetch() }
+
+// RefsFetch says "Fetch"
+// in the language of msgs.
+//
+// A verb: a menu button and a remote's menu item.
+func (msgs Messages) RefsFetch() string {
+	return Catalog.Format(msgs.locale, "refsFetch", nil)
+}
+
+// RefsFetchAll says "Fetch All Remotes"
+// in the language the app shows.
+func RefsFetchAll() string { return In(i18n.Locale()).RefsFetchAll() }
+
+// RefsFetchAll says "Fetch All Remotes"
+// in the language of msgs.
+func (msgs Messages) RefsFetchAll() string {
+	return Catalog.Format(msgs.locale, "refsFetchAll", nil)
+}
+
+// RefsFetchRemote says "Fetch {remote}"
+// in the language the app shows.
+func RefsFetchRemote(remote string) string { return In(i18n.Locale()).RefsFetchRemote(remote) }
+
+// RefsFetchRemote says "Fetch {remote}"
+// in the language of msgs.
+func (msgs Messages) RefsFetchRemote(remote string) string {
+	return Catalog.Format(msgs.locale, "refsFetchRemote", map[string]any{"remote": remote})
+}
+
+// RefsPruneDeleted says "Prune Deleted Branches"
+// in the language the app shows.
+func RefsPruneDeleted() string { return In(i18n.Locale()).RefsPruneDeleted() }
+
+// RefsPruneDeleted says "Prune Deleted Branches"
+// in the language of msgs.
+func (msgs Messages) RefsPruneDeleted() string {
+	return Catalog.Format(msgs.locale, "refsPruneDeleted", nil)
+}
+
+// RefsPull says "Pull"
+// in the language the app shows.
+//
+// A verb: the menu button of the ways to pull.
+func RefsPull() string { return In(i18n.Locale()).RefsPull() }
+
+// RefsPull says "Pull"
+// in the language of msgs.
+//
+// A verb: the menu button of the ways to pull.
+func (msgs Messages) RefsPull() string {
+	return Catalog.Format(msgs.locale, "refsPull", nil)
+}
+
+// RefsPullMerging says "Pull, Merging"
+// in the language the app shows.
+func RefsPullMerging() string { return In(i18n.Locale()).RefsPullMerging() }
+
+// RefsPullMerging says "Pull, Merging"
+// in the language of msgs.
+func (msgs Messages) RefsPullMerging() string {
+	return Catalog.Format(msgs.locale, "refsPullMerging", nil)
+}
+
+// RefsPullRebasing says "Pull, Rebasing"
+// in the language the app shows.
+func RefsPullRebasing() string { return In(i18n.Locale()).RefsPullRebasing() }
+
+// RefsPullRebasing says "Pull, Rebasing"
+// in the language of msgs.
+func (msgs Messages) RefsPullRebasing() string {
+	return Catalog.Format(msgs.locale, "refsPullRebasing", nil)
+}
+
+// RefsPullFFOnly says "Pull, Fast-Forward Only"
+// in the language the app shows.
+func RefsPullFFOnly() string { return In(i18n.Locale()).RefsPullFFOnly() }
+
+// RefsPullFFOnly says "Pull, Fast-Forward Only"
+// in the language of msgs.
+func (msgs Messages) RefsPullFFOnly() string {
+	return Catalog.Format(msgs.locale, "refsPullFFOnly", nil)
+}
+
+// RefsPush says "Push"
+// in the language the app shows.
+//
+// A verb: a menu button and its first item.
+func RefsPush() string { return In(i18n.Locale()).RefsPush() }
+
+// RefsPush says "Push"
+// in the language of msgs.
+//
+// A verb: a menu button and its first item.
+func (msgs Messages) RefsPush() string {
+	return Catalog.Format(msgs.locale, "refsPush", nil)
+}
+
+// RefsPushAndTrack says "Push to {remote} and Track"
+// in the language the app shows.
+func RefsPushAndTrack(remote string) string { return In(i18n.Locale()).RefsPushAndTrack(remote) }
+
+// RefsPushAndTrack says "Push to {remote} and Track"
+// in the language of msgs.
+func (msgs Messages) RefsPushAndTrack(remote string) string {
+	return Catalog.Format(msgs.locale, "refsPushAndTrack", map[string]any{"remote": remote})
+}
+
+// RefsForcePushItem says "Force Push with Lease…"
+// in the language the app shows.
+func RefsForcePushItem() string { return In(i18n.Locale()).RefsForcePushItem() }
+
+// RefsForcePushItem says "Force Push with Lease…"
+// in the language of msgs.
+func (msgs Messages) RefsForcePushItem() string {
+	return Catalog.Format(msgs.locale, "refsForcePushItem", nil)
+}
+
+// RefsForcePushTitle says "Overwrite {upstream}?"
+// in the language the app shows.
+func RefsForcePushTitle(upstream string) string {
+	return In(i18n.Locale()).RefsForcePushTitle(upstream)
+}
+
+// RefsForcePushTitle says "Overwrite {upstream}?"
+// in the language of msgs.
+func (msgs Messages) RefsForcePushTitle(upstream string) string {
+	return Catalog.Format(msgs.locale, "refsForcePushTitle", map[string]any{"upstream": upstream})
+}
+
+// RefsForcePushMessage says "Only if it is still where this repository last fetched it; otherwise nothing is pushed."
+// in the language the app shows.
+func RefsForcePushMessage() string { return In(i18n.Locale()).RefsForcePushMessage() }
+
+// RefsForcePushMessage says "Only if it is still where this repository last fetched it; otherwise nothing is pushed."
+// in the language of msgs.
+func (msgs Messages) RefsForcePushMessage() string {
+	return Catalog.Format(msgs.locale, "refsForcePushMessage", nil)
+}
+
+// RefsForcePush says "Force Push"
+// in the language the app shows.
+func RefsForcePush() string { return In(i18n.Locale()).RefsForcePush() }
+
+// RefsForcePush says "Force Push"
+// in the language of msgs.
+func (msgs Messages) RefsForcePush() string {
+	return Catalog.Format(msgs.locale, "refsForcePush", nil)
+}
+
+// RefsNoRemotes says "No remotes"
+// in the language the app shows.
+func RefsNoRemotes() string { return In(i18n.Locale()).RefsNoRemotes() }
+
+// RefsNoRemotes says "No remotes"
+// in the language of msgs.
+func (msgs Messages) RefsNoRemotes() string {
+	return Catalog.Format(msgs.locale, "refsNoRemotes", nil)
+}
+
+// RefsPushURL says "push: {url}"
+// in the language the app shows.
+//
+// Under a remote's URL: the other URL it pushes to.
+func RefsPushURL(url string) string { return In(i18n.Locale()).RefsPushURL(url) }
+
+// RefsPushURL says "push: {url}"
+// in the language of msgs.
+//
+// Under a remote's URL: the other URL it pushes to.
+func (msgs Messages) RefsPushURL(url string) string {
+	return Catalog.Format(msgs.locale, "refsPushURL", map[string]any{"url": url})
+}
+
+// RefsRenameRemoteTitle says "Rename Remote {name}"
+// in the language the app shows.
+func RefsRenameRemoteTitle(name string) string { return In(i18n.Locale()).RefsRenameRemoteTitle(name) }
+
+// RefsRenameRemoteTitle says "Rename Remote {name}"
+// in the language of msgs.
+func (msgs Messages) RefsRenameRemoteTitle(name string) string {
+	return Catalog.Format(msgs.locale, "refsRenameRemoteTitle", map[string]any{"name": name})
+}
+
+// RefsChangeURLItem says "Change URL…"
+// in the language the app shows.
+func RefsChangeURLItem() string { return In(i18n.Locale()).RefsChangeURLItem() }
+
+// RefsChangeURLItem says "Change URL…"
+// in the language of msgs.
+func (msgs Messages) RefsChangeURLItem() string {
+	return Catalog.Format(msgs.locale, "refsChangeURLItem", nil)
+}
+
+// RefsChangeURLTitle says "URL of {name}"
+// in the language the app shows.
+func RefsChangeURLTitle(name string) string { return In(i18n.Locale()).RefsChangeURLTitle(name) }
+
+// RefsChangeURLTitle says "URL of {name}"
+// in the language of msgs.
+func (msgs Messages) RefsChangeURLTitle(name string) string {
+	return Catalog.Format(msgs.locale, "refsChangeURLTitle", map[string]any{"name": name})
+}
+
+// RefsChange says "Change"
+// in the language the app shows.
+//
+// A button: sets the remote's URL.
+func RefsChange() string { return In(i18n.Locale()).RefsChange() }
+
+// RefsChange says "Change"
+// in the language of msgs.
+//
+// A button: sets the remote's URL.
+func (msgs Messages) RefsChange() string {
+	return Catalog.Format(msgs.locale, "refsChange", nil)
+}
+
+// RefsRemoveItem says "Remove…"
+// in the language the app shows.
+func RefsRemoveItem() string { return In(i18n.Locale()).RefsRemoveItem() }
+
+// RefsRemoveItem says "Remove…"
+// in the language of msgs.
+func (msgs Messages) RefsRemoveItem() string {
+	return Catalog.Format(msgs.locale, "refsRemoveItem", nil)
+}
+
+// RefsRemoveRemoteTitle says "Remove remote {name}?"
+// in the language the app shows.
+func RefsRemoveRemoteTitle(name string) string { return In(i18n.Locale()).RefsRemoveRemoteTitle(name) }
+
+// RefsRemoveRemoteTitle says "Remove remote {name}?"
+// in the language of msgs.
+func (msgs Messages) RefsRemoveRemoteTitle(name string) string {
+	return Catalog.Format(msgs.locale, "refsRemoveRemoteTitle", map[string]any{"name": name})
+}
+
+// RefsRemoveRemoteMessage says "Its remote-tracking branches go with it; the remote itself is not touched."
+// in the language the app shows.
+func RefsRemoveRemoteMessage() string { return In(i18n.Locale()).RefsRemoveRemoteMessage() }
+
+// RefsRemoveRemoteMessage says "Its remote-tracking branches go with it; the remote itself is not touched."
+// in the language of msgs.
+func (msgs Messages) RefsRemoveRemoteMessage() string {
+	return Catalog.Format(msgs.locale, "refsRemoveRemoteMessage", nil)
+}
+
+// RefsUpstreamGone says "{upstream} gone"
+// in the language the app shows.
+//
+// A branch's tracking column: its upstream branch was deleted on the
+// remote.
+func RefsUpstreamGone(upstream string) string { return In(i18n.Locale()).RefsUpstreamGone(upstream) }
+
+// RefsUpstreamGone says "{upstream} gone"
+// in the language of msgs.
+//
+// A branch's tracking column: its upstream branch was deleted on the
+// remote.
+func (msgs Messages) RefsUpstreamGone(upstream string) string {
+	return Catalog.Format(msgs.locale, "refsUpstreamGone", map[string]any{"upstream": upstream})
+}
+
+// RefsWhyMerged says "merged"
+// in the language the app shows.
+//
+// Why a branch can be deleted; several are joined by commas.
+func RefsWhyMerged() string { return In(i18n.Locale()).RefsWhyMerged() }
+
+// RefsWhyMerged says "merged"
+// in the language of msgs.
+//
+// Why a branch can be deleted; several are joined by commas.
+func (msgs Messages) RefsWhyMerged() string {
+	return Catalog.Format(msgs.locale, "refsWhyMerged", nil)
+}
+
+// RefsWhyRebased says "rebased in"
+// in the language the app shows.
+//
+// Why a branch can be deleted; several are joined by commas.
+func RefsWhyRebased() string { return In(i18n.Locale()).RefsWhyRebased() }
+
+// RefsWhyRebased says "rebased in"
+// in the language of msgs.
+//
+// Why a branch can be deleted; several are joined by commas.
+func (msgs Messages) RefsWhyRebased() string {
+	return Catalog.Format(msgs.locale, "refsWhyRebased", nil)
+}
+
+// RefsWhySquashed says "squashed in"
+// in the language the app shows.
+//
+// Why a branch can be deleted; several are joined by commas.
+func RefsWhySquashed() string { return In(i18n.Locale()).RefsWhySquashed() }
+
+// RefsWhySquashed says "squashed in"
+// in the language of msgs.
+//
+// Why a branch can be deleted; several are joined by commas.
+func (msgs Messages) RefsWhySquashed() string {
+	return Catalog.Format(msgs.locale, "refsWhySquashed", nil)
+}
+
+// RefsWhyUpstreamGone says "upstream gone"
+// in the language the app shows.
+//
+// Why a branch can be deleted; several are joined by commas.
+func RefsWhyUpstreamGone() string { return In(i18n.Locale()).RefsWhyUpstreamGone() }
+
+// RefsWhyUpstreamGone says "upstream gone"
+// in the language of msgs.
+//
+// Why a branch can be deleted; several are joined by commas.
+func (msgs Messages) RefsWhyUpstreamGone() string {
+	return Catalog.Format(msgs.locale, "refsWhyUpstreamGone", nil)
+}
+
+// RefsCleanupTitle says "Branches That Can Go"
+// in the language the app shows.
+func RefsCleanupTitle() string { return In(i18n.Locale()).RefsCleanupTitle() }
+
+// RefsCleanupTitle says "Branches That Can Go"
+// in the language of msgs.
+func (msgs Messages) RefsCleanupTitle() string {
+	return Catalog.Format(msgs.locale, "refsCleanupTitle", nil)
+}
+
+// RefsCleanupAgainst says "Against"
+// in the language the app shows.
+//
+// Before the menu of the branch the others are compared with.
+func RefsCleanupAgainst() string { return In(i18n.Locale()).RefsCleanupAgainst() }
+
+// RefsCleanupAgainst says "Against"
+// in the language of msgs.
+//
+// Before the menu of the branch the others are compared with.
+func (msgs Messages) RefsCleanupAgainst() string {
+	return Catalog.Format(msgs.locale, "refsCleanupAgainst", nil)
+}
+
+// RefsCleanupNone says "No branches can go"
+// in the language the app shows.
+func RefsCleanupNone() string { return In(i18n.Locale()).RefsCleanupNone() }
+
+// RefsCleanupNone says "No branches can go"
+// in the language of msgs.
+func (msgs Messages) RefsCleanupNone() string {
+	return Catalog.Format(msgs.locale, "refsCleanupNone", nil)
+}
+
+// RefsCleanupListLabel says "Branches to clean up"
+// in the language the app shows.
+func RefsCleanupListLabel() string { return In(i18n.Locale()).RefsCleanupListLabel() }
+
+// RefsCleanupListLabel says "Branches to clean up"
+// in the language of msgs.
+func (msgs Messages) RefsCleanupListLabel() string {
+	return Catalog.Format(msgs.locale, "refsCleanupListLabel", nil)
+}
+
+// RefsCleanupDelete says "{count, plural, one {Delete # Branch} other {Delete # Branches}}"
+// in the language the app shows.
+func RefsCleanupDelete(count int) string { return In(i18n.Locale()).RefsCleanupDelete(count) }
+
+// RefsCleanupDelete says "{count, plural, one {Delete # Branch} other {Delete # Branches}}"
+// in the language of msgs.
+func (msgs Messages) RefsCleanupDelete(count int) string {
+	return Catalog.Format(msgs.locale, "refsCleanupDelete", map[string]any{"count": count})
+}
+
+// PullsNoCLI says "Pull requests need GitHub's gh or GitLab's glab, logged in; neither was found on the PATH"
+// in the language the app shows.
+func PullsNoCLI() string { return In(i18n.Locale()).PullsNoCLI() }
+
+// PullsNoCLI says "Pull requests need GitHub's gh or GitLab's glab, logged in; neither was found on the PATH"
+// in the language of msgs.
+func (msgs Messages) PullsNoCLI() string {
+	return Catalog.Format(msgs.locale, "pullsNoCLI", nil)
+}
+
+// PullsNotRead says "Pull requests not read: {reason}"
+// in the language the app shows.
+func PullsNotRead(reason string) string { return In(i18n.Locale()).PullsNotRead(reason) }
+
+// PullsNotRead says "Pull requests not read: {reason}"
+// in the language of msgs.
+func (msgs Messages) PullsNotRead(reason string) string {
+	return Catalog.Format(msgs.locale, "pullsNotRead", map[string]any{"reason": reason})
+}
+
+// PullsDraft says "draft"
+// in the language the app shows.
+//
+// After a pull request's number: it is a draft.
+func PullsDraft() string { return In(i18n.Locale()).PullsDraft() }
+
+// PullsDraft says "draft"
+// in the language of msgs.
+//
+// After a pull request's number: it is a draft.
+func (msgs Messages) PullsDraft() string {
+	return Catalog.Format(msgs.locale, "pullsDraft", nil)
+}
+
+// PullsChecksRunning says "checks running"
+// in the language the app shows.
+func PullsChecksRunning() string { return In(i18n.Locale()).PullsChecksRunning() }
+
+// PullsChecksRunning says "checks running"
+// in the language of msgs.
+func (msgs Messages) PullsChecksRunning() string {
+	return Catalog.Format(msgs.locale, "pullsChecksRunning", nil)
+}
+
+// PullsChecksPassed says "checks passed"
+// in the language the app shows.
+func PullsChecksPassed() string { return In(i18n.Locale()).PullsChecksPassed() }
+
+// PullsChecksPassed says "checks passed"
+// in the language of msgs.
+func (msgs Messages) PullsChecksPassed() string {
+	return Catalog.Format(msgs.locale, "pullsChecksPassed", nil)
+}
+
+// PullsChecksFailed says "checks failed"
+// in the language the app shows.
+func PullsChecksFailed() string { return In(i18n.Locale()).PullsChecksFailed() }
+
+// PullsChecksFailed says "checks failed"
+// in the language of msgs.
+func (msgs Messages) PullsChecksFailed() string {
+	return Catalog.Format(msgs.locale, "pullsChecksFailed", nil)
+}
+
+// PullsOpen says "{kind, select, gitlab {Open Merge Request {ref}} other {Open Pull Request {ref}}}"
+// in the language the app shows.
+//
+// kind is gitlab for GitLab, else GitHub; ref is the request's number, as
+// #12 or !12.
+func PullsOpen(kind string, ref string) string { return In(i18n.Locale()).PullsOpen(kind, ref) }
+
+// PullsOpen says "{kind, select, gitlab {Open Merge Request {ref}} other {Open Pull Request {ref}}}"
+// in the language of msgs.
+//
+// kind is gitlab for GitLab, else GitHub; ref is the request's number, as
+// #12 or !12.
+func (msgs Messages) PullsOpen(kind string, ref string) string {
+	return Catalog.Format(msgs.locale, "pullsOpen", map[string]any{"kind": kind, "ref": ref})
+}
+
+// PullsShowInBrowser says "{kind, select, gitlab {Show Merge Requests in Browser} other {Show Pull Requests in Browser}}"
+// in the language the app shows.
+func PullsShowInBrowser(kind string) string { return In(i18n.Locale()).PullsShowInBrowser(kind) }
+
+// PullsShowInBrowser says "{kind, select, gitlab {Show Merge Requests in Browser} other {Show Pull Requests in Browser}}"
+// in the language of msgs.
+func (msgs Messages) PullsShowInBrowser(kind string) string {
+	return Catalog.Format(msgs.locale, "pullsShowInBrowser", map[string]any{"kind": kind})
+}
+
+// PullsCreateInBrowser says "{kind, select, gitlab {Create Merge Request in Browser} other {Create Pull Request in Browser}}"
+// in the language the app shows.
+func PullsCreateInBrowser(kind string) string { return In(i18n.Locale()).PullsCreateInBrowser(kind) }
+
+// PullsCreateInBrowser says "{kind, select, gitlab {Create Merge Request in Browser} other {Create Pull Request in Browser}}"
+// in the language of msgs.
+func (msgs Messages) PullsCreateInBrowser(kind string) string {
+	return Catalog.Format(msgs.locale, "pullsCreateInBrowser", map[string]any{"kind": kind})
+}
+
+// PullsStackPosition says "stack {index}/{count}"
+// in the language the app shows.
+//
+// After a branch's name: its place in a GitHub stack.
+func PullsStackPosition(index int, count int) string {
+	return In(i18n.Locale()).PullsStackPosition(index, count)
+}
+
+// PullsStackPosition says "stack {index}/{count}"
+// in the language of msgs.
+//
+// After a branch's name: its place in a GitHub stack.
+func (msgs Messages) PullsStackPosition(index int, count int) string {
+	return Catalog.Format(msgs.locale, "pullsStackPosition", map[string]any{"index": index, "count": count})
+}
+
+// PullsStackBranch says "Branch {index} of {count} in a GitHub stack"
+// in the language the app shows.
+func PullsStackBranch(index int, count int) string {
+	return In(i18n.Locale()).PullsStackBranch(index, count)
+}
+
+// PullsStackBranch says "Branch {index} of {count} in a GitHub stack"
+// in the language of msgs.
+func (msgs Messages) PullsStackBranch(index int, count int) string {
+	return Catalog.Format(msgs.locale, "pullsStackBranch", map[string]any{"index": index, "count": count})
+}
+
+// PullsStackBranchNumber says "Branch {index} of {count} in a GitHub stack, #{number, number, ::group-off}"
+// in the language the app shows.
+func PullsStackBranchNumber(index int, count int, number int) string {
+	return In(i18n.Locale()).PullsStackBranchNumber(index, count, number)
+}
+
+// PullsStackBranchNumber says "Branch {index} of {count} in a GitHub stack, #{number, number, ::group-off}"
+// in the language of msgs.
+func (msgs Messages) PullsStackBranchNumber(index int, count int, number int) string {
+	return Catalog.Format(msgs.locale, "pullsStackBranchNumber", map[string]any{"index": index, "count": count, "number": number})
+}
+
+// PullsSubmitStackItem says "Submit GitHub Stack…"
+// in the language the app shows.
+func PullsSubmitStackItem() string { return In(i18n.Locale()).PullsSubmitStackItem() }
+
+// PullsSubmitStackItem says "Submit GitHub Stack…"
+// in the language of msgs.
+func (msgs Messages) PullsSubmitStackItem() string {
+	return Catalog.Format(msgs.locale, "pullsSubmitStackItem", nil)
+}
+
+// PullsSubmitStackTitle says "Submit the stack?"
+// in the language the app shows.
+func PullsSubmitStackTitle() string { return In(i18n.Locale()).PullsSubmitStackTitle() }
+
+// PullsSubmitStackTitle says "Submit the stack?"
+// in the language of msgs.
+func (msgs Messages) PullsSubmitStackTitle() string {
+	return Catalog.Format(msgs.locale, "pullsSubmitStackTitle", nil)
+}
+
+// PullsSubmitStackMessage says "{count, plural, one {gh stack pushes the # branch of the stack and creates or updates their pull requests on GitHub; …"
+// in the language the app shows.
+func PullsSubmitStackMessage(count int) string {
+	return In(i18n.Locale()).PullsSubmitStackMessage(count)
+}
+
+// PullsSubmitStackMessage says "{count, plural, one {gh stack pushes the # branch of the stack and creates or updates their pull requests on GitHub; …"
+// in the language of msgs.
+func (msgs Messages) PullsSubmitStackMessage(count int) string {
+	return Catalog.Format(msgs.locale, "pullsSubmitStackMessage", map[string]any{"count": count})
+}
+
+// PullsSubmit says "Submit"
+// in the language the app shows.
+func PullsSubmit() string { return In(i18n.Locale()).PullsSubmit() }
+
+// PullsSubmit says "Submit"
+// in the language of msgs.
+func (msgs Messages) PullsSubmit() string {
+	return Catalog.Format(msgs.locale, "pullsSubmit", nil)
+}
+
+// PullsSubmitStackJob says "Submit GitHub stack"
+// in the language the app shows.
+//
+// The name of a write in the activity list.
+func PullsSubmitStackJob() string { return In(i18n.Locale()).PullsSubmitStackJob() }
+
+// PullsSubmitStackJob says "Submit GitHub stack"
+// in the language of msgs.
+//
+// The name of a write in the activity list.
+func (msgs Messages) PullsSubmitStackJob() string {
+	return Catalog.Format(msgs.locale, "pullsSubmitStackJob", nil)
+}
+
+// PullsPushStackItem says "Push GitHub Stack"
+// in the language the app shows.
+func PullsPushStackItem() string { return In(i18n.Locale()).PullsPushStackItem() }
+
+// PullsPushStackItem says "Push GitHub Stack"
+// in the language of msgs.
+func (msgs Messages) PullsPushStackItem() string {
+	return Catalog.Format(msgs.locale, "pullsPushStackItem", nil)
+}
+
+// PullsPushStackJob says "Push GitHub stack"
+// in the language the app shows.
+//
+// The name of a write in the activity list.
+func PullsPushStackJob() string { return In(i18n.Locale()).PullsPushStackJob() }
+
+// PullsPushStackJob says "Push GitHub stack"
+// in the language of msgs.
+//
+// The name of a write in the activity list.
+func (msgs Messages) PullsPushStackJob() string {
+	return Catalog.Format(msgs.locale, "pullsPushStackJob", nil)
+}
+
+// PullsCreateStackItem says "{count, plural, one {Create GitHub Stack of # Branch…} other {Create GitHub Stack of # Branches…}}"
+// in the language the app shows.
+func PullsCreateStackItem(count int) string { return In(i18n.Locale()).PullsCreateStackItem(count) }
+
+// PullsCreateStackItem says "{count, plural, one {Create GitHub Stack of # Branch…} other {Create GitHub Stack of # Branches…}}"
+// in the language of msgs.
+func (msgs Messages) PullsCreateStackItem(count int) string {
+	return Catalog.Format(msgs.locale, "pullsCreateStackItem", map[string]any{"count": count})
+}
+
+// PullsCreateStackTitle says "Create a GitHub stack?"
+// in the language the app shows.
+func PullsCreateStackTitle() string { return In(i18n.Locale()).PullsCreateStackTitle() }
+
+// PullsCreateStackTitle says "Create a GitHub stack?"
+// in the language of msgs.
+func (msgs Messages) PullsCreateStackTitle() string {
+	return Catalog.Format(msgs.locale, "pullsCreateStackTitle", nil)
+}
+
+// PullsCreateStackMessage says "gh stack makes a stack of {branches}, from the bottom, and checks out {top}."
+// in the language the app shows.
+//
+// branches is a comma-separated list of branch names.
+func PullsCreateStackMessage(branches string, top string) string {
+	return In(i18n.Locale()).PullsCreateStackMessage(branches, top)
+}
+
+// PullsCreateStackMessage says "gh stack makes a stack of {branches}, from the bottom, and checks out {top}."
+// in the language of msgs.
+//
+// branches is a comma-separated list of branch names.
+func (msgs Messages) PullsCreateStackMessage(branches string, top string) string {
+	return Catalog.Format(msgs.locale, "pullsCreateStackMessage", map[string]any{"branches": branches, "top": top})
+}
+
+// PullsCreateStackJob says "Create GitHub stack"
+// in the language the app shows.
+//
+// The name of a write in the activity list.
+func PullsCreateStackJob() string { return In(i18n.Locale()).PullsCreateStackJob() }
+
+// PullsCreateStackJob says "Create GitHub stack"
+// in the language of msgs.
+//
+// The name of a write in the activity list.
+func (msgs Messages) PullsCreateStackJob() string {
+	return Catalog.Format(msgs.locale, "pullsCreateStackJob", nil)
+}
+
+// RemoteCheckoutNotTracking says "{name} does not track {remote}; resetting it drops what it has that {remote} does not."
+// in the language the app shows.
+func RemoteCheckoutNotTracking(name string, remote string) string {
+	return In(i18n.Locale()).RemoteCheckoutNotTracking(name, remote)
+}
+
+// RemoteCheckoutNotTracking says "{name} does not track {remote}; resetting it drops what it has that {remote} does not."
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutNotTracking(name string, remote string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutNotTracking", map[string]any{"name": name, "remote": remote})
+}
+
+// RemoteCheckoutSame says "{name} is at the same commit as {remote}."
+// in the language the app shows.
+func RemoteCheckoutSame(name string, remote string) string {
+	return In(i18n.Locale()).RemoteCheckoutSame(name, remote)
+}
+
+// RemoteCheckoutSame says "{name} is at the same commit as {remote}."
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutSame(name string, remote string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutSame", map[string]any{"name": name, "remote": remote})
+}
+
+// RemoteCheckoutBehind says "{count, plural, one {{name} is # commit behind {remote}.} other {{name} is # commits behind {remote}.}}"
+// in the language the app shows.
+func RemoteCheckoutBehind(count int, name string, remote string) string {
+	return In(i18n.Locale()).RemoteCheckoutBehind(count, name, remote)
+}
+
+// RemoteCheckoutBehind says "{count, plural, one {{name} is # commit behind {remote}.} other {{name} is # commits behind {remote}.}}"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutBehind(count int, name string, remote string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutBehind", map[string]any{"count": count, "name": name, "remote": remote})
+}
+
+// RemoteCheckoutAhead says "{count, plural, one {{name} is # commit ahead of {remote}, not pushed.} other {{name} is # commits ahead of {remote},…"
+// in the language the app shows.
+func RemoteCheckoutAhead(count int, name string, remote string) string {
+	return In(i18n.Locale()).RemoteCheckoutAhead(count, name, remote)
+}
+
+// RemoteCheckoutAhead says "{count, plural, one {{name} is # commit ahead of {remote}, not pushed.} other {{name} is # commits ahead of {remote},…"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutAhead(count int, name string, remote string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutAhead", map[string]any{"count": count, "name": name, "remote": remote})
+}
+
+// RemoteCheckoutDiverged says "{name} and {remote} have diverged: {ahead, plural, one {# commit} other {# commits}} ahead, {behind, plural, one {# c…"
+// in the language the app shows.
+func RemoteCheckoutDiverged(name string, remote string, ahead int, behind int) string {
+	return In(i18n.Locale()).RemoteCheckoutDiverged(name, remote, ahead, behind)
+}
+
+// RemoteCheckoutDiverged says "{name} and {remote} have diverged: {ahead, plural, one {# commit} other {# commits}} ahead, {behind, plural, one {# c…"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutDiverged(name string, remote string, ahead int, behind int) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutDiverged", map[string]any{"name": name, "remote": remote, "ahead": ahead, "behind": behind})
+}
+
+// RemoteCheckoutExists says "A local branch {name} already exists"
+// in the language the app shows.
+func RemoteCheckoutExists(name string) string { return In(i18n.Locale()).RemoteCheckoutExists(name) }
+
+// RemoteCheckoutExists says "A local branch {name} already exists"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutExists(name string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutExists", map[string]any{"name": name})
+}
+
+// RemoteCheckoutSwitch says "Switch to {name}"
+// in the language the app shows.
+func RemoteCheckoutSwitch(name string) string { return In(i18n.Locale()).RemoteCheckoutSwitch(name) }
+
+// RemoteCheckoutSwitch says "Switch to {name}"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutSwitch(name string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutSwitch", map[string]any{"name": name})
+}
+
+// RemoteCheckoutFastForward says "Fast-Forward and Switch"
+// in the language the app shows.
+func RemoteCheckoutFastForward() string { return In(i18n.Locale()).RemoteCheckoutFastForward() }
+
+// RemoteCheckoutFastForward says "Fast-Forward and Switch"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutFastForward() string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutFastForward", nil)
+}
+
+// RemoteCheckoutReset says "Reset to {remote}"
+// in the language the app shows.
+func RemoteCheckoutReset(remote string) string { return In(i18n.Locale()).RemoteCheckoutReset(remote) }
+
+// RemoteCheckoutReset says "Reset to {remote}"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutReset(remote string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutReset", map[string]any{"remote": remote})
+}
+
+// RemoteCheckoutResetNote says "A reset backs up {name} first; Undo brings it back."
+// in the language the app shows.
+func RemoteCheckoutResetNote(name string) string {
+	return In(i18n.Locale()).RemoteCheckoutResetNote(name)
+}
+
+// RemoteCheckoutResetNote says "A reset backs up {name} first; Undo brings it back."
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutResetNote(name string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutResetNote", map[string]any{"name": name})
+}
+
+// RemoteCheckoutAsNew says "Check Out as New Branch"
+// in the language the app shows.
+func RemoteCheckoutAsNew() string { return In(i18n.Locale()).RemoteCheckoutAsNew() }
+
+// RemoteCheckoutAsNew says "Check Out as New Branch"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutAsNew() string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutAsNew", nil)
+}
+
+// RemoteCheckoutElsewhereTitle says "Branch {name} is checked out in another worktree"
+// in the language the app shows.
+func RemoteCheckoutElsewhereTitle(name string) string {
+	return In(i18n.Locale()).RemoteCheckoutElsewhereTitle(name)
+}
+
+// RemoteCheckoutElsewhereTitle says "Branch {name} is checked out in another worktree"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutElsewhereTitle(name string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutElsewhereTitle", map[string]any{"name": name})
+}
+
+// RemoteCheckoutElsewhereMessage says "git checks out a branch in one worktree at a time. It is checked out at {folder}."
+// in the language the app shows.
+func RemoteCheckoutElsewhereMessage(folder string) string {
+	return In(i18n.Locale()).RemoteCheckoutElsewhereMessage(folder)
+}
+
+// RemoteCheckoutElsewhereMessage says "git checks out a branch in one worktree at a time. It is checked out at {folder}."
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutElsewhereMessage(folder string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutElsewhereMessage", map[string]any{"folder": folder})
+}
+
+// RemoteCheckoutOpen says "Open {folder}"
+// in the language the app shows.
+//
+// A button: opens the other worktree; folder is its folder's name.
+func RemoteCheckoutOpen(folder string) string { return In(i18n.Locale()).RemoteCheckoutOpen(folder) }
+
+// RemoteCheckoutOpen says "Open {folder}"
+// in the language of msgs.
+//
+// A button: opens the other worktree; folder is its folder's name.
+func (msgs Messages) RemoteCheckoutOpen(folder string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutOpen", map[string]any{"folder": folder})
+}
+
+// SubmoduleNotCheckedOutLabel says "{path}  not checked out"
+// in the language the app shows.
+//
+// A submodule in the sidebar that is not checked out.
+func SubmoduleNotCheckedOutLabel(path string) string {
+	return In(i18n.Locale()).SubmoduleNotCheckedOutLabel(path)
+}
+
+// SubmoduleNotCheckedOutLabel says "{path}  not checked out"
+// in the language of msgs.
+//
+// A submodule in the sidebar that is not checked out.
+func (msgs Messages) SubmoduleNotCheckedOutLabel(path string) string {
+	return Catalog.Format(msgs.locale, "submoduleNotCheckedOutLabel", map[string]any{"path": path})
+}
+
+// SubmoduleUpdateAll says "Update All Submodules"
+// in the language the app shows.
+func SubmoduleUpdateAll() string { return In(i18n.Locale()).SubmoduleUpdateAll() }
+
+// SubmoduleUpdateAll says "Update All Submodules"
+// in the language of msgs.
+func (msgs Messages) SubmoduleUpdateAll() string {
+	return Catalog.Format(msgs.locale, "submoduleUpdateAll", nil)
+}
+
+// SubmoduleSyncAll says "Sync All Submodule URLs"
+// in the language the app shows.
+func SubmoduleSyncAll() string { return In(i18n.Locale()).SubmoduleSyncAll() }
+
+// SubmoduleSyncAll says "Sync All Submodule URLs"
+// in the language of msgs.
+func (msgs Messages) SubmoduleSyncAll() string {
+	return Catalog.Format(msgs.locale, "submoduleSyncAll", nil)
+}
+
+// SubmoduleOpenInNewTab says "Open in New Tab"
+// in the language the app shows.
+func SubmoduleOpenInNewTab() string { return In(i18n.Locale()).SubmoduleOpenInNewTab() }
+
+// SubmoduleOpenInNewTab says "Open in New Tab"
+// in the language of msgs.
+func (msgs Messages) SubmoduleOpenInNewTab() string {
+	return Catalog.Format(msgs.locale, "submoduleOpenInNewTab", nil)
+}
+
+// SubmoduleOpenInNewWindow says "Open in New Window"
+// in the language the app shows.
+func SubmoduleOpenInNewWindow() string { return In(i18n.Locale()).SubmoduleOpenInNewWindow() }
+
+// SubmoduleOpenInNewWindow says "Open in New Window"
+// in the language of msgs.
+func (msgs Messages) SubmoduleOpenInNewWindow() string {
+	return Catalog.Format(msgs.locale, "submoduleOpenInNewWindow", nil)
+}
+
+// SubmoduleUpdate says "Update"
+// in the language the app shows.
+//
+// A verb: checks out the commit the repository records for the submodule.
+func SubmoduleUpdate() string { return In(i18n.Locale()).SubmoduleUpdate() }
+
+// SubmoduleUpdate says "Update"
+// in the language of msgs.
+//
+// A verb: checks out the commit the repository records for the submodule.
+func (msgs Messages) SubmoduleUpdate() string {
+	return Catalog.Format(msgs.locale, "submoduleUpdate", nil)
+}
+
+// SubmoduleInitialize says "Initialize"
+// in the language the app shows.
+func SubmoduleInitialize() string { return In(i18n.Locale()).SubmoduleInitialize() }
+
+// SubmoduleInitialize says "Initialize"
+// in the language of msgs.
+func (msgs Messages) SubmoduleInitialize() string {
+	return Catalog.Format(msgs.locale, "submoduleInitialize", nil)
+}
+
+// SubmoduleSyncURL says "Sync URL"
+// in the language the app shows.
+func SubmoduleSyncURL() string { return In(i18n.Locale()).SubmoduleSyncURL() }
+
+// SubmoduleSyncURL says "Sync URL"
+// in the language of msgs.
+func (msgs Messages) SubmoduleSyncURL() string {
+	return Catalog.Format(msgs.locale, "submoduleSyncURL", nil)
+}
+
+// SubmoduleCopyPath says "Copy Path"
+// in the language the app shows.
+func SubmoduleCopyPath() string { return In(i18n.Locale()).SubmoduleCopyPath() }
+
+// SubmoduleCopyPath says "Copy Path"
+// in the language of msgs.
+func (msgs Messages) SubmoduleCopyPath() string {
+	return Catalog.Format(msgs.locale, "submoduleCopyPath", nil)
+}
+
+// SubmoduleNotCheckedOutNotice says "Submodule {path} is not checked out."
+// in the language the app shows.
+func SubmoduleNotCheckedOutNotice(path string) string {
+	return In(i18n.Locale()).SubmoduleNotCheckedOutNotice(path)
+}
+
+// SubmoduleNotCheckedOutNotice says "Submodule {path} is not checked out."
+// in the language of msgs.
+func (msgs Messages) SubmoduleNotCheckedOutNotice(path string) string {
+	return Catalog.Format(msgs.locale, "submoduleNotCheckedOutNotice", map[string]any{"path": path})
+}
+
+// SubmoduleNotCheckedOutTitle says "Submodule {path} is not checked out"
+// in the language the app shows.
+func SubmoduleNotCheckedOutTitle(path string) string {
+	return In(i18n.Locale()).SubmoduleNotCheckedOutTitle(path)
+}
+
+// SubmoduleNotCheckedOutTitle says "Submodule {path} is not checked out"
+// in the language of msgs.
+func (msgs Messages) SubmoduleNotCheckedOutTitle(path string) string {
+	return Catalog.Format(msgs.locale, "submoduleNotCheckedOutTitle", map[string]any{"path": path})
+}
+
+// SubmoduleCheckOutMessage says "Check Out clones it from its URL and checks out the commit this repository records, with its own submodules."
+// in the language the app shows.
+func SubmoduleCheckOutMessage() string { return In(i18n.Locale()).SubmoduleCheckOutMessage() }
+
+// SubmoduleCheckOutMessage says "Check Out clones it from its URL and checks out the commit this repository records, with its own submodules."
+// in the language of msgs.
+func (msgs Messages) SubmoduleCheckOutMessage() string {
+	return Catalog.Format(msgs.locale, "submoduleCheckOutMessage", nil)
+}

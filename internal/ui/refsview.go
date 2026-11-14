@@ -2,7 +2,6 @@ package ui
 
 import (
 	"encoding/hex"
-	"fmt"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"ramus/internal/git/signature"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // refsState is a tab's view of its branches, tags and remotes.
@@ -137,9 +137,9 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.Segmented(c, &rs.kind, "Branches", "Tags", "Remotes")
+			ui.Segmented(c, &rs.kind, locales.RefsBranches(), locales.RefsTags(), locales.RefsRemotes())
 			if rs.kind != refsRemotes {
-				ui.TextInput(c, &rs.filter).Placeholder("Filter").Label("Filter").Width(200)
+				ui.TextInput(c, &rs.filter).Placeholder(locales.CommonFilter()).Label(locales.CommonFilter()).Width(200)
 			}
 			ui.Spacer(c)
 			a.remoteMenus(c, t)
@@ -147,25 +147,25 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 			switch rs.kind {
 			case refsBranches:
 				if d := rs.deleted; len(d) > 0 {
-					what := "Deleted " + plural(len(d), "branch")
+					what := locales.RefsDeletedBranches(len(d))
 					if len(d) == 1 {
-						what = "Deleted " + redact.Control(strings.TrimPrefix(d[0].Name, "refs/heads/")) + " at " + d[0].Commit[:min(10, len(d[0].Commit))]
+						what = locales.RefsDeletedBranch(redact.Control(strings.TrimPrefix(d[0].Name, "refs/heads/")), d[0].Commit[:min(10, len(d[0].Commit))])
 					}
 					ui.Text(c, what).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
-					if ui.Button(c, "Restore").Disabled(ro).Clicked() {
+					if ui.Button(c, locales.RefsRestore()).Disabled(ro).Clicked() {
 						a.restoreBranches(t, d)
 					}
 				}
-				if ui.Button(c, "Clean Up…").Disabled(rs.info == nil).Clicked() {
+				if ui.Button(c, locales.RefsCleanUp()).Disabled(rs.info == nil).Clicked() {
 					a.openCleanup(t)
 				}
 			case refsTags:
-				if ui.Button(c, "New Tag…").Disabled(ro || len(t.s.State.Head.OID) == 0).Clicked() {
+				if ui.Button(c, locales.RefsNewTag()).Disabled(ro || len(t.s.State.Head.OID) == 0).Clicked() {
 					a.tagDialog(t, "HEAD")
 				}
 			case refsRemotes:
-				if ui.Button(c, "Add Remote…").Disabled(ro).Clicked() {
-					rs.dlg = refDialog{open: true, title: "Add Remote", labels: []string{"Name", "URL"}, values: []string{"", ""}, button: "Add",
+				if ui.Button(c, locales.RefsAddRemote()).Disabled(ro).Clicked() {
+					rs.dlg = refDialog{open: true, title: locales.RefsAddRemoteTitle(), labels: []string{locales.RefsName(), locales.CommonURL()}, values: []string{"", ""}, button: locales.RefsAdd(),
 						run: func(d *refDialog) (write.Op, error) {
 							return write.AddRemote(t.s.Where(), strings.TrimSpace(d.values[0]), strings.TrimSpace(d.values[1]))
 						}}
@@ -261,12 +261,14 @@ func (a *App) refList(c *ui.Context, t *tab) {
 	rows := rs.rows
 	if len(rows) == 0 {
 		ui.Column(c).Fill().Center().Children(func() {
-			what := "No branches"
-			if rs.kind == refsTags {
-				what = "No tags"
-			}
-			if rs.filter != "" {
-				what += " match"
+			what := locales.RefsNoBranches()
+			switch {
+			case rs.kind == refsTags && rs.filter != "":
+				what = locales.RefsNoTagsMatch()
+			case rs.kind == refsTags:
+				what = locales.RefsNoTags()
+			case rs.filter != "":
+				what = locales.RefsNoBranchesMatch()
 			}
 			ui.Text(c, what).TextColor(th.TextMuted)
 		})
@@ -313,10 +315,10 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					name.Bold()
 				}
 				if b.Worktree != "" {
-					ui.Text(c, "in "+filepath.Base(b.Worktree)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Description("Checked out in " + b.Worktree)
+					ui.Text(c, locales.RefsInWorktree(filepath.Base(b.Worktree))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Description(locales.RefsCheckedOutIn(b.Worktree))
 				}
 				if on := stackedOn(info, b.Name); on != "" {
-					ui.Text(c, "on "+redact.Control(on)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Description("Stacked on " + redact.Control(on))
+					ui.Text(c, locales.RefsOnBranch(redact.Control(on))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Description(locales.RefsStackedOn(redact.Control(on)))
 				}
 				if p, ok := t.pulls.by[b.Name]; ok && a.Settings.PullRequests {
 					pullBadge(c, p)
@@ -337,12 +339,12 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				return
 			}
 			tg := info.Tags[r.idx]
-			kind := "lightweight"
+			kind := locales.RefsTagKindLightweight()
 			switch {
 			case tg.Signed:
-				kind = "signed"
+				kind = locales.RefsTagKindSigned()
 			case tg.Annotated:
-				kind = "annotated"
+				kind = locales.RefsTagKindAnnotated()
 			}
 			ui.Text(c, kind).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 			if v, ok := rs.sigs[tg.Object]; ok {
@@ -365,7 +367,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 		}
 		tg := info.Tags[r.idx]
 		row.ContextMenu(func(m *ui.Menu) { a.tagMenu(m, t, tg, &act) })
-	}).Label("Branches, tags and remotes").Grow(1)
+	}).Label(locales.RefsListLabel()).Grow(1)
 	if rs.chosen >= 0 && rs.chosen < len(rows) && rows[rs.chosen].idx >= 0 {
 		rs.chosenName = fullRef(info, rs.kind, rows[rs.chosen].idx)
 	}
@@ -401,10 +403,10 @@ func (a *App) sidebarRefMenu(it ui.Element, t *tab, name string) {
 		it.ContextMenu(func(m *ui.Menu) {
 			var act func()
 			ro := t.s.Queue == nil
-			if m.Item("Check Out").Disabled(ro || strings.HasSuffix(name, "/HEAD")).Chosen() {
+			if m.Item(locales.RefsCheckOut()).Disabled(ro || strings.HasSuffix(name, "/HEAD")).Chosen() {
 				act = func() { a.checkOutRemote(t, name) }
 			}
-			if m.Item("New Worktree…").Disabled(ro).Chosen() {
+			if m.Item(locales.RefsNewWorktree()).Disabled(ro).Chosen() {
 				act = func() { a.openAddWorktree(t, name) }
 			}
 			a.historyRefItems(m, t, name, &act)
@@ -474,7 +476,7 @@ func tracking(b session.BranchInfo) string {
 	up := strings.TrimPrefix(b.Upstream, "refs/remotes/")
 	switch {
 	case b.Gone:
-		return up + " gone"
+		return locales.RefsUpstreamGone(up)
 	case b.Ahead == 0 && b.Behind == 0:
 		return up
 	}
@@ -495,26 +497,26 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	current := !head.Detached && head.Target == b.Name
 	short := strings.TrimPrefix(b.Name, "refs/heads/")
 	w, seen := t.s.Where(), t.s.Seen()
-	if m.Item("Check Out").Disabled(ro || current).Chosen() {
+	if m.Item(locales.RefsCheckOut()).Disabled(ro || current).Chosen() {
 		*act = func() { a.checkOut(t, b) }
 	}
-	if m.Item("New Worktree…").Disabled(ro || current || b.Worktree != "").Chosen() {
+	if m.Item(locales.RefsNewWorktree()).Disabled(ro || current || b.Worktree != "").Chosen() {
 		*act = func() { a.openAddWorktree(t, b.Name) }
 	}
 	into := "HEAD"
 	if !head.Detached {
 		into = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
-	if m.Item("Merge into " + redact.Control(into) + "…").Disabled(ro || current).Chosen() {
+	if m.Item(locales.RefsMergeInto(redact.Control(into))).Disabled(ro || current).Chosen() {
 		*act = func() { a.openMerge(t, b.Name) }
 	}
-	if m.Item("Rebase " + redact.Control(into) + " onto This").Disabled(ro || current || head.Detached).Chosen() {
+	if m.Item(locales.RefsRebaseOnto(redact.Control(into))).Disabled(ro || current || head.Detached).Chosen() {
 		*act = func() {
 			op, err := write.Rebase(w, b.Name, t.s.LocalBranches(), seen)
 			a.submitRewrite(t, op, err)
 		}
 	}
-	if m.Item("Compare with " + redact.Control(into)).Disabled(current || len(head.OID) == 0).Chosen() {
+	if m.Item(locales.RefsCompareWith(redact.Control(into))).Disabled(current || len(head.OID) == 0).Chosen() {
 		*act = func() {
 			if id, err := hex.DecodeString(b.Commit); err == nil {
 				a.compareCommits(t, head.OID, id, into, short)
@@ -523,7 +525,7 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	}
 	if info := t.refs.info; info != nil {
 		if st := info.StackOf(b.Name); len(st) > 1 {
-			if m.Item(fmt.Sprintf("Push Stack of %d Branches", len(st))).Disabled(ro).Chosen() {
+			if m.Item(locales.RefsPushStack(len(st))).Disabled(ro).Chosen() {
 				*act = func() {
 					if _, err := t.s.PushStack(st); err != nil {
 						a.notice = errText(err)
@@ -533,29 +535,29 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 		}
 	}
 	m.Separator()
-	if m.Item("Create Tag Here…").Disabled(ro).Chosen() {
+	if m.Item(locales.RefsCreateTagHere()).Disabled(ro).Chosen() {
 		*act = func() { a.tagDialog(t, b.Commit) }
 	}
-	if m.Item("Rename…").Disabled(ro).Chosen() {
+	if m.Item(locales.RefsRenameItem()).Disabled(ro).Chosen() {
 		*act = func() {
-			t.refs.dlg = refDialog{open: true, title: "Rename " + redact.Control(short), labels: []string{"New name"}, values: []string{short}, button: "Rename",
+			t.refs.dlg = refDialog{open: true, title: locales.RefsRenameTitle(redact.Control(short)), labels: []string{locales.RefsNewName()}, values: []string{short}, button: locales.CommonRename(),
 				run: func(d *refDialog) (write.Op, error) {
 					return write.RenameBranch(w, b.Name, strings.TrimSpace(d.values[0]), seen)
 				}}
 		}
 	}
-	if m.Item("Delete…").Disabled(ro || current).Danger().Chosen() {
+	if m.Item(locales.RefsDeleteItem()).Disabled(ro || current).Danger().Chosen() {
 		*act = func() { a.deleteBranches(t, []session.BranchInfo{b}) }
 	}
 	m.Separator()
-	if m.Item("Copy Name").Chosen() {
+	if m.Item(locales.RefsCopyName()).Chosen() {
 		a.clip = short
 	}
 	a.pullItems(m, t, b, act)
 	m.Separator()
-	pin := "Pin to Top"
+	pin := locales.RefsPinToTop()
 	if slices.Contains(t.prefs.pinned, b.Name) {
-		pin = "Unpin"
+		pin = locales.RefsUnpin()
 	}
 	if m.Item(pin).Disabled(!t.prefs.loaded).Chosen() {
 		*act = func() { a.toggleRef(t, &t.prefs.pinned, b.Name) }
@@ -566,14 +568,14 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 // historyRefItems hide a ref from history, show it again, or show it
 // alone.
 func (a *App) historyRefItems(m *ui.Menu, t *tab, name string, act *func()) {
-	hide := "Hide in History"
+	hide := locales.RefsHideInHistory()
 	if slices.Contains(t.prefs.hidden, name) {
-		hide = "Show in History"
+		hide = locales.RefsShowInHistory()
 	}
 	if m.Item(hide).Disabled(!t.prefs.loaded).Chosen() {
 		*act = func() { a.toggleRef(t, &t.prefs.hidden, name) }
 	}
-	if m.Item("Show Only This in History").Chosen() {
+	if m.Item(locales.RefsShowOnlyInHistory()).Chosen() {
 		*act = func() {
 			hf := &t.hist.filter
 			hf.only, hf.open = name, true
@@ -611,9 +613,8 @@ func (a *App) switchAsk(c *ui.Context, t *tab) {
 	}
 	open := true
 	name := redact.Control(strings.TrimPrefix(rs.switching, "refs/heads/"))
-	choice := ui.AlertDialog(c, &open, "Switch to "+name+" with local changes?",
-		"Carried changes stay in the files; git stops if one would be overwritten. Stashed changes go to the stash list.",
-		"Carry Them", "Stash Them", "Cancel")
+	choice := ui.AlertDialog(c, &open, locales.RefsSwitchTitle(name), locales.RefsSwitchMessage(),
+		locales.RefsCarryThem(), locales.RefsStashThem(), locales.CommonCancel())
 	branch := rs.switching
 	if !open {
 		rs.switching = ""
@@ -633,12 +634,12 @@ func (a *App) deleteBranches(t *tab, bs []session.BranchInfo) {
 	if len(bs) == 0 {
 		return
 	}
-	title := "Delete " + plural(len(bs), "branch") + "?"
+	title := locales.RefsDeleteBranchesTitle(len(bs))
 	if len(bs) == 1 {
 		b := bs[0]
-		title = "Delete branch " + redact.Control(strings.TrimPrefix(b.Name, "refs/heads/")) + " at " + b.Commit[:min(10, len(b.Commit))] + "?"
+		title = locales.RefsDeleteBranchTitle(redact.Control(strings.TrimPrefix(b.Name, "refs/heads/")), b.Commit[:min(10, len(b.Commit))])
 	}
-	msg := "Each is backed up first; Undo brings it back."
+	msg := locales.RefsDeleteBranchesMessage()
 	var wts []string
 	for _, b := range bs {
 		if b.Worktree != "" {
@@ -646,10 +647,10 @@ func (a *App) deleteBranches(t *tab, bs []session.BranchInfo) {
 		}
 	}
 	if len(wts) > 0 {
-		msg += " The worktree at " + strings.Join(wts, ", ") + " is removed with its branch; git refuses if it has changes."
+		msg = locales.RefsDeleteBranchesWorktreesMessage(strings.Join(wts, ", "))
 	}
 	w, seen := t.s.Where(), t.s.Seen()
-	t.refs.ask = confirmState{open: true, title: title, message: msg, button: "Delete", run: func() {
+	t.refs.ask = confirmState{open: true, title: title, message: msg, button: locales.CommonDelete(), run: func() {
 		for _, b := range bs {
 			a.submit(t, write.DeleteBranch(w, b.Name, b.Commit, true, b.Worktree, seen), nil)
 		}
@@ -663,7 +664,7 @@ func (a *App) restoreBranches(t *tab, bs []session.BranchInfo) {
 	w, seen := t.s.Where(), t.s.Seen()
 	for _, b := range bs {
 		op, err := write.CreateBranch(w, b.Name, b.Commit, false, seen)
-		op.Name = "Restore branch " + strings.TrimPrefix(b.Name, "refs/heads/") + " at " + b.Commit[:min(12, len(b.Commit))]
+		op.Name = locales.RefsRestoreBranchJob(strings.TrimPrefix(b.Name, "refs/heads/"), b.Commit[:min(12, len(b.Commit))])
 		a.submit(t, op, err)
 	}
 	t.refs.deleted = nil
@@ -672,14 +673,14 @@ func (a *App) restoreBranches(t *tab, bs []session.BranchInfo) {
 func (a *App) tagMenu(m *ui.Menu, t *tab, tg session.TagInfo, act *func()) {
 	ro := t.s.Queue == nil
 	short := strings.TrimPrefix(tg.Name, "refs/tags/")
-	if m.Item("Check Out").Disabled(ro || tg.Commit == "").Chosen() {
+	if m.Item(locales.RefsCheckOut()).Disabled(ro || tg.Commit == "").Chosen() {
 		*act = func() { a.submit(t, write.Detach(t.s.Where(), tg.Commit, t.s.Seen()), nil) }
 	}
 	var remotes []session.RemoteInfo
 	if t.refs.info != nil {
 		remotes = t.refs.info.Remotes
 	}
-	m.Submenu("Push to", func(sub *ui.Menu) {
+	m.Submenu(locales.RefsPushTo(), func(sub *ui.Menu) {
 		for _, r := range remotes {
 			if sub.Item(redact.Control(r.Name)).Disabled(ro).Chosen() {
 				*act = func() {
@@ -689,18 +690,18 @@ func (a *App) tagMenu(m *ui.Menu, t *tab, tg session.TagInfo, act *func()) {
 			}
 		}
 	}).Disabled(len(remotes) == 0)
-	if m.Item("Delete…").Disabled(ro).Danger().Chosen() {
+	if m.Item(locales.RefsDeleteItem()).Disabled(ro).Danger().Chosen() {
 		*act = func() {
-			t.refs.ask = confirmState{open: true, title: "Delete tag " + redact.Control(short) + " at " + tg.Object[:min(10, len(tg.Object))] + "?",
-				message: "Only here; a tag already pushed stays on the remote. Undo brings it back.", button: "Delete",
+			t.refs.ask = confirmState{open: true, title: locales.RefsDeleteTagTitle(redact.Control(short), tg.Object[:min(10, len(tg.Object))]),
+				message: locales.RefsDeleteTagMessage(), button: locales.CommonDelete(),
 				run: func() { a.submit(t, write.DeleteTag(t.s.Where(), short, tg.Object), nil) }}
 		}
 	}
-	if tg.Signed && m.Item("Check Signature").Chosen() {
+	if tg.Signed && m.Item(locales.RefsCheckSignature()).Chosen() {
 		*act = func() { a.verifyTag(t, tg) }
 	}
 	m.Separator()
-	if m.Item("Copy Name").Chosen() {
+	if m.Item(locales.RefsCopyName()).Chosen() {
 		a.clip = short
 	}
 }
@@ -711,7 +712,7 @@ func (a *App) tagDialog(t *tab, commit string) {
 	if len(shown) > 10 {
 		shown = shown[:10]
 	}
-	t.refs.dlg = refDialog{open: true, title: "Create Tag at " + shown, labels: []string{"Tag name"}, values: []string{""}, tag: true, kind: 1, button: "Create",
+	t.refs.dlg = refDialog{open: true, title: locales.RefsCreateTagTitle(shown), labels: []string{locales.RefsTagName()}, values: []string{""}, tag: true, kind: 1, button: locales.CommonCreate(),
 		run: func(d *refDialog) (write.Op, error) {
 			kinds := []write.TagKind{write.Lightweight, write.Annotated, write.Signed}
 			return write.CreateTag(t.s.Where(), strings.TrimSpace(d.values[0]), commit, kinds[d.kind], d.message)
@@ -737,9 +738,9 @@ func (a *App) refDialogView(c *ui.Context, d *refDialog, t *tab) {
 				}
 			}
 			if d.tag {
-				ui.Segmented(c, &d.kind, "Lightweight", "Annotated", "Signed")
+				ui.Segmented(c, &d.kind, locales.RefsTagLightweight(), locales.RefsTagAnnotated(), locales.RefsTagSigned())
 				if d.kind > 0 {
-					ui.TextArea(c, &d.message).Placeholder("Message").Label("Message").Height(96)
+					ui.TextArea(c, &d.message).Placeholder(locales.CommonMessage()).Label(locales.CommonMessage()).Height(96)
 				}
 			}
 			if d.err != "" {
@@ -751,7 +752,7 @@ func (a *App) refDialogView(c *ui.Context, d *refDialog, t *tab) {
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
 				if (ui.PrimaryButton(c, d.button).Disabled(empty).Clicked() || submitted && !empty) && d.run != nil {
@@ -787,31 +788,31 @@ func (a *App) remoteMenus(c *ui.Context, t *tab) {
 	}
 	none := ro || len(remotes) == 0
 	w := t.s.Where()
-	ui.PopoverMenuButton(c, "Fetch", func(m *ui.Menu) {
-		if m.Item("Fetch All Remotes").Disabled(none).Chosen() {
+	ui.PopoverMenuButton(c, locales.RefsFetch(), func(m *ui.Menu) {
+		if m.Item(locales.RefsFetchAll()).Disabled(none).Chosen() {
 			op, err := write.Fetch(w, "", rs.prune)
 			a.submit(t, op, err)
 		}
 		for _, r := range remotes {
-			if m.Item("Fetch " + redact.Control(r.Name)).Disabled(none).Chosen() {
+			if m.Item(locales.RefsFetchRemote(redact.Control(r.Name))).Disabled(none).Chosen() {
 				op, err := write.Fetch(w, r.Name, rs.prune)
 				a.submit(t, op, err)
 			}
 		}
 		m.Separator()
-		if m.Item("Prune Deleted Branches").Checked(rs.prune).Chosen() {
+		if m.Item(locales.RefsPruneDeleted()).Checked(rs.prune).Chosen() {
 			rs.prune = !rs.prune
 		}
 	})
 	noUp := none || cur == nil || cur.Upstream == "" || cur.Gone
-	ui.PopoverMenuButton(c, "Pull", func(m *ui.Menu) {
+	ui.PopoverMenuButton(c, locales.RefsPull(), func(m *ui.Menu) {
 		for _, mode := range []struct {
 			label string
 			mode  write.PullMode
 		}{
-			{"Pull, Merging", write.PullMerge},
-			{"Pull, Rebasing", write.PullRebase},
-			{"Pull, Fast-Forward Only", write.PullFFOnly},
+			{locales.RefsPullMerging(), write.PullMerge},
+			{locales.RefsPullRebasing(), write.PullRebase},
+			{locales.RefsPullFFOnly(), write.PullFFOnly},
 		} {
 			if m.Item(mode.label).Disabled(noUp).Chosen() {
 				op, err := write.Pull(w, mode.mode, t.s.LocalBranches(), t.s.Seen())
@@ -819,20 +820,20 @@ func (a *App) remoteMenus(c *ui.Context, t *tab) {
 			}
 		}
 	})
-	ui.PopoverMenuButton(c, "Push", func(m *ui.Menu) {
-		if m.Item("Push").Disabled(noUp).Chosen() {
+	ui.PopoverMenuButton(c, locales.RefsPush(), func(m *ui.Menu) {
+		if m.Item(locales.RefsPush()).Disabled(noUp).Chosen() {
 			a.submit(t, write.Push(w, write.PushOptions{}), nil)
 		}
 		for _, r := range remotes {
-			if m.Item("Push to " + redact.Control(r.Name) + " and Track").Disabled(none || cur == nil).Chosen() {
+			if m.Item(locales.RefsPushAndTrack(redact.Control(r.Name))).Disabled(none || cur == nil).Chosen() {
 				a.submit(t, write.Push(w, write.PushOptions{Remote: r.Name}), nil)
 			}
 		}
 		m.Separator()
-		if m.Item("Force Push with Lease…").Disabled(noUp).Danger().Chosen() {
+		if m.Item(locales.RefsForcePushItem()).Disabled(noUp).Danger().Chosen() {
 			up := strings.TrimPrefix(cur.Upstream, "refs/remotes/")
-			rs.ask = confirmState{open: true, title: "Overwrite " + redact.Control(up) + "?",
-				message: "Only if it is still where this repository last fetched it; otherwise nothing is pushed.", button: "Force Push",
+			rs.ask = confirmState{open: true, title: locales.RefsForcePushTitle(redact.Control(up)),
+				message: locales.RefsForcePushMessage(), button: locales.RefsForcePush(),
 				run: func() { a.submit(t, write.Push(w, write.PushOptions{ForceWithLease: true}), nil) }}
 		}
 	})
@@ -843,7 +844,7 @@ func (a *App) remoteList(c *ui.Context, t *tab) {
 	rs := &t.refs
 	remotes := rs.info.Remotes
 	if len(remotes) == 0 {
-		emptyState(c, "No remotes")
+		emptyState(c, locales.RefsNoRemotes())
 		return
 	}
 	ro := t.s.Queue == nil
@@ -857,26 +858,26 @@ func (a *App) remoteList(c *ui.Context, t *tab) {
 				ui.Column(c).Grow(1).Children(func() {
 					ui.Text(c, redact.Shown(r.URL)).FontSize(textSmall).SingleLine().Selectable()
 					if r.PushURL != "" && r.PushURL != r.URL {
-						ui.Text(c, "push: "+redact.Shown(r.PushURL)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
+						ui.Text(c, locales.RefsPushURL(redact.Shown(r.PushURL))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
 					}
 				})
 			})
 			row.ContextMenu(func(m *ui.Menu) {
-				if m.Item("Fetch").Disabled(ro).Chosen() {
+				if m.Item(locales.RefsFetch()).Disabled(ro).Chosen() {
 					act = func() {
 						op, err := write.Fetch(w, r.Name, rs.prune)
 						a.submit(t, op, err)
 					}
 				}
-				if m.Item("Rename…").Disabled(ro).Chosen() {
+				if m.Item(locales.RefsRenameItem()).Disabled(ro).Chosen() {
 					act = func() {
-						rs.dlg = refDialog{open: true, title: "Rename Remote " + redact.Control(r.Name), labels: []string{"New name"}, values: []string{r.Name}, button: "Rename",
+						rs.dlg = refDialog{open: true, title: locales.RefsRenameRemoteTitle(redact.Control(r.Name)), labels: []string{locales.RefsNewName()}, values: []string{r.Name}, button: locales.CommonRename(),
 							run: func(d *refDialog) (write.Op, error) {
 								return write.RenameRemote(w, r.Name, strings.TrimSpace(d.values[0]))
 							}}
 					}
 				}
-				if m.Item("Change URL…").Disabled(ro).Chosen() {
+				if m.Item(locales.RefsChangeURLItem()).Disabled(ro).Chosen() {
 					act = func() {
 						// A URL with a credential in it is not put back in
 						// the field, where it would show.
@@ -884,17 +885,17 @@ func (a *App) remoteList(c *ui.Context, t *tab) {
 						if redact.Secrets(url) != url {
 							url = ""
 						}
-						rs.dlg = refDialog{open: true, title: "URL of " + redact.Control(r.Name), labels: []string{"URL"}, values: []string{url}, button: "Change",
+						rs.dlg = refDialog{open: true, title: locales.RefsChangeURLTitle(redact.Control(r.Name)), labels: []string{locales.CommonURL()}, values: []string{url}, button: locales.RefsChange(),
 							run: func(d *refDialog) (write.Op, error) {
 								return write.SetRemoteURL(w, r.Name, strings.TrimSpace(d.values[0]))
 							}}
 					}
 				}
 				m.Separator()
-				if m.Item("Remove…").Disabled(ro).Danger().Chosen() {
+				if m.Item(locales.RefsRemoveItem()).Disabled(ro).Danger().Chosen() {
 					act = func() {
-						rs.ask = confirmState{open: true, title: "Remove remote " + redact.Control(r.Name) + "?",
-							message: "Its remote-tracking branches go with it; the remote itself is not touched.", button: "Remove",
+						rs.ask = confirmState{open: true, title: locales.RefsRemoveRemoteTitle(redact.Control(r.Name)),
+							message: locales.RefsRemoveRemoteMessage(), button: locales.CommonRemove(),
 							run: func() {
 								op, err := write.RemoveRemote(w, r.Name)
 								a.submit(t, op, err)
@@ -966,10 +967,10 @@ func whyWords(w session.Why) string {
 		bit  session.Why
 		word string
 	}{
-		{session.Merged, "merged"},
-		{session.RebaseMerged, "rebased in"},
-		{session.SquashMerged, "squashed in"},
-		{session.UpstreamGone, "upstream gone"},
+		{session.Merged, locales.RefsWhyMerged()},
+		{session.RebaseMerged, locales.RefsWhyRebased()},
+		{session.SquashMerged, locales.RefsWhySquashed()},
+		{session.UpstreamGone, locales.RefsWhyUpstreamGone()},
 	} {
 		if w&x.bit != 0 {
 			out = append(out, x.word)
@@ -987,8 +988,8 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 	ui.Modal(c, &cs.open, func() {
 		dialogBox(c).Width(dialogWide).Height(480).Children(func() {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Branches That Can Go").Bold().Grow(1)
-				ui.Text(c, "Against").TextColor(th.TextMuted)
+				ui.Text(c, locales.RefsCleanupTitle()).Bold().Grow(1)
+				ui.Text(c, locales.RefsCleanupAgainst()).TextColor(th.TextMuted)
 				ui.PopoverMenuButton(c, redact.Control(strings.TrimPrefix(cs.base, "refs/heads/")), func(m *ui.Menu) {
 					if t.refs.info == nil {
 						return
@@ -1011,7 +1012,7 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 				ui.Text(c, cs.err).TextColor(th.Danger).Selectable().Grow(1)
 			case len(cs.found) == 0:
 				ui.Column(c).Grow(1).Center().Children(func() {
-					ui.Text(c, "No branches can go").TextColor(th.TextMuted)
+					ui.Text(c, locales.RefsCleanupNone()).TextColor(th.TextMuted)
 				})
 			default:
 				found := cs.found
@@ -1021,11 +1022,11 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 					ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 						ui.Checkbox(c, &cs.picked[i], redact.Control(strings.TrimPrefix(f.Branch.Name, "refs/heads/"))).Grow(1)
 						if f.Branch.Worktree != "" {
-							ui.Text(c, "in "+filepath.Base(f.Branch.Worktree)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+							ui.Text(c, locales.RefsInWorktree(filepath.Base(f.Branch.Worktree))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 						}
 						ui.Text(c, whyWords(f.Why)).FontSize(textSmall).TextColor(th.TextMuted).Width(200).SingleLine()
 					})
-				}).Label("Branches to clean up").Grow(1)
+				}).Label(locales.RefsCleanupListLabel()).Grow(1)
 			}
 			n := 0
 			for _, p := range cs.picked {
@@ -1035,12 +1036,12 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					cs.open = false
 				}
-				label := "Delete"
+				label := locales.CommonDelete()
 				if n > 0 {
-					label = "Delete " + plural(n, "Branch")
+					label = locales.RefsCleanupDelete(n)
 				}
 				if ui.PrimaryButton(c, label).Disabled(n == 0 || t.s.Queue == nil || cs.loading).Clicked() {
 					var bs []session.BranchInfo

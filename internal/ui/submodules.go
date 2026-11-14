@@ -7,6 +7,7 @@ import (
 
 	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // submoduleDir is where the submodule at path, slash-separated, is
@@ -18,7 +19,7 @@ func submoduleDir(t *tab, path string) string {
 // submoduleLabel is how the sidebar lists m.
 func submoduleLabel(m repo.Submodule) string {
 	if !m.Present {
-		return m.Path + "  not checked out"
+		return locales.SubmoduleNotCheckedOutLabel(m.Path)
 	}
 	return m.Path
 }
@@ -28,10 +29,10 @@ func submoduleLabel(m repo.Submodule) string {
 func (a *App) submodulesMenu(t *tab) func(*ui.Menu, *func()) {
 	return func(m *ui.Menu, act *func()) {
 		ro := t.s.Queue == nil
-		if m.Item("Update All Submodules").Disabled(ro).Chosen() {
+		if m.Item(locales.SubmoduleUpdateAll()).Disabled(ro).Chosen() {
 			*act = func() { a.submit(t, write.SubmoduleUpdate(t.s.Where(), nil, true, true), nil) }
 		}
-		if m.Item("Sync All Submodule URLs").Disabled(ro).Chosen() {
+		if m.Item(locales.SubmoduleSyncAll()).Disabled(ro).Chosen() {
 			*act = func() { a.submit(t, write.SubmoduleSync(t.s.Where(), nil, true), nil) }
 		}
 		m.Separator()
@@ -45,28 +46,28 @@ func (a *App) submoduleMenu(it ui.Element, t *tab, sm repo.Submodule) {
 		dir := submoduleDir(t, sm.Path)
 		paths := []string{sm.Path}
 		var act func()
-		if m.Item("Open in New Tab").Disabled(!sm.Present).Chosen() {
+		if m.Item(locales.SubmoduleOpenInNewTab()).Disabled(!sm.Present).Chosen() {
 			act = func() { a.Open(dir) }
 		}
-		if a.NewWindow != nil && m.Item("Open in New Window").Disabled(!sm.Present).Chosen() {
+		if a.NewWindow != nil && m.Item(locales.SubmoduleOpenInNewWindow()).Disabled(!sm.Present).Chosen() {
 			act = func() { a.NewWindow([]string{dir}) }
 		}
 		m.Separator()
-		label := "Update"
+		label := locales.SubmoduleUpdate()
 		if !sm.Present {
-			label = "Check Out"
+			label = locales.RefsCheckOut()
 		}
 		if m.Item(label).Disabled(ro).Chosen() {
 			act = func() { a.submit(t, write.SubmoduleUpdate(t.s.Where(), paths, true, true), nil) }
 		}
-		if m.Item("Initialize").Disabled(ro).Chosen() {
+		if m.Item(locales.SubmoduleInitialize()).Disabled(ro).Chosen() {
 			act = func() { a.submit(t, write.SubmoduleInit(t.s.Where(), paths), nil) }
 		}
-		if m.Item("Sync URL").Disabled(ro).Chosen() {
+		if m.Item(locales.SubmoduleSyncURL()).Disabled(ro).Chosen() {
 			act = func() { a.submit(t, write.SubmoduleSync(t.s.Where(), paths, true), nil) }
 		}
 		m.Separator()
-		if m.Item("Copy Path").Chosen() {
+		if m.Item(locales.SubmoduleCopyPath()).Chosen() {
 			act = func() { a.clip = dir }
 		}
 		if act != nil {
@@ -84,11 +85,11 @@ func (a *App) chooseSubmodule(t *tab, path string) {
 		case sm.Present:
 			a.Open(submoduleDir(t, path))
 		case t.s.Queue == nil:
-			a.notice = "Submodule " + path + " is not checked out."
+			a.notice = locales.SubmoduleNotCheckedOutNotice(path)
 		default:
-			a.confirm = confirmState{open: true, title: "Submodule " + path + " is not checked out",
-				message: "Check Out clones it from its URL and checks out the commit this repository records, with its own submodules.",
-				button:  "Check Out",
+			a.confirm = confirmState{open: true, title: locales.SubmoduleNotCheckedOutTitle(path),
+				message: locales.SubmoduleCheckOutMessage(),
+				button:  locales.RefsCheckOut(),
 				run:     func() { a.submit(t, write.SubmoduleUpdate(t.s.Where(), []string{path}, true, true), nil) }}
 		}
 	}

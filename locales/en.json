@@ -1,7 +1,9 @@
 {
   "@@locale": "en",
   "commonCancel": "Cancel",
-  "@commonCancel": { "description": "Closes a dialog or question without doing anything." },
+  "@commonCancel": {
+    "description": "Closes a dialog or question without doing anything."
+  },
   "commonOK": "OK",
   "commonSave": "Save",
   "commonClose": "Close",
@@ -13,13 +15,296 @@
   "commonCopy": "Copy",
   "commonCopyHash": "Copy Hash",
   "commonChoose": "Choose…",
-  "@commonChoose": { "description": "Opens a folder picker." },
+  "@commonChoose": {
+    "description": "Opens a folder picker."
+  },
   "commonFilter": "Filter",
-  "@commonFilter": { "description": "A search field's label and placeholder." },
+  "@commonFilter": {
+    "description": "A search field's label and placeholder."
+  },
   "commonMessage": "Message",
-  "@commonMessage": { "description": "A commit, tag or stash message field." },
+  "@commonMessage": {
+    "description": "A commit, tag or stash message field."
+  },
   "commonBranchName": "Branch name",
   "commonNewBranch": "New branch",
   "commonFolder": "Folder",
-  "commonURL": "URL"
+  "commonURL": "URL",
+  "refsBranches": "Branches",
+  "refsTags": "Tags",
+  "refsRemotes": "Remotes",
+  "refsDeletedBranches": "{count, plural, one {Deleted # branch} other {Deleted # branches}}",
+  "refsDeletedBranch": "Deleted {name} at {commit}",
+  "@refsDeletedBranch": {
+    "description": "The branches view's bar, after a branch was deleted; commit is a short hash."
+  },
+  "refsRestore": "Restore",
+  "@refsRestore": {
+    "description": "A button: makes the branches just deleted again."
+  },
+  "refsCleanUp": "Clean Up…",
+  "@refsCleanUp": {
+    "description": "A button: lists the branches that can be deleted."
+  },
+  "refsNewTag": "New Tag…",
+  "refsAddRemote": "Add Remote…",
+  "refsAddRemoteTitle": "Add Remote",
+  "refsName": "Name",
+  "@refsName": {
+    "description": "The field for a new remote's name."
+  },
+  "refsAdd": "Add",
+  "@refsAdd": {
+    "description": "A button: adds the remote."
+  },
+  "refsNoBranches": "No branches",
+  "refsNoBranchesMatch": "No branches match",
+  "refsNoTags": "No tags",
+  "refsNoTagsMatch": "No tags match",
+  "refsInWorktree": "in {folder}",
+  "@refsInWorktree": {
+    "description": "After a branch's name: the folder of the other worktree it is checked out in."
+  },
+  "refsCheckedOutIn": "Checked out in {path}",
+  "refsOnBranch": "on {branch}",
+  "@refsOnBranch": {
+    "description": "After a branch's name: the branch it is stacked on."
+  },
+  "refsStackedOn": "Stacked on {branch}",
+  "refsTagKindLightweight": "lightweight",
+  "@refsTagKindLightweight": {
+    "description": "A column of the tag list: the kind of tag."
+  },
+  "refsTagKindAnnotated": "annotated",
+  "@refsTagKindAnnotated": {
+    "description": "A column of the tag list: the kind of tag."
+  },
+  "refsTagKindSigned": "signed",
+  "@refsTagKindSigned": {
+    "description": "A column of the tag list: the kind of tag."
+  },
+  "refsListLabel": "Branches, tags and remotes",
+  "refsCheckOut": "Check Out",
+  "@refsCheckOut": {
+    "description": "A verb: checks out a branch, tag or submodule."
+  },
+  "refsNewWorktree": "New Worktree…",
+  "refsMergeInto": "Merge into {branch}…",
+  "refsRebaseOnto": "Rebase {branch} onto This",
+  "refsCompareWith": "Compare with {branch}",
+  "refsPushStack": "{count, plural, one {Push Stack of # Branch} other {Push Stack of # Branches}}",
+  "refsCreateTagHere": "Create Tag Here…",
+  "refsRenameItem": "Rename…",
+  "refsRenameTitle": "Rename {name}",
+  "refsNewName": "New name",
+  "refsDeleteItem": "Delete…",
+  "refsCopyName": "Copy Name",
+  "refsPinToTop": "Pin to Top",
+  "refsUnpin": "Unpin",
+  "refsHideInHistory": "Hide in History",
+  "refsShowInHistory": "Show in History",
+  "refsShowOnlyInHistory": "Show Only This in History",
+  "refsSwitchTitle": "Switch to {name} with local changes?",
+  "refsSwitchMessage": "Carried changes stay in the files; git stops if one would be overwritten. Stashed changes go to the stash list.",
+  "refsCarryThem": "Carry Them",
+  "refsStashThem": "Stash Them",
+  "refsDeleteBranchesTitle": "{count, plural, one {Delete # branch?} other {Delete # branches?}}",
+  "refsDeleteBranchTitle": "Delete branch {name} at {commit}?",
+  "refsDeleteBranchesMessage": "Each is backed up first; Undo brings it back.",
+  "refsDeleteBranchesWorktreesMessage": "Each is backed up first; Undo brings it back. The worktree at {folders} is removed with its branch; git refuses if it has changes.",
+  "@refsDeleteBranchesWorktreesMessage": {
+    "description": "folders is a comma-separated list of paths."
+  },
+  "refsRestoreBranchJob": "Restore branch {name} at {commit}",
+  "@refsRestoreBranchJob": {
+    "description": "The name of a write in the activity list."
+  },
+  "refsPushTo": "Push to",
+  "@refsPushTo": {
+    "description": "A submenu of a tag's menu, listing the remotes."
+  },
+  "refsDeleteTagTitle": "Delete tag {name} at {object}?",
+  "refsDeleteTagMessage": "Only here; a tag already pushed stays on the remote. Undo brings it back.",
+  "refsCheckSignature": "Check Signature",
+  "refsCreateTagTitle": "Create Tag at {commit}",
+  "refsTagName": "Tag name",
+  "refsTagLightweight": "Lightweight",
+  "refsTagAnnotated": "Annotated",
+  "refsTagSigned": "Signed",
+  "refsFetch": "Fetch",
+  "@refsFetch": {
+    "description": "A verb: a menu button and a remote's menu item."
+  },
+  "refsFetchAll": "Fetch All Remotes",
+  "refsFetchRemote": "Fetch {remote}",
+  "refsPruneDeleted": "Prune Deleted Branches",
+  "refsPull": "Pull",
+  "@refsPull": {
+    "description": "A verb: the menu button of the ways to pull."
+  },
+  "refsPullMerging": "Pull, Merging",
+  "refsPullRebasing": "Pull, Rebasing",
+  "refsPullFFOnly": "Pull, Fast-Forward Only",
+  "refsPush": "Push",
+  "@refsPush": {
+    "description": "A verb: a menu button and its first item."
+  },
+  "refsPushAndTrack": "Push to {remote} and Track",
+  "refsForcePushItem": "Force Push with Lease…",
+  "refsForcePushTitle": "Overwrite {upstream}?",
+  "refsForcePushMessage": "Only if it is still where this repository last fetched it; otherwise nothing is pushed.",
+  "refsForcePush": "Force Push",
+  "refsNoRemotes": "No remotes",
+  "refsPushURL": "push: {url}",
+  "@refsPushURL": {
+    "description": "Under a remote's URL: the other URL it pushes to."
+  },
+  "refsRenameRemoteTitle": "Rename Remote {name}",
+  "refsChangeURLItem": "Change URL…",
+  "refsChangeURLTitle": "URL of {name}",
+  "refsChange": "Change",
+  "@refsChange": {
+    "description": "A button: sets the remote's URL."
+  },
+  "refsRemoveItem": "Remove…",
+  "refsRemoveRemoteTitle": "Remove remote {name}?",
+  "refsRemoveRemoteMessage": "Its remote-tracking branches go with it; the remote itself is not touched.",
+  "refsUpstreamGone": "{upstream} gone",
+  "@refsUpstreamGone": {
+    "description": "A branch's tracking column: its upstream branch was deleted on the remote."
+  },
+  "refsWhyMerged": "merged",
+  "@refsWhyMerged": {
+    "description": "Why a branch can be deleted; several are joined by commas."
+  },
+  "refsWhyRebased": "rebased in",
+  "@refsWhyRebased": {
+    "description": "Why a branch can be deleted; several are joined by commas."
+  },
+  "refsWhySquashed": "squashed in",
+  "@refsWhySquashed": {
+    "description": "Why a branch can be deleted; several are joined by commas."
+  },
+  "refsWhyUpstreamGone": "upstream gone",
+  "@refsWhyUpstreamGone": {
+    "description": "Why a branch can be deleted; several are joined by commas."
+  },
+  "refsCleanupTitle": "Branches That Can Go",
+  "refsCleanupAgainst": "Against",
+  "@refsCleanupAgainst": {
+    "description": "Before the menu of the branch the others are compared with."
+  },
+  "refsCleanupNone": "No branches can go",
+  "refsCleanupListLabel": "Branches to clean up",
+  "refsCleanupDelete": "{count, plural, one {Delete # Branch} other {Delete # Branches}}",
+  "pullsNoCLI": "Pull requests need GitHub's gh or GitLab's glab, logged in; neither was found on the PATH",
+  "pullsNotRead": "Pull requests not read: {reason}",
+  "pullsDraft": "draft",
+  "@pullsDraft": {
+    "description": "After a pull request's number: it is a draft."
+  },
+  "pullsChecksRunning": "checks running",
+  "pullsChecksPassed": "checks passed",
+  "pullsChecksFailed": "checks failed",
+  "pullsOpen": "{kind, select, gitlab {Open Merge Request {ref}} other {Open Pull Request {ref}}}",
+  "@pullsOpen": {
+    "description": "kind is gitlab for GitLab, else GitHub; ref is the request's number, as #12 or !12."
+  },
+  "pullsShowInBrowser": "{kind, select, gitlab {Show Merge Requests in Browser} other {Show Pull Requests in Browser}}",
+  "pullsCreateInBrowser": "{kind, select, gitlab {Create Merge Request in Browser} other {Create Pull Request in Browser}}",
+  "pullsStackPosition": "stack {index}/{count}",
+  "@pullsStackPosition": {
+    "description": "After a branch's name: its place in a GitHub stack.",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pullsStackBranch": "Branch {index} of {count} in a GitHub stack",
+  "@pullsStackBranch": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pullsStackBranchNumber": "Branch {index} of {count} in a GitHub stack, #{number, number, ::group-off}",
+  "@pullsStackBranchNumber": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      },
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "pullsSubmitStackItem": "Submit GitHub Stack…",
+  "pullsSubmitStackTitle": "Submit the stack?",
+  "pullsSubmitStackMessage": "{count, plural, one {gh stack pushes the # branch of the stack and creates or updates their pull requests on GitHub; new ones are drafts.} other {gh stack pushes the # branches of the stack and creates or updates their pull requests on GitHub; new ones are drafts.}}",
+  "pullsSubmit": "Submit",
+  "pullsSubmitStackJob": "Submit GitHub stack",
+  "@pullsSubmitStackJob": {
+    "description": "The name of a write in the activity list."
+  },
+  "pullsPushStackItem": "Push GitHub Stack",
+  "pullsPushStackJob": "Push GitHub stack",
+  "@pullsPushStackJob": {
+    "description": "The name of a write in the activity list."
+  },
+  "pullsCreateStackItem": "{count, plural, one {Create GitHub Stack of # Branch…} other {Create GitHub Stack of # Branches…}}",
+  "pullsCreateStackTitle": "Create a GitHub stack?",
+  "pullsCreateStackMessage": "gh stack makes a stack of {branches}, from the bottom, and checks out {top}.",
+  "@pullsCreateStackMessage": {
+    "description": "branches is a comma-separated list of branch names."
+  },
+  "pullsCreateStackJob": "Create GitHub stack",
+  "@pullsCreateStackJob": {
+    "description": "The name of a write in the activity list."
+  },
+  "remoteCheckoutNotTracking": "{name} does not track {remote}; resetting it drops what it has that {remote} does not.",
+  "remoteCheckoutSame": "{name} is at the same commit as {remote}.",
+  "remoteCheckoutBehind": "{count, plural, one {{name} is # commit behind {remote}.} other {{name} is # commits behind {remote}.}}",
+  "remoteCheckoutAhead": "{count, plural, one {{name} is # commit ahead of {remote}, not pushed.} other {{name} is # commits ahead of {remote}, not pushed.}}",
+  "remoteCheckoutDiverged": "{name} and {remote} have diverged: {ahead, plural, one {# commit} other {# commits}} ahead, {behind, plural, one {# commit} other {# commits}} behind.",
+  "remoteCheckoutExists": "A local branch {name} already exists",
+  "remoteCheckoutSwitch": "Switch to {name}",
+  "remoteCheckoutFastForward": "Fast-Forward and Switch",
+  "remoteCheckoutReset": "Reset to {remote}",
+  "remoteCheckoutResetNote": "A reset backs up {name} first; Undo brings it back.",
+  "remoteCheckoutAsNew": "Check Out as New Branch",
+  "remoteCheckoutElsewhereTitle": "Branch {name} is checked out in another worktree",
+  "remoteCheckoutElsewhereMessage": "git checks out a branch in one worktree at a time. It is checked out at {folder}.",
+  "remoteCheckoutOpen": "Open {folder}",
+  "@remoteCheckoutOpen": {
+    "description": "A button: opens the other worktree; folder is its folder's name."
+  },
+  "submoduleNotCheckedOutLabel": "{path}  not checked out",
+  "@submoduleNotCheckedOutLabel": {
+    "description": "A submodule in the sidebar that is not checked out."
+  },
+  "submoduleUpdateAll": "Update All Submodules",
+  "submoduleSyncAll": "Sync All Submodule URLs",
+  "submoduleOpenInNewTab": "Open in New Tab",
+  "submoduleOpenInNewWindow": "Open in New Window",
+  "submoduleUpdate": "Update",
+  "@submoduleUpdate": {
+    "description": "A verb: checks out the commit the repository records for the submodule."
+  },
+  "submoduleInitialize": "Initialize",
+  "submoduleSyncURL": "Sync URL",
+  "submoduleCopyPath": "Copy Path",
+  "submoduleNotCheckedOutNotice": "Submodule {path} is not checked out.",
+  "submoduleNotCheckedOutTitle": "Submodule {path} is not checked out",
+  "submoduleCheckOutMessage": "Check Out clones it from its URL and checks out the commit this repository records, with its own submodules."
 }

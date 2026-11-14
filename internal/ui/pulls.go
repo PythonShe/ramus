@@ -13,6 +13,7 @@ import (
 	"ramus/internal/forge"
 	"ramus/internal/git/redact"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // pullsMaxAge is how old the pull requests shown may be before the
@@ -116,9 +117,9 @@ func (a *App) forgeNotice(err error) {
 	switch {
 	case errors.As(err, &le):
 	case errors.Is(err, forge.ErrNoCLI):
-		text = "Pull requests need GitHub's gh or GitLab's glab, logged in; neither was found on the PATH"
+		text = locales.PullsNoCLI()
 	default:
-		text = "Pull requests not read: " + text
+		text = locales.PullsNotRead(text)
 	}
 	if a.forgeWarned == nil {
 		a.forgeWarned = map[string]bool{}
@@ -136,19 +137,19 @@ func pullBadge(c *ui.Context, p session.PullInfo) {
 	ref := p.Ref(p.Repo.Kind)
 	ui.Link(c, ref, p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
 	if p.Draft {
-		ui.Text(c, "draft").FontSize(textSmall).TextColor(th.TextMuted)
+		ui.Text(c, locales.PullsDraft()).FontSize(textSmall).TextColor(th.TextMuted)
 	}
-	mark, color := "", th.TextMuted
+	mark, color, says := "", th.TextMuted, ""
 	switch p.Checks {
 	case forge.ChecksPassing:
-		mark, color = "✓", th.Success
+		mark, color, says = "✓", th.Success, locales.PullsChecksPassed()
 	case forge.ChecksFailing:
-		mark, color = "✗", th.Danger
+		mark, color, says = "✗", th.Danger, locales.PullsChecksFailed()
 	case forge.ChecksPending:
-		mark = "●"
+		mark, says = "●", locales.PullsChecksRunning()
 	}
 	if mark != "" {
-		ui.Text(c, mark).FontSize(textSmall).TextColor(color).Label(p.Checks.String()).Tooltip(p.Checks.String())
+		ui.Text(c, mark).FontSize(textSmall).TextColor(color).Label(says).Tooltip(says)
 	}
 }
 
@@ -164,15 +165,18 @@ func (a *App) pullItems(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) {
 		return
 	}
 	m.Separator()
-	what := repo.Name()
-	if p, ok := t.pulls.by[b.Name]; ok && m.Item("Open "+what+" "+p.Ref(repo.Kind)).Chosen() {
+	kind := "github"
+	if repo.Kind == forge.GitLab {
+		kind = "gitlab"
+	}
+	if p, ok := t.pulls.by[b.Name]; ok && m.Item(locales.PullsOpen(kind, p.Ref(repo.Kind))).Chosen() {
 		a.openURL = p.URL
 	}
 	pushed := b.Upstream != "" && !b.Gone
-	if m.Item("Show " + what + "s in Browser").Disabled(!pushed).Chosen() {
+	if m.Item(locales.PullsShowInBrowser(kind)).Disabled(!pushed).Chosen() {
 		a.openURL = repo.BranchPulls(name)
 	}
-	if m.Item("Create " + what + " in Browser").Disabled(!pushed).Chosen() {
+	if m.Item(locales.PullsCreateInBrowser(kind)).Disabled(!pushed).Chosen() {
 		a.openURL = repo.NewPull(name)
 	}
 	a.stackItems(m, t, b, repo, act)
@@ -211,11 +215,11 @@ func (a *App) stackBadge(c *ui.Context, t *tab, info *session.RefInfo, b session
 	if !ok {
 		return
 	}
-	what := fmt.Sprintf("Branch %d of %d in a GitHub stack", i+1, len(st.Branches))
+	what := locales.PullsStackBranch(i+1, len(st.Branches))
 	if st.Number > 0 {
-		what += fmt.Sprintf(", #%d", st.Number)
+		what = locales.PullsStackBranchNumber(i+1, len(st.Branches), st.Number)
 	}
-	ui.Text(c, fmt.Sprintf("stack %d/%d", i+1, len(st.Branches))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Label(what).Tooltip(what)
+	ui.Text(c, locales.PullsStackPosition(i+1, len(st.Branches))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Label(what).Tooltip(what)
 	if _, asked := t.pulls.by[b.Name]; !asked || !a.Settings.PullRequests {
 		if br := st.Branches[i]; br.PR > 0 && br.URL != "" && !br.Merged {
 			ui.Link(c, fmt.Sprintf("#%d", br.PR), br.URL).FontSize(textSmall)
@@ -240,16 +244,16 @@ func (a *App) stackItems(m *ui.Menu, t *tab, b session.BranchInfo, repo forge.Re
 		cur, _, onIt := forge.StackOf(info.GitHubStacks, strings.TrimPrefix(head.Target, "refs/heads/"))
 		onIt = onIt && !head.Detached && cur.Branches[0].Name == st.Branches[0].Name
 		n := len(st.Branches)
-		if m.Item("Submit GitHub Stack…").Disabled(ro || !onIt).Chosen() {
+		if m.Item(locales.PullsSubmitStackItem()).Disabled(ro || !onIt).Chosen() {
 			*act = func() {
-				t.refs.ask = confirmState{open: true, title: "Submit the stack?",
-					message: fmt.Sprintf("gh stack pushes the %s of the stack and creates or updates their pull requests on GitHub; new ones are drafts.", plural(n, "branch")),
-					button:  "Submit",
-					run:     func() { a.runStack(t, c, "Submit GitHub stack", "submit", "--auto") }}
+				t.refs.ask = confirmState{open: true, title: locales.PullsSubmitStackTitle(),
+					message: locales.PullsSubmitStackMessage(n),
+					button:  locales.PullsSubmit(),
+					run:     func() { a.runStack(t, c, locales.PullsSubmitStackJob(), "submit", "--auto") }}
 			}
 		}
-		if m.Item("Push GitHub Stack").Disabled(ro || !onIt).Chosen() {
-			*act = func() { a.runStack(t, c, "Push GitHub stack", "push") }
+		if m.Item(locales.PullsPushStackItem()).Disabled(ro || !onIt).Chosen() {
+			*act = func() { a.runStack(t, c, locales.PullsPushStackJob(), "push") }
 		}
 		return
 	}
@@ -264,13 +268,13 @@ func (a *App) stackItems(m *ui.Menu, t *tab, b session.BranchInfo, repo forge.Re
 			return
 		}
 	}
-	if m.Item(fmt.Sprintf("Create GitHub Stack of %d Branches…", len(names))).Disabled(ro).Chosen() {
+	if m.Item(locales.PullsCreateStackItem(len(names))).Disabled(ro).Chosen() {
 		*act = func() {
 			top := names[len(names)-1]
-			t.refs.ask = confirmState{open: true, title: "Create a GitHub stack?",
-				message: "gh stack makes a stack of " + strings.Join(names, ", ") + ", from the bottom, and checks out " + top + ".",
-				button:  "Create",
-				run:     func() { a.runStack(t, c, "Create GitHub stack", append([]string{"init", "--"}, names...)...) }}
+			t.refs.ask = confirmState{open: true, title: locales.PullsCreateStackTitle(),
+				message: locales.PullsCreateStackMessage(strings.Join(names, ", "), top),
+				button:  locales.CommonCreate(),
+				run:     func() { a.runStack(t, c, locales.PullsCreateStackJob(), append([]string{"init", "--"}, names...)...) }}
 		}
 	}
 }

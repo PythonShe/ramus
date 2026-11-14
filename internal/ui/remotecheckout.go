@@ -3,7 +3,6 @@ package ui
 import (
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -11,6 +10,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // remoteCheckout is the dialog for checking out a remote branch whose
@@ -74,23 +74,17 @@ func (d *remoteCheckout) relation() (text string, ff, behind bool) {
 	short := strings.TrimPrefix(d.remote, "refs/remotes/")
 	name := strings.TrimPrefix(d.local.Name, "refs/heads/")
 	b := d.local
-	commits := func(n int) string {
-		if n == 1 {
-			return "1 commit"
-		}
-		return strconv.Itoa(n) + " commits"
-	}
 	switch {
 	case b.Upstream != d.remote:
-		return name + " does not track " + short + "; resetting it drops what it has that " + short + " does not.", false, true
+		return locales.RemoteCheckoutNotTracking(name, short), false, true
 	case b.Ahead == 0 && b.Behind == 0:
-		return name + " is at the same commit as " + short + ".", false, false
+		return locales.RemoteCheckoutSame(name, short), false, false
 	case b.Ahead == 0:
-		return name + " is " + commits(b.Behind) + " behind " + short + ".", true, true
+		return locales.RemoteCheckoutBehind(b.Behind, name, short), true, true
 	case b.Behind == 0:
-		return name + " is " + commits(b.Ahead) + " ahead of " + short + ", not pushed.", false, false
+		return locales.RemoteCheckoutAhead(b.Ahead, name, short), false, false
 	}
-	return name + " and " + short + " have diverged: " + commits(b.Ahead) + " ahead, " + commits(b.Behind) + " behind.", false, true
+	return locales.RemoteCheckoutDiverged(name, short, b.Ahead, b.Behind), false, true
 }
 
 func (a *App) remoteCheckoutView(c *ui.Context) {
@@ -119,30 +113,30 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 	}
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
-			ui.Text(c, "A local branch "+redact.Control(name)+" already exists").Bold()
+			ui.Text(c, locales.RemoteCheckoutExists(redact.Control(name))).Bold()
 			ui.Text(c, redact.Control(text)).Selectable()
 			ui.Row(c).Gap(spaceM).Children(func() {
-				if !current && ui.Button(c, "Switch to "+redact.Control(name)).Clicked() {
+				if !current && ui.Button(c, locales.RemoteCheckoutSwitch(redact.Control(name))).Clicked() {
 					submit(write.Switch(t.s.Where(), d.local.Name, t.s.Seen()), nil)
 				}
 				switch {
 				case ff:
-					if ui.PrimaryButton(c, "Fast-Forward and Switch").Clicked() {
+					if ui.PrimaryButton(c, locales.RemoteCheckoutFastForward()).Clicked() {
 						reset()
 					}
 				case behind:
-					if ui.Button(c, "Reset to "+redact.Control(short)).Clicked() {
+					if ui.Button(c, locales.RemoteCheckoutReset(redact.Control(short))).Clicked() {
 						reset()
 					}
 				}
 			})
 			if behind && !ff {
-				ui.Text(c, "A reset backs up "+redact.Control(name)+" first; Undo brings it back.").FontSize(textSmall).TextColor(th.TextMuted)
+				ui.Text(c, locales.RemoteCheckoutResetNote(redact.Control(name))).FontSize(textSmall).TextColor(th.TextMuted)
 			}
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-				in := ui.TextInput(c, &d.other).Label("New branch").Placeholder("New branch").Grow(1)
+				in := ui.TextInput(c, &d.other).Label(locales.CommonNewBranch()).Placeholder(locales.CommonNewBranch()).Grow(1)
 				ok := strings.TrimSpace(d.other) != ""
-				if ui.Button(c, "Check Out as New Branch").Disabled(!ok).Clicked() || ok && in.Submitted() {
+				if ui.Button(c, locales.RemoteCheckoutAsNew()).Disabled(!ok).Clicked() || ok && in.Submitted() {
 					submit(write.CheckoutRemote(t.s.Where(), d.remote, strings.TrimSpace(d.other), "", false, write.CarryChanges, t.s.Seen()))
 				}
 			})
@@ -151,7 +145,7 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 			}
 			ui.Row(c).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
 			})
@@ -167,14 +161,14 @@ func (a *App) elsewhereView(c *ui.Context) {
 	name := strings.TrimPrefix(d.branch, "refs/heads/")
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
-			ui.Text(c, "Branch "+redact.Control(name)+" is checked out in another worktree").Bold()
-			ui.Text(c, "git checks out a branch in one worktree at a time. It is checked out at "+d.folder+".").Selectable()
+			ui.Text(c, locales.RemoteCheckoutElsewhereTitle(redact.Control(name))).Bold()
+			ui.Text(c, locales.RemoteCheckoutElsewhereMessage(d.folder)).Selectable()
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, "Open "+filepath.Base(d.folder)).Clicked() {
+				if ui.PrimaryButton(c, locales.RemoteCheckoutOpen(filepath.Base(d.folder))).Clicked() {
 					d.open = false
 					a.Open(d.folder)
 				}
