@@ -336,8 +336,13 @@ func parse(s *Snapshot, msg []byte) bool {
 	return true
 }
 
-// List returns the worktree's snapshots, newest first.
+// List returns the worktree's snapshots, newest first. rd is nil when the
+// repository's refs go to git (repo.Repository.Refs), which happens only
+// where git refuses the repository too, so none can be listed.
 func List(rd refs.Reader, cat *catfile.Process) ([]Snapshot, error) {
+	if rd == nil {
+		return nil, nil
+	}
 	all, err := rd.List()
 	if err != nil {
 		return nil, err

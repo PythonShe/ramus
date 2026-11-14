@@ -332,3 +332,11 @@ func TestRacyFile(t *testing.T) {
 		t.Fatalf("snapshot kept %q", got)
 	}
 }
+
+// A repository whose refs go to git, which refuses it as well, has no
+// snapshots to list, and listing them does not fail.
+func TestListWithoutRefReader(t *testing.T) {
+	if list, err := List(nil, nil); list != nil || err != nil {
+		t.Fatalf("%v %v", list, err)
+	}
+}
