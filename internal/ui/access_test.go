@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"ramus/internal/git/repo"
 )
 
 // named are the roles a screen reader must have a name for.
@@ -106,7 +108,12 @@ func TestAccessibility(t *testing.T) {
 	for _, open := range []struct {
 		name string
 		fn   func()
-	}{{"settings", h.app.openSettings}, {"manager", h.app.openManager}, {"palette", func() { h.app.palette.open = true }}, {"clone", h.app.ShowClone}, {"keys", h.app.openKeys}, {"diagnostics", h.app.openDiagnostics}} {
+	}{{"settings", h.app.openSettings}, {"manager", h.app.openManager}, {"palette", func() { h.app.palette.open = true }}, {"clone", h.app.ShowClone}, {"keys", h.app.openKeys}, {"diagnostics", h.app.openDiagnostics},
+		{"new worktree", func() { h.app.openAddWorktree(tb, "refs/heads/side") }},
+		{"remove worktree", func() {
+			h.app.worktreeRemoveUI = worktreeRemoval{open: true, t: tb, wt: repo.Worktree{Path: r.Dir + "-x", Branch: "refs/heads/side"}}
+		}},
+		{"lock worktree", func() { h.app.worktreeLockUI = worktreeLock{open: true, t: tb, path: r.Dir + "-x"} }}} {
 		open.fn()
 		h.settle()
 		unnamed(h, open.name)

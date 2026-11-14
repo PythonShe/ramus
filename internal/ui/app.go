@@ -90,11 +90,16 @@ type App struct {
 	prompt     promptState
 	links      linksDialog
 	branchUI   branchDialog
-	message    messageDialog
-	history    historyEdit
-	stashUI    stashDialog
-	cleanUI    cleanState
-	mergeUI    mergeDialog
+	// worktreeUI, worktreeRemoveUI and worktreeLockUI make, remove and
+	// lock worktrees.
+	worktreeUI       worktreeDialog
+	worktreeRemoveUI worktreeRemoval
+	worktreeLockUI   worktreeLock
+	message          messageDialog
+	history          historyEdit
+	stashUI          stashDialog
+	cleanUI          cleanState
+	mergeUI          mergeDialog
 	// pendingFile is a file to show once its repository is open.
 	pendingFile pendingFile
 	compareUI   compareState
@@ -386,6 +391,9 @@ func (a *App) View(c *ui.Context) {
 	a.promptView(c)
 	a.linksView(c)
 	a.branchView(c)
+	a.worktreeView(c)
+	a.worktreeRemoveView(c)
+	a.worktreeLockView(c)
 	a.messageView(c)
 	a.historyEditView(c)
 	if t := a.current(); t != nil {

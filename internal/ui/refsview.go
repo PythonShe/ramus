@@ -364,6 +364,9 @@ func (a *App) sidebarRefMenu(it ui.Element, t *tab, name string) {
 	if strings.HasPrefix(name, "refs/remotes/") {
 		it.ContextMenu(func(m *ui.Menu) {
 			var act func()
+			if m.Item("New Worktree…").Disabled(t.s.Queue == nil).Chosen() {
+				act = func() { a.openAddWorktree(t, name) }
+			}
 			a.historyRefItems(m, t, name, &act)
 			if act != nil {
 				act()
@@ -454,6 +457,9 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	w, seen := t.s.Where(), t.s.Seen()
 	if m.Item("Check Out").Disabled(ro || current || b.Worktree != "").Chosen() {
 		*act = func() { a.checkOut(t, b) }
+	}
+	if m.Item("New Worktree…").Disabled(ro || current || b.Worktree != "").Chosen() {
+		*act = func() { a.openAddWorktree(t, b.Name) }
 	}
 	into := "HEAD"
 	if !head.Detached {

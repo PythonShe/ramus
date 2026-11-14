@@ -204,18 +204,15 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		if len(st.Worktrees) > 1 && a.shown("worktrees") {
 			open := t.open["worktrees"]
 			a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("Worktrees (%d)", len(st.Worktrees)), &open, func() {
-				for _, w := range st.Worktrees {
-					label := filepath.Base(w.Path)
+				for i, w := range st.Worktrees {
+					it := ui.SidebarItem(c, "worktree:"+w.Path, nil, worktreeLabel(w))
 					switch {
-					case w.Branch != "":
-						label += "  " + strings.TrimPrefix(w.Branch, "refs/heads/")
-					case w.Detached:
-						label += "  detached"
-					}
-					it := ui.SidebarItem(c, "worktree:"+w.Path, nil, label)
-					if w.Current {
+					case w.Current:
 						it.Bold()
+					case w.Prunable:
+						it.TextColor(th.Warning)
 					}
+					a.worktreeMenu(it, t, w, i == 0)
 				}
 			}), "worktrees")
 			t.open["worktrees"] = open
@@ -245,8 +242,14 @@ func (a *App) chooseSidebar(t *tab) {
 	}
 	switch kind {
 	case "worktree":
-		if path != t.s.Path {
-			a.Open(path)
+		for _, w := range t.s.State.Worktrees {
+			switch {
+			case w.Path != path || w.Current:
+			case w.Prunable:
+				a.askPrune(t, w)
+			default:
+				a.Open(path)
+			}
 		}
 	case "submodule":
 		a.Open(filepath.Join(t.s.Path, filepath.FromSlash(path)))
