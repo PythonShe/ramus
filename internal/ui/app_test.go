@@ -31,6 +31,9 @@ type harness struct {
 	// seen are the sessions of every tab a frame showed, so that one a
 	// test closed has stopped too before its folder is removed.
 	seen map[*session.Session]bool
+	// panics lets a repository's work panic; otherwise a panic, which the
+	// app recovers from, fails the test with its stack at once.
+	panics bool
 }
 
 // note records the sessions of the tabs now open.
@@ -74,6 +77,11 @@ func (h *harness) until(what string, ok func() bool) {
 	for {
 		h.tt.Frame()
 		h.note()
+		for s := range h.seen {
+			if p := s.Panic; p != nil && !h.panics {
+				h.t.Fatalf("a repository's work panicked: %s\n%s", p.Value, p.Stack)
+			}
+		}
 		if ok() {
 			return
 		}

@@ -18,11 +18,13 @@ func TestWorktrees(t *testing.T) {
 	h.r.Git("update-ref", "refs/remotes/origin/feature", "HEAD")
 	base, _ := filepath.EvalSymlinks(t.TempDir())
 	list := func() string { return h.r.Git("worktree", "list", "--porcelain") }
+	// as is a path as git lists it: with forward slashes on Windows too.
+	as := filepath.ToSlash
 
 	side := filepath.Join(base, "side")
 	op, err := AddWorktree(h.w, WorktreeOptions{Path: side, Branch: "side"})
 	h.do(op, err, true)
-	if !strings.Contains(list(), "worktree "+side+"\n") || !strings.Contains(list(), "branch refs/heads/side") {
+	if !strings.Contains(list(), "worktree "+as(side)+"\n") || !strings.Contains(list(), "branch refs/heads/side") {
 		t.Fatalf("list\n%s", list())
 	}
 	// From a remote branch, a new branch tracking it.
@@ -62,7 +64,7 @@ func TestWorktrees(t *testing.T) {
 		t.Fatalf("list\n%s", list())
 	}
 	h.do(PruneWorktrees(h.w), nil, true)
-	if strings.Contains(list(), feat) || !strings.Contains(list(), side) {
+	if strings.Contains(list(), as(feat)) || !strings.Contains(list(), as(side)) {
 		t.Fatalf("list\n%s", list())
 	}
 

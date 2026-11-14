@@ -23,6 +23,8 @@ func TestWorktreeActions(t *testing.T) {
 	h.until("the repository", h.shows("No changes"))
 	tb := h.app.current()
 	list := func() string { return r.Git("worktree", "list", "--porcelain") }
+	// as is a path as git lists it: with forward slashes on Windows too.
+	as := filepath.ToSlash
 
 	// A local branch, opened in a tab.
 	h.until("the branches", func() bool { return tb.refs.info != nil })
@@ -36,7 +38,7 @@ func TestWorktreeActions(t *testing.T) {
 	h.tt.Frame()
 	h.click("Create")
 	h.until("its tab", func() bool { return len(h.app.tabs) == 2 })
-	if !strings.Contains(list(), "worktree "+topic+"\n") {
+	if !strings.Contains(list(), "worktree "+as(topic)+"\n") {
 		t.Fatalf("list\n%s", list())
 	}
 	h.app.Close(1)
@@ -60,7 +62,7 @@ func TestWorktreeActions(t *testing.T) {
 	h.click("Remove")
 	h.until("removed", func() bool {
 		_, err := r.Run(nil, "rev-parse", "--verify", "-q", "refs/heads/topic")
-		return !strings.Contains(list(), topic) && err != nil
+		return !strings.Contains(list(), as(topic)) && err != nil
 	})
 	if _, err := os.Stat(topic); !os.IsNotExist(err) {
 		t.Fatalf("folder left: %v", err)
@@ -78,7 +80,7 @@ func TestWorktreeActions(t *testing.T) {
 	h.tt.Frame()
 	h.click("Open in a new tab")
 	h.click("Create")
-	h.until("the feature worktree", func() bool { return strings.Contains(list(), "worktree "+feature+"\n") })
+	h.until("the feature worktree", func() bool { return strings.Contains(list(), "worktree "+as(feature)+"\n") })
 	if up := strings.TrimSpace(r.Git("config", "branch.feature.merge")); up != "refs/heads/feature" || len(h.app.tabs) != 1 {
 		t.Fatalf("upstream %q, %d tabs", up, len(h.app.tabs))
 	}
@@ -96,5 +98,5 @@ func TestWorktreeActions(t *testing.T) {
 		t.Fatal("a missing worktree was opened")
 	}
 	h.click("Prune")
-	h.until("pruned", func() bool { return !strings.Contains(list(), feature) && !h.tt.HasText(missing) })
+	h.until("pruned", func() bool { return !strings.Contains(list(), as(feature)) && !h.tt.HasText(missing) })
 }

@@ -10,6 +10,7 @@ import (
 // and the window go on, and Reopen brings the repository back.
 func TestPanicInTab(t *testing.T) {
 	h := newHarness(t)
+	h.panics = true
 	one, two := h.repoWith("a.txt"), h.repoWith("b.txt")
 	h.trust.Set(one.GitDir(), true)
 	h.trust.Set(two.GitDir(), true)
