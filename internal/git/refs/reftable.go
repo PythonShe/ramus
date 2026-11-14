@@ -401,35 +401,7 @@ func (r *Reftable) List() (*List, error) {
 	if err != nil {
 		return nil, err
 	}
-	names := make([]string, 0, len(all))
-	for n := range all {
-		if strings.HasPrefix(n, "refs/") {
-			names = append(names, n)
-		}
-	}
-	slices.Sort(names)
-	l := &List{hashSize: hs, targets: map[int]string{}}
-	zero := make([]byte, hs)
-	for i, n := range names {
-		rr := all[n]
-		l.names = append(l.names, n...)
-		l.ends = append(l.ends, uint32(len(l.names)))
-		oid := rr.oid
-		if rr.symref != "" {
-			l.targets[i] = rr.symref
-			oid = resolveIn(all, rr.symref)
-		}
-		if oid == nil {
-			oid = zero
-		}
-		l.oids = append(l.oids, oid...)
-		p := rr.peeled
-		if p == nil {
-			p = zero
-		}
-		l.peeled = append(l.peeled, p...)
-	}
-	return l, nil
+	return build(all, hs, nil, func(name string) []byte { return resolveIn(all, name) }), nil
 }
 
 func resolveIn(all map[string]raw, name string) []byte {

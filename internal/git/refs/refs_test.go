@@ -72,6 +72,38 @@ func TestList(t *testing.T) {
 	}
 }
 
+// Edges where git's reading of loose refs is looser or stricter than it
+// looks: text after the object id, a broken loose ref over a packed one,
+// and a symbolic ref to nothing.
+func TestListEdges(t *testing.T) {
+	r := gittest.Init(t)
+	c := r.Commit("one")
+	for _, b := range []string{"empty", "garbage", "kept"} {
+		r.Git("branch", b)
+	}
+	r.Git("pack-refs", "--all")
+	heads := filepath.Join(r.GitDir(), "refs", "heads")
+	for name, data := range map[string]string{
+		"trail":   c + " trailing text\n",
+		"tab":     c + "\tafter a tab\n",
+		"glued":   c + "x\n",
+		"indent":  " " + c + "\n",
+		"empty":   "",
+		"garbage": "garbage\n",
+		"null":    strings.Repeat("0", 40) + "\n",
+	} {
+		if err := os.WriteFile(filepath.Join(heads, name), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.Git("symbolic-ref", "refs/heads/dangling", "refs/heads/nothere")
+	r.Git("symbolic-ref", "refs/heads/good", "refs/heads/main")
+	l := compare(t, r)
+	if len(l.Broken) != 5 {
+		t.Errorf("broken %q", l.Broken)
+	}
+}
+
 func TestHead(t *testing.T) {
 	r := gittest.Init(t)
 	s := store(r)

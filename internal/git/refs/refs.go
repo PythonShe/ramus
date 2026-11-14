@@ -57,7 +57,7 @@ func (s *Store) dirFor(name string) string {
 type List struct {
 	names    []byte
 	ends     []uint32
-	oids     []byte // hashSize per ref; zero for a dangling symbolic ref
+	oids     []byte // hashSize per ref
 	peeled   []byte // hashSize per ref; zero when not an annotated tag
 	targets  map[int]string
 	hashSize int
@@ -78,14 +78,11 @@ func (l *List) Name(i int) string {
 	return string(l.names[start:l.ends[i]])
 }
 
-// OID returns the object ref i points at, through symbolic refs; nil for
-// a symbolic ref whose target does not exist.
+// OID returns the object ref i points at, through symbolic refs. A
+// symbolic ref whose target does not exist is not listed, as git leaves
+// it out.
 func (l *List) OID(i int) []byte {
-	o := l.oids[i*l.hashSize : (i+1)*l.hashSize : (i+1)*l.hashSize]
-	if isZero(o) {
-		return nil
-	}
-	return o
+	return l.oids[i*l.hashSize : (i+1)*l.hashSize : (i+1)*l.hashSize]
 }
 
 // Peeled returns the commit (or other object) an annotated tag points at,
@@ -167,27 +164,38 @@ func (s *Store) List() (*List, error) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+	return build(all, s.hashSize, broken, func(name string) []byte {
+		oid, _ := s.resolveIn(all, name, 1)
+		return oid
+	}), nil
+}
+
+// build lays out the refs of all under refs/ in name order, resolving
+// symbolic ones through resolve. A symbolic ref that resolves to nothing
+// is left out, as git for-each-ref leaves it out.
+func build(all map[string]raw, hashSize int, broken []string, resolve func(string) []byte) *List {
 	names := make([]string, 0, len(all))
 	for n := range all {
-		names = append(names, n)
+		if strings.HasPrefix(n, "refs/") {
+			names = append(names, n)
+		}
 	}
 	slices.Sort(names)
-	l := &List{hashSize: s.hashSize, targets: map[int]string{}, Broken: broken}
-	l.oids = make([]byte, 0, len(names)*s.hashSize)
-	l.peeled = make([]byte, 0, len(names)*s.hashSize)
-	zero := make([]byte, s.hashSize)
-	for i, n := range names {
+	l := &List{hashSize: hashSize, targets: map[int]string{}, Broken: broken}
+	l.oids = make([]byte, 0, len(names)*hashSize)
+	l.peeled = make([]byte, 0, len(names)*hashSize)
+	zero := make([]byte, hashSize)
+	for _, n := range names {
 		r := all[n]
-		l.names = append(l.names, n...)
-		l.ends = append(l.ends, uint32(len(l.names)))
 		oid := r.oid
 		if r.symref != "" {
-			l.targets[i] = r.symref
-			oid, _ = s.resolveIn(all, r.symref, 1)
+			if oid = resolve(r.symref); oid == nil {
+				continue
+			}
+			l.targets[len(l.ends)] = r.symref
 		}
-		if oid == nil {
-			oid = zero
-		}
+		l.names = append(l.names, n...)
+		l.ends = append(l.ends, uint32(len(l.names)))
 		l.oids = append(l.oids, oid...)
 		p := r.peeled
 		if p == nil {
@@ -195,7 +203,7 @@ func (s *Store) List() (*List, error) {
 		}
 		l.peeled = append(l.peeled, p...)
 	}
-	return l, nil
+	return l
 }
 
 func sameFile(a, b os.FileInfo) bool {
@@ -302,6 +310,9 @@ func (s *Store) walkLoose(dir string, common bool, all map[string]raw, broken *[
 		}
 		r, err := s.readLoose(p, name)
 		if err != nil {
+			// git skips a broken loose ref, and with it the packed value
+			// it overrides.
+			delete(all, name)
 			*broken = append(*broken, name)
 			return nil
 		}
@@ -348,12 +359,22 @@ func (s *Store) readLoose(path, name string) (raw, error) {
 		}
 		return raw{name: name, symref: target}, nil
 	}
-	oid, ok := s.parseOID(b)
-	if !ok {
+	// git takes the object id at the start and ignores whatever follows
+	// it after whitespace.
+	n := 2 * s.hashSize
+	if len(b) < n || len(b) > n && !isSpace(b[n]) || isSpace(b[0]) {
+		return raw{}, fmt.Errorf("refs: %s does not hold an object id", name)
+	}
+	oid, ok := s.parseOID(b[:n])
+	if !ok || isZero(oid) {
+		// git counts the null id as broken too.
 		return raw{}, fmt.Errorf("refs: %s does not hold an object id", name)
 	}
 	return raw{name: name, oid: oid}, nil
 }
+
+// isSpace is git's own isspace, which knows only these four.
+func isSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\r' }
 
 // Head describes HEAD.
 type Head struct {

@@ -65,6 +65,7 @@ func TestReftable(t *testing.T) {
 		r.Run([]byte(stdin.String()), "update-ref", "--stdin")
 		r.Git("tag", "-a", "-m", "annotated", "v1")
 		r.Git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/heads/main")
+		r.Git("symbolic-ref", "refs/remotes/origin/dangling", "refs/heads/nothere")
 		r.Commit("two")
 		for i := 0; i < 3000; i += 7 {
 			r.Git("update-ref", "-d", fmt.Sprintf("refs/heads/b/%04d", i)) // tombstones
