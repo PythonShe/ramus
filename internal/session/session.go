@@ -7,8 +7,10 @@ package session
 import (
 	"context"
 	"errors"
+	"runtime"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ramus/internal/git/refs"
@@ -42,6 +44,9 @@ type State struct {
 	RefreshErr error
 	// Refreshed is when status was last read.
 	Refreshed time.Time
+	// Monitor offers git's file system monitor and the untracked cache
+	// when status was slow.
+	Monitor *status.MonitorAdvice
 }
 
 // Session is one open repository.
@@ -88,6 +93,9 @@ type Session struct {
 	refInfo     refLoad
 	blame       blames
 	view        viewScope
+	// monitorAnswered is set once the user turned the monitor on or said
+	// not now; the refresher reads it.
+	monitorAnswered atomic.Bool
 }
 
 // refreshSeen is what the last refresh of one repository read, to tell what a change
@@ -248,6 +256,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		err     error
 		readAt  time.Time
 		changed bool
+		monitor *status.MonitorAdvice
 	}
 	var res result
 	fail := func(err error) {
@@ -294,10 +303,16 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		res.subs, res.readSub = subs, err == nil
 	}
 	if what&(repo.WorkTreeChanged|repo.IndexChanged|repo.RefsChanged) != 0 {
+		start := time.Now()
 		st, err := status.Read(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, status.Options{})
 		fail(err)
 		res.st = st
 		res.readAt = s.timeNow()
+		if err == nil && !s.monitorAnswered.Load() {
+			if a, ok := status.AdviseMonitor(runtime.GOOS, r.Runner.Git().Version, r.Config, r.GitDir, r.WorkTree, !r.Restricted, time.Since(start)); ok {
+				res.monitor = &a
+			}
+		}
 		if err == nil {
 			seen.index, seen.indexRead = key, keyErr == nil
 		}
@@ -318,6 +333,11 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		if res.st != nil {
 			st.Status, st.Refreshed = res.st, res.readAt
+			if st.Monitor == nil && !s.monitorAnswered.Load() {
+				// Offered once status was slow, kept while status is fast
+				// from a warm cache.
+				st.Monitor = res.monitor
+			}
 		}
 		if res.op != nil {
 			st.Operation = *res.op
@@ -339,7 +359,11 @@ func (s *Session) Submit(op write.Op) (*write.Job, error) {
 		return nil, errReadOnly
 	}
 	j := s.Queue.Submit(op)
-	s.follow(s.addLog(op.Name, op.Cmd.Line()), j)
+	line := op.Cmd.Line()
+	for _, c := range op.More {
+		line += "\n" + c.Line()
+	}
+	s.follow(s.addLog(op.Name, line), j)
 	return j, nil
 }
 
