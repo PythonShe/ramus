@@ -67,8 +67,9 @@ const (
 )
 
 // Pull fetches the upstream of the branch HEAD is on and takes it in, as
-// mode says; the branch is backed up first.
-func Pull(w Where, mode PullMode, seen Seen) (Op, error) {
+// mode says; the branch is backed up first. A rebase moves the branches
+// in what it replays, as Rebase does; branches are those it may move.
+func Pull(w Where, mode PullMode, branches []string, seen Seen) (Op, error) {
 	switch mode {
 	case PullMerge, PullRebase, PullFFOnly:
 	default:
@@ -77,8 +78,9 @@ func Pull(w Where, mode PullMode, seen Seen) (Op, error) {
 	if seen.Branch == "" {
 		return Op{}, errors.New("write: pull needs a branch checked out")
 	}
-	return Op{Name: "Pull", Undo: MovesHead, Expect: seen.expect(), Backup: []string{seen.Branch},
-		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"pull", "--progress", "--no-edit", string(mode)}, Timeout: PushTimeout}}, nil
+	return Op{Name: "Pull", Undo: MovesHead, Expect: seen.expect(), Backup: []string{seen.Branch}, Refs: branches,
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"pull", "--progress", "--no-edit", string(mode)},
+			Config: []string{updateRefs}, Timeout: PushTimeout}}, nil
 }
 
 // TagKind is what a tag is.

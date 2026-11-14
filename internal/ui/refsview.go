@@ -464,7 +464,7 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	}
 	if m.Item("Rebase " + redact.Control(into) + " onto This").Disabled(ro || current || head.Detached).Chosen() {
 		*act = func() {
-			op, err := write.Rebase(w, b.Name, seen)
+			op, err := write.Rebase(w, b.Name, t.s.LocalBranches(), seen)
 			a.submit(t, op, err)
 		}
 	}
@@ -760,7 +760,7 @@ func (a *App) remoteMenus(c *ui.Context, t *tab) {
 			{"Pull, Fast-Forward Only", write.PullFFOnly},
 		} {
 			if m.Item(mode.label).Disabled(noUp).Chosen() {
-				op, err := write.Pull(w, mode.mode, t.s.Seen())
+				op, err := write.Pull(w, mode.mode, t.s.LocalBranches(), t.s.Seen())
 				a.submit(t, op, err)
 			}
 		}

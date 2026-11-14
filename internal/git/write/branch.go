@@ -198,8 +198,11 @@ func Merge(w Where, what string, mode MergeMode, seen Seen) (Op, error) {
 }
 
 // Rebase replays the branch HEAD is on onto commit-ish onto, backing the
-// branch up first. A conflict leaves the rebase in progress.
-func Rebase(w Where, onto string, seen Seen) (Op, error) {
+// branch up first, and moves the branches that point into what it
+// replays with it (rebase.updateRefs; git before 2.38 leaves them).
+// branches are the local branches it may move, which undo moves back. A
+// conflict leaves the rebase in progress.
+func Rebase(w Where, onto string, branches []string, seen Seen) (Op, error) {
 	if err := checkName("rebase", onto); err != nil {
 		return Op{}, err
 	}
@@ -207,6 +210,10 @@ func Rebase(w Where, onto string, seen Seen) (Op, error) {
 		return Op{}, errors.New("write: rebase needs a branch checked out")
 	}
 	return Op{Name: "Rebase onto " + strings.TrimPrefix(onto, "refs/heads/"), Undo: MovesHead, Expect: seen.expect(),
-		Backup: []string{seen.Branch},
-		Cmd:    run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"rebase", "--end-of-options", onto}, Timeout: HookTimeout}}, nil
+		Backup: []string{seen.Branch}, Refs: branches,
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"rebase", "--end-of-options", onto},
+			Config: []string{updateRefs}, Timeout: HookTimeout}}, nil
 }
+
+// updateRefs has a rebase move the branches in the range it replays.
+const updateRefs = "rebase.updateRefs=true"

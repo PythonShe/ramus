@@ -57,12 +57,20 @@ func (s *Session) Rewrite(d CommitDetail) write.Rewrite {
 	if r := s.Repo; r != nil {
 		rw.Git = r.Runner.Git().Version
 	}
+	rw.Branches = s.LocalBranches()
+	return rw
+}
+
+// LocalBranches are the local branches as last read, by full name: what
+// a rewrite may move.
+func (s *Session) LocalBranches() []string {
+	var out []string
 	if l := s.State.Refs; l != nil {
 		for i := range l.Len() {
 			if n := l.Name(i); strings.HasPrefix(n, "refs/heads/") {
-				rw.Branches = append(rw.Branches, n)
+				out = append(out, n)
 			}
 		}
 	}
-	return rw
+	return out
 }

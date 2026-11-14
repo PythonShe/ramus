@@ -140,13 +140,22 @@ func TestMergeAndRebase(t *testing.T) {
 		t.Fatal("merge not undone")
 	}
 
+	// A branch inside the range moves with the rebase, and back on undo.
 	h.r.Git("switch", "-q", "topic")
-	op, err = Rebase(h.w, "main", h.seen())
+	h.r.Write("t2", "1")
+	h.r.Commit("topic two")
+	h.r.Git("branch", "mid", "HEAD~1")
+	topic, mid := h.rev("topic"), h.rev("mid")
+	op, err = Rebase(h.w, "main", []string{"refs/heads/mid", "refs/heads/topic"}, h.seen())
 	h.do(op, err, true)
-	if h.rev("topic~1") != main {
-		t.Fatal("not rebased onto main")
+	if h.rev("topic~2") != main || h.rev("mid") != h.rev("topic~1") {
+		t.Fatal("not rebased onto main, or mid left behind")
 	}
-	if _, err := Rebase(h.w, "--root", h.seen()); err == nil {
+	h.undo()
+	if h.rev("topic") != topic || h.rev("mid") != mid {
+		t.Fatal("rebase not undone")
+	}
+	if _, err := Rebase(h.w, "--root", nil, h.seen()); err == nil {
 		t.Fatal("an option taken as what to rebase onto")
 	}
 }
@@ -185,7 +194,7 @@ func TestRemotesFetchPullPushAndTags(t *testing.T) {
 	other.Write("o", "1")
 	other.Commit("other")
 	other.Git("push", "-q", bare.Dir, "HEAD:main")
-	op, err = Pull(h.w, PullFFOnly, h.seen())
+	op, err = Pull(h.w, PullFFOnly, nil, h.seen())
 	h.do(op, err, true)
 	if h.rev("main") != strings.TrimSpace(bare.Git("rev-parse", "main")) {
 		t.Fatal("not pulled")
