@@ -51,6 +51,18 @@ func (t Tool) Command(target string, line int) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
+// Program is what the tool runs: the app bundle of one opened through
+// open(1), else its program.
+func (t Tool) Program() string {
+	if len(t.Argv) == 3 && t.Argv[0] == "/usr/bin/open" && t.Argv[1] == "-a" {
+		return t.Argv[2]
+	}
+	if len(t.Argv) == 0 {
+		return ""
+	}
+	return t.Argv[0]
+}
+
 func appendTarget(argv []string, target string, _ int) []string { return append(argv, target) }
 
 // Open opens target in the tool and does not wait for the tool to quit.

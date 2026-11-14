@@ -220,19 +220,42 @@ func NewApp(d Deps) *App {
 }
 
 // findTools looks for the installed editors and terminals, and those the
-// settings name, off the main thread since it touches the disk.
+// settings name, off the main thread since it touches the disk. The first
+// of each kind is the one used: the one the settings name, else the one
+// the user prefers (tools.Preferred), else the first found.
 func (a *App) findTools() {
 	editor, terminal, update := a.Settings.Editor, a.Settings.Terminal, a.Update
 	go func() {
-		var found []tools.Tool
-		if tl, err := tools.Custom(yourEditor, tools.Editor, editor); err == nil {
-			found = append(found, tl)
+		found := tools.Detect()
+		var auto [2]string
+		var mine []tools.Tool
+		for _, k := range []struct {
+			kind tools.Kind
+			name string
+			argv []string
+		}{{tools.Editor, yourEditor, editor}, {tools.Terminal, yourTerminal, terminal}} {
+			if i := tools.Preferred(found, k.kind); i >= 0 {
+				auto[k.kind] = found[i].Name
+				found = append(append([]tools.Tool{found[i]}, found[:i]...), found[i+1:]...)
+			} else if i := slices.IndexFunc(found, func(t tools.Tool) bool { return t.Kind == k.kind }); i >= 0 {
+				auto[k.kind] = found[i].Name
+			}
+			if len(k.argv) == 0 {
+				continue
+			}
+			// One found, chosen in the settings, goes first under its own
+			// name; another program is the user's own.
+			if i := slices.IndexFunc(found, func(t tools.Tool) bool {
+				return t.Kind == k.kind && len(k.argv) == 1 && t.Program() == k.argv[0]
+			}); i >= 0 {
+				mine = append(mine, found[i])
+				found = append(found[:i:i], found[i+1:]...)
+			} else if tl, err := tools.Custom(k.name, k.kind, k.argv); err == nil {
+				mine = append(mine, tl)
+			}
 		}
-		if tl, err := tools.Custom(yourTerminal, tools.Terminal, terminal); err == nil {
-			found = append(found, tl)
-		}
-		found = append(found, tools.Detect()...)
-		update(func() { a.palette.tools, a.palette.found = found, true })
+		found = append(mine, found...)
+		update(func() { a.palette.tools, a.palette.found, a.palette.auto = found, true, auto })
 	}()
 }
 

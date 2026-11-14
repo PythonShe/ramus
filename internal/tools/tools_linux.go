@@ -71,3 +71,7 @@ func OpenDefault(path string) error {
 	}
 	return Tool{Name: "default", Argv: []string{p}}.Open(path, 0)
 }
+
+// Preferred is the index in found of the tool of kind the user prefers,
+// -1 when there is no telling, as here: the first found then serves.
+func Preferred(found []Tool, kind Kind) int { return -1 }

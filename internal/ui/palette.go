@@ -17,6 +17,9 @@ type paletteState struct {
 	query string
 	tools []tools.Tool
 	found bool
+	// auto names the editor and the terminal the app takes when the
+	// settings name none, by kind.
+	auto [2]string
 }
 
 // command is one entry of the palette. One with an id can be given a
