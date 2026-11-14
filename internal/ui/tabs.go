@@ -14,15 +14,16 @@ func (a *App) tabBar(c *ui.Context) {
 	th := c.Theme()
 	from, to, closing, moving := -1, -1, -1, -1
 	var act func()
-	ui.Row(c).Gap(spaceM).Padding(0, 0, 0, insetX).AlignItems(ui.End).Background(th.Surface).Children(func() {
+	// The tabs sit on the bar's line, with its buttons, as Safari's do.
+	ui.Row(c).Gap(spaceM).Padding(spaceXS, insetX).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		if t := a.current(); t != nil {
-			ui.Row(c).AlignSelf(ui.Center).Children(func() { a.navBar(c, t) })
+			a.navBar(c, t)
 		}
 		parts := ui.TabsBase(c, &a.active, len(a.tabs))
-		parts.List.Row().Gap(space2XS).Padding(spaceXS, insetX, 0, 0).Grow(1).Children(func() {
+		parts.List.Row().Gap(space2XS).AlignItems(ui.Center).Shrink(1).Children(func() {
 			for i, t := range a.tabs {
 				c.Key(t.id)
-				tb := parts.Tab(i).Drag(tabDrag{t.id}).Padding(spaceS, spaceL).Radius(6, 6, 0, 0).Gap(spaceS).AlignItems(ui.Center)
+				tb := parts.Tab(i).Drag(tabDrag{t.id}).Padding(spaceXS, spaceS, spaceXS, spaceL).Radius(6).Gap(spaceS).AlignItems(ui.Center)
 				if i == a.active {
 					tb.Background(th.Background)
 				}
@@ -77,3 +78,4 @@ func (a *App) indexOf(id int) int {
 	}
 	return -1
 }
+
