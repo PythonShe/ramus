@@ -87,6 +87,10 @@ const (
 	// FSMonitorLinux is git's built-in fsmonitor daemon on Linux.
 	// Fallback: no fsmonitor offer on Linux.
 	FSMonitorLinux
+	// UpdateRefs is rebase --update-refs, which moves the branches that
+	// point into the rebased range. Fallback: only the branch rebased
+	// moves.
+	UpdateRefs
 	numFeatures
 )
 
@@ -104,6 +108,7 @@ var since = [numFeatures]struct {
 	HookList:           {"git hook list", 2, 54, 0},
 	BranchDeleteMerged: {"branch --delete-merged", 2, 56, 0},
 	FSMonitorLinux:     {"fsmonitor on Linux", 2, 55, 0},
+	UpdateRefs:         {"rebase --update-refs", 2, 38, 0},
 }
 
 // Has reports whether git v has feature f.
