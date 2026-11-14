@@ -97,7 +97,7 @@ files grow by more than two or the heap more than doubles. Two minutes on
 the machine above: 240 rounds, goroutines 6 to 6, open files 6 to 6, heap
 3.5 to 7.4 MiB. Ten minutes on GitHub's Linux runner: 2,278 rounds,
 goroutines 4 to 4, open files 9 to 9, heap 3.2 to 5.3 MiB. The `Soak`
-workflow runs it for two hours every week.
+workflow runs it for two hours when started.
 
 ### Cold start
 

@@ -3,8 +3,6 @@ name: Soak
 # Opens, changes, refreshes and closes repositories for hours, then checks
 # that goroutines, open files, git processes and memory came back.
 on:
-  schedule:
-    - cron: "17 3 * * 0"
   workflow_dispatch:
     inputs:
       length:
