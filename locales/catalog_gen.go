@@ -529,6 +529,30 @@ func (msgs Messages) RefsCheckOut() string {
 	return Catalog.Format(msgs.locale, "refsCheckOut", nil)
 }
 
+// RefsSwitch says "Switch"
+// in the language the app shows.
+//
+// The button on a branch's row, hovered or chosen, that checks it out.
+func RefsSwitch() string { return In(i18n.Locale()).RefsSwitch() }
+
+// RefsSwitch says "Switch"
+// in the language of msgs.
+//
+// The button on a branch's row, hovered or chosen, that checks it out.
+func (msgs Messages) RefsSwitch() string {
+	return Catalog.Format(msgs.locale, "refsSwitch", nil)
+}
+
+// RefsSwitchTo says "Switch to {name}"
+// in the language the app shows.
+func RefsSwitchTo(name string) string { return In(i18n.Locale()).RefsSwitchTo(name) }
+
+// RefsSwitchTo says "Switch to {name}"
+// in the language of msgs.
+func (msgs Messages) RefsSwitchTo(name string) string {
+	return Catalog.Format(msgs.locale, "refsSwitchTo", map[string]any{"name": name})
+}
+
 // RefsNewWorktree says "New Worktree…"
 // in the language the app shows.
 func RefsNewWorktree() string { return In(i18n.Locale()).RefsNewWorktree() }

@@ -335,6 +335,17 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					tr.TextColor(th.TextMuted)
 				}
 				ui.Text(c, redact.Control(b.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
+				// A branch hovered or chosen offers to switch to it where
+				// its time is, so that the row keeps its width.
+				current := !head.Detached && b.Name == head.Target
+				if !current && t.s.Queue != nil && (row.Hovered() || rs.chosen == i) {
+					ui.Row(c).Width(88).Children(func() {
+						if ui.Button(c, locales.RefsSwitch()).Label(locales.RefsSwitchTo(redact.Control(r.label))).Padding(0, spaceM).Clicked() {
+							act = func() { a.checkOut(t, b) }
+						}
+					})
+					return
+				}
 				ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 				return
 			}

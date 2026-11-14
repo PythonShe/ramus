@@ -127,3 +127,21 @@ func hasExact(h *harness, s string) bool {
 	}
 	return false
 }
+
+// A branch chosen in the branches view offers to switch to it, without
+// a double click.
+func TestRefsSwitchButton(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "other")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("Branches and Tags")
+	h.app.setSidebar(false)
+	h.until("the branches", func() bool { return hasExact(h, "other") })
+	h.click("other")
+	h.click("Switch to other")
+	h.until("on other", func() bool { return tb.s.State.Head.Target == "refs/heads/other" })
+}

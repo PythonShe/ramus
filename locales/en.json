@@ -85,6 +85,11 @@
   },
   "refsListLabel": "Branches, tags and remotes",
   "refsCheckOut": "Check Out",
+  "refsSwitch": "Switch",
+  "@refsSwitch": {
+    "description": "The button on a branch's row, hovered or chosen, that checks it out."
+  },
+  "refsSwitchTo": "Switch to {name}",
   "@refsCheckOut": {
     "description": "A verb: checks out a branch, tag or submodule."
   },
