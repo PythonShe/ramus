@@ -39,7 +39,7 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 		a.countStats(t)
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			a.statsBranchMenu(c, t)
 			from := ui.TextInput(c, &ss.from).Placeholder("From YYYY-MM-DD").Label("From").Width(150)
 			to := ui.TextInput(c, &ss.to).Placeholder("To YYYY-MM-DD").Label("To").Width(150)
@@ -47,57 +47,55 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 				a.countStats(t)
 			}
 			if ss.err != "" {
-				ui.Text(c, ss.err).FontSize(12).TextColor(th.Danger).SingleLine()
+				ui.Text(c, ss.err).FontSize(textSmall).TextColor(th.Danger).SingleLine()
 			}
 			ui.Spacer(c)
 			ui.Segmented(c, &ss.mode, "Activity", "Files by Size", "Files by Changes")
 			if r := ss.res; !r.Done && r.Total > 0 {
-				ui.Text(c, fmt.Sprintf("Read %d of %d commits", r.Read, r.Total)).FontSize(12).TextColor(th.TextMuted)
+				ui.Text(c, fmt.Sprintf("Read %d of %d commits", r.Read, r.Total)).FontSize(textSmall).TextColor(th.TextMuted)
 			}
 		})
 		switch ss.mode {
 		case 1:
 			a.loadTreemap(t, &ss.sizes, false)
-			ui.Column(c).Padding(8, 16).Grow(1).Children(func() { a.treemapView(c, &ss.sizes, byteSize) })
+			ui.Column(c).Padding(spaceM, insetX).Grow(1).Children(func() { a.treemapView(c, &ss.sizes, byteSize, "Reading file sizes…") })
 			return
 		case 2:
 			a.loadTreemap(t, &ss.changes, true)
-			ui.Column(c).Padding(8, 16).Grow(1).Children(func() {
+			ui.Column(c).Padding(spaceM, insetX).Grow(1).Children(func() {
 				if d := ss.changes.data; d != nil && !ss.changes.loading && d.pw.Err == nil {
 					what := "Changes over " + commitCount(d.pw.Commits)
 					if d.pw.Limited {
 						what += ", the latest; choose a start date to go further back"
 					}
-					ui.Text(c, what).FontSize(12).TextColor(th.TextMuted).Padding(0, 0, 6, 0)
+					ui.Text(c, what).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, 0, spaceS, 0)
 				}
-				a.treemapView(c, &ss.changes, changeCount)
+				a.treemapView(c, &ss.changes, changeCount, "Counting changes…")
 			})
 			return
 		}
 		r := ss.res
 		switch {
 		case r.Err != nil:
-			ui.Text(c, errText(r.Err)).TextColor(th.Danger).Padding(12).Selectable()
+			errorMessage(c, errText(r.Err))
 			return
 		case r.Stats.Commits == 0 && !r.Done:
-			ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+			loading(c, "Reading commits…")
 			return
 		case r.Stats.Commits == 0:
-			ui.Column(c).Fill().Center().Children(func() {
-				ui.Text(c, "No commits in this range").TextColor(th.TextMuted)
-			})
+			emptyState(c, "No commits in this range")
 			return
 		}
 		st := r.Stats
-		ui.Column(c).Padding(8, 16).Gap(16).Grow(1).Children(func() {
-			ui.Row(c).Gap(24).AlignItems(ui.End).Children(func() {
-				ui.Text(c, strconv.Itoa(st.Commits)).FontSize(28).Bold()
+		ui.Column(c).Padding(spaceM, insetX).Gap(spaceXL).Grow(1).Children(func() {
+			ui.Row(c).Gap(space3XL).AlignItems(ui.End).Children(func() {
+				ui.Text(c, strconv.Itoa(st.Commits)).FontSize(textDisplay).Bold()
 				ui.Text(c, fmt.Sprintf("commits by %s, %s to %s", people(len(st.Authors)),
 					st.First.Format("2006-01-02"), st.Last.Format("2006-01-02"))).TextColor(th.TextMuted)
 			})
 			title, bars := overTime(st.Weeks)
 			barChart(c, title, bars, 140)
-			ui.Row(c).Gap(24).FillWidth().Children(func() {
+			ui.Row(c).Gap(space3XL).FillWidth().Children(func() {
 				ui.Column(c).Grow(1).Children(func() {
 					barChart(c, "By weekday", weekdayBars(st), 100)
 				})
@@ -297,12 +295,12 @@ func barChart(c *ui.Context, title string, bars []bar, height float32) {
 	for _, b := range bars {
 		most = max(most, b.n)
 	}
-	ui.Column(c).Gap(6).FillWidth().Children(func() {
-		ui.Row(c).Gap(8).Children(func() {
-			ui.Text(c, title).FontSize(12).Bold()
-			ui.Text(c, "most "+strconv.Itoa(most)).FontSize(12).TextColor(th.TextMuted)
+	ui.Column(c).Gap(spaceS).FillWidth().Children(func() {
+		ui.Row(c).Gap(spaceM).Children(func() {
+			ui.Text(c, title).FontSize(textSmall).Bold()
+			ui.Text(c, "most "+strconv.Itoa(most)).FontSize(textSmall).TextColor(th.TextMuted)
 		})
-		ui.Row(c).Gap(2).Height(height).FillWidth().AlignItems(ui.End).Children(func() {
+		ui.Row(c).Gap(space2XS).Height(height).FillWidth().AlignItems(ui.End).Children(func() {
 			for i, b := range bars {
 				tip := b.label + ": " + commitCount(b.n)
 				ui.Column(c).Key(i).Grow(1).FillHeight().Justify(ui.End).Tooltip(tip).Label(tip).Role(ui.RoleImage).Children(func() {
@@ -316,9 +314,9 @@ func barChart(c *ui.Context, title string, bars []bar, height float32) {
 		ui.Box(c).Height(1).FillWidth().Background(th.TextMuted.Alpha(0.3))
 		if len(bars) > 1 {
 			ui.Row(c).FillWidth().Children(func() {
-				ui.Text(c, bars[0].label).FontSize(11).TextColor(th.TextMuted).SingleLine()
+				ui.Text(c, bars[0].label).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
 				ui.Spacer(c)
-				ui.Text(c, bars[len(bars)-1].label).FontSize(11).TextColor(th.TextMuted).SingleLine()
+				ui.Text(c, bars[len(bars)-1].label).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
 			})
 		}
 	})
@@ -340,20 +338,20 @@ func (a *App) authorTable(c *ui.Context, t *tab, st stats.Stats) {
 		return fmt.Sprintf("%s, %s", redact.Control(au.Name), commitCount(au.Commits))
 	}
 	ui.Column(c).Grow(1).MinHeight(160).Children(func() {
-		ui.Row(c).Padding(4, 8).Gap(8).Children(func() {
-			ui.Text(c, "Person").FontSize(12).Bold().Grow(1)
-			ui.Text(c, "Commits").FontSize(12).Bold().Width(72).TextAlign(ui.End)
-			ui.Text(c, "Share").FontSize(12).Bold().Width(56).TextAlign(ui.End)
-			ui.Text(c, "Active").FontSize(12).Bold().Width(190)
+		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).Children(func() {
+			ui.Text(c, "Person").FontSize(textSmall).Bold().Grow(1)
+			ui.Text(c, "Commits").FontSize(textSmall).Bold().Width(72).TextAlign(ui.End)
+			ui.Text(c, "Share").FontSize(textSmall).Bold().Width(56).TextAlign(ui.End)
+			ui.Text(c, "Active").FontSize(textSmall).Bold().Width(190)
 		})
 		ui.List(c, &ss.authors, len(authors), func(i int) {
 			au := authors[i]
-			ui.Row(c).Padding(3, 8).Gap(8).AlignItems(ui.Center).FillWidth().Children(func() {
+			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, redact.Control(au.Name)+" <"+redact.Control(au.Email)+">").SingleLine().Grow(1).Selectable()
 				ui.Text(c, strconv.Itoa(au.Commits)).Width(72).TextAlign(ui.End)
 				ui.Text(c, fmt.Sprintf("%.1f%%", 100*float64(au.Commits)/float64(st.Commits))).Width(56).TextAlign(ui.End).TextColor(th.TextMuted)
 				ui.Text(c, time.Unix(au.First, 0).Format("2006-01-02")+" to "+time.Unix(au.Last, 0).Format("2006-01-02")).
-					FontSize(12).Width(190).TextColor(th.TextMuted)
+					FontSize(textSmall).Width(190).TextColor(th.TextMuted)
 			})
 		}).Label("Authors").Grow(1)
 	})

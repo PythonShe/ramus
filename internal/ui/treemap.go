@@ -143,27 +143,27 @@ func (d *treemapData) tilesOf(n pathtree.Node) []tile {
 }
 
 // treemapView shows the folder the state is in as a treemap; a folder's
-// tile opens it.
-func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) string) {
+// tile opens it. While the data is read it says what is being read.
+func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) string, what string) {
 	th := c.Theme()
 	d := ts.data
 	if d == nil || ts.loading {
-		ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+		loading(c, what)
 		return
 	}
 	if d.pw.Err != nil {
-		ui.Text(c, errText(d.pw.Err)).TextColor(th.Danger).Padding(12).Selectable()
+		errorMessage(c, errText(d.pw.Err))
 		return
 	}
 	if d.tree == nil {
-		ui.Column(c).Fill().Center().Children(func() { ui.Text(c, "No files").TextColor(th.TextMuted) })
+		emptyState(c, "No files")
 		return
 	}
 	cur := pathtree.Root
 	if len(ts.path) > 0 {
 		cur = ts.path[len(ts.path)-1]
 	}
-	ui.Row(c).Gap(4).Padding(0, 0, 8, 0).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(spaceXS).Padding(0, 0, spaceM, 0).AlignItems(ui.Center).Children(func() {
 		if ui.Button(c, "All Files").Disabled(len(ts.path) == 0).Clicked() {
 			ts.path = nil
 		}
@@ -174,7 +174,7 @@ func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) stri
 			}
 		}
 		ui.Spacer(c)
-		ui.Text(c, unit(d.weights[cur])).FontSize(12).TextColor(th.TextMuted)
+		ui.Text(c, unit(d.weights[cur])).FontSize(textSmall).TextColor(th.TextMuted)
 	})
 	tiles := d.tilesOf(cur)
 	total := float64(d.weights[cur])
@@ -267,11 +267,11 @@ func (a *App) treemapTile(c *ui.Context, ts *treemapState, d *treemapData, t til
 		AlignItems(ui.Start).Justify(ui.Start)
 	// A tile too small for a label shows none, so it keeps its size.
 	if w >= 32 && h >= 20 {
-		el.Padding(4, 6).Children(func() {
+		el.Padding(spaceXS, spaceS).Children(func() {
 			ui.Column(c).Children(func() {
-				ui.Text(c, name).FontSize(11).SingleLine()
+				ui.Text(c, name).FontSize(textCaption).SingleLine()
 				if h >= 40 {
-					ui.Text(c, unit(int64(t.w))).FontSize(11).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, unit(int64(t.w))).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
 				}
 			})
 		})

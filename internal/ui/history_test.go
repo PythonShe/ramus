@@ -184,7 +184,11 @@ func TestStatsView(t *testing.T) {
 	// The treemaps: a folder's tile opens it.
 	r.Write("src/main.go", strings.Repeat("x", 4000))
 	r.Commit("src")
+	// A read under way says what it reads, as Activity does.
+	tab.stats.sizes = treemapState{loading: true}
 	tab.stats.mode = 1
+	h.until("the loading label", h.shows("Reading file sizes…"))
+	tab.stats.sizes = treemapState{}
 	h.app.countStats(tab)
 	h.until("the size treemap", h.shows("src/"))
 	h.click("src/")
