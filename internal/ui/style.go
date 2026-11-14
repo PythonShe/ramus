@@ -40,6 +40,9 @@ const (
 	// rowHeight is a one-line list row: a line of text and rowPadY
 	// above and below it.
 	rowHeight = 24
+	// controlHeight is a toolbar button's height, which what sits on a
+	// bar beside toolbar buttons, as a tab, takes too.
+	controlHeight = 28
 )
 
 // Type sizes. Body text takes the theme's size and sets none: it is 13 on
@@ -122,3 +125,18 @@ var styleIcons = sync.OnceValue(func() (icons struct{ info *ui.SVG }) {
 	icons.info = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.6v.1" stroke-width="2.4"/></svg>`))
 	return icons
 })
+
+// closeButton is the × that closes a tab or a pane, named label for
+// assistive technology: without a face until hovered, so that it does not
+// box in what it sits on.
+func closeButton(c *ui.Context, label string) ui.Element {
+	th := c.Theme()
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(4).Padding(0, spaceXS)
+	if b.Hovered() {
+		// A wash of the text's color shows on whatever it sits on: a tab
+		// hovered or chosen, or a pane's header.
+		b.Background(th.Text.Alpha(0.12))
+	}
+	b.Children(func() { ui.Text(c, "×").TextColor(th.TextMuted) })
+	return b
+}

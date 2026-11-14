@@ -89,6 +89,12 @@ func TestOpenAnotherRepository(t *testing.T) {
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
 	h.until("open", h.shows("No changes"))
+	// A tab is as tall as the buttons beside it, on their line.
+	tabBox, _ := h.tt.Find(h.app.title(h.app.tabs[0]))
+	back, _ := h.tt.Find("Back")
+	if tabBox.H != back.H || tabBox.Y != back.Y {
+		t.Fatalf("tab at %v, Back at %v", tabBox, back)
+	}
 	if err := h.tt.Click("Open Another Repository"); err != nil {
 		t.Fatal(err)
 	}

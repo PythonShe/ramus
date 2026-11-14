@@ -23,9 +23,12 @@ func (a *App) tabBar(c *ui.Context) {
 		parts.List.Row().Gap(space2XS).AlignItems(ui.Center).Shrink(1).Children(func() {
 			for i, t := range a.tabs {
 				c.Key(t.id)
-				tb := parts.Tab(i).Drag(tabDrag{t.id}).Padding(spaceXS, spaceS, spaceXS, spaceL).Radius(6).Gap(spaceS).AlignItems(ui.Center)
-				if i == a.active {
-					tb.Background(th.Background)
+				tb := parts.Tab(i).Drag(tabDrag{t.id}).Padding(0, spaceS, 0, spaceL).MinHeight(controlHeight).Radius(6).Gap(spaceS).AlignItems(ui.Center)
+				switch {
+				case i == a.active:
+					tb.Background(th.SurfacePressed)
+				case tb.Hovered():
+					tb.Background(th.SurfaceHover)
 				}
 				if _, over := ui.DragOver[tabDrag](tb); over {
 					tb.Border(1, th.Accent)
@@ -49,7 +52,7 @@ func (a *App) tabBar(c *ui.Context) {
 				})
 				tb.Label(name).Children(func() {
 					ui.Text(c, name).SingleLine().MaxWidth(200)
-					if ui.Button(c, "×").Label(locales.TabsClose(name)).Padding(0, spaceXS).Clicked() {
+					if closeButton(c, locales.TabsClose(name)).Clicked() {
 						closing = i
 					}
 				})
