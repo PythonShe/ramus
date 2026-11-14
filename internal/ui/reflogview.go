@@ -41,7 +41,7 @@ type reflogState struct {
 }
 
 func newReflogState() reflogState {
-	return reflogState{ref: "HEAD", chosen: -1, lostChosen: -1, detailW: 560, detail: commitView{split: 360}}
+	return reflogState{ref: "HEAD", chosen: -1, lostChosen: -1, detailW: 560, detail: commitView{}}
 }
 
 func (a *App) reflogView(c *ui.Context, t *tab) {

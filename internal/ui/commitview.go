@@ -28,7 +28,21 @@ type commitView struct {
 	d      *session.CommitDetail
 	files  ui.ListState
 	file   int
-	split  float32
+	// split is the height above the patch while a file is open. It fits
+	// the message, the rows below it and the first files until the user
+	// sizes it (sized), which is kept from commit to commit.
+	split float32
+	sized bool
+	// splitSet and msgSet are the heights set in the last frame: a split
+	// found at another height was dragged since.
+	splitSet, msgSet float32
+	// msgH is the height of a message with a body, above a divider of
+	// its own; it fits the message, up to commitBodyMax of body, until
+	// the user drags it (msgSized). subjectH, bodyH, msgColH and metaH
+	// are what the message's parts and the rows below it took when last
+	// laid out.
+	msgH, subjectH, bodyH, msgColH, metaH float32
+	msgSized                              bool
 	// want is a file to choose once the commit is read.
 	want string
 
@@ -60,7 +74,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		if cv.cancel != nil {
 			cv.cancel()
 		}
-		*cv = commitView{id: id, loading: true, file: -1, split: cv.split, want: cv.want}
+		*cv = commitView{id: id, loading: true, file: -1, split: cv.split, sized: cv.sized, splitSet: cv.splitSet, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want}
 		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {
 				cv.loading, cv.d = !d.Done, &d
@@ -84,33 +98,134 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		errorMessage(c, errText(d.Err))
 		return
 	}
-	ui.SplitVertical(c, &cv.split, func() {
-		ui.Column(c).Fill().Children(func() {
-			a.commitHeader(c, t, cv, d)
-			a.commitFiles(c, cv, d)
+	top := func() {
+		ui.Column(c).Fill().Clip().Children(func() {
+			if !hasBody(d) {
+				a.commitMessage(c, t, cv, d)
+				a.commitMeta(c, t, cv, d)
+				a.commitFiles(c, cv, d)
+				return
+			}
+			// The message is as tall as the user drags it.
+			fit := cv.fittedMessage()
+			fitSplit(&cv.msgH, &cv.msgSet, &cv.msgSized, fit)
+			ui.SplitVertical(c, &cv.msgH, func() { a.commitMessage(c, t, cv, d) }, func() {
+				ui.Column(c).Fill().Children(func() {
+					a.commitMeta(c, t, cv, d)
+					a.commitFiles(c, cv, d)
+				})
+			}).SplitReset(fit).Fill()
+			if fit != cv.fittedMessage() {
+				c.AnimationFrame() // measured anew: lay out once more
+			}
 		})
-	}, func() { a.commitPatch(c, t, cv, d) }).SplitReset(360).Fill()
+	}
+	open := d.Files != nil && cv.file >= 0 && cv.file < d.Files.Len()
+	// Escape closes the patch wherever the focus is; a dialog or a field
+	// that takes Escape gets it first.
+	if open && c.Shortcut(0, ui.KeyEscape) {
+		cv.file, open = -1, false
+	}
+	col := ui.Column(c).Fill()
+	colH := col.LayoutBounds().H
+	col.Children(func() {
+		// Until a file is chosen there is no patch: the header and the
+		// whole file list take the column.
+		if !open {
+			top()
+			return
+		}
+		fit := cv.fittedSplit(d.Files.Len(), colH)
+		fitSplit(&cv.split, &cv.splitSet, &cv.sized, fit)
+		ui.SplitVertical(c, &cv.split, top, func() { a.commitPatch(c, t, cv, d) }).SplitReset(fit).Fill()
+	})
 }
 
-// commitBodyMax is the most a commit message body takes of the header;
-// more scrolls.
+// fitSplit keeps a split's size at fit until the user drags it. A drag,
+// or a double click back to the fitted size, changes *size between
+// frames, away from *set, the size this last gave it (0 before it gave
+// any).
+func fitSplit(size, set *float32, sized *bool, fit float32) {
+	if *set != 0 && *size != *set {
+		*sized = *size != fit
+	}
+	if !*sized {
+		*size = fit
+	}
+	*set = *size
+}
+
+// commitFilesShown is how many files stay in sight above a patch that
+// was just opened.
+const commitFilesShown = 4
+
+// fittedSplit is the height above the patch that shows the header, the
+// count of files and the first of them, but leaves the patch most of a
+// column colH high.
+func (cv *commitView) fittedSplit(files int, colH float32) float32 {
+	header := cv.msgColH + cv.metaH
+	if cv.bodyH > 0 {
+		header = cv.msgH + cv.metaH
+	}
+	h := header + rowHeight*float32(1+min(files, commitFilesShown))
+	if colH > 0 {
+		h = min(h, colH*0.6)
+	}
+	return max(h, 4*rowHeight)
+}
+
+// commitBodyMax is the most of a body the message shows until the user
+// drags it taller; more scrolls.
 const commitBodyMax = 160
 
-func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
-	th := c.Theme()
-	cm := d.Commit
-	subject, body, _ := bytes.Cut(bytes.TrimRight(cm.Message, "\n"), []byte("\n"))
-	ui.Column(c).Padding(spaceM, insetX).Gap(spaceS).FillWidth().Children(func() {
+// messageParts are a commit message's subject and its body, trimmed.
+func messageParts(d *session.CommitDetail) (subject, body []byte) {
+	subject, body, _ = bytes.Cut(bytes.TrimRight(d.Commit.Message, "\n"), []byte("\n"))
+	return subject, bytes.TrimSpace(body)
+}
+
+func hasBody(d *session.CommitDetail) bool { _, b := messageParts(d); return len(b) > 0 }
+
+// fittedMessage is the height that shows the subject and the body, or
+// commitBodyMax of a longer one.
+func (cv *commitView) fittedMessage() float32 {
+	return spaceM + cv.subjectH + spaceS + min(cv.bodyH, commitBodyMax) + spaceS
+}
+
+// commitMessage shows the subject and the body; a body taller than the
+// space it has scrolls.
+func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
+	subject, body := messageParts(d)
+	col := ui.Column(c).Padding(spaceM, insetX, 0, insetX).Gap(spaceS).FillWidth()
+	if len(body) > 0 {
+		col.Fill()
+	}
+	cv.msgColH = col.LayoutBounds().H
+	col.Children(func() {
 		a.loadLinks(t)
 		links := t.links.set
-		linkedText(c, redact.Control(string(subject)), links).Bold()
-		if b := bytes.TrimSpace(body); len(b) > 0 {
-			// A long message scrolls in its own box: capped text alone
-			// still draws past its height, over the rows below.
-			ui.Scroll(c).Key("message").MaxHeight(commitBodyMax).FillWidth().Children(func() {
-				linkedText(c, redact.Control(string(b)), links).FillWidth()
+		s := linkedText(c, redact.Control(string(subject)), links).Bold()
+		cv.subjectH = s.LayoutBounds().H
+		cv.bodyH = 0
+		if len(body) > 0 {
+			// The body scrolls in its own box: text past an element's
+			// height still draws, over the rows below.
+			ui.Scroll(c).Key("message").Grow(1).FillWidth().Children(func() {
+				b := linkedText(c, redact.Control(string(body)), links).FillWidth()
+				cv.bodyH = max(b.LayoutBounds().H, 1)
 			})
 		}
+	})
+}
+
+// commitMeta shows who made the commit, its id, signature and parents,
+// and what copies them.
+func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
+	th := c.Theme()
+	cm := d.Commit
+	meta := ui.Column(c).Padding(spaceS, insetX, spaceM, insetX).Gap(spaceS).FillWidth()
+	cv.metaH = meta.LayoutBounds().H
+	meta.Children(func() {
 		person := func(role string, p object.Signature) {
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Text(c, role).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
@@ -334,6 +449,9 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, cv.file))
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
+			if ui.Button(c, "×").Label(locales.CommitClosePatch()).Padding(0, spaceXS).Clicked() {
+				cv.file = -1
+			}
 		})
 		a.diffBar(c, func() {
 			if ui.Button(c, locales.DiffOpenInTool()).Disabled(t.s.Queue == nil || len(d.Parents) == 0).Clicked() {

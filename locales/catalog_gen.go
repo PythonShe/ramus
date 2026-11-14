@@ -4493,6 +4493,22 @@ func (msgs Messages) CommitFilesLabel() string {
 	return Catalog.Format(msgs.locale, "commitFilesLabel", nil)
 }
 
+// CommitClosePatch says "Close Patch"
+// in the language the app shows.
+//
+// The button that closes the patch of the chosen file, for assistive
+// technology.
+func CommitClosePatch() string { return In(i18n.Locale()).CommitClosePatch() }
+
+// CommitClosePatch says "Close Patch"
+// in the language of msgs.
+//
+// The button that closes the patch of the chosen file, for assistive
+// technology.
+func (msgs Messages) CommitClosePatch() string {
+	return Catalog.Format(msgs.locale, "commitClosePatch", nil)
+}
+
 // CommitSigCheckingVerdict says "Checking…"
 // in the language the app shows.
 //

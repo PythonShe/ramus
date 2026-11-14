@@ -34,7 +34,7 @@ type stashState struct {
 }
 
 func newStashState() stashState {
-	return stashState{chosen: -1, detailW: 560, detail: commitView{split: 360}}
+	return stashState{chosen: -1, detailW: 560, detail: commitView{}}
 }
 
 // stashDialog asks how to stash local changes.

@@ -295,3 +295,99 @@ func TestLongCommitMessageStaysInItsBox(t *testing.T) {
 		t.Fatalf("%d pixels drawn beside the Author label", ink)
 	}
 }
+
+// A commit shows its header and files alone; a patch opens below them only
+// for a chosen file, leaving the files in sight, and closes again.
+func TestCommitPatchOpensForAChosenFile(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	var lines []string
+	for i := range 30 {
+		lines = append(lines, fmt.Sprintf("body line %d", i+1))
+	}
+	r.Write("a.txt", "alpha\n")
+	r.Write("b.txt", "beta\n")
+	r.Commit("two files\n\n" + strings.Join(lines, "\n"))
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commits", h.shows("two files"))
+	h.click("two files")
+	h.until("the files", h.shows("b.txt"))
+	if h.tt.HasText("Choose a file to see its changes") || h.tt.HasText("Open in Diff Tool") {
+		t.Fatal("a patch pane before a file is chosen")
+	}
+
+	h.click("a.txt")
+	h.until("the patch", h.shows("Open in Diff Tool"))
+	b, _ := h.tt.Find("b.txt")
+	bar, _ := h.tt.Find("Open in Diff Tool")
+	if b.H == 0 || b.Y+b.H > bar.Y {
+		t.Fatalf("the other file at %v is not above the patch at %v", b, bar)
+	}
+
+	h.tt.Key(0, ui.KeyEscape)
+	h.until("closed by Escape", func() bool { return !h.tt.HasText("Open in Diff Tool") })
+	h.click("a.txt")
+	h.until("the patch again", h.shows("Open in Diff Tool"))
+	h.click("Close Patch")
+	h.until("closed by its button", func() bool { return !h.tt.HasText("Open in Diff Tool") })
+}
+
+// The message has a divider of its own: it starts fitted to a short body,
+// drags taller, and keeps the height dragged for the next commit.
+func TestCommitMessageDragsTaller(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	var lines []string
+	for i := range 30 {
+		lines = append(lines, fmt.Sprintf("body line %d", i+1))
+	}
+	r.Write("a.txt", "alpha\n")
+	r.Commit("short\n\njust one line")
+	r.Write("b.txt", "beta\n")
+	r.Commit("long\n\n" + strings.Join(lines, "\n"))
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commits", h.shows("short"))
+	cv := &h.app.current().hist.detail
+
+	h.click("short")
+	h.until("the detail", h.shows("just one line"))
+	h.tt.Frame()
+	if cv.msgH >= commitBodyMax || cv.msgH != cv.fittedMessage() {
+		t.Fatalf("a one-line body takes %v, fitted %v", cv.msgH, cv.fittedMessage())
+	}
+
+	h.click("long")
+	h.until("the detail", h.shows("Author"))
+	h.tt.Frame()
+	before, _ := h.tt.Find("Author")
+	// The divider is msgH below the top of the message: its padding, the
+	// subject and the gap above the body.
+	body, _ := h.tt.Find(strings.Join(lines, "\n"))
+	x, y := body.X+40, body.Y-spaceS-cv.subjectH-spaceM+cv.msgH
+	h.tt.Press(x, y)
+	h.tt.Frame()
+	for _, dy := range []float32{25, 50, 75, 100} {
+		h.tt.Move(x, y+dy)
+		h.tt.Frame()
+	}
+	h.tt.Release(x, y+100)
+	h.tt.Frame()
+	after, _ := h.tt.Find("Author")
+	if after.Y-before.Y < 90 || !cv.msgSized {
+		t.Fatalf("Author moved from %v to %v; sized %v", before.Y, after.Y, cv.msgSized)
+	}
+	dragged := cv.msgH
+
+	h.click("short")
+	h.until("the other commit", h.shows("just one line"))
+	h.tt.Frame()
+	if cv.msgH != dragged {
+		t.Fatalf("height %v after choosing another commit, dragged to %v", cv.msgH, dragged)
+	}
+}

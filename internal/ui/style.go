@@ -33,6 +33,9 @@ const (
 	bannerPadY = spaceM
 	dialogPad  = space2XL
 	dialogGap  = spaceL
+	// rowHeight is a one-line list row: a line of text and rowPadY
+	// above and below it.
+	rowHeight = 24
 )
 
 // Type sizes. Body text takes the theme's size and sets none: it is 13 on

@@ -795,6 +795,10 @@
   "commitNoFiles": "No files changed",
   "commitFilesChanged": "{count, plural, one {# file changed} other {# files changed}}",
   "commitFilesLabel": "Files of the commit",
+  "commitClosePatch": "Close Patch",
+  "@commitClosePatch": {
+    "description": "The button that closes the patch of the chosen file, for assistive technology."
+  },
   "commitSigCheckingVerdict": "Checking…",
   "@commitSigCheckingVerdict": {
     "description": "A commit's signature is being checked."

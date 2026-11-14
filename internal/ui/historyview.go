@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	historyRowHeight = 24
+	historyRowHeight = rowHeight
 	// maxGraphWidth bounds the graph column; lanes past it are cut off.
 	maxGraphWidth = 160
 	// historyTextBudget bounds the row text kept for rows scrolled past.
@@ -76,7 +76,7 @@ type histLoad struct {
 func loadOf(h session.HistoryState) histLoad { return histLoad{h.For, h.View} }
 
 func newHistoryState() historyState {
-	return historyState{chosen: -1, detailW: 640, detail: commitView{split: 360}, text: map[int]*history.TextChunk{}, used: map[int]uint64{}, asked: map[int]bool{}}
+	return historyState{chosen: -1, detailW: 640, detail: commitView{}, text: map[int]*history.TextChunk{}, used: map[int]uint64{}, asked: map[int]bool{}}
 }
 
 type labelKind uint8
