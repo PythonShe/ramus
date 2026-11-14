@@ -241,6 +241,17 @@ func (a *App) CloseAll() {
 	a.tabs, a.active = nil, -1
 }
 
+// WindowFocused reads every open repository again for what the watcher
+// missed, unless the settings turn it off.
+func (a *App) WindowFocused() {
+	if a.Settings.NoFocusRefresh {
+		return
+	}
+	for _, t := range a.tabs {
+		t.s.FocusRefresh()
+	}
+}
+
 func (a *App) current() *tab {
 	if a.active < 0 || a.active >= len(a.tabs) {
 		return nil

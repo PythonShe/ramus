@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -156,5 +157,70 @@ func TestOverflowRescans(t *testing.T) {
 	s.refreshPaths(repo.WorkTreeChanged, []string{"b"})
 	if !s.dirtyAll || s.dirtyPaths != nil {
 		t.Fatal("a later notice narrowed the rescan")
+	}
+}
+
+// The window gaining focus reads refs and the index's key, and status
+// only when they changed; with no watcher, everything.
+func TestFocusRefresh(t *testing.T) {
+	runner, logged := loggedRunner(t)
+	statusRuns := func() int {
+		n := 0
+		for _, l := range logged() {
+			if strings.Contains(l, " status --porcelain=v2") {
+				n++
+			}
+		}
+		return n
+	}
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	m := make(mainThread, 64)
+	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	m.pump(4 * Debounce)
+
+	before := statusRuns()
+	s.FocusRefresh()
+	m.pump(4 * Debounce)
+	if n := statusRuns() - before; n != 0 {
+		t.Fatalf("focus with nothing changed ran status %d times", n)
+	}
+
+	s.State.WatchErr = errors.New("not watching")
+	s.FocusRefresh()
+	m.pump(4 * Debounce)
+	if n := statusRuns() - before; n != 1 {
+		t.Fatalf("focus with no watcher ran status %d times", n)
+	}
+
+	// What the check finds, whatever the watcher saw.
+	rp := s.Repo
+	var seen refreshSeen
+	if got := focusChanges(rp, &seen); got&(repo.IndexChanged|repo.RefsChanged) != repo.IndexChanged|repo.RefsChanged {
+		t.Fatalf("nothing seen yet: %v", got)
+	}
+	look := func() {
+		seen.index, _ = repo.ReadIndexKey(rp.GitDir)
+		seen.indexRead = true
+		h, _ := rp.Refs().Head()
+		seen.head = &h
+		seen.refs, _ = rp.Refs().List()
+	}
+	look()
+	if got := focusChanges(rp, &seen); got != 0 {
+		t.Fatalf("nothing changed: %v", got)
+	}
+	r.Git("branch", "topic")
+	if got := focusChanges(rp, &seen); got&repo.RefsChanged == 0 {
+		t.Fatalf("a new branch: %v", got)
+	}
+	look()
+	r.Write("b", "2")
+	r.Git("add", "b")
+	if got := focusChanges(rp, &seen); got != repo.IndexChanged {
+		t.Fatalf("a staged file: %v", got)
 	}
 }

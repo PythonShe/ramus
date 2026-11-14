@@ -5,6 +5,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"ramus/internal/git/cache"
@@ -43,6 +44,9 @@ type State struct {
 	// RefreshErr is the last refresh that failed; the state before it
 	// stays shown.
 	RefreshErr error
+	// WatchErr is why changes are not watched, when they are not: the
+	// window gaining focus then reads everything again.
+	WatchErr error
 	// Refreshed is when status was last read.
 	Refreshed time.Time
 	// Monitor offers git's file system monitor and the untracked cache
@@ -115,6 +119,30 @@ type refreshSeen struct {
 	refs      *refs.List
 	// status is the last status published, for a recheck to merge into.
 	status *status.Status
+	head   *refs.Head
+}
+
+// focusChanges is what changed of refs, HEAD and the index since they
+// were last read, by reading them, not status.
+func focusChanges(r *repo.Repository, seen *refreshSeen) repo.Change {
+	var what repo.Change
+	if key, err := repo.ReadIndexKey(r.GitDir); err != nil || !seen.indexRead || key != seen.index {
+		what |= repo.IndexChanged
+	}
+	rd := r.Refs()
+	if rd == nil {
+		return what | repo.RefsChanged
+	}
+	h, err := rd.Head()
+	l, lerr := rd.List()
+	if err != nil || lerr != nil || seen.head == nil || !sameHead(h, *seen.head) || !l.Equal(seen.refs) {
+		what |= repo.RefsChanged | repo.OperationChanged
+	}
+	return what
+}
+
+func sameHead(a, b refs.Head) bool {
+	return a.Target == b.Target && bytes.Equal(a.OID, b.OID) && a.Detached == b.Detached && a.Unborn == b.Unborn
 }
 
 // Debounce gathers a burst of file changes into one refresh: a refresh
@@ -189,9 +217,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 		}
 		s.Repo, s.Queue = r, q
 		s.State = State{Restricted: r.Restricted, Fallbacks: r.Caps.Fallbacks(), Operation: repo.InProgress(r.GitDir)}
-		if werr != nil {
-			s.State.RefreshErr = werr
-		}
+		s.State.WatchErr = werr
 	})
 	r.Life().Go(func(ctx context.Context) { s.refresher(ctx, r) })
 	if notices != nil {
@@ -206,6 +232,13 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 					if slices.Contains(n.Paths, ".gitmodules") {
 						what |= modulesChanged
 					}
+					if err := n.Err; err != nil {
+						s.update(func() {
+							if s.Repo == r {
+								s.State.WatchErr = err
+							}
+						})
+					}
 					s.refreshPaths(what, n.Paths)
 				case <-ctx.Done():
 					return
@@ -218,6 +251,18 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 
 // Refresh asks for what changed to be read again; bursts are merged.
 func (s *Session) Refresh(what repo.Change) { s.refreshPaths(what, nil) }
+
+// FocusRefresh is the window gaining focus, a fallback for changes the
+// watcher missed: while it watches, refs and the index's key are read,
+// and status only when they changed; when it does not, everything.
+// Main thread only.
+func (s *Session) FocusRefresh() {
+	if s.State.WatchErr != nil {
+		s.Refresh(repo.Rescan)
+		return
+	}
+	s.Refresh(focusCheck)
+}
 
 // refreshPaths is Refresh for work-tree changes the watcher named: while
 // every change merged into the next refresh names its paths, and they are
@@ -289,11 +334,21 @@ func quiet(ctx context.Context, wake <-chan struct{}) bool {
 // modulesChanged is .gitmodules changing, beside the watcher's own bits.
 const modulesChanged repo.Change = 1 << 7
 
+// focusCheck asks whether refs, HEAD or the index changed unseen; what
+// did is read.
+const focusCheck repo.Change = 1 << 8
+
 const all = modulesChanged | repo.WorkTreeChanged | repo.IndexChanged | repo.RefsChanged | repo.OperationChanged | repo.ConfigChanged
 
 func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change, paths []string, seen *refreshSeen) {
 	if what&repo.Rescan != 0 {
 		what |= all
+	}
+	if what&focusCheck != 0 {
+		what = what&^focusCheck | focusChanges(r, seen)
+		if what == 0 {
+			return
+		}
 	}
 	type result struct {
 		head    *refs.Head
@@ -330,6 +385,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			fail(err)
 			if err == nil {
 				res.head = &h
+				seen.head = &h
 			}
 			l, err := rd.List()
 			fail(err)

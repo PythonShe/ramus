@@ -36,6 +36,9 @@ type Settings struct {
 	// lines.
 	DiffSplit bool `json:"diffSplit,omitempty"`
 	DiffWrap  bool `json:"diffWrap,omitempty"`
+	// NoFocusRefresh turns off reading the repository again when the
+	// window gains focus, the fallback for changes the watcher missed.
+	NoFocusRefresh bool `json:"noFocusRefresh,omitempty"`
 }
 
 // Action is a command of the user's, shown in the command palette and in
@@ -113,7 +116,7 @@ func Save(path string, s Settings) error {
 	}
 	var fields map[string]json.RawMessage
 	json.Unmarshal(known, &fields)
-	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit", "actions", "emails", "diffSplit", "diffWrap"} {
+	for _, k := range []string{"theme", "editor", "terminal", "snapshotDays", "recentLimit", "actions", "emails", "diffSplit", "diffWrap", "noFocusRefresh"} {
 		delete(merged, k)
 	}
 	for k, v := range fields {

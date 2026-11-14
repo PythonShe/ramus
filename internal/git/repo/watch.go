@@ -11,7 +11,7 @@ import (
 // Change says what a batch of file changes touched, so the app refreshes
 // only that: status for the work tree and index, refs and history for
 // refs, the banner for an operation in progress.
-type Change uint8
+type Change uint16
 
 const (
 	WorkTreeChanged Change = 1 << iota
@@ -30,6 +30,9 @@ type Notice struct {
 	// Paths are the work-tree paths that changed, slash-separated from the
 	// top of the work tree; empty with Rescan.
 	Paths []string
+	// Err is why a watcher stopped on its own, such as watch.ErrLimit:
+	// changes it would have seen are not reported from then on.
+	Err error
 }
 
 // classifyGit names what a change to a path in a git directory (relative
@@ -183,7 +186,7 @@ func (r *Repository) Watch(skipDir func(rel string) bool) (<-chan Notice, error)
 				}
 				n := Notice{}
 				if b.Overflow {
-					n.What = Rescan
+					n.What, n.Err = Rescan, x.w.Err()
 				}
 				for _, p := range b.Paths {
 					c, wt := x.classify(p)
@@ -213,6 +216,9 @@ func (r *Repository) Watch(skipDir func(rel string) bool) (<-chan Notice, error)
 				case old := <-out:
 					n.What |= old.What
 					n.Paths = append(old.Paths, n.Paths...)
+					if n.Err == nil {
+						n.Err = old.Err
+					}
 				default:
 				}
 				if n.What&Rescan != 0 {

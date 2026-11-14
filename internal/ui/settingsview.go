@@ -18,6 +18,7 @@ type settingsState struct {
 	editor, terminal string
 	emails           string
 	days, recent     float64
+	focusRefresh     bool
 	err              string
 }
 
@@ -29,6 +30,7 @@ func (a *App) openSettings() {
 	s.editor, s.terminal = joinArgs(s.edit.Editor), joinArgs(s.edit.Terminal)
 	s.emails = strings.Join(s.edit.Emails, ", ")
 	s.days, s.recent = float64(s.edit.SnapshotDays), float64(s.edit.RecentLimit)
+	s.focusRefresh = !s.edit.NoFocusRefresh
 }
 
 func indexOf(xs []string, x string) int {
@@ -67,6 +69,7 @@ func (a *App) settingsView(c *ui.Context) {
 			ui.Field(c, "Recent repositories listed", func() {
 				ui.NumberInput(c, &s.recent, 1, 200, 1)
 			})
+			ui.Checkbox(c, &s.focusRefresh, "Refresh when the window is focused")
 			if a.Program != "" {
 				ui.Field(c, "Git difftool and mergetool", func() {
 					snippet := cli.ToolConfig(a.Program)
@@ -105,6 +108,7 @@ func (a *App) saveSettings() {
 	next := a.Settings
 	next.Theme = settings.Themes[min(max(s.theme, 0), len(settings.Themes)-1)]
 	next.SnapshotDays, next.RecentLimit = int(s.days), int(s.recent)
+	next.NoFocusRefresh = !s.focusRefresh
 	next.Emails = nil
 	for _, e := range strings.FieldsFunc(s.emails, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
 		next.Emails = append(next.Emails, e)

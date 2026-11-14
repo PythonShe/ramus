@@ -138,6 +138,7 @@ func main() {
 			Content:   mygoui.View(app.View),
 		})
 		win.OnClosed(app.CloseAll)
+		win.OnFocus(app.WindowFocused)
 		findGit(win, app)
 	})
 	if err := mygo.App.Run(); err != nil {

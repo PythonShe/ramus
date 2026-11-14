@@ -224,6 +224,11 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 		if a.gitWarning != "" {
 			ui.Text(c, a.gitWarning).FontSize(12).TextColor(th.Warning).SingleLine()
 		}
+		if st.WatchErr != nil {
+			// Changes then show when the window gains focus, not as they
+			// happen.
+			ui.Text(c, "Not watching for changes: "+errText(st.WatchErr)).FontSize(12).TextColor(th.Warning).SingleLine().MaxWidth(480)
+		}
 		if st.RefreshErr != nil {
 			ui.Text(c, "Refresh failed: "+errText(st.RefreshErr)).FontSize(12).TextColor(th.Danger).SingleLine().MaxWidth(480)
 		}
