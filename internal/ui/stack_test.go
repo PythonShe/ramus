@@ -20,6 +20,8 @@ func TestStackInBranches(t *testing.T) {
 		r.Write(b, b)
 		r.Commit(b)
 	}
+	// Off top, which the tab bar's branch button would name too.
+	r.Git("checkout", "-q", "bottom")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("No changes"))

@@ -84,11 +84,6 @@ func (a *App) hidingCommands() []command {
 	} else {
 		cmds = append(cmds, command{id: "toggle-sidebar", label: locales.HidingHideSidebar(), run: func() { a.setSidebar(false) }})
 	}
-	if a.Settings.NoStatusBar {
-		cmds = append(cmds, command{id: "toggle-status-bar", label: locales.HidingShowStatusBar(), run: func() { a.Settings.NoStatusBar = false; a.keepSettings() }})
-	} else {
-		cmds = append(cmds, command{id: "toggle-status-bar", label: locales.HidingHideStatusBar(), run: func() { a.Settings.NoStatusBar = true; a.keepSettings() }})
-	}
 	return cmds
 }
 

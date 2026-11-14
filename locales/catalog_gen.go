@@ -6259,24 +6259,10 @@ func (msgs Messages) NavToolbar() string {
 	return Catalog.Format(msgs.locale, "navToolbar", nil)
 }
 
-// RepoDetached says "detached"
-// in the language the app shows.
-//
-// The status bar, in place of the branch name when HEAD is detached.
-func RepoDetached() string { return In(i18n.Locale()).RepoDetached() }
-
-// RepoDetached says "detached"
-// in the language of msgs.
-//
-// The status bar, in place of the branch name when HEAD is detached.
-func (msgs Messages) RepoDetached() string {
-	return Catalog.Format(msgs.locale, "repoDetached", nil)
-}
-
 // RepoOperationInProgress says "{operation} in progress"
 // in the language the app shows.
 //
-// The status bar; operation is git's name for it: merge, rebase, am,
+// The warning bar; operation is git's name for it: merge, rebase, am,
 // cherry-pick, revert or bisect.
 func RepoOperationInProgress(operation string) string {
 	return In(i18n.Locale()).RepoOperationInProgress(operation)
@@ -6285,30 +6271,16 @@ func RepoOperationInProgress(operation string) string {
 // RepoOperationInProgress says "{operation} in progress"
 // in the language of msgs.
 //
-// The status bar; operation is git's name for it: merge, rebase, am,
+// The warning bar; operation is git's name for it: merge, rebase, am,
 // cherry-pick, revert or bisect.
 func (msgs Messages) RepoOperationInProgress(operation string) string {
 	return Catalog.Format(msgs.locale, "repoOperationInProgress", map[string]any{"operation": operation})
 }
 
-// RepoThroughGit says "Through git: {what}"
-// in the language the app shows.
-//
-// The status bar: what the app hands to git instead of reading itself.
-func RepoThroughGit(what string) string { return In(i18n.Locale()).RepoThroughGit(what) }
-
-// RepoThroughGit says "Through git: {what}"
-// in the language of msgs.
-//
-// The status bar: what the app hands to git instead of reading itself.
-func (msgs Messages) RepoThroughGit(what string) string {
-	return Catalog.Format(msgs.locale, "repoThroughGit", map[string]any{"what": what})
-}
-
 // RepoRunning says "{name}: {progress}"
 // in the language the app shows.
 //
-// The status bar: a write running, and what it printed last.
+// The tab bar: a write running, and what it printed last.
 func RepoRunning(name string, progress string) string {
 	return In(i18n.Locale()).RepoRunning(name, progress)
 }
@@ -6316,7 +6288,7 @@ func RepoRunning(name string, progress string) string {
 // RepoRunning says "{name}: {progress}"
 // in the language of msgs.
 //
-// The status bar: a write running, and what it printed last.
+// The tab bar: a write running, and what it printed last.
 func (msgs Messages) RepoRunning(name string, progress string) string {
 	return Catalog.Format(msgs.locale, "repoRunning", map[string]any{"name": name, "progress": progress})
 }
@@ -7907,26 +7879,6 @@ func HidingHideSidebar() string { return In(i18n.Locale()).HidingHideSidebar() }
 // in the language of msgs.
 func (msgs Messages) HidingHideSidebar() string {
 	return Catalog.Format(msgs.locale, "hidingHideSidebar", nil)
-}
-
-// HidingShowStatusBar says "Show Status Bar"
-// in the language the app shows.
-func HidingShowStatusBar() string { return In(i18n.Locale()).HidingShowStatusBar() }
-
-// HidingShowStatusBar says "Show Status Bar"
-// in the language of msgs.
-func (msgs Messages) HidingShowStatusBar() string {
-	return Catalog.Format(msgs.locale, "hidingShowStatusBar", nil)
-}
-
-// HidingHideStatusBar says "Hide Status Bar"
-// in the language the app shows.
-func HidingHideStatusBar() string { return In(i18n.Locale()).HidingHideStatusBar() }
-
-// HidingHideStatusBar says "Hide Status Bar"
-// in the language of msgs.
-func (msgs Messages) HidingHideStatusBar() string {
-	return Catalog.Format(msgs.locale, "hidingHideStatusBar", nil)
 }
 
 // HidingSettingsNotSaved says "Settings not saved: {error}"
@@ -10077,14 +10029,98 @@ func (msgs Messages) KeysToggleSidebar() string {
 	return Catalog.Format(msgs.locale, "keysToggleSidebar", nil)
 }
 
-// KeysToggleStatusBar says "Show or Hide the Status Bar"
+// KeysSwitchBranch says "Switch Branch…"
 // in the language the app shows.
-func KeysToggleStatusBar() string { return In(i18n.Locale()).KeysToggleStatusBar() }
+func KeysSwitchBranch() string { return In(i18n.Locale()).KeysSwitchBranch() }
 
-// KeysToggleStatusBar says "Show or Hide the Status Bar"
+// KeysSwitchBranch says "Switch Branch…"
 // in the language of msgs.
-func (msgs Messages) KeysToggleStatusBar() string {
-	return Catalog.Format(msgs.locale, "keysToggleStatusBar", nil)
+func (msgs Messages) KeysSwitchBranch() string {
+	return Catalog.Format(msgs.locale, "keysSwitchBranch", nil)
+}
+
+// BranchPickerLabel says "Branch {name}"
+// in the language the app shows.
+//
+// What assistive technology calls the tab bar's button naming the branch
+// checked out, which opens the branch picker.
+func BranchPickerLabel(name string) string { return In(i18n.Locale()).BranchPickerLabel(name) }
+
+// BranchPickerLabel says "Branch {name}"
+// in the language of msgs.
+//
+// What assistive technology calls the tab bar's button naming the branch
+// checked out, which opens the branch picker.
+func (msgs Messages) BranchPickerLabel(name string) string {
+	return Catalog.Format(msgs.locale, "branchPickerLabel", map[string]any{"name": name})
+}
+
+// BranchPickerTooltip says "Switch Branch"
+// in the language the app shows.
+func BranchPickerTooltip() string { return In(i18n.Locale()).BranchPickerTooltip() }
+
+// BranchPickerTooltip says "Switch Branch"
+// in the language of msgs.
+func (msgs Messages) BranchPickerTooltip() string {
+	return Catalog.Format(msgs.locale, "branchPickerTooltip", nil)
+}
+
+// BranchPickerDetached says "Detached HEAD"
+// in the language the app shows.
+//
+// The branch button, in place of a branch name when HEAD is detached.
+func BranchPickerDetached() string { return In(i18n.Locale()).BranchPickerDetached() }
+
+// BranchPickerDetached says "Detached HEAD"
+// in the language of msgs.
+//
+// The branch button, in place of a branch name when HEAD is detached.
+func (msgs Messages) BranchPickerDetached() string {
+	return Catalog.Format(msgs.locale, "branchPickerDetached", nil)
+}
+
+// BranchPickerSearch says "Search Branches"
+// in the language the app shows.
+func BranchPickerSearch() string { return In(i18n.Locale()).BranchPickerSearch() }
+
+// BranchPickerSearch says "Search Branches"
+// in the language of msgs.
+func (msgs Messages) BranchPickerSearch() string {
+	return Catalog.Format(msgs.locale, "branchPickerSearch", nil)
+}
+
+// BranchPickerList says "Branches"
+// in the language the app shows.
+func BranchPickerList() string { return In(i18n.Locale()).BranchPickerList() }
+
+// BranchPickerList says "Branches"
+// in the language of msgs.
+func (msgs Messages) BranchPickerList() string {
+	return Catalog.Format(msgs.locale, "branchPickerList", nil)
+}
+
+// BranchPickerRemote says "Remote"
+// in the language the app shows.
+//
+// The heading of the remote branches in the branch picker.
+func BranchPickerRemote() string { return In(i18n.Locale()).BranchPickerRemote() }
+
+// BranchPickerRemote says "Remote"
+// in the language of msgs.
+//
+// The heading of the remote branches in the branch picker.
+func (msgs Messages) BranchPickerRemote() string {
+	return Catalog.Format(msgs.locale, "branchPickerRemote", nil)
+}
+
+// BranchPickerNone says "No matching branches"
+// in the language the app shows.
+func BranchPickerNone() string { return In(i18n.Locale()).BranchPickerNone() }
+
+// BranchPickerNone says "No matching branches"
+// in the language of msgs.
+func (msgs Messages) BranchPickerNone() string {
+	return Catalog.Format(msgs.locale, "branchPickerNone", nil)
 }
 
 // KeysGoToTab says "Go to Tab {n}"

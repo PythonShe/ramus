@@ -116,6 +116,7 @@ func (a *App) tabCommands(t *tab) []command {
 		cmd("show-stats", func() { t.sel = "stats" }),
 		cmd("lost-commits", func() { t.sel, t.reflog.lostShown = "reflog", 1 }),
 		cmd("issue-links", func() { a.openLinks(t) }),
+		cmd("switch-branch", func() { a.openPicker(t) }),
 	)
 	cmds = append(cmds, a.hidingCommands()...)
 	if a.Settings.FetchMinutes > 0 && t.prefs.loaded {

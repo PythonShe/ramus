@@ -195,6 +195,7 @@ type tab struct {
 	links     tabLinks
 	prefs     refPrefs
 	sideRefs  sideRefs
+	pick      branchPick
 	// expired is set once old snapshots were cleared on open.
 	expired bool
 	sideW   float32

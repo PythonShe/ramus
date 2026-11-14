@@ -12,6 +12,7 @@ import (
 
 	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/redact"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/watch"
 	"ramus/internal/session"
 	"ramus/internal/ui/fileicon"
@@ -80,7 +81,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 				a.sidebar(c, t)
 			}
 		}, main).SplitReset(220).Grow(1)
-		a.statusBar(c, t)
+		a.warningBar(c, t)
 	})
 }
 
@@ -309,34 +310,21 @@ func changesLabel(st session.State) string {
 	return locales.RepoSectionChangesCount(st.Status.Len())
 }
 
-func (a *App) statusBar(c *ui.Context, t *tab) {
+// warningBar says what keeps the repository from working as it should:
+// git too old, changes not watched, a refresh that failed, an operation
+// stopped that the operation bar does not cover. It is not there while
+// all is well.
+func (a *App) warningBar(c *ui.Context, t *tab) {
 	th := c.Theme()
 	st := t.s.State
-	running := runningWrite(t.s.Log)
-	if a.Settings.NoStatusBar && running == nil && st.Operation == "" && a.gitWarning == "" && st.WatchErr == nil && st.RefreshErr == nil {
+	op := st.Operation == repo.Bisect
+	if !op && a.gitWarning == "" && st.WatchErr == nil && st.RefreshErr == nil {
 		return
 	}
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceXL).Background(th.Surface).Children(func() {
-		branch := strings.TrimPrefix(st.Head.Target, "refs/heads/")
-		if st.Head.Detached {
-			branch = locales.RepoDetached()
-		}
-		ui.Text(c, branch).FontSize(textSmall)
-		if st.Operation != "" {
+		if op {
 			ui.Text(c, locales.RepoOperationInProgress(string(st.Operation))).FontSize(textSmall).TextColor(th.Warning)
 		}
-		if len(st.Fallbacks) > 0 {
-			ui.Text(c, locales.RepoThroughGit(strings.Join(st.Fallbacks, ", "))).FontSize(textSmall).TextColor(th.TextMuted)
-		}
-		if e := running; e != nil {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.RepoRunning(e.Name, e.Progress)).FontSize(textSmall).TextColor(th.Accent).SingleLine().MaxWidth(520)
-				if ui.Button(c, locales.CommonCancel()).Label(locales.RepoCancelRunning(e.Name)).Padding(0, spaceS).Clicked() {
-					e.Cancel()
-				}
-			})
-		}
-		ui.Spacer(c)
 		if a.gitWarning != "" {
 			ui.Text(c, a.gitWarning).FontSize(textSmall).TextColor(th.Warning).SingleLine()
 		}
@@ -349,6 +337,23 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 		}
 		if st.RefreshErr != nil {
 			ui.Text(c, locales.RepoRefreshFailed(errText(st.RefreshErr))).FontSize(textSmall).TextColor(th.Danger).SingleLine().MaxWidth(480)
+		}
+	})
+}
+
+// activity shows the write running, in the tab bar, with what git
+// printed last and a button that cancels it.
+func (a *App) activity(c *ui.Context, t *tab) {
+	e := runningWrite(t.s.Log)
+	if e == nil {
+		return
+	}
+	th := c.Theme()
+	ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Shrink(1).Children(func() {
+		ui.Spinner(c).FontSize(textSmall).Label(e.Name)
+		ui.Text(c, locales.RepoRunning(e.Name, e.Progress)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MaxWidth(320).Shrink(1)
+		if closeButton(c, locales.RepoCancelRunning(e.Name)).Clicked() {
+			e.Cancel()
 		}
 	})
 }

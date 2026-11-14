@@ -50,10 +50,8 @@ type Settings struct {
 	// HiddenSections are the sidebar's items and sections left out, by
 	// key ("reflog", "tags").
 	HiddenSections []string `json:"hiddenSections,omitempty"`
-	// NoSidebar leaves the repository sidebar out; NoStatusBar the
-	// status bar, but while it has a warning.
-	NoSidebar   bool `json:"noSidebar,omitempty"`
-	NoStatusBar bool `json:"noStatusBar,omitempty"`
+	// NoSidebar leaves the repository sidebar out.
+	NoSidebar bool `json:"noSidebar,omitempty"`
 	// HistoryColumns are the history list's columns the user resized or
 	// collapsed, by key: "graph", "author", "date", "hash".
 	HistoryColumns map[string]Column `json:"historyColumns,omitempty"`

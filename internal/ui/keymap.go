@@ -207,7 +207,7 @@ var bindable = append([]bindableCommand{
 	{"reveal", locales.KeysReveal},
 	{"issue-links", locales.KeysIssueLinks},
 	{"toggle-sidebar", locales.KeysToggleSidebar},
-	{"toggle-status-bar", locales.KeysToggleStatusBar},
+	{"switch-branch", locales.KeysSwitchBranch},
 }, goToTabs()...)
 
 // bindableCommand is a command a shortcut can run; name says it in the

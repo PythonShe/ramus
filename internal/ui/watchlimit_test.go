@@ -15,7 +15,7 @@ func TestWatchLimit(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("a.txt"))
 	tb := h.app.current()
-	h.app.Settings.NoFocusRefresh, h.app.Settings.NoStatusBar = true, true
+	h.app.Settings.NoFocusRefresh = true
 	tb.s.State.WatchErr = watch.ErrLimit
 	h.until("the warning", h.shows("Too many folders to watch for changes; refreshing when the window is focused"))
 	r.Write("late.txt", "x")

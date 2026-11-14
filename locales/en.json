@@ -1141,21 +1141,13 @@
   "@navToolbar": {
     "description": "What assistive technology calls the toolbar holding the sidebar toggle, Back and Forward."
   },
-  "repoDetached": "detached",
-  "@repoDetached": {
-    "description": "The status bar, in place of the branch name when HEAD is detached."
-  },
   "repoOperationInProgress": "{operation} in progress",
   "@repoOperationInProgress": {
-    "description": "The status bar; operation is git's name for it: merge, rebase, am, cherry-pick, revert or bisect."
-  },
-  "repoThroughGit": "Through git: {what}",
-  "@repoThroughGit": {
-    "description": "The status bar: what the app hands to git instead of reading itself."
+    "description": "The warning bar; operation is git's name for it: merge, rebase, am, cherry-pick, revert or bisect."
   },
   "repoRunning": "{name}: {progress}",
   "@repoRunning": {
-    "description": "The status bar: a write running, and what it printed last."
+    "description": "The tab bar: a write running, and what it printed last."
   },
   "repoCancelRunning": "Cancel {name}",
   "repoNotWatching": "Not watching for changes: {error}; refreshing when the window is focused",
@@ -1459,8 +1451,6 @@
   },
   "hidingShowSidebar": "Show Sidebar",
   "hidingHideSidebar": "Hide Sidebar",
-  "hidingShowStatusBar": "Show Status Bar",
-  "hidingHideStatusBar": "Hide Status Bar",
   "hidingSettingsNotSaved": "Settings not saved: {error}",
   "treemapNoFiles": "No files",
   "treemapAllFiles": "All Files",
@@ -1968,7 +1958,23 @@
   "keysReveal": "Reveal in File Manager",
   "keysIssueLinks": "Issue Links…",
   "keysToggleSidebar": "Show or Hide the Sidebar",
-  "keysToggleStatusBar": "Show or Hide the Status Bar",
+  "keysSwitchBranch": "Switch Branch…",
+  "branchPickerLabel": "Branch {name}",
+  "@branchPickerLabel": {
+    "description": "What assistive technology calls the tab bar's button naming the branch checked out, which opens the branch picker."
+  },
+  "branchPickerTooltip": "Switch Branch",
+  "branchPickerDetached": "Detached HEAD",
+  "@branchPickerDetached": {
+    "description": "The branch button, in place of a branch name when HEAD is detached."
+  },
+  "branchPickerSearch": "Search Branches",
+  "branchPickerList": "Branches",
+  "branchPickerRemote": "Remote",
+  "@branchPickerRemote": {
+    "description": "The heading of the remote branches in the branch picker."
+  },
+  "branchPickerNone": "No matching branches",
   "keysGoToTab": "Go to Tab {n}",
   "@keysGoToTab": {
     "placeholders": {

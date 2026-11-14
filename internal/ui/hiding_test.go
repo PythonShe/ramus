@@ -14,6 +14,7 @@ func TestHideSidebarParts(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
 	r.Git("tag", "v1")
+	r.Git("branch", "topic")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("No changes"))
@@ -37,7 +38,7 @@ func TestHideSidebarParts(t *testing.T) {
 	// A branch in a section has its own menu.
 	tb := h.app.current()
 	h.until("the refs", func() bool { return tb.refs.info != nil })
-	if err := h.tt.RightClick("main"); err != nil {
+	if err := h.tt.RightClick("topic"); err != nil {
 		t.Fatal(err)
 	}
 	h.tt.Frame()
@@ -55,24 +56,19 @@ func TestHideSidebarParts(t *testing.T) {
 	h.until("no sidebar", func() bool { return !hasExact(h, "History") && h.app.Settings.NoSidebar })
 	palette("show sidebar")
 	h.until("the sidebar", func() bool { return hasExact(h, "History") })
+}
 
-	// The status bar names the branch; hidden, it comes back for a
-	// warning.
-	count := func() int {
-		n := 0
-		for _, s := range h.tt.Texts() {
-			if s == "main" {
-				n++
-			}
-		}
-		return n
-	}
-	with := count()
-	palette("hide status bar")
-	h.until("no status bar", func() bool { return count() == with-1 })
+// A refresh that failed says so in a bar of its own, gone once all is
+// well again.
+func TestWarningBar(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
 	tb.s.State.RefreshErr = errors.New("a test failure")
 	h.until("the warning", h.shows("Refresh failed: a test failure"))
 	tb.s.State.RefreshErr = nil
-	palette("show status bar")
-	h.until("the status bar", func() bool { return count() == with })
+	h.until("no warning", func() bool { return !h.tt.HasText("Refresh failed: a test failure") })
 }

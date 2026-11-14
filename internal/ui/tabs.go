@@ -60,6 +60,10 @@ func (a *App) tabBar(c *ui.Context) {
 		})
 		a.openMore(c)
 		ui.Spacer(c)
+		if t := a.current(); t != nil && !t.s.State.Opening && t.s.State.Err == nil {
+			a.activity(c, t)
+			a.branchButton(c, t)
+		}
 		a.appButton(c)
 	})
 	if act != nil {
