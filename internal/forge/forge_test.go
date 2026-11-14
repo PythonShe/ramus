@@ -42,9 +42,9 @@ func TestPages(t *testing.T) {
 	gh := Repo{GitHub, "github.com", "o/r"}
 	gl := Repo{GitLab, "gitlab.com", "g/p"}
 	for _, tc := range []struct{ got, want string }{
-		{gh.BranchPulls("feat/a b"), "https://github.com/o/r/pulls?q=is%3Apr+is%3Aopen+head%3Afeat%2Fa+b"},
+		{gh.BranchPulls("feat/a b"), "https://github.com/o/r/pulls?q=is%3Apr+head%3Afeat%2Fa+b"},
 		{gh.NewPull("feat/a b"), "https://github.com/o/r/compare/feat/a%20b?expand=1"},
-		{gl.BranchPulls("feat/a"), "https://gitlab.com/g/p/-/merge_requests?state=opened&source_branch=feat%2Fa"},
+		{gl.BranchPulls("feat/a"), "https://gitlab.com/g/p/-/merge_requests?state=all&source_branch=feat%2Fa"},
 		{gl.NewPull("feat/a"), "https://gitlab.com/g/p/-/merge_requests/new?merge_request%5Bsource_branch%5D=feat%2Fa"},
 	} {
 		if tc.got != tc.want {
@@ -61,16 +61,23 @@ func TestParseGitHub(t *testing.T) {
 			"headRepositoryOwner":{"login":"someone"},"commits":{"nodes":[]}},
 			{"number":9,"title":"Draft y","url":"u9","isDraft":true,"headRefName":"y",
 			"headRepositoryOwner":{"login":"o"},"commits":{"nodes":[{"commit":{"statusCheckRollup":null}}]}}]},
-		"b2":{"nodes":[]}}}}`
+		"c0":{"nodes":[{"number":5,"title":"Old x","url":"u5","state":"CLOSED","headRefName":"x","headRepositoryOwner":{"login":"o"}}]},
+		"b2":{"nodes":[]},
+		"c2":{"nodes":[{"number":4,"title":"Someone's z","url":"u4","state":"MERGED","headRefName":"z","headRepositoryOwner":{"login":"someone"}},
+			{"number":3,"title":"Merged z","url":"u3","state":"MERGED","headRefName":"z","headRepositoryOwner":{"login":"o"}},
+			{"number":2,"title":"Closed z","url":"u2","state":"CLOSED","headRefName":"z","headRepositoryOwner":{"login":"o"}}]}}}}`
 	got := map[string]Pull{}
 	if err := parseGitHub([]byte(out), "o", 3, got); err != nil {
 		t.Fatal(err)
 	}
+	// The open one wins over the closed; the latest closed one, of this
+	// owner's, over the rest.
 	want := map[string]Pull{
 		"x": {Number: 7, Title: "Add x", URL: "https://github.com/o/r/pull/7", Branch: "x", Checks: ChecksFailing},
 		"y": {Number: 9, Title: "Draft y", URL: "u9", Branch: "y", Draft: true},
+		"z": {Number: 3, Title: "Merged z", URL: "u3", Branch: "z", State: PullMerged},
 	}
-	if len(got) != len(want) || got["x"] != want["x"] || got["y"] != want["y"] {
+	if len(got) != len(want) || got["x"] != want["x"] || got["y"] != want["y"] || got["z"] != want["z"] {
 		t.Fatalf("got %+v", got)
 	}
 	err := parseGitHub([]byte(`{"errors":[{"message":"Could not resolve to a Repository"}]}`), "o", 1, got)
@@ -80,33 +87,46 @@ func TestParseGitHub(t *testing.T) {
 }
 
 func TestParseGitLab(t *testing.T) {
-	out := `{"data":{"project":{"mergeRequests":{"nodes":[
-		{"iid":"3","title":"Fix","webUrl":"https://gitlab.com/g/p/-/merge_requests/3","draft":false,"sourceBranch":"fix",
+	out := `{"data":{"project":{"o":{"nodes":[
+		{"iid":"3","title":"Fix","webUrl":"https://gitlab.com/g/p/-/merge_requests/3","draft":false,"state":"opened","sourceBranch":"fix",
 			"sourceProject":{"fullPath":"g/p"},"headPipeline":{"status":"RUNNING"}},
-		{"iid":"4","title":"Fork","webUrl":"u","draft":false,"sourceBranch":"other",
-			"sourceProject":{"fullPath":"me/p"},"headPipeline":null}]}}}}`
+		{"iid":"4","title":"Fork","webUrl":"u","draft":false,"state":"opened","sourceBranch":"other",
+			"sourceProject":{"fullPath":"me/p"},"headPipeline":null}]},
+		"d":{"nodes":[
+		{"iid":"2","title":"Old fix","webUrl":"u2","state":"closed","sourceBranch":"fix","sourceProject":{"fullPath":"g/p"}},
+		{"iid":"1","title":"Done","webUrl":"u1","state":"merged","sourceBranch":"done","sourceProject":{"fullPath":"g/p"}}]}}}}`
 	got := map[string]Pull{}
-	if err := parseGitLab([]byte(out), "g/p", got); err != nil {
+	if err := parseGitLab([]byte(out), "g/p", "g/p", got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got["fix"] != (Pull{Number: 3, Title: "Fix", URL: "https://gitlab.com/g/p/-/merge_requests/3", Branch: "fix", Checks: ChecksPending}) {
+	if len(got) != 2 || got["fix"] != (Pull{Number: 3, Title: "Fix", URL: "https://gitlab.com/g/p/-/merge_requests/3", Branch: "fix", Checks: ChecksPending}) ||
+		got["done"] != (Pull{Number: 1, Title: "Done", URL: "u1", Branch: "done", State: PullMerged}) {
 		t.Fatalf("got %+v", got)
 	}
-	if err := parseGitLab([]byte(`{"data":{"project":null}}`), "g/p", got); err == nil {
+	// Asked from the fork me/p, only its merge requests into g/p count.
+	got = map[string]Pull{}
+	if err := parseGitLab([]byte(out), "g/p", "me/p", got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got["other"].Number != 4 {
+		t.Fatalf("from the fork: %+v", got)
+	}
+	if err := parseGitLab([]byte(`{"data":{"project":null}}`), "g/p", "g/p", got); err == nil {
 		t.Fatal("no error for a project not found")
 	}
 }
 
 func TestQueries(t *testing.T) {
 	q := githubQuery(2)
-	for _, s := range []string{"$b0:String!", "$b1:String!", "b1:pullRequests(headRefName:$b1"} {
+	for _, s := range []string{"$b0:String!", "$b1:String!", "b1:pullRequests(headRefName:$b1,states:[OPEN]",
+		"c1:pullRequests(headRefName:$b1,states:[MERGED,CLOSED]"} {
 		if !strings.Contains(q, s) {
 			t.Errorf("query lacks %s: %s", s, q)
 		}
 	}
 	// Names are written as GraphQL strings, so a quote ends nothing.
 	q = gitlabQuery("g/p", []string{`a"b`, `c\d`})
-	if !strings.Contains(q, `sourceBranches:["a\"b","c\\d"]`) {
+	if strings.Count(q, `sourceBranches:["a\"b","c\\d"]`) != 2 {
 		t.Errorf("query %s", q)
 	}
 }
@@ -138,16 +158,21 @@ func TestCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := c.Pulls(context.Background(), r, []string{"x"})
+	got, err := c.Pulls(context.Background(), r, r, []string{"x"})
 	if err != nil || got["x"].Number != 1 {
 		t.Fatalf("%+v, %v", got, err)
+	}
+	// Asked for a fork's branches, the same answer names none of them.
+	got, err = c.Pulls(context.Background(), r, Repo{GitHub, "github.com", "me/r"}, []string{"x"})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("from a fork: %+v, %v", got, err)
 	}
 
 	c, err = Find(fakeTool(t, "To get started with GitHub CLI, please run:  gh auth login", 4), GitHub)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = c.Pulls(context.Background(), r, []string{"x"})
+	_, err = c.Pulls(context.Background(), r, r, []string{"x"})
 	var le *LoginError
 	if !errors.As(err, &le) || le.Host != "github.com" {
 		t.Fatalf("err %v", err)
@@ -155,7 +180,7 @@ func TestCLI(t *testing.T) {
 }
 
 // TestLiveGitHub asks GitHub, through the gh logged in on this machine,
-// about a public repository's open pull requests: RAMUS_FORGE_LIVE=1.
+// about a public repository's pull requests: RAMUS_FORGE_LIVE=1.
 func TestLiveGitHub(t *testing.T) {
 	if os.Getenv("RAMUS_FORGE_LIVE") == "" {
 		t.Skip("RAMUS_FORGE_LIVE is not set")
@@ -169,7 +194,8 @@ func TestLiveGitHub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := c.Pulls(context.Background(), Repo{GitHub, "github.com", "cli/cli"}, append(heads, "no-such-branch-here"))
+	cli := Repo{GitHub, "github.com", "cli/cli"}
+	got, err := c.Pulls(context.Background(), cli, cli, append(heads, "no-such-branch-here"))
 	if err != nil {
 		t.Fatal(err)
 	}

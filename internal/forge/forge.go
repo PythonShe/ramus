@@ -115,13 +115,20 @@ func (r Repo) Name() string {
 	return "Pull Request"
 }
 
-// BranchPulls is the page of the open pull requests from branch, as the
-// remote names it.
+// BranchPulls is the page of the pull requests from branch, as the
+// remote names it, in every state: the badge shows merged and closed
+// ones too.
 func (r Repo) BranchPulls(branch string) string {
 	if r.Kind == GitLab {
-		return r.Web() + "/-/merge_requests?state=opened&source_branch=" + url.QueryEscape(branch)
+		return r.Web() + "/-/merge_requests?state=all&source_branch=" + url.QueryEscape(branch)
 	}
-	return r.Web() + "/pulls?q=" + url.QueryEscape("is:pr is:open head:"+branch)
+	return r.Web() + "/pulls?q=" + url.QueryEscape("is:pr head:"+branch)
+}
+
+// Owner is the user or group the repository is under.
+func (r Repo) Owner() string {
+	owner, _, _ := strings.Cut(r.Path, "/")
+	return owner
 }
 
 // NewPull is the page that starts a pull request from branch.
@@ -163,7 +170,18 @@ func (c Checks) String() string {
 	return ""
 }
 
-// Pull is an open pull request, or merge request.
+// PullState is whether a pull request is open, merged or closed.
+type PullState uint8
+
+const (
+	// PullOpen is the zero value: a pull request named without its state,
+	// as gh stack's file names them, is taken as open.
+	PullOpen PullState = iota
+	PullMerged
+	PullClosed
+)
+
+// Pull is a pull request, or merge request.
 type Pull struct {
 	Number int
 	Title  string
@@ -171,6 +189,9 @@ type Pull struct {
 	// Branch is its head branch, as the remote names it.
 	Branch string
 	Draft  bool
+	State  PullState
+	// Checks are read for an open pull request only: a merged or closed
+	// one's say nothing of what is to come.
 	Checks Checks
 }
 

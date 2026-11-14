@@ -68,7 +68,8 @@ func (a *App) findForge() func(forge.Kind) (*forge.CLI, error) {
 	return a.forges.find
 }
 
-// pullsKey names the branches that track a remote branch, and what.
+// pullsKey names the branches that track a remote branch, and what, and
+// the remotes: one named upstream added changes where they are asked.
 func pullsKey(info *session.RefInfo) string {
 	var b strings.Builder
 	for _, br := range info.Branches {
@@ -78,6 +79,17 @@ func pullsKey(info *session.RefInfo) string {
 			b.WriteString(br.Upstream)
 			b.WriteByte(0)
 		}
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	for _, rm := range info.Remotes {
+		b.WriteString(rm.Name)
+		b.WriteByte(0)
+		b.WriteString(rm.URL)
+		b.WriteByte(0)
+		b.WriteString(rm.PushURL)
+		b.WriteByte(0)
 	}
 	return b.String()
 }
@@ -130,14 +142,15 @@ func (a *App) forgeNotice(err error) {
 	}
 }
 
-// pullBadge shows a branch's open pull request in its row: its number,
-// which opens it, and its checks.
+// pullBadge shows a branch's pull request in its row: its number, which
+// opens it, its state, and an open one's checks.
 func pullBadge(c *ui.Context, p session.PullInfo) {
 	th := c.Theme()
 	ref := p.Ref(p.Repo.Kind)
 	ui.Link(c, ref, p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
-	if p.Draft {
-		ui.Text(c, locales.PullsDraft()).FontSize(textSmall).TextColor(th.TextMuted)
+	pullState(c, p.Pull)
+	if p.State != forge.PullOpen {
+		return
 	}
 	mark, color, says := "", th.TextMuted, ""
 	switch p.Checks {
@@ -151,6 +164,23 @@ func pullBadge(c *ui.Context, p session.PullInfo) {
 	if mark != "" {
 		ui.Text(c, mark).FontSize(textSmall).TextColor(color).Label(says).Tooltip(says)
 	}
+}
+
+// pullState names a pull request's state in the colors the hosts give
+// it: open in green, merged in the accent, closed muted, and an open
+// draft as a draft.
+func pullState(c *ui.Context, p forge.Pull) {
+	th := c.Theme()
+	text, color := locales.PullsStateOpen(), th.Success
+	switch {
+	case p.State == forge.PullMerged:
+		text, color = locales.PullsStateMerged(), th.Accent
+	case p.State == forge.PullClosed:
+		text, color = locales.PullsStateClosed(), th.TextMuted
+	case p.Draft:
+		text, color = locales.PullsDraft(), th.TextMuted
+	}
+	ui.Text(c, text).FontSize(textSmall).TextColor(color).SingleLine()
 }
 
 // pullItems are a branch's menu items for its pull requests on the web:
@@ -174,7 +204,8 @@ func (a *App) pullItems(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) {
 	}
 	pushed := b.Upstream != "" && !b.Gone
 	if m.Item(locales.PullsShowInBrowser(kind)).Disabled(!pushed).Chosen() {
-		a.openURL = repo.BranchPulls(name)
+		// A fork's are in the repository it was forked from.
+		a.openURL = session.PullsRepo(repo, info.Remotes).BranchPulls(name)
 	}
 	if m.Item(locales.PullsCreateInBrowser(kind)).Disabled(!pushed).Chosen() {
 		a.openURL = repo.NewPull(name)

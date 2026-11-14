@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"ramus/internal/forge"
 )
 
 // fakeGH is a gh that answers with out, or fails with code and out on
@@ -160,4 +162,62 @@ esac
 	h.click("Submit")
 	h.until("gh stack submit", func() bool { return strings.Contains(calls(), "stack submit --auto") })
 	h.idle(tb, "the submit")
+}
+
+// In a fork's clone, with the repository it was forked from as the
+// remote named upstream, a branch's pull request is asked of upstream,
+// for the fork owner's branch, and shows merged.
+func TestForkPullRequests(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake gh is a shell script")
+	}
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "https://github.com/me/r.git")
+	r.Git("remote", "add", "upstream", "https://github.com/up/r.git")
+	r.Git("branch", "feature")
+	r.Git("update-ref", "refs/remotes/origin/feature", "HEAD")
+	r.Git("config", "branch.feature.remote", "origin")
+	r.Git("config", "branch.feature.merge", "refs/heads/feature")
+	dir := t.TempDir()
+	log := filepath.Join(dir, "calls")
+	script := `#!/bin/sh
+echo "$@" >> '` + log + `'
+case "$1 $2" in
+"api graphql") echo '{"data":{"repository":{"b0":{"nodes":[]},"c0":{"nodes":[
+	{"number":8,"title":"Someone else","url":"https://github.com/up/r/pull/8","state":"MERGED","headRefName":"feature","headRepositoryOwner":{"login":"other"}},
+	{"number":9,"title":"Truncate at the start","url":"https://github.com/up/r/pull/9","state":"MERGED","headRefName":"feature","headRepositoryOwner":{"login":"me"}}]}}}}' ;;
+*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	calls := func() string { b, _ := os.ReadFile(log); return string(b) }
+	tools := &forgeTools{env: []string{"PATH=" + dir + ":/usr/bin:/bin"}}
+	h.app.forgeFind = tools.find
+	h.app.Settings.PullRequests = true
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("Branches and Tags"))
+	tb := h.app.current()
+
+	h.click("Branches and Tags")
+	h.until("the branch's pull request", func() bool { return tb.pulls.by["refs/heads/feature"].Number == 9 })
+	if !strings.Contains(calls(), "owner=up") {
+		t.Fatalf("not asked of upstream: %q", calls())
+	}
+	if p := tb.pulls.by["refs/heads/feature"]; p.State != forge.PullMerged || p.Repo.Path != "up/r" {
+		t.Fatalf("branch pull %+v", p)
+	}
+	h.until("the badge", h.shows("Merged"))
+	if err := h.tt.RightClick("feature"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Show Pull Requests in Browser"); err != nil {
+		t.Fatal(err)
+	}
+	h.until("upstream's page opened", func() bool {
+		return slices.Contains(h.tt.OpenedURLs(), "https://github.com/up/r/pulls?q=is%3Apr+head%3Afeature")
+	})
 }

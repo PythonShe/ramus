@@ -10,7 +10,7 @@ import (
 	"ramus/internal/git/write"
 )
 
-// PullInfo is a branch's open pull request, and the repository it is in.
+// PullInfo is a branch's pull request, and the repository it is in.
 type PullInfo struct {
 	forge.Pull
 	Repo forge.Repo
@@ -60,35 +60,59 @@ func BranchRepo(b BranchInfo, remotes []RemoteInfo) (forge.Repo, string, bool) {
 	return r, name, ok
 }
 
+// ParentRemote is the name a fork's clone gives the repository it was
+// forked from, by the common convention: its pull requests and issues
+// are there.
+const ParentRemote = "upstream"
+
+// PullsRepo is the repository the pull requests from head's branches go
+// to: the remote named upstream, when it is on the same host, else head
+// itself.
+func PullsRepo(head forge.Repo, remotes []RemoteInfo) forge.Repo {
+	for _, rm := range remotes {
+		if rm.Name != ParentRemote {
+			continue
+		}
+		// Its fetch URL: a fork's clone often turns upstream's push off.
+		if up, ok := forge.Parse(rm.URL); ok && up.Kind == head.Kind && up.Host == head.Host {
+			return up
+		}
+	}
+	return head
+}
+
 // LoadPulls asks the hosts, off the main thread, through the tool find
-// gives for each (called off the main thread too), about the open pull requests of the branches of info
-// that track a remote branch, and hands the answer to done on it. A
-// repository whose tool is missing or not logged in is skipped, with
-// that error.
+// gives for each (called off the main thread too), about the pull
+// requests of the branches of info that track a remote branch, and hands
+// the answer to done on it. A fork's branches are asked about in the
+// repository it was forked from (PullsRepo). A repository whose tool is
+// missing or not logged in is skipped, with that error.
 func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *RefInfo, done func(PullsResult)) {
 	r := s.Repo
 	if r == nil || info == nil {
 		done(PullsResult{Err: errors.New("session: the repository is not open")})
 		return
 	}
+	type where struct{ base, head forge.Repo }
 	type ask struct {
 		local, remote []string
 	}
-	asks := map[forge.Repo]*ask{}
-	var order []forge.Repo
+	asks := map[where]*ask{}
+	var order []where
 	for _, b := range info.Branches {
 		if b.Upstream == "" || b.Gone {
 			continue
 		}
-		repo, name, ok := BranchRepo(b, info.Remotes)
+		head, name, ok := BranchRepo(b, info.Remotes)
 		if !ok {
 			continue
 		}
-		a := asks[repo]
+		w := where{PullsRepo(head, info.Remotes), head}
+		a := asks[w]
 		if a == nil {
 			a = &ask{}
-			asks[repo] = a
-			order = append(order, repo)
+			asks[w] = a
+			order = append(order, w)
 		}
 		a.local, a.remote = append(a.local, b.Name), append(a.remote, name)
 	}
@@ -97,21 +121,21 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 	r.Life().Go(func(context.Context) {
 		res := PullsResult{Pulls: map[string]PullInfo{}}
 		clis := map[forge.Kind]*forge.CLI{}
-		for _, repo := range order {
-			c, ok := clis[repo.Kind]
+		for _, w := range order {
+			c, ok := clis[w.base.Kind]
 			if !ok {
 				var err error
 				// find looks on the PATH: off the main thread.
-				if c, err = find(repo.Kind); err != nil && res.Err == nil {
+				if c, err = find(w.base.Kind); err != nil && res.Err == nil {
 					res.Err = err
 				}
-				clis[repo.Kind] = c
+				clis[w.base.Kind] = c
 			}
 			if c == nil {
 				continue
 			}
-			a := asks[repo]
-			got, err := c.Pulls(ctx, repo, a.remote)
+			a := asks[w]
+			got, err := c.Pulls(ctx, w.base, w.head, a.remote)
 			if err != nil {
 				if ctx.Err() != nil {
 					return
@@ -123,7 +147,7 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 			}
 			for i, remote := range a.remote {
 				if p, ok := got[remote]; ok {
-					res.Pulls[a.local[i]] = PullInfo{Pull: p, Repo: repo}
+					res.Pulls[a.local[i]] = PullInfo{Pull: p, Repo: w.base}
 				}
 			}
 		}

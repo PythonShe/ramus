@@ -1313,18 +1313,60 @@ func (msgs Messages) PullsNotRead(reason string) string {
 	return Catalog.Format(msgs.locale, "pullsNotRead", map[string]any{"reason": reason})
 }
 
-// PullsDraft says "draft"
+// PullsDraft says "Draft"
 // in the language the app shows.
 //
-// After a pull request's number: it is a draft.
+// After a pull request's number: it is an open draft.
 func PullsDraft() string { return In(i18n.Locale()).PullsDraft() }
 
-// PullsDraft says "draft"
+// PullsDraft says "Draft"
 // in the language of msgs.
 //
-// After a pull request's number: it is a draft.
+// After a pull request's number: it is an open draft.
 func (msgs Messages) PullsDraft() string {
 	return Catalog.Format(msgs.locale, "pullsDraft", nil)
+}
+
+// PullsStateOpen says "Open"
+// in the language the app shows.
+//
+// After a pull request's number: it is open, as an adjective.
+func PullsStateOpen() string { return In(i18n.Locale()).PullsStateOpen() }
+
+// PullsStateOpen says "Open"
+// in the language of msgs.
+//
+// After a pull request's number: it is open, as an adjective.
+func (msgs Messages) PullsStateOpen() string {
+	return Catalog.Format(msgs.locale, "pullsStateOpen", nil)
+}
+
+// PullsStateMerged says "Merged"
+// in the language the app shows.
+//
+// After a pull request's number: it was merged.
+func PullsStateMerged() string { return In(i18n.Locale()).PullsStateMerged() }
+
+// PullsStateMerged says "Merged"
+// in the language of msgs.
+//
+// After a pull request's number: it was merged.
+func (msgs Messages) PullsStateMerged() string {
+	return Catalog.Format(msgs.locale, "pullsStateMerged", nil)
+}
+
+// PullsStateClosed says "Closed"
+// in the language the app shows.
+//
+// After a pull request's number: it was closed without being merged.
+func PullsStateClosed() string { return In(i18n.Locale()).PullsStateClosed() }
+
+// PullsStateClosed says "Closed"
+// in the language of msgs.
+//
+// After a pull request's number: it was closed without being merged.
+func (msgs Messages) PullsStateClosed() string {
+	return Catalog.Format(msgs.locale, "pullsStateClosed", nil)
 }
 
 // PullsChecksRunning says "checks running"

@@ -181,11 +181,13 @@ func (w *capped) Write(p []byte) (int, error) {
 	return w.b.Write(p)
 }
 
-// Pulls asks the host for the open pull requests from branches, as the
-// remote names them, made in r itself; a branch with none is left out.
-// At most MaxBranches are asked about.
-func (c *CLI) Pulls(ctx context.Context, r Repo, branches []string) (map[string]Pull, error) {
-	if r.Kind != c.Kind {
+// Pulls asks base for the pull requests from branches of head, as head
+// names them: head is base itself, or a fork of it whose pull requests
+// go to base. A branch's open pull request wins, else its latest merged
+// or closed one; a branch with none is left out. At most MaxBranches are
+// asked about.
+func (c *CLI) Pulls(ctx context.Context, base, head Repo, branches []string) (map[string]Pull, error) {
+	if base.Kind != c.Kind || head.Kind != c.Kind {
 		return nil, ErrNoCLI
 	}
 	branches = branches[:min(len(branches), MaxBranches)]
@@ -194,11 +196,11 @@ func (c *CLI) Pulls(ctx context.Context, r Repo, branches []string) (map[string]
 		batch := branches[:min(len(branches), branchBatch)]
 		branches = branches[len(batch):]
 		var err error
-		switch r.Kind {
+		switch base.Kind {
 		case GitHub:
-			err = c.githubPulls(ctx, r, batch, out)
+			err = c.githubPulls(ctx, base, head.Owner(), batch, out)
 		case GitLab:
-			err = c.gitlabPulls(ctx, r, batch, out)
+			err = c.gitlabPulls(ctx, base, head.Path, batch, out)
 		}
 		if err != nil {
 			return nil, err

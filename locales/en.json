@@ -204,9 +204,21 @@
   "refsCleanupDelete": "{count, plural, one {Delete # Branch} other {Delete # Branches}}",
   "pullsNoCLI": "Pull requests need GitHub's gh or GitLab's glab, logged in; neither was found on the PATH",
   "pullsNotRead": "Pull requests not read: {reason}",
-  "pullsDraft": "draft",
+  "pullsDraft": "Draft",
   "@pullsDraft": {
-    "description": "After a pull request's number: it is a draft."
+    "description": "After a pull request's number: it is an open draft."
+  },
+  "pullsStateOpen": "Open",
+  "@pullsStateOpen": {
+    "description": "After a pull request's number: it is open, as an adjective."
+  },
+  "pullsStateMerged": "Merged",
+  "@pullsStateMerged": {
+    "description": "After a pull request's number: it was merged."
+  },
+  "pullsStateClosed": "Closed",
+  "@pullsStateClosed": {
+    "description": "After a pull request's number: it was closed without being merged."
   },
   "pullsChecksRunning": "checks running",
   "pullsChecksPassed": "checks passed",
