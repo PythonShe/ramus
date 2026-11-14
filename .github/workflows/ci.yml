@@ -47,3 +47,36 @@ jobs:
         run: scripts/check.sh
       - name: Build without cgo
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ramus" .
+
+  linux-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Tarball, deb, rpm and PKGBUILD
+        run: go tool mygo build -platform linux/amd64 -o "$RUNNER_TEMP/dist"
+      - name: AppImage
+        run: scripts/appimage.sh "$RUNNER_TEMP/dist/linux-amd64" "$RUNNER_TEMP/dist"
+      - name: The packages hold the app
+        run: |
+          cd "$RUNNER_TEMP/dist"
+          ls -l linux-amd64 *.AppImage
+          dpkg-deb --info linux-amd64/ramus_*_amd64.deb
+          dpkg-deb --contents linux-amd64/ramus_*_amd64.deb | grep -q './opt/ramus/ramus$'
+          tar tzf linux-amd64/ramus-*-linux-amd64.tar.gz | grep -qx 'ramus'
+          rpm -qip linux-amd64/ramus-*.x86_64.rpm
+          rpm -qlp linux-amd64/ramus-*.x86_64.rpm | grep -q '/opt/ramus/ramus$'
+          chmod +x Ramus-*-x86_64.AppImage
+          ./Ramus-*-x86_64.AppImage --appimage-extract >/dev/null
+          test -x squashfs-root/usr/lib/ramus/ramus
+      - name: The deb installs, and the app starts as far as its command line
+        run: |
+          sudo apt-get install -y "$RUNNER_TEMP/dist/linux-amd64/"ramus_*_amd64.deb
+          set +e
+          ramus --no-such-flag 2>err.txt
+          code=$?
+          set -e
+          cat err.txt
+          test "$code" = 2 && grep -q '^usage:' err.txt
