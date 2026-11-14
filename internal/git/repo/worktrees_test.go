@@ -39,7 +39,12 @@ func TestWorktreesAndSubmodules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(subs) != 1 || subs[0].Name != "lib one" || subs[0].Path != "vendor/lib" || subs[0].URL != sub.Dir {
+	if len(subs) != 1 || subs[0].Name != "lib one" || subs[0].Path != "vendor/lib" || subs[0].URL != sub.Dir || !subs[0].Present {
 		t.Fatalf("submodules %+v", subs)
+	}
+	// Deinitialized, its folder is empty: declared, not present.
+	r.Git("submodule", "deinit", "-q", "-f", "vendor/lib")
+	if subs, err = rp.Submodules(context.Background()); err != nil || len(subs) != 1 || subs[0].Present {
+		t.Fatalf("submodules %+v, %v", subs, err)
 	}
 }

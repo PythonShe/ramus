@@ -88,6 +88,8 @@ func parseWorktrees(out []byte) []Worktree {
 // Submodule is a submodule as .gitmodules declares it.
 type Submodule struct {
 	Name, Path, URL string
+	// Present is set when its folder holds a checkout of it.
+	Present bool
 }
 
 // Submodules lists the submodules .gitmodules in the work tree declares.
@@ -110,7 +112,12 @@ func (r *Repository) Submodules(ctx context.Context) ([]Submodule, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseSubmodules(res.Stdout), nil
+	subs := parseSubmodules(res.Stdout)
+	for i := range subs {
+		_, err := os.Lstat(filepath.Join(r.WorkTree, filepath.FromSlash(subs[i].Path), ".git"))
+		subs[i].Present = err == nil
+	}
+	return subs, nil
 }
 
 func parseSubmodules(out []byte) []Submodule {
