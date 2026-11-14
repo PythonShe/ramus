@@ -154,8 +154,8 @@ func (a *App) libStatsView(c *ui.Context) {
 	}
 	th := c.Theme()
 	ui.Modal(c, &s.open, func() {
-		ui.Column(c).Width(980).Height(740).Gap(14).Padding(20).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		dialogBox(c).Width(980).Height(740).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "Library Statistics").Bold()
 				a.libScopeMenu(c)
 				from := ui.TextInput(c, &s.from).Placeholder("From YYYY-MM-DD").Label("From").Width(150)
@@ -167,38 +167,36 @@ func (a *App) libStatsView(c *ui.Context) {
 					a.summarize()
 				}
 				if s.err != "" {
-					ui.Text(c, s.err).FontSize(12).TextColor(th.Danger).SingleLine()
+					ui.Text(c, s.err).FontSize(textSmall).TextColor(th.Danger).SingleLine()
 				}
 				ui.Spacer(c)
 				if done := countDone(s.repos); s.loading {
-					ui.Text(c, fmt.Sprintf("Read %d of %d repositories", done, len(s.repos))).FontSize(12).TextColor(th.TextMuted)
+					ui.Text(c, fmt.Sprintf("Read %d of %d repositories", done, len(s.repos))).FontSize(textSmall).TextColor(th.TextMuted)
 				}
 			})
 			sum := s.sum
 			switch {
 			case len(s.repos) == 0:
-				ui.Column(c).Fill().Center().Children(func() {
-					ui.Text(c, "No repositories").TextColor(th.TextMuted)
-				})
+				emptyState(c, "No repositories")
 				return
 			case sum == nil:
-				ui.Column(c).Fill().Center().Children(func() { ui.Spinner(c) })
+				loading(c, "")
 				return
 			}
-			ui.Row(c).Gap(24).AlignItems(ui.End).Children(func() {
-				ui.Text(c, strconv.Itoa(sum.Commits)).FontSize(28).Bold()
+			ui.Row(c).Gap(space3XL).AlignItems(ui.End).Children(func() {
+				ui.Text(c, strconv.Itoa(sum.Commits)).FontSize(textDisplay).Bold()
 				ui.Text(c, fmt.Sprintf("commits by %s on %s in %s", people(sum.Contributors),
 					plural(sum.ActiveDays, "active day"), plural(len(sum.Rows), "repository"))).TextColor(th.TextMuted)
 			})
-			ui.Row(c).Gap(40).FillWidth().Children(func() {
-				ui.Column(c).Gap(6).Children(func() {
-					ui.Text(c, "By weekday and hour of the author's day").FontSize(12).Bold()
+			ui.Row(c).Gap(space3XL).FillWidth().Children(func() {
+				ui.Column(c).Gap(spaceS).Children(func() {
+					ui.Text(c, "By weekday and hour of the author's day").FontSize(textSmall).Bold()
 					heatMap(c, &sum.Heat)
 				})
 				calendarStats(c, sum.Calendar)
 			})
-			ui.Column(c).Gap(6).FillWidth().Children(func() {
-				ui.Text(c, "Days with commits").FontSize(12).Bold()
+			ui.Column(c).Gap(spaceS).FillWidth().Children(func() {
+				ui.Text(c, "Days with commits").FontSize(textSmall).Bold()
 				a.calendarView(c, sum)
 			})
 			a.compareTable(c, sum)
@@ -264,11 +262,11 @@ func heatMap(c *ui.Context, heat *activity.Heat) {
 		}
 	}
 	const cell = 14
-	ui.Column(c).Gap(2).Children(func() {
+	ui.Column(c).Gap(space2XS).Children(func() {
 		for i := range 7 {
 			d := (i + 1) % 7
-			ui.Row(c).Key(d).Gap(2).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, time.Weekday(d).String()[:3]).FontSize(11).TextColor(th.TextMuted).Width(30)
+			ui.Row(c).Key(d).Gap(space2XS).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, time.Weekday(d).String()[:3]).FontSize(textCaption).TextColor(th.TextMuted).Width(30)
 				for h := range 24 {
 					n := heat[d][h]
 					tip := fmt.Sprintf("%s %02d:00 to %02d:59: %s", time.Weekday(d), h, h, commitCount(n))
@@ -277,10 +275,10 @@ func heatMap(c *ui.Context, heat *activity.Heat) {
 				}
 			})
 		}
-		ui.Row(c).Gap(2).Children(func() {
+		ui.Row(c).Gap(space2XS).Children(func() {
 			ui.Box(c).Width(30)
 			for h := 0; h < 24; h += 6 {
-				ui.Text(c, fmt.Sprintf("%02d", h)).FontSize(11).TextColor(th.TextMuted).Width(6*cell + 5*2 + 2)
+				ui.Text(c, fmt.Sprintf("%02d", h)).FontSize(textCaption).TextColor(th.TextMuted).Width(6*cell + 5*2 + 2)
 			}
 		})
 	})
@@ -306,10 +304,10 @@ func (a *App) calendarView(c *ui.Context, sum *libstats.Summary) {
 		most = max(most, sum.Days[d])
 	}
 	const cell = 13
-	ui.Column(c).Gap(4).Children(func() {
-		ui.Row(c).Gap(2).Children(func() {
+	ui.Column(c).Gap(spaceXS).Children(func() {
+		ui.Row(c).Gap(space2XS).Children(func() {
 			for w := range calendarWeeks {
-				ui.Column(c).Key(w).Gap(2).Children(func() {
+				ui.Column(c).Key(w).Gap(space2XS).Children(func() {
 					for i := range 7 {
 						d := first + int32(7*w+i)
 						if d > end {
@@ -324,9 +322,9 @@ func (a *App) calendarView(c *ui.Context, sum *libstats.Summary) {
 			}
 		})
 		ui.Row(c).FillWidth().Children(func() {
-			ui.Text(c, activity.Date(first).Format("2006-01-02")).FontSize(11).TextColor(th.TextMuted)
+			ui.Text(c, activity.Date(first).Format("2006-01-02")).FontSize(textCaption).TextColor(th.TextMuted)
 			ui.Spacer(c)
-			ui.Text(c, activity.Date(end).Format("2006-01-02")).FontSize(11).TextColor(th.TextMuted)
+			ui.Text(c, activity.Date(end).Format("2006-01-02")).FontSize(textCaption).TextColor(th.TextMuted)
 		})
 	})
 }
@@ -335,17 +333,17 @@ func (a *App) calendarView(c *ui.Context, sum *libstats.Summary) {
 func calendarStats(c *ui.Context, cal activity.Calendar) {
 	th := c.Theme()
 	stat := func(title, value, detail string) {
-		ui.Column(c).Gap(2).Width(150).Children(func() {
-			ui.Text(c, title).FontSize(11).TextColor(th.TextMuted)
+		ui.Column(c).Gap(space2XS).Width(150).Children(func() {
+			ui.Text(c, title).FontSize(textCaption).TextColor(th.TextMuted)
 			ui.Text(c, value).Bold()
 			if detail != "" {
-				ui.Text(c, detail).FontSize(11).TextColor(th.TextMuted)
+				ui.Text(c, detail).FontSize(textCaption).TextColor(th.TextMuted)
 			}
 		})
 	}
 	day := func(d int32) string { return activity.Date(d).Format("2006-01-02") }
-	ui.Column(c).Gap(16).Padding(20, 0, 0, 0).Children(func() {
-		ui.Row(c).Gap(16).AlignItems(ui.Start).Children(func() {
+	ui.Column(c).Gap(spaceXL).Padding(space2XL, 0, 0, 0).Children(func() {
+		ui.Row(c).Gap(spaceXL).AlignItems(ui.Start).Children(func() {
 			if cal.Longest > 0 {
 				stat("Longest streak", plural(cal.Longest, "day"), "to "+day(cal.LongestEnd))
 			} else {
@@ -354,7 +352,7 @@ func calendarStats(c *ui.Context, cal activity.Calendar) {
 			stat("Current streak", plural(cal.Current, "day"), "")
 		})
 		if cal.BusiestCommits > 0 {
-			ui.Row(c).Gap(16).AlignItems(ui.Start).Children(func() {
+			ui.Row(c).Gap(spaceXL).AlignItems(ui.Start).Children(func() {
 				stat("Busiest day", day(cal.Busiest), commitCount(cal.BusiestCommits))
 				stat("Most active month", cal.Month.Format("January 2006"), commitCount(cal.MonthCommits))
 			})
@@ -418,9 +416,9 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 				ui.Text(c, r.Name).SingleLine()
 				switch {
 				case r.Err != nil:
-					ui.Text(c, errText(r.Err)).FontSize(11).TextColor(th.Danger).SingleLine().Tooltip(errText(r.Err))
+					ui.Text(c, errText(r.Err)).FontSize(textCaption).TextColor(th.Danger).SingleLine().Tooltip(errText(r.Err))
 				case r.Loading && r.Total > 0:
-					ui.Text(c, fmt.Sprintf("Reading %d of %d commits", r.Read, r.Total)).FontSize(11).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, fmt.Sprintf("Reading %d of %d commits", r.Read, r.Total)).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
 				}
 			})
 		case 1:
