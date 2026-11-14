@@ -4,7 +4,6 @@ package run
 
 import (
 	"context"
-	"syscall"
 	"testing"
 )
 
@@ -17,7 +16,7 @@ func TestOwnSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { cmd.Cancel(); cmd.Wait() }()
-	sid, err := syscall.Getsid(cmd.Process.Pid)
+	sid, err := getsid(cmd.Process.Pid)
 	if err != nil {
 		t.Fatal(err)
 	}
