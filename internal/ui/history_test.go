@@ -508,13 +508,14 @@ func TestHistoryColumns(t *testing.T) {
 		settle()
 	}
 	clickTitle("Date")
-	if hasExact(h, "Date") || !h.app.Settings.HistoryColumns["date"].Hidden || at("Commit").X != hash-histColumnMin[colDate]-spaceM+spaceL {
+	if hasExact(h, "Date") || !h.app.Settings.HistoryColumns["date"].Hidden || at("Commit").X != hash-histColumnMin[colDate]-spaceM+shutWidth+spaceM {
 		t.Fatalf("date not shut: %+v, hash at %v from %v", h.app.Settings.HistoryColumns["date"], at("Commit").X, hash)
 	}
-	// Shut, a thin column after the author's divider stands for it; a
+	// Shut, a thin column between the author's divider and its own
+	// stands for it; a
 	// click opens it again, even one that slips a little.
-	x, y := after("Author")+spaceM/2+spaceL/2, head.Y+head.H/2
-	if hv.cols.end != 20+112+spaceM-spaceL {
+	x, y := after("Author")+spaceM/2+shutWidth/2, head.Y+head.H/2
+	if hv.cols.end != 20+112+spaceM-shutWidth-spaceM {
 		t.Fatalf("room at the end %v with the date shut", hv.cols.end)
 	}
 	h.tt.Press(x, y)
@@ -531,7 +532,7 @@ func TestHistoryColumns(t *testing.T) {
 	if hasExact(h, "Commit") || !h.app.Settings.HistoryColumns["hash"].Hidden {
 		t.Fatal("hash column not shut by its title")
 	}
-	h.tt.ClickAt(after("Date")+spaceM/2+spaceL/2, y)
+	h.tt.ClickAt(after("Date")+spaceM/2+shutWidth/2, y)
 	settle()
 	if !hasExact(h, "Commit") || hv.cols.end != 20 {
 		t.Fatalf("hash not back from its divider: room at the end %v", hv.cols.end)

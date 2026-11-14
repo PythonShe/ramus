@@ -31,8 +31,8 @@ import (
 //
 // A drag resizes a column, down to its least width and no further, so
 // that none shows part of its values. A click on a column's title shuts
-// it; in its place stays a thin column, a line beside the divider before
-// it, which a click opens again, as does the header's menu.
+// it; in its place stays a thin column between the divider before it and
+// its own, which a click opens again, as does the header's menu.
 //
 // The graph does not shut but collapses to a thin form, its lanes at
 // their closest, which still shows where history branches and merges: a
@@ -142,7 +142,7 @@ func (l *histLayout) gap(k histColumn) float32 { return columnGap(k, l.w[k], l.h
 func columnGap(k histColumn, w float32, handle bool) float32 {
 	switch {
 	case handle:
-		return spaceL
+		return shutWidth + spaceM
 	case k == colHash:
 		return 0
 	}
@@ -234,7 +234,7 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 			// A box behind the title, into the gaps at its sides short of
 			// the dividers, says a click acts on it.
 			titles[k].Draw(func(p *ui.Painter, r ui.Rect) {
-				const side = spaceM/2 - 1
+				side := float32(hoverSide)
 				hoverBox(p, ui.Rect{X: r.X - side, Y: r.Y, W: r.W + 2*side, H: r.H}, th.SurfaceHover)
 			})
 		}
@@ -532,8 +532,14 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 // dragSlop is how far a divider's press moves before it is a drag.
 const dragSlop = 3
 
-// shutColumn stands for column k, shut by the user: a thin column, its
-// line beside the divider before it, that a click opens again.
+// shutWidth is how wide a column the user shut stands, between the
+// divider before it and its own.
+const shutWidth = spaceM
+
+// shutColumn stands for column k, shut by the user: a column folded to
+// shutWidth between the divider before it and its own, that a click opens
+// again. Its hover box fills the space between the two lines, as a
+// title's does.
 func (a *App) shutColumn(c *ui.Context, k histColumn) ui.Element {
 	th := c.Theme()
 	g := ui.Box(c).FillHeight().Role(ui.RoleButton).Label(locales.HistoryColumnShow(histColumnName(k)))
@@ -543,9 +549,10 @@ func (a *App) shutColumn(c *ui.Context, k histColumn) ui.Element {
 	on := g.Hovered()
 	g.Draw(func(p *ui.Painter, r ui.Rect) {
 		if on {
-			hoverBox(p, r, th.SurfaceHover)
+			side := float32(hoverSide)
+			hoverBox(p, ui.Rect{X: r.X - side, Y: r.Y, W: shutWidth + 2*side, H: r.H}, th.SurfaceHover)
 		}
-		dividerLine(p, r, th.Border)
+		dividerLine(p, ui.Rect{X: r.X + shutWidth, Y: r.Y, W: spaceM, H: r.H}, th.Border)
 	})
 	return g
 }
@@ -555,6 +562,10 @@ func (a *App) shutColumn(c *ui.Context, k histColumn) ui.Element {
 func dividerLine(p *ui.Painter, r ui.Rect, col ui.Color) {
 	p.Fill(snapRect(p, ui.Rect{X: r.X + r.W/2 - 0.5, Y: r.Y + r.H/4, W: 1, H: r.H / 2}), col, 0)
 }
+
+// hoverSide is how far a hover box reaches into the gaps at its sides,
+// clear of the divider lines there.
+const hoverSide = 2
 
 // hoverBox is the box behind a header's title or thin column as the
 // pointer is over it, centred down r and short of the header's height.
