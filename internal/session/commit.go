@@ -12,6 +12,7 @@ import (
 	"ramus/internal/git/lineend"
 	"ramus/internal/git/message"
 	"ramus/internal/git/run"
+	"ramus/internal/git/signature"
 	"ramus/internal/git/write"
 )
 
@@ -24,7 +25,10 @@ type CommitSetup struct {
 	Last string
 	// Encoding is i18n.commitEncoding, for CommitOptions.Encoding.
 	Encoding string
-	Err      error
+	// Sign is commit.gpgSign; CanSign is set when the config names a
+	// way to sign, a key or a format, or turns signing on.
+	Sign, CanSign bool
+	Err           error
 }
 
 // RecentMessages is how many recent messages the editor offers.
@@ -43,8 +47,13 @@ func (s *Session) LoadCommitSetup(done func(CommitSetup)) {
 	w := message.Where{GitDir: r.GitDir, WorkTree: r.WorkTree}
 	update := s.update
 	unborn := len(s.State.Head.OID) == 0
+	cfg := r.Config()
 	r.Life().Go(func(ctx context.Context) {
 		var cs CommitSetup
+		cs.Sign = cfg.Bool("commit.gpgSign", false)
+		_, key := cfg.Get("user.signingKey")
+		_, format := cfg.Get("gpg.format")
+		cs.CanSign = cs.Sign || key || format
 		cs.Template, cs.Err = message.Template(ctx, r.Runner, w)
 		cs.Comment = message.CommentChar(ctx, r.Runner, w)
 		cs.Encoding = message.Encoding(ctx, r.Runner, w)
@@ -198,4 +207,25 @@ func pushTarget(ctx context.Context, r *run.Runner, gitDir string) (write.PushOp
 		return write.PushOptions{Remote: "origin"}, nil
 	}
 	return write.PushOptions{}, ErrNoRemote
+}
+
+// Verify asks git about the signature of a commit (hex), or of a tag
+// when tag is set (a full ref name), off the main thread, and hands the
+// verdict to done on it. git runs the user's gpg or ssh-keygen for it.
+func (s *Session) Verify(commit, tag string, done func(signature.Status, error)) {
+	r := s.Repo
+	if r == nil {
+		return
+	}
+	update := s.update
+	r.Life().Go(func(ctx context.Context) {
+		var st signature.Status
+		var err error
+		if tag != "" {
+			st, err = signature.Tag(ctx, r.Runner, r.GitDir, tag)
+		} else {
+			st, err = signature.Commit(ctx, r.Runner, r.GitDir, commit)
+		}
+		update(func() { done(st, err) })
+	})
 }

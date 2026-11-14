@@ -36,8 +36,10 @@ type TagInfo struct {
 	Object    string // what the ref holds, hex
 	Commit    string // the commit it names, hex; "" for a tag of something else
 	Annotated bool
-	Time      int64
-	Subject   string
+	// Signed is an annotated tag that carries a signature.
+	Signed  bool
+	Time    int64
+	Subject string
 }
 
 // RemoteInfo is a remote and where it is.
@@ -130,7 +132,7 @@ func (s *Session) LoadRefInfo(done func(RefInfo)) {
 func readRefInfo(ctx context.Context, r *repo.Repository) RefInfo {
 	var info RefInfo
 	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, MaxOutput: maxRefOutput, Args: []string{"for-each-ref",
-		"--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(upstream)%00%(upstream:track,nobracket)%00%(creatordate:unix)%00%(contents:subject)",
+		"--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(upstream)%00%(upstream:track,nobracket)%00%(creatordate:unix)%00%(contents:subject)%00%(if)%(contents:signature)%(then)s%(end)",
 		"refs/heads/", "refs/tags/", trunkRefs[0]}})
 	if err != nil {
 		return RefInfo{Err: err}
@@ -138,7 +140,7 @@ func readRefInfo(ctx context.Context, r *repo.Repository) RefInfo {
 	var trunk []string
 	for _, line := range bytes.Split(res.Stdout, []byte{'\n'}) {
 		f := strings.Split(string(line), "\x00")
-		if len(f) != 8 {
+		if len(f) != 9 {
 			continue
 		}
 		if slices.Contains(trunkRefs, f[0]) {
@@ -151,7 +153,7 @@ func readRefInfo(ctx context.Context, r *repo.Repository) RefInfo {
 			b.Ahead, b.Behind, b.Gone = parseTrack(f[5])
 			info.Branches = append(info.Branches, b)
 		case strings.HasPrefix(f[0], "refs/tags/"):
-			t := TagInfo{Name: f[0], Object: f[1], Annotated: f[2] == "tag", Time: when, Subject: f[7]}
+			t := TagInfo{Name: f[0], Object: f[1], Annotated: f[2] == "tag", Signed: f[2] == "tag" && f[8] == "s", Time: when, Subject: f[7]}
 			switch {
 			case f[2] == "commit":
 				t.Commit = f[1]

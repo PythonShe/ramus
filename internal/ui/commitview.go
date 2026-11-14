@@ -11,6 +11,7 @@ import (
 	"ramus/internal/git/diff"
 	"ramus/internal/git/object"
 	"ramus/internal/git/redact"
+	"ramus/internal/git/signature"
 	"ramus/internal/git/textenc"
 	"ramus/internal/session"
 )
@@ -36,6 +37,16 @@ type commitView struct {
 	pv           patchView
 	pager        patchPager
 	loadPatch    func()
+	// sig is git's verdict on the commit's signature, once asked;
+	// sigAsked is set from the moment it is.
+	sig      *sigResult
+	sigAsked bool
+}
+
+// sigResult is a verdict on a signature, or why there is none.
+type sigResult struct {
+	st  signature.Status
+	err error
 }
 
 // commitDetail shows commit id in cv, reading it when id changes.
@@ -77,13 +88,13 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 	}
 	ui.SplitVertical(c, &cv.split, func() {
 		ui.Column(c).Fill().Children(func() {
-			a.commitHeader(c, t, d)
+			a.commitHeader(c, t, cv, d)
 			a.commitFiles(c, cv, d)
 		})
 	}, func() { a.commitPatch(c, t, cv, d) }).SplitReset(360).Fill()
 }
 
-func (a *App) commitHeader(c *ui.Context, t *tab, d *session.CommitDetail) {
+func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
 	cm := d.Commit
 	subject, body, _ := bytes.Cut(bytes.TrimRight(cm.Message, "\n"), []byte("\n"))
@@ -109,6 +120,21 @@ func (a *App) commitHeader(c *ui.Context, t *tab, d *session.CommitDetail) {
 			ui.Text(c, "Commit").FontSize(12).TextColor(th.TextMuted).Width(76)
 			ui.Text(c, hex.EncodeToString(d.OID)).Font("monospace").FontSize(12).Selectable()
 		})
+		if cm.Signed {
+			if !cv.sigAsked {
+				cv.sigAsked = true
+				id := cv.id
+				t.s.Verify(hex.EncodeToString(d.OID), "", func(st signature.Status, err error) {
+					if bytes.Equal(cv.id, id) {
+						cv.sig = &sigResult{st, err}
+					}
+				})
+			}
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "Signature").FontSize(12).TextColor(th.TextMuted).Width(76)
+				sigText(c, cv.sig)
+			})
+		}
 		if enc := string(cm.Encoding); !textenc.IsUTF8(enc) || d.Odd {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Text(c, "Encoding").FontSize(12).TextColor(th.TextMuted).Width(76)
@@ -323,4 +349,37 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		a.pagerNotice(c, &cv.pager, cv.patch, cv.patchLoading, "", cv.loadPatch)
 		a.patchBody(c, t, &cv.pv, cv.patch, nil)
 	})
+}
+
+// sigText shows a verdict on a signature, colored by what it means: one
+// that checks from a key git trusts, one that checks from another key,
+// and one that does not check.
+func sigText(c *ui.Context, r *sigResult) {
+	th := c.Theme()
+	if r == nil {
+		ui.Text(c, "Checking…").FontSize(12).TextColor(th.TextMuted)
+		return
+	}
+	if r.err != nil {
+		ui.Text(c, "Not checked: "+errText(r.err)).FontSize(12).TextColor(th.TextMuted).Selectable()
+		return
+	}
+	st := r.st
+	color := th.Warning
+	switch st.Code {
+	case signature.Good:
+		color = th.Success
+	case signature.Bad, signature.Revoked:
+		color = th.Danger
+	case signature.CannotCheck, signature.None:
+		color = th.TextMuted
+	}
+	text := st.Text()
+	if st.Signer != "" {
+		text += ", signer " + redact.Control(st.Signer)
+	}
+	if st.Key != "" {
+		text += ", key " + redact.Control(st.Key)
+	}
+	ui.Text(c, text).FontSize(12).TextColor(color).Selectable()
 }

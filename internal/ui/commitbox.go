@@ -20,6 +20,8 @@ type commitState struct {
 	amend         bool
 	signOff       bool
 	noVerify      bool
+	// sign is the Sign box, set from commit.gpgSign as the setup is read.
+	sign bool
 	// setup is loaded once per tab; loading is set meanwhile.
 	setup   *session.CommitSetup
 	loading bool
@@ -63,6 +65,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		t.s.LoadCommitSetup(func(setup session.CommitSetup) {
 			cs.loading, cs.setup = false, &setup
 			cs.encoding, cs.encodingRead = setup.Encoding, true
+			cs.sign = setup.Sign
 			cs.fillTemplate()
 		})
 	}
@@ -93,6 +96,9 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		ui.Row(c).Gap(12).Children(func() {
 			ui.Checkbox(c, &cs.amend, "Amend").Disabled(cs.busy || head.Unborn || len(head.OID) == 0)
 			ui.Checkbox(c, &cs.signOff, "Sign off")
+			if cs.setup != nil && cs.setup.CanSign {
+				ui.Checkbox(c, &cs.sign, "Sign")
+			}
 			ui.Checkbox(c, &cs.noVerify, "Skip hooks")
 		})
 		if cs.err != "" {
@@ -251,6 +257,12 @@ func (a *App) commit(t *tab, push bool) {
 	}
 	opt := write.CommitOptions{Message: msg, Amend: cs.amend, SignOff: cs.signOff, NoVerify: cs.noVerify, CoAuthors: coAuthorList(cs.coAuthors)}
 	opt.Encoding = cs.encoding
+	if s := cs.setup; s != nil && s.CanSign && cs.sign != s.Sign {
+		opt.Sign = write.SignNo
+		if cs.sign {
+			opt.Sign = write.SignYes
+		}
+	}
 	cs.busy = true
 	seen := t.s.Seen()
 	err := t.s.Commit(opt, push, func(err error) {

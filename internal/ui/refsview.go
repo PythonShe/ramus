@@ -13,13 +13,16 @@ import (
 
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
+	"ramus/internal/git/signature"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
 )
 
 // refsState is a tab's view of its branches, tags and remotes.
 type refsState struct {
-	kind   int // refsBranches, refsTags, refsRemotes
+	kind int // refsBranches, refsTags, refsRemotes
+	// sigs are the verdicts on tags' signatures asked for, by tag object.
+	sigs   map[string]*sigResult
 	filter string
 	// from is the sidebar ref the view was last opened at.
 	from string
@@ -326,11 +329,18 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			}
 			tg := info.Tags[r.idx]
 			kind := "lightweight"
-			if tg.Annotated {
+			switch {
+			case tg.Signed:
+				kind = "signed"
+			case tg.Annotated:
 				kind = "annotated"
 			}
 			ui.Text(c, kind).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
-			ui.Text(c, redact.Control(tg.Subject)).FontSize(12).TextColor(th.TextMuted).SingleLine().Grow(1)
+			if v, ok := rs.sigs[tg.Object]; ok {
+				ui.Row(c).Grow(1).Children(func() { sigText(c, v) })
+			} else {
+				ui.Text(c, redact.Control(tg.Subject)).FontSize(12).TextColor(th.TextMuted).SingleLine().Grow(1)
+			}
 			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(12).Width(88).TextColor(th.TextMuted).SingleLine()
 		})
 		if r.idx < 0 {
@@ -353,6 +363,23 @@ func (a *App) refList(c *ui.Context, t *tab) {
 	if act != nil {
 		act()
 	}
+}
+
+// verifyTag asks git about a tag's signature, shown in its row in place
+// of its subject. It is kept by the tag object, so a tag made again is
+// asked about again.
+func (a *App) verifyTag(t *tab, tg session.TagInfo) {
+	rs := &t.refs
+	if rs.sigs == nil {
+		rs.sigs = map[string]*sigResult{}
+	}
+	obj := tg.Object
+	rs.sigs[obj] = nil
+	t.s.Verify("", tg.Name, func(st signature.Status, err error) {
+		if _, ok := rs.sigs[obj]; ok {
+			rs.sigs[obj] = &sigResult{st, err}
+		}
+	})
 }
 
 // nameColumn is the width of the branch and tag name column.
@@ -658,6 +685,9 @@ func (a *App) tagMenu(m *ui.Menu, t *tab, tg session.TagInfo, act *func()) {
 				message: "Only here; a tag already pushed stays on the remote. Undo brings it back.", button: "Delete",
 				run: func() { a.submit(t, write.DeleteTag(t.s.Where(), short, tg.Object), nil) }}
 		}
+	}
+	if tg.Signed && m.Item("Check Signature").Chosen() {
+		*act = func() { a.verifyTag(t, tg) }
 	}
 	m.Separator()
 	if m.Item("Copy Name").Chosen() {
