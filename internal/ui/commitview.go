@@ -486,11 +486,7 @@ func sigText(c *ui.Context, r *sigResult) {
 	case signature.None:
 		color = th.TextMuted
 	}
-	text := verdictText(st)
-	if st.Key != "" {
-		text = locales.CommitSigVerdictKey(text, redact.Control(st.Key))
-	}
-	ui.Text(c, text).FontSize(textSmall).TextColor(color).Selectable()
+	ui.Text(c, verdictText(st)).FontSize(textSmall).TextColor(color).Selectable()
 }
 
 // verdictText says git's verdict on a signature, naming the signer when

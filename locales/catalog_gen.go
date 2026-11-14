@@ -4559,18 +4559,6 @@ func (msgs Messages) CommitSigNotChecked() string {
 	return Catalog.Format(msgs.locale, "commitSigNotChecked", nil)
 }
 
-// CommitSigVerdictKey says "{verdict}, key {key}"
-// in the language the app shows.
-func CommitSigVerdictKey(verdict string, key string) string {
-	return In(i18n.Locale()).CommitSigVerdictKey(verdict, key)
-}
-
-// CommitSigVerdictKey says "{verdict}, key {key}"
-// in the language of msgs.
-func (msgs Messages) CommitSigVerdictKey(verdict string, key string) string {
-	return Catalog.Format(msgs.locale, "commitSigVerdictKey", map[string]any{"verdict": verdict, "key": key})
-}
-
 // CommitCheckOut says "Check Out Commit"
 // in the language the app shows.
 func CommitCheckOut() string { return In(i18n.Locale()).CommitCheckOut() }

@@ -809,7 +809,6 @@
     "description": "A commit's signature is being checked."
   },
   "commitSigNotChecked": "Not checked",
-  "commitSigVerdictKey": "{verdict}, key {key}",
   "commitCheckOut": "Check Out Commit",
   "commitCreateBranchHere": "Create Branch Here…",
   "commitCreateTagHere": "Create Tag Here…",
