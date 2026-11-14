@@ -3,6 +3,7 @@ package forge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -108,7 +109,9 @@ func parseGitHub(out []byte, owner string, n int, into map[string]Pull) error {
 	return nil
 }
 
-// githubState reads a pull request's state.
+// githubState reads a pull request's state, in GraphQL's capitals or
+// REST's lower case; REST says closed of a merged one too, which its
+// caller tells apart.
 func githubState(s string) PullState {
 	switch strings.ToUpper(s) {
 	case "MERGED":
@@ -130,4 +133,109 @@ func githubChecks(state string) Checks {
 		return ChecksPending
 	}
 	return NoChecks
+}
+
+// restPull is a pull request as GitHub's REST API writes it.
+type restPull struct {
+	Number   int     `json:"number"`
+	Title    string  `json:"title"`
+	URL      string  `json:"html_url"`
+	State    string  `json:"state"`
+	Draft    bool    `json:"draft"`
+	MergedAt *string `json:"merged_at"`
+	Head     struct {
+		Ref string `json:"ref"`
+	} `json:"head"`
+}
+
+func (p restPull) pull() Pull {
+	st := githubState(p.State)
+	if p.MergedAt != nil && *p.MergedAt != "" {
+		st = PullMerged
+	}
+	return Pull{Number: p.Number, Title: p.Title, URL: p.URL, Branch: p.Head.Ref, Draft: p.Draft, State: st}
+}
+
+// CommitPull asks GitHub for the pull request that brought commit sha
+// into r: the one numbered hint when GitHub names several, else a merged
+// one, else an open one. When GitHub names none, hint, the number the
+// subject ends with (see SquashHint), is asked for by itself; 0 asks
+// nothing more. ok is false when there is none.
+func (c *CLI) CommitPull(ctx context.Context, r Repo, sha string, hint int) (p Pull, ok bool, err error) {
+	if r.Kind != GitHub || c.Kind != GitHub {
+		return Pull{}, false, ErrNoCLI
+	}
+	if !hexID(sha) {
+		return Pull{}, false, fmt.Errorf("forge: %q is not a commit id", sha)
+	}
+	out, err := c.run(ctx, "", r.Host, "api", "repos/"+r.Path+"/commits/"+sha+"/pulls", "--hostname", r.Host)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		// A commit GitHub has not seen, as one not pushed.
+	case err != nil:
+		return Pull{}, false, err
+	default:
+		var list []restPull
+		if err := json.Unmarshal(out, &list); err != nil {
+			return Pull{}, false, fmt.Errorf("gh: %w", err)
+		}
+		if p, ok := pickCommitPull(list, hint); ok {
+			return p, true, nil
+		}
+	}
+	if hint <= 0 {
+		return Pull{}, false, nil
+	}
+	out, err = c.run(ctx, "", r.Host, "api", "repos/"+r.Path+"/pulls/"+strconv.Itoa(hint), "--hostname", r.Host)
+	if errors.Is(err, ErrNotFound) {
+		return Pull{}, false, nil
+	}
+	if err != nil {
+		return Pull{}, false, err
+	}
+	var one restPull
+	if err := json.Unmarshal(out, &one); err != nil {
+		return Pull{}, false, fmt.Errorf("gh: %w", err)
+	}
+	if one.Number != hint {
+		return Pull{}, false, nil
+	}
+	return one.pull(), true, nil
+}
+
+// hexID reports a full commit id, which goes into a URL path as it is.
+func hexID(s string) bool {
+	if len(s) != 40 && len(s) != 64 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// pickCommitPull chooses among the pull requests GitHub names for a
+// commit: the hinted one, else the first merged, else the first open,
+// else the first.
+func pickCommitPull(list []restPull, hint int) (Pull, bool) {
+	if len(list) == 0 {
+		return Pull{}, false
+	}
+	pulls := make([]Pull, len(list))
+	for i, rp := range list {
+		pulls[i] = rp.pull()
+		if hint > 0 && rp.Number == hint {
+			return pulls[i], true
+		}
+	}
+	for _, want := range []PullState{PullMerged, PullOpen} {
+		for _, p := range pulls {
+			if p.State == want {
+				return p, true
+			}
+		}
+	}
+	return pulls[0], true
 }

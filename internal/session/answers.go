@@ -20,6 +20,8 @@ import (
 type answer struct {
 	patch  *PatchResult
 	detail *CommitDetail
+	// pull is what GitHub said of a commit's pull request.
+	pull *CommitPullResult
 }
 
 // AnswersBudget bounds the answers a session keeps. With the history
@@ -80,6 +82,9 @@ func (a answer) bytes() int {
 		if d.Files != nil {
 			n += d.Files.Bytes()
 		}
+	}
+	if p := a.pull; p != nil {
+		n += 128 + len(p.Pull.Title) + len(p.Pull.URL) + len(p.Pull.Branch) + len(p.Pull.Repo.Host) + len(p.Pull.Repo.Path)
 	}
 	return n
 }

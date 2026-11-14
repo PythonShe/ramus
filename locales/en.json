@@ -789,6 +789,10 @@
     "description": "Labels a commit's parent commits."
   },
   "commitGoToParent": "Go to Parent",
+  "commitPullRequest": "Pull request",
+  "@commitPullRequest": {
+    "description": "Labels the GitHub pull request a commit came in by."
+  },
   "commitCopyMessage": "Copy Message",
   "commitCopyPatch": "Copy Patch",
   "commitSigGood": "Good signature",

@@ -166,7 +166,9 @@ esac
 
 // In a fork's clone, with the repository it was forked from as the
 // remote named upstream, a branch's pull request is asked of upstream,
-// for the fork owner's branch, and shows merged.
+// for the fork owner's branch, and shows merged; a commit's detail shows
+// the pull request it came in by, asked of upstream too, once the
+// settings turn pull requests on.
 func TestForkPullRequests(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake gh is a shell script")
@@ -175,6 +177,8 @@ func TestForkPullRequests(t *testing.T) {
 	r := h.repoWith()
 	r.Git("remote", "add", "origin", "https://github.com/me/r.git")
 	r.Git("remote", "add", "upstream", "https://github.com/up/r.git")
+	r.Write("a.txt", "a\n")
+	sha := r.Commit("feat: truncate at the start (#9)")
 	r.Git("branch", "feature")
 	r.Git("update-ref", "refs/remotes/origin/feature", "HEAD")
 	r.Git("config", "branch.feature.remote", "origin")
@@ -187,6 +191,7 @@ case "$1 $2" in
 "api graphql") echo '{"data":{"repository":{"b0":{"nodes":[]},"c0":{"nodes":[
 	{"number":8,"title":"Someone else","url":"https://github.com/up/r/pull/8","state":"MERGED","headRefName":"feature","headRepositoryOwner":{"login":"other"}},
 	{"number":9,"title":"Truncate at the start","url":"https://github.com/up/r/pull/9","state":"MERGED","headRefName":"feature","headRepositoryOwner":{"login":"me"}}]}}}}' ;;
+"api repos/up/r/commits/` + sha + `/pulls") echo '[{"number":9,"title":"Truncate at the start","html_url":"https://github.com/up/r/pull/9","state":"closed","merged_at":"2026-11-01T00:00:00Z","head":{"ref":"feature"}}]' ;;
 *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
 esac
 `
@@ -196,11 +201,32 @@ esac
 	calls := func() string { b, _ := os.ReadFile(log); return string(b) }
 	tools := &forgeTools{env: []string{"PATH=" + dir + ":/usr/bin:/bin"}}
 	h.app.forgeFind = tools.find
-	h.app.Settings.PullRequests = true
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("Branches and Tags"))
+	h.until("the repository", h.shows("History"))
+
+	// With the setting off, a commit's detail asks nothing.
+	h.click("History")
+	subject := "feat: truncate at the start (#9)"
+	h.until("the commits", h.shows(subject))
+	h.click(subject)
 	tb := h.app.current()
+	cv := &tb.hist.detail
+	h.until("the commit", func() bool { return cv.d != nil && cv.d.Done })
+	h.tt.Frame()
+	if h.tt.HasText("Pull request") || strings.Contains(calls(), "commits/") {
+		t.Fatalf("asked with the setting off: %q", calls())
+	}
+
+	h.app.Settings.PullRequests = true
+	h.tt.Frame()
+	h.until("the commit's pull request", h.shows("Pull request"))
+	if p := cv.pull.Pull; p.Number != 9 || p.State != forge.PullMerged || p.URL != "https://github.com/up/r/pull/9" {
+		t.Fatalf("commit pull %+v", cv.pull)
+	}
+	if !h.tt.HasText("Merged") {
+		t.Fatalf("no state: %q", h.tt.Texts())
+	}
 
 	h.click("Branches and Tags")
 	h.until("the branch's pull request", func() bool { return tb.pulls.by["refs/heads/feature"].Number == 9 })

@@ -37,6 +37,10 @@ type CLI struct {
 // ErrNoCLI is a host whose tool is not installed.
 var ErrNoCLI = errors.New("forge: the host's command-line tool is not installed")
 
+// ErrNotFound is the host answering that what was asked for is not
+// there, or not to be seen with the login in use.
+var ErrNotFound = errors.New("forge: not found")
+
 // LoginError is a tool not logged in to the host, or whose login expired.
 type LoginError struct {
 	Program, Host string
@@ -158,6 +162,11 @@ func (c *CLI) failure(err error, host, stderr string) error {
 	msg := strings.TrimSpace(stderr)
 	if i := strings.IndexByte(msg, '\n'); i >= 0 {
 		msg = msg[:i]
+	}
+	// gh api ends a REST failure with its status: 422 is GitHub's answer
+	// for a commit it has never seen.
+	if strings.Contains(low, "(http 404)") || strings.Contains(low, "(http 422)") {
+		return fmt.Errorf("%w: %s", ErrNotFound, msg)
 	}
 	if msg == "" {
 		return fmt.Errorf("forge: %s: %w", c.Kind.Program(), err)

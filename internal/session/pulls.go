@@ -2,9 +2,11 @@ package session
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"io"
 	"strings"
+	"time"
 
 	"ramus/internal/forge"
 	"ramus/internal/git/repo"
@@ -175,6 +177,82 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 			}
 		})
 	})
+}
+
+// CommitPullResult is the pull request a commit came in by, as GitHub
+// says; Found is false when it names none, or was not asked.
+type CommitPullResult struct {
+	Pull  PullInfo
+	Found bool
+	Err   error
+	at    time.Time
+}
+
+// CommitPullMaxAge is how long what GitHub said of a commit is kept: an
+// open pull request may be merged since.
+const CommitPullMaxAge = 5 * time.Minute
+
+func commitPullKey(oid []byte) string { return "p\x00" + string(oid) }
+
+// LoadCommitPull asks GitHub, off the main thread, through the gh find
+// gives (called off the main thread too), for the pull request that
+// brought commit oid in, whose subject is subject, and hands the answer
+// to done on it: from the repository named upstream when there is one,
+// for a fork's commits came in there, else from origin. A repository
+// not on GitHub is not asked. The answer is kept per commit for
+// CommitPullMaxAge. cancel stops the asking and drops its answer.
+func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid []byte, subject string, done func(CommitPullResult)) (cancel func()) {
+	r := s.Repo
+	if r == nil {
+		return func() {}
+	}
+	key := commitPullKey(oid)
+	if a, ok := s.answers().Get(key); ok && a.pull != nil && s.timeNow().Sub(a.pull.at) < CommitPullMaxAge {
+		done(*a.pull)
+		return func() {}
+	}
+	ctx, stop := context.WithCancel(s.viewContext(r))
+	// dropped is read and written on the main thread only.
+	dropped := false
+	hint := forge.SquashHint(subject)
+	sha := hex.EncodeToString(oid)
+	r.Life().Go(func(context.Context) {
+		defer stop()
+		res := s.commitPull(ctx, r, find, sha, hint)
+		if ctx.Err() != nil {
+			return // cancelled, or the repository closed
+		}
+		s.update(func() {
+			if res.Err == nil {
+				res.at = s.timeNow()
+				s.keep(key, answer{pull: &res})
+			}
+			if !dropped {
+				done(res)
+			}
+		})
+	})
+	return func() { dropped = true; stop() }
+}
+
+func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(forge.Kind) (*forge.CLI, error), sha string, hint int) CommitPullResult {
+	up, origin := RemoteURLs(r)
+	gh, ok := forge.Parse(up)
+	if !ok || gh.Kind != forge.GitHub {
+		gh, ok = forge.Parse(origin)
+	}
+	if !ok || gh.Kind != forge.GitHub {
+		return CommitPullResult{}
+	}
+	c, err := find(forge.GitHub)
+	if err != nil {
+		return CommitPullResult{Err: err}
+	}
+	p, found, err := c.CommitPull(ctx, gh, sha, hint)
+	if err != nil {
+		return CommitPullResult{Err: err}
+	}
+	return CommitPullResult{Pull: PullInfo{Pull: p, Repo: gh}, Found: found}
 }
 
 // GitHubStack runs gh stack with args in the work tree, as a write that

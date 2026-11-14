@@ -4351,6 +4351,20 @@ func (msgs Messages) CommitGoToParent() string {
 	return Catalog.Format(msgs.locale, "commitGoToParent", nil)
 }
 
+// CommitPullRequest says "Pull request"
+// in the language the app shows.
+//
+// Labels the GitHub pull request a commit came in by.
+func CommitPullRequest() string { return In(i18n.Locale()).CommitPullRequest() }
+
+// CommitPullRequest says "Pull request"
+// in the language of msgs.
+//
+// Labels the GitHub pull request a commit came in by.
+func (msgs Messages) CommitPullRequest() string {
+	return Catalog.Format(msgs.locale, "commitPullRequest", nil)
+}
+
 // CommitCopyMessage says "Copy Message"
 // in the language the app shows.
 func CommitCopyMessage() string { return In(i18n.Locale()).CommitCopyMessage() }

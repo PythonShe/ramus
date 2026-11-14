@@ -80,8 +80,10 @@ func (a *App) leaveView(t *tab, name string) {
 	}
 }
 
-// leaveDetail drops a commit still being read, and its patch.
+// leaveDetail drops a commit still being read, its patch, and its pull
+// request still being asked for.
 func leaveDetail(cv *commitView) {
+	cv.stopPull()
 	if cv.d == nil || !cv.d.Done {
 		if cv.cancel != nil {
 			cv.cancel()

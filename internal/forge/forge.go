@@ -195,6 +195,29 @@ type Pull struct {
 	Checks Checks
 }
 
+// SquashHint is the pull request number a commit subject ends with, as
+// GitHub writes "Subject (#12)" when it squashes or merges one; 0 when
+// it ends otherwise.
+func SquashHint(subject string) int {
+	s := strings.TrimRight(subject, " \t\r\n")
+	if !strings.HasSuffix(s, ")") {
+		return 0
+	}
+	i := strings.LastIndex(s, "(#")
+	if i < 0 {
+		return 0
+	}
+	digits := s[i+2 : len(s)-1]
+	if digits == "" || len(digits) > 9 {
+		return 0
+	}
+	n, err := strconv.Atoi(digits)
+	if err != nil || n <= 0 || digits[0] == '+' || digits[0] == '-' {
+		return 0
+	}
+	return n
+}
+
 // Ref is how a pull request is written: #12 on GitHub, !12 on GitLab.
 func (p Pull) Ref(k Kind) string {
 	if k == GitLab {

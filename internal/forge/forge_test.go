@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -116,6 +117,48 @@ func TestParseGitLab(t *testing.T) {
 	}
 }
 
+func TestSquashHint(t *testing.T) {
+	for _, tc := range []struct {
+		subject string
+		want    int
+	}{
+		{"feat(ui): truncate at the start (#1869)", 1869},
+		{"Fix (#12) ", 12},
+		{"Fix #12", 0},
+		{"Fix (#12) and more", 0},
+		{"Fix (#)", 0},
+		{"Fix (#+1)", 0},
+		{"Fix (#-1)", 0},
+		{"Fix (#1x)", 0},
+		{"", 0},
+	} {
+		if got := SquashHint(tc.subject); got != tc.want {
+			t.Errorf("SquashHint(%q) = %d, want %d", tc.subject, got, tc.want)
+		}
+	}
+}
+
+func TestPickCommitPull(t *testing.T) {
+	merged := "2026-01-01T00:00:00Z"
+	list := []restPull{
+		{Number: 1, State: "open"},
+		{Number: 2, State: "closed", MergedAt: &merged},
+		{Number: 3, State: "closed"},
+	}
+	if p, ok := pickCommitPull(list, 0); !ok || p.Number != 2 || p.State != PullMerged {
+		t.Fatalf("merged first: %+v %v", p, ok)
+	}
+	if p, ok := pickCommitPull(list, 3); !ok || p.Number != 3 || p.State != PullClosed {
+		t.Fatalf("the hint first: %+v %v", p, ok)
+	}
+	if p, ok := pickCommitPull(list[:1], 0); !ok || p.Number != 1 || p.State != PullOpen {
+		t.Fatalf("open: %+v %v", p, ok)
+	}
+	if _, ok := pickCommitPull(nil, 3); ok {
+		t.Fatal("found in none")
+	}
+}
+
 func TestQueries(t *testing.T) {
 	q := githubQuery(2)
 	for _, s := range []string{"$b0:String!", "$b1:String!", "b1:pullRequests(headRefName:$b1,states:[OPEN]",
@@ -179,8 +222,55 @@ func TestCLI(t *testing.T) {
 	}
 }
 
+// fakeREST writes a gh that answers each REST path it is given by the
+// case script, and returns the environment that finds it.
+func fakeREST(t *testing.T, cases string) []string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tool is a shell script")
+	}
+	dir := t.TempDir()
+	script := "#!/bin/sh\ncase \"$2\" in\n" + cases + "\n*) echo \"gh: Not Found (HTTP 404)\" >&2; exit 1 ;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return []string{"PATH=" + dir + ":/usr/bin:/bin"}
+}
+
+func TestCommitPull(t *testing.T) {
+	r := Repo{GitHub, "github.com", "up/r"}
+	sha := strings.Repeat("ab", 20)
+	other := strings.Repeat("cd", 20)
+	c, err := Find(fakeREST(t, `repos/up/r/commits/`+sha+`/pulls) echo '[{"number":1869,"title":"Truncate","html_url":"https://github.com/up/r/pull/1869","state":"closed","merged_at":"2026-11-01T00:00:00Z","head":{"ref":"truncate-start"}}]' ;;
+repos/up/r/commits/`+other+`/pulls) echo "gh: No commit found for SHA: x (HTTP 422)" >&2; exit 1 ;;
+repos/up/r/pulls/12) echo '{"number":12,"title":"Twelve","html_url":"u12","state":"open","merged_at":null}' ;;`), GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	p, ok, err := c.CommitPull(ctx, r, sha, 0)
+	if err != nil || !ok || p != (Pull{Number: 1869, Title: "Truncate", URL: "https://github.com/up/r/pull/1869", Branch: "truncate-start", State: PullMerged}) {
+		t.Fatalf("%+v %v %v", p, ok, err)
+	}
+	// A commit GitHub has not seen: the subject's number is asked for.
+	p, ok, err = c.CommitPull(ctx, r, other, 12)
+	if err != nil || !ok || p.Number != 12 || p.State != PullOpen {
+		t.Fatalf("by the hint: %+v %v %v", p, ok, err)
+	}
+	if _, ok, err := c.CommitPull(ctx, r, other, 0); err != nil || ok {
+		t.Fatalf("without a hint: %v %v", ok, err)
+	}
+	if _, ok, err := c.CommitPull(ctx, r, other, 13); err != nil || ok {
+		t.Fatalf("a hint not found: %v %v", ok, err)
+	}
+	if _, _, err := c.CommitPull(ctx, r, "../x", 0); err == nil {
+		t.Fatal("a path taken for a commit id")
+	}
+}
+
 // TestLiveGitHub asks GitHub, through the gh logged in on this machine,
-// about a public repository's pull requests: RAMUS_FORGE_LIVE=1.
+// about a public repository's pull requests and the pull request a
+// commit came in by: RAMUS_FORGE_LIVE=1.
 func TestLiveGitHub(t *testing.T) {
 	if os.Getenv("RAMUS_FORGE_LIVE") == "" {
 		t.Skip("RAMUS_FORGE_LIVE is not set")
@@ -202,6 +292,21 @@ func TestLiveGitHub(t *testing.T) {
 	t.Logf("heads %q: %+v", heads, got)
 	if _, ok := got["no-such-branch-here"]; ok {
 		t.Fatal("a pull request for a branch that has none")
+	}
+
+	// The pull request a merged one's commit came in by.
+	out, err = exec.Command("gh", "pr", "list", "--repo", "cli/cli", "--state", "merged", "--limit", "1", "--json", "number,mergeCommit",
+		"--jq", `.[0] | "\(.number) \(.mergeCommit.oid)"`).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := strings.Fields(string(out))
+	if len(f) != 2 {
+		t.Fatalf("gh pr list: %q", out)
+	}
+	p, ok, err := c.CommitPull(context.Background(), cli, f[1], 0)
+	if err != nil || !ok || strconv.Itoa(p.Number) != f[0] || p.State != PullMerged {
+		t.Fatalf("commit %s of #%s: %+v %v %v", f[1], f[0], p, ok, err)
 	}
 }
 

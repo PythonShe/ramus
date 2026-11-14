@@ -46,8 +46,9 @@ type Settings struct {
 	// when 0, and at least MinFetchMinutes.
 	NoFetch      bool `json:"noFetch,omitempty"`
 	FetchMinutes int  `json:"fetchMinutes,omitempty"`
-	// PullRequests shows each branch's open pull request and its checks
-	// in the branches view, asked of the user's own gh or glab.
+	// PullRequests shows each branch's pull request, its state and an
+	// open one's checks in the branches view, and the pull request a
+	// commit came in by in its detail, asked of the user's own gh or glab.
 	PullRequests bool `json:"pullRequests,omitempty"`
 	// HiddenSections are the sidebar's items and sections left out, by
 	// key ("reflog", "tags").

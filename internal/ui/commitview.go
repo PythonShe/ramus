@@ -3,11 +3,13 @@ package ui
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/forge"
 	"ramus/internal/git/diff"
 	"ramus/internal/git/object"
 	"ramus/internal/git/redact"
@@ -54,6 +56,12 @@ type commitView struct {
 	loadPatch    func()
 	// sig is the signature's verdict as shown, with its popover.
 	sig sigResult
+	// pull is the pull request the commit came in by, once asked
+	// (pullAsked) and answered; pullCancel stops the asking while
+	// pullWaiting.
+	pull                   session.CommitPullResult
+	pullAsked, pullWaiting bool
+	pullCancel             func()
 }
 
 // sigResult is a verdict on a signature, or why there is none.
@@ -74,6 +82,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		if cv.cancel != nil {
 			cv.cancel()
 		}
+		cv.stopPull()
 		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want}
 		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {
@@ -263,6 +272,19 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				a.clip = id
 			}
 		})
+		// The row shows only once GitHub names a pull request: nothing
+		// stands in for it while asking, so nothing moves when it does
+		// not.
+		a.loadCommitPull(t, cv, d)
+		if p := cv.pull.Pull; a.Settings.PullRequests && cv.pull.Found {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, locales.CommitPullRequest()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
+					ui.Link(c, p.Ref(p.Repo.Kind), p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
+					pullState(c, p.Pull)
+				})
+			})
+		}
 		// The commit's own signature, under its hash: the kind of key
 		// that made it, then what git made of it.
 		if cm.Signed {
@@ -304,6 +326,42 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			})
 		}
 	})
+}
+
+// loadCommitPull asks GitHub once per commit shown, when the settings
+// turn pull requests on, for the pull request that brought it in.
+func (a *App) loadCommitPull(t *tab, cv *commitView, d *session.CommitDetail) {
+	if !a.Settings.PullRequests || cv.pullAsked || a.Runner == nil && a.forgeFind == nil {
+		return
+	}
+	cv.pullAsked, cv.pullWaiting = true, true
+	id := cv.id
+	subject, _ := messageParts(d)
+	cancel := t.s.LoadCommitPull(a.findForge(), id, string(subject), func(res session.CommitPullResult) {
+		if !bytes.Equal(cv.id, id) {
+			return
+		}
+		cv.pull, cv.pullWaiting = res, false
+		// A missing gh is the branches view's to say.
+		if res.Err != nil && !errors.Is(res.Err, forge.ErrNoCLI) {
+			a.forgeNotice(res.Err)
+		}
+	})
+	if cv.pullWaiting {
+		cv.pullCancel = cancel
+	}
+}
+
+// stopPull stops asking for the commit's pull request, so that showing
+// it again asks again.
+func (cv *commitView) stopPull() {
+	if cv.pullWaiting && cv.pullCancel != nil {
+		cv.pullCancel()
+	}
+	if cv.pullWaiting {
+		cv.pullAsked, cv.pullWaiting = false, false
+	}
+	cv.pullCancel = nil
 }
 
 func signatureTime(p object.Signature) time.Time {
