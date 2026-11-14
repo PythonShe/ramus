@@ -79,6 +79,26 @@ func TestCapabilities(t *testing.T) {
 		t.Fatalf("replace refs: %+v", c)
 	}
 
+	// In reftable replace refs leave no file of their own.
+	rtRepl := gittest.Init(t, "--ref-format=reftable")
+	a = rtRepl.Commit("a")
+	if c := caps(t, rtRepl); c.ReplaceRefs {
+		t.Fatalf("reftable without replace refs: %+v", c)
+	}
+	b = rtRepl.Commit("b")
+	rtRepl.Git("replace", a, b)
+	if c := caps(t, rtRepl); !c.ReplaceRefs || c.CommitGraphUsable() {
+		t.Fatalf("reftable replace refs: %+v", c)
+	}
+	rtRepl.Git("pack-refs", "--all")
+	if c := caps(t, rtRepl); !c.ReplaceRefs {
+		t.Fatalf("reftable replace refs compacted: %+v", c)
+	}
+	rtRepl.Git("replace", "-d", a)
+	if c := caps(t, rtRepl); c.ReplaceRefs {
+		t.Fatalf("reftable replace ref deleted: %+v", c)
+	}
+
 	unknown := gittest.Init(t)
 	unknown.Git("config", "core.repositoryformatversion", "1")
 	unknown.Git("config", "extensions.somethingNew", "true")

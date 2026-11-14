@@ -245,6 +245,11 @@ type record struct {
 // table's record for it; a deletion in a newer table hides older records
 // and is passed on as such.
 func merge(tabs []*table, emit func(name []byte, r record)) error {
+	return mergeWhile(tabs, func(name []byte, r record) bool { emit(name, r); return true })
+}
+
+// mergeWhile is merge stopping as soon as emit returns false.
+func mergeWhile(tabs []*table, emit func(name []byte, r record) bool) error {
 	cs := make([]cursor, len(tabs))
 	for i, t := range tabs {
 		if err := cs[i].open(t, i); err != nil {
@@ -267,7 +272,9 @@ func merge(tabs []*table, emit func(name []byte, r record)) error {
 			return nil
 		}
 		name = append(name[:0], cs[best].key...)
-		emit(name, record{cs[best].typ, cs[best].val})
+		if !emit(name, record{cs[best].typ, cs[best].val}) {
+			return nil
+		}
 		for i := range cs {
 			if !cs[i].done && bytes.Equal(cs[i].key, name) {
 				if err := cs[i].advance(); err != nil {
@@ -381,6 +388,26 @@ func (r *Reftable) records(fn func(name []byte, rec record)) error {
 			fn(name, rec)
 		}
 	})
+}
+
+// HasShared reports whether any shared ref (not one of a single work
+// tree) has a name starting with prefix, reading no further than the
+// names past it.
+func (r *Reftable) HasShared(prefix string) (bool, error) {
+	common, err := r.stack(filepath.Join(r.commonDir, "reftable"))
+	if err != nil {
+		return false, err
+	}
+	p := []byte(prefix)
+	found := false
+	err = mergeWhile(common, func(name []byte, rec record) bool {
+		if bytes.HasPrefix(name, p) {
+			found = rec.typ != deletion && !perWorktree(string(name))
+			return !found
+		}
+		return bytes.Compare(name, p) < 0
+	})
+	return found, err
 }
 
 // List reads every ref under refs/.

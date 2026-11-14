@@ -11,6 +11,7 @@ import (
 
 	"ramus/internal/git/config"
 	"ramus/internal/git/index"
+	"ramus/internal/git/refs"
 )
 
 // Capabilities says which of a repository's parts the engine's own readers
@@ -98,7 +99,7 @@ func Check(loc Location, cfg *config.Config) Capabilities {
 	c.CommitGraphOff = !cfg.Bool("core.commitgraph", true)
 	c.Shallow = exists(filepath.Join(loc.CommonDir, "shallow"))
 	c.Grafts = exists(filepath.Join(loc.CommonDir, "info", "grafts"))
-	c.ReplaceRefs = hasReplaceRefs(loc.CommonDir) && cfg.Bool("core.usereplacerefs", true) && os.Getenv("GIT_NO_REPLACE_OBJECTS") == ""
+	c.ReplaceRefs = hasReplaceRefs(loc, c) && cfg.Bool("core.usereplacerefs", true) && os.Getenv("GIT_NO_REPLACE_OBJECTS") == ""
 	if cfg.Bool("core.splitindex", false) {
 		c.SplitIndex = true
 	}
@@ -165,9 +166,29 @@ func exists(p string) bool {
 	return err == nil
 }
 
-func hasReplaceRefs(common string) bool {
+// replaceBase is where git looks for replace refs.
+func replaceBase() string {
+	b := os.Getenv("GIT_REPLACE_REF_BASE")
+	if b == "" {
+		return "refs/replace/"
+	}
+	if !strings.HasSuffix(b, "/") {
+		b += "/"
+	}
+	return b
+}
+
+// hasReplaceRefs reports whether the repository holds a replace ref. One
+// that cannot be told counts as holding some, so the commit-graph, which
+// knows nothing of them, is not trusted.
+func hasReplaceRefs(loc Location, c Capabilities) bool {
+	base := replaceBase()
+	if c.RefStorage == "reftable" {
+		found, err := refs.NewReftable(loc.GitDir, loc.CommonDir, c.HashSize).HasShared(base)
+		return found || err != nil
+	}
 	found := false
-	filepath.WalkDir(filepath.Join(common, "refs", "replace"), func(p string, d fs.DirEntry, err error) error {
+	filepath.WalkDir(filepath.Join(loc.CommonDir, filepath.FromSlash(base)), func(p string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() {
 			found = true
 			return fs.SkipAll
@@ -177,9 +198,9 @@ func hasReplaceRefs(common string) bool {
 	if found {
 		return true
 	}
-	b, err := os.ReadFile(filepath.Join(common, "packed-refs"))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return false
+	b, err := os.ReadFile(filepath.Join(loc.CommonDir, "packed-refs"))
+	if err != nil {
+		return !errors.Is(err, fs.ErrNotExist)
 	}
-	return strings.Contains(string(b), " refs/replace/")
+	return strings.Contains(string(b), " "+base)
 }
