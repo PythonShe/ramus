@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -172,6 +173,9 @@ func ComparePatch(ctx context.Context, r *run.Runner, old, new string, ws Whites
 	if max <= 0 {
 		max = DefaultMaxPatch
 	}
+	// git quotes a name holding a backslash, so on Windows every header
+	// would be quoted; it takes forward slashes there too.
+	old, new = filepath.ToSlash(old), filepath.ToSlash(new)
 	if old == "" {
 		old = "/dev/null"
 	}
