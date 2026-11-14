@@ -144,8 +144,13 @@ func (b *batcher) finish(err error, ended time.Time) {
 	})
 }
 
-// follow logs a write job's output and result.
-func (s *Session) follow(e *LogEntry, j *write.Job) {
+// follow logs a write job's output and result, and reads everything
+// again once it ends.
+func (s *Session) follow(e *LogEntry, j *write.Job) { s.followThen(e, j, repo.Rescan) }
+
+// followThen is follow reading again only what, for a write that changes
+// less than everything.
+func (s *Session) followThen(e *LogEntry, j *write.Job, what repo.Change) {
 	e.job, e.Percent = j, -1
 	b := &batcher{update: s.update, e: e}
 	go func() {
@@ -161,7 +166,7 @@ func (s *Session) follow(e *LogEntry, j *write.Job) {
 		_, err := j.Result()
 		b.finish(err, s.timeNow())
 		s.update(func() { s.Writes++ })
-		s.refreshNow(repo.Rescan)
+		s.refreshNow(what)
 	}()
 }
 

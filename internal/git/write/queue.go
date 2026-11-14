@@ -55,6 +55,10 @@ type Op struct {
 	// tag). Undo moves only these, so a ref moved meanwhile by something
 	// else is left alone.
 	Refs []string
+	// RefsOnly marks a write that moves refs and nothing else, as a fetch
+	// does: the work tree, the index and HEAD stay as they were, so what
+	// follows it need not read status.
+	RefsOnly bool
 	// do runs in place of Cmd, for writes the engine makes of several
 	// commands: undo and redo, snapshots.
 	do func(ctx context.Context, j *Job) (run.Result, error)

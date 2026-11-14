@@ -80,9 +80,12 @@ func TestRefreshKeyedOnContent(t *testing.T) {
 	}
 
 	s.Refresh(repo.RefsChanged)
-	m.until(t, "the refs read again", func() bool { return !s.State.Refreshed.Equal(read) })
+	m.pump(4 * Debounce)
 	if s.State.Refs != list {
 		t.Fatal("refs with the same values made a new list")
+	}
+	if !s.State.Refreshed.Equal(read) {
+		t.Fatal("status ran again for refs that did not move HEAD")
 	}
 
 	read = s.State.Refreshed

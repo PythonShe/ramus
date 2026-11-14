@@ -59,7 +59,7 @@ func Fetch(w Where, remote string, prune bool) (Op, error) {
 		args = append(args, "--end-of-options", remote)
 		name = "Fetch " + remote
 	}
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}, nil
+	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}, RefsOnly: true}, nil
 }
 
 // PullMode is how a pull takes in the upstream's commits.

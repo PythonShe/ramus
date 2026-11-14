@@ -11,6 +11,8 @@ import (
 	"ramus/internal/git/cache"
 	"runtime"
 	"slices"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -140,6 +142,9 @@ type refreshSeen struct {
 	// status is the last status published, for a recheck to merge into.
 	status *status.Status
 	head   *refs.Head
+	// statusFailed is set when the last status read failed: its error
+	// shows until one succeeds.
+	statusFailed bool
 }
 
 // focusChanges is what changed of refs, HEAD and the index since they
@@ -363,6 +368,27 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 	}
 }
 
+// keepsStatus reports whether refs read again leave status as it was:
+// status shows HEAD's commit and the stash besides the index and the work
+// tree, and no other ref, so refs a fetch moves under refs/remotes/ or
+// refs/tags/ need none.
+func keepsStatus(prevHead, head *refs.Head, prev, now *refs.List) bool {
+	if prevHead == nil || head == nil || prev == nil || now == nil || !sameHead(*prevHead, *head) {
+		return false
+	}
+	return now.Equal(prev) || bytes.Equal(refOID(prev, "refs/stash"), refOID(now, "refs/stash"))
+}
+
+// refOID returns the object ref name points at in l, nil when l has no
+// such ref.
+func refOID(l *refs.List, name string) []byte {
+	i, ok := sort.Find(l.Len(), func(i int) int { return strings.Compare(name, l.Name(i)) })
+	if !ok {
+		return nil
+	}
+	return l.OID(i)
+}
+
 // quiet waits until wake has been still for Debounce, or MaxDebounce
 // has passed, or urgent holds; false when ctx ended first.
 func quiet(ctx context.Context, wake <-chan struct{}, urgent func() bool) bool {
@@ -442,9 +468,11 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			what &^= repo.IndexChanged
 		}
 	}
+	// refsKeep is set when the refs read leave status as it was.
+	refsKeep := false
 	if what&(repo.RefsChanged|repo.OperationChanged) != 0 {
 		if rd := r.Refs(); rd != nil {
-			prev := seen.head
+			prev, prevList := seen.head, seen.refs
 			h, err := rd.Head()
 			fail(err)
 			// A detached HEAD that moved, or one that detached or came
@@ -458,6 +486,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			}
 			l, err := rd.List()
 			fail(err)
+			refsKeep = res.head != nil && err == nil && keepsStatus(prev, res.head, prevList, l)
 			if err == nil && l.Equal(seen.refs) && !headMoved {
 				l = nil
 			} else if err == nil {
@@ -478,7 +507,12 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		fail(err)
 		res.subs, res.readSub = subs, err == nil
 	}
-	if what&(repo.WorkTreeChanged|repo.IndexChanged|repo.RefsChanged) != 0 {
+	needStatus := what&(repo.WorkTreeChanged|repo.IndexChanged|repo.RefsChanged) != 0
+	if what&repo.WorkTreeChanged == 0 && refsKeep && seen.status != nil && !seen.statusFailed &&
+		keyErr == nil && seen.indexRead && key == seen.index {
+		needStatus = false
+	}
+	if needStatus {
 		start := time.Now()
 		var st *status.Status
 		var err error
@@ -496,6 +530,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		fail(err)
 		res.st = st
 		res.readAt = s.timeNow()
+		seen.statusFailed = err != nil
 		if err == nil {
 			seen.status = st
 		}
@@ -559,7 +594,11 @@ func (s *Session) Submit(op write.Op) (*write.Job, error) {
 	for _, c := range op.More {
 		line += "\n" + c.Line()
 	}
-	s.follow(s.addLog(op.Name, line), j)
+	what := repo.Rescan
+	if op.RefsOnly {
+		what = repo.RefsChanged
+	}
+	s.followThen(s.addLog(op.Name, line), j, what)
 	return j, nil
 }
 
