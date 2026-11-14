@@ -49,6 +49,13 @@ jobs:
         run: scripts/check.sh
       - name: What starting git costs
         run: RAMUS_MEASURE=1 go test ./spike/spawn -run Spawn -v
+      # The runner has git-lfs; the test skips where it is missing, so
+      # here a skip fails.
+      - name: Clone with Git LFS
+        run: |
+          git lfs version
+          go test ./internal/git/write -run TestCloneLFS -v | tee "$RUNNER_TEMP/lfs.txt"
+          ! grep -q -- '--- SKIP' "$RUNNER_TEMP/lfs.txt"
       - name: Build without cgo
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ramus" .
 
