@@ -49,22 +49,24 @@ func TestFetchSettingDefault(t *testing.T) {
 	h := newHarness(t)
 	h.app.openSettings()
 	s := &h.app.settingsUI
-	if !s.fetch || s.fetchMinutes != 15 {
-		t.Fatalf("by default: fetch %v every %v", s.fetch, s.fetchMinutes)
+	if s.fetchMinutes != 15 {
+		t.Fatalf("by default every %v", s.fetchMinutes)
 	}
-	s.fetchMinutes = 30
+	h.tt.Frame()
+	h.click("Every 15 minutes")
+	h.click("Every 30 minutes")
 	h.app.saveSettings()
 	if h.app.Settings.FetchEvery() != 30 {
 		t.Fatalf("every %d", h.app.Settings.FetchEvery())
 	}
 	h.app.openSettings()
-	s.fetch = false
+	s.fetchMinutes = 0
 	h.app.saveSettings()
 	if h.app.Settings.FetchEvery() != 0 || h.app.Settings.FetchMinutes != 30 {
 		t.Fatalf("turned off: %+v", h.app.Settings)
 	}
 	h.app.openSettings()
-	if s.fetch || s.fetchMinutes != 30 {
-		t.Fatalf("shown again: fetch %v every %v", s.fetch, s.fetchMinutes)
+	if s.fetchMinutes != 0 {
+		t.Fatalf("shown again every %v", s.fetchMinutes)
 	}
 }

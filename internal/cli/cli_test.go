@@ -50,12 +50,12 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestToolConfig(t *testing.T) {
-	c := ToolConfig("/Applications/Ramus.app/Contents/MacOS/ramus")
-	if !strings.Contains(c, `cmd = /Applications/Ramus.app/Contents/MacOS/ramus diff --wait "$LOCAL" "$REMOTE"`) || !strings.Contains(c, "trustExitCode = true") {
-		t.Fatal(c)
+func TestToolCommands(t *testing.T) {
+	d, m := ToolCommands("/Applications/Ramus.app/Contents/MacOS/ramus")
+	if d != `/Applications/Ramus.app/Contents/MacOS/ramus diff --wait "$LOCAL" "$REMOTE"` || !strings.HasSuffix(m, `merge --wait "$BASE" "$LOCAL" "$REMOTE" "$MERGED"`) {
+		t.Fatal(d, m)
 	}
-	if c := ToolConfig("/opt/My Apps/ramus"); !strings.Contains(c, `cmd = '/opt/My Apps/ramus' merge`) {
-		t.Fatal(c)
+	if d, _ := ToolCommands("/opt/My Apps/ramus"); !strings.HasPrefix(d, `'/opt/My Apps/ramus' diff`) {
+		t.Fatal(d)
 	}
 }

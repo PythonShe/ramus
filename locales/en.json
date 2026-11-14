@@ -1505,6 +1505,18 @@
   "@settingsTitle": {
     "description": "The settings dialog's title."
   },
+  "settingsGeneral": "General",
+  "@settingsGeneral": {
+    "description": "The heading of the first group of settings: appearance, language, the user's email addresses."
+  },
+  "settingsRepositories": "Repositories",
+  "@settingsRepositories": {
+    "description": "The heading of the settings for open repositories: fetching, refreshing, pull requests, the recent list, snapshots."
+  },
+  "settingsTools": "Tools",
+  "@settingsTools": {
+    "description": "The heading of the settings naming the editor and terminal the app opens."
+  },
   "settingsAppearance": "Appearance",
   "settingsLanguage": "Language",
   "settingsLanguageSystem": "System",
@@ -1531,33 +1543,50 @@
   "@settingsTerminal": {
     "description": "The terminal app the app opens repositories in."
   },
-  "settingsEmails": "Your email addresses besides each repository's user.email",
+  "settingsEmails": "Your other email addresses",
   "@settingsEmails": {
-    "description": "user.email is git's setting; keep it as is."
+    "description": "The email addresses the user commits with besides each repository's user.email (git's setting), which mark their own commits."
   },
   "settingsEmailsExample": "you@example.com, you@work.example",
   "@settingsEmailsExample": {
     "description": "Example email addresses in an empty field."
   },
-  "settingsSnapshotDays": "Keep snapshots of dropped work (days)",
+  "settingsSnapshotDays": "Keep snapshots of dropped work",
   "settingsRecentLimit": "Recent repositories listed",
   "settingsFocusRefresh": "Refresh when the window is focused",
   "settingsFetch": "Fetch in the background",
-  "settingsFetchMinutes": "Minutes between background fetches",
-  "settingsPullRequests": "Show pull requests on branches, through gh or glab",
+  "settingsPullRequests": "Show pull requests, through gh or glab",
   "@settingsPullRequests": {
     "description": "gh and glab are the names of programs."
   },
-  "settingsDiffTool": "Git difftool and mergetool",
+  "settingsDiffTool": "Use Ramus for git difftool and mergetool",
   "@settingsDiffTool": {
     "description": "difftool and mergetool are git's own words."
   },
+  "settingsFetchNever": "Never",
+  "@settingsFetchNever": {
+    "description": "In the menu of how often to fetch in the background."
+  },
+  "settingsEveryMinutes": "{n, plural, one {Every minute} other {Every # minutes}}",
+  "settingsEveryHours": "{n, plural, one {Every hour} other {Every # hours}}",
+  "settingsDays": "{n, plural, one {# day} other {# days}}",
+  "@settingsDays": {
+    "description": "How long snapshots of dropped work are kept, in a menu."
+  },
+  "settingsToolAutomatic": "Automatic ({name})",
+  "@settingsToolAutomatic": {
+    "description": "The first choice of editor or terminal: the app picks the one set as the system's default, or used last; name is that app."
+  },
+  "settingsToolAutomaticNone": "Automatic",
+  "settingsToolOther": "Other…",
+  "@settingsToolOther": {
+    "description": "The last choice of editor or terminal, which asks for an app on the disk."
+  },
+  "settingsChooseEditor": "Choose an Editor",
+  "settingsChooseTerminal": "Choose a Terminal",
+  "settingsDiffToolFailed": "Could not change git's difftool and mergetool: {error}",
   "settingsKeyboardShortcuts": "Keyboard Shortcuts…",
   "settingsOpenFile": "Open Settings File",
-  "settingsToolError": "{tool}: {error}",
-  "@settingsToolError": {
-    "description": "An editor or terminal the user named that cannot be used, and why."
-  },
   "settingsNotSaved": "Settings not saved: {error}",
   "statsFrom": "From",
   "@statsFrom": {

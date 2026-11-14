@@ -161,20 +161,15 @@ func (r Request) Args() []string {
 	return a
 }
 
-// ToolConfig is the git config that makes the app git's difftool and
-// mergetool, for the user to copy; the app never writes it.
-func ToolConfig(program string) string {
+// ToolName is the name git's config knows the app by as its difftool
+// and mergetool.
+const ToolName = "ramus"
+
+// ToolCommands are the commands git runs for the app as its difftool
+// and its mergetool, the app being program.
+func ToolCommands(program string) (diff, merge string) {
 	q := quote(program)
-	return `[diff]
-	tool = ramus
-[difftool "ramus"]
-	cmd = ` + q + ` diff --wait "$LOCAL" "$REMOTE"
-[merge]
-	tool = ramus
-[mergetool "ramus"]
-	cmd = ` + q + ` merge --wait "$BASE" "$LOCAL" "$REMOTE" "$MERGED"
-	trustExitCode = true
-`
+	return q + ` diff --wait "$LOCAL" "$REMOTE"`, q + ` merge --wait "$BASE" "$LOCAL" "$REMOTE" "$MERGED"`
 }
 
 // quote writes program for git's config and the shell git runs cmd in.

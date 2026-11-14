@@ -8043,6 +8043,52 @@ func (msgs Messages) SettingsTitle() string {
 	return Catalog.Format(msgs.locale, "settingsTitle", nil)
 }
 
+// SettingsGeneral says "General"
+// in the language the app shows.
+//
+// The heading of the first group of settings: appearance, language, the
+// user's email addresses.
+func SettingsGeneral() string { return In(i18n.Locale()).SettingsGeneral() }
+
+// SettingsGeneral says "General"
+// in the language of msgs.
+//
+// The heading of the first group of settings: appearance, language, the
+// user's email addresses.
+func (msgs Messages) SettingsGeneral() string {
+	return Catalog.Format(msgs.locale, "settingsGeneral", nil)
+}
+
+// SettingsRepositories says "Repositories"
+// in the language the app shows.
+//
+// The heading of the settings for open repositories: fetching, refreshing,
+// pull requests, the recent list, snapshots.
+func SettingsRepositories() string { return In(i18n.Locale()).SettingsRepositories() }
+
+// SettingsRepositories says "Repositories"
+// in the language of msgs.
+//
+// The heading of the settings for open repositories: fetching, refreshing,
+// pull requests, the recent list, snapshots.
+func (msgs Messages) SettingsRepositories() string {
+	return Catalog.Format(msgs.locale, "settingsRepositories", nil)
+}
+
+// SettingsTools says "Tools"
+// in the language the app shows.
+//
+// The heading of the settings naming the editor and terminal the app opens.
+func SettingsTools() string { return In(i18n.Locale()).SettingsTools() }
+
+// SettingsTools says "Tools"
+// in the language of msgs.
+//
+// The heading of the settings naming the editor and terminal the app opens.
+func (msgs Messages) SettingsTools() string {
+	return Catalog.Format(msgs.locale, "settingsTools", nil)
+}
+
 // SettingsAppearance says "Appearance"
 // in the language the app shows.
 func SettingsAppearance() string { return In(i18n.Locale()).SettingsAppearance() }
@@ -8149,16 +8195,18 @@ func (msgs Messages) SettingsTerminal() string {
 	return Catalog.Format(msgs.locale, "settingsTerminal", nil)
 }
 
-// SettingsEmails says "Your email addresses besides each repository's user.email"
+// SettingsEmails says "Your other email addresses"
 // in the language the app shows.
 //
-// user.email is git's setting; keep it as is.
+// The email addresses the user commits with besides each repository's
+// user.email (git's setting), which mark their own commits.
 func SettingsEmails() string { return In(i18n.Locale()).SettingsEmails() }
 
-// SettingsEmails says "Your email addresses besides each repository's user.email"
+// SettingsEmails says "Your other email addresses"
 // in the language of msgs.
 //
-// user.email is git's setting; keep it as is.
+// The email addresses the user commits with besides each repository's
+// user.email (git's setting), which mark their own commits.
 func (msgs Messages) SettingsEmails() string {
 	return Catalog.Format(msgs.locale, "settingsEmails", nil)
 }
@@ -8177,11 +8225,11 @@ func (msgs Messages) SettingsEmailsExample() string {
 	return Catalog.Format(msgs.locale, "settingsEmailsExample", nil)
 }
 
-// SettingsSnapshotDays says "Keep snapshots of dropped work (days)"
+// SettingsSnapshotDays says "Keep snapshots of dropped work"
 // in the language the app shows.
 func SettingsSnapshotDays() string { return In(i18n.Locale()).SettingsSnapshotDays() }
 
-// SettingsSnapshotDays says "Keep snapshots of dropped work (days)"
+// SettingsSnapshotDays says "Keep snapshots of dropped work"
 // in the language of msgs.
 func (msgs Messages) SettingsSnapshotDays() string {
 	return Catalog.Format(msgs.locale, "settingsSnapshotDays", nil)
@@ -8217,23 +8265,13 @@ func (msgs Messages) SettingsFetch() string {
 	return Catalog.Format(msgs.locale, "settingsFetch", nil)
 }
 
-// SettingsFetchMinutes says "Minutes between background fetches"
-// in the language the app shows.
-func SettingsFetchMinutes() string { return In(i18n.Locale()).SettingsFetchMinutes() }
-
-// SettingsFetchMinutes says "Minutes between background fetches"
-// in the language of msgs.
-func (msgs Messages) SettingsFetchMinutes() string {
-	return Catalog.Format(msgs.locale, "settingsFetchMinutes", nil)
-}
-
-// SettingsPullRequests says "Show pull requests on branches, through gh or glab"
+// SettingsPullRequests says "Show pull requests, through gh or glab"
 // in the language the app shows.
 //
 // gh and glab are the names of programs.
 func SettingsPullRequests() string { return In(i18n.Locale()).SettingsPullRequests() }
 
-// SettingsPullRequests says "Show pull requests on branches, through gh or glab"
+// SettingsPullRequests says "Show pull requests, through gh or glab"
 // in the language of msgs.
 //
 // gh and glab are the names of programs.
@@ -8241,18 +8279,138 @@ func (msgs Messages) SettingsPullRequests() string {
 	return Catalog.Format(msgs.locale, "settingsPullRequests", nil)
 }
 
-// SettingsDiffTool says "Git difftool and mergetool"
+// SettingsDiffTool says "Use Ramus for git difftool and mergetool"
 // in the language the app shows.
 //
 // difftool and mergetool are git's own words.
 func SettingsDiffTool() string { return In(i18n.Locale()).SettingsDiffTool() }
 
-// SettingsDiffTool says "Git difftool and mergetool"
+// SettingsDiffTool says "Use Ramus for git difftool and mergetool"
 // in the language of msgs.
 //
 // difftool and mergetool are git's own words.
 func (msgs Messages) SettingsDiffTool() string {
 	return Catalog.Format(msgs.locale, "settingsDiffTool", nil)
+}
+
+// SettingsFetchNever says "Never"
+// in the language the app shows.
+//
+// In the menu of how often to fetch in the background.
+func SettingsFetchNever() string { return In(i18n.Locale()).SettingsFetchNever() }
+
+// SettingsFetchNever says "Never"
+// in the language of msgs.
+//
+// In the menu of how often to fetch in the background.
+func (msgs Messages) SettingsFetchNever() string {
+	return Catalog.Format(msgs.locale, "settingsFetchNever", nil)
+}
+
+// SettingsEveryMinutes says "{n, plural, one {Every minute} other {Every # minutes}}"
+// in the language the app shows.
+func SettingsEveryMinutes(n int) string { return In(i18n.Locale()).SettingsEveryMinutes(n) }
+
+// SettingsEveryMinutes says "{n, plural, one {Every minute} other {Every # minutes}}"
+// in the language of msgs.
+func (msgs Messages) SettingsEveryMinutes(n int) string {
+	return Catalog.Format(msgs.locale, "settingsEveryMinutes", map[string]any{"n": n})
+}
+
+// SettingsEveryHours says "{n, plural, one {Every hour} other {Every # hours}}"
+// in the language the app shows.
+func SettingsEveryHours(n int) string { return In(i18n.Locale()).SettingsEveryHours(n) }
+
+// SettingsEveryHours says "{n, plural, one {Every hour} other {Every # hours}}"
+// in the language of msgs.
+func (msgs Messages) SettingsEveryHours(n int) string {
+	return Catalog.Format(msgs.locale, "settingsEveryHours", map[string]any{"n": n})
+}
+
+// SettingsDays says "{n, plural, one {# day} other {# days}}"
+// in the language the app shows.
+//
+// How long snapshots of dropped work are kept, in a menu.
+func SettingsDays(n int) string { return In(i18n.Locale()).SettingsDays(n) }
+
+// SettingsDays says "{n, plural, one {# day} other {# days}}"
+// in the language of msgs.
+//
+// How long snapshots of dropped work are kept, in a menu.
+func (msgs Messages) SettingsDays(n int) string {
+	return Catalog.Format(msgs.locale, "settingsDays", map[string]any{"n": n})
+}
+
+// SettingsToolAutomatic says "Automatic ({name})"
+// in the language the app shows.
+//
+// The first choice of editor or terminal: the app picks the one set as the
+// system's default, or used last; name is that app.
+func SettingsToolAutomatic(name string) string { return In(i18n.Locale()).SettingsToolAutomatic(name) }
+
+// SettingsToolAutomatic says "Automatic ({name})"
+// in the language of msgs.
+//
+// The first choice of editor or terminal: the app picks the one set as the
+// system's default, or used last; name is that app.
+func (msgs Messages) SettingsToolAutomatic(name string) string {
+	return Catalog.Format(msgs.locale, "settingsToolAutomatic", map[string]any{"name": name})
+}
+
+// SettingsToolAutomaticNone says "Automatic"
+// in the language the app shows.
+func SettingsToolAutomaticNone() string { return In(i18n.Locale()).SettingsToolAutomaticNone() }
+
+// SettingsToolAutomaticNone says "Automatic"
+// in the language of msgs.
+func (msgs Messages) SettingsToolAutomaticNone() string {
+	return Catalog.Format(msgs.locale, "settingsToolAutomaticNone", nil)
+}
+
+// SettingsToolOther says "Other…"
+// in the language the app shows.
+//
+// The last choice of editor or terminal, which asks for an app on the disk.
+func SettingsToolOther() string { return In(i18n.Locale()).SettingsToolOther() }
+
+// SettingsToolOther says "Other…"
+// in the language of msgs.
+//
+// The last choice of editor or terminal, which asks for an app on the disk.
+func (msgs Messages) SettingsToolOther() string {
+	return Catalog.Format(msgs.locale, "settingsToolOther", nil)
+}
+
+// SettingsChooseEditor says "Choose an Editor"
+// in the language the app shows.
+func SettingsChooseEditor() string { return In(i18n.Locale()).SettingsChooseEditor() }
+
+// SettingsChooseEditor says "Choose an Editor"
+// in the language of msgs.
+func (msgs Messages) SettingsChooseEditor() string {
+	return Catalog.Format(msgs.locale, "settingsChooseEditor", nil)
+}
+
+// SettingsChooseTerminal says "Choose a Terminal"
+// in the language the app shows.
+func SettingsChooseTerminal() string { return In(i18n.Locale()).SettingsChooseTerminal() }
+
+// SettingsChooseTerminal says "Choose a Terminal"
+// in the language of msgs.
+func (msgs Messages) SettingsChooseTerminal() string {
+	return Catalog.Format(msgs.locale, "settingsChooseTerminal", nil)
+}
+
+// SettingsDiffToolFailed says "Could not change git's difftool and mergetool: {error}"
+// in the language the app shows.
+func SettingsDiffToolFailed(error string) string {
+	return In(i18n.Locale()).SettingsDiffToolFailed(error)
+}
+
+// SettingsDiffToolFailed says "Could not change git's difftool and mergetool: {error}"
+// in the language of msgs.
+func (msgs Messages) SettingsDiffToolFailed(error string) string {
+	return Catalog.Format(msgs.locale, "settingsDiffToolFailed", map[string]any{"error": error})
 }
 
 // SettingsKeyboardShortcuts says "Keyboard Shortcuts…"
@@ -8273,22 +8431,6 @@ func SettingsOpenFile() string { return In(i18n.Locale()).SettingsOpenFile() }
 // in the language of msgs.
 func (msgs Messages) SettingsOpenFile() string {
 	return Catalog.Format(msgs.locale, "settingsOpenFile", nil)
-}
-
-// SettingsToolError says "{tool}: {error}"
-// in the language the app shows.
-//
-// An editor or terminal the user named that cannot be used, and why.
-func SettingsToolError(tool string, error string) string {
-	return In(i18n.Locale()).SettingsToolError(tool, error)
-}
-
-// SettingsToolError says "{tool}: {error}"
-// in the language of msgs.
-//
-// An editor or terminal the user named that cannot be used, and why.
-func (msgs Messages) SettingsToolError(tool string, error string) string {
-	return Catalog.Format(msgs.locale, "settingsToolError", map[string]any{"tool": tool, "error": error})
 }
 
 // SettingsNotSaved says "Settings not saved: {error}"

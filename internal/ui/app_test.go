@@ -17,6 +17,7 @@ import (
 	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/internal/settings"
+	"ramus/internal/tools"
 )
 
 // harness runs the app's view headless; Update queues functions that pump
@@ -306,17 +307,24 @@ func TestSettings(t *testing.T) {
 	}
 	h.app.settingsUI.lang = "English"
 	h.app.settingsUI.theme = 2
-	h.app.settingsUI.editor = "code --wait"
-	h.tt.Frame()
-	h.click("Save")
-	if !h.tt.HasText("full path") {
-		t.Fatalf("relative editor accepted: %q", h.tt.Texts())
-	}
+	// The editor is chosen, never typed: a program that cannot be one is
+	// refused, one that can is kept.
 	exe, _ := os.Executable()
-	h.app.settingsUI.editor = `"` + exe + `" --wait`
-	h.tt.Frame()
+	picked := filepath.Join(t.TempDir(), "nope")
+	h.app.PickFile = func(string) (string, error) { return picked, nil }
+	auto := "Automatic"
+	if name := h.app.palette.auto[tools.Editor]; name != "" {
+		auto = "Automatic (" + name + ")"
+	}
+	h.click(auto)
+	h.click("Other…")
+	h.until("refused", func() bool { return h.app.settingsUI.err != "" && h.app.settingsUI.editor == nil })
+	picked = exe
+	h.click(auto)
+	h.click("Other…")
+	h.until("chosen", h.shows(filepath.Base(exe)))
 	h.click("Save")
-	if theme != "dark" || h.app.Settings.Theme != "dark" || len(h.app.Settings.Editor) != 2 || h.app.Settings.Editor[0] != exe {
+	if theme != "dark" || h.app.Settings.Theme != "dark" || len(h.app.Settings.Editor) != 1 || h.app.Settings.Editor[0] != exe {
 		t.Fatalf("applied %q %+v", theme, h.app.Settings)
 	}
 	if chosen != "en" {
@@ -331,23 +339,6 @@ func TestSettings(t *testing.T) {
 		s, err := settings.Load(h.app.SettingsPath)
 		return err == nil && s.Theme == "dark"
 	})
-}
-
-func TestSplitArgs(t *testing.T) {
-	for in, want := range map[string][]string{
-		`/usr/bin/code --wait`:          {"/usr/bin/code", "--wait"},
-		`"/Applications/My Editor.app"`: {"/Applications/My Editor.app"},
-		`a 'b c' "d'e"`:                 {"a", "b c", "d'e"},
-		"  ":                            nil,
-	} {
-		got := splitArgs(in)
-		if strings.Join(got, "|") != strings.Join(want, "|") || len(got) != len(want) {
-			t.Errorf("splitArgs(%q) = %q", in, got)
-		}
-		if back := splitArgs(joinArgs(got)); strings.Join(back, "|") != strings.Join(got, "|") {
-			t.Errorf("join round trip of %q: %q", got, back)
-		}
-	}
 }
 
 func TestManagerAndGroups(t *testing.T) {
