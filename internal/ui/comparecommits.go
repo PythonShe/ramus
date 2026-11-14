@@ -70,6 +70,6 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 			errorMessage(c, errText(d.Err))
 			return
 		}
-		ui.Split(c, &cc.split, func() { a.commitFiles(c, &cc.cv, d) }, func() { a.commitPatch(c, t, &cc.cv, d) }).SplitReset(360).Fill()
+		ui.Split(c, &cc.split, func() { a.commitFiles(c, &cc.cv, d, nil) }, func() { a.commitPatch(c, t, &cc.cv, d) }).SplitReset(360).Fill()
 	})
 }

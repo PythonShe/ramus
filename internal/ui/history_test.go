@@ -38,12 +38,30 @@ func TestHistoryView(t *testing.T) {
 	h.until("the detail", h.shows("1 file changed"))
 	h.click("a.txt")
 	h.until("its patch", patchHas(&h.app.current().hist.detail.pv, "alpha", ""))
-	h.click("Copy Hash")
-	if want := strings.TrimSpace(r.Git("rev-parse", "HEAD~1")); h.tt.Clipboard() != want {
-		t.Fatalf("copied %q, want %s", h.tt.Clipboard(), want)
+	// The values copy themselves: the hash, the message by its subject,
+	// the patch by the count of its files.
+	hash := strings.TrimSpace(r.Git("rev-parse", "HEAD~1"))
+	h.click(hash)
+	if h.tt.Clipboard() != hash {
+		t.Fatalf("copied %q, want %s", h.tt.Clipboard(), hash)
 	}
-	h.click("Copy Patch")
+	h.click("1 file changed")
 	h.until("the patch copied", func() bool { return strings.Contains(h.tt.Clipboard(), "Subject: [PATCH] add alpha") })
+	// The subject is the line above the Author row; the list shows the
+	// same text, so it is found by place.
+	author, _ := h.tt.Find("Author")
+	cv := &h.app.current().hist.detail
+	x, y := author.X+spaceXS, author.Y-spaceS-cv.subjectH/2
+	h.tt.Move(x, y)
+	h.tt.Frame()
+	if h.tt.Cursor() != ui.CursorPointer {
+		t.Fatalf("cursor over the subject is %v, want the pointer", h.tt.Cursor())
+	}
+	h.tt.ClickAt(x, y)
+	h.tt.Frame()
+	if got := h.tt.Clipboard(); got != "add alpha\n" {
+		t.Fatalf("copied %q, want the message", got)
+	}
 
 	// Jumping by ref chooses the commit and shows it.
 	tab := h.app.current()

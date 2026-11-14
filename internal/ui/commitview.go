@@ -103,7 +103,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			if !hasBody(d) {
 				a.commitMessage(c, t, cv, d)
 				a.commitMeta(c, t, cv, d)
-				a.commitFiles(c, cv, d)
+				a.commitFiles(c, cv, d, a.patchCopier(t, d))
 				return
 			}
 			// The message is as tall as the user drags it.
@@ -112,7 +112,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			ui.SplitVertical(c, &cv.msgH, func() { a.commitMessage(c, t, cv, d) }, func() {
 				ui.Column(c).Fill().Children(func() {
 					a.commitMeta(c, t, cv, d)
-					a.commitFiles(c, cv, d)
+					a.commitFiles(c, cv, d, a.patchCopier(t, d))
 				})
 			}).SplitReset(fit).Fill()
 			if fit != cv.fittedMessage() {
@@ -204,7 +204,11 @@ func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.Co
 	col.Children(func() {
 		a.loadLinks(t)
 		links := t.links.set
-		s := linkedText(c, redact.Control(string(subject)), links).Bold()
+		// The subject stands for the message: a click copies it whole.
+		s := clickable(linkedText(c, redact.Control(string(subject)), links).Bold()).Tooltip(locales.CommitCopyMessage())
+		if s.Clicked() {
+			a.clip = string(d.Commit.Message)
+		}
 		cv.subjectH = s.LayoutBounds().H
 		cv.bodyH = 0
 		if len(body) > 0 {
@@ -218,8 +222,7 @@ func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.Co
 	})
 }
 
-// commitMeta shows who made the commit, its id, signature and parents,
-// and what copies them.
+// commitMeta shows who made the commit, its id, signature and parents.
 func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
 	cm := d.Commit
@@ -239,7 +242,10 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		}
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.CommitHashLabel()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
-			ui.Text(c, hex.EncodeToString(d.OID)).Font("monospace").FontSize(textSmall).Selectable()
+			id := hex.EncodeToString(d.OID)
+			if clickable(ui.Text(c, id).Font("monospace").FontSize(textSmall)).Tooltip(locales.CommonCopyHash()).Clicked() {
+				a.clip = id
+			}
 		})
 		if cm.Signed {
 			if !cv.sigAsked {
@@ -295,17 +301,6 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				ui.Text(c, s).FontSize(textSmall).TextColor(col).Selectable()
 			})
 		}
-		ui.Row(c).Gap(spaceM).Children(func() {
-			if ui.Button(c, locales.CommonCopyHash()).Clicked() {
-				a.clip = hex.EncodeToString(d.OID)
-			}
-			if ui.Button(c, locales.CommitCopyMessage()).Clicked() {
-				a.clip = string(cm.Message)
-			}
-			if ui.Button(c, locales.CommitCopyPatch()).Disabled(len(d.Parents) > 1).Clicked() {
-				a.copyPatch(t, d.OID)
-			}
-		})
 	})
 }
 
@@ -354,7 +349,18 @@ func signatureText(d *session.CommitDetail, restricted bool) string {
 	return locales.CommitSigned()
 }
 
-func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail) {
+// patchCopier copies commit d's patch, nil for a merge, which has no one
+// patch.
+func (a *App) patchCopier(t *tab, d *session.CommitDetail) func() {
+	if len(d.Parents) > 1 {
+		return nil
+	}
+	return func() { a.copyPatch(t, d.OID) }
+}
+
+// commitFiles lists the files d changed under their count; onCopy, when
+// not nil, makes the count copy their patch, which it stands for.
+func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail, onCopy func()) {
 	th := c.Theme()
 	f := d.Files
 	if f == nil && !d.Done {
@@ -365,7 +371,10 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 		ui.Text(c, locales.CommitNoFiles()).TextColor(th.TextMuted).Padding(spaceM, insetX)
 		return
 	}
-	ui.Text(c, locales.CommitFilesChanged(f.Len())).FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX)
+	count := ui.Text(c, locales.CommitFilesChanged(f.Len())).FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX)
+	if onCopy != nil && clickable(count).Tooltip(locales.CommitCopyPatch()).Clicked() {
+		onCopy()
+	}
 	cv.files.Selected = &cv.file
 	cv.files.Label = func(i int) string { return locales.ChangesFileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i)) }
 	ui.List(c, &cv.files, f.Len(), func(i int) {

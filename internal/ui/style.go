@@ -82,3 +82,15 @@ func emptyState(c *ui.Context, msg string) {
 func errorMessage(c *ui.Context, msg string) {
 	ui.Text(c, msg).TextColor(c.Theme().Danger).Padding(spaceL).Selectable()
 }
+
+// clickable makes a text act when clicked, as a link does: the pointer
+// and an underline under it while hovered say so, and it takes the focus
+// for Enter and Space. The underline sits below the descenders, so the
+// line that skips their ink runs whole.
+func clickable(e ui.Element) ui.Element {
+	e = e.Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton)
+	if e.Hovered() {
+		e = e.Underline().UnderlineOffset(3)
+	}
+	return e
+}
