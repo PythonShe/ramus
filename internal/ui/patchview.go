@@ -16,7 +16,6 @@ import (
 	"ramus/internal/git/diff"
 	"ramus/internal/git/redact"
 	"ramus/internal/session"
-	"ramus/internal/settings"
 	"ramus/locales"
 )
 
@@ -63,14 +62,7 @@ func (a *App) diffBar(c *ui.Context, more func()) {
 		}
 		if wrap.Changed() || layout.Changed() {
 			a.Settings.DiffSplit, a.Settings.DiffNoWrap = o.split == 1, !o.wrap
-			if a.SettingsPath != "" {
-				path, saved, update := a.SettingsPath, a.Settings, a.Update
-				go func() {
-					if err := settings.Save(path, saved); err != nil {
-						update(func() { a.notice = locales.DiffSettingsNotSaved(errText(err)) })
-					}
-				}()
-			}
+			a.writeSettings(a.Settings, locales.DiffSettingsNotSaved)
 		}
 	}).Label(locales.DiffOptions()).Padding(0, insetX, spaceS, insetX)
 }

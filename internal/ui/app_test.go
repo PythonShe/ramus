@@ -138,6 +138,9 @@ func (h *harness) closeAll() {
 	}
 	h.app.CloseAll()
 	h.app.writes.Wait()
+	if k := h.app.keeper; k != nil {
+		k.Wait()
+	}
 	for _, d := range lives {
 		select {
 		case <-d:

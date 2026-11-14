@@ -84,7 +84,8 @@ func main() {
 
 	program, _ := os.Executable() // none only leaves the tool config out
 	ws := &windows{probe: probe, deps: ui.Deps{
-		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, CacheDir: cacheDir, Program: program, Crash: crash,
+		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, SettingsKeeper: settings.NewKeeper(cfgPath),
+		CacheDir: cacheDir, Program: program, Crash: crash,
 		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
 	}}
 	var saved []layout.Window

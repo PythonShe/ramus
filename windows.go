@@ -76,10 +76,14 @@ func (ws *windows) layoutChanged() {
 	})
 }
 
-// flush writes the layout and the drafts at the start of a quit. They
-// are the writes the main thread waits on: the OS may end the process as
-// soon as the quit's listeners return, and the files are small.
+// flush writes the layout and the drafts, and waits for the settings
+// being written, at the start of a quit. They are the writes the main
+// thread waits on: the OS may end the process as soon as the quit's
+// listeners return, and the files are small.
 func (ws *windows) flush() {
+	if k := ws.deps.SettingsKeeper; k != nil {
+		k.Wait()
+	}
 	if d := ws.deps.Drafts; d != nil {
 		if err := d.Flush(); err != nil {
 			log.Print(err)

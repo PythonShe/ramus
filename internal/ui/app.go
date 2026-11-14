@@ -35,6 +35,9 @@ type Deps struct {
 	// SettingsPath is the settings file, for saving and for "Open
 	// Settings File".
 	SettingsPath string
+	// SettingsKeeper writes the settings file for every window, so that
+	// their saves land in order; nil has the app keep its own.
+	SettingsKeeper *settings.Keeper
 	// CacheDir keeps what is worth keeping across launches but can be
 	// read again; "" keeps nothing.
 	CacheDir string
@@ -96,6 +99,8 @@ type App struct {
 	// writes are the files being written off the main thread, for a test
 	// to wait for before their folder goes.
 	writes sync.WaitGroup
+	// keeper writes the settings when Deps has none.
+	keeper *settings.Keeper
 	// notice is a message for the user that does not belong to a tab.
 	notice string
 	// pending are repositories asked for before git was found.

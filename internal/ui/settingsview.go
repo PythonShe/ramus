@@ -348,14 +348,7 @@ func (a *App) saveSettings() {
 	if tag, changed := a.formLanguage(); changed {
 		a.SetLocale(tag)
 	}
-	if a.SettingsPath != "" {
-		path, saved, update := a.SettingsPath, next, a.Update
-		go func() {
-			if err := settings.Save(path, saved); err != nil {
-				update(func() { a.notice = locales.SettingsNotSaved(errText(err)) })
-			}
-		}()
-	}
+	a.writeSettings(next, locales.SettingsNotSaved)
 }
 
 // settingsChanged reports whether the form says anything other than

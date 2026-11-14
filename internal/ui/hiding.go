@@ -92,13 +92,22 @@ func (a *App) keepSettings() {
 	if a.SettingsChanged != nil {
 		a.SettingsChanged(a.Settings)
 	}
+	a.writeSettings(a.Settings, locales.HidingSettingsNotSaved)
+}
+
+// writeSettings has s written to the settings file; notice says why it
+// was not, from the error.
+func (a *App) writeSettings(s settings.Settings, notice func(err string) string) {
 	if a.SettingsPath == "" {
 		return
 	}
-	path, saved, update := a.SettingsPath, a.Settings, a.Update
-	go func() {
-		if err := settings.Save(path, saved); err != nil {
-			update(func() { a.notice = locales.HidingSettingsNotSaved(errText(err)) })
+	k := a.SettingsKeeper
+	if k == nil || k.Path() != a.SettingsPath {
+		if a.keeper == nil || a.keeper.Path() != a.SettingsPath {
+			a.keeper = settings.NewKeeper(a.SettingsPath)
 		}
-	}()
+		k = a.keeper
+	}
+	update := a.Update
+	k.Keep(s, func(err error) { update(func() { a.notice = notice(errText(err)) }) })
 }

@@ -2,11 +2,33 @@ package ui
 
 import (
 	"errors"
+	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+
+	"ramus/internal/settings"
 )
+
+// Saves made back to back, as letting go of a history column makes two,
+// reach the file in order: the last choice is the one kept.
+func TestSettingsSavedInOrder(t *testing.T) {
+	h := newHarness(t)
+	h.app.SettingsPath = filepath.Join(t.TempDir(), "settings.json")
+	for i := range 50 {
+		h.app.setSidebar(i%2 == 1)
+		h.app.keepMessage(float32(100+i), 1, 0)
+	}
+	h.app.keeper.Wait()
+	s, err := settings.Load(h.app.SettingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.NoSidebar || s.HistoryMessage != 149 {
+		t.Fatalf("file has the sidebar hidden %v, the message at %v", s.NoSidebar, s.HistoryMessage)
+	}
+}
 
 // Every item and section of the sidebar, and the sidebar itself, can be
 // left out, and brought back from the palette; the settings keep it.
