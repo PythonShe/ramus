@@ -28,10 +28,10 @@ func TestHistoryView(t *testing.T) {
 	h.until("open", h.shows("No changes"))
 	h.click("History")
 	h.until("the commits", h.shows("edit readme"))
+	// The labels are built again off the main thread once history comes,
+	// with the commit an annotated tag names: v1 may come a frame later.
 	for _, s := range []string{"add alpha", "one", "main", "topic", "v1", "3 commits"} {
-		if !h.tt.HasText(s) {
-			t.Fatalf("missing %q in %q", s, h.tt.Texts())
-		}
+		h.until(s, h.shows(s))
 	}
 
 	h.click("add alpha")
