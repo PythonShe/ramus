@@ -2,7 +2,7 @@ package ui
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,6 +12,7 @@ import (
 	"ramus/internal/git/diff"
 	"ramus/internal/git/redact"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // maxCompareSide bounds a file read whole to unfold the lines around the
@@ -79,7 +80,7 @@ func (a *App) startCompare() {
 		case err2 != nil:
 			err = err2
 		case oi.IsDir() != ni.IsDir():
-			err = fmt.Errorf("%s and %s are not both files or both folders", filepath.Base(old), filepath.Base(new))
+			err = errors.New(locales.CompareNotSameKind(filepath.Base(old), filepath.Base(new)))
 		case oi.IsDir():
 			list, err = diff.CompareFolders(ctx, r, old, new, 0)
 		}
@@ -210,13 +211,13 @@ func (a *App) compareView(c *ui.Context) {
 	a.toolFrame(c, &cs.open, func(box ui.Element) {
 		box.Gap(spaceL).Padding(dialogPad, 0).Children(func() {
 			ui.Column(c).Padding(0, dialogPad).Gap(space2XS).Children(func() {
-				ui.Text(c, "Compare").Bold()
+				ui.Text(c, locales.CompareTitle()).Bold()
 				for _, p := range []string{cs.old, cs.new} {
 					ui.Text(c, redact.Control(p)).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
 				}
 			})
 			a.diffBar(c, func() {
-				if ui.PrimaryButton(c, "Close").Clicked() {
+				if ui.PrimaryButton(c, locales.CommonClose()).Clicked() {
 					cs.open = false
 				}
 			})
@@ -239,12 +240,12 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 	l := cs.list
 	ui.Column(c).Fill().Children(func() {
 		if l.Len() == 0 {
-			emptyState(c, "No differences")
+			emptyState(c, locales.CompareNoDifferences())
 			return
 		}
-		count := countFiles(l.Len()) + " differ"
+		count := locales.CompareFilesDiffer(l.Len())
 		if l.Truncated {
-			count = "The first " + count
+			count = locales.CompareFirstFilesDiffer(l.Len())
 		}
 		ui.Text(c, count).FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX)
 		name := func(i int) string {
@@ -257,7 +258,7 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 			return l.Old(i) + " → " + l.New(i)
 		}
 		cs.rows.Selected = &cs.chosen
-		cs.rows.Label = func(i int) string { return fileStatusWord(l.Status(i)) + " " + name(i) }
+		cs.rows.Label = func(i int) string { return locales.CompareFileLabel(fileStatusWord(l.Status(i)), name(i)) }
 		ui.List(c, &cs.rows, l.Len(), func(i int) {
 			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, l.Status(i)))
@@ -267,13 +268,13 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 					txt.TextColor(th.Warning).Tooltip(why)
 				}
 			})
-		}).Label("Differing files").Grow(1)
+		}).Label(locales.CompareDifferingFiles()).Grow(1)
 	})
 }
 
 func (a *App) comparedPatch(c *ui.Context, cs *compareState) {
 	if _, _, ok := cs.comparedFiles(); !ok {
-		emptyState(c, "Choose a file to see its changes")
+		emptyState(c, locales.CompareChooseFile())
 		return
 	}
 	ui.Column(c).Fill().Children(func() {

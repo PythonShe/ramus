@@ -9,6 +9,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // worktreeDialog makes a worktree of a branch: a local one checked out
@@ -77,32 +78,32 @@ func (a *App) worktreeView(c *ui.Context) {
 	short := strings.TrimPrefix(strings.TrimPrefix(d.branch, "refs/heads/"), "refs/remotes/")
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
-			ui.Text(c, "New Worktree for "+redact.Control(short)).Bold()
+			ui.Text(c, locales.WorktreeNewTitle(redact.Control(short))).Bold()
 			submitted := false
 			if d.remote {
-				submitted = ui.TextInput(c, &d.name).Label("New branch").Placeholder("Branch name").AutoFocus().FillWidth().Submitted()
+				submitted = ui.TextInput(c, &d.name).Label(locales.CommonNewBranch()).Placeholder(locales.CommonBranchName()).AutoFocus().FillWidth().Submitted()
 			}
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-				p := ui.TextInput(c, &d.path).Label("Folder").Placeholder("Folder").Grow(1)
+				p := ui.TextInput(c, &d.path).Label(locales.CommonFolder()).Placeholder(locales.CommonFolder()).Grow(1)
 				if !d.remote {
 					p.AutoFocus()
 				}
 				submitted = submitted || p.Submitted()
-				if a.PickFolder != nil && ui.Button(c, "Choose…").Clicked() {
+				if a.PickFolder != nil && ui.Button(c, locales.CommonChoose()).Clicked() {
 					a.pickWorktreeParent(d)
 				}
 			})
-			ui.Checkbox(c, &d.openTab, "Open in a new tab")
+			ui.Checkbox(c, &d.openTab, locales.WorktreeOpenTab())
 			if d.err != "" {
 				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
 				ready := strings.TrimSpace(d.path) != "" && (!d.remote || strings.TrimSpace(d.name) != "")
-				if ui.PrimaryButton(c, "Create").Disabled(!ready).Clicked() || ready && submitted {
+				if ui.PrimaryButton(c, locales.CommonCreate()).Disabled(!ready).Clicked() || ready && submitted {
 					a.addWorktree(d)
 				}
 			})
@@ -115,7 +116,7 @@ func (a *App) worktreeView(c *ui.Context) {
 func (a *App) pickWorktreeParent(d *worktreeDialog) {
 	pick, update := a.PickFolder, a.Update
 	go func() {
-		p, err := pick("Folder for the Worktree")
+		p, err := pick(locales.WorktreePickFolder())
 		update(func() {
 			switch {
 			case err != nil:
@@ -163,13 +164,13 @@ func worktreeLabel(w repo.Worktree) string {
 	case w.Branch != "":
 		label += "  " + strings.TrimPrefix(w.Branch, "refs/heads/")
 	case w.Detached:
-		label += "  detached"
+		label += "  " + locales.WorktreeDetached()
 	}
 	switch {
 	case w.Prunable:
-		label += "  folder missing"
+		label += "  " + locales.WorktreeFolderMissing()
 	case w.Locked:
-		label += "  locked"
+		label += "  " + locales.WorktreeLocked()
 	}
 	return label
 }
@@ -180,27 +181,27 @@ func (a *App) worktreeMenu(it ui.Element, t *tab, w repo.Worktree, main bool) {
 	it.ContextMenu(func(m *ui.Menu) {
 		ro := t.s.Queue == nil
 		var act func()
-		if m.Item("Open in New Tab").Disabled(w.Current || w.Prunable).Chosen() {
+		if m.Item(locales.WorktreeOpenInNewTab()).Disabled(w.Current || w.Prunable).Chosen() {
 			act = func() { a.Open(w.Path) }
 		}
-		if a.NewWindow != nil && m.Item("Open in New Window").Disabled(w.Current || w.Prunable).Chosen() {
+		if a.NewWindow != nil && m.Item(locales.WorktreeOpenInNewWindow()).Disabled(w.Current || w.Prunable).Chosen() {
 			act = func() { a.NewWindow([]string{w.Path}) }
 		}
-		if m.Item("Copy Path").Chosen() {
+		if m.Item(locales.WorktreeCopyPath()).Chosen() {
 			act = func() { a.clip = w.Path }
 		}
 		if w.Locked {
-			if m.Item("Unlock").Disabled(ro).Chosen() {
+			if m.Item(locales.WorktreeUnlock()).Disabled(ro).Chosen() {
 				act = func() { a.submit(t, write.UnlockWorktree(t.s.Where(), w.Path), nil) }
 			}
-		} else if m.Item("Lock…").Disabled(ro || main).Chosen() {
+		} else if m.Item(locales.WorktreeLockEllipsis()).Disabled(ro || main).Chosen() {
 			act = func() { a.worktreeLockUI = worktreeLock{open: true, t: t, path: w.Path} }
 		}
 		if w.Prunable {
-			if m.Item("Prune…").Disabled(ro || w.Locked).Chosen() {
+			if m.Item(locales.WorktreePruneEllipsis()).Disabled(ro || w.Locked).Chosen() {
 				act = func() { a.askPrune(t, w) }
 			}
-		} else if m.Item("Remove…").Disabled(ro || main || w.Current || w.Locked).Danger().Chosen() {
+		} else if m.Item(locales.WorktreeRemoveEllipsis()).Disabled(ro || main || w.Current || w.Locked).Danger().Chosen() {
 			act = func() { a.worktreeRemoveUI = worktreeRemoval{open: true, t: t, wt: w} }
 		}
 		if act != nil {
@@ -212,18 +213,18 @@ func (a *App) worktreeMenu(it ui.Element, t *tab, w repo.Worktree, main bool) {
 // askPrune offers to forget a worktree whose folder is gone, which is
 // what opening it would otherwise fail on.
 func (a *App) askPrune(t *tab, w repo.Worktree) {
-	msg := "The folder " + w.Path + " is gone. Pruning forgets every worktree whose folder is gone; their branches stay."
+	title := locales.WorktreeMissingTitle(filepath.Base(w.Path))
+	msg := locales.WorktreeGoneMessage(w.Path)
 	if w.Locked {
-		msg = "The folder " + w.Path + " is gone, and the worktree is locked"
+		msg = locales.WorktreeGoneLockedMessage(w.Path)
 		if w.LockReason != "" {
-			msg += " (" + w.LockReason + ")"
+			msg = locales.WorktreeGoneLockedReasonMessage(w.Path, w.LockReason)
 		}
-		msg += ": its folder may be on a drive not connected now. Unlock it to prune it."
-		a.confirm = confirmState{open: true, title: "Worktree " + filepath.Base(w.Path) + " is missing", message: msg, button: "Unlock",
+		a.confirm = confirmState{open: true, title: title, message: msg, button: locales.WorktreeUnlock(),
 			run: func() { a.submit(t, write.UnlockWorktree(t.s.Where(), w.Path), nil) }}
 		return
 	}
-	a.confirm = confirmState{open: true, title: "Worktree " + filepath.Base(w.Path) + " is missing", message: msg, button: "Prune",
+	a.confirm = confirmState{open: true, title: title, message: msg, button: locales.WorktreePrune(),
 		run: func() { a.submit(t, write.PruneWorktrees(t.s.Where()), nil) }}
 }
 
@@ -235,21 +236,21 @@ func (a *App) worktreeRemoveView(c *ui.Context) {
 	branch := strings.TrimPrefix(d.wt.Branch, "refs/heads/")
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
-			ui.Text(c, "Remove worktree "+filepath.Base(d.wt.Path)+"?").Bold()
-			ui.Text(c, "Its folder "+d.wt.Path+" is deleted.").Selectable()
+			ui.Text(c, locales.WorktreeRemoveTitle(filepath.Base(d.wt.Path))).Bold()
+			ui.Text(c, locales.WorktreeRemoveFolder(d.wt.Path)).Selectable()
 			if branch != "" {
-				ui.Checkbox(c, &d.withBranch, "Also delete branch "+redact.Control(branch))
+				ui.Checkbox(c, &d.withBranch, locales.WorktreeAlsoDeleteBranch(redact.Control(branch)))
 			}
-			ui.Checkbox(c, &d.force, "Remove even with changes or untracked files")
+			ui.Checkbox(c, &d.force, locales.WorktreeRemoveForce())
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
 				// The destructive choice is never the default one: Enter
 				// must not delete a folder, least of all with force on.
-				if ui.Button(c, "Remove").Clicked() {
+				if ui.Button(c, locales.CommonRemove()).Clicked() {
 					d.open = false
 					a.removeWorktree(d)
 				}
-				if ui.PrimaryButton(c, "Cancel").Clicked() {
+				if ui.PrimaryButton(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
 			})
@@ -275,14 +276,14 @@ func (a *App) worktreeLockView(c *ui.Context) {
 	}
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
-			ui.Text(c, "Lock worktree "+filepath.Base(d.path)).Bold()
-			in := ui.TextInput(c, &d.reason).Label("Reason").Placeholder("Reason (optional)").AutoFocus().FillWidth()
+			ui.Text(c, locales.WorktreeLockTitle(filepath.Base(d.path))).Bold()
+			in := ui.TextInput(c, &d.reason).Label(locales.WorktreeReason()).Placeholder(locales.WorktreeReasonPlaceholder()).AutoFocus().FillWidth()
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, "Lock").Clicked() || in.Submitted() {
+				if ui.PrimaryButton(c, locales.WorktreeLock()).Clicked() || in.Submitted() {
 					d.open = false
 					a.submit(d.t, write.LockWorktree(d.t.s.Where(), d.path, d.reason), nil)
 				}

@@ -14,6 +14,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // dashState is the worktree dashboard of a tab.
@@ -61,11 +62,11 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 	}
 	now := a.Now()
 	cols := []ui.TableColumn{
-		{Title: "Worktree"},
-		{Title: "Branch", Width: 200},
-		{Title: "Changes", Width: 90, Align: ui.End},
-		{Title: "Ahead, Behind", Width: 120, Align: ui.End},
-		{Title: "Last Active", Width: 110, Align: ui.End},
+		{Title: locales.WorktreeColumnWorktree()},
+		{Title: locales.WorktreeColumnBranch(), Width: 200},
+		{Title: locales.WorktreeColumnChanges(), Width: 90, Align: ui.End},
+		{Title: locales.WorktreeColumnAheadBehind(), Width: 120, Align: ui.End},
+		{Title: locales.WorktreeColumnLastActive(), Width: 110, Align: ui.End},
 		{Title: "", Width: 80, Align: ui.End},
 	}
 	d.table.Selected = &d.chosen
@@ -73,12 +74,12 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 	var act func()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, fmt.Sprintf("%d worktrees", len(wts))).Bold().Grow(1)
+			ui.Text(c, locales.WorktreeCount(len(wts))).Bold().Grow(1)
 			picked := d.pickedTwo(wts)
-			if ui.Button(c, "Compare Folders").Disabled(picked == nil).Clicked() {
+			if ui.Button(c, locales.WorktreeCompareFolders()).Disabled(picked == nil).Clicked() {
 				act = func() { a.Compare(picked[0].Path, picked[1].Path, nil) }
 			}
-			if ui.Button(c, "Compare Branches").Disabled(picked == nil || picked[0].Head == "" || picked[1].Head == "").Clicked() {
+			if ui.Button(c, locales.WorktreeCompareBranches()).Disabled(picked == nil || picked[0].Head == "" || picked[1].Head == "").Clicked() {
 				act = func() { a.compareWorktrees(t, picked[0], picked[1]) }
 			}
 		})
@@ -88,7 +89,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 			switch col {
 			case 0:
 				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-					ui.Checkbox(c, d.pickedRef(w.Path), "").Label("Compare " + filepath.Base(w.Path))
+					ui.Checkbox(c, d.pickedRef(w.Path), "").Label(locales.WorktreeCompareBox(filepath.Base(w.Path)))
 					ui.Column(c).Grow(1).Children(func() {
 						name := ui.Text(c, filepath.Base(w.Path)).SingleLine()
 						if w.Current {
@@ -106,11 +107,11 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 			case 1:
 				switch {
 				case w.Prunable:
-					ui.Text(c, "folder missing").TextColor(th.Warning)
+					ui.Text(c, locales.WorktreeFolderMissing()).TextColor(th.Warning)
 				case w.Branch != "":
 					ui.Text(c, redact.Control(strings.TrimPrefix(w.Branch, "refs/heads/"))).SingleLine()
 				case w.Head != "":
-					ui.Text(c, "detached at "+w.Head[:min(10, len(w.Head))]).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, locales.WorktreeDetachedAt(w.Head[:min(10, len(w.Head))])).TextColor(th.TextMuted).SingleLine()
 				}
 			case 2:
 				switch {
@@ -122,7 +123,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 				}
 			case 3:
 				if b, ok := branches[w.Branch]; ok && b.Upstream != "" && !b.Gone {
-					ui.Text(c, fmt.Sprintf("↑%d ↓%d", b.Ahead, b.Behind)).Description(fmt.Sprintf("%d ahead, %d behind %s", b.Ahead, b.Behind, strings.TrimPrefix(b.Upstream, "refs/remotes/")))
+					ui.Text(c, fmt.Sprintf("↑%d ↓%d", b.Ahead, b.Behind)).Description(locales.WorktreeAheadBehind(b.Ahead, b.Behind, strings.TrimPrefix(b.Upstream, "refs/remotes/")))
 				}
 			case 4:
 				active := sum.Active
@@ -133,11 +134,11 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 					ui.Text(c, ago(now, active)).TextColor(th.TextMuted)
 				}
 			case 5:
-				if !w.Current && ui.Button(c, "Open").Label("Open "+filepath.Base(w.Path)).Padding(0, spaceM).Clicked() {
+				if !w.Current && ui.Button(c, locales.WorktreeOpen()).Label(locales.WorktreeOpenLabel(filepath.Base(w.Path))).Padding(0, spaceM).Clicked() {
 					act = func() { a.openWorktree(t, w) }
 				}
 			}
-		}).Label("Worktrees").Grow(1)
+		}).Label(locales.WorktreeTableLabel()).Grow(1)
 		if tbl.Submitted() && d.chosen >= 0 && d.chosen < len(wts) {
 			w := wts[d.chosen]
 			act = func() { a.openWorktree(t, w) }

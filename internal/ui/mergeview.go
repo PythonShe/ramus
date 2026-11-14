@@ -2,8 +2,7 @@ package ui
 
 import (
 	"bytes"
-	"fmt"
-	"strconv"
+	"errors"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -13,6 +12,7 @@ import (
 	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // mergeState is the merge editor of a tab: one conflicted file, and how
@@ -88,22 +88,22 @@ func headLines(text []byte, n int) (string, int) {
 	}
 	s := strings.TrimSuffix(redact.Control(string(cut)), "\n")
 	if total > n {
-		s += fmt.Sprintf("\n⋯ %d more lines", total-n)
+		s += "\n" + locales.MergeMoreLines(total-n)
 	}
 	return s, total
 }
 
 // mergeChoices are the choices offered for a conflict, in order.
 var mergeChoices = []struct {
-	label  string
+	label  func() string
 	choice conflict.Choice
 }{
-	{"Ours", conflict.Ours},
-	{"Theirs", conflict.Theirs},
-	{"Both", conflict.OursThenTheirs},
-	{"Both, Theirs First", conflict.TheirsThenOurs},
-	{"Base", conflict.Base},
-	{"Edit", conflict.Custom},
+	{locales.MergeOurs, conflict.Ours},
+	{locales.MergeTheirs, conflict.Theirs},
+	{locales.MergeBoth, conflict.OursThenTheirs},
+	{locales.MergeBothTheirsFirst, conflict.TheirsThenOurs},
+	{locales.MergeBase, conflict.Base},
+	{locales.MergeEdit, conflict.Custom},
 }
 
 func (a *App) loadMerge(t *tab, path string) {
@@ -170,14 +170,14 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 						done++
 					}
 				}
-				ui.Text(c, fmt.Sprintf("%d of %d resolved", done, n)).FontSize(textSmall).TextColor(th.TextMuted)
-				if ui.Button(c, "All Ours").Clicked() {
+				ui.Text(c, locales.MergeResolvedCount(done, n)).FontSize(textSmall).TextColor(th.TextMuted)
+				if ui.Button(c, locales.MergeAllOurs()).Clicked() {
 					fill(ms.choices, conflict.Ours)
 				}
-				if ui.Button(c, "All Theirs").Clicked() {
+				if ui.Button(c, locales.MergeAllTheirs()).Clicked() {
 					fill(ms.choices, conflict.Theirs)
 				}
-				if ui.PrimaryButton(c, "Save and Mark Resolved").Disabled(ro || done < n).Clicked() {
+				if ui.PrimaryButton(c, locales.MergeSaveAndMarkResolved()).Disabled(ro || done < n).Clicked() {
 					a.saveMerge(t)
 				}
 			}
@@ -197,8 +197,8 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 			return
 		case len(ms.choices) == 0:
 			ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
-				ui.Text(c, "No conflict markers are left in this file").TextColor(th.TextMuted)
-				if ui.Button(c, "Mark Resolved").Disabled(ro).Clicked() {
+				ui.Text(c, locales.MergeNoMarkersLeft()).TextColor(th.TextMuted)
+				if ui.Button(c, locales.MergeMarkResolved()).Disabled(ro).Clicked() {
 					a.submit(t, write.Stage(w, []string{path}), nil)
 				}
 			})
@@ -219,9 +219,9 @@ func (a *App) conflictList(c *ui.Context, ms *mergeState) {
 	}
 	ms.list.Label = func(i int) string {
 		if segs[i].Conflict != nil {
-			return "Conflict " + strconv.Itoa(ms.index[i]+1)
+			return locales.MergeConflictNumber(ms.index[i] + 1)
 		}
-		return "Unchanged text"
+		return locales.MergeUnchangedText()
 	}
 	ui.List(c, &ms.list, len(segs), func(i int) {
 		s := segs[i]
@@ -230,7 +230,7 @@ func (a *App) conflictList(c *ui.Context, ms *mergeState) {
 			return
 		}
 		a.conflictBlock(c, ms, ms.index[i], s.Conflict, ms.shown[i])
-	}).Label("Conflicts and unchanged text").Grow(1)
+	}).Label(locales.MergeConflictsLabel()).Grow(1)
 }
 
 func fill(cs []conflict.Choice, ch conflict.Choice) {
@@ -242,7 +242,7 @@ func fill(cs []conflict.Choice, ch conflict.Choice) {
 func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.Conflict, shown shownSegment) {
 	th := c.Theme()
 	ui.Column(c).Padding(spaceM, insetX).Gap(spaceM).FillWidth().Background(th.Surface).Children(func() {
-		ui.Text(c, "Conflict "+strconv.Itoa(k+1)).Bold()
+		ui.Text(c, locales.MergeConflictNumber(k+1)).Bold()
 		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 			for _, mc := range mergeChoices {
 				if mc.choice == conflict.Base && !cc.HasBase {
@@ -250,12 +250,12 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 				}
 				var b ui.Element
 				if ms.choices[k] == mc.choice {
-					b = ui.PrimaryButton(c, mc.label)
+					b = ui.PrimaryButton(c, mc.label())
 				} else {
-					b = ui.Button(c, mc.label)
+					b = ui.Button(c, mc.label())
 				}
 				if mc.choice == conflict.Custom && shown.lines > maxEditLines {
-					b.Disabled(true).Tooltip(fmt.Sprintf("Over %d lines: edit this conflict in your editor", maxEditLines))
+					b.Disabled(true).Tooltip(locales.MergeEditTooLong(maxEditLines))
 				}
 				if b.Clicked() {
 					if mc.choice == conflict.Custom && ms.choices[k] != conflict.Custom {
@@ -272,14 +272,14 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 					ui.Text(c, text).Font("monospace").FontSize(textSmall).Selectable()
 				})
 			}
-			side("Ours: "+redact.Control(cc.OursLabel), shown.sides[0])
+			side(locales.MergeOursSide(redact.Control(cc.OursLabel)), shown.sides[0])
 			if cc.HasBase {
-				side("Base: "+redact.Control(cc.BaseLabel), shown.sides[1])
+				side(locales.MergeBaseSide(redact.Control(cc.BaseLabel)), shown.sides[1])
 			}
-			side("Theirs: "+redact.Control(cc.TheirsLabel), shown.sides[2])
+			side(locales.MergeTheirsSide(redact.Control(cc.TheirsLabel)), shown.sides[2])
 		})
 		if ms.choices[k] == conflict.Custom {
-			ui.TextArea(c, &ms.custom[k]).Font("monospace").FontSize(textSmall).Label("Result of conflict " + strconv.Itoa(k+1)).Height(120)
+			ui.TextArea(c, &ms.custom[k]).Font("monospace").FontSize(textSmall).Label(locales.MergeResultOfConflict(k + 1)).Height(120)
 		}
 	})
 }
@@ -306,7 +306,7 @@ func compact(text []byte) string {
 	}
 	head := bytes.Join(lines[:3], nil)
 	tail := bytes.Join(lines[len(lines)-3:], nil)
-	return redact.Control(string(head)) + fmt.Sprintf("⋯ %d lines\n", len(lines)-6) + strings.TrimSuffix(redact.Control(string(tail)), "\n")
+	return redact.Control(string(head)) + locales.MergeUnchangedLines(len(lines)-6) + "\n" + strings.TrimSuffix(redact.Control(string(tail)), "\n")
 }
 
 func (a *App) saveMerge(t *tab) {
@@ -340,22 +340,22 @@ func (a *App) sidesOnly(c *ui.Context, t *tab, cf session.ConflictFile) {
 		var what string
 		switch {
 		case !cf.Ours:
-			what = "Deleted on this side, changed on the other"
+			what = locales.MergeDeletedHere()
 		case !cf.Theirs:
-			what = "Changed on this side, deleted on the other"
+			what = locales.MergeDeletedThere()
 		default:
-			what = "Binary file changed on both sides"
+			what = locales.MergeBinaryBothSides()
 		}
 		ui.Text(c, what).TextColor(th.TextMuted)
 		ui.Row(c).Gap(spaceM).Children(func() {
 			for _, s := range []struct {
-				label  string
+				label  func() string
 				side   write.Side
 				exists bool
-			}{{"Take Ours", write.OurSide, cf.Ours}, {"Take Theirs", write.TheirSide, cf.Theirs}} {
-				label := s.label
+			}{{locales.MergeTakeOurs, write.OurSide, cf.Ours}, {locales.MergeTakeTheirs, write.TheirSide, cf.Theirs}} {
+				label := s.label()
 				if !s.exists {
-					label = "Delete It"
+					label = locales.MergeDeleteIt()
 				}
 				if ui.Button(c, label).Disabled(ro).Clicked() {
 					if s.exists {
@@ -377,7 +377,7 @@ func (a *App) takeBoth(t *tab, path string) {
 	t.s.LoadConflict(path, func(cf session.ConflictFile) {
 		err := cf.Err
 		if err == nil && (cf.Binary || cf.Segments == nil) {
-			err = fmt.Errorf("%s cannot be merged line by line", path)
+			err = errors.New(locales.MergeNotLineByLine(path))
 		}
 		if err == nil {
 			cs := make([]conflict.Choice, conflict.Count(cf.Segments))
@@ -411,31 +411,36 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 	}
 	w := t.s.Where()
 	name := string(op)
+	// The catalog selects on the operation, and a select case is a word.
+	opKey := name
+	if op == repo.CherryPick {
+		opKey = "cherryPick"
+	}
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-		what := strings.ToUpper(name[:1]) + name[1:] + " stopped"
+		what := locales.MergeStopped(opKey)
 		if conflicts > 0 {
-			what += ": " + plural(conflicts, "conflicted file") + " left"
+			what = locales.MergeStoppedConflicts(opKey, conflicts)
 		}
 		ui.Text(c, what).Bold().SingleLine().Grow(1)
-		if ui.Button(c, "Continue").Disabled(ro || conflicts > 0).Clicked() {
+		if ui.Button(c, locales.MergeContinue()).Disabled(ro || conflicts > 0).Clicked() {
 			o, err := write.Sequence(w, name, write.Continue)
 			a.submit(t, o, err)
 		}
 		if op != repo.Merge {
-			if ui.Button(c, "Skip").Disabled(ro).Clicked() {
+			if ui.Button(c, locales.MergeSkip()).Disabled(ro).Clicked() {
 				o, err := write.Sequence(w, name, write.Skip)
 				a.submit(t, o, err)
 			}
 		}
-		if ui.Button(c, "Abort…").Disabled(ro).Clicked() {
+		if ui.Button(c, locales.MergeAbortEllipsis()).Disabled(ro).Clicked() {
 			o, err := write.Sequence(w, name, write.Abort)
 			if err != nil {
 				a.notice = errText(err)
 				return
 			}
-			a.confirm = confirmState{open: true, title: "Abort the " + name + "?",
-				message: "Files go back to where they were before it; resolutions made so far are kept in a snapshot.",
-				button:  "Abort", run: func() { a.submit(t, o, nil) }}
+			a.confirm = confirmState{open: true, title: locales.MergeAbortTitle(opKey),
+				message: locales.MergeAbortMessage(),
+				button:  locales.MergeAbort(), run: func() { a.submit(t, o, nil) }}
 		}
 	})
 }
@@ -482,8 +487,8 @@ func (a *App) mergeDialogView(c *ui.Context) {
 	}
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Height(420).Children(func() {
-			ui.Text(c, "Merge "+redact.Control(strings.TrimPrefix(d.what, "refs/heads/"))+" into "+redact.Control(into)).Bold()
-			ui.Segmented(c, &d.mode, "Fast-Forward If Possible", "Fast-Forward Only", "Always Merge Commit", "Squash")
+			ui.Text(c, locales.MergeDialogTitle(redact.Control(strings.TrimPrefix(d.what, "refs/heads/")), redact.Control(into))).Bold()
+			ui.Segmented(c, &d.mode, locales.MergeModeFastForward(), locales.MergeModeFastForwardOnly(), locales.MergeModeMergeCommit(), locales.MergeModeSquash())
 			p := d.preview
 			switch {
 			case d.err != "":
@@ -491,14 +496,14 @@ func (a *App) mergeDialogView(c *ui.Context) {
 			case p == nil:
 				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 					ui.Spinner(c)
-					ui.Text(c, "Working out the merge").TextColor(th.TextMuted)
+					ui.Text(c, locales.MergeWorkingOut()).TextColor(th.TextMuted)
 				})
 			case p.UpToDate:
-				ui.Text(c, "Already up to date").TextColor(th.TextMuted)
+				ui.Text(c, locales.MergeUpToDate()).TextColor(th.TextMuted)
 			case len(p.Conflicts) == 0:
-				ui.Text(c, "Merges cleanly; "+plural(len(p.BothChanged), "file")+" changed on both sides").TextColor(th.TextMuted)
+				ui.Text(c, locales.MergeCleanly(len(p.BothChanged))).TextColor(th.TextMuted)
 			default:
-				ui.Text(c, plural(len(p.Conflicts), "file")+" will conflict").TextColor(th.Warning)
+				ui.Text(c, locales.MergeWillConflict(len(p.Conflicts))).TextColor(th.Warning)
 			}
 			if p != nil && len(p.BothChanged) > 0 {
 				conflicts := map[string]bool{}
@@ -512,21 +517,21 @@ func (a *App) mergeDialogView(c *ui.Context) {
 						shown, _ := showPath(files[i])
 						ui.Text(c, shown).Font("monospace").FontSize(textSmall).SingleLine().Grow(1)
 						if conflicts[files[i]] {
-							ui.Text(c, "conflict").FontSize(textSmall).TextColor(th.Warning)
+							ui.Text(c, locales.MergeFileConflicts()).FontSize(textSmall).TextColor(th.Warning)
 						} else {
-							ui.Text(c, "merges").FontSize(textSmall).TextColor(th.TextMuted)
+							ui.Text(c, locales.MergeFileMerges()).FontSize(textSmall).TextColor(th.TextMuted)
 						}
 					})
-				}).Label("Files that would conflict").Grow(1)
+				}).Label(locales.MergeFilesLabel()).Grow(1)
 			} else {
 				ui.Spacer(c)
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, "Merge").Disabled(t.s.Queue == nil || p != nil && p.UpToDate).Clicked() {
+				if ui.PrimaryButton(c, locales.MergeMerge()).Disabled(t.s.Queue == nil || p != nil && p.UpToDate).Clicked() {
 					op, err := write.Merge(t.s.Where(), d.what, mergeModes[d.mode], t.s.Seen())
 					a.submit(t, op, err)
 					d.open = false
@@ -558,10 +563,10 @@ func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, wh
 		return take, remove
 	}
 	for _, s := range []struct {
-		label string
+		label func(what string) string
 		side  write.Side
-	}{{"Take Ours for ", write.OurSide}, {"Take Theirs for ", write.TheirSide}} {
-		if menu.Item(s.label + what).Disabled(ro).Chosen() {
+	}{{locales.MergeTakeOursFor, write.OurSide}, {locales.MergeTakeTheirsFor, write.TheirSide}} {
+		if menu.Item(s.label(what)).Disabled(ro).Chosen() {
 			*act = func() {
 				take, remove := split(s.side)
 				if len(take) > 0 {
@@ -577,7 +582,7 @@ func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, wh
 	}
 	if len(es) == 1 {
 		p := string(m.st.Path(int(es[0])))
-		if menu.Item("Take Both, Ours First").Disabled(ro).Chosen() {
+		if menu.Item(locales.MergeTakeBoth()).Disabled(ro).Chosen() {
 			*act = func() { a.takeBoth(t, p) }
 		}
 	}
@@ -586,7 +591,7 @@ func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, wh
 		gui, _ = r.Config().Get("merge.guitool")
 		tool, _ = r.Config().Get("merge.tool")
 	}
-	if menu.Item("Open in Merge Tool").Disabled(ro || gui == "" && tool == "").Chosen() {
+	if menu.Item(locales.MergeOpenInTool()).Disabled(ro || gui == "" && tool == "").Chosen() {
 		*act = func() {
 			var paths []string
 			for _, e := range es {

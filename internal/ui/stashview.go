@@ -12,6 +12,7 @@ import (
 	"ramus/internal/git/refs"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // stashState is a tab's list of stashes and the one chosen.
@@ -72,32 +73,32 @@ func (a *App) stashDialogView(c *ui.Context) {
 	th := c.Theme()
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
-			title := "Stash Changes"
+			title := locales.StashTitle()
 			if n := len(d.paths); n > 0 {
-				title = "Stash Changes to " + countOf(n, "File")
+				title = locales.StashFilesTitle(n)
 				if n == 1 {
-					title = "Stash Changes to " + d.paths[0]
+					title = locales.StashFileTitle(d.paths[0])
 				}
 			}
 			ui.Text(c, title).Bold()
-			in := ui.TextInput(c, &d.message).Placeholder("Message").Label("Message").AutoFocus()
+			in := ui.TextInput(c, &d.message).Placeholder(locales.CommonMessage()).Label(locales.CommonMessage()).AutoFocus()
 			if len(d.paths) == 0 && canStashStaged(d.t) {
-				ui.Segmented(c, &d.what, "All Changes", "Staged Changes Only")
+				ui.Segmented(c, &d.what, locales.StashAllChanges(), locales.StashStagedOnly())
 			}
 			staged := len(d.paths) == 0 && d.what == 1
 			if !staged {
-				ui.Checkbox(c, &d.untracked, "Include untracked files")
-				ui.Checkbox(c, &d.keepIndex, "Keep staged changes in place")
+				ui.Checkbox(c, &d.untracked, locales.StashIncludeUntracked())
+				ui.Checkbox(c, &d.keepIndex, locales.StashKeepIndex())
 			}
 			if d.err != "" {
 				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger)
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, "Stash").Disabled(d.t.s.Queue == nil).Clicked() || in.Submitted() {
+				if ui.PrimaryButton(c, locales.StashStash()).Disabled(d.t.s.Queue == nil).Clicked() || in.Submitted() {
 					op := write.Stash(d.t.s.Where(), write.StashOptions{Message: d.message, Untracked: d.untracked, KeepIndex: d.keepIndex,
 						Paths: d.paths, Staged: staged})
 					if _, err := d.t.s.Submit(op); err != nil {
@@ -130,8 +131,8 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				if d := ss.dropped; d != nil {
-					ui.Text(c, "Dropped "+hex.EncodeToString(d.OID)[:10]).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
-					if ui.Button(c, "Restore").Disabled(t.s.Queue == nil).Clicked() {
+					ui.Text(c, locales.StashDropped(hex.EncodeToString(d.OID)[:10])).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
+					if ui.Button(c, locales.StashRestore()).Disabled(t.s.Queue == nil).Clicked() {
 						op, err := write.StashRestore(t.s.Where(), hex.EncodeToString(d.OID), d.Message)
 						a.submit(t, op, err)
 						ss.dropped = nil
@@ -139,7 +140,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 				} else {
 					ui.Spacer(c)
 				}
-				if ui.Button(c, "Stash Changes…").Disabled(t.s.Queue == nil).Clicked() {
+				if ui.Button(c, locales.StashChangesEllipsis()).Disabled(t.s.Queue == nil).Clicked() {
 					a.openStash(t)
 				}
 			})
@@ -153,25 +154,25 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 						ui.Spinner(c)
 						return
 					}
-					ui.Text(c, "No stashes").TextColor(th.TextMuted)
+					ui.Text(c, locales.StashNone()).TextColor(th.TextMuted)
 				})
 				return
 			}
 			entries := ss.entries
 			ss.list.Selected = &ss.chosen
-			ss.list.Label = func(i int) string { return "stash@{" + strconv.Itoa(i) + "}, " + redact.Control(entries[i].Message) }
+			ss.list.Label = func(i int) string { return stashName(i) + ", " + redact.Control(entries[i].Message) }
 			now := a.Now()
 			var act func()
 			ui.List(c, &ss.list, len(entries), func(i int) {
 				e := entries[i]
 				row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 				row.Children(func() {
-					ui.Text(c, "stash@{"+strconv.Itoa(i)+"}").Font("monospace").FontSize(textSmall).Width(80).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, stashName(i)).Font("monospace").FontSize(textSmall).Width(80).TextColor(th.TextMuted).SingleLine()
 					ui.Text(c, redact.Control(e.Message)).SingleLine().Grow(1)
 					ui.Text(c, ago(now, e.Time)).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
 				})
 				row.ContextMenu(func(m *ui.Menu) { a.stashMenu(m, t, i, e, &act) })
-			}).Label("Stash entries").Grow(1)
+			}).Label(locales.StashEntriesLabel()).Grow(1)
 			if act != nil {
 				act()
 			}
@@ -187,43 +188,46 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 	a.refDialogView(c, &ss.branch, t)
 }
 
+// stashName is git's name of the stash entry n.
+func stashName(n int) string { return "stash@{" + strconv.Itoa(n) + "}" }
+
 func (a *App) stashMenu(m *ui.Menu, t *tab, n int, e session.ReflogEntry, act *func()) {
 	ss := &t.stash
 	ro := t.s.Queue == nil
 	entry := write.StashEntry{N: n, Commit: hex.EncodeToString(e.OID)}
 	w := t.s.Where()
-	if m.Item("Apply").Disabled(ro).Chosen() {
+	if m.Item(locales.StashApply()).Disabled(ro).Chosen() {
 		*act = func() {
 			op, err := write.StashApply(w, entry, false)
 			a.submit(t, op, err)
 		}
 	}
-	if m.Item("Apply with Staged Changes").Disabled(ro).Chosen() {
+	if m.Item(locales.StashApplyStaged()).Disabled(ro).Chosen() {
 		*act = func() {
 			op, err := write.StashApply(w, entry, true)
 			a.submit(t, op, err)
 		}
 	}
-	if m.Item("Pop").Disabled(ro).Chosen() {
+	if m.Item(locales.StashPop()).Disabled(ro).Chosen() {
 		*act = func() {
 			op, err := write.StashPop(w, entry, false)
 			a.submit(t, op, err)
 		}
 	}
-	if m.Item("Create Branch from Stash…").Disabled(ro).Chosen() {
+	if m.Item(locales.StashCreateBranch()).Disabled(ro).Chosen() {
 		*act = func() {
 			seen := t.s.Seen()
-			ss.branch = refDialog{open: true, title: "Branch from stash@{" + strconv.Itoa(n) + "}", labels: []string{"Branch name"}, values: []string{""}, button: "Create",
+			ss.branch = refDialog{open: true, title: locales.StashBranchTitle(stashName(n)), labels: []string{locales.CommonBranchName()}, values: []string{""}, button: locales.CommonCreate(),
 				run: func(d *refDialog) (write.Op, error) {
 					return write.StashBranch(w, entry, strings.TrimSpace(d.values[0]), seen)
 				}}
 		}
 	}
 	m.Separator()
-	if m.Item("Drop…").Disabled(ro).Danger().Chosen() {
+	if m.Item(locales.StashDropEllipsis()).Disabled(ro).Danger().Chosen() {
 		*act = func() {
-			ss.ask = confirmState{open: true, title: "Drop stash@{" + strconv.Itoa(n) + "} (" + entry.Commit[:10] + ")?",
-				message: redact.Control(e.Message) + ". Restore puts it back while git keeps its commit.", button: "Drop",
+			ss.ask = confirmState{open: true, title: locales.StashDropTitle(stashName(n), entry.Commit[:10]),
+				message: locales.StashDropMessage(redact.Control(e.Message)), button: locales.StashDrop(),
 				run: func() {
 					op, err := write.StashDrop(w, entry)
 					if err == nil {
@@ -237,7 +241,7 @@ func (a *App) stashMenu(m *ui.Menu, t *tab, n int, e session.ReflogEntry, act *f
 				}}
 		}
 	}
-	if m.Item("Copy Hash").Chosen() {
+	if m.Item(locales.CommonCopyHash()).Chosen() {
 		a.clip = entry.Commit
 	}
 }

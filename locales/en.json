@@ -306,5 +306,276 @@
   "submoduleCopyPath": "Copy Path",
   "submoduleNotCheckedOutNotice": "Submodule {path} is not checked out.",
   "submoduleNotCheckedOutTitle": "Submodule {path} is not checked out",
-  "submoduleCheckOutMessage": "Check Out clones it from its URL and checks out the commit this repository records, with its own submodules."
+  "submoduleCheckOutMessage": "Check Out clones it from its URL and checks out the commit this repository records, with its own submodules.",
+  "mergeMoreLines": "⋯ {count, plural, one {{count, number, ::group-off} more line} other {{count, number, ::group-off} more lines}}",
+  "@mergeMoreLines": {
+    "description": "After the lines a side of a conflict shows, how many it leaves out."
+  },
+  "mergeUnchangedLines": "⋯ {count, plural, one {{count, number, ::group-off} line} other {{count, number, ::group-off} lines}}",
+  "@mergeUnchangedLines": {
+    "description": "Between the first and last lines of unchanged text around conflicts, how many it leaves out."
+  },
+  "mergeOurs": "Ours",
+  "@mergeOurs": {
+    "description": "Resolves a conflict with our side."
+  },
+  "mergeTheirs": "Theirs",
+  "@mergeTheirs": {
+    "description": "Resolves a conflict with their side."
+  },
+  "mergeBoth": "Both",
+  "@mergeBoth": {
+    "description": "Resolves a conflict keeping both sides, ours first."
+  },
+  "mergeBothTheirsFirst": "Both, Theirs First",
+  "mergeBase": "Base",
+  "@mergeBase": {
+    "description": "Resolves a conflict with the merge base's text."
+  },
+  "mergeEdit": "Edit",
+  "@mergeEdit": {
+    "description": "A verb: resolves a conflict with text the user edits."
+  },
+  "mergeResolvedCount": "{done} of {total} resolved",
+  "@mergeResolvedCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    },
+    "description": "How many conflicts of a file are resolved."
+  },
+  "mergeAllOurs": "All Ours",
+  "mergeAllTheirs": "All Theirs",
+  "mergeSaveAndMarkResolved": "Save and Mark Resolved",
+  "mergeNoMarkersLeft": "No conflict markers are left in this file",
+  "mergeMarkResolved": "Mark Resolved",
+  "mergeConflictNumber": "Conflict {n}",
+  "@mergeConflictNumber": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "mergeUnchangedText": "Unchanged text",
+  "mergeConflictsLabel": "Conflicts and unchanged text",
+  "@mergeConflictsLabel": {
+    "description": "Accessibility label of the list of a file's conflicts."
+  },
+  "mergeEditTooLong": "Over {n, number, ::group-off} lines: edit this conflict in your editor",
+  "@mergeEditTooLong": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "mergeOursSide": "Ours: {label}",
+  "@mergeOursSide": {
+    "description": "Heads our side of a conflict; label is git's name of that side."
+  },
+  "mergeBaseSide": "Base: {label}",
+  "mergeTheirsSide": "Theirs: {label}",
+  "mergeResultOfConflict": "Result of conflict {n}",
+  "@mergeResultOfConflict": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "mergeDeletedHere": "Deleted on this side, changed on the other",
+  "mergeDeletedThere": "Changed on this side, deleted on the other",
+  "mergeBinaryBothSides": "Binary file changed on both sides",
+  "mergeTakeOurs": "Take Ours",
+  "mergeTakeTheirs": "Take Theirs",
+  "mergeDeleteIt": "Delete It",
+  "mergeNotLineByLine": "{path} cannot be merged line by line",
+  "mergeStopped": "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}}} stopped",
+  "@mergeStopped": {
+    "description": "operation is the operation that stopped: merge, rebase, cherryPick, revert or am."
+  },
+  "mergeStoppedConflicts": "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}}} stopped: {count, plural, one {# conflicted file} other {# conflicted files}} left",
+  "@mergeStoppedConflicts": {
+    "description": "operation is the operation that stopped: merge, rebase, cherryPick, revert or am."
+  },
+  "mergeContinue": "Continue",
+  "mergeSkip": "Skip",
+  "mergeAbortEllipsis": "Abort…",
+  "mergeAbortTitle": "Abort the {operation, select, merge {merge} rebase {rebase} cherryPick {cherry-pick} revert {revert} am {am} other {{operation}}}?",
+  "@mergeAbortTitle": {
+    "description": "operation is the operation that stopped: merge, rebase, cherryPick, revert or am."
+  },
+  "mergeAbortMessage": "Files go back to where they were before it; resolutions made so far are kept in a snapshot.",
+  "mergeAbort": "Abort",
+  "mergeDialogTitle": "Merge {branch} into {into}",
+  "mergeModeFastForward": "Fast-Forward If Possible",
+  "mergeModeFastForwardOnly": "Fast-Forward Only",
+  "mergeModeMergeCommit": "Always Merge Commit",
+  "mergeModeSquash": "Squash",
+  "@mergeModeSquash": {
+    "description": "A merge mode: squash the branch's commits into one change."
+  },
+  "mergeWorkingOut": "Working out the merge",
+  "mergeUpToDate": "Already up to date",
+  "mergeCleanly": "Merges cleanly; {count, plural, one {# file} other {# files}} changed on both sides",
+  "mergeWillConflict": "{count, plural, one {# file} other {# files}} will conflict",
+  "mergeFileConflicts": "conflict",
+  "@mergeFileConflicts": {
+    "description": "Beside a file in a merge preview: the file will conflict."
+  },
+  "mergeFileMerges": "merges",
+  "@mergeFileMerges": {
+    "description": "Beside a file in a merge preview: the file merges cleanly."
+  },
+  "mergeFilesLabel": "Files that would conflict",
+  "mergeMerge": "Merge",
+  "@mergeMerge": {
+    "description": "A verb: the button that merges the branch."
+  },
+  "mergeTakeOursFor": "Take Ours for {what}",
+  "@mergeTakeOursFor": {
+    "description": "A menu item; what is \"File\" or \"3 Files\"."
+  },
+  "mergeTakeTheirsFor": "Take Theirs for {what}",
+  "mergeTakeBoth": "Take Both, Ours First",
+  "mergeOpenInTool": "Open in Merge Tool",
+  "mergeToolTitle": "Merge {file}",
+  "mergeToolBinary": "Binary files are merged by keeping one side whole",
+  "mergeKeepOurs": "Keep Ours",
+  "mergeKeepTheirs": "Keep Theirs",
+  "mergeToolNoConflicts": "The sides merge without conflicts",
+  "compareNotSameKind": "{old} and {new} are not both files or both folders",
+  "compareTitle": "Compare",
+  "@compareTitle": {
+    "description": "A heading: the comparison of two files or folders."
+  },
+  "compareNoDifferences": "No differences",
+  "compareFilesDiffer": "{count, plural, one {# file differs} other {# files differ}}",
+  "compareFirstFilesDiffer": "The first {count, plural, one {# file differs} other {# files differ}}",
+  "@compareFirstFilesDiffer": {
+    "description": "When the comparison stopped before reading every file."
+  },
+  "compareFileLabel": "{status} {path}",
+  "@compareFileLabel": {
+    "description": "Accessibility label of a differing file; status is a word such as Added or Modified."
+  },
+  "compareDifferingFiles": "Differing files",
+  "compareChooseFile": "Choose a file to see its changes",
+  "compareSwap": "Swap",
+  "@compareSwap": {
+    "description": "Swaps the two commits compared."
+  },
+  "worktreeNewTitle": "New Worktree for {branch}",
+  "worktreeOpenTab": "Open in a new tab",
+  "worktreePickFolder": "Folder for the Worktree",
+  "@worktreePickFolder": {
+    "description": "Title of the folder picker."
+  },
+  "worktreeDetached": "detached",
+  "@worktreeDetached": {
+    "description": "Beside a worktree in the sidebar: no branch is checked out there."
+  },
+  "worktreeFolderMissing": "folder missing",
+  "@worktreeFolderMissing": {
+    "description": "Beside a worktree: its folder is gone."
+  },
+  "worktreeLocked": "locked",
+  "@worktreeLocked": {
+    "description": "Beside a worktree in the sidebar: it is locked."
+  },
+  "worktreeOpenInNewTab": "Open in New Tab",
+  "worktreeOpenInNewWindow": "Open in New Window",
+  "worktreeCopyPath": "Copy Path",
+  "worktreeUnlock": "Unlock",
+  "worktreeLockEllipsis": "Lock…",
+  "worktreePruneEllipsis": "Prune…",
+  "worktreeRemoveEllipsis": "Remove…",
+  "worktreeGoneMessage": "The folder {path} is gone. Pruning forgets every worktree whose folder is gone; their branches stay.",
+  "worktreeGoneLockedMessage": "The folder {path} is gone, and the worktree is locked: its folder may be on a drive not connected now. Unlock it to prune it.",
+  "worktreeGoneLockedReasonMessage": "The folder {path} is gone, and the worktree is locked ({reason}): its folder may be on a drive not connected now. Unlock it to prune it.",
+  "worktreeMissingTitle": "Worktree {name} is missing",
+  "worktreePrune": "Prune",
+  "worktreeRemoveTitle": "Remove worktree {name}?",
+  "worktreeRemoveFolder": "Its folder {path} is deleted.",
+  "worktreeAlsoDeleteBranch": "Also delete branch {branch}",
+  "worktreeRemoveForce": "Remove even with changes or untracked files",
+  "worktreeLockTitle": "Lock worktree {name}",
+  "worktreeReason": "Reason",
+  "worktreeReasonPlaceholder": "Reason (optional)",
+  "worktreeLock": "Lock",
+  "@worktreeLock": {
+    "description": "A verb: the button that locks the worktree."
+  },
+  "worktreeColumnWorktree": "Worktree",
+  "worktreeColumnBranch": "Branch",
+  "@worktreeColumnBranch": {
+    "description": "A column heading: the branch checked out."
+  },
+  "worktreeColumnChanges": "Changes",
+  "@worktreeColumnChanges": {
+    "description": "A column heading: how many files have changes."
+  },
+  "worktreeColumnAheadBehind": "Ahead, Behind",
+  "worktreeColumnLastActive": "Last Active",
+  "worktreeCount": "{count, plural, one {# worktree} other {# worktrees}}",
+  "worktreeCompareFolders": "Compare Folders",
+  "worktreeCompareBranches": "Compare Branches",
+  "worktreeCompareBox": "Compare {name}",
+  "@worktreeCompareBox": {
+    "description": "Accessibility label of the box that picks a worktree to compare."
+  },
+  "worktreeDetachedAt": "detached at {hash}",
+  "worktreeAheadBehind": "{ahead} ahead, {behind} behind {upstream}",
+  "@worktreeAheadBehind": {
+    "placeholders": {
+      "ahead": {
+        "type": "int"
+      },
+      "behind": {
+        "type": "int"
+      }
+    }
+  },
+  "worktreeOpen": "Open",
+  "worktreeOpenLabel": "Open {name}",
+  "worktreeTableLabel": "Worktrees",
+  "stashTitle": "Stash Changes",
+  "stashFilesTitle": "Stash Changes to {count, plural, one {# File} other {# Files}}",
+  "stashFileTitle": "Stash Changes to {path}",
+  "stashAllChanges": "All Changes",
+  "stashStagedOnly": "Staged Changes Only",
+  "stashIncludeUntracked": "Include untracked files",
+  "stashKeepIndex": "Keep staged changes in place",
+  "stashStash": "Stash",
+  "@stashStash": {
+    "description": "A verb: the button that stashes the changes."
+  },
+  "stashDropped": "Dropped {hash}",
+  "stashRestore": "Restore",
+  "stashChangesEllipsis": "Stash Changes…",
+  "stashNone": "No stashes",
+  "stashEntriesLabel": "Stash entries",
+  "stashApply": "Apply",
+  "stashApplyStaged": "Apply with Staged Changes",
+  "stashPop": "Pop",
+  "@stashPop": {
+    "description": "A verb: applies the stash and drops it."
+  },
+  "stashCreateBranch": "Create Branch from Stash…",
+  "stashBranchTitle": "Branch from {stash}",
+  "@stashBranchTitle": {
+    "description": "stash is a name such as stash@{0}."
+  },
+  "stashDropEllipsis": "Drop…",
+  "stashDropTitle": "Drop {stash} ({hash})?",
+  "stashDropMessage": "{message}. Restore puts it back while git keeps its commit.",
+  "@stashDropMessage": {
+    "description": "message is the stash's own message."
+  },
+  "stashDrop": "Drop"
 }

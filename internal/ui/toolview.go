@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -11,6 +10,7 @@ import (
 	"ramus/internal/git/conflict"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // ToolView is the window of the app run as git's difftool or mergetool:
@@ -152,23 +152,23 @@ func (a *App) mergeToolView(c *ui.Context) {
 			}
 			ui.Row(c).Padding(0, dialogPad).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).Gap(space2XS).Children(func() {
-					ui.Text(c, "Merge "+redact.Control(filepath.Base(mt.merged))).Bold().SingleLine()
+					ui.Text(c, locales.MergeToolTitle(redact.Control(filepath.Base(mt.merged)))).Bold().SingleLine()
 					ui.Text(c, redact.Control(mt.merged)).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
 				})
 				if n > 0 {
-					ui.Text(c, fmt.Sprintf("%d of %d resolved", done, n)).FontSize(textSmall).TextColor(th.TextMuted)
-					if ui.Button(c, "All Ours").Clicked() {
+					ui.Text(c, locales.MergeResolvedCount(done, n)).FontSize(textSmall).TextColor(th.TextMuted)
+					if ui.Button(c, locales.MergeAllOurs()).Clicked() {
 						fill(ms.choices, conflict.Ours)
 					}
-					if ui.Button(c, "All Theirs").Clicked() {
+					if ui.Button(c, locales.MergeAllTheirs()).Clicked() {
 						fill(ms.choices, conflict.Theirs)
 					}
 				}
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					a.endMergeTool(false)
 				}
 				ready := !mt.loading && !mt.saving && mt.files.Segments != nil && done == n
-				if ui.PrimaryButton(c, "Save").Disabled(!ready).Clicked() {
+				if ui.PrimaryButton(c, locales.CommonSave()).Disabled(!ready).Clicked() {
 					custom := make([][]byte, len(ms.custom))
 					for i, s := range ms.custom {
 						custom[i] = []byte(s)
@@ -189,10 +189,13 @@ func (a *App) mergeToolView(c *ui.Context) {
 				loading(c, "")
 			case mt.files.Binary:
 				ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
-					ui.Text(c, "Binary files are merged by keeping one side whole").TextColor(th.TextMuted)
+					ui.Text(c, locales.MergeToolBinary()).TextColor(th.TextMuted)
 					ui.Row(c).Gap(spaceM).Children(func() {
-						for _, side := range []struct{ label, path string }{{"Keep Ours", mt.local}, {"Keep Theirs", mt.remote}} {
-							if ui.Button(c, side.label).Disabled(mt.saving).Clicked() {
+						for _, side := range []struct {
+							label func() string
+							path  string
+						}{{locales.MergeKeepOurs, mt.local}, {locales.MergeKeepTheirs, mt.remote}} {
+							if ui.Button(c, side.label()).Disabled(mt.saving).Clicked() {
 								a.saveMergeTool(nil, side.path)
 							}
 						}
@@ -200,7 +203,7 @@ func (a *App) mergeToolView(c *ui.Context) {
 				})
 			case mt.files.Segments == nil:
 			case n == 0:
-				emptyState(c, "The sides merge without conflicts")
+				emptyState(c, locales.MergeToolNoConflicts())
 			default:
 				a.conflictList(c, ms)
 			}

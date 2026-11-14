@@ -1831,3 +1831,1471 @@ func SubmoduleCheckOutMessage() string { return In(i18n.Locale()).SubmoduleCheck
 func (msgs Messages) SubmoduleCheckOutMessage() string {
 	return Catalog.Format(msgs.locale, "submoduleCheckOutMessage", nil)
 }
+
+// MergeMoreLines says "⋯ {count, plural, one {{count, number, ::group-off} more line} other {{count, number, ::group-off} more lines}}"
+// in the language the app shows.
+//
+// After the lines a side of a conflict shows, how many it leaves out.
+func MergeMoreLines(count int) string { return In(i18n.Locale()).MergeMoreLines(count) }
+
+// MergeMoreLines says "⋯ {count, plural, one {{count, number, ::group-off} more line} other {{count, number, ::group-off} more lines}}"
+// in the language of msgs.
+//
+// After the lines a side of a conflict shows, how many it leaves out.
+func (msgs Messages) MergeMoreLines(count int) string {
+	return Catalog.Format(msgs.locale, "mergeMoreLines", map[string]any{"count": count})
+}
+
+// MergeUnchangedLines says "⋯ {count, plural, one {{count, number, ::group-off} line} other {{count, number, ::group-off} lines}}"
+// in the language the app shows.
+//
+// Between the first and last lines of unchanged text around conflicts, how
+// many it leaves out.
+func MergeUnchangedLines(count int) string { return In(i18n.Locale()).MergeUnchangedLines(count) }
+
+// MergeUnchangedLines says "⋯ {count, plural, one {{count, number, ::group-off} line} other {{count, number, ::group-off} lines}}"
+// in the language of msgs.
+//
+// Between the first and last lines of unchanged text around conflicts, how
+// many it leaves out.
+func (msgs Messages) MergeUnchangedLines(count int) string {
+	return Catalog.Format(msgs.locale, "mergeUnchangedLines", map[string]any{"count": count})
+}
+
+// MergeOurs says "Ours"
+// in the language the app shows.
+//
+// Resolves a conflict with our side.
+func MergeOurs() string { return In(i18n.Locale()).MergeOurs() }
+
+// MergeOurs says "Ours"
+// in the language of msgs.
+//
+// Resolves a conflict with our side.
+func (msgs Messages) MergeOurs() string {
+	return Catalog.Format(msgs.locale, "mergeOurs", nil)
+}
+
+// MergeTheirs says "Theirs"
+// in the language the app shows.
+//
+// Resolves a conflict with their side.
+func MergeTheirs() string { return In(i18n.Locale()).MergeTheirs() }
+
+// MergeTheirs says "Theirs"
+// in the language of msgs.
+//
+// Resolves a conflict with their side.
+func (msgs Messages) MergeTheirs() string {
+	return Catalog.Format(msgs.locale, "mergeTheirs", nil)
+}
+
+// MergeBoth says "Both"
+// in the language the app shows.
+//
+// Resolves a conflict keeping both sides, ours first.
+func MergeBoth() string { return In(i18n.Locale()).MergeBoth() }
+
+// MergeBoth says "Both"
+// in the language of msgs.
+//
+// Resolves a conflict keeping both sides, ours first.
+func (msgs Messages) MergeBoth() string {
+	return Catalog.Format(msgs.locale, "mergeBoth", nil)
+}
+
+// MergeBothTheirsFirst says "Both, Theirs First"
+// in the language the app shows.
+func MergeBothTheirsFirst() string { return In(i18n.Locale()).MergeBothTheirsFirst() }
+
+// MergeBothTheirsFirst says "Both, Theirs First"
+// in the language of msgs.
+func (msgs Messages) MergeBothTheirsFirst() string {
+	return Catalog.Format(msgs.locale, "mergeBothTheirsFirst", nil)
+}
+
+// MergeBase says "Base"
+// in the language the app shows.
+//
+// Resolves a conflict with the merge base's text.
+func MergeBase() string { return In(i18n.Locale()).MergeBase() }
+
+// MergeBase says "Base"
+// in the language of msgs.
+//
+// Resolves a conflict with the merge base's text.
+func (msgs Messages) MergeBase() string {
+	return Catalog.Format(msgs.locale, "mergeBase", nil)
+}
+
+// MergeEdit says "Edit"
+// in the language the app shows.
+//
+// A verb: resolves a conflict with text the user edits.
+func MergeEdit() string { return In(i18n.Locale()).MergeEdit() }
+
+// MergeEdit says "Edit"
+// in the language of msgs.
+//
+// A verb: resolves a conflict with text the user edits.
+func (msgs Messages) MergeEdit() string {
+	return Catalog.Format(msgs.locale, "mergeEdit", nil)
+}
+
+// MergeResolvedCount says "{done} of {total} resolved"
+// in the language the app shows.
+//
+// How many conflicts of a file are resolved.
+func MergeResolvedCount(done int, total int) string {
+	return In(i18n.Locale()).MergeResolvedCount(done, total)
+}
+
+// MergeResolvedCount says "{done} of {total} resolved"
+// in the language of msgs.
+//
+// How many conflicts of a file are resolved.
+func (msgs Messages) MergeResolvedCount(done int, total int) string {
+	return Catalog.Format(msgs.locale, "mergeResolvedCount", map[string]any{"done": done, "total": total})
+}
+
+// MergeAllOurs says "All Ours"
+// in the language the app shows.
+func MergeAllOurs() string { return In(i18n.Locale()).MergeAllOurs() }
+
+// MergeAllOurs says "All Ours"
+// in the language of msgs.
+func (msgs Messages) MergeAllOurs() string {
+	return Catalog.Format(msgs.locale, "mergeAllOurs", nil)
+}
+
+// MergeAllTheirs says "All Theirs"
+// in the language the app shows.
+func MergeAllTheirs() string { return In(i18n.Locale()).MergeAllTheirs() }
+
+// MergeAllTheirs says "All Theirs"
+// in the language of msgs.
+func (msgs Messages) MergeAllTheirs() string {
+	return Catalog.Format(msgs.locale, "mergeAllTheirs", nil)
+}
+
+// MergeSaveAndMarkResolved says "Save and Mark Resolved"
+// in the language the app shows.
+func MergeSaveAndMarkResolved() string { return In(i18n.Locale()).MergeSaveAndMarkResolved() }
+
+// MergeSaveAndMarkResolved says "Save and Mark Resolved"
+// in the language of msgs.
+func (msgs Messages) MergeSaveAndMarkResolved() string {
+	return Catalog.Format(msgs.locale, "mergeSaveAndMarkResolved", nil)
+}
+
+// MergeNoMarkersLeft says "No conflict markers are left in this file"
+// in the language the app shows.
+func MergeNoMarkersLeft() string { return In(i18n.Locale()).MergeNoMarkersLeft() }
+
+// MergeNoMarkersLeft says "No conflict markers are left in this file"
+// in the language of msgs.
+func (msgs Messages) MergeNoMarkersLeft() string {
+	return Catalog.Format(msgs.locale, "mergeNoMarkersLeft", nil)
+}
+
+// MergeMarkResolved says "Mark Resolved"
+// in the language the app shows.
+func MergeMarkResolved() string { return In(i18n.Locale()).MergeMarkResolved() }
+
+// MergeMarkResolved says "Mark Resolved"
+// in the language of msgs.
+func (msgs Messages) MergeMarkResolved() string {
+	return Catalog.Format(msgs.locale, "mergeMarkResolved", nil)
+}
+
+// MergeConflictNumber says "Conflict {n}"
+// in the language the app shows.
+func MergeConflictNumber(n int) string { return In(i18n.Locale()).MergeConflictNumber(n) }
+
+// MergeConflictNumber says "Conflict {n}"
+// in the language of msgs.
+func (msgs Messages) MergeConflictNumber(n int) string {
+	return Catalog.Format(msgs.locale, "mergeConflictNumber", map[string]any{"n": n})
+}
+
+// MergeUnchangedText says "Unchanged text"
+// in the language the app shows.
+func MergeUnchangedText() string { return In(i18n.Locale()).MergeUnchangedText() }
+
+// MergeUnchangedText says "Unchanged text"
+// in the language of msgs.
+func (msgs Messages) MergeUnchangedText() string {
+	return Catalog.Format(msgs.locale, "mergeUnchangedText", nil)
+}
+
+// MergeConflictsLabel says "Conflicts and unchanged text"
+// in the language the app shows.
+//
+// Accessibility label of the list of a file's conflicts.
+func MergeConflictsLabel() string { return In(i18n.Locale()).MergeConflictsLabel() }
+
+// MergeConflictsLabel says "Conflicts and unchanged text"
+// in the language of msgs.
+//
+// Accessibility label of the list of a file's conflicts.
+func (msgs Messages) MergeConflictsLabel() string {
+	return Catalog.Format(msgs.locale, "mergeConflictsLabel", nil)
+}
+
+// MergeEditTooLong says "Over {n, number, ::group-off} lines: edit this conflict in your editor"
+// in the language the app shows.
+func MergeEditTooLong(n int) string { return In(i18n.Locale()).MergeEditTooLong(n) }
+
+// MergeEditTooLong says "Over {n, number, ::group-off} lines: edit this conflict in your editor"
+// in the language of msgs.
+func (msgs Messages) MergeEditTooLong(n int) string {
+	return Catalog.Format(msgs.locale, "mergeEditTooLong", map[string]any{"n": n})
+}
+
+// MergeOursSide says "Ours: {label}"
+// in the language the app shows.
+//
+// Heads our side of a conflict; label is git's name of that side.
+func MergeOursSide(label string) string { return In(i18n.Locale()).MergeOursSide(label) }
+
+// MergeOursSide says "Ours: {label}"
+// in the language of msgs.
+//
+// Heads our side of a conflict; label is git's name of that side.
+func (msgs Messages) MergeOursSide(label string) string {
+	return Catalog.Format(msgs.locale, "mergeOursSide", map[string]any{"label": label})
+}
+
+// MergeBaseSide says "Base: {label}"
+// in the language the app shows.
+func MergeBaseSide(label string) string { return In(i18n.Locale()).MergeBaseSide(label) }
+
+// MergeBaseSide says "Base: {label}"
+// in the language of msgs.
+func (msgs Messages) MergeBaseSide(label string) string {
+	return Catalog.Format(msgs.locale, "mergeBaseSide", map[string]any{"label": label})
+}
+
+// MergeTheirsSide says "Theirs: {label}"
+// in the language the app shows.
+func MergeTheirsSide(label string) string { return In(i18n.Locale()).MergeTheirsSide(label) }
+
+// MergeTheirsSide says "Theirs: {label}"
+// in the language of msgs.
+func (msgs Messages) MergeTheirsSide(label string) string {
+	return Catalog.Format(msgs.locale, "mergeTheirsSide", map[string]any{"label": label})
+}
+
+// MergeResultOfConflict says "Result of conflict {n}"
+// in the language the app shows.
+func MergeResultOfConflict(n int) string { return In(i18n.Locale()).MergeResultOfConflict(n) }
+
+// MergeResultOfConflict says "Result of conflict {n}"
+// in the language of msgs.
+func (msgs Messages) MergeResultOfConflict(n int) string {
+	return Catalog.Format(msgs.locale, "mergeResultOfConflict", map[string]any{"n": n})
+}
+
+// MergeDeletedHere says "Deleted on this side, changed on the other"
+// in the language the app shows.
+func MergeDeletedHere() string { return In(i18n.Locale()).MergeDeletedHere() }
+
+// MergeDeletedHere says "Deleted on this side, changed on the other"
+// in the language of msgs.
+func (msgs Messages) MergeDeletedHere() string {
+	return Catalog.Format(msgs.locale, "mergeDeletedHere", nil)
+}
+
+// MergeDeletedThere says "Changed on this side, deleted on the other"
+// in the language the app shows.
+func MergeDeletedThere() string { return In(i18n.Locale()).MergeDeletedThere() }
+
+// MergeDeletedThere says "Changed on this side, deleted on the other"
+// in the language of msgs.
+func (msgs Messages) MergeDeletedThere() string {
+	return Catalog.Format(msgs.locale, "mergeDeletedThere", nil)
+}
+
+// MergeBinaryBothSides says "Binary file changed on both sides"
+// in the language the app shows.
+func MergeBinaryBothSides() string { return In(i18n.Locale()).MergeBinaryBothSides() }
+
+// MergeBinaryBothSides says "Binary file changed on both sides"
+// in the language of msgs.
+func (msgs Messages) MergeBinaryBothSides() string {
+	return Catalog.Format(msgs.locale, "mergeBinaryBothSides", nil)
+}
+
+// MergeTakeOurs says "Take Ours"
+// in the language the app shows.
+func MergeTakeOurs() string { return In(i18n.Locale()).MergeTakeOurs() }
+
+// MergeTakeOurs says "Take Ours"
+// in the language of msgs.
+func (msgs Messages) MergeTakeOurs() string {
+	return Catalog.Format(msgs.locale, "mergeTakeOurs", nil)
+}
+
+// MergeTakeTheirs says "Take Theirs"
+// in the language the app shows.
+func MergeTakeTheirs() string { return In(i18n.Locale()).MergeTakeTheirs() }
+
+// MergeTakeTheirs says "Take Theirs"
+// in the language of msgs.
+func (msgs Messages) MergeTakeTheirs() string {
+	return Catalog.Format(msgs.locale, "mergeTakeTheirs", nil)
+}
+
+// MergeDeleteIt says "Delete It"
+// in the language the app shows.
+func MergeDeleteIt() string { return In(i18n.Locale()).MergeDeleteIt() }
+
+// MergeDeleteIt says "Delete It"
+// in the language of msgs.
+func (msgs Messages) MergeDeleteIt() string {
+	return Catalog.Format(msgs.locale, "mergeDeleteIt", nil)
+}
+
+// MergeNotLineByLine says "{path} cannot be merged line by line"
+// in the language the app shows.
+func MergeNotLineByLine(path string) string { return In(i18n.Locale()).MergeNotLineByLine(path) }
+
+// MergeNotLineByLine says "{path} cannot be merged line by line"
+// in the language of msgs.
+func (msgs Messages) MergeNotLineByLine(path string) string {
+	return Catalog.Format(msgs.locale, "mergeNotLineByLine", map[string]any{"path": path})
+}
+
+// MergeStopped says "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}…"
+// in the language the app shows.
+//
+// operation is the operation that stopped: merge, rebase, cherryPick,
+// revert or am.
+func MergeStopped(operation string) string { return In(i18n.Locale()).MergeStopped(operation) }
+
+// MergeStopped says "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}…"
+// in the language of msgs.
+//
+// operation is the operation that stopped: merge, rebase, cherryPick,
+// revert or am.
+func (msgs Messages) MergeStopped(operation string) string {
+	return Catalog.Format(msgs.locale, "mergeStopped", map[string]any{"operation": operation})
+}
+
+// MergeStoppedConflicts says "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}…"
+// in the language the app shows.
+//
+// operation is the operation that stopped: merge, rebase, cherryPick,
+// revert or am.
+func MergeStoppedConflicts(operation string, count int) string {
+	return In(i18n.Locale()).MergeStoppedConflicts(operation, count)
+}
+
+// MergeStoppedConflicts says "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}…"
+// in the language of msgs.
+//
+// operation is the operation that stopped: merge, rebase, cherryPick,
+// revert or am.
+func (msgs Messages) MergeStoppedConflicts(operation string, count int) string {
+	return Catalog.Format(msgs.locale, "mergeStoppedConflicts", map[string]any{"operation": operation, "count": count})
+}
+
+// MergeContinue says "Continue"
+// in the language the app shows.
+func MergeContinue() string { return In(i18n.Locale()).MergeContinue() }
+
+// MergeContinue says "Continue"
+// in the language of msgs.
+func (msgs Messages) MergeContinue() string {
+	return Catalog.Format(msgs.locale, "mergeContinue", nil)
+}
+
+// MergeSkip says "Skip"
+// in the language the app shows.
+func MergeSkip() string { return In(i18n.Locale()).MergeSkip() }
+
+// MergeSkip says "Skip"
+// in the language of msgs.
+func (msgs Messages) MergeSkip() string {
+	return Catalog.Format(msgs.locale, "mergeSkip", nil)
+}
+
+// MergeAbortEllipsis says "Abort…"
+// in the language the app shows.
+func MergeAbortEllipsis() string { return In(i18n.Locale()).MergeAbortEllipsis() }
+
+// MergeAbortEllipsis says "Abort…"
+// in the language of msgs.
+func (msgs Messages) MergeAbortEllipsis() string {
+	return Catalog.Format(msgs.locale, "mergeAbortEllipsis", nil)
+}
+
+// MergeAbortTitle says "Abort the {operation, select, merge {merge} rebase {rebase} cherryPick {cherry-pick} revert {revert} am {am} other {{…"
+// in the language the app shows.
+//
+// operation is the operation that stopped: merge, rebase, cherryPick,
+// revert or am.
+func MergeAbortTitle(operation string) string { return In(i18n.Locale()).MergeAbortTitle(operation) }
+
+// MergeAbortTitle says "Abort the {operation, select, merge {merge} rebase {rebase} cherryPick {cherry-pick} revert {revert} am {am} other {{…"
+// in the language of msgs.
+//
+// operation is the operation that stopped: merge, rebase, cherryPick,
+// revert or am.
+func (msgs Messages) MergeAbortTitle(operation string) string {
+	return Catalog.Format(msgs.locale, "mergeAbortTitle", map[string]any{"operation": operation})
+}
+
+// MergeAbortMessage says "Files go back to where they were before it; resolutions made so far are kept in a snapshot."
+// in the language the app shows.
+func MergeAbortMessage() string { return In(i18n.Locale()).MergeAbortMessage() }
+
+// MergeAbortMessage says "Files go back to where they were before it; resolutions made so far are kept in a snapshot."
+// in the language of msgs.
+func (msgs Messages) MergeAbortMessage() string {
+	return Catalog.Format(msgs.locale, "mergeAbortMessage", nil)
+}
+
+// MergeAbort says "Abort"
+// in the language the app shows.
+func MergeAbort() string { return In(i18n.Locale()).MergeAbort() }
+
+// MergeAbort says "Abort"
+// in the language of msgs.
+func (msgs Messages) MergeAbort() string {
+	return Catalog.Format(msgs.locale, "mergeAbort", nil)
+}
+
+// MergeDialogTitle says "Merge {branch} into {into}"
+// in the language the app shows.
+func MergeDialogTitle(branch string, into string) string {
+	return In(i18n.Locale()).MergeDialogTitle(branch, into)
+}
+
+// MergeDialogTitle says "Merge {branch} into {into}"
+// in the language of msgs.
+func (msgs Messages) MergeDialogTitle(branch string, into string) string {
+	return Catalog.Format(msgs.locale, "mergeDialogTitle", map[string]any{"branch": branch, "into": into})
+}
+
+// MergeModeFastForward says "Fast-Forward If Possible"
+// in the language the app shows.
+func MergeModeFastForward() string { return In(i18n.Locale()).MergeModeFastForward() }
+
+// MergeModeFastForward says "Fast-Forward If Possible"
+// in the language of msgs.
+func (msgs Messages) MergeModeFastForward() string {
+	return Catalog.Format(msgs.locale, "mergeModeFastForward", nil)
+}
+
+// MergeModeFastForwardOnly says "Fast-Forward Only"
+// in the language the app shows.
+func MergeModeFastForwardOnly() string { return In(i18n.Locale()).MergeModeFastForwardOnly() }
+
+// MergeModeFastForwardOnly says "Fast-Forward Only"
+// in the language of msgs.
+func (msgs Messages) MergeModeFastForwardOnly() string {
+	return Catalog.Format(msgs.locale, "mergeModeFastForwardOnly", nil)
+}
+
+// MergeModeMergeCommit says "Always Merge Commit"
+// in the language the app shows.
+func MergeModeMergeCommit() string { return In(i18n.Locale()).MergeModeMergeCommit() }
+
+// MergeModeMergeCommit says "Always Merge Commit"
+// in the language of msgs.
+func (msgs Messages) MergeModeMergeCommit() string {
+	return Catalog.Format(msgs.locale, "mergeModeMergeCommit", nil)
+}
+
+// MergeModeSquash says "Squash"
+// in the language the app shows.
+//
+// A merge mode: squash the branch's commits into one change.
+func MergeModeSquash() string { return In(i18n.Locale()).MergeModeSquash() }
+
+// MergeModeSquash says "Squash"
+// in the language of msgs.
+//
+// A merge mode: squash the branch's commits into one change.
+func (msgs Messages) MergeModeSquash() string {
+	return Catalog.Format(msgs.locale, "mergeModeSquash", nil)
+}
+
+// MergeWorkingOut says "Working out the merge"
+// in the language the app shows.
+func MergeWorkingOut() string { return In(i18n.Locale()).MergeWorkingOut() }
+
+// MergeWorkingOut says "Working out the merge"
+// in the language of msgs.
+func (msgs Messages) MergeWorkingOut() string {
+	return Catalog.Format(msgs.locale, "mergeWorkingOut", nil)
+}
+
+// MergeUpToDate says "Already up to date"
+// in the language the app shows.
+func MergeUpToDate() string { return In(i18n.Locale()).MergeUpToDate() }
+
+// MergeUpToDate says "Already up to date"
+// in the language of msgs.
+func (msgs Messages) MergeUpToDate() string {
+	return Catalog.Format(msgs.locale, "mergeUpToDate", nil)
+}
+
+// MergeCleanly says "Merges cleanly; {count, plural, one {# file} other {# files}} changed on both sides"
+// in the language the app shows.
+func MergeCleanly(count int) string { return In(i18n.Locale()).MergeCleanly(count) }
+
+// MergeCleanly says "Merges cleanly; {count, plural, one {# file} other {# files}} changed on both sides"
+// in the language of msgs.
+func (msgs Messages) MergeCleanly(count int) string {
+	return Catalog.Format(msgs.locale, "mergeCleanly", map[string]any{"count": count})
+}
+
+// MergeWillConflict says "{count, plural, one {# file} other {# files}} will conflict"
+// in the language the app shows.
+func MergeWillConflict(count int) string { return In(i18n.Locale()).MergeWillConflict(count) }
+
+// MergeWillConflict says "{count, plural, one {# file} other {# files}} will conflict"
+// in the language of msgs.
+func (msgs Messages) MergeWillConflict(count int) string {
+	return Catalog.Format(msgs.locale, "mergeWillConflict", map[string]any{"count": count})
+}
+
+// MergeFileConflicts says "conflict"
+// in the language the app shows.
+//
+// Beside a file in a merge preview: the file will conflict.
+func MergeFileConflicts() string { return In(i18n.Locale()).MergeFileConflicts() }
+
+// MergeFileConflicts says "conflict"
+// in the language of msgs.
+//
+// Beside a file in a merge preview: the file will conflict.
+func (msgs Messages) MergeFileConflicts() string {
+	return Catalog.Format(msgs.locale, "mergeFileConflicts", nil)
+}
+
+// MergeFileMerges says "merges"
+// in the language the app shows.
+//
+// Beside a file in a merge preview: the file merges cleanly.
+func MergeFileMerges() string { return In(i18n.Locale()).MergeFileMerges() }
+
+// MergeFileMerges says "merges"
+// in the language of msgs.
+//
+// Beside a file in a merge preview: the file merges cleanly.
+func (msgs Messages) MergeFileMerges() string {
+	return Catalog.Format(msgs.locale, "mergeFileMerges", nil)
+}
+
+// MergeFilesLabel says "Files that would conflict"
+// in the language the app shows.
+func MergeFilesLabel() string { return In(i18n.Locale()).MergeFilesLabel() }
+
+// MergeFilesLabel says "Files that would conflict"
+// in the language of msgs.
+func (msgs Messages) MergeFilesLabel() string {
+	return Catalog.Format(msgs.locale, "mergeFilesLabel", nil)
+}
+
+// MergeMerge says "Merge"
+// in the language the app shows.
+//
+// A verb: the button that merges the branch.
+func MergeMerge() string { return In(i18n.Locale()).MergeMerge() }
+
+// MergeMerge says "Merge"
+// in the language of msgs.
+//
+// A verb: the button that merges the branch.
+func (msgs Messages) MergeMerge() string {
+	return Catalog.Format(msgs.locale, "mergeMerge", nil)
+}
+
+// MergeTakeOursFor says "Take Ours for {what}"
+// in the language the app shows.
+//
+// A menu item; what is "File" or "3 Files".
+func MergeTakeOursFor(what string) string { return In(i18n.Locale()).MergeTakeOursFor(what) }
+
+// MergeTakeOursFor says "Take Ours for {what}"
+// in the language of msgs.
+//
+// A menu item; what is "File" or "3 Files".
+func (msgs Messages) MergeTakeOursFor(what string) string {
+	return Catalog.Format(msgs.locale, "mergeTakeOursFor", map[string]any{"what": what})
+}
+
+// MergeTakeTheirsFor says "Take Theirs for {what}"
+// in the language the app shows.
+func MergeTakeTheirsFor(what string) string { return In(i18n.Locale()).MergeTakeTheirsFor(what) }
+
+// MergeTakeTheirsFor says "Take Theirs for {what}"
+// in the language of msgs.
+func (msgs Messages) MergeTakeTheirsFor(what string) string {
+	return Catalog.Format(msgs.locale, "mergeTakeTheirsFor", map[string]any{"what": what})
+}
+
+// MergeTakeBoth says "Take Both, Ours First"
+// in the language the app shows.
+func MergeTakeBoth() string { return In(i18n.Locale()).MergeTakeBoth() }
+
+// MergeTakeBoth says "Take Both, Ours First"
+// in the language of msgs.
+func (msgs Messages) MergeTakeBoth() string {
+	return Catalog.Format(msgs.locale, "mergeTakeBoth", nil)
+}
+
+// MergeOpenInTool says "Open in Merge Tool"
+// in the language the app shows.
+func MergeOpenInTool() string { return In(i18n.Locale()).MergeOpenInTool() }
+
+// MergeOpenInTool says "Open in Merge Tool"
+// in the language of msgs.
+func (msgs Messages) MergeOpenInTool() string {
+	return Catalog.Format(msgs.locale, "mergeOpenInTool", nil)
+}
+
+// MergeToolTitle says "Merge {file}"
+// in the language the app shows.
+func MergeToolTitle(file string) string { return In(i18n.Locale()).MergeToolTitle(file) }
+
+// MergeToolTitle says "Merge {file}"
+// in the language of msgs.
+func (msgs Messages) MergeToolTitle(file string) string {
+	return Catalog.Format(msgs.locale, "mergeToolTitle", map[string]any{"file": file})
+}
+
+// MergeToolBinary says "Binary files are merged by keeping one side whole"
+// in the language the app shows.
+func MergeToolBinary() string { return In(i18n.Locale()).MergeToolBinary() }
+
+// MergeToolBinary says "Binary files are merged by keeping one side whole"
+// in the language of msgs.
+func (msgs Messages) MergeToolBinary() string {
+	return Catalog.Format(msgs.locale, "mergeToolBinary", nil)
+}
+
+// MergeKeepOurs says "Keep Ours"
+// in the language the app shows.
+func MergeKeepOurs() string { return In(i18n.Locale()).MergeKeepOurs() }
+
+// MergeKeepOurs says "Keep Ours"
+// in the language of msgs.
+func (msgs Messages) MergeKeepOurs() string {
+	return Catalog.Format(msgs.locale, "mergeKeepOurs", nil)
+}
+
+// MergeKeepTheirs says "Keep Theirs"
+// in the language the app shows.
+func MergeKeepTheirs() string { return In(i18n.Locale()).MergeKeepTheirs() }
+
+// MergeKeepTheirs says "Keep Theirs"
+// in the language of msgs.
+func (msgs Messages) MergeKeepTheirs() string {
+	return Catalog.Format(msgs.locale, "mergeKeepTheirs", nil)
+}
+
+// MergeToolNoConflicts says "The sides merge without conflicts"
+// in the language the app shows.
+func MergeToolNoConflicts() string { return In(i18n.Locale()).MergeToolNoConflicts() }
+
+// MergeToolNoConflicts says "The sides merge without conflicts"
+// in the language of msgs.
+func (msgs Messages) MergeToolNoConflicts() string {
+	return Catalog.Format(msgs.locale, "mergeToolNoConflicts", nil)
+}
+
+// CompareNotSameKind says "{old} and {new} are not both files or both folders"
+// in the language the app shows.
+func CompareNotSameKind(old string, new string) string {
+	return In(i18n.Locale()).CompareNotSameKind(old, new)
+}
+
+// CompareNotSameKind says "{old} and {new} are not both files or both folders"
+// in the language of msgs.
+func (msgs Messages) CompareNotSameKind(old string, new string) string {
+	return Catalog.Format(msgs.locale, "compareNotSameKind", map[string]any{"old": old, "new": new})
+}
+
+// CompareTitle says "Compare"
+// in the language the app shows.
+//
+// A heading: the comparison of two files or folders.
+func CompareTitle() string { return In(i18n.Locale()).CompareTitle() }
+
+// CompareTitle says "Compare"
+// in the language of msgs.
+//
+// A heading: the comparison of two files or folders.
+func (msgs Messages) CompareTitle() string {
+	return Catalog.Format(msgs.locale, "compareTitle", nil)
+}
+
+// CompareNoDifferences says "No differences"
+// in the language the app shows.
+func CompareNoDifferences() string { return In(i18n.Locale()).CompareNoDifferences() }
+
+// CompareNoDifferences says "No differences"
+// in the language of msgs.
+func (msgs Messages) CompareNoDifferences() string {
+	return Catalog.Format(msgs.locale, "compareNoDifferences", nil)
+}
+
+// CompareFilesDiffer says "{count, plural, one {# file differs} other {# files differ}}"
+// in the language the app shows.
+func CompareFilesDiffer(count int) string { return In(i18n.Locale()).CompareFilesDiffer(count) }
+
+// CompareFilesDiffer says "{count, plural, one {# file differs} other {# files differ}}"
+// in the language of msgs.
+func (msgs Messages) CompareFilesDiffer(count int) string {
+	return Catalog.Format(msgs.locale, "compareFilesDiffer", map[string]any{"count": count})
+}
+
+// CompareFirstFilesDiffer says "The first {count, plural, one {# file differs} other {# files differ}}"
+// in the language the app shows.
+//
+// When the comparison stopped before reading every file.
+func CompareFirstFilesDiffer(count int) string {
+	return In(i18n.Locale()).CompareFirstFilesDiffer(count)
+}
+
+// CompareFirstFilesDiffer says "The first {count, plural, one {# file differs} other {# files differ}}"
+// in the language of msgs.
+//
+// When the comparison stopped before reading every file.
+func (msgs Messages) CompareFirstFilesDiffer(count int) string {
+	return Catalog.Format(msgs.locale, "compareFirstFilesDiffer", map[string]any{"count": count})
+}
+
+// CompareFileLabel says "{status} {path}"
+// in the language the app shows.
+//
+// Accessibility label of a differing file; status is a word such as Added
+// or Modified.
+func CompareFileLabel(status string, path string) string {
+	return In(i18n.Locale()).CompareFileLabel(status, path)
+}
+
+// CompareFileLabel says "{status} {path}"
+// in the language of msgs.
+//
+// Accessibility label of a differing file; status is a word such as Added
+// or Modified.
+func (msgs Messages) CompareFileLabel(status string, path string) string {
+	return Catalog.Format(msgs.locale, "compareFileLabel", map[string]any{"status": status, "path": path})
+}
+
+// CompareDifferingFiles says "Differing files"
+// in the language the app shows.
+func CompareDifferingFiles() string { return In(i18n.Locale()).CompareDifferingFiles() }
+
+// CompareDifferingFiles says "Differing files"
+// in the language of msgs.
+func (msgs Messages) CompareDifferingFiles() string {
+	return Catalog.Format(msgs.locale, "compareDifferingFiles", nil)
+}
+
+// CompareChooseFile says "Choose a file to see its changes"
+// in the language the app shows.
+func CompareChooseFile() string { return In(i18n.Locale()).CompareChooseFile() }
+
+// CompareChooseFile says "Choose a file to see its changes"
+// in the language of msgs.
+func (msgs Messages) CompareChooseFile() string {
+	return Catalog.Format(msgs.locale, "compareChooseFile", nil)
+}
+
+// CompareSwap says "Swap"
+// in the language the app shows.
+//
+// Swaps the two commits compared.
+func CompareSwap() string { return In(i18n.Locale()).CompareSwap() }
+
+// CompareSwap says "Swap"
+// in the language of msgs.
+//
+// Swaps the two commits compared.
+func (msgs Messages) CompareSwap() string {
+	return Catalog.Format(msgs.locale, "compareSwap", nil)
+}
+
+// WorktreeNewTitle says "New Worktree for {branch}"
+// in the language the app shows.
+func WorktreeNewTitle(branch string) string { return In(i18n.Locale()).WorktreeNewTitle(branch) }
+
+// WorktreeNewTitle says "New Worktree for {branch}"
+// in the language of msgs.
+func (msgs Messages) WorktreeNewTitle(branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeNewTitle", map[string]any{"branch": branch})
+}
+
+// WorktreeOpenTab says "Open in a new tab"
+// in the language the app shows.
+func WorktreeOpenTab() string { return In(i18n.Locale()).WorktreeOpenTab() }
+
+// WorktreeOpenTab says "Open in a new tab"
+// in the language of msgs.
+func (msgs Messages) WorktreeOpenTab() string {
+	return Catalog.Format(msgs.locale, "worktreeOpenTab", nil)
+}
+
+// WorktreePickFolder says "Folder for the Worktree"
+// in the language the app shows.
+//
+// Title of the folder picker.
+func WorktreePickFolder() string { return In(i18n.Locale()).WorktreePickFolder() }
+
+// WorktreePickFolder says "Folder for the Worktree"
+// in the language of msgs.
+//
+// Title of the folder picker.
+func (msgs Messages) WorktreePickFolder() string {
+	return Catalog.Format(msgs.locale, "worktreePickFolder", nil)
+}
+
+// WorktreeDetached says "detached"
+// in the language the app shows.
+//
+// Beside a worktree in the sidebar: no branch is checked out there.
+func WorktreeDetached() string { return In(i18n.Locale()).WorktreeDetached() }
+
+// WorktreeDetached says "detached"
+// in the language of msgs.
+//
+// Beside a worktree in the sidebar: no branch is checked out there.
+func (msgs Messages) WorktreeDetached() string {
+	return Catalog.Format(msgs.locale, "worktreeDetached", nil)
+}
+
+// WorktreeFolderMissing says "folder missing"
+// in the language the app shows.
+//
+// Beside a worktree: its folder is gone.
+func WorktreeFolderMissing() string { return In(i18n.Locale()).WorktreeFolderMissing() }
+
+// WorktreeFolderMissing says "folder missing"
+// in the language of msgs.
+//
+// Beside a worktree: its folder is gone.
+func (msgs Messages) WorktreeFolderMissing() string {
+	return Catalog.Format(msgs.locale, "worktreeFolderMissing", nil)
+}
+
+// WorktreeLocked says "locked"
+// in the language the app shows.
+//
+// Beside a worktree in the sidebar: it is locked.
+func WorktreeLocked() string { return In(i18n.Locale()).WorktreeLocked() }
+
+// WorktreeLocked says "locked"
+// in the language of msgs.
+//
+// Beside a worktree in the sidebar: it is locked.
+func (msgs Messages) WorktreeLocked() string {
+	return Catalog.Format(msgs.locale, "worktreeLocked", nil)
+}
+
+// WorktreeOpenInNewTab says "Open in New Tab"
+// in the language the app shows.
+func WorktreeOpenInNewTab() string { return In(i18n.Locale()).WorktreeOpenInNewTab() }
+
+// WorktreeOpenInNewTab says "Open in New Tab"
+// in the language of msgs.
+func (msgs Messages) WorktreeOpenInNewTab() string {
+	return Catalog.Format(msgs.locale, "worktreeOpenInNewTab", nil)
+}
+
+// WorktreeOpenInNewWindow says "Open in New Window"
+// in the language the app shows.
+func WorktreeOpenInNewWindow() string { return In(i18n.Locale()).WorktreeOpenInNewWindow() }
+
+// WorktreeOpenInNewWindow says "Open in New Window"
+// in the language of msgs.
+func (msgs Messages) WorktreeOpenInNewWindow() string {
+	return Catalog.Format(msgs.locale, "worktreeOpenInNewWindow", nil)
+}
+
+// WorktreeCopyPath says "Copy Path"
+// in the language the app shows.
+func WorktreeCopyPath() string { return In(i18n.Locale()).WorktreeCopyPath() }
+
+// WorktreeCopyPath says "Copy Path"
+// in the language of msgs.
+func (msgs Messages) WorktreeCopyPath() string {
+	return Catalog.Format(msgs.locale, "worktreeCopyPath", nil)
+}
+
+// WorktreeUnlock says "Unlock"
+// in the language the app shows.
+func WorktreeUnlock() string { return In(i18n.Locale()).WorktreeUnlock() }
+
+// WorktreeUnlock says "Unlock"
+// in the language of msgs.
+func (msgs Messages) WorktreeUnlock() string {
+	return Catalog.Format(msgs.locale, "worktreeUnlock", nil)
+}
+
+// WorktreeLockEllipsis says "Lock…"
+// in the language the app shows.
+func WorktreeLockEllipsis() string { return In(i18n.Locale()).WorktreeLockEllipsis() }
+
+// WorktreeLockEllipsis says "Lock…"
+// in the language of msgs.
+func (msgs Messages) WorktreeLockEllipsis() string {
+	return Catalog.Format(msgs.locale, "worktreeLockEllipsis", nil)
+}
+
+// WorktreePruneEllipsis says "Prune…"
+// in the language the app shows.
+func WorktreePruneEllipsis() string { return In(i18n.Locale()).WorktreePruneEllipsis() }
+
+// WorktreePruneEllipsis says "Prune…"
+// in the language of msgs.
+func (msgs Messages) WorktreePruneEllipsis() string {
+	return Catalog.Format(msgs.locale, "worktreePruneEllipsis", nil)
+}
+
+// WorktreeRemoveEllipsis says "Remove…"
+// in the language the app shows.
+func WorktreeRemoveEllipsis() string { return In(i18n.Locale()).WorktreeRemoveEllipsis() }
+
+// WorktreeRemoveEllipsis says "Remove…"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveEllipsis() string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveEllipsis", nil)
+}
+
+// WorktreeGoneMessage says "The folder {path} is gone. Pruning forgets every worktree whose folder is gone; their branches stay."
+// in the language the app shows.
+func WorktreeGoneMessage(path string) string { return In(i18n.Locale()).WorktreeGoneMessage(path) }
+
+// WorktreeGoneMessage says "The folder {path} is gone. Pruning forgets every worktree whose folder is gone; their branches stay."
+// in the language of msgs.
+func (msgs Messages) WorktreeGoneMessage(path string) string {
+	return Catalog.Format(msgs.locale, "worktreeGoneMessage", map[string]any{"path": path})
+}
+
+// WorktreeGoneLockedMessage says "The folder {path} is gone, and the worktree is locked: its folder may be on a drive not connected now. Unlock it to p…"
+// in the language the app shows.
+func WorktreeGoneLockedMessage(path string) string {
+	return In(i18n.Locale()).WorktreeGoneLockedMessage(path)
+}
+
+// WorktreeGoneLockedMessage says "The folder {path} is gone, and the worktree is locked: its folder may be on a drive not connected now. Unlock it to p…"
+// in the language of msgs.
+func (msgs Messages) WorktreeGoneLockedMessage(path string) string {
+	return Catalog.Format(msgs.locale, "worktreeGoneLockedMessage", map[string]any{"path": path})
+}
+
+// WorktreeGoneLockedReasonMessage says "The folder {path} is gone, and the worktree is locked ({reason}): its folder may be on a drive not connected now. Unl…"
+// in the language the app shows.
+func WorktreeGoneLockedReasonMessage(path string, reason string) string {
+	return In(i18n.Locale()).WorktreeGoneLockedReasonMessage(path, reason)
+}
+
+// WorktreeGoneLockedReasonMessage says "The folder {path} is gone, and the worktree is locked ({reason}): its folder may be on a drive not connected now. Unl…"
+// in the language of msgs.
+func (msgs Messages) WorktreeGoneLockedReasonMessage(path string, reason string) string {
+	return Catalog.Format(msgs.locale, "worktreeGoneLockedReasonMessage", map[string]any{"path": path, "reason": reason})
+}
+
+// WorktreeMissingTitle says "Worktree {name} is missing"
+// in the language the app shows.
+func WorktreeMissingTitle(name string) string { return In(i18n.Locale()).WorktreeMissingTitle(name) }
+
+// WorktreeMissingTitle says "Worktree {name} is missing"
+// in the language of msgs.
+func (msgs Messages) WorktreeMissingTitle(name string) string {
+	return Catalog.Format(msgs.locale, "worktreeMissingTitle", map[string]any{"name": name})
+}
+
+// WorktreePrune says "Prune"
+// in the language the app shows.
+func WorktreePrune() string { return In(i18n.Locale()).WorktreePrune() }
+
+// WorktreePrune says "Prune"
+// in the language of msgs.
+func (msgs Messages) WorktreePrune() string {
+	return Catalog.Format(msgs.locale, "worktreePrune", nil)
+}
+
+// WorktreeRemoveTitle says "Remove worktree {name}?"
+// in the language the app shows.
+func WorktreeRemoveTitle(name string) string { return In(i18n.Locale()).WorktreeRemoveTitle(name) }
+
+// WorktreeRemoveTitle says "Remove worktree {name}?"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveTitle(name string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveTitle", map[string]any{"name": name})
+}
+
+// WorktreeRemoveFolder says "Its folder {path} is deleted."
+// in the language the app shows.
+func WorktreeRemoveFolder(path string) string { return In(i18n.Locale()).WorktreeRemoveFolder(path) }
+
+// WorktreeRemoveFolder says "Its folder {path} is deleted."
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveFolder(path string) string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveFolder", map[string]any{"path": path})
+}
+
+// WorktreeAlsoDeleteBranch says "Also delete branch {branch}"
+// in the language the app shows.
+func WorktreeAlsoDeleteBranch(branch string) string {
+	return In(i18n.Locale()).WorktreeAlsoDeleteBranch(branch)
+}
+
+// WorktreeAlsoDeleteBranch says "Also delete branch {branch}"
+// in the language of msgs.
+func (msgs Messages) WorktreeAlsoDeleteBranch(branch string) string {
+	return Catalog.Format(msgs.locale, "worktreeAlsoDeleteBranch", map[string]any{"branch": branch})
+}
+
+// WorktreeRemoveForce says "Remove even with changes or untracked files"
+// in the language the app shows.
+func WorktreeRemoveForce() string { return In(i18n.Locale()).WorktreeRemoveForce() }
+
+// WorktreeRemoveForce says "Remove even with changes or untracked files"
+// in the language of msgs.
+func (msgs Messages) WorktreeRemoveForce() string {
+	return Catalog.Format(msgs.locale, "worktreeRemoveForce", nil)
+}
+
+// WorktreeLockTitle says "Lock worktree {name}"
+// in the language the app shows.
+func WorktreeLockTitle(name string) string { return In(i18n.Locale()).WorktreeLockTitle(name) }
+
+// WorktreeLockTitle says "Lock worktree {name}"
+// in the language of msgs.
+func (msgs Messages) WorktreeLockTitle(name string) string {
+	return Catalog.Format(msgs.locale, "worktreeLockTitle", map[string]any{"name": name})
+}
+
+// WorktreeReason says "Reason"
+// in the language the app shows.
+func WorktreeReason() string { return In(i18n.Locale()).WorktreeReason() }
+
+// WorktreeReason says "Reason"
+// in the language of msgs.
+func (msgs Messages) WorktreeReason() string {
+	return Catalog.Format(msgs.locale, "worktreeReason", nil)
+}
+
+// WorktreeReasonPlaceholder says "Reason (optional)"
+// in the language the app shows.
+func WorktreeReasonPlaceholder() string { return In(i18n.Locale()).WorktreeReasonPlaceholder() }
+
+// WorktreeReasonPlaceholder says "Reason (optional)"
+// in the language of msgs.
+func (msgs Messages) WorktreeReasonPlaceholder() string {
+	return Catalog.Format(msgs.locale, "worktreeReasonPlaceholder", nil)
+}
+
+// WorktreeLock says "Lock"
+// in the language the app shows.
+//
+// A verb: the button that locks the worktree.
+func WorktreeLock() string { return In(i18n.Locale()).WorktreeLock() }
+
+// WorktreeLock says "Lock"
+// in the language of msgs.
+//
+// A verb: the button that locks the worktree.
+func (msgs Messages) WorktreeLock() string {
+	return Catalog.Format(msgs.locale, "worktreeLock", nil)
+}
+
+// WorktreeColumnWorktree says "Worktree"
+// in the language the app shows.
+func WorktreeColumnWorktree() string { return In(i18n.Locale()).WorktreeColumnWorktree() }
+
+// WorktreeColumnWorktree says "Worktree"
+// in the language of msgs.
+func (msgs Messages) WorktreeColumnWorktree() string {
+	return Catalog.Format(msgs.locale, "worktreeColumnWorktree", nil)
+}
+
+// WorktreeColumnBranch says "Branch"
+// in the language the app shows.
+//
+// A column heading: the branch checked out.
+func WorktreeColumnBranch() string { return In(i18n.Locale()).WorktreeColumnBranch() }
+
+// WorktreeColumnBranch says "Branch"
+// in the language of msgs.
+//
+// A column heading: the branch checked out.
+func (msgs Messages) WorktreeColumnBranch() string {
+	return Catalog.Format(msgs.locale, "worktreeColumnBranch", nil)
+}
+
+// WorktreeColumnChanges says "Changes"
+// in the language the app shows.
+//
+// A column heading: how many files have changes.
+func WorktreeColumnChanges() string { return In(i18n.Locale()).WorktreeColumnChanges() }
+
+// WorktreeColumnChanges says "Changes"
+// in the language of msgs.
+//
+// A column heading: how many files have changes.
+func (msgs Messages) WorktreeColumnChanges() string {
+	return Catalog.Format(msgs.locale, "worktreeColumnChanges", nil)
+}
+
+// WorktreeColumnAheadBehind says "Ahead, Behind"
+// in the language the app shows.
+func WorktreeColumnAheadBehind() string { return In(i18n.Locale()).WorktreeColumnAheadBehind() }
+
+// WorktreeColumnAheadBehind says "Ahead, Behind"
+// in the language of msgs.
+func (msgs Messages) WorktreeColumnAheadBehind() string {
+	return Catalog.Format(msgs.locale, "worktreeColumnAheadBehind", nil)
+}
+
+// WorktreeColumnLastActive says "Last Active"
+// in the language the app shows.
+func WorktreeColumnLastActive() string { return In(i18n.Locale()).WorktreeColumnLastActive() }
+
+// WorktreeColumnLastActive says "Last Active"
+// in the language of msgs.
+func (msgs Messages) WorktreeColumnLastActive() string {
+	return Catalog.Format(msgs.locale, "worktreeColumnLastActive", nil)
+}
+
+// WorktreeCount says "{count, plural, one {# worktree} other {# worktrees}}"
+// in the language the app shows.
+func WorktreeCount(count int) string { return In(i18n.Locale()).WorktreeCount(count) }
+
+// WorktreeCount says "{count, plural, one {# worktree} other {# worktrees}}"
+// in the language of msgs.
+func (msgs Messages) WorktreeCount(count int) string {
+	return Catalog.Format(msgs.locale, "worktreeCount", map[string]any{"count": count})
+}
+
+// WorktreeCompareFolders says "Compare Folders"
+// in the language the app shows.
+func WorktreeCompareFolders() string { return In(i18n.Locale()).WorktreeCompareFolders() }
+
+// WorktreeCompareFolders says "Compare Folders"
+// in the language of msgs.
+func (msgs Messages) WorktreeCompareFolders() string {
+	return Catalog.Format(msgs.locale, "worktreeCompareFolders", nil)
+}
+
+// WorktreeCompareBranches says "Compare Branches"
+// in the language the app shows.
+func WorktreeCompareBranches() string { return In(i18n.Locale()).WorktreeCompareBranches() }
+
+// WorktreeCompareBranches says "Compare Branches"
+// in the language of msgs.
+func (msgs Messages) WorktreeCompareBranches() string {
+	return Catalog.Format(msgs.locale, "worktreeCompareBranches", nil)
+}
+
+// WorktreeCompareBox says "Compare {name}"
+// in the language the app shows.
+//
+// Accessibility label of the box that picks a worktree to compare.
+func WorktreeCompareBox(name string) string { return In(i18n.Locale()).WorktreeCompareBox(name) }
+
+// WorktreeCompareBox says "Compare {name}"
+// in the language of msgs.
+//
+// Accessibility label of the box that picks a worktree to compare.
+func (msgs Messages) WorktreeCompareBox(name string) string {
+	return Catalog.Format(msgs.locale, "worktreeCompareBox", map[string]any{"name": name})
+}
+
+// WorktreeDetachedAt says "detached at {hash}"
+// in the language the app shows.
+func WorktreeDetachedAt(hash string) string { return In(i18n.Locale()).WorktreeDetachedAt(hash) }
+
+// WorktreeDetachedAt says "detached at {hash}"
+// in the language of msgs.
+func (msgs Messages) WorktreeDetachedAt(hash string) string {
+	return Catalog.Format(msgs.locale, "worktreeDetachedAt", map[string]any{"hash": hash})
+}
+
+// WorktreeAheadBehind says "{ahead} ahead, {behind} behind {upstream}"
+// in the language the app shows.
+func WorktreeAheadBehind(ahead int, behind int, upstream string) string {
+	return In(i18n.Locale()).WorktreeAheadBehind(ahead, behind, upstream)
+}
+
+// WorktreeAheadBehind says "{ahead} ahead, {behind} behind {upstream}"
+// in the language of msgs.
+func (msgs Messages) WorktreeAheadBehind(ahead int, behind int, upstream string) string {
+	return Catalog.Format(msgs.locale, "worktreeAheadBehind", map[string]any{"ahead": ahead, "behind": behind, "upstream": upstream})
+}
+
+// WorktreeOpen says "Open"
+// in the language the app shows.
+func WorktreeOpen() string { return In(i18n.Locale()).WorktreeOpen() }
+
+// WorktreeOpen says "Open"
+// in the language of msgs.
+func (msgs Messages) WorktreeOpen() string {
+	return Catalog.Format(msgs.locale, "worktreeOpen", nil)
+}
+
+// WorktreeOpenLabel says "Open {name}"
+// in the language the app shows.
+func WorktreeOpenLabel(name string) string { return In(i18n.Locale()).WorktreeOpenLabel(name) }
+
+// WorktreeOpenLabel says "Open {name}"
+// in the language of msgs.
+func (msgs Messages) WorktreeOpenLabel(name string) string {
+	return Catalog.Format(msgs.locale, "worktreeOpenLabel", map[string]any{"name": name})
+}
+
+// WorktreeTableLabel says "Worktrees"
+// in the language the app shows.
+func WorktreeTableLabel() string { return In(i18n.Locale()).WorktreeTableLabel() }
+
+// WorktreeTableLabel says "Worktrees"
+// in the language of msgs.
+func (msgs Messages) WorktreeTableLabel() string {
+	return Catalog.Format(msgs.locale, "worktreeTableLabel", nil)
+}
+
+// StashTitle says "Stash Changes"
+// in the language the app shows.
+func StashTitle() string { return In(i18n.Locale()).StashTitle() }
+
+// StashTitle says "Stash Changes"
+// in the language of msgs.
+func (msgs Messages) StashTitle() string {
+	return Catalog.Format(msgs.locale, "stashTitle", nil)
+}
+
+// StashFilesTitle says "Stash Changes to {count, plural, one {# File} other {# Files}}"
+// in the language the app shows.
+func StashFilesTitle(count int) string { return In(i18n.Locale()).StashFilesTitle(count) }
+
+// StashFilesTitle says "Stash Changes to {count, plural, one {# File} other {# Files}}"
+// in the language of msgs.
+func (msgs Messages) StashFilesTitle(count int) string {
+	return Catalog.Format(msgs.locale, "stashFilesTitle", map[string]any{"count": count})
+}
+
+// StashFileTitle says "Stash Changes to {path}"
+// in the language the app shows.
+func StashFileTitle(path string) string { return In(i18n.Locale()).StashFileTitle(path) }
+
+// StashFileTitle says "Stash Changes to {path}"
+// in the language of msgs.
+func (msgs Messages) StashFileTitle(path string) string {
+	return Catalog.Format(msgs.locale, "stashFileTitle", map[string]any{"path": path})
+}
+
+// StashAllChanges says "All Changes"
+// in the language the app shows.
+func StashAllChanges() string { return In(i18n.Locale()).StashAllChanges() }
+
+// StashAllChanges says "All Changes"
+// in the language of msgs.
+func (msgs Messages) StashAllChanges() string {
+	return Catalog.Format(msgs.locale, "stashAllChanges", nil)
+}
+
+// StashStagedOnly says "Staged Changes Only"
+// in the language the app shows.
+func StashStagedOnly() string { return In(i18n.Locale()).StashStagedOnly() }
+
+// StashStagedOnly says "Staged Changes Only"
+// in the language of msgs.
+func (msgs Messages) StashStagedOnly() string {
+	return Catalog.Format(msgs.locale, "stashStagedOnly", nil)
+}
+
+// StashIncludeUntracked says "Include untracked files"
+// in the language the app shows.
+func StashIncludeUntracked() string { return In(i18n.Locale()).StashIncludeUntracked() }
+
+// StashIncludeUntracked says "Include untracked files"
+// in the language of msgs.
+func (msgs Messages) StashIncludeUntracked() string {
+	return Catalog.Format(msgs.locale, "stashIncludeUntracked", nil)
+}
+
+// StashKeepIndex says "Keep staged changes in place"
+// in the language the app shows.
+func StashKeepIndex() string { return In(i18n.Locale()).StashKeepIndex() }
+
+// StashKeepIndex says "Keep staged changes in place"
+// in the language of msgs.
+func (msgs Messages) StashKeepIndex() string {
+	return Catalog.Format(msgs.locale, "stashKeepIndex", nil)
+}
+
+// StashStash says "Stash"
+// in the language the app shows.
+//
+// A verb: the button that stashes the changes.
+func StashStash() string { return In(i18n.Locale()).StashStash() }
+
+// StashStash says "Stash"
+// in the language of msgs.
+//
+// A verb: the button that stashes the changes.
+func (msgs Messages) StashStash() string {
+	return Catalog.Format(msgs.locale, "stashStash", nil)
+}
+
+// StashDropped says "Dropped {hash}"
+// in the language the app shows.
+func StashDropped(hash string) string { return In(i18n.Locale()).StashDropped(hash) }
+
+// StashDropped says "Dropped {hash}"
+// in the language of msgs.
+func (msgs Messages) StashDropped(hash string) string {
+	return Catalog.Format(msgs.locale, "stashDropped", map[string]any{"hash": hash})
+}
+
+// StashRestore says "Restore"
+// in the language the app shows.
+func StashRestore() string { return In(i18n.Locale()).StashRestore() }
+
+// StashRestore says "Restore"
+// in the language of msgs.
+func (msgs Messages) StashRestore() string {
+	return Catalog.Format(msgs.locale, "stashRestore", nil)
+}
+
+// StashChangesEllipsis says "Stash Changes…"
+// in the language the app shows.
+func StashChangesEllipsis() string { return In(i18n.Locale()).StashChangesEllipsis() }
+
+// StashChangesEllipsis says "Stash Changes…"
+// in the language of msgs.
+func (msgs Messages) StashChangesEllipsis() string {
+	return Catalog.Format(msgs.locale, "stashChangesEllipsis", nil)
+}
+
+// StashNone says "No stashes"
+// in the language the app shows.
+func StashNone() string { return In(i18n.Locale()).StashNone() }
+
+// StashNone says "No stashes"
+// in the language of msgs.
+func (msgs Messages) StashNone() string {
+	return Catalog.Format(msgs.locale, "stashNone", nil)
+}
+
+// StashEntriesLabel says "Stash entries"
+// in the language the app shows.
+func StashEntriesLabel() string { return In(i18n.Locale()).StashEntriesLabel() }
+
+// StashEntriesLabel says "Stash entries"
+// in the language of msgs.
+func (msgs Messages) StashEntriesLabel() string {
+	return Catalog.Format(msgs.locale, "stashEntriesLabel", nil)
+}
+
+// StashApply says "Apply"
+// in the language the app shows.
+func StashApply() string { return In(i18n.Locale()).StashApply() }
+
+// StashApply says "Apply"
+// in the language of msgs.
+func (msgs Messages) StashApply() string {
+	return Catalog.Format(msgs.locale, "stashApply", nil)
+}
+
+// StashApplyStaged says "Apply with Staged Changes"
+// in the language the app shows.
+func StashApplyStaged() string { return In(i18n.Locale()).StashApplyStaged() }
+
+// StashApplyStaged says "Apply with Staged Changes"
+// in the language of msgs.
+func (msgs Messages) StashApplyStaged() string {
+	return Catalog.Format(msgs.locale, "stashApplyStaged", nil)
+}
+
+// StashPop says "Pop"
+// in the language the app shows.
+//
+// A verb: applies the stash and drops it.
+func StashPop() string { return In(i18n.Locale()).StashPop() }
+
+// StashPop says "Pop"
+// in the language of msgs.
+//
+// A verb: applies the stash and drops it.
+func (msgs Messages) StashPop() string {
+	return Catalog.Format(msgs.locale, "stashPop", nil)
+}
+
+// StashCreateBranch says "Create Branch from Stash…"
+// in the language the app shows.
+func StashCreateBranch() string { return In(i18n.Locale()).StashCreateBranch() }
+
+// StashCreateBranch says "Create Branch from Stash…"
+// in the language of msgs.
+func (msgs Messages) StashCreateBranch() string {
+	return Catalog.Format(msgs.locale, "stashCreateBranch", nil)
+}
+
+// StashBranchTitle says "Branch from {stash}"
+// in the language the app shows.
+//
+// stash is a name such as stash@{0}.
+func StashBranchTitle(stash string) string { return In(i18n.Locale()).StashBranchTitle(stash) }
+
+// StashBranchTitle says "Branch from {stash}"
+// in the language of msgs.
+//
+// stash is a name such as stash@{0}.
+func (msgs Messages) StashBranchTitle(stash string) string {
+	return Catalog.Format(msgs.locale, "stashBranchTitle", map[string]any{"stash": stash})
+}
+
+// StashDropEllipsis says "Drop…"
+// in the language the app shows.
+func StashDropEllipsis() string { return In(i18n.Locale()).StashDropEllipsis() }
+
+// StashDropEllipsis says "Drop…"
+// in the language of msgs.
+func (msgs Messages) StashDropEllipsis() string {
+	return Catalog.Format(msgs.locale, "stashDropEllipsis", nil)
+}
+
+// StashDropTitle says "Drop {stash} ({hash})?"
+// in the language the app shows.
+func StashDropTitle(stash string, hash string) string {
+	return In(i18n.Locale()).StashDropTitle(stash, hash)
+}
+
+// StashDropTitle says "Drop {stash} ({hash})?"
+// in the language of msgs.
+func (msgs Messages) StashDropTitle(stash string, hash string) string {
+	return Catalog.Format(msgs.locale, "stashDropTitle", map[string]any{"stash": stash, "hash": hash})
+}
+
+// StashDropMessage says "{message}. Restore puts it back while git keeps its commit."
+// in the language the app shows.
+//
+// message is the stash's own message.
+func StashDropMessage(message string) string { return In(i18n.Locale()).StashDropMessage(message) }
+
+// StashDropMessage says "{message}. Restore puts it back while git keeps its commit."
+// in the language of msgs.
+//
+// message is the stash's own message.
+func (msgs Messages) StashDropMessage(message string) string {
+	return Catalog.Format(msgs.locale, "stashDropMessage", map[string]any{"message": message})
+}
+
+// StashDrop says "Drop"
+// in the language the app shows.
+func StashDrop() string { return In(i18n.Locale()).StashDrop() }
+
+// StashDrop says "Drop"
+// in the language of msgs.
+func (msgs Messages) StashDrop() string {
+	return Catalog.Format(msgs.locale, "stashDrop", nil)
+}

@@ -8,6 +8,7 @@ import (
 
 	"ramus/internal/git/redact"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // commitCompare is the comparison of two commits a tab shows, from the
@@ -56,7 +57,7 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 			ui.Text(c, redact.Control(cc.fromName)).Font("monospace").SingleLine()
 			ui.Text(c, "→").TextColor(th.TextMuted)
 			ui.Text(c, redact.Control(cc.toName)).Font("monospace").SingleLine().Grow(1)
-			if ui.Button(c, "Swap").Clicked() {
+			if ui.Button(c, locales.CompareSwap()).Clicked() {
 				a.compareCommits(t, cc.to, cc.from, cc.toName, cc.fromName)
 			}
 		})
