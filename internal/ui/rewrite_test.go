@@ -144,8 +144,9 @@ func TestEditHistoryDialog(t *testing.T) {
 		if l := tb.s.Log; len(l) > 0 && l[len(l)-1].Err != nil {
 			t.Fatalf("%s: %v", l[len(l)-1].Name, l[len(l)-1].Err)
 		}
-		return strings.TrimSpace(r.Git("log", "--format=%s")) == "add d\nadd b, reworded\nadd a\none"
+		return strings.TrimSpace(r.Git("log", "--format=%s", "main")) == "add d\nadd b, reworded\nadd a\none"
 	})
+	h.idle(tb, "the rewrite done")
 	if r.Git("show", "HEAD:c.txt") != "c\n" || strings.TrimSpace(r.Git("log", "-1", "--format=%s", "side")) != "add b, reworded" {
 		t.Fatal("c is not folded into d, or side did not move")
 	}
@@ -171,7 +172,8 @@ func TestRewriteManyAndDragSquash(t *testing.T) {
 	h.click("History")
 	h.until("history", h.shows("add d"))
 	he := &h.app.history
-	log := func() string { return strings.TrimSpace(r.Git("log", "--format=%s")) }
+	// main, not HEAD: during the rebase HEAD is the commits replayed so far.
+	log := func() string { return strings.TrimSpace(r.Git("log", "--format=%s", "main")) }
 	pick := func(subjects ...string) {
 		t.Helper()
 		hs := tb.s.History
@@ -203,7 +205,7 @@ func TestRewriteManyAndDragSquash(t *testing.T) {
 			}
 			return log() == want
 		})
-		h.idle(tb, "the rewrite shown")
+		h.idle(tb, "the rewrite done")
 		h.until("fresh history", func() bool { hs := tb.s.History; return hs.Done && hs.For == tb.s.State.Refs })
 	}
 

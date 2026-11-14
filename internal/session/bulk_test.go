@@ -11,7 +11,7 @@ import (
 	"ramus/internal/git/gittest"
 )
 
-// A tool rewriting 5,000 files at once costs one status, and the status
+// A tool rewriting 5,000 files at once costs a status or two, and the status
 // published has every file, none blank (GitHub Desktop #22619, #22596).
 func TestBulkWrite(t *testing.T) {
 	if testing.Short() {
@@ -71,8 +71,10 @@ func TestBulkWrite(t *testing.T) {
 	runs := statusRuns() - before
 	t.Logf("5,000 files written in %v; %d status runs, statuses shown %v, all shown after %v",
 		wrote.Round(time.Millisecond), runs, shown, took.Round(time.Millisecond))
-	// A write slower than MaxDebounce may take two.
-	if limit := 1 + int(wrote/MaxDebounce); runs > limit {
+	// A write slower than MaxDebounce may take two, and a disk slow
+	// enough to pause past Debounce mid-burst (a CI runner's) one more;
+	// a status per batch of events would be dozens.
+	if limit := 2 + int(wrote/MaxDebounce); runs > limit {
 		t.Fatalf("%d status runs for one burst", runs)
 	}
 }
