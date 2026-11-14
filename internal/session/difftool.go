@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ramus/internal/git/run"
+	"ramus/locales"
 )
 
 // DiffToolRequest names what an external diff tool compares: paths of the
@@ -28,7 +29,7 @@ const (
 )
 
 // ErrNoDiffTool is a repository whose git config names no diff tool.
-var ErrNoDiffTool = errors.New("no diff tool is set: set diff.tool or diff.guitool in git's config")
+var ErrNoDiffTool error = &sayError{locales.SessionNoDiffTool}
 
 // diffTools counts the tools open.
 type diffTools struct{ open atomic.Int32 }
@@ -55,7 +56,7 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 	}
 	if s.tools.open.Add(1) > maxDiffTools {
 		s.tools.open.Add(-1)
-		done(errors.New("too many diff tools are open"))
+		done(errors.New(locales.SessionTooManyDiffTools()))
 		return
 	}
 	args := []string{"difftool", "--no-prompt"}

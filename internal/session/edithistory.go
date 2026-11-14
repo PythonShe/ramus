@@ -5,12 +5,12 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // EditCommit is a commit of a run of history being edited.
@@ -28,7 +28,7 @@ const MaxEdit = 5000
 
 // ErrMergeInRange is a run of history with a merge in it, which an edit
 // written as a whole todo does not replay.
-var ErrMergeInRange = errors.New("the commits from here to HEAD include a merge")
+var ErrMergeInRange error = &sayError{locales.SessionMergeInRange}
 
 // EditRange reads the commits from from (inclusive) to HEAD along its
 // first parents, oldest first, for an edit of that history, off the main
@@ -40,7 +40,7 @@ func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, commits []E
 	}
 	seen := s.Seen()
 	if seen.Head == "" {
-		done(write.Rewrite{}, nil, errors.New("there are no commits yet"))
+		done(write.Rewrite{}, nil, errors.New(locales.SessionNoCommitsYet()))
 		return
 	}
 	tips := map[string][]string{}
@@ -100,9 +100,9 @@ func readEditRange(ctx context.Context, rn *run.Runner, gitDir, head string, fro
 	}
 	if !found {
 		if len(out) > MaxEdit {
-			return nil, "", fmt.Errorf("more than %d commits from here to HEAD", MaxEdit)
+			return nil, "", errors.New(locales.SessionTooManyCommits(MaxEdit))
 		}
-		return nil, "", errors.New("this commit is not on HEAD's line of first parents")
+		return nil, "", errors.New(locales.SessionNotFirstParent())
 	}
 	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
 		out[i], out[j] = out[j], out[i]

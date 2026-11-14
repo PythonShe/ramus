@@ -1,14 +1,13 @@
 package ui
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/run"
+	"ramus/locales"
 )
 
 // gitLogState is the command log's view of every git command the app ran
@@ -59,7 +58,7 @@ func (a *App) gitLogView(c *ui.Context, t *tab) {
 	recs := gl.recs
 	n := len(recs)
 	gl.list.Selected = &gl.chosen
-	gl.list.Label = func(i int) string { r := &recs[n-1-i]; return r.Short + ", " + recordStatus(r) }
+	gl.list.Label = func(i int) string { r := &recs[n-1-i]; return locales.GitLogRowLabel(r.Short, recordStatus(r)) }
 	ui.Split(c, &t.listW, func() {
 		ui.List(c, &gl.list, n, func(i int) {
 			r := &recs[n-1-i]
@@ -70,7 +69,7 @@ func (a *App) gitLogView(c *ui.Context, t *tab) {
 				})
 				ui.Text(c, r.Started.Format(time.TimeOnly)).FontSize(textSmall).TextColor(th.TextMuted)
 			})
-		}).Label("Git commands run").Fill()
+		}).Label(locales.GitLogCommandsRun()).Fill()
 	}, func() {
 		k := n - 1 - gl.chosen
 		if gl.chosen < 0 || k < 0 || k >= n {
@@ -94,9 +93,9 @@ func (a *App) gitLogView(c *ui.Context, t *tab) {
 			}
 			ui.List(c, &gl.out, len(gl.lines), func(i int) {
 				ui.Text(c, gl.lines[i]).Font("monospace").FontSize(textSmall).Selectable()
-			}).Label("Command output").Grow(1)
+			}).Label(locales.GitLogOutput()).Grow(1)
 			if more := r.StdoutLen - len(r.Stdout); r.StdoutLen > 0 && more > 0 {
-				ui.Text(c, fmt.Sprintf("%d more bytes not kept", more)).FontSize(textSmall).TextColor(th.TextMuted)
+				ui.Text(c, locales.GitLogBytesDropped(more)).FontSize(textSmall).TextColor(th.TextMuted)
 			}
 		})
 	}).Fill()
@@ -106,13 +105,13 @@ func (a *App) gitLogView(c *ui.Context, t *tab) {
 func recordStatus(r *run.Record) string {
 	switch {
 	case r.Long:
-		return "started"
+		return locales.GitLogStarted()
 	case r.Stopped:
-		return "stopped"
+		return locales.GitLogStopped()
 	case r.Err != "" && r.Exit > 0:
-		return "exit " + strconv.Itoa(r.Exit)
+		return locales.GitLogExit(r.Exit)
 	case r.Err != "":
-		return "failed"
+		return locales.GitLogFailed()
 	}
 	return r.Duration.Round(time.Millisecond).String()
 }

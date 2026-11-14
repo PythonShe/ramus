@@ -23,6 +23,7 @@ import (
 	"ramus/internal/session"
 	"ramus/internal/settings"
 	"ramus/internal/tools"
+	"ramus/locales"
 )
 
 // Deps are what the app is built on; main fills them in, tests fake them.
@@ -208,10 +209,10 @@ func (a *App) findTools() {
 	editor, terminal, update := a.Settings.Editor, a.Settings.Terminal, a.Update
 	go func() {
 		var found []tools.Tool
-		if tl, err := tools.Custom("your editor", tools.Editor, editor); err == nil {
+		if tl, err := tools.Custom(yourEditor, tools.Editor, editor); err == nil {
 			found = append(found, tl)
 		}
-		if tl, err := tools.Custom("your terminal", tools.Terminal, terminal); err == nil {
+		if tl, err := tools.Custom(yourTerminal, tools.Terminal, terminal); err == nil {
 			found = append(found, tl)
 		}
 		found = append(found, tools.Detect()...)
@@ -219,17 +220,37 @@ func (a *App) findTools() {
 	}()
 }
 
+// yourEditor and yourTerminal name the editor and the terminal the
+// settings name. A tool's name is also its id, in the shortcuts and in
+// the editor chosen for a repository, so it stays the same in every
+// language and toolName says it.
+const (
+	yourEditor   = "your editor"
+	yourTerminal = "your terminal"
+)
+
+// toolName is what the views call the tool named name.
+func toolName(name string) string {
+	switch name {
+	case yourEditor:
+		return locales.AppYourEditor()
+	case yourTerminal:
+		return locales.AppYourTerminal()
+	}
+	return name
+}
+
 // SetRunner gives the app the git it runs, once it is found off the main
 // thread, and opens what was asked for meanwhile; err says why there is
 // none.
 func (a *App) SetRunner(r *run.Runner, err error) {
 	if err != nil {
-		a.notice = "Git was not found: " + errText(err)
+		a.notice = locales.AppGitNotFound(errText(err))
 		return
 	}
 	a.Runner = r
 	if v := r.Git().Version; v.SecurityUpdate() {
-		a.gitWarning = "Git " + v.String() + " lacks security fixes: update git"
+		a.gitWarning = locales.AppGitOutdated(v.String())
 	}
 	for _, p := range a.pending {
 		a.Open(p)
@@ -358,7 +379,7 @@ func (a *App) pickAndOpen() {
 	}
 	pick, update := a.PickFolder, a.Update
 	go func() {
-		p, err := pick("Open Repository")
+		p, err := pick(locales.AppOpenRepository())
 		update(func() {
 			switch {
 			case err != nil:
@@ -377,7 +398,7 @@ func (a *App) initAndOpen() {
 	}
 	pick, update, r, ts := a.PickFolder, a.Update, a.Runner, a.Trust
 	go func() {
-		p, err := pick("New Repository")
+		p, err := pick(locales.AppNewRepository())
 		if err == nil && p != "" {
 			// A repository made here is the user's own; one that was already
 			// in the folder came from elsewhere and still asks to be trusted.

@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"ramus/locales"
 )
 
 // keysState is the dialog that rebinds shortcuts. A change is kept at
@@ -35,7 +37,7 @@ type keyCommand struct{ id, name string }
 func (a *App) keyCommands() []keyCommand {
 	var out []keyCommand
 	for _, b := range bindable {
-		out = append(out, keyCommand(b))
+		out = append(out, keyCommand{b.id, b.name()})
 	}
 	for _, x := range a.Settings.Actions {
 		if x.On == "" {
@@ -43,7 +45,7 @@ func (a *App) keyCommands() []keyCommand {
 		}
 	}
 	for _, tl := range a.palette.tools {
-		out = append(out, keyCommand{toolID(tl.Name), "Open in " + tl.Name})
+		out = append(out, keyCommand{toolID(tl.Name), locales.PaletteOpenIn(toolName(tl.Name))})
 	}
 	return out
 }
@@ -81,10 +83,10 @@ func (a *App) keysView(c *ui.Context) {
 	}
 	ui.Modal(c, &ks.open, func() {
 		dialogBox(c).Width(dialogWide).Children(func() {
-			ui.Text(c, "Keyboard Shortcuts").Bold()
-			ui.TextInput(c, &ks.filter).Label("Filter").Placeholder("Filter").AutoFocus().FillWidth()
+			ui.Text(c, locales.KeysTitle()).Bold()
+			ui.TextInput(c, &ks.filter).Label(locales.CommonFilter()).Placeholder(locales.CommonFilter()).AutoFocus().FillWidth()
 			ks.list.Label = func(i int) string {
-				return shown[i].name + ", " + chordsLabel(km.byID[shown[i].id])
+				return locales.KeysListLabel(shown[i].name, chordsLabel(km.byID[shown[i].id]))
 			}
 			ui.List(c, &ks.list, len(shown), func(i int) {
 				k := shown[i]
@@ -92,17 +94,17 @@ func (a *App) keysView(c *ui.Context) {
 					ui.Text(c, k.name).SingleLine().Grow(1)
 					a.recorder(c, k, km)
 					_, set := a.Settings.Keys[k.id]
-					if ui.Button(c, "Clear").Disabled(len(km.byID[k.id]) == 0).Clicked() {
+					if ui.Button(c, locales.KeysClear()).Disabled(len(km.byID[k.id]) == 0).Clicked() {
 						a.bind(k.id, nil, km)
 					}
-					if ui.Button(c, "Reset").Disabled(!set).Clicked() {
+					if ui.Button(c, locales.KeysReset()).Disabled(!set).Clicked() {
 						user := maps.Clone(a.Settings.Keys)
 						delete(user, k.id)
 						a.setKeys(user)
 						ks.note = ""
 					}
 				})
-			}).Label("Commands").Height(420)
+			}).Label(locales.KeysCommands()).Height(420)
 			for _, e := range km.errs {
 				ui.Text(c, e).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
@@ -111,7 +113,7 @@ func (a *App) keysView(c *ui.Context) {
 			}
 			ui.Row(c).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Done").Clicked() {
+				if ui.Button(c, locales.CommonDone()).Clicked() {
 					ks.open = false
 				}
 			})
@@ -126,7 +128,7 @@ func (a *App) recorder(c *ui.Context, k keyCommand, km *keymap) {
 	on := ks.recording == k.id
 	label := chordsLabel(km.byID[k.id])
 	if on {
-		label = "Type a Shortcut"
+		label = locales.KeysTypeShortcut()
 	}
 	b := ui.Button(c, label).Width(150)
 	if b.Clicked() {
@@ -183,7 +185,7 @@ func (a *App) bind(id string, k *chord, km *keymap) {
 				}
 			}
 			user[other] = append([]string{}, left...)
-			a.keysUI.note = k.label() + " no longer runs " + a.commandName(other)
+			a.keysUI.note = locales.KeysNoLongerRuns(k.label(), a.commandName(other))
 		}
 	}
 	a.setKeys(user)
@@ -210,7 +212,7 @@ func (a *App) commandName(id string) string {
 // chordsLabel lists chords as the platform shows them.
 func chordsLabel(ks []chord) string {
 	if len(ks) == 0 {
-		return "None"
+		return locales.KeysNone()
 	}
 	labels := make([]string, len(ks))
 	for i, k := range ks {

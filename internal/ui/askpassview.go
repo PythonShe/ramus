@@ -8,6 +8,7 @@ import (
 
 	"ramus/internal/askpass"
 	"ramus/internal/git/redact"
+	"ramus/locales"
 )
 
 // asking are the questions git and ssh asked, the first one shown.
@@ -43,29 +44,26 @@ func (a *App) dropAsk(q *askpass.Ask) {
 // goes to: the one the prompt names, whatever the rest of it says.
 func askTitle(q askpass.Question) string {
 	host := redact.Control(q.Host())
-	of := func(what string) string {
+	of := func(what func() string, forHost func(string) string) string {
 		if host == "" {
-			return what
+			return what()
 		}
-		return what + " for " + host
+		return forHost(host)
 	}
 	switch q.Kind {
 	case askpass.Text:
-		return of("User name")
+		return of(locales.AskpassUserName, locales.AskpassUserNameFor)
 	case askpass.HostKey:
-		if host == "" {
-			return "Trust this host?"
-		}
-		return "Trust host " + host + "?"
+		return of(locales.AskpassTrustHost, locales.AskpassTrustHostNamed)
 	case askpass.Confirm:
-		return "Allow this?"
+		return locales.AskpassAllowThis()
 	case askpass.Notice:
-		return "Security key"
+		return locales.AskpassSecurityKey()
 	}
 	if strings.Contains(strings.ToLower(q.Prompt), "passphrase") || strings.Contains(q.Prompt, "PIN") {
-		return of("Passphrase")
+		return of(locales.AskpassPassphrase, locales.AskpassPassphraseFor)
 	}
-	return of("Password")
+	return of(locales.AskpassPassword, locales.AskpassPasswordFor)
 }
 
 func (a *App) askView(c *ui.Context) {
@@ -96,21 +94,21 @@ func (a *App) askView(c *ui.Context) {
 				}
 				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.Spacer(c)
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.CommonCancel()).Clicked() {
 						done("", false)
 					}
-					if ui.PrimaryButton(c, "OK").Clicked() || in.Submitted() {
+					if ui.PrimaryButton(c, locales.CommonOK()).Clicked() || in.Submitted() {
 						done(d.answer, true)
 					}
 				})
 			case askpass.HostKey, askpass.Confirm:
-				yes := "Allow"
+				yes := locales.AskpassAllow()
 				if q.Kind == askpass.HostKey {
-					yes = "Connect"
+					yes = locales.AskpassConnect()
 				}
 				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.Spacer(c)
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.CommonCancel()).Clicked() {
 						done("no", q.Kind == askpass.HostKey)
 					}
 					if ui.PrimaryButton(c, yes).Clicked() {
@@ -120,7 +118,7 @@ func (a *App) askView(c *ui.Context) {
 			case askpass.Notice:
 				ui.Row(c).Children(func() {
 					ui.Spacer(c)
-					if ui.Button(c, "Hide").Clicked() {
+					if ui.Button(c, locales.AskpassHide()).Clicked() {
 						done("", false)
 					}
 				})

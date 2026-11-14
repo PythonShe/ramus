@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/tools"
+	"ramus/locales"
 )
 
 // issueURL is where a user files a report, in their browser and in their
@@ -110,23 +111,23 @@ func (a *App) diagnosticsView(c *ui.Context) {
 	text := a.diagnostics()
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogWide).Children(func() {
-			ui.Text(c, "Diagnostics").Bold()
-			ui.Text(c, "Copy puts exactly this on the clipboard. Nothing is sent.").FontSize(textSmall).TextColor(c.Theme().TextMuted)
+			ui.Text(c, locales.DiagnosticsTitle()).Bold()
+			ui.Text(c, locales.DiagnosticsNote()).FontSize(textSmall).TextColor(c.Theme().TextMuted)
 			ui.Scroll(c).MaxHeight(380).FillWidth().Background(c.Theme().Surface).Children(func() {
 				ui.Text(c, text).Font("monospace").FontSize(textSmall).Selectable().Padding(spaceM)
 			})
 			if d.crashName != "" {
-				ui.Checkbox(c, &d.withCrash, "Include the latest crash report ("+d.crashName+")")
+				ui.Checkbox(c, &d.withCrash, locales.DiagnosticsIncludeCrash(d.crashName))
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
-				if ui.Button(c, "Open Issue Page").Clicked() {
+				if ui.Button(c, locales.DiagnosticsOpenIssue()).Clicked() {
 					go tools.OpenDefault(issueURL)
 				}
 				ui.Spacer(c)
-				if ui.Button(c, "Close").Clicked() {
+				if ui.Button(c, locales.CommonClose()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, "Copy Diagnostics").Clicked() {
+				if ui.PrimaryButton(c, locales.DiagnosticsCopy()).Clicked() {
 					a.clip = text
 				}
 			})

@@ -7,6 +7,7 @@ import (
 
 	"ramus/internal/git/repo"
 	"ramus/internal/issuelink"
+	"ramus/locales"
 )
 
 // tabLinks are the issue link rules in use in a tab: the repository's own,
@@ -105,13 +106,13 @@ func (a *App) linksView(c *ui.Context) {
 	t := d.t
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogWide).Children(func() {
-			ui.Text(c, "Issue Links").Bold()
+			ui.Text(c, locales.IssueLinksTitle()).Bold()
 			for i := range d.rules {
 				r := &d.rules[i]
 				ui.Row(c).Key(i).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-					ui.TextInput(c, &r.Pattern).Placeholder(`\bPROJ-(\d+)\b`).Label("Pattern").Font("monospace").Grow(1)
-					ui.TextInput(c, &r.URL).Placeholder("https://tracker.example.com/browse/PROJ-$1").Label("Link").Grow(2)
-					if ui.Button(c, "Remove").Clicked() {
+					ui.TextInput(c, &r.Pattern).Placeholder(`\bPROJ-(\d+)\b`).Label(locales.IssueLinksPattern()).Font("monospace").Grow(1)
+					ui.TextInput(c, &r.URL).Placeholder("https://tracker.example.com/browse/PROJ-$1").Label(locales.IssueLinksLink()).Grow(2)
+					if ui.Button(c, locales.CommonRemove()).Clicked() {
 						d.rules = slices.Delete(d.rules, i, i+1)
 					}
 				})
@@ -124,7 +125,7 @@ func (a *App) linksView(c *ui.Context) {
 					}
 				}
 			}
-			if ui.Button(c, "Add Rule").Clicked() {
+			if ui.Button(c, locales.IssueLinksAddRule()).Clicked() {
 				d.rules = append(d.rules, issuelink.Rule{})
 			}
 			for _, r := range t.links.remote {
@@ -138,10 +139,10 @@ func (a *App) linksView(c *ui.Context) {
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if ui.PrimaryButton(c, locales.CommonSave()).Clicked() {
 					a.saveLinks()
 				}
 			})

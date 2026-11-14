@@ -10,6 +10,7 @@ import (
 
 	"ramus/internal/git/trust"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 type cloneState struct {
@@ -36,20 +37,20 @@ func (a *App) cloneDialog(c *ui.Context) {
 	th := c.Theme()
 	ui.Modal(c, &cs.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
-			ui.Text(c, "Clone a repository").Bold()
+			ui.Text(c, locales.CloneTitle()).Bold()
 			busy := cs.job != nil || cs.starting
-			ui.Field(c, "URL", func() {
-				ui.TextInput(c, &cs.url).Label("Repository URL").Placeholder("https://github.com/owner/repo.git").AutoFocus().Disabled(busy)
+			ui.Field(c, locales.CommonURL(), func() {
+				ui.TextInput(c, &cs.url).Label(locales.CloneURLLabel()).Placeholder("https://github.com/owner/repo.git").AutoFocus().Disabled(busy)
 			})
-			ui.Field(c, "Folder", func() {
+			ui.Field(c, locales.CommonFolder(), func() {
 				ui.Row(c).Gap(spaceM).Children(func() {
-					ui.TextInput(c, &cs.dir).Label("Folder to clone into").Placeholder(defaultCloneDir(cs.url)).Grow(1).Disabled(busy)
-					if ui.Button(c, "Choose…").Disabled(busy).Clicked() {
+					ui.TextInput(c, &cs.dir).Label(locales.CloneFolderLabel()).Placeholder(defaultCloneDir(cs.url)).Grow(1).Disabled(busy)
+					if ui.Button(c, locales.CommonChoose()).Disabled(busy).Clicked() {
 						a.pickCloneParent()
 					}
 				})
 			})
-			ui.Checkbox(c, &cs.submodules, "Clone submodules too").Disabled(busy)
+			ui.Checkbox(c, &cs.submodules, locales.CloneSubmodules()).Disabled(busy)
 			if busy {
 				ui.Progress(c, float64(max(cs.percent, 0))/100)
 				ui.Text(c, cs.progress).SingleLine().FontSize(textSmall).TextColor(th.TextMuted)
@@ -59,7 +60,7 @@ func (a *App) cloneDialog(c *ui.Context) {
 			}
 			ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
 				if busy {
-					if ui.Button(c, "Stop").Clicked() {
+					if ui.Button(c, locales.CloneStop()).Clicked() {
 						if cs.job != nil {
 							cs.job.Cancel()
 						}
@@ -68,10 +69,10 @@ func (a *App) cloneDialog(c *ui.Context) {
 					}
 					return
 				}
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					cs.open = false
 				}
-				if ui.PrimaryButton(c, "Clone").Disabled(strings.TrimSpace(cs.url) == "").Clicked() {
+				if ui.PrimaryButton(c, locales.CloneClone()).Disabled(strings.TrimSpace(cs.url) == "").Clicked() {
 					a.startClone()
 				}
 			})
@@ -83,7 +84,7 @@ func (a *App) cloneDialog(c *ui.Context) {
 func defaultCloneDir(url string) string {
 	name := strings.TrimSuffix(path.Base(strings.TrimRight(strings.ReplaceAll(url, ":", "/"), "/")), ".git")
 	if name == "" || name == "." || name == "/" {
-		return "Folder to clone into"
+		return locales.CloneFolderLabel()
 	}
 	return name
 }
@@ -94,7 +95,7 @@ func (a *App) pickCloneParent() {
 	}
 	pick, update := a.PickFolder, a.Update
 	go func() {
-		p, err := pick("Clone Into")
+		p, err := pick(locales.CloneInto())
 		update(func() {
 			if err == nil && p != "" {
 				a.clone.dir = filepath.Join(p, defaultCloneDir(a.clone.url))
@@ -112,7 +113,7 @@ func (a *App) startClone() {
 		}
 	}
 	if !filepath.IsAbs(dir) {
-		cs.err = "Choose a folder to clone into, or type its full path"
+		cs.err = locales.CloneNeedFolder()
 		return
 	}
 	opt := write.CloneOptions{URL: strings.TrimSpace(cs.url), Dir: dir, Submodules: cs.submodules}

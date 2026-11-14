@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/library"
+	"ramus/locales"
 )
 
 type managerState struct {
@@ -44,8 +44,8 @@ func (a *App) managerView(c *ui.Context) {
 	var act func()
 	ui.Modal(c, &m.open, func() {
 		dialogBox(c).Width(dialogWide).Height(560).Children(func() {
-			ui.Text(c, "Repositories").Bold()
-			ui.SearchField(c, &m.query).Label("Search repositories").Placeholder("Search every known repository").AutoFocus()
+			ui.Text(c, locales.ManagerTitle()).Bold()
+			ui.SearchField(c, &m.query).Label(locales.ManagerSearchLabel()).Placeholder(locales.ManagerSearchPlaceholder()).AutoFocus()
 			m.list.Selected = &m.chosen
 			m.list.Label = func(i int) string { return repos[i].Name }
 			l := ui.List(c, &m.list, len(repos), func(i int) {
@@ -63,16 +63,16 @@ func (a *App) managerView(c *ui.Context) {
 						ui.Text(c, r.Name).SingleLine()
 						ui.Text(c, r.Path).SingleLine().FontSize(textSmall).TextColor(th.TextMuted)
 					}).ContextMenu(func(menu *ui.Menu) {
-						if menu.Item("Open").Chosen() {
+						if menu.Item(locales.ManagerOpen()).Chosen() {
 							p := r.Path
 							act = func() { a.Open(p); m.open = false }
 						}
-						if a.Settings.FetchMinutes > 0 && menu.Item("Fetch in the Background").Checked(!r.NoFetch).Chosen() {
+						if a.Settings.FetchMinutes > 0 && menu.Item(locales.ManagerFetchInBackground()).Checked(!r.NoFetch).Chosen() {
 							p, off := r.Path, !r.NoFetch
 							act = func() { a.setFetchOff(p, off) }
 						}
 						menu.Separator()
-						if menu.Item("Remove from This List").Chosen() {
+						if menu.Item(locales.ManagerForget()).Chosen() {
 							p := r.Path
 							act = func() { a.libraryWrite(func(l *library.Library) error { return l.Forget(p) }) }
 						}
@@ -81,7 +81,7 @@ func (a *App) managerView(c *ui.Context) {
 						act = func() { a.Open(p); m.open = false }
 					}
 				})
-			}).Label("Known repositories").Grow(1)
+			}).Label(locales.ManagerKnown()).Grow(1)
 			if l.Submitted() && m.chosen >= 0 && m.chosen < len(repos) {
 				p := repos[m.chosen].Path
 				act = func() { a.Open(p); m.open = false }
@@ -96,9 +96,9 @@ func (a *App) managerView(c *ui.Context) {
 
 func favLabel(r library.Repo) string {
 	if r.Favourite {
-		return "Unmark " + r.Name + " as favourite"
+		return locales.ManagerUnmarkFavourite(r.Name)
 	}
-	return "Mark " + r.Name + " as favourite"
+	return locales.ManagerMarkFavourite(r.Name)
 }
 
 func (a *App) groupsPanel(c *ui.Context, act *func()) {
@@ -106,11 +106,11 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 	th := c.Theme()
 	groups := a.Library.Groups()
 	ui.Column(c).Gap(spaceM).Children(func() {
-		ui.Text(c, "Groups").Bold()
+		ui.Text(c, locales.ManagerGroups()).Bold()
 		for _, g := range groups {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, fmt.Sprintf("%s (%d)", g.Name, len(g.Paths))).Grow(1)
-				if ui.Button(c, "Open "+g.Name).Clicked() {
+				ui.Text(c, locales.ManagerGroupCount(g.Name, len(g.Paths))).Grow(1)
+				if ui.Button(c, locales.ManagerOpenGroup(g.Name)).Clicked() {
 					paths := g.Paths
 					*act = func() {
 						for _, p := range paths {
@@ -119,7 +119,7 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 						m.open = false
 					}
 				}
-				if ui.Button(c, "Delete "+g.Name).Clicked() {
+				if ui.Button(c, locales.ManagerDeleteGroup(g.Name)).Clicked() {
 					name := g.Name
 					*act = func() { a.libraryWrite(func(l *library.Library) error { return l.SetGroup(name, nil) }) }
 				}
@@ -127,13 +127,13 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 		}
 		if len(a.tabs) == 0 {
 			if len(groups) == 0 {
-				ui.Text(c, "Open repositories to save them as a group.").TextColor(th.TextMuted)
+				ui.Text(c, locales.ManagerNoGroups()).TextColor(th.TextMuted)
 			}
 			return
 		}
 		ui.Row(c).Gap(spaceM).Children(func() {
-			ui.TextInput(c, &m.groupName).Label("Group name").Placeholder("Group name").Grow(1)
-			if ui.Button(c, "Save Open Tabs as Group").Disabled(strings.TrimSpace(m.groupName) == "").Clicked() {
+			ui.TextInput(c, &m.groupName).Label(locales.ManagerGroupName()).Placeholder(locales.ManagerGroupName()).Grow(1)
+			if ui.Button(c, locales.ManagerSaveGroup()).Disabled(strings.TrimSpace(m.groupName) == "").Clicked() {
 				name := m.groupName
 				var paths []string
 				for _, t := range a.tabs {

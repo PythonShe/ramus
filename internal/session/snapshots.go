@@ -7,6 +7,7 @@ import (
 
 	"ramus/internal/git/snapshot"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 var errReadOnly = errors.New("session: the repository is open read-only until you trust it")
@@ -55,9 +56,9 @@ func (s *Session) SnapshotNow(ignored bool) (*write.Job, error) {
 	if s.Queue == nil {
 		return nil, errReadOnly
 	}
-	reason := "Snapshot now"
+	reason := locales.SessionSnapshotNow()
 	if ignored {
-		reason = "Snapshot now, with ignored files"
+		reason = locales.SessionSnapshotNowIgnored()
 	}
 	j := s.Queue.SnapshotNow(s.Repo.WorkTree, snapshot.Options{Reason: reason, Ignored: ignored})
 	s.follow(s.addLog(reason, ""), j)
@@ -70,7 +71,7 @@ func (s *Session) Restore(snap snapshot.Snapshot, paths []string) (*write.Job, e
 		return nil, errReadOnly
 	}
 	j := s.Queue.Restore(s.Repo.WorkTree, snap, paths)
-	s.follow(s.addLog("Restore snapshot of "+snap.Time.Format(time.DateTime), ""), j)
+	s.follow(s.addLog(locales.SessionRestoreSnapshot(snap.Time.Format(time.DateTime)), ""), j)
 	return j, nil
 }
 
@@ -81,7 +82,7 @@ func (s *Session) Undo() (*write.Job, error) {
 	}
 	name, _ := s.Queue.History.Next()
 	j := s.Queue.Undo()
-	s.follow(s.addLog("Undo "+name, ""), j)
+	s.follow(s.addLog(locales.SessionUndo(name), ""), j)
 	return j, nil
 }
 
@@ -92,7 +93,7 @@ func (s *Session) Redo() (*write.Job, error) {
 	}
 	_, name := s.Queue.History.Next()
 	j := s.Queue.Redo()
-	s.follow(s.addLog("Redo "+name, ""), j)
+	s.follow(s.addLog(locales.SessionRedo(name), ""), j)
 	return j, nil
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"ramus/internal/git/write"
 	"ramus/internal/tools"
+	"ramus/locales"
 )
 
 type paletteState struct {
@@ -31,7 +32,7 @@ type command struct {
 func cmd(id string, run func()) command {
 	for _, b := range bindable {
 		if b.id == id {
-			return command{id: id, label: b.name, run: run}
+			return command{id: id, label: b.name(), run: run}
 		}
 	}
 	return command{id: id, label: id, run: run}
@@ -39,7 +40,7 @@ func cmd(id string, run func()) command {
 
 func (a *App) commands() []command {
 	cmds := []command{
-		{id: "palette", label: "Command Palette", run: func() { a.palette.open = true }, hidden: true},
+		{id: "palette", label: locales.KeysPalette(), run: func() { a.palette.open = true }, hidden: true},
 		cmd("open", a.pickAndOpen),
 		cmd("clone", func() { a.clone.open = true }),
 		cmd("new", a.initAndOpen),
@@ -61,7 +62,7 @@ func (a *App) commands() []command {
 		cmds = append(cmds, a.tabCommands(t)...)
 	}
 	for i, other := range a.tabs {
-		cmds = append(cmds, command{label: "Go to " + a.title(other), run: func() { a.active = i }})
+		cmds = append(cmds, command{label: locales.PaletteGoTo(a.title(other)), run: func() { a.active = i }})
 		if i < 9 {
 			id := "tab-" + strconv.Itoa(i+1)
 			cmds = append(cmds, command{id: id, label: id, run: func() { a.active = i }, hidden: true})
@@ -70,7 +71,7 @@ func (a *App) commands() []command {
 	if a.Library != nil {
 		for _, g := range a.Library.Groups() {
 			paths := g.Paths
-			cmds = append(cmds, command{label: "Open Group " + g.Name, run: func() {
+			cmds = append(cmds, command{label: locales.PaletteOpenGroup(g.Name), run: func() {
 				for _, p := range paths {
 					a.Open(p)
 				}
@@ -78,7 +79,7 @@ func (a *App) commands() []command {
 		}
 		for _, r := range a.Library.Recent(a.Settings.WithDefaults().RecentLimit) {
 			p := r.Path
-			cmds = append(cmds, command{label: "Open " + r.Name + " (" + r.Path + ")", run: func() { a.Open(p) }})
+			cmds = append(cmds, command{label: locales.PaletteOpenRecent(r.Name, r.Path), run: func() { a.Open(p) }})
 		}
 	}
 	return cmds
@@ -98,7 +99,7 @@ func (a *App) tabCommands(t *tab) []command {
 	}
 	dir := t.s.Path
 	for _, tl := range a.palette.tools {
-		cmds = append(cmds, command{id: toolID(tl.Name), label: "Open in " + tl.Name, run: func() {
+		cmds = append(cmds, command{id: toolID(tl.Name), label: locales.PaletteOpenIn(toolName(tl.Name)), run: func() {
 			if err := tl.Open(dir, 0); err != nil {
 				a.notice = errText(err)
 			}
@@ -115,9 +116,9 @@ func (a *App) tabCommands(t *tab) []command {
 	)
 	cmds = append(cmds, a.hidingCommands()...)
 	if a.Settings.FetchMinutes > 0 && t.prefs.loaded {
-		label, off := "Stop Fetching This Repository in the Background", true
+		label, off := locales.PaletteStopFetching(), true
 		if t.prefs.fetchOff {
-			label, off = "Fetch This Repository in the Background", false
+			label, off = locales.PaletteStartFetching(), false
 		}
 		path := t.s.Path
 		cmds = append(cmds, command{label: label, run: func() { a.setFetchOff(path, off) }})
@@ -139,8 +140,8 @@ func (a *App) tabCommands(t *tab) []command {
 		// about to finish; the palette lists what there is to undo.
 		undo, redo := q.History.Next()
 		u, r := cmd("undo", func() { a.undo(t, false) }), cmd("redo", func() { a.undo(t, true) })
-		u.label, u.hidden = "Undo "+undo, undo == ""
-		r.label, r.hidden = "Redo "+redo, redo == ""
+		u.label, u.hidden = locales.PaletteUndo(undo), undo == ""
+		r.label, r.hidden = locales.PaletteRedo(redo), redo == ""
 		cmds = append(cmds, u, r)
 	}
 	for _, x := range a.Settings.Actions {
@@ -233,7 +234,7 @@ func (a *App) paletteView(c *ui.Context) {
 	var run func()
 	ui.Modal(c, &p.open, func() {
 		cb := ui.ComboboxBase(c, &p.query)
-		cb.Input.AutoFocus().Placeholder("Type a command").Label("Command").Width(520)
+		cb.Input.AutoFocus().Placeholder(locales.PalettePlaceholder()).Label(locales.PaletteLabel()).Width(520)
 		cb.Popup(func(panel ui.Element) {
 			km := a.keys()
 			for _, cmd := range cmds {

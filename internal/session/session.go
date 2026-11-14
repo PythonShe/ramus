@@ -24,6 +24,13 @@ import (
 	"ramus/internal/git/write"
 )
 
+// sayError is an error a user reads, said in the language the app shows
+// when it is shown, not when it is made. A sentinel of it stays one value
+// for errors.Is.
+type sayError struct{ say func() string }
+
+func (e *sayError) Error() string { return e.say() }
+
 // State is what the UI shows of a repository. It is replaced, never
 // changed in place, so a view may hold one for a frame.
 type State struct {

@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	_ "ramus/locales"
 	"strings"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"ramus/internal/session"
 	"ramus/internal/settings"
 	"ramus/internal/ui"
+	"ramus/locales"
 )
 
 // maxProcesses bounds the git processes running at once, across every
@@ -164,6 +164,9 @@ func main() {
 		}
 		ws.ready = true
 		mygo.App.SetMenu(menu(ws))
+		// The menu's own labels are set once; the roles' follow by
+		// themselves.
+		mygo.App.OnLocaleChanged(func(string) { mygo.App.SetMenu(menu(ws)) })
 		for _, w := range ws.list[1:] {
 			ws.show(w)
 		}
@@ -196,7 +199,7 @@ func findGit(ws *windows, crash *crashlog.Log, ask *askpass.Server) {
 			if shellErr != nil && len(ws.list) > 0 {
 				// Not fatal: git and the tools in the usual places are found
 				// all the same; ones the shell adds to PATH may not be.
-				ws.list[0].app.Notify("Your login shell's settings were not read, so git runs with the app's own PATH: " + shellErr.Error())
+				ws.list[0].app.Notify(locales.AppShellNotRead(shellErr.Error()))
 			}
 			for _, w := range ws.list {
 				if w.win == nil {
@@ -278,10 +281,10 @@ func runTool(req cli.Request) {
 	title := "Ramus"
 	switch req.Kind {
 	case cli.Diff:
-		title = "Compare " + filepath.Base(req.Paths[1])
+		title = locales.WindowCompare(filepath.Base(req.Paths[1]))
 		app.Compare(req.Paths[0], req.Paths[1], func() { mygo.App.Exit(code) })
 	case cli.Merge:
-		title = "Merge " + filepath.Base(req.Paths[3])
+		title = locales.WindowMerge(filepath.Base(req.Paths[3]))
 		app.MergeTool(req.Paths[0], req.Paths[1], req.Paths[2], req.Paths[3], func(resolved bool) {
 			if resolved {
 				code = 0
@@ -333,16 +336,16 @@ func menu(ws *windows) *mygo.Menu {
 	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
-		{Label: "File", Submenu: []*mygo.MenuItem{
-			{Label: "New Window", Accelerator: key("new-window"), Click: func(*mygo.MenuItem, *mygo.Window) { ws.open(nil) }},
-			{Label: "Open Repository…", Accelerator: key("open"), Click: act((*ui.App).PickAndOpen)},
-			{Label: "Clone Repository…", Accelerator: key("clone"), Click: act((*ui.App).ShowClone)},
-			{Label: "Repositories…", Accelerator: key("repositories"), Click: act((*ui.App).ShowManager)},
+		{Label: locales.MenuFile(), Submenu: []*mygo.MenuItem{
+			{Label: locales.MenuNewWindow(), Accelerator: key("new-window"), Click: func(*mygo.MenuItem, *mygo.Window) { ws.open(nil) }},
+			{Label: locales.MenuOpenRepository(), Accelerator: key("open"), Click: act((*ui.App).PickAndOpen)},
+			{Label: locales.MenuCloneRepository(), Accelerator: key("clone"), Click: act((*ui.App).ShowClone)},
+			{Label: locales.MenuRepositories(), Accelerator: key("repositories"), Click: act((*ui.App).ShowManager)},
 			{Role: mygo.RoleOpenRecent},
 			mygo.Separator(),
-			{Label: "Settings…", Accelerator: key("settings"), Click: act((*ui.App).ShowSettings)},
-			{Label: "Command Palette", Accelerator: key("palette"), Click: act((*ui.App).ShowPalette)},
-			{Label: "Refresh", Accelerator: key("refresh"), Click: act((*ui.App).Reload)},
+			{Label: locales.MenuSettings(), Accelerator: key("settings"), Click: act((*ui.App).ShowSettings)},
+			{Label: locales.MenuCommandPalette(), Accelerator: key("palette"), Click: act((*ui.App).ShowPalette)},
+			{Label: locales.MenuRefresh(), Accelerator: key("refresh"), Click: act((*ui.App).Reload)},
 			mygo.Separator(),
 			{Role: mygo.RoleClose},
 		}},

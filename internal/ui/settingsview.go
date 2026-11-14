@@ -8,6 +8,7 @@ import (
 	"ramus/internal/cli"
 	"ramus/internal/settings"
 	"ramus/internal/tools"
+	"ramus/locales"
 )
 
 type settingsState struct {
@@ -55,39 +56,39 @@ func (a *App) settingsView(c *ui.Context) {
 	th := c.Theme()
 	ui.Modal(c, &s.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
-			ui.Text(c, "Settings").Bold()
-			ui.Field(c, "Appearance", func() {
-				ui.Segmented(c, &s.theme, "System", "Light", "Dark")
+			ui.Text(c, locales.SettingsTitle()).Bold()
+			ui.Field(c, locales.SettingsAppearance(), func() {
+				ui.Segmented(c, &s.theme, locales.SettingsThemeSystem(), locales.SettingsThemeLight(), locales.SettingsThemeDark())
 			})
-			ui.Field(c, "Editor", func() {
+			ui.Field(c, locales.SettingsEditor(), func() {
 				ui.TextInput(c, &s.editor).Placeholder("/usr/local/bin/code --wait")
 			})
-			ui.Field(c, "Terminal", func() {
+			ui.Field(c, locales.SettingsTerminal(), func() {
 				ui.TextInput(c, &s.terminal).Placeholder("/Applications/Ghostty.app")
 			})
-			ui.Field(c, "Your email addresses besides each repository's user.email", func() {
-				ui.TextInput(c, &s.emails).Placeholder("you@example.com, you@work.example")
+			ui.Field(c, locales.SettingsEmails(), func() {
+				ui.TextInput(c, &s.emails).Placeholder(locales.SettingsEmailsExample())
 			})
-			ui.Field(c, "Keep snapshots of dropped work (days)", func() {
+			ui.Field(c, locales.SettingsSnapshotDays(), func() {
 				ui.NumberInput(c, &s.days, 1, 365, 1)
 			})
-			ui.Field(c, "Recent repositories listed", func() {
+			ui.Field(c, locales.SettingsRecentLimit(), func() {
 				ui.NumberInput(c, &s.recent, 1, 200, 1)
 			})
-			ui.Checkbox(c, &s.focusRefresh, "Refresh when the window is focused")
-			ui.Checkbox(c, &s.fetch, "Fetch in the background")
+			ui.Checkbox(c, &s.focusRefresh, locales.SettingsFocusRefresh())
+			ui.Checkbox(c, &s.fetch, locales.SettingsFetch())
 			if s.fetch {
-				ui.Field(c, "Minutes between background fetches", func() {
+				ui.Field(c, locales.SettingsFetchMinutes(), func() {
 					ui.NumberInput(c, &s.fetchMinutes, settings.MinFetchMinutes, 24*60, 5)
 				})
 			}
-			ui.Checkbox(c, &s.pulls, "Show pull requests on branches, through gh or glab")
+			ui.Checkbox(c, &s.pulls, locales.SettingsPullRequests())
 			if a.Program != "" {
-				ui.Field(c, "Git difftool and mergetool", func() {
+				ui.Field(c, locales.SettingsDiffTool(), func() {
 					snippet := cli.ToolConfig(a.Program)
 					ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
 						ui.Text(c, strings.TrimSuffix(snippet, "\n")).Font("monospace").FontSize(textCaption).Selectable().Grow(1)
-						if ui.Button(c, "Copy").Clicked() {
+						if ui.Button(c, locales.CommonCopy()).Clicked() {
 							a.clip = snippet
 						}
 					})
@@ -97,18 +98,18 @@ func (a *App) settingsView(c *ui.Context) {
 				ui.Text(c, s.err).TextColor(th.Danger)
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
-				if ui.Button(c, "Keyboard Shortcuts…").Clicked() {
+				if ui.Button(c, locales.SettingsKeyboardShortcuts()).Clicked() {
 					a.openKeys()
 				}
-				if a.SettingsPath != "" && ui.Button(c, "Open Settings File").Clicked() {
+				if a.SettingsPath != "" && ui.Button(c, locales.SettingsOpenFile()).Clicked() {
 					p := a.SettingsPath
 					go tools.OpenDefault(p)
 				}
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					s.open = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() {
+				if ui.PrimaryButton(c, locales.CommonSave()).Clicked() {
 					a.saveSettings()
 				}
 			})
@@ -138,11 +139,11 @@ func (a *App) saveSettings() {
 		into  *[]string
 		kind  tools.Kind
 		label string
-	}{{s.editor, &next.Editor, tools.Editor, "Editor"}, {s.terminal, &next.Terminal, tools.Terminal, "Terminal"}} {
+	}{{s.editor, &next.Editor, tools.Editor, locales.SettingsEditor()}, {s.terminal, &next.Terminal, tools.Terminal, locales.SettingsTerminal()}} {
 		argv := splitArgs(f.text)
 		if len(argv) > 0 {
 			if _, err := tools.Custom(f.label, f.kind, argv); err != nil {
-				s.err = f.label + ": " + errText(err)
+				s.err = locales.SettingsToolError(f.label, errText(err))
 				return
 			}
 		}
@@ -157,7 +158,7 @@ func (a *App) saveSettings() {
 		path, saved, update := a.SettingsPath, next, a.Update
 		go func() {
 			if err := settings.Save(path, saved); err != nil {
-				update(func() { a.notice = "Settings not saved: " + errText(err) })
+				update(func() { a.notice = locales.SettingsNotSaved(errText(err)) })
 			}
 		}()
 	}

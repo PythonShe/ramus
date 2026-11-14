@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+
+	"ramus/locales"
 )
 
 // chord is a key pressed with exactly mods held.
@@ -71,13 +73,13 @@ func parseChord(s string) (chord, error) {
 			case "shift":
 				k.mods |= ui.Shift
 			default:
-				return chord{}, errors.New("unknown modifier " + strconv.Quote(parts[i]) + " in " + strconv.Quote(s))
+				return chord{}, errors.New(locales.KeysUnknownModifier(strconv.Quote(parts[i]), strconv.Quote(s)))
 			}
 			continue
 		}
 		key, ok := namedKeys[p]
 		if !ok {
-			return chord{}, errors.New("unknown key " + strconv.Quote(parts[i]) + " in " + strconv.Quote(s))
+			return chord{}, errors.New(locales.KeysUnknownKey(strconv.Quote(parts[i]), strconv.Quote(s)))
 		}
 		k.key = key
 	}
@@ -158,55 +160,67 @@ func (k chord) textSafe() bool {
 
 // bindable is every command a shortcut can run, in the order the
 // settings list them, with the name they show there.
-var bindable = []struct{ id, name string }{
-	{"palette", "Command Palette"},
-	{"open", "Open Repository…"},
-	{"clone", "Clone Repository…"},
-	{"new", "New Repository…"},
-	{"repositories", "Repositories…"},
-	{"settings", "Settings…"},
-	{"keyboard-shortcuts", "Keyboard Shortcuts…"},
-	{"library-stats", "Library Statistics…"},
-	{"crash-reports", "Show Crash Reports"},
-	{"diagnostics", "Diagnostics…"},
-	{"new-window", "New Window"},
-	{"move-to-window", "Move Tab to New Window"},
-	{"close-tab", "Close Tab"},
-	{"refresh", "Refresh"},
-	{"undo", "Undo"},
-	{"redo", "Redo"},
-	{"show-changes", "Show Changes"},
-	{"show-history", "Show History"},
-	{"show-reflog", "Show Reflog"},
-	{"show-stats", "Show Statistics"},
-	{"lost-commits", "Find Lost Commits"},
-	{"show-refs", "Show Branches and Tags"},
-	{"show-stashes", "Show Stashes"},
-	{"show-log", "Show Command Log"},
-	{"show-snapshots", "Show Snapshots"},
-	{"commit", "Commit"},
-	{"commit-push", "Commit and Push"},
-	{"stage-all", "Stage All"},
-	{"unstage-all", "Unstage All"},
-	{"fetch", "Fetch All Remotes"},
-	{"pull-merge", "Pull, Merging"},
-	{"pull-rebase", "Pull, Rebasing"},
-	{"pull-ff", "Pull, Fast-Forward Only"},
-	{"push", "Push"},
-	{"new-branch", "New Branch…"},
-	{"new-tag", "New Tag…"},
-	{"stash", "Stash Changes…"},
-	{"clean", "Clean Untracked Files…"},
-	{"apply-patch", "Apply Patch File…"},
-	{"snapshot", "Snapshot Now"},
-	{"trust", "Trust This Repository"},
-	{"reveal", "Reveal in File Manager"},
-	{"issue-links", "Issue Links…"},
-	{"toggle-sidebar", "Show or Hide the Sidebar"},
-	{"toggle-status-bar", "Show or Hide the Status Bar"},
-	{"tab-1", "Go to Tab 1"}, {"tab-2", "Go to Tab 2"}, {"tab-3", "Go to Tab 3"},
-	{"tab-4", "Go to Tab 4"}, {"tab-5", "Go to Tab 5"}, {"tab-6", "Go to Tab 6"},
-	{"tab-7", "Go to Tab 7"}, {"tab-8", "Go to Tab 8"}, {"tab-9", "Go to Tab 9"},
+var bindable = append([]bindableCommand{
+	{"palette", locales.KeysPalette},
+	{"open", locales.KeysOpen},
+	{"clone", locales.KeysClone},
+	{"new", locales.KeysNew},
+	{"repositories", locales.KeysRepositories},
+	{"settings", locales.KeysSettings},
+	{"keyboard-shortcuts", locales.KeysKeyboardShortcuts},
+	{"library-stats", locales.KeysLibraryStats},
+	{"crash-reports", locales.KeysCrashReports},
+	{"diagnostics", locales.KeysDiagnostics},
+	{"new-window", locales.KeysNewWindow},
+	{"move-to-window", locales.KeysMoveToWindow},
+	{"close-tab", locales.KeysCloseTab},
+	{"refresh", locales.KeysRefresh},
+	{"undo", locales.KeysUndo},
+	{"redo", locales.KeysRedo},
+	{"show-changes", locales.KeysShowChanges},
+	{"show-history", locales.KeysShowHistory},
+	{"show-reflog", locales.KeysShowReflog},
+	{"show-stats", locales.KeysShowStats},
+	{"lost-commits", locales.KeysLostCommits},
+	{"show-refs", locales.KeysShowRefs},
+	{"show-stashes", locales.KeysShowStashes},
+	{"show-log", locales.KeysShowLog},
+	{"show-snapshots", locales.KeysShowSnapshots},
+	{"commit", locales.KeysCommit},
+	{"commit-push", locales.KeysCommitPush},
+	{"stage-all", locales.KeysStageAll},
+	{"unstage-all", locales.KeysUnstageAll},
+	{"fetch", locales.KeysFetch},
+	{"pull-merge", locales.KeysPullMerge},
+	{"pull-rebase", locales.KeysPullRebase},
+	{"pull-ff", locales.KeysPullFF},
+	{"push", locales.KeysPush},
+	{"new-branch", locales.KeysNewBranch},
+	{"new-tag", locales.KeysNewTag},
+	{"stash", locales.KeysStash},
+	{"clean", locales.KeysClean},
+	{"apply-patch", locales.KeysApplyPatch},
+	{"snapshot", locales.KeysSnapshot},
+	{"trust", locales.KeysTrust},
+	{"reveal", locales.KeysReveal},
+	{"issue-links", locales.KeysIssueLinks},
+	{"toggle-sidebar", locales.KeysToggleSidebar},
+	{"toggle-status-bar", locales.KeysToggleStatusBar},
+}, goToTabs()...)
+
+// bindableCommand is a command a shortcut can run; name says it in the
+// language the app shows.
+type bindableCommand struct {
+	id   string
+	name func() string
+}
+
+func goToTabs() []bindableCommand {
+	var out []bindableCommand
+	for n := 1; n <= 9; n++ {
+		out = append(out, bindableCommand{"tab-" + strconv.Itoa(n), func() string { return locales.KeysGoToTab(n) }})
+	}
+	return out
 }
 
 // defaultKeys are the shortcuts the app ships with.

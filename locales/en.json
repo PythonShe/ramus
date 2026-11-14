@@ -1464,5 +1464,726 @@
     }
   },
   "treemapSizeBytes": "{count, plural, one {# byte} other {# bytes}}",
-  "treemapChangeCount": "{count, plural, one {# change} other {# changes}}"
+  "treemapChangeCount": "{count, plural, one {# change} other {# changes}}",
+  "settingsTitle": "Settings",
+  "@settingsTitle": {
+    "description": "The settings dialog's title."
+  },
+  "settingsAppearance": "Appearance",
+  "settingsThemeSystem": "System",
+  "@settingsThemeSystem": {
+    "description": "Appearance: follow the system's light or dark mode."
+  },
+  "settingsThemeLight": "Light",
+  "@settingsThemeLight": {
+    "description": "Appearance: light mode."
+  },
+  "settingsThemeDark": "Dark",
+  "@settingsThemeDark": {
+    "description": "Appearance: dark mode."
+  },
+  "settingsEditor": "Editor",
+  "@settingsEditor": {
+    "description": "The text editor the app opens files in."
+  },
+  "settingsTerminal": "Terminal",
+  "@settingsTerminal": {
+    "description": "The terminal app the app opens repositories in."
+  },
+  "settingsEmails": "Your email addresses besides each repository's user.email",
+  "@settingsEmails": {
+    "description": "user.email is git's setting; keep it as is."
+  },
+  "settingsEmailsExample": "you@example.com, you@work.example",
+  "@settingsEmailsExample": {
+    "description": "Example email addresses in an empty field."
+  },
+  "settingsSnapshotDays": "Keep snapshots of dropped work (days)",
+  "settingsRecentLimit": "Recent repositories listed",
+  "settingsFocusRefresh": "Refresh when the window is focused",
+  "settingsFetch": "Fetch in the background",
+  "settingsFetchMinutes": "Minutes between background fetches",
+  "settingsPullRequests": "Show pull requests on branches, through gh or glab",
+  "@settingsPullRequests": {
+    "description": "gh and glab are the names of programs."
+  },
+  "settingsDiffTool": "Git difftool and mergetool",
+  "@settingsDiffTool": {
+    "description": "difftool and mergetool are git's own words."
+  },
+  "settingsKeyboardShortcuts": "Keyboard Shortcuts…",
+  "settingsOpenFile": "Open Settings File",
+  "settingsToolError": "{tool}: {error}",
+  "@settingsToolError": {
+    "description": "An editor or terminal the user named that cannot be used, and why."
+  },
+  "settingsNotSaved": "Settings not saved: {error}",
+  "statsFrom": "From",
+  "@statsFrom": {
+    "description": "The first day counted."
+  },
+  "statsFromPlaceholder": "From YYYY-MM-DD",
+  "@statsFromPlaceholder": {
+    "description": "YYYY-MM-DD is the form a day is typed in; keep it as is."
+  },
+  "statsTo": "To",
+  "@statsTo": {
+    "description": "The last day counted."
+  },
+  "statsToPlaceholder": "To YYYY-MM-DD",
+  "@statsToPlaceholder": {
+    "description": "YYYY-MM-DD is the form a day is typed in; keep it as is."
+  },
+  "statsActivity": "Activity",
+  "statsFilesBySize": "Files by Size",
+  "statsFilesByChanges": "Files by Changes",
+  "statsReadCommits": "Read {read} of {total, plural, one {# commit} other {# commits}}",
+  "@statsReadCommits": {
+    "placeholders": {
+      "read": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "statsReadingFileSizes": "Reading file sizes…",
+  "statsChangesOver": "Changes over {count, plural, one {# commit} other {# commits}}",
+  "statsChangesOverLimited": "Changes over {count, plural, one {# commit} other {# commits}}, the latest; choose a start date to go further back",
+  "statsCountingChanges": "Counting changes…",
+  "statsReadingCommits": "Reading commits…",
+  "statsNoCommits": "No commits in this range",
+  "statsCommitsBy": "{commits, plural, one {commit} other {commits}} by {people, plural, one {# person} other {# people}}, {first} to {last}",
+  "@statsCommitsBy": {
+    "description": "Follows the number of commits, shown large; first and last are days.",
+    "placeholders": {
+      "commits": {
+        "type": "int"
+      },
+      "people": {
+        "type": "int"
+      },
+      "first": {},
+      "last": {}
+    }
+  },
+  "statsByWeekday": "By weekday",
+  "statsByHour": "By hour of the author's day",
+  "statsNotADay": "{day} is not a day like 2024-03-31",
+  "@statsNotADay": {
+    "description": "day is what the user typed, quoted."
+  },
+  "statsAllBranches": "All Branches and Tags",
+  "statsPerWeek": "Commits per week",
+  "statsPerMonth": "Commits per month",
+  "statsPerQuarter": "Commits per quarter",
+  "statsPerYear": "Commits per year",
+  "statsWeekOf": "Week of {day}",
+  "@statsWeekOf": {
+    "description": "day is the week's first day, as 2024-03-31."
+  },
+  "statsMonth": "{month, date, ::yMMMM}",
+  "@statsMonth": {
+    "description": "A month and its year, as January 2024."
+  },
+  "statsQuarter": "Q{quarter} {year, number, ::group-off}",
+  "@statsQuarter": {
+    "description": "A quarter of a year, as Q1 2024.",
+    "placeholders": {
+      "quarter": {
+        "type": "int"
+      },
+      "year": {
+        "type": "int"
+      }
+    }
+  },
+  "statsWeekday": "{day, date, ::EEEE}",
+  "@statsWeekday": {
+    "description": "The name of a day of the week, as Monday."
+  },
+  "statsWeekdayShort": "{day, date, ::EEE}",
+  "@statsWeekdayShort": {
+    "description": "The short name of a day of the week, as Mon."
+  },
+  "statsRange": "{from} to {to}",
+  "@statsRange": {
+    "description": "A span of days, as 2024-01-01 to 2024-03-31, or of an hour, as 09:00 to 09:59."
+  },
+  "statsMost": "most {n}",
+  "@statsMost": {
+    "description": "The largest count a chart shows.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "statsBarTip": "{label}: {count, plural, one {# commit} other {# commits}}",
+  "@statsBarTip": {
+    "description": "A bar of a chart: label is its period, as Week of 2024-03-31."
+  },
+  "statsNameCommits": "{name}, {count, plural, one {# commit} other {# commits}}",
+  "@statsNameCommits": {
+    "description": "A person or a repository in a list, and its commits."
+  },
+  "statsPerson": "Person",
+  "statsCommits": "Commits",
+  "@statsCommits": {
+    "description": "A column heading: the number of commits."
+  },
+  "statsShare": "Share",
+  "@statsShare": {
+    "description": "A column heading: a person's share of the commits."
+  },
+  "statsActive": "Active",
+  "@statsActive": {
+    "description": "A column heading: the days from a person's first commit to their last."
+  },
+  "statsAuthors": "Authors",
+  "statsLibraryTitle": "Library Statistics",
+  "statsOnlyMine": "Only My Commits",
+  "statsReadRepositories": "Read {read} of {total, plural, one {# repository} other {# repositories}}",
+  "@statsReadRepositories": {
+    "placeholders": {
+      "read": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "statsNoRepositories": "No repositories",
+  "statsLibrarySummary": "{commits, plural, one {commit} other {commits}} by {people, plural, one {# person} other {# people}} on {days, plural, one {# active day} other {# active days}} in {repos, plural, one {# repository} other {# repositories}}",
+  "@statsLibrarySummary": {
+    "description": "Follows the number of commits, shown large.",
+    "placeholders": {
+      "commits": {
+        "type": "int"
+      },
+      "people": {
+        "type": "int"
+      },
+      "days": {
+        "type": "int"
+      },
+      "repos": {
+        "type": "int"
+      }
+    }
+  },
+  "statsByWeekdayAndHour": "By weekday and hour of the author's day",
+  "statsDaysWithCommits": "Days with commits",
+  "statsAllRepositories": "All Repositories",
+  "statsHeatTip": "{day, date, ::EEEE} {from} to {to}: {count, plural, one {# commit} other {# commits}}",
+  "@statsHeatTip": {
+    "description": "A cell of the chart by weekday and hour, as Monday 09:00 to 09:59: 3 commits.",
+    "placeholders": {
+      "day": {
+        "type": "DateTime"
+      },
+      "from": {},
+      "to": {},
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statsCalendarTip": "{weekday, date, ::EEE} {day}: {count, plural, one {# commit} other {# commits}}",
+  "@statsCalendarTip": {
+    "description": "A day of the calendar, as Mon 2024-03-31: 3 commits.",
+    "placeholders": {
+      "weekday": {
+        "type": "DateTime"
+      },
+      "day": {},
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statsLongestStreak": "Longest streak",
+  "statsCurrentStreak": "Current streak",
+  "statsDays": "{count, plural, one {# day} other {# days}}",
+  "statsMonths": "{count, plural, one {# month} other {# months}}",
+  "statsYears": "{count, plural, one {# year} other {# years}}",
+  "statsToDay": "to {day}",
+  "@statsToDay": {
+    "description": "The day a streak ended, as to 2024-03-31."
+  },
+  "statsNone": "None",
+  "@statsNone": {
+    "description": "No streak at all."
+  },
+  "statsBusiestDay": "Busiest day",
+  "statsMostActiveMonth": "Most active month",
+  "statsCommitCount": "{count, plural, one {# commit} other {# commits}}",
+  "statsRepository": "Repository",
+  "@statsRepository": {
+    "description": "A column heading."
+  },
+  "statsActiveDays": "Active Days",
+  "@statsActiveDays": {
+    "description": "A column heading: the days with commits."
+  },
+  "statsPeople": "People",
+  "@statsPeople": {
+    "description": "A column heading: the number of people who committed."
+  },
+  "statsAge": "Age",
+  "@statsAge": {
+    "description": "A column heading: how long ago a repository's first commit was."
+  },
+  "statsSize": "Size",
+  "@statsSize": {
+    "description": "A column heading: a repository's size on disk."
+  },
+  "statsReadingCommitsOf": "Reading {read} of {total, plural, one {# commit} other {# commits}}",
+  "@statsReadingCommitsOf": {
+    "placeholders": {
+      "read": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "statsByRepository": "Statistics by repository",
+  "managerTitle": "Repositories",
+  "@managerTitle": {
+    "description": "The title of the dialog listing every known repository."
+  },
+  "managerSearchLabel": "Search repositories",
+  "managerSearchPlaceholder": "Search every known repository",
+  "managerOpen": "Open",
+  "@managerOpen": {
+    "description": "A menu item: opens the repository."
+  },
+  "managerFetchInBackground": "Fetch in the Background",
+  "@managerFetchInBackground": {
+    "description": "A menu item with a check mark."
+  },
+  "managerForget": "Remove from This List",
+  "managerKnown": "Known repositories",
+  "managerMarkFavourite": "Mark {name} as favourite",
+  "managerUnmarkFavourite": "Unmark {name} as favourite",
+  "managerGroups": "Groups",
+  "managerGroupCount": "{name} ({count})",
+  "@managerGroupCount": {
+    "description": "A group of repositories and how many it has.",
+    "placeholders": {
+      "name": {},
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "managerOpenGroup": "Open {name}",
+  "@managerOpenGroup": {
+    "description": "Opens every repository of the group name."
+  },
+  "managerDeleteGroup": "Delete {name}",
+  "@managerDeleteGroup": {
+    "description": "Deletes the group name; its repositories stay."
+  },
+  "managerNoGroups": "Open repositories to save them as a group.",
+  "managerGroupName": "Group name",
+  "managerSaveGroup": "Save Open Tabs as Group",
+  "actionsError": "{name}: {error}",
+  "@actionsError": {
+    "description": "A user's action that could not run, and why."
+  },
+  "actionsRun": "Run",
+  "@actionsRun": {
+    "description": "A button: runs the user's action."
+  },
+  "actionsOpenFilesIn": "Open Files In",
+  "@actionsOpenFilesIn": {
+    "description": "A submenu of the editors a repository's files open in."
+  },
+  "actionsDefaultEditor": "Default ({editor})",
+  "@actionsDefaultEditor": {
+    "description": "The editor used unless one is chosen; editor is its name."
+  },
+  "actionsShowFileHistory": "Show File History",
+  "actionsBlame": "Blame",
+  "@actionsBlame": {
+    "description": "A menu item: shows who last changed each line of the file, as git blame does."
+  },
+  "actionsOpenInEditor": "Open in Editor",
+  "actionsReveal": "Reveal in File Manager",
+  "actionsActions": "Actions",
+  "@actionsActions": {
+    "description": "The log of the writes and the user's actions the app ran."
+  },
+  "actionsGitCommands": "Git Commands",
+  "@actionsGitCommands": {
+    "description": "The log of every git command the app ran."
+  },
+  "actionsEmpty": "Commands the app runs here show up in this log",
+  "actionsCommandsRun": "Commands run",
+  "actionsLinesDropped": "{count, plural, one {# earlier line not kept} other {# earlier lines not kept}}",
+  "actionsOutput": "Command output",
+  "actionsRunning": "running",
+  "@actionsRunning": {
+    "description": "A command still running."
+  },
+  "actionsFailed": "failed",
+  "@actionsFailed": {
+    "description": "A command that failed."
+  },
+  "actionsDoneIn": "done in {duration}",
+  "@actionsDoneIn": {
+    "description": "A command that finished; duration is as 1.25s."
+  },
+  "cloneTitle": "Clone a repository",
+  "cloneURLLabel": "Repository URL",
+  "cloneFolderLabel": "Folder to clone into",
+  "cloneSubmodules": "Clone submodules too",
+  "cloneStop": "Stop",
+  "@cloneStop": {
+    "description": "A button: stops the clone running."
+  },
+  "cloneClone": "Clone",
+  "@cloneClone": {
+    "description": "A button: starts the clone."
+  },
+  "cloneInto": "Clone Into",
+  "@cloneInto": {
+    "description": "The title of the folder picker for where to clone."
+  },
+  "cloneNeedFolder": "Choose a folder to clone into, or type its full path",
+  "keysPalette": "Command Palette",
+  "@keysPalette": {
+    "description": "The list of every command, searched by typing."
+  },
+  "keysOpen": "Open Repository…",
+  "keysClone": "Clone Repository…",
+  "keysNew": "New Repository…",
+  "keysRepositories": "Repositories…",
+  "keysSettings": "Settings…",
+  "keysKeyboardShortcuts": "Keyboard Shortcuts…",
+  "keysLibraryStats": "Library Statistics…",
+  "keysCrashReports": "Show Crash Reports",
+  "keysDiagnostics": "Diagnostics…",
+  "keysNewWindow": "New Window",
+  "keysMoveToWindow": "Move Tab to New Window",
+  "keysCloseTab": "Close Tab",
+  "keysRefresh": "Refresh",
+  "@keysRefresh": {
+    "description": "A command: reads the repository again."
+  },
+  "keysUndo": "Undo",
+  "@keysUndo": {
+    "description": "A command: undoes the last change the app made."
+  },
+  "keysRedo": "Redo",
+  "@keysRedo": {
+    "description": "A command: redoes the last change undone."
+  },
+  "keysShowChanges": "Show Changes",
+  "keysShowHistory": "Show History",
+  "keysShowReflog": "Show Reflog",
+  "keysShowStats": "Show Statistics",
+  "keysLostCommits": "Find Lost Commits",
+  "keysShowRefs": "Show Branches and Tags",
+  "keysShowStashes": "Show Stashes",
+  "keysShowLog": "Show Command Log",
+  "keysShowSnapshots": "Show Snapshots",
+  "keysCommit": "Commit",
+  "@keysCommit": {
+    "description": "A command: commits the staged changes."
+  },
+  "keysCommitPush": "Commit and Push",
+  "keysStageAll": "Stage All",
+  "keysUnstageAll": "Unstage All",
+  "keysFetch": "Fetch All Remotes",
+  "keysPullMerge": "Pull, Merging",
+  "keysPullRebase": "Pull, Rebasing",
+  "keysPullFF": "Pull, Fast-Forward Only",
+  "keysPush": "Push",
+  "@keysPush": {
+    "description": "A command: pushes the current branch."
+  },
+  "keysNewBranch": "New Branch…",
+  "keysNewTag": "New Tag…",
+  "keysStash": "Stash Changes…",
+  "keysClean": "Clean Untracked Files…",
+  "keysApplyPatch": "Apply Patch File…",
+  "keysSnapshot": "Snapshot Now",
+  "keysTrust": "Trust This Repository",
+  "keysReveal": "Reveal in File Manager",
+  "keysIssueLinks": "Issue Links…",
+  "keysToggleSidebar": "Show or Hide the Sidebar",
+  "keysToggleStatusBar": "Show or Hide the Status Bar",
+  "keysGoToTab": "Go to Tab {n}",
+  "@keysGoToTab": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "keysUnknownModifier": "unknown modifier {modifier} in {shortcut}",
+  "@keysUnknownModifier": {
+    "description": "A shortcut in the settings file the app cannot read; both are quoted as typed there."
+  },
+  "keysUnknownKey": "unknown key {key} in {shortcut}",
+  "@keysUnknownKey": {
+    "description": "A shortcut in the settings file the app cannot read; both are quoted as typed there."
+  },
+  "keysTitle": "Keyboard Shortcuts",
+  "keysListLabel": "{name}, {shortcuts}",
+  "@keysListLabel": {
+    "description": "A command in the list of shortcuts, and the shortcuts that run it."
+  },
+  "keysClear": "Clear",
+  "@keysClear": {
+    "description": "A button: takes every shortcut off the command."
+  },
+  "keysReset": "Reset",
+  "@keysReset": {
+    "description": "A button: gives the command its default shortcuts again."
+  },
+  "keysCommands": "Commands",
+  "keysTypeShortcut": "Type a Shortcut",
+  "keysNoLongerRuns": "{shortcut} no longer runs {command}",
+  "@keysNoLongerRuns": {
+    "description": "A shortcut just taken from another command, as ⌘K no longer runs Command Palette."
+  },
+  "keysNone": "None",
+  "@keysNone": {
+    "description": "A command with no shortcut."
+  },
+  "paletteOpenIn": "Open in {tool}",
+  "@paletteOpenIn": {
+    "description": "Opens the repository in an editor or terminal; tool is its name, as Visual Studio Code or your editor."
+  },
+  "paletteGoTo": "Go to {repository}",
+  "@paletteGoTo": {
+    "description": "Shows the tab of an open repository."
+  },
+  "paletteOpenGroup": "Open Group {name}",
+  "paletteOpenRecent": "Open {name} ({path})",
+  "@paletteOpenRecent": {
+    "description": "Opens a recent repository; path is its folder."
+  },
+  "paletteStopFetching": "Stop Fetching This Repository in the Background",
+  "paletteStartFetching": "Fetch This Repository in the Background",
+  "paletteUndo": "Undo {what}",
+  "@paletteUndo": {
+    "description": "what is the change undone, as Commit or Delete branch main."
+  },
+  "paletteRedo": "Redo {what}",
+  "@paletteRedo": {
+    "description": "what is the change redone, as Commit or Delete branch main."
+  },
+  "palettePlaceholder": "Type a command",
+  "paletteLabel": "Command",
+  "@paletteLabel": {
+    "description": "The field of the command palette."
+  },
+  "issueLinksTitle": "Issue Links",
+  "@issueLinksTitle": {
+    "description": "Rules that make issue references in commit messages, as PROJ-123, into links."
+  },
+  "issueLinksPattern": "Pattern",
+  "@issueLinksPattern": {
+    "description": "A regular expression an issue reference matches."
+  },
+  "issueLinksLink": "Link",
+  "@issueLinksLink": {
+    "description": "The URL an issue reference links to."
+  },
+  "issueLinksAddRule": "Add Rule",
+  "welcomeOpen": "Open Repository…",
+  "welcomeClone": "Clone…",
+  "@welcomeClone": {
+    "description": "A button: clones a repository."
+  },
+  "welcomeNew": "New…",
+  "@welcomeNew": {
+    "description": "A button: makes a new repository."
+  },
+  "welcomeFind": "Find a repository",
+  "welcomeNoMatch": "No repository matches",
+  "welcomeRecent": "Recent repositories",
+  "diagnosticsTitle": "Diagnostics",
+  "diagnosticsNote": "Copy puts exactly this on the clipboard. Nothing is sent.",
+  "diagnosticsIncludeCrash": "Include the latest crash report ({file})",
+  "@diagnosticsIncludeCrash": {
+    "description": "file is the crash report's file name."
+  },
+  "diagnosticsOpenIssue": "Open Issue Page",
+  "@diagnosticsOpenIssue": {
+    "description": "Opens the page where a user reports a problem with the app."
+  },
+  "diagnosticsCopy": "Copy Diagnostics",
+  "askpassUserName": "User name",
+  "askpassUserNameFor": "User name for {host}",
+  "askpassPassword": "Password",
+  "askpassPasswordFor": "Password for {host}",
+  "askpassPassphrase": "Passphrase",
+  "@askpassPassphrase": {
+    "description": "The passphrase of an SSH key."
+  },
+  "askpassPassphraseFor": "Passphrase for {host}",
+  "@askpassPassphraseFor": {
+    "description": "The passphrase of an SSH key."
+  },
+  "askpassTrustHost": "Trust this host?",
+  "@askpassTrustHost": {
+    "description": "SSH asks whether to trust a server it has not met."
+  },
+  "askpassTrustHostNamed": "Trust host {host}?",
+  "@askpassTrustHostNamed": {
+    "description": "SSH asks whether to trust a server it has not met."
+  },
+  "askpassAllowThis": "Allow this?",
+  "askpassSecurityKey": "Security key",
+  "@askpassSecurityKey": {
+    "description": "A hardware key, as a YubiKey, that SSH waits for."
+  },
+  "askpassAllow": "Allow",
+  "askpassConnect": "Connect",
+  "askpassHide": "Hide",
+  "tabsMoveToNewWindow": "Move to New Window",
+  "tabsCloseTab": "Close Tab",
+  "tabsClose": "Close {name}",
+  "@tabsClose": {
+    "description": "The button that closes a repository's tab."
+  },
+  "gitLogRowLabel": "{command}, {status}",
+  "@gitLogRowLabel": {
+    "description": "A git command in the log, and how it ended."
+  },
+  "gitLogCommandsRun": "Git commands run",
+  "gitLogOutput": "Command output",
+  "gitLogBytesDropped": "{count, plural, one {# more byte not kept} other {# more bytes not kept}}",
+  "gitLogStarted": "started",
+  "@gitLogStarted": {
+    "description": "A git command that runs in the background."
+  },
+  "gitLogStopped": "stopped",
+  "@gitLogStopped": {
+    "description": "A git command the app stopped."
+  },
+  "gitLogExit": "exit {code}",
+  "@gitLogExit": {
+    "description": "A git command that ended with an exit code.",
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  },
+  "gitLogFailed": "failed",
+  "@gitLogFailed": {
+    "description": "A git command that failed."
+  },
+  "monitorTurnOn": "Turn On",
+  "monitorNotNow": "Not Now",
+  "appYourEditor": "your editor",
+  "@appYourEditor": {
+    "description": "The editor the settings name, as in Open in your editor."
+  },
+  "appYourTerminal": "your terminal",
+  "@appYourTerminal": {
+    "description": "The terminal the settings name, as in Open in your terminal."
+  },
+  "appGitNotFound": "Git was not found: {error}",
+  "appGitOutdated": "Git {version} lacks security fixes: update git",
+  "@appGitOutdated": {
+    "description": "version is git's, as 2.39.1."
+  },
+  "appOpenRepository": "Open Repository",
+  "@appOpenRepository": {
+    "description": "The title of the folder picker."
+  },
+  "appNewRepository": "New Repository",
+  "@appNewRepository": {
+    "description": "The title of the folder picker."
+  },
+  "appShellNotRead": "Your login shell's settings were not read, so git runs with the app's own PATH: {error}",
+  "@appShellNotRead": {
+    "description": "PATH is the environment variable; keep it as is."
+  },
+  "menuFile": "File",
+  "@menuFile": {
+    "description": "The File menu."
+  },
+  "menuNewWindow": "New Window",
+  "menuOpenRepository": "Open Repository…",
+  "menuCloneRepository": "Clone Repository…",
+  "menuRepositories": "Repositories…",
+  "menuSettings": "Settings…",
+  "menuCommandPalette": "Command Palette",
+  "menuRefresh": "Refresh",
+  "@menuRefresh": {
+    "description": "A menu item: reads the repository again."
+  },
+  "windowCompare": "Compare {file}",
+  "@windowCompare": {
+    "description": "The title of the window git opens as its difftool."
+  },
+  "windowMerge": "Merge {file}",
+  "@windowMerge": {
+    "description": "The title of the window git opens as its mergetool."
+  },
+  "sessionFetchInBackground": "Fetch all remotes in the background",
+  "@sessionFetchInBackground": {
+    "description": "An entry of the command log."
+  },
+  "sessionTurnOnMonitor": "Turn on faster status",
+  "@sessionTurnOnMonitor": {
+    "description": "An entry of the command log: turns on git's file system monitor."
+  },
+  "sessionWriteCommitGraph": "Write commit-graph",
+  "@sessionWriteCommitGraph": {
+    "description": "An entry of the command log; commit-graph is git's file."
+  },
+  "sessionSnapshotNow": "Snapshot now",
+  "@sessionSnapshotNow": {
+    "description": "Why a snapshot of the work tree was taken; kept with the snapshot."
+  },
+  "sessionSnapshotNowIgnored": "Snapshot now, with ignored files",
+  "@sessionSnapshotNowIgnored": {
+    "description": "Why a snapshot of the work tree was taken; kept with the snapshot."
+  },
+  "sessionRestoreSnapshot": "Restore snapshot of {time}",
+  "@sessionRestoreSnapshot": {
+    "description": "An entry of the command log; time is when the snapshot was taken, as 2024-03-31 09:15:00."
+  },
+  "sessionUndo": "Undo {what}",
+  "@sessionUndo": {
+    "description": "An entry of the command log; what is the change undone."
+  },
+  "sessionRedo": "Redo {what}",
+  "@sessionRedo": {
+    "description": "An entry of the command log; what is the change redone."
+  },
+  "sessionNoDiffTool": "no diff tool is set: set diff.tool or diff.guitool in git's config",
+  "@sessionNoDiffTool": {
+    "description": "diff.tool and diff.guitool are git's settings; keep them as is."
+  },
+  "sessionTooManyDiffTools": "too many diff tools are open",
+  "sessionMergeInRange": "the commits from here to HEAD include a merge",
+  "sessionNoCommitsYet": "there are no commits yet",
+  "sessionTooManyCommits": "more than {n} commits from here to HEAD",
+  "@sessionTooManyCommits": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sessionNotFirstParent": "this commit is not on HEAD's line of first parents",
+  "sessionNoCommitNamed": "no commit is named {name}",
+  "@sessionNoCommitNamed": {
+    "description": "name is what was asked for, quoted."
+  },
+  "sessionNotCommitted": "these lines are not committed yet"
 }

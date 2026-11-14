@@ -2,7 +2,6 @@ package ui
 
 import (
 	"encoding/hex"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"ramus/internal/session"
 	"ramus/internal/settings"
 	"ramus/internal/tools"
+	"ramus/locales"
 )
 
 type promptState struct {
@@ -48,7 +48,7 @@ func (a *App) startAction(t *tab, act settings.Action, v actions.Vars) {
 func (a *App) runAction(t *tab, act settings.Action, v actions.Vars, answers map[string]string) {
 	argv, err := actions.Expand(act.Command, v, answers)
 	if err != nil {
-		a.notice = act.Name + ": " + errText(err)
+		a.notice = locales.ActionsError(act.Name, errText(err))
 		return
 	}
 	t.s.RunAction(act.Name, argv)
@@ -77,10 +77,10 @@ func (a *App) promptView(c *ui.Context) {
 				})
 			}
 			ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					p.open = false
 				}
-				if ui.PrimaryButton(c, "Run").Clicked() {
+				if ui.PrimaryButton(c, locales.ActionsRun()).Clicked() {
 					run = true
 				}
 			})
@@ -132,13 +132,13 @@ func (a *App) editorMenu(m *ui.Menu, t *tab, act *func()) {
 	if !slices.Contains(eds, cur) {
 		cur = ""
 	}
-	m.Submenu("Open Files In", func(sub *ui.Menu) {
-		if sub.Item("Default (" + eds[0] + ")").Checked(cur == "").Chosen() {
+	m.Submenu(locales.ActionsOpenFilesIn(), func(sub *ui.Menu) {
+		if sub.Item(locales.ActionsDefaultEditor(toolName(eds[0]))).Checked(cur == "").Chosen() {
 			*act = func() { a.setEditor(path, "") }
 		}
 		sub.Separator()
 		for _, name := range eds {
-			if sub.Item(name).Checked(cur == name).Chosen() {
+			if sub.Item(toolName(name)).Checked(cur == name).Chosen() {
 				*act = func() { a.setEditor(path, name) }
 			}
 		}
@@ -167,17 +167,17 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 			}()
 		}
 	}
-	if m.Item("Show File History").Disabled(root == "").Chosen() {
+	if m.Item(locales.ActionsShowFileHistory()).Disabled(root == "").Chosen() {
 		*act = func() { a.showFile(t, rel, false) }
 	}
-	if m.Item("Blame").Disabled(root == "").Chosen() {
+	if m.Item(locales.ActionsBlame()).Disabled(root == "").Chosen() {
 		*act = func() { a.showFile(t, rel, true) }
 	}
 	ed, ok := a.editor(t)
-	if m.Item("Open in Editor").Disabled(!ok || root == "").Chosen() {
+	if m.Item(locales.ActionsOpenInEditor()).Disabled(!ok || root == "").Chosen() {
 		*act = withPath(func(abs string) error { return ed.Open(abs, 0) })
 	}
-	if m.Item("Reveal in File Manager").Disabled(root == "").Chosen() {
+	if m.Item(locales.ActionsReveal()).Disabled(root == "").Chosen() {
 		*act = withPath(tools.Reveal)
 	}
 	var mine []settings.Action
@@ -209,7 +209,7 @@ func (a *App) fileMenu(m *ui.Menu, t *tab, rel string, act *func()) {
 func (a *App) logView(c *ui.Context, t *tab) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Children(func() {
-			ui.Segmented(c, &t.gitLog.mode, "Actions", "Git Commands")
+			ui.Segmented(c, &t.gitLog.mode, locales.ActionsActions(), locales.ActionsGitCommands())
 		})
 		if t.gitLog.mode == 1 {
 			a.gitLogView(c, t)
@@ -225,7 +225,7 @@ func (a *App) actionLogView(c *ui.Context, t *tab) {
 	th := c.Theme()
 	log := t.s.Log
 	if len(log) == 0 {
-		emptyState(c, "Commands the app runs here show up in this log")
+		emptyState(c, locales.ActionsEmpty())
 		return
 	}
 	t.logList.Selected = &t.logChosen
@@ -240,7 +240,7 @@ func (a *App) actionLogView(c *ui.Context, t *tab) {
 				})
 				ui.Text(c, e.Started.Format(time.TimeOnly)).FontSize(textSmall).TextColor(th.TextMuted)
 			})
-		}).Label("Commands run").Fill()
+		}).Label(locales.ActionsCommandsRun()).Fill()
 	}, func() {
 		k := len(log) - 1 - t.logChosen
 		if t.logChosen < 0 || k < 0 || k >= len(log) {
@@ -250,11 +250,11 @@ func (a *App) actionLogView(c *ui.Context, t *tab) {
 		ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
 			ui.Text(c, e.Command).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 			if e.Dropped > 0 {
-				ui.Text(c, fmt.Sprintf("%d earlier lines not kept", e.Dropped)).FontSize(textSmall).TextColor(th.TextMuted)
+				ui.Text(c, locales.ActionsLinesDropped(e.Dropped)).FontSize(textSmall).TextColor(th.TextMuted)
 			}
 			ui.List(c, &t.outList, len(e.Output), func(i int) {
 				ui.Text(c, e.Output[i]).Font("monospace").FontSize(textSmall).Selectable()
-			}).Label("Command output").Grow(1)
+			}).Label(locales.ActionsOutput()).Grow(1)
 			if e.Err != nil {
 				ui.Text(c, errText(e.Err)).TextColor(th.Danger).Selectable()
 			}
@@ -265,11 +265,11 @@ func (a *App) actionLogView(c *ui.Context, t *tab) {
 func entryStatus(e *session.LogEntry) string {
 	switch {
 	case e.Running:
-		return "running"
+		return locales.ActionsRunning()
 	case e.Err != nil:
-		return "failed"
+		return locales.ActionsFailed()
 	}
-	return "done in " + e.Ended.Sub(e.Started).Round(time.Millisecond).String()
+	return locales.ActionsDoneIn(e.Ended.Sub(e.Started).Round(time.Millisecond).String())
 }
 
 func statusColor(th *ui.Theme, e *session.LogEntry) ui.Color {

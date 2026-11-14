@@ -23,6 +23,7 @@ import (
 	"ramus/internal/git/run"
 	"ramus/internal/git/textenc"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // HistoryState is the history list as loaded so far; it is published as
@@ -644,7 +645,7 @@ func (s *Session) ResolveCommit(rev string, done func([]byte, error)) {
 			id, err = hex.DecodeString(strings.TrimSpace(string(res.Stdout)))
 		}
 		if err != nil {
-			err = errors.New("no commit is named " + strconv.Quote(rev))
+			err = errors.New(locales.SessionNoCommitNamed(strconv.Quote(rev)))
 		}
 		update(func() { done(id, err) })
 	})
@@ -699,7 +700,7 @@ func (s *Session) FormatPatch(oid []byte, done func(string, error)) {
 // WriteCommitGraph writes the commit-graph h.Advice offers, then loads
 // history again from it; the rows shown stay until the new ones come.
 func (s *Session) WriteCommitGraph(a history.Advice) error {
-	j, err := s.Submit(write.Op{Name: "Write commit-graph", Cmd: a.Cmd})
+	j, err := s.Submit(write.Op{Name: locales.SessionWriteCommitGraph(), Cmd: a.Cmd})
 	if err != nil {
 		return err
 	}

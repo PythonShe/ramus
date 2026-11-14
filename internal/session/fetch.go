@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // fetchTimeout bounds a background fetch, which no one waits on.
@@ -82,7 +83,7 @@ func (s *Session) fetchNow() {
 	if err != nil {
 		return
 	}
-	op.Name = "Fetch all remotes in the background"
+	op.Name = locales.SessionFetchInBackground()
 	op.Cmd.Timeout = fetchTimeout
 	op.Cmd.NoPrompt = true // no one is there to answer
 	j, err := s.Submit(op)

@@ -12,6 +12,7 @@ import (
 
 	"ramus/internal/git/diff"
 	"ramus/internal/git/run"
+	"ramus/locales"
 )
 
 // LineLog is the history of a run of lines: the commits that changed
@@ -41,7 +42,7 @@ func (l *LineLog) Patch(i int) []byte {
 const MaxLineLog = 2000
 
 // ErrNotCommitted is lines that only the work tree has.
-var ErrNotCommitted = errors.New("these lines are not committed yet")
+var ErrNotCommitted error = &sayError{locales.SessionNotCommitted}
 
 // lineMark starts each commit's record in git log -L's output, which
 // otherwise holds patches of file content.

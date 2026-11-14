@@ -4,6 +4,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/library"
+	"ramus/locales"
 )
 
 type welcomeState struct {
@@ -20,13 +21,13 @@ func (a *App) welcomeView(c *ui.Context) {
 		ui.Column(c).Width(560).Gap(spaceXL).Children(func() {
 			ui.Text(c, "Ramus").FontSize(textDisplay).Bold()
 			ui.Row(c).Gap(spaceM).Children(func() {
-				if ui.PrimaryButton(c, "Open Repository…").Clicked() {
+				if ui.PrimaryButton(c, locales.WelcomeOpen()).Clicked() {
 					a.pickAndOpen()
 				}
-				if ui.Button(c, "Clone…").Clicked() {
+				if ui.Button(c, locales.WelcomeClone()).Clicked() {
 					a.clone.open = true
 				}
-				if ui.Button(c, "New…").Clicked() {
+				if ui.Button(c, locales.WelcomeNew()).Clicked() {
 					a.initAndOpen()
 				}
 			})
@@ -40,9 +41,9 @@ func (a *App) welcomeView(c *ui.Context) {
 			if a.Library == nil || (len(repos) == 0 && a.welcome.query == "") {
 				return
 			}
-			ui.SearchField(c, &a.welcome.query).Label("Find a repository").Placeholder("Find a repository")
+			ui.SearchField(c, &a.welcome.query).Label(locales.WelcomeFind()).Placeholder(locales.WelcomeFind())
 			if len(repos) == 0 {
-				ui.Text(c, "No repository matches").TextColor(th.TextMuted)
+				ui.Text(c, locales.WelcomeNoMatch()).TextColor(th.TextMuted)
 				return
 			}
 			a.welcome.list.Label = func(i int) string { return repos[i].Name }
@@ -56,7 +57,7 @@ func (a *App) welcomeView(c *ui.Context) {
 				}).RowClicked() {
 					open = r.Path
 				}
-			}).Label("Recent repositories").Height(360)
+			}).Label(locales.WelcomeRecent()).Height(360)
 			if l.Submitted() && a.welcome.chosen >= 0 && a.welcome.chosen < len(repos) {
 				open = repos[a.welcome.chosen].Path
 			}

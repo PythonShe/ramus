@@ -5,6 +5,7 @@ import (
 
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // TurnOnMonitor sets the config a offers, through git.
@@ -12,7 +13,7 @@ func (s *Session) TurnOnMonitor(a status.MonitorAdvice) (*write.Job, error) {
 	if len(a.Cmds) == 0 {
 		return nil, errors.New("session: nothing to turn on")
 	}
-	j, err := s.Submit(write.Op{Name: "Turn on faster status", Cmd: a.Cmds[0], More: a.Cmds[1:]})
+	j, err := s.Submit(write.Op{Name: locales.SessionTurnOnMonitor(), Cmd: a.Cmds[0], More: a.Cmds[1:]})
 	if err == nil {
 		s.DismissMonitor()
 	}

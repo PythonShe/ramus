@@ -2,6 +2,8 @@ package ui
 
 import (
 	"github.com/egoist/mygo/ui"
+
+	"ramus/locales"
 )
 
 type tabDrag struct{ id int }
@@ -31,18 +33,18 @@ func (a *App) tabBar(c *ui.Context) {
 			}
 			name := a.title(t)
 			tb.ContextMenu(func(m *ui.Menu) {
-				if a.NewWindow != nil && m.Item("Move to New Window").Disabled(len(a.tabs) < 2).Chosen() {
+				if a.NewWindow != nil && m.Item(locales.TabsMoveToNewWindow()).Disabled(len(a.tabs) < 2).Chosen() {
 					moving = i
 				}
 				a.editorMenu(m, t, &act)
 				m.Separator()
-				if m.Item("Close Tab").Chosen() {
+				if m.Item(locales.TabsCloseTab()).Chosen() {
 					closing = i
 				}
 			})
 			tb.Label(name).Children(func() {
 				ui.Text(c, name).SingleLine().MaxWidth(200)
-				if ui.Button(c, "×").Label("Close "+name).Padding(0, spaceXS).Clicked() {
+				if ui.Button(c, "×").Label(locales.TabsClose(name)).Padding(0, spaceXS).Clicked() {
 					closing = i
 				}
 			})

@@ -42,7 +42,7 @@ func TestChords(t *testing.T) {
 		}
 	}
 	for id, keys := range defaultKeys {
-		if !slices.ContainsFunc(bindable, func(b struct{ id, name string }) bool { return b.id == id }) {
+		if !slices.ContainsFunc(bindable, func(b bindableCommand) bool { return b.id == id }) {
 			t.Errorf("default for %q, which no command has", id)
 		}
 		for _, s := range keys {

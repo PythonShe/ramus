@@ -13,6 +13,7 @@ import (
 
 	"ramus/internal/git/activity"
 	"ramus/internal/libstats"
+	"ramus/locales"
 )
 
 // libStatsState is the statistics across the library's repositories.
@@ -156,14 +157,14 @@ func (a *App) libStatsView(c *ui.Context) {
 	ui.Modal(c, &s.open, func() {
 		dialogBox(c).Width(980).Height(740).Children(func() {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Library Statistics").Bold()
+				ui.Text(c, locales.StatsLibraryTitle()).Bold()
 				a.libScopeMenu(c)
-				from := ui.TextInput(c, &s.from).Placeholder("From YYYY-MM-DD").Label("From").Width(150)
-				to := ui.TextInput(c, &s.to).Placeholder("To YYYY-MM-DD").Label("To").Width(150)
+				from := ui.TextInput(c, &s.from).Placeholder(locales.StatsFromPlaceholder()).Label(locales.StatsFrom()).Width(150)
+				to := ui.TextInput(c, &s.to).Placeholder(locales.StatsToPlaceholder()).Label(locales.StatsTo()).Width(150)
 				if from.Submitted() || to.Submitted() {
 					a.summarize()
 				}
-				if ui.Checkbox(c, &s.mine, "Only My Commits").Changed() {
+				if ui.Checkbox(c, &s.mine, locales.StatsOnlyMine()).Changed() {
 					a.summarize()
 				}
 				if s.err != "" {
@@ -171,13 +172,13 @@ func (a *App) libStatsView(c *ui.Context) {
 				}
 				ui.Spacer(c)
 				if done := countDone(s.repos); s.loading {
-					ui.Text(c, fmt.Sprintf("Read %d of %d repositories", done, len(s.repos))).FontSize(textSmall).TextColor(th.TextMuted)
+					ui.Text(c, locales.StatsReadRepositories(done, len(s.repos))).FontSize(textSmall).TextColor(th.TextMuted)
 				}
 			})
 			sum := s.sum
 			switch {
 			case len(s.repos) == 0:
-				emptyState(c, "No repositories")
+				emptyState(c, locales.StatsNoRepositories())
 				return
 			case sum == nil:
 				loading(c, "")
@@ -185,18 +186,17 @@ func (a *App) libStatsView(c *ui.Context) {
 			}
 			ui.Row(c).Gap(space3XL).AlignItems(ui.End).Children(func() {
 				ui.Text(c, strconv.Itoa(sum.Commits)).FontSize(textDisplay).Bold()
-				ui.Text(c, fmt.Sprintf("commits by %s on %s in %s", people(sum.Contributors),
-					plural(sum.ActiveDays, "active day"), plural(len(sum.Rows), "repository"))).TextColor(th.TextMuted)
+				ui.Text(c, locales.StatsLibrarySummary(sum.Commits, sum.Contributors, sum.ActiveDays, len(sum.Rows))).TextColor(th.TextMuted)
 			})
 			ui.Row(c).Gap(space3XL).FillWidth().Children(func() {
 				ui.Column(c).Gap(spaceS).Children(func() {
-					ui.Text(c, "By weekday and hour of the author's day").FontSize(textSmall).Bold()
+					ui.Text(c, locales.StatsByWeekdayAndHour()).FontSize(textSmall).Bold()
 					heatMap(c, &sum.Heat)
 				})
 				calendarStats(c, sum.Calendar)
 			})
 			ui.Column(c).Gap(spaceS).FillWidth().Children(func() {
-				ui.Text(c, "Days with commits").FontSize(textSmall).Bold()
+				ui.Text(c, locales.StatsDaysWithCommits()).FontSize(textSmall).Bold()
 				a.calendarView(c, sum)
 			})
 			a.compareTable(c, sum)
@@ -216,12 +216,12 @@ func countDone(repos []libstats.Repo) int {
 
 func (a *App) libScopeMenu(c *ui.Context) {
 	s := &a.libStats
-	label := "All Repositories"
+	label := locales.StatsAllRepositories()
 	if s.scope != "" {
 		label = s.scope
 	}
 	ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
-		if m.Item("All Repositories").Chosen() && s.scope != "" {
+		if m.Item(locales.StatsAllRepositories()).Chosen() && s.scope != "" {
 			s.scope = ""
 			a.loadLibStats()
 		}
@@ -266,10 +266,10 @@ func heatMap(c *ui.Context, heat *activity.Heat) {
 		for i := range 7 {
 			d := (i + 1) % 7
 			ui.Row(c).Key(d).Gap(space2XS).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, time.Weekday(d).String()[:3]).FontSize(textCaption).TextColor(th.TextMuted).Width(30)
+				ui.Text(c, locales.StatsWeekdayShort(weekdayDate(time.Weekday(d)))).FontSize(textCaption).TextColor(th.TextMuted).Width(30)
 				for h := range 24 {
 					n := heat[d][h]
-					tip := fmt.Sprintf("%s %02d:00 to %02d:59: %s", time.Weekday(d), h, h, commitCount(n))
+					tip := locales.StatsHeatTip(weekdayDate(time.Weekday(d)), fmt.Sprintf("%02d:00", h), fmt.Sprintf("%02d:59", h), n)
 					ui.Box(c).Key(h).Size(cell, cell).Radius(2).Background(shadeColor(c, shade(n, most))).
 						Tooltip(tip).Label(tip).Role(ui.RoleImage)
 				}
@@ -314,7 +314,7 @@ func (a *App) calendarView(c *ui.Context, sum *libstats.Summary) {
 							break
 						}
 						n := sum.Days[d]
-						tip := activity.Date(d).Format("Mon 2006-01-02") + ": " + commitCount(n)
+						tip := locales.StatsCalendarTip(activity.Date(d), activity.Date(d).Format("2006-01-02"), n)
 						ui.Box(c).Key(i).Size(cell, cell).Radius(2).Background(shadeColor(c, shade(n, most))).
 							Tooltip(tip).Label(tip).Role(ui.RoleImage)
 					}
@@ -345,16 +345,16 @@ func calendarStats(c *ui.Context, cal activity.Calendar) {
 	ui.Column(c).Gap(spaceXL).Padding(space2XL, 0, 0, 0).Children(func() {
 		ui.Row(c).Gap(spaceXL).AlignItems(ui.Start).Children(func() {
 			if cal.Longest > 0 {
-				stat("Longest streak", plural(cal.Longest, "day"), "to "+day(cal.LongestEnd))
+				stat(locales.StatsLongestStreak(), locales.StatsDays(cal.Longest), locales.StatsToDay(day(cal.LongestEnd)))
 			} else {
-				stat("Longest streak", "None", "")
+				stat(locales.StatsLongestStreak(), locales.StatsNone(), "")
 			}
-			stat("Current streak", plural(cal.Current, "day"), "")
+			stat(locales.StatsCurrentStreak(), locales.StatsDays(cal.Current), "")
 		})
 		if cal.BusiestCommits > 0 {
 			ui.Row(c).Gap(spaceXL).AlignItems(ui.Start).Children(func() {
-				stat("Busiest day", day(cal.Busiest), commitCount(cal.BusiestCommits))
-				stat("Most active month", cal.Month.Format("January 2006"), commitCount(cal.MonthCommits))
+				stat(locales.StatsBusiestDay(), day(cal.Busiest), locales.StatsCommitCount(cal.BusiestCommits))
+				stat(locales.StatsMostActiveMonth(), locales.StatsMonth(cal.Month), locales.StatsCommitCount(cal.MonthCommits))
 			})
 		}
 	})
@@ -394,17 +394,17 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 		return o
 	})
 	cols := []ui.TableColumn{
-		{Title: "Repository", Sortable: true},
-		{Title: "Commits", Width: 100, Align: ui.End, Sortable: true},
-		{Title: "Active Days", Width: 100, Align: ui.End, Sortable: true},
-		{Title: "People", Width: 80, Align: ui.End, Sortable: true},
-		{Title: "Age", Width: 100, Align: ui.End, Sortable: true},
-		{Title: "Size", Width: 90, Align: ui.End, Sortable: true},
+		{Title: locales.StatsRepository(), ID: "Repository", Sortable: true},
+		{Title: locales.StatsCommits(), ID: "Commits", Width: 100, Align: ui.End, Sortable: true},
+		{Title: locales.StatsActiveDays(), ID: "Active Days", Width: 100, Align: ui.End, Sortable: true},
+		{Title: locales.StatsPeople(), ID: "People", Width: 80, Align: ui.End, Sortable: true},
+		{Title: locales.StatsAge(), ID: "Age", Width: 100, Align: ui.End, Sortable: true},
+		{Title: locales.StatsSize(), ID: "Size", Width: 90, Align: ui.End, Sortable: true},
 	}
 	s.table.Sort = &s.sort
 	s.table.Label = func(i int) string {
 		r := rows[i]
-		return fmt.Sprintf("%s, %s", r.Name, commitCount(r.Totals.Commits))
+		return locales.StatsNameCommits(r.Name, r.Totals.Commits)
 	}
 	now := a.Now().Unix()
 	ui.Table(c, &s.table, cols, len(rows), func(i, col int) {
@@ -418,7 +418,7 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 				case r.Err != nil:
 					ui.Text(c, errText(r.Err)).FontSize(textCaption).TextColor(th.Danger).SingleLine().Tooltip(errText(r.Err))
 				case r.Loading && r.Total > 0:
-					ui.Text(c, fmt.Sprintf("Reading %d of %d commits", r.Read, r.Total)).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, locales.StatsReadingCommitsOf(r.Read, r.Total)).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
 				}
 			})
 		case 1:
@@ -444,7 +444,7 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 				ui.Text(c, byteSize(r.Size))
 			}
 		}
-	}).Label("Statistics by repository").Grow(1).MinHeight(180)
+	}).Label(locales.StatsByRepository()).Grow(1).MinHeight(180)
 }
 
 // age says a span of seconds in the largest unit that fits.
@@ -452,9 +452,9 @@ func age(secs int64) string {
 	days := secs / 86400
 	switch {
 	case days >= 365:
-		return plural(int(days/365), "year")
+		return locales.StatsYears(int(days / 365))
 	case days >= 30:
-		return plural(int(days/30), "month")
+		return locales.StatsMonths(int(days / 30))
 	}
-	return plural(int(max(days, 0)), "day")
+	return locales.StatsDays(int(max(days, 0)))
 }
