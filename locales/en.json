@@ -774,7 +774,6 @@
   "commitGoToParent": "Go to Parent",
   "commitCopyMessage": "Copy Message",
   "commitCopyPatch": "Copy Patch",
-  "commitSigChecking": "Signed; checking",
   "commitSigGood": "Good signature",
   "commitSigGoodBy": "Good signature by {signer}",
   "commitSigBad": "Bad signature",
@@ -787,11 +786,16 @@
   "commitSigExpiredKeyBy": "Good signature by {signer}, from an expired key",
   "commitSigRevoked": "Good signature, from a revoked key",
   "commitSigRevokedBy": "Good signature by {signer}, from a revoked key",
-  "commitSigCannotCheck": "Signed; the signature cannot be checked here",
-  "commitSigNotTrusted": "Signed; not checked until you trust this repository",
-  "commitSigned": "Signed",
-  "@commitSigned": {
-    "description": "A commit has a signature that was not checked."
+  "commitSigCannotCheck": "Cannot be checked here",
+  "commitSigCannotCheckWhy": "Cannot be checked: {reason}",
+  "@commitSigCannotCheckWhy": {
+    "description": "git could not check a signature; reason is git's own message, in English."
+  },
+  "commitSigNotTrusted": "Not checked until you trust this repository",
+  "commitSigNone": "Not signed",
+  "commitSigKind": "{kind, select, ssh {SSH} openpgp {GPG} x509 {X.509} other {Key}}",
+  "@commitSigKind": {
+    "description": "A badge before a commit's signature naming the kind of key that made it."
   },
   "commitNoFiles": "No files changed",
   "commitFilesChanged": "{count, plural, one {# file changed} other {# files changed}}",
@@ -805,9 +809,7 @@
     "description": "A commit's signature is being checked."
   },
   "commitSigNotChecked": "Not checked: {reason}",
-  "commitSigVerdictSigner": "{verdict}, signer {signer}",
   "commitSigVerdictKey": "{verdict}, key {key}",
-  "commitSigVerdictSignerKey": "{verdict}, signer {signer}, key {key}",
   "commitCheckOut": "Check Out Commit",
   "commitCreateBranchHere": "Create Branch Here…",
   "commitCreateTagHere": "Create Tag Here…",

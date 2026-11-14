@@ -4305,16 +4305,6 @@ func (msgs Messages) CommitCopyPatch() string {
 	return Catalog.Format(msgs.locale, "commitCopyPatch", nil)
 }
 
-// CommitSigChecking says "Signed; checking"
-// in the language the app shows.
-func CommitSigChecking() string { return In(i18n.Locale()).CommitSigChecking() }
-
-// CommitSigChecking says "Signed; checking"
-// in the language of msgs.
-func (msgs Messages) CommitSigChecking() string {
-	return Catalog.Format(msgs.locale, "commitSigChecking", nil)
-}
-
 // CommitSigGood says "Good signature"
 // in the language the app shows.
 func CommitSigGood() string { return In(i18n.Locale()).CommitSigGood() }
@@ -4439,38 +4429,64 @@ func (msgs Messages) CommitSigRevokedBy(signer string) string {
 	return Catalog.Format(msgs.locale, "commitSigRevokedBy", map[string]any{"signer": signer})
 }
 
-// CommitSigCannotCheck says "Signed; the signature cannot be checked here"
+// CommitSigCannotCheck says "Cannot be checked here"
 // in the language the app shows.
 func CommitSigCannotCheck() string { return In(i18n.Locale()).CommitSigCannotCheck() }
 
-// CommitSigCannotCheck says "Signed; the signature cannot be checked here"
+// CommitSigCannotCheck says "Cannot be checked here"
 // in the language of msgs.
 func (msgs Messages) CommitSigCannotCheck() string {
 	return Catalog.Format(msgs.locale, "commitSigCannotCheck", nil)
 }
 
-// CommitSigNotTrusted says "Signed; not checked until you trust this repository"
+// CommitSigCannotCheckWhy says "Cannot be checked: {reason}"
+// in the language the app shows.
+//
+// git could not check a signature; reason is git's own message, in English.
+func CommitSigCannotCheckWhy(reason string) string {
+	return In(i18n.Locale()).CommitSigCannotCheckWhy(reason)
+}
+
+// CommitSigCannotCheckWhy says "Cannot be checked: {reason}"
+// in the language of msgs.
+//
+// git could not check a signature; reason is git's own message, in English.
+func (msgs Messages) CommitSigCannotCheckWhy(reason string) string {
+	return Catalog.Format(msgs.locale, "commitSigCannotCheckWhy", map[string]any{"reason": reason})
+}
+
+// CommitSigNotTrusted says "Not checked until you trust this repository"
 // in the language the app shows.
 func CommitSigNotTrusted() string { return In(i18n.Locale()).CommitSigNotTrusted() }
 
-// CommitSigNotTrusted says "Signed; not checked until you trust this repository"
+// CommitSigNotTrusted says "Not checked until you trust this repository"
 // in the language of msgs.
 func (msgs Messages) CommitSigNotTrusted() string {
 	return Catalog.Format(msgs.locale, "commitSigNotTrusted", nil)
 }
 
-// CommitSigned says "Signed"
+// CommitSigNone says "Not signed"
+// in the language the app shows.
+func CommitSigNone() string { return In(i18n.Locale()).CommitSigNone() }
+
+// CommitSigNone says "Not signed"
+// in the language of msgs.
+func (msgs Messages) CommitSigNone() string {
+	return Catalog.Format(msgs.locale, "commitSigNone", nil)
+}
+
+// CommitSigKind says "{kind, select, ssh {SSH} openpgp {GPG} x509 {X.509} other {Key}}"
 // in the language the app shows.
 //
-// A commit has a signature that was not checked.
-func CommitSigned() string { return In(i18n.Locale()).CommitSigned() }
+// A badge before a commit's signature naming the kind of key that made it.
+func CommitSigKind(kind string) string { return In(i18n.Locale()).CommitSigKind(kind) }
 
-// CommitSigned says "Signed"
+// CommitSigKind says "{kind, select, ssh {SSH} openpgp {GPG} x509 {X.509} other {Key}}"
 // in the language of msgs.
 //
-// A commit has a signature that was not checked.
-func (msgs Messages) CommitSigned() string {
-	return Catalog.Format(msgs.locale, "commitSigned", nil)
+// A badge before a commit's signature naming the kind of key that made it.
+func (msgs Messages) CommitSigKind(kind string) string {
+	return Catalog.Format(msgs.locale, "commitSigKind", map[string]any{"kind": kind})
 }
 
 // CommitNoFiles says "No files changed"
@@ -4543,18 +4559,6 @@ func (msgs Messages) CommitSigNotChecked(reason string) string {
 	return Catalog.Format(msgs.locale, "commitSigNotChecked", map[string]any{"reason": reason})
 }
 
-// CommitSigVerdictSigner says "{verdict}, signer {signer}"
-// in the language the app shows.
-func CommitSigVerdictSigner(verdict string, signer string) string {
-	return In(i18n.Locale()).CommitSigVerdictSigner(verdict, signer)
-}
-
-// CommitSigVerdictSigner says "{verdict}, signer {signer}"
-// in the language of msgs.
-func (msgs Messages) CommitSigVerdictSigner(verdict string, signer string) string {
-	return Catalog.Format(msgs.locale, "commitSigVerdictSigner", map[string]any{"verdict": verdict, "signer": signer})
-}
-
 // CommitSigVerdictKey says "{verdict}, key {key}"
 // in the language the app shows.
 func CommitSigVerdictKey(verdict string, key string) string {
@@ -4565,18 +4569,6 @@ func CommitSigVerdictKey(verdict string, key string) string {
 // in the language of msgs.
 func (msgs Messages) CommitSigVerdictKey(verdict string, key string) string {
 	return Catalog.Format(msgs.locale, "commitSigVerdictKey", map[string]any{"verdict": verdict, "key": key})
-}
-
-// CommitSigVerdictSignerKey says "{verdict}, signer {signer}, key {key}"
-// in the language the app shows.
-func CommitSigVerdictSignerKey(verdict string, signer string, key string) string {
-	return In(i18n.Locale()).CommitSigVerdictSignerKey(verdict, signer, key)
-}
-
-// CommitSigVerdictSignerKey says "{verdict}, signer {signer}, key {key}"
-// in the language of msgs.
-func (msgs Messages) CommitSigVerdictSignerKey(verdict string, signer string, key string) string {
-	return Catalog.Format(msgs.locale, "commitSigVerdictSignerKey", map[string]any{"verdict": verdict, "signer": signer, "key": key})
 }
 
 // CommitCheckOut says "Check Out Commit"

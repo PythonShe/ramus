@@ -52,10 +52,6 @@ type commitView struct {
 	pv           patchView
 	pager        patchPager
 	loadPatch    func()
-	// sig is git's verdict on the commit's signature, once asked;
-	// sigAsked is set from the moment it is.
-	sig      *sigResult
-	sigAsked bool
 }
 
 // sigResult is a verdict on a signature, or why there is none.
@@ -247,19 +243,17 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				a.clip = id
 			}
 		})
+		// The commit's own signature, under its hash: the kind of key
+		// that made it, then what git made of it.
 		if cm.Signed {
-			if !cv.sigAsked {
-				cv.sigAsked = true
-				id := cv.id
-				t.s.Verify(hex.EncodeToString(d.OID), "", func(st signature.Status, err error) {
-					if bytes.Equal(cv.id, id) {
-						cv.sig = &sigResult{st, err}
-					}
-				})
-			}
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
 				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
-				sigText(c, cv.sig)
+				ui.Row(c).Gap(spaceS).AlignItems(ui.Start).Grow(1).Children(func() {
+					if k := sigKindName(cm.SigKind); k != "" {
+						ui.Badge(c, k).FontSize(textCaption)
+					}
+					commitSigText(c, d, t.s.State.Restricted)
+				})
 			})
 		}
 		if enc := string(cm.Encoding); !textenc.IsUTF8(enc) || d.Odd {
@@ -289,21 +283,6 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				})
 			})
 		}
-		if s := signatureText(d, t.s.State.Restricted); s != "" {
-			ui.Row(c).Gap(spaceM).Children(func() {
-				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
-				col := th.TextMuted
-				switch d.Signature {
-				case "G":
-					col = th.Success
-				case "B", "R":
-					col = th.Danger
-				case "U", "X", "Y":
-					col = th.Warning
-				}
-				ui.Text(c, s).FontSize(textSmall).TextColor(col).Selectable()
-			})
-		}
 	})
 }
 
@@ -315,41 +294,32 @@ func samePerson(a, b object.Signature) bool {
 	return bytes.Equal(a.Name, b.Name) && bytes.Equal(a.Email, b.Email) && a.When == b.When && a.Offset == b.Offset
 }
 
-// signatureText says what git found of a commit's signature.
-func signatureText(d *session.CommitDetail, restricted bool) string {
-	if !d.Commit.Signed {
-		return ""
+// sigKindName names the kind of key a signature was made with, "" when
+// it is not known.
+func sigKindName(k object.SigKind) string {
+	switch k {
+	case object.SigSSH:
+		return locales.CommitSigKind("ssh")
+	case object.SigOpenPGP:
+		return locales.CommitSigKind("openpgp")
+	case object.SigX509:
+		return locales.CommitSigKind("x509")
 	}
-	if d.Checking {
-		return locales.CommitSigChecking()
+	return ""
+}
+
+// commitSigText says what git made of a signed commit's signature.
+func commitSigText(c *ui.Context, d *session.CommitDetail, restricted bool) {
+	switch {
+	case restricted:
+		ui.Text(c, locales.CommitSigNotTrusted()).FontSize(textSmall).TextColor(c.Theme().TextMuted)
+	case d.SigErr != nil:
+		sigText(c, &sigResult{err: d.SigErr})
+	case d.Sig.Code == 0:
+		sigText(c, nil)
+	default:
+		sigText(c, &sigResult{st: d.Sig})
 	}
-	// by picks the message that names the signer, when git named one.
-	by := func(anon func() string, named func(string) string) string {
-		if d.Signer == "" {
-			return anon()
-		}
-		return named(redact.Control(d.Signer))
-	}
-	switch d.Signature {
-	case "G":
-		return by(locales.CommitSigGood, locales.CommitSigGoodBy)
-	case "B":
-		return by(locales.CommitSigBad, locales.CommitSigBadBy)
-	case "U":
-		return by(locales.CommitSigUntrusted, locales.CommitSigUntrustedBy)
-	case "X":
-		return by(locales.CommitSigExpired, locales.CommitSigExpiredBy)
-	case "Y":
-		return by(locales.CommitSigExpiredKey, locales.CommitSigExpiredKeyBy)
-	case "R":
-		return by(locales.CommitSigRevoked, locales.CommitSigRevokedBy)
-	case "E":
-		return locales.CommitSigCannotCheck()
-	}
-	if restricted {
-		return locales.CommitSigNotTrusted()
-	}
-	return locales.CommitSigned()
 }
 
 // patchCopier copies commit d's patch, nil for a merge, which has no one
@@ -495,18 +465,43 @@ func sigText(c *ui.Context, r *sigResult) {
 		color = th.Success
 	case signature.Bad, signature.Revoked:
 		color = th.Danger
-	case signature.CannotCheck, signature.None:
+	case signature.None:
 		color = th.TextMuted
 	}
-	text := st.Text()
-	signer, key := redact.Control(st.Signer), redact.Control(st.Key)
-	switch {
-	case st.Signer != "" && st.Key != "":
-		text = locales.CommitSigVerdictSignerKey(text, signer, key)
-	case st.Signer != "":
-		text = locales.CommitSigVerdictSigner(text, signer)
-	case st.Key != "":
-		text = locales.CommitSigVerdictKey(text, key)
+	text := verdictText(st)
+	if st.Key != "" && st.Code != signature.CannotCheck {
+		text = locales.CommitSigVerdictKey(text, redact.Control(st.Key))
 	}
 	ui.Text(c, text).FontSize(textSmall).TextColor(color).Selectable()
+}
+
+// verdictText says git's verdict on a signature, naming the signer when
+// the checking program did.
+func verdictText(st signature.Status) string {
+	by := func(anon func() string, named func(string) string) string {
+		if st.Signer == "" {
+			return anon()
+		}
+		return named(redact.Control(st.Signer))
+	}
+	switch st.Code {
+	case signature.Good:
+		return by(locales.CommitSigGood, locales.CommitSigGoodBy)
+	case signature.Bad:
+		return by(locales.CommitSigBad, locales.CommitSigBadBy)
+	case signature.Untrusted:
+		return by(locales.CommitSigUntrusted, locales.CommitSigUntrustedBy)
+	case signature.Expired:
+		return by(locales.CommitSigExpired, locales.CommitSigExpiredBy)
+	case signature.KeyExpired:
+		return by(locales.CommitSigExpiredKey, locales.CommitSigExpiredKeyBy)
+	case signature.Revoked:
+		return by(locales.CommitSigRevoked, locales.CommitSigRevokedBy)
+	case signature.CannotCheck:
+		if st.Reason != "" {
+			return locales.CommitSigCannotCheckWhy(redact.Shown(st.Reason))
+		}
+		return locales.CommitSigCannotCheck()
+	}
+	return locales.CommitSigNone()
 }

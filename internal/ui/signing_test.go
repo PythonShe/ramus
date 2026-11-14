@@ -38,11 +38,39 @@ func TestSigning(t *testing.T) {
 	h.click("History")
 	h.until("the history", h.shows("signed here"))
 	h.click("signed here")
-	h.until("its signature", h.shows("Good signature, signer test@example.com"))
+	h.until("its signature", h.shows("Good signature by test@example.com, key SHA256:"))
+	// One row says it, beside the kind of key that made it.
+	if n := countText(h, "Signature"); n != 1 || !h.tt.HasText("SSH") {
+		t.Fatalf("%d signature rows, texts %q", n, h.tt.Texts())
+	}
 
 	h.click("Branches and Tags")
 	h.click("Tags")
 	h.until("the tag", h.shows("signed"))
 	h.menu("v1", "Check Signature")
-	h.until("the tag's signature", h.shows("Good signature, signer test@example.com"))
+	h.until("the tag's signature", h.shows("Good signature by test@example.com, key SHA256:"))
+
+	// With no allowed signers git cannot check an SSH signature, and
+	// says why; the commit is no less signed.
+	r.Git("config", "--unset", "gpg.ssh.allowedSignersFile")
+	r.Write("b.txt", "b")
+	r.Git("add", "b.txt")
+	r.Git("commit", "-q", "-S", "-m", "signed elsewhere")
+	h.click("History")
+	h.until("the new commit", h.shows("signed elsewhere"))
+	h.click("signed elsewhere")
+	h.until("why it is not checked", h.shows("Cannot be checked: gpg.ssh.allowedSignersFile"))
+	if h.tt.HasText("Not signed") {
+		t.Fatal("a signed commit shown as not signed")
+	}
+}
+
+func countText(h *harness, s string) int {
+	n := 0
+	for _, x := range h.tt.Texts() {
+		if x == s {
+			n++
+		}
+	}
+	return n
 }

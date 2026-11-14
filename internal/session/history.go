@@ -21,6 +21,7 @@ import (
 	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
+	"ramus/internal/git/signature"
 	"ramus/internal/git/textenc"
 	"ramus/internal/git/write"
 	"ramus/locales"
@@ -451,11 +452,11 @@ type CommitDetail struct {
 	// Files are the files changed from the first parent, renames found;
 	// nil while they are read.
 	Files *diff.Raw
-	// Signature is git's %G? letter for a signed commit ("G" good, "B"
-	// bad, "U" good but untrusted, "E" cannot check...), "" when unsigned
-	// or not checked: in a repository not trusted, the verifier named in
-	// its config does not run.
-	Signature, Signer string
+	// Sig is git's verdict on a signed commit's signature, its Code 0
+	// while not checked: in a repository not trusted, the verifier named
+	// in its config does not run. SigErr is why git gave none.
+	Sig    signature.Status
+	SigErr error
 	// Odd is set when the message or a name was not valid in the commit's
 	// encoding (UTF-8 when it names none): its bytes show as \xNN.
 	Odd bool
@@ -551,11 +552,9 @@ func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitD
 	if d.Commit.Signed && !r.Restricted {
 		d.Checking = true
 		publish(*d)
-		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
-			Args: []string{"log", "-1", "--no-walk", "--format=%G?%x00%GS", hex.EncodeToString(d.OID), "--"}})
-		if err == nil {
-			letter, signer, _ := strings.Cut(strings.TrimSpace(string(res.Stdout)), "\x00")
-			d.Signature, d.Signer = letter, signer
+		d.Sig, d.SigErr = signature.Commit(ctx, r.Runner, r.GitDir, hex.EncodeToString(d.OID))
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 	}
 	return nil

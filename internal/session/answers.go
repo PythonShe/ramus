@@ -76,7 +76,7 @@ func (a answer) bytes() int {
 	if d := a.detail; d != nil {
 		c := &d.Commit
 		n += len(d.OID) + len(c.Message) + len(c.Author.Name) + len(c.Author.Email) +
-			len(c.Committer.Name) + len(c.Committer.Email) + len(d.Signer) + 64*len(d.Parents)
+			len(c.Committer.Name) + len(c.Committer.Email) + len(d.Sig.Signer) + len(d.Sig.Key) + len(d.Sig.Reason) + 64*len(d.Parents)
 		if d.Files != nil {
 			n += d.Files.Bytes()
 		}
