@@ -64,6 +64,7 @@ func TestReftable(t *testing.T) {
 		}
 		r.Run([]byte(stdin.String()), "update-ref", "--stdin")
 		r.Git("tag", "-a", "-m", "annotated", "v1")
+		r.Git("tag", "light")
 		r.Git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/heads/main")
 		r.Git("symbolic-ref", "refs/remotes/origin/dangling", "refs/heads/nothere")
 		r.Commit("two")
@@ -78,6 +79,10 @@ func TestReftable(t *testing.T) {
 		for i := 0; i < l.Len(); i++ {
 			if l.Name(i) == "refs/tags/v1" && hex.EncodeToString(l.Peeled(i)) != peel {
 				t.Errorf("v1 peeled %x", l.Peeled(i))
+			}
+			// A direct record is no annotated tag.
+			if l.Name(i) == "refs/tags/light" && (l.Peeled(i) != nil || !l.PeelKnown(i)) {
+				t.Errorf("light peeled %x, known %v", l.Peeled(i), l.PeelKnown(i))
 			}
 		}
 		r.Git("checkout", "-q", "--detach")

@@ -57,8 +57,9 @@ func (s *Store) dirFor(name string) string {
 type List struct {
 	names    []byte
 	ends     []uint32
-	oids     []byte // hashSize per ref
-	peeled   []byte // hashSize per ref; zero when not an annotated tag
+	oids     []byte   // hashSize per ref
+	peeled   []byte   // hashSize per ref; zero when not an annotated tag
+	known    []uint64 // bit i set when PeelKnown(i)
 	targets  map[int]string
 	hashSize int
 	// Broken names refs whose files could not be read as refs; git warns
@@ -96,6 +97,12 @@ func (l *List) Peeled(i int) []byte {
 	return o
 }
 
+// PeelKnown reports whether Peeled is known for ref i, so that nil from
+// it means the ref names no annotated tag: packed-refs written with the
+// fully-peeled trait (or peeled, for tags) and reftable records say so,
+// a loose ref does not.
+func (l *List) PeelKnown(i int) bool { return l.known[i/64]&(1<<(i%64)) != 0 }
+
 // Symbolic returns the target of a symbolic ref, empty for a direct one.
 func (l *List) Symbolic(i int) string { return l.targets[i] }
 
@@ -109,13 +116,13 @@ func (l *List) Equal(o *List) bool {
 		return false
 	}
 	return bytes.Equal(l.names, o.names) && slices.Equal(l.ends, o.ends) &&
-		bytes.Equal(l.oids, o.oids) && bytes.Equal(l.peeled, o.peeled) &&
+		bytes.Equal(l.oids, o.oids) && bytes.Equal(l.peeled, o.peeled) && slices.Equal(l.known, o.known) &&
 		maps.Equal(l.targets, o.targets) && slices.Equal(l.Broken, o.Broken)
 }
 
 // Bytes returns the memory the list holds.
 func (l *List) Bytes() int {
-	return cap(l.names) + cap(l.ends)*4 + cap(l.oids) + cap(l.peeled)
+	return cap(l.names) + cap(l.ends)*4 + cap(l.oids) + cap(l.peeled) + cap(l.known)*8
 }
 
 func isZero(b []byte) bool {
@@ -131,7 +138,9 @@ type raw struct {
 	name   string
 	oid    []byte
 	peeled []byte
-	symref string
+	// peelKnown: peeled is nil because the ref is no annotated tag.
+	peelKnown bool
+	symref    string
 }
 
 // List reads every ref under refs/.
@@ -184,6 +193,7 @@ func build(all map[string]raw, hashSize int, broken []string, resolve func(strin
 	l := &List{hashSize: hashSize, targets: map[int]string{}, Broken: broken}
 	l.oids = make([]byte, 0, len(names)*hashSize)
 	l.peeled = make([]byte, 0, len(names)*hashSize)
+	l.known = make([]uint64, (len(names)+63)/64)
 	zero := make([]byte, hashSize)
 	for _, n := range names {
 		r := all[n]
@@ -202,6 +212,10 @@ func build(all map[string]raw, hashSize int, broken []string, resolve func(strin
 			p = zero
 		}
 		l.peeled = append(l.peeled, p...)
+		if r.symref == "" && (r.peelKnown || r.peeled != nil) {
+			i := len(l.ends) - 1
+			l.known[i/64] |= 1 << (i % 64)
+		}
 	}
 	return l
 }
@@ -249,6 +263,14 @@ func (s *Store) readPacked(path string) (map[string]raw, error) {
 func (s *Store) parsePacked(data []byte) map[string]raw {
 	refs := map[string]raw{}
 	last := ""
+	// The header's traits say which refs have a peeled line when they
+	// are annotated tags: all of them, or those under refs/tags/.
+	var fully, tags bool
+	if traits, ok := bytes.CutPrefix(data, []byte("# pack-refs with:")); ok {
+		traits, _, _ = bytes.Cut(traits, []byte{'\n'})
+		fully = bytes.Contains(traits, []byte(" fully-peeled "))
+		tags = bytes.Contains(traits, []byte(" peeled "))
+	}
 	for len(data) > 0 {
 		var line []byte
 		line, data, _ = bytes.Cut(data, []byte{'\n'})
@@ -271,7 +293,7 @@ func (s *Store) parsePacked(data []byte) map[string]raw {
 			continue
 		}
 		last = string(name)
-		refs[last] = raw{name: last, oid: oid}
+		refs[last] = raw{name: last, oid: oid, peelKnown: fully || tags && strings.HasPrefix(last, "refs/tags/")}
 	}
 	return refs
 }
@@ -317,7 +339,8 @@ func (s *Store) walkLoose(dir string, common bool, all map[string]raw, broken *[
 			return nil
 		}
 		if old, ok := all[name]; ok && r.symref == "" && bytes.Equal(old.oid, r.oid) {
-			r.peeled = old.peeled // packed-refs knows the peeled value
+			// packed-refs knows the peeled value
+			r.peeled, r.peelKnown = old.peeled, old.peelKnown
 		}
 		all[name] = r
 		return nil

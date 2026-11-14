@@ -63,11 +63,23 @@ func TestList(t *testing.T) {
 	if len(l.Broken) != 1 || l.Broken[0] != "refs/heads/broken" {
 		t.Errorf("broken %q", l.Broken)
 	}
-	// packed-refs peels v1.
+	// packed-refs peels v1, and says the packed light tag is no annotated
+	// tag; of the loose v2 nothing is known without reading it.
 	peel := strings.TrimSpace(r.Git("rev-parse", "v1^{commit}"))
 	for i := 0; i < l.Len(); i++ {
-		if l.Name(i) == "refs/tags/v1" && hex.EncodeToString(l.Peeled(i)) != peel {
-			t.Errorf("v1 peeled %x, want %s", l.Peeled(i), peel)
+		switch l.Name(i) {
+		case "refs/tags/v1":
+			if hex.EncodeToString(l.Peeled(i)) != peel || !l.PeelKnown(i) {
+				t.Errorf("v1 peeled %x, want %s", l.Peeled(i), peel)
+			}
+		case "refs/tags/light":
+			if l.Peeled(i) != nil || !l.PeelKnown(i) {
+				t.Errorf("light peeled %x, known %v", l.Peeled(i), l.PeelKnown(i))
+			}
+		case "refs/tags/v2", "refs/remotes/origin/HEAD":
+			if l.PeelKnown(i) {
+				t.Errorf("%s known peeled", l.Name(i))
+			}
 		}
 	}
 }

@@ -391,7 +391,9 @@ func (r *Reftable) List() (*List, error) {
 		n := string(name)
 		switch rec.typ {
 		case direct:
-			all[n] = raw{name: n, oid: bytes.Clone(rec.val)}
+			// git writes the peeled record for every ref that peels, so
+			// a direct one is no annotated tag.
+			all[n] = raw{name: n, oid: bytes.Clone(rec.val), peelKnown: true}
 		case peeled:
 			all[n] = raw{name: n, oid: bytes.Clone(rec.val[:hs]), peeled: bytes.Clone(rec.val[hs:])}
 		case symbolic:

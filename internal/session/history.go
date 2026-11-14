@@ -314,6 +314,8 @@ func historyTips(cat *catfile.Process, list *refs.List, head refs.Head, view His
 		case strings.HasPrefix(name, "refs/tags/"):
 			if p := list.Peeled(i); p != nil {
 				add(p)
+			} else if list.PeelKnown(i) {
+				add(list.OID(i)) // a lightweight tag
 			} else {
 				tags = append(tags, list.OID(i))
 				from = append(from, list.OID(i))
