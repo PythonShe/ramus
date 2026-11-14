@@ -55,48 +55,11 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		a.forcePushOffer(c, t)
 		main := func() {
 			// After the sidebar, which may have chosen another view.
-			a.showView(t)
-			switch t.sel {
-			case "log":
-				a.logView(c, t)
-				return
-			case "snapshots":
-				a.snapshotsView(c, t)
-				return
-			case "history":
-				a.historyView(c, t)
-				return
-			case "reflog":
-				a.reflogView(c, t)
-				return
-			case "stats":
-				a.statsView(c, t)
-				return
-			case "refs":
-				a.refsView(c, t)
-				return
-			case "stashes":
-				a.stashView(c, t)
-				return
-			case "worktrees":
-				a.worktreeDashboard(c, t)
-				return
-			case "review":
-				a.reviewView(c, t)
-				return
-			case "file":
-				a.fileView(c, t)
-				return
-			case "compare":
-				a.commitCompareView(c, t)
-				return
-			}
-			if strings.HasPrefix(t.sel, "refs/heads/") || strings.HasPrefix(t.sel, "refs/tags/") {
-				t.refs.showRef(t.sel)
-				a.refsView(c, t)
-				return
-			}
-			ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
+			a.syncNav(t)
+			t.nav.router.View(c, func(r *ui.Route) {
+				a.page(c, t)
+				r.Title(a.pageTitle(t))
+			})
 		}
 		if a.Settings.NoSidebar {
 			ui.Column(c).Grow(1).FillWidth().Children(main)
@@ -105,6 +68,52 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		}
 		a.statusBar(c, t)
 	})
+}
+
+// page shows the page of tab t that its sidebar item chooses.
+func (a *App) page(c *ui.Context, t *tab) {
+	a.showView(t)
+	switch t.sel {
+	case "log":
+		a.logView(c, t)
+		return
+	case "snapshots":
+		a.snapshotsView(c, t)
+		return
+	case "history":
+		a.historyView(c, t)
+		return
+	case "reflog":
+		a.reflogView(c, t)
+		return
+	case "stats":
+		a.statsView(c, t)
+		return
+	case "refs":
+		a.refsView(c, t)
+		return
+	case "stashes":
+		a.stashView(c, t)
+		return
+	case "worktrees":
+		a.worktreeDashboard(c, t)
+		return
+	case "review":
+		a.reviewView(c, t)
+		return
+	case "file":
+		a.fileView(c, t)
+		return
+	case "compare":
+		a.commitCompareView(c, t)
+		return
+	}
+	if strings.HasPrefix(t.sel, "refs/heads/") || strings.HasPrefix(t.sel, "refs/tags/") {
+		t.refs.showRef(t.sel)
+		a.refsView(c, t)
+		return
+	}
+	ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
 }
 
 func (a *App) trustBanner(c *ui.Context, t *tab) {

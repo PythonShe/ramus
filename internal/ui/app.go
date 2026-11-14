@@ -196,6 +196,7 @@ type tab struct {
 	expired bool
 	sideW   float32
 	listW   float32
+	nav     tabNav
 }
 
 // NewApp returns the app with nothing open.

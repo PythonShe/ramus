@@ -1134,6 +1134,10 @@
   "repoSectionComparison": "Comparison",
   "repoAllWorktrees": "All Worktrees",
   "repoSections": "Repository sections",
+  "navToolbar": "Navigation",
+  "@navToolbar": {
+    "description": "What assistive technology calls the toolbar holding the sidebar toggle, Back and Forward."
+  },
   "repoDetached": "detached",
   "@repoDetached": {
     "description": "The status bar, in place of the branch name when HEAD is detached."

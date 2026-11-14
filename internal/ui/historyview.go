@@ -226,9 +226,16 @@ func (a *App) jumpTo(t *tab, rev string) {
 	})
 }
 
-// chooseCommit shows commit id in the detail and chooses its row once it
-// is found.
+// chooseCommit goes to commit id: a page of its own, which Back returns
+// from.
 func (a *App) chooseCommit(t *tab, id []byte) {
+	t.nav.jump = true
+	a.showCommit(t, id)
+}
+
+// showCommit shows commit id in the detail and chooses its row once it
+// is found.
+func (a *App) showCommit(t *tab, id []byte) {
 	hv := &t.hist
 	hv.jumpN++
 	hv.want, hv.wantFor = id, nil

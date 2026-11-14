@@ -6243,6 +6243,22 @@ func (msgs Messages) RepoSections() string {
 	return Catalog.Format(msgs.locale, "repoSections", nil)
 }
 
+// NavToolbar says "Navigation"
+// in the language the app shows.
+//
+// What assistive technology calls the toolbar holding the sidebar toggle,
+// Back and Forward.
+func NavToolbar() string { return In(i18n.Locale()).NavToolbar() }
+
+// NavToolbar says "Navigation"
+// in the language of msgs.
+//
+// What assistive technology calls the toolbar holding the sidebar toggle,
+// Back and Forward.
+func (msgs Messages) NavToolbar() string {
+	return Catalog.Format(msgs.locale, "navToolbar", nil)
+}
+
 // RepoDetached says "detached"
 // in the language the app shows.
 //

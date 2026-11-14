@@ -235,13 +235,18 @@ var defaultKeys = map[string][]string{
 	"undo":         {"CmdOrCtrl+Z"},
 	"redo":         {"CmdOrCtrl+Shift+Z"},
 	"commit":       {"CmdOrCtrl+Enter"},
-	"tab-1":        {"CmdOrCtrl+1"}, "tab-2": {"CmdOrCtrl+2"}, "tab-3": {"CmdOrCtrl+3"},
+	// The system's own: Control-Command-S on macOS, as in Finder and
+	// Xcode.
+	"toggle-sidebar": {sidebarKey},
+	"tab-1":          {"CmdOrCtrl+1"}, "tab-2": {"CmdOrCtrl+2"}, "tab-3": {"CmdOrCtrl+3"},
 	"tab-4": {"CmdOrCtrl+4"}, "tab-5": {"CmdOrCtrl+5"}, "tab-6": {"CmdOrCtrl+6"},
 	"tab-7": {"CmdOrCtrl+7"}, "tab-8": {"CmdOrCtrl+8"}, "tab-9": {"CmdOrCtrl+9"},
 }
 
 // actionID is the command id of the user's action named name, and
 // toolID of opening the repository in a tool.
+var sidebarKey = map[bool]string{true: "Ctrl+Super+S", false: "CmdOrCtrl+B"}[mac]
+
 func actionID(name string) string { return "action:" + name }
 func toolID(name string) string   { return "open-in:" + name }
 

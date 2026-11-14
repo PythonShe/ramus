@@ -281,6 +281,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				ui.Text(c, locales.CommitParents(len(d.Parents))).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				for _, p := range d.Parents {
 					if ui.Button(c, hex.EncodeToString(p)[:10]).Font("monospace").Clicked() {
+						t.sel = "history"
 						a.chooseCommit(t, p)
 					}
 				}
