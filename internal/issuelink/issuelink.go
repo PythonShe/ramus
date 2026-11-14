@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"ramus/internal/forge"
 )
 
 // Rule links text matching Pattern, a Go regular expression, to URL, in
@@ -137,7 +139,7 @@ func expand(re *regexp.Regexp, tmpl, text string, m []int) (string, bool) {
 // FromRemote returns the rules a well-known host's issue references
 // follow, from a remote URL: GitHub, GitLab and Codeberg. Others get none.
 func FromRemote(remote string) []Rule {
-	host, path, ok := hostPath(remote)
+	host, path, ok := forge.HostPath(remote)
 	if !ok {
 		return nil
 	}
@@ -176,29 +178,3 @@ func FromRemote(remote string) []Rule {
 }
 
 var namePart = regexp.MustCompile(`^[\w.-]+$`)
-
-// hostPath reads the host and path of a remote URL in git's forms:
-// https://host/path, ssh://user@host:port/path and user@host:path.
-func hostPath(remote string) (host, path string, ok bool) {
-	if strings.Contains(remote, "://") {
-		u, err := url.Parse(remote)
-		if err != nil || u.Hostname() == "" {
-			return "", "", false
-		}
-		switch u.Scheme {
-		case "https", "http", "ssh", "git":
-		default:
-			return "", "", false
-		}
-		return strings.ToLower(u.Hostname()), u.Path, true
-	}
-	at, rest, found := strings.Cut(remote, "@")
-	if !found {
-		rest = at
-	}
-	h, p, found := strings.Cut(rest, ":")
-	if !found || h == "" || strings.Contains(h, "/") {
-		return "", "", false
-	}
-	return strings.ToLower(h), p, true
-}
