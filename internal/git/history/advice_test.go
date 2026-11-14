@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"ramus/internal/git/commitgraph"
@@ -50,5 +51,22 @@ func TestGraphAdvice(t *testing.T) {
 	r.Commit("b")
 	if _, ok = advice(); !ok {
 		t.Error("no advice for a stale graph")
+	}
+
+	// A graph without generation numbers covers nothing, and its advice
+	// replaces it rather than adding a layer on top.
+	r.WriteGraphWithoutGenerations()
+	g := open()
+	if _, covered := Covered(g, refTips(t, r)); covered || g.HasGenerations() {
+		t.Fatal("a graph without generation numbers covers history")
+	}
+	if a, ok = advice(); !ok || !strings.HasSuffix(a.Cmd.Line(), " --split=replace --changed-paths") {
+		t.Fatalf("no generations: %v %q", ok, a.Cmd.Line())
+	}
+	if _, err := testrun.Runner(t).Run(context.Background(), &a.Cmd); err != nil {
+		t.Fatal(err)
+	}
+	if a, ok = advice(); ok {
+		t.Fatalf("advice after replacing: %s", a.Reason)
 	}
 }

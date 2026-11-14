@@ -7,9 +7,11 @@ import "ramus/internal/git/commitgraph"
 // from it (commits made since it was written) means the graph is stale,
 // and RevList orders history instead; git then uses the graph for the part
 // it covers. g may be nil, for a repository without one or whose graph
-// does not describe its history (repo.Capabilities.CommitGraphUsable).
+// does not describe its history (repo.Capabilities.CommitGraphUsable). A
+// graph without generation numbers covers nothing: the walks order by
+// them.
 func Covered(g *commitgraph.Graph, tips [][]byte) ([]uint32, bool) {
-	if g == nil {
+	if g == nil || !g.HasGenerations() {
 		return nil, false
 	}
 	pos := make([]uint32, 0, len(tips))

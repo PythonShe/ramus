@@ -79,6 +79,10 @@ type Graph struct {
 	// genV2 is true when every layer has corrected commit dates; git uses
 	// them only then.
 	genV2 bool
+	// noGen is true when a layer was written without generation numbers
+	// at all, by a git older than 2.19 or one with them turned off: its
+	// topological levels are zero.
+	noGen bool
 	// bloom is the Bloom filter settings shared by every layer that has
 	// filters; zero when no layer has them or the layers disagree.
 	bloom BloomSettings
@@ -188,6 +192,11 @@ func openLayers(paths []string) (_ *Graph, err error) {
 		g.n += l.n
 		if l.gda2 == nil {
 			g.genV2 = false
+		}
+		// git writes a file with generation numbers for every commit or
+		// for none, and tells which from the first, as here.
+		if l.n > 0 && binary.BigEndian.Uint32(l.cdat[g.hashSize+8:])>>generationShift == 0 {
+			g.noGen = true
 		}
 	}
 	g.bloom = g.layers[0].bloom
@@ -375,6 +384,11 @@ func (g *Graph) Layers() int { return len(g.layers) }
 
 // HasGenerationV2 reports whether corrected commit dates are available.
 func (g *Graph) HasGenerationV2() bool { return g.genV2 }
+
+// HasGenerations reports whether every layer has generation numbers.
+// Without them Generation says nothing, and a walk that relies on it
+// must not use the graph; git then orders by commit dates alone.
+func (g *Graph) HasGenerations() bool { return !g.noGen }
 
 // Bloom returns the changed-path Bloom filter settings, with Version 0 when
 // the graph has no usable filters.

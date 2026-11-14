@@ -327,6 +327,24 @@ func TestDamaged(t *testing.T) {
 	}
 }
 
+// A graph written without generation numbers reads, but says it has
+// none; one with version 1 numbers has them.
+func TestNoGenerations(t *testing.T) {
+	r := fixture(t)
+	r.Git("-c", "commitGraph.generationVersion=1", "commit-graph", "write", "--reachable")
+	if g := open(t, r); !g.HasGenerations() || g.HasGenerationV2() {
+		t.Fatalf("version 1 generations: %v %v", g.HasGenerations(), g.HasGenerationV2())
+	}
+	r.WriteGraphWithoutGenerations()
+	g := open(t, r)
+	if g.HasGenerations() {
+		t.Fatal("generations trusted in a graph without them")
+	}
+	if g.Len() != len(oracle(t, r)) {
+		t.Fatalf("%d commits", g.Len())
+	}
+}
+
 func corruptFanout(b []byte) []byte {
 	n := int(b[6])
 	for i := 0; i < n; i++ {

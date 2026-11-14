@@ -26,6 +26,10 @@ func GraphAdvice(gitDir string, usable bool, g *commitgraph.Graph, covered bool)
 		return Advice{}, false
 	case g == nil:
 		reason = "This repository has no commit-graph, so git reads every commit to order history."
+	case !g.HasGenerations():
+		reason = "The commit-graph was written without generation numbers, so git reads every commit to order history."
+		// The layers without them must go, not only gain one on top.
+		split = "--split=replace"
 	case !covered:
 		reason = "The commit-graph is missing recent commits, so history is ordered by git instead."
 	case g.Bloom().Version == 0:
