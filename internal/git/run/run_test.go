@@ -40,6 +40,32 @@ func TestRunNamesRepository(t *testing.T) {
 	}
 }
 
+// A hardened runner refuses a write however it is started: through Run,
+// or a long-lived process from Command, which then never starts.
+func TestHardenedRefusesWrites(t *testing.T) {
+	r := gittest.Init(t)
+	r.Commit("one")
+	h := runner(t, 1).Hardened(nil)
+	write := &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Args: []string{"commit", "--allow-empty", "-m", "two"}}
+	if _, err := h.Run(context.Background(), write); !errors.Is(err, ErrRestricted) {
+		t.Fatalf("Run: %v", err)
+	}
+	cmd := h.Command(context.Background(), write)
+	if err := cmd.Run(); !errors.Is(err, ErrRestricted) {
+		t.Fatalf("Command: %v", err)
+	}
+	if cmd.Process != nil {
+		t.Fatal("a refused command started")
+	}
+	if n := strings.Count(r.Git("log", "--format=%s"), "\n"); n != 1 {
+		t.Fatalf("%d commits", n)
+	}
+	read := h.Command(context.Background(), &Cmd{GitDir: r.GitDir(), Read: true, Args: []string{"rev-parse", "HEAD"}})
+	if out, err := read.Output(); err != nil || len(strings.TrimSpace(string(out))) != 40 {
+		t.Fatalf("a read: %q %v", out, err)
+	}
+}
+
 func TestErrorKeepsStderr(t *testing.T) {
 	r := gittest.Init(t)
 	_, err := runner(t, 4).Run(context.Background(), &Cmd{GitDir: r.GitDir(), Args: []string{"rev-parse", "--verify", "nope"}})

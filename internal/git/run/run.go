@@ -276,8 +276,16 @@ func (r *Runner) Run(ctx context.Context, c *Cmd) (Result, error) {
 // Command prepares a long-lived process, such as cat-file --batch-command,
 // that lives as long as its repository: it takes no slot of the pool and
 // has no time limit, and stops when ctx is cancelled. Track tells the
-// runner it started and ended, for Running.
+// runner it started and ended, for Running. A write through a hardened
+// runner fails to start, with ErrRestricted, as Run refuses it.
 func (r *Runner) Command(ctx context.Context, c *Cmd) *exec.Cmd {
+	if r.hardened && !c.Read {
+		// Start returns a Cmd's Err without running anything, so each
+		// caller's own error path reports the refusal.
+		cmd := exec.CommandContext(ctx, r.git.Path)
+		cmd.Err = &Error{Line: c.Line(), ExitCode: -1, Err: ErrRestricted}
+		return cmd
+	}
 	cmd := r.command(ctx, c)
 	cmd.WaitDelay = 2 * time.Second
 	r.journal.record(c, c.Line(), time.Now(), Result{}, nil, true)
