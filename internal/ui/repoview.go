@@ -78,6 +78,9 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 			case "stashes":
 				a.stashView(c, t)
 				return
+			case "worktrees":
+				a.worktreeDashboard(c, t)
+				return
 			case "file":
 				a.fileView(c, t)
 				return
@@ -203,6 +206,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		if len(st.Worktrees) > 1 && a.shown("worktrees") {
 			open := t.open["worktrees"]
 			a.hideMenu(ui.SidebarSection(c, fmt.Sprintf("Worktrees (%d)", len(st.Worktrees)), &open, func() {
+				ui.SidebarItem(c, "worktrees", nil, "All Worktrees")
 				for i, w := range st.Worktrees {
 					it := ui.SidebarItem(c, "worktree:"+w.Path, nil, worktreeLabel(w))
 					switch {

@@ -167,6 +167,7 @@ type tab struct {
 	bisect    bisectState
 	stats     statsState
 	cmp       commitCompare
+	dash      dashState
 	forcePush forcePush
 	links     tabLinks
 	prefs     refPrefs
@@ -308,6 +309,7 @@ func (a *App) Reload() {
 
 func (a *App) reload(t *tab) {
 	t.s.Reload()
+	t.dash.reload()
 	t.commit.setup = nil
 	t.cv.diff.key = diffKey{}
 	t.links.For = nil
@@ -320,6 +322,9 @@ func (a *App) reload(t *tab) {
 // missed, unless the settings turn it off, and those not watched always.
 func (a *App) WindowFocused() {
 	for _, t := range a.tabs {
+		// Other worktrees are not watched: what agents changed there is
+		// read again when the dashboard shows next.
+		t.dash.reload()
 		// A repository not watched has nothing else to show changes by.
 		if !a.Settings.NoFocusRefresh || t.s.State.WatchErr != nil {
 			t.s.FocusRefresh()

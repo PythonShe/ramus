@@ -10,7 +10,7 @@ import (
 
 // restorable are the sections a tab reopens on; the others (a comparison,
 // a worktree or submodule being opened) show changes again.
-var restorable = []string{"changes", "history", "reflog", "refs", "stats", "log", "snapshots", "stashes"}
+var restorable = []string{"changes", "history", "reflog", "refs", "stats", "log", "snapshots", "stashes", "worktrees"}
 
 // Layout is what this window has open, to open again at the next launch.
 func (a *App) Layout() layout.Window {
