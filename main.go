@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo"
 	mygoui "github.com/egoist/mygo/ui"
 
+	"ramus/internal/askpass"
 	"ramus/internal/cli"
 	"ramus/internal/crashlog"
 	"ramus/internal/drafts"
@@ -33,6 +34,10 @@ const maxProcesses = 8
 
 func main() {
 	mainStart = time.Now()
+	if askpass.IsHelper() {
+		// git or ssh asks the running app a question through this process.
+		os.Exit(askpass.Helper(os.Args[1:], os.Stdout))
+	}
 	cwd, _ := os.Getwd()
 	req, err := cli.Parse(os.Args[1:], cwd)
 	if err != nil {
@@ -162,7 +167,7 @@ func main() {
 			ws.show(w)
 		}
 		ws.show(first)
-		findGit(ws, crash)
+		findGit(ws, crash, listenAsk(ws))
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
@@ -173,9 +178,15 @@ func main() {
 // The user's PATH comes from their login shell when the app was not
 // started from a terminal; asking it takes a moment, so the window opens
 // first.
-func findGit(ws *windows, crash *crashlog.Log) {
+func findGit(ws *windows, crash *crashlog.Log, ask *askpass.Server) {
 	go func() {
-		r, err := lookGit()
+		r, env, err := lookGit()
+		// An askpass of the user's own stays theirs.
+		if err == nil && ask != nil && lookup(env, "SSH_ASKPASS") == "" {
+			if program, perr := os.Executable(); perr == nil {
+				r.SetPrompt(ask.Env(program))
+			}
+		}
 		if err == nil && crash != nil {
 			crash.SetGit(r.Git(), r.Journal())
 		}
@@ -192,18 +203,45 @@ func findGit(ws *windows, crash *crashlog.Log) {
 	}()
 }
 
+// listenAsk starts listening for the questions git and ssh ask through
+// the askpass helper, each shown in the window of the repository that
+// asks, else the one last focused. None in the probe: it asks nothing.
+func listenAsk(ws *windows) *askpass.Server {
+	if ws.probe != "" {
+		return nil
+	}
+	s, err := askpass.Listen(func(q *askpass.Ask) {
+		mygo.RunOnMain(func() {
+			w := ws.showing(q.Dir)
+			if w == nil {
+				w = ws.target()
+			}
+			w.app.Ask(q)
+			if w.win != nil {
+				w.win.Invalidate()
+			}
+		})
+	})
+	if err != nil {
+		log.Print(err) // git and ssh then fail where they would ask
+		return nil
+	}
+	mygo.App.OnQuit(func() { s.Close() })
+	return s
+}
+
 // lookGit finds git on the user's PATH and makes the runner of every
-// git process.
-func lookGit() (*run.Runner, error) {
+// git process; env is the user's environment it runs with.
+func lookGit() (*run.Runner, []string, error) {
 	env := os.Environ()
 	if userenv.NeedsResolving() {
 		env = userenv.Resolve(context.Background()).Env
 	}
 	g, err := gitexe.Find(context.Background(), lookup(env, "PATH"))
 	if err != nil {
-		return nil, err
+		return nil, env, err
 	}
-	return run.New(g, env, maxProcesses), nil
+	return run.New(g, env, maxProcesses), env, nil
 }
 
 // runTool runs the app as git's difftool or mergetool: one window with
@@ -250,7 +288,7 @@ func runTool(req cli.Request) {
 		})
 		win.OnClosed(func() { mygo.App.Exit(code) })
 		go func() {
-			r, err := lookGit()
+			r, _, err := lookGit()
 			win.Update(func() { app.SetRunner(r, err) })
 		}()
 	})

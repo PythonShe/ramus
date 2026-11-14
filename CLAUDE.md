@@ -18,8 +18,9 @@ go run ./scripts/coldstart <binary>  # time to first frame; CI runs it, it opens
 
 ## Layout
 
-- `main.go`: starts the app and opens its first window; nothing else
-  lives here. `windows.go` keeps the windows, one `ui.App` each, sharing
+- `main.go`: starts the app and opens its windows, or, when git or ssh
+  starts it as SSH_ASKPASS, runs as the askpass helper
+  (`internal/askpass`) and exits; nothing else lives here. `windows.go` keeps the windows, one `ui.App` each, sharing
   the stores, the settings and git. `probe.go` is the cold-start probe
   mode (`RAMUS_PROBE_STARTUP`), which `scripts/coldstart` times;
   `.github/workflows/ci.yml` runs both.

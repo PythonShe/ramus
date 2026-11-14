@@ -117,11 +117,13 @@ type App struct {
 	// elsewhereUI explains a branch checked out in another worktree.
 	remoteUI    remoteCheckout
 	elsewhereUI elsewhere
-	message     messageDialog
-	history     historyEdit
-	stashUI     stashDialog
-	cleanUI     cleanState
-	mergeUI     mergeDialog
+	// asking are the questions from git and ssh, as for a password.
+	asking  asking
+	message messageDialog
+	history historyEdit
+	stashUI stashDialog
+	cleanUI cleanState
+	mergeUI mergeDialog
 	// pendingFile is a file to show once its repository is open.
 	pendingFile pendingFile
 	compareUI   compareState
@@ -428,6 +430,7 @@ func (a *App) View(c *ui.Context) {
 	a.worktreeLockView(c)
 	a.remoteCheckoutView(c)
 	a.elsewhereView(c)
+	a.askView(c) // last: over any other dialog
 	a.messageView(c)
 	a.historyEditView(c)
 	if t := a.current(); t != nil {
