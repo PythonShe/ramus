@@ -23,7 +23,7 @@ type statsState struct {
 	res      session.StatsResult
 	loading  bool
 	err      string
-	authors  ui.ListState
+	authors  tableState
 	// mode shows activity, files by size or files by changes.
 	mode    int
 	sizes   treemapState
@@ -331,22 +331,23 @@ func (a *App) authorTable(c *ui.Context, t *tab, st stats.Stats) {
 		au := authors[i]
 		return locales.StatsNameCommits(redact.Control(au.Name), au.Commits)
 	}
-	ui.Column(c).Grow(1).MinHeight(160).Children(func() {
-		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).Children(func() {
-			ui.Text(c, locales.StatsPerson()).FontSize(textSmall).Bold().Grow(1)
-			ui.Text(c, locales.StatsCommits()).FontSize(textSmall).Bold().Width(72).TextAlign(ui.End)
-			ui.Text(c, locales.StatsShare()).FontSize(textSmall).Bold().Width(56).TextAlign(ui.End)
-			ui.Text(c, locales.StatsActive()).FontSize(textSmall).Bold().Width(190)
-		})
-		ui.List(c, &ss.authors, len(authors), func(i int) {
-			au := authors[i]
-			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, redact.Control(au.Name)+" <"+redact.Control(au.Email)+">").SingleLine().Grow(1).Selectable()
-				ui.Text(c, strconv.Itoa(au.Commits)).Width(72).TextAlign(ui.End)
-				ui.Text(c, fmt.Sprintf("%.1f%%", 100*float64(au.Commits)/float64(st.Commits))).Width(56).TextAlign(ui.End).TextColor(th.TextMuted)
-				ui.Text(c, locales.StatsRange(time.Unix(au.First, 0).Format("2006-01-02"), time.Unix(au.Last, 0).Format("2006-01-02"))).
-					FontSize(textSmall).Width(190).TextColor(th.TextMuted)
-			})
-		}).Label(locales.StatsAuthors()).Grow(1)
-	})
+	cols := []ui.TableColumn{
+		{Title: locales.StatsPerson(), ID: "person", MinWidth: 120},
+		{Title: locales.StatsCommits(), ID: "commits", Width: 92, MinWidth: 50, Align: ui.End},
+		{Title: locales.StatsShare(), ID: "share", Width: 76, MinWidth: 50, Align: ui.End},
+		{Title: locales.StatsActive(), ID: "active", Width: 210, MinWidth: 80},
+	}
+	a.savedTable(c, "authors", &ss.authors, cols, len(authors), func(i, col int) {
+		au := authors[i]
+		switch col {
+		case 0:
+			ui.Text(c, redact.Control(au.Name)+" <"+redact.Control(au.Email)+">").SingleLine().Selectable()
+		case 1:
+			ui.Text(c, strconv.Itoa(au.Commits))
+		case 2:
+			ui.Text(c, fmt.Sprintf("%.1f%%", 100*float64(au.Commits)/float64(st.Commits))).TextColor(th.TextMuted)
+		case 3:
+			mutedCell(c, locales.StatsRange(time.Unix(au.First, 0).Format("2006-01-02"), time.Unix(au.Last, 0).Format("2006-01-02")))
+		}
+	}).Label(locales.StatsAuthors()).Grow(1).MinHeight(160)
 }

@@ -19,7 +19,7 @@ import (
 
 // dashState is the worktree dashboard of a tab.
 type dashState struct {
-	table  ui.ListState
+	table  tableState
 	chosen int
 	// boxes are the Compare boxes, by path.
 	boxes map[string]*bool
@@ -62,12 +62,13 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 	}
 	now := a.Now()
 	cols := []ui.TableColumn{
-		{Title: locales.WorktreeColumnWorktree()},
-		{Title: locales.WorktreeColumnBranch(), Width: 200},
-		{Title: locales.WorktreeColumnChanges(), Width: 90, Align: ui.End},
-		{Title: locales.WorktreeColumnAheadBehind(), Width: 120, Align: ui.End},
-		{Title: locales.WorktreeColumnLastActive(), Width: 110, Align: ui.End},
-		{Title: "", Width: 80, Align: ui.End},
+		{Title: locales.WorktreeColumnWorktree(), ID: "worktree", MinWidth: 120},
+		{Title: locales.WorktreeColumnBranch(), ID: "branch", Width: 200, MinWidth: 60},
+		{Title: locales.WorktreeColumnChanges(), ID: "changes", Width: 90, MinWidth: 50, Align: ui.End},
+		{Title: locales.WorktreeColumnAheadBehind(), ID: "aheadBehind", Width: 120, MinWidth: 60, Align: ui.End},
+		{Title: locales.WorktreeColumnLastActive(), ID: "lastActive", Width: 110, MinWidth: 60, Align: ui.End},
+		// The Open button, which stays at the end.
+		{ID: "open", Width: 80, Align: ui.End, Fixed: true},
 	}
 	d.table.Selected = &d.chosen
 	d.table.Label = func(i int) string { return worktreeLabel(wts[i]) }
@@ -83,7 +84,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 				act = func() { a.compareWorktrees(t, picked[0], picked[1]) }
 			}
 		})
-		tbl := ui.Table(c, &d.table, cols, len(wts), func(i, col int) {
+		tbl := a.savedTable(c, "worktrees", &d.table, cols, len(wts), func(i, col int) {
 			w := wts[i]
 			sum, read := d.sums[w.Path]
 			switch col {

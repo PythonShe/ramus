@@ -32,7 +32,7 @@ type libStatsState struct {
 	sum     *libstats.Summary
 	summing bool
 	sumGen  int
-	table   ui.ListState
+	table   tableState
 	sort    ui.SortOrder
 }
 
@@ -407,7 +407,7 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 		return locales.StatsNameCommits(r.Name, r.Totals.Commits)
 	}
 	now := a.Now().Unix()
-	ui.Table(c, &s.table, cols, len(rows), func(i, col int) {
+	a.savedTable(c, "libraryStats", &s.table, cols, len(rows), func(i, col int) {
 		r := rows[i]
 		pending := r.Loading || r.Err != nil
 		switch col {
