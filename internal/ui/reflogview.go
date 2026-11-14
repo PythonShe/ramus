@@ -46,7 +46,7 @@ func newReflogState() reflogState {
 
 func (a *App) reflogView(c *ui.Context, t *tab) {
 	rs := &t.reflog
-	ui.Split(c, &rs.detailW, func() {
+	listBesideCommit(c, &rs.detailW, 560, &rs.detail, func() {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Segmented(c, &rs.lostShown, locales.RepoSectionReflog(), locales.ReflogLostCommits())
@@ -69,7 +69,7 @@ func (a *App) reflogView(c *ui.Context, t *tab) {
 			id = rs.lost[rs.lostChosen].OID
 		}
 		a.commitDetail(c, t, id, &rs.detail)
-	}).SplitReset(560).Fill()
+	}).Fill()
 }
 
 // reflogRefMenu chooses whose reflog is shown: HEAD or a local branch.

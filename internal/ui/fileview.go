@@ -51,7 +51,7 @@ type fileState struct {
 }
 
 func newFileState() fileState {
-	return fileState{chosen: -1, follow: true, detailW: 560, detail: commitView{split: 300}}
+	return fileState{chosen: -1, follow: true, detailW: 560, detail: commitView{}}
 }
 
 // showFile opens the view of path (relative to t's work tree).
@@ -187,7 +187,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 			}
 		})
 	}
-	ui.Split(c, &fs.detailW, func() {
+	listBesideCommit(c, &fs.detailW, 560, &fs.detail, func() {
 		ui.Column(c).Fill().Children(func() {
 			switch {
 			case fs.logErr != "":
@@ -249,7 +249,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 			}
 		}
 		a.commitDetail(c, t, id, &fs.detail)
-	}).SplitReset(560).Fill()
+	}).Fill()
 }
 
 // loadBlame blames the file again when it, or the refs, changed.

@@ -28,14 +28,14 @@ type commitView struct {
 	d      *session.CommitDetail
 	files  ui.ListState
 	file   int
-	// split is the height above the patch while a file is open. It fits
-	// the message, the rows below it and the first files until the user
-	// sizes it (sized), which is kept from commit to commit.
-	split float32
-	sized bool
-	// splitSet and msgSet are the heights set in the last frame: a split
-	// found at another height was dragged since.
-	splitSet, msgSet float32
+	// infoW is the width of the commit beside its patch, and listW the
+	// list's beside them, while a patch is open; both are kept from commit
+	// to commit. wasOpen is whether one was open in the last frame.
+	infoW, listW float32
+	wasOpen      bool
+	// msgSet is the message's height set in the last frame: one found at
+	// another height was dragged since.
+	msgSet float32
 	// msgH is the height of a message with a body, above a divider of
 	// its own; it fits the message, up to commitBodyMax of body, until
 	// the user drags it (msgSized). subjectH, bodyH, msgColH and metaH
@@ -74,7 +74,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		if cv.cancel != nil {
 			cv.cancel()
 		}
-		*cv = commitView{id: id, loading: true, file: -1, split: cv.split, sized: cv.sized, splitSet: cv.splitSet, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want}
+		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want}
 		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {
 				cv.loading, cv.d = !d.Done, &d
@@ -120,25 +120,56 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			}
 		})
 	}
-	open := d.Files != nil && cv.file >= 0 && cv.file < d.Files.Len()
+	open := cv.patchOpen()
 	// Escape closes the patch wherever the focus is; a dialog or a field
 	// that takes Escape gets it first.
 	if open && c.Shortcut(0, ui.KeyEscape) {
 		cv.file, open = -1, false
 	}
-	col := ui.Column(c).Fill()
-	colH := col.LayoutBounds().H
-	col.Children(func() {
-		// Until a file is chosen there is no patch: the header and the
-		// whole file list take the column.
+	if open != cv.wasOpen {
+		// The list beside, built before, takes its other width.
+		cv.wasOpen = open
+		c.AnimationFrame()
+	}
+	ui.Column(c).Fill().Children(func() {
+		// Until a file is chosen there is no patch: the commit takes the
+		// column. Its patch opens in a column of its own, beside it.
 		if !open {
 			top()
 			return
 		}
-		fit := cv.fittedSplit(d.Files.Len(), colH)
-		fitSplit(&cv.split, &cv.splitSet, &cv.sized, fit)
-		ui.SplitVertical(c, &cv.split, top, func() { a.commitPatch(c, t, cv, d) }).SplitReset(fit).Fill()
+		if cv.infoW == 0 {
+			cv.infoW = commitInfoW
+		}
+		ui.Split(c, &cv.infoW, top, func() { a.commitPatch(c, t, cv, d) }).SplitReset(commitInfoW).Fill()
 	})
+}
+
+// The widths of a commit and of the list beside it while its patch is
+// open, until the user sizes them: the patch takes the rest.
+const (
+	commitInfoW = 320
+	commitListW = 360
+)
+
+// patchOpen reports whether a file of the commit is chosen, its patch
+// shown.
+func (cv *commitView) patchOpen() bool {
+	return cv.d != nil && cv.d.Files != nil && cv.file >= 0 && cv.file < cv.d.Files.Len()
+}
+
+// listBesideCommit splits a list of commits from the commit chosen in it.
+// While the commit's patch is open, the list takes a width of its own,
+// narrower, which leaves the patch room; it goes back to *w as the patch
+// closes.
+func listBesideCommit(c *ui.Context, w *float32, reset float32, cv *commitView, list, detail func()) ui.Element {
+	if cv.patchOpen() {
+		if cv.listW == 0 {
+			cv.listW = commitListW
+		}
+		w, reset = &cv.listW, commitListW
+	}
+	return ui.Split(c, w, list, detail).SplitReset(reset)
 }
 
 // fitSplit keeps a split's size at fit until the user drags it. A drag,
@@ -153,25 +184,6 @@ func fitSplit(size, set *float32, sized *bool, fit float32) {
 		*size = fit
 	}
 	*set = *size
-}
-
-// commitFilesShown is how many files stay in sight above a patch that
-// was just opened.
-const commitFilesShown = 4
-
-// fittedSplit is the height above the patch that shows the header, the
-// count of files and the first of them, but leaves the patch most of a
-// column colH high.
-func (cv *commitView) fittedSplit(files int, colH float32) float32 {
-	header := cv.msgColH + cv.metaH
-	if cv.bodyH > 0 {
-		header = cv.msgH + cv.metaH
-	}
-	h := header + rowHeight*float32(1+min(files, commitFilesShown))
-	if colH > 0 {
-		h = min(h, colH*0.6)
-	}
-	return max(h, 4*rowHeight)
 }
 
 // commitBodyMax is the most of a body the message shows until the user
@@ -435,7 +447,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, cv.file))
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
-			if ui.Button(c, "×").Label(locales.CommitClosePatch()).Padding(0, spaceXS).Clicked() {
+			if closeButton(c, locales.CommitClosePatch()).Clicked() {
 				cv.file = -1
 			}
 		})

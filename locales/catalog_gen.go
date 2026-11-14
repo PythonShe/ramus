@@ -4875,6 +4875,16 @@ func (msgs Messages) DiffUnified() string {
 	return Catalog.Format(msgs.locale, "diffUnified", nil)
 }
 
+// DiffOptions says "Patch Options"
+// in the language the app shows.
+func DiffOptions() string { return In(i18n.Locale()).DiffOptions() }
+
+// DiffOptions says "Patch Options"
+// in the language of msgs.
+func (msgs Messages) DiffOptions() string {
+	return Catalog.Format(msgs.locale, "diffOptions", nil)
+}
+
 // DiffSplit says "Split"
 // in the language the app shows.
 //

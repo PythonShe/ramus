@@ -59,10 +59,12 @@ type historyState struct {
 	jumpN int
 	buf   []lanes.Edge
 	// picked are the commits chosen together, by commit index.
-	picked   ui.Selection[uint32]
-	path     ui.Path
-	detail   commitView
-	detailW  float32
+	picked  ui.Selection[uint32]
+	path    ui.Path
+	detail  commitView
+	detailW float32
+	// rowW is the list's width as last laid out.
+	rowW     float32
 	chosenID []byte
 	filter   historyFilter
 }
@@ -130,7 +132,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	}
 	a.findWanted(t, h)
 	a.buildLabels(hv, t.s.State, h)
-	ui.Split(c, &hv.detailW, func() {
+	listBesideCommit(c, &hv.detailW, 640, &hv.detail, func() {
 		ui.Column(c).Fill().Children(func() {
 			a.bisectBar(c, t)
 			a.historyBar(c, t, h)
@@ -151,7 +153,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 			}
 			a.historyList(c, t, h)
 		})
-	}, func() { a.commitDetail(c, t, hv.chosenID, &hv.detail) }).SplitReset(640).Fill()
+	}, func() { a.commitDetail(c, t, hv.chosenID, &hv.detail) }).Fill()
 	if hv.chosen >= 0 && h.Snap != nil && hv.chosen < h.Snap.Len() {
 		id := h.OID(h.Snap.Commit(hv.chosen))
 		if string(id) != string(hv.chosenID) {
@@ -461,8 +463,17 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		}
 		return out
 	}
-	ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Label(locales.HistoryCommits()).Grow(1)
+	l := ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Label(locales.HistoryCommits()).Grow(1)
+	hv.rowW = l.LayoutBounds().W
 }
+
+// The list widths under which a row leaves out its author, then its
+// date too, so that a narrow list, beside an open patch, still shows the
+// subjects.
+const (
+	historyNoAuthorW = 640
+	historyNoDateW   = 480
+)
 
 func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int) {
 	th := c.Theme()
@@ -502,8 +513,13 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		if ch := hv.loaded(i); ch != nil && ch.Odd(i) {
 			subj.TextColor(th.Warning).Description(locales.HistoryBadEncoding())
 		}
-		ui.Text(c, author).SingleLine().Width(120).TextColor(th.TextMuted)
-		ui.Text(c, when.Format("2006-01-02 15:04")).SingleLine().Width(112).TextColor(th.TextMuted)
+		// rowW is the list's width in the last frame, 0 before the first.
+		if w := hv.rowW; w == 0 || w >= historyNoAuthorW {
+			ui.Text(c, author).SingleLine().Width(120).TextColor(th.TextMuted)
+		}
+		if w := hv.rowW; w == 0 || w >= historyNoDateW {
+			ui.Text(c, when.Format("2006-01-02 15:04")).SingleLine().Width(112).TextColor(th.TextMuted)
+		}
 		ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 	})
 	row.ContextMenu(func(m *ui.Menu) {

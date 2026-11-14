@@ -858,6 +858,7 @@
   "@diffUnified": {
     "description": "A patch's layout with both sides in one column; the other choice is Split."
   },
+  "diffOptions": "Patch Options",
   "diffSplit": "Split",
   "@diffSplit": {
     "description": "A patch's layout with its sides side by side; the other choice is Unified."

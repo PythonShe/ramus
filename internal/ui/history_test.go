@@ -48,7 +48,10 @@ func TestHistoryView(t *testing.T) {
 	h.click("1 file changed")
 	h.until("the patch copied", func() bool { return strings.Contains(h.tt.Clipboard(), "Subject: [PATCH] add alpha") })
 	// The subject is the line above the Author row; the list shows the
-	// same text, so it is found by place.
+	// same text, so it is found by place, with the patch closed and the
+	// rows each a line.
+	h.tt.Key(0, ui.KeyEscape)
+	h.tt.Frame()
 	author, _ := h.tt.Find("Author")
 	cv := &h.app.current().hist.detail
 	x, y := author.X+spaceXS, author.Y-spaceS-cv.subjectH/2
@@ -333,24 +336,31 @@ func TestCommitPatchOpensForAChosenFile(t *testing.T) {
 	h.until("the commits", h.shows("two files"))
 	h.click("two files")
 	h.until("the files", h.shows("b.txt"))
-	if h.tt.HasText("Choose a file to see its changes") || h.tt.HasText("Open in Diff Tool") {
+	if h.tt.HasText("Choose a file to see its changes") || h.tt.HasText("Close Patch") {
 		t.Fatal("a patch pane before a file is chosen")
 	}
+	listW := h.app.current().hist.detailW
 
+	// The patch opens in a column of its own, right of the files, which
+	// keep the whole height; the list narrows to make room.
 	h.click("a.txt")
-	h.until("the patch", h.shows("Open in Diff Tool"))
+	h.until("the patch", h.shows("Close Patch"))
 	b, _ := h.tt.Find("b.txt")
-	bar, _ := h.tt.Find("Open in Diff Tool")
-	if b.H == 0 || b.Y+b.H > bar.Y {
-		t.Fatalf("the other file at %v is not above the patch at %v", b, bar)
+	closer, _ := h.tt.Find("Close Patch")
+	if b.H == 0 || b.X+b.W > closer.X || closer.Y > b.Y {
+		t.Fatalf("the patch at %v is not right of the files at %v", closer, b)
+	}
+	cv := &h.app.current().hist.detail
+	if cv.listW != commitListW || h.app.current().hist.detailW != listW {
+		t.Fatalf("list %v beside the patch, %v without it", cv.listW, h.app.current().hist.detailW)
 	}
 
 	h.tt.Key(0, ui.KeyEscape)
-	h.until("closed by Escape", func() bool { return !h.tt.HasText("Open in Diff Tool") })
+	h.until("closed by Escape", func() bool { return !h.tt.HasText("Close Patch") })
 	h.click("a.txt")
-	h.until("the patch again", h.shows("Open in Diff Tool"))
+	h.until("the patch again", h.shows("Close Patch"))
 	h.click("Close Patch")
-	h.until("closed by its button", func() bool { return !h.tt.HasText("Open in Diff Tool") })
+	h.until("closed by its button", func() bool { return !h.tt.HasText("Close Patch") })
 }
 
 // The message has a divider of its own: it starts fitted to a short body,

@@ -45,7 +45,8 @@ func (a *App) diffOpts() *diffOptions {
 // wrapping is saved in the settings.
 func (a *App) diffBar(c *ui.Context, more func()) {
 	o := a.diffOpts()
-	ui.Row(c).Padding(0, insetX, spaceS, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+	// A toolbar: what does not fit a narrow patch goes into its menu.
+	ui.Toolbar(c, func() {
 		ws := []string{locales.DiffAllWhiteSpace(), locales.DiffIgnoreSpaceChanges(), locales.DiffIgnoreAllSpace()}
 		ui.PopoverMenuButton(c, ws[o.ws], func(m *ui.Menu) {
 			for i, label := range ws {
@@ -71,7 +72,7 @@ func (a *App) diffBar(c *ui.Context, more func()) {
 				}()
 			}
 		}
-	})
+	}).Label(locales.DiffOptions()).Padding(0, insetX, spaceS, insetX)
 }
 
 // patchView is one file's patch in mygo's diff viewer, with what maps the

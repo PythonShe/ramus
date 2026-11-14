@@ -127,7 +127,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			}
 		})
 	}
-	ui.Split(c, &ss.detailW, func() {
+	listBesideCommit(c, &ss.detailW, 560, &ss.detail, func() {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				if d := ss.dropped; d != nil {
@@ -183,7 +183,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			id = ss.entries[ss.chosen].OID
 		}
 		a.commitDetail(c, t, id, &ss.detail)
-	}).SplitReset(560).Fill()
+	}).Fill()
 	a.confirmView(c, &ss.ask)
 	a.refDialogView(c, &ss.branch, t)
 }
