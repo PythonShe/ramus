@@ -74,6 +74,10 @@ func New(git *gitexe.Git, env []string, max int) *Runner {
 	return &Runner{git: git, env: clean, pool: &pool{slots: make(chan struct{}, max)}}
 }
 
+// Environ is the user's environment commands run with, for other tools
+// of theirs.
+func (r *Runner) Environ() []string { return slices.Clone(r.env) }
+
 // SetPrompt has every command that is not Read nor NoPrompt run with
 // env, the app's askpass helper, so that git and ssh can ask the user;
 // asking, when set, reports whether a question is open, during which no
