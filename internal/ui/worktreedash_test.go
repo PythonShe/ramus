@@ -27,8 +27,12 @@ func TestWorktreeDashboard(t *testing.T) {
 	h.until("the dashboard", h.shows("2 worktrees"))
 	tb := h.app.current()
 	h.until("the counts", func() bool {
-		d := tb.dash.sums
-		return len(d) == 2 && d[other].Changes == 2 && d[tb.s.State.Worktrees[0].Path].Changes == 0
+		// By name: git gives the paths with forward slashes on Windows.
+		changes := map[string]int{}
+		for p, s := range tb.dash.sums {
+			changes[filepath.Base(p)] = s.Changes
+		}
+		return len(changes) == 2 && changes["agent"] == 2 && changes[filepath.Base(r.Dir)] == 0
 	})
 	if !h.tt.HasText("agent-work") {
 		t.Fatalf("no branch; texts %q", h.tt.Texts())
