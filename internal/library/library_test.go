@@ -126,3 +126,28 @@ func TestRefPrefs(t *testing.T) {
 		t.Fatalf("pinned %v hidden %v", p, h)
 	}
 }
+
+func TestEditor(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "proj")
+	os.MkdirAll(repo, 0o755)
+	p := filepath.Join(root, "library.json")
+	l, _ := Load(p)
+	if err := l.SetEditor(repo, "Zed"); err == nil {
+		t.Fatal("editor set for a repository not in the library")
+	}
+	l.Opened(repo, time.Unix(1, 0))
+	if err := l.SetEditor(repo, "Zed"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := again.Editor(repo); e != "Zed" {
+		t.Fatalf("editor %q", e)
+	}
+	if err := again.SetEditor(repo, ""); err != nil || again.Editor(repo) != "" {
+		t.Fatalf("cleared: %v, %q", err, again.Editor(repo))
+	}
+}

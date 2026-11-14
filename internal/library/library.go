@@ -34,6 +34,9 @@ type Repo struct {
 	Hidden []string `json:"hidden,omitempty"`
 	// NoFetch keeps the repository from fetching in the background.
 	NoFetch bool `json:"noFetch,omitempty"`
+	// Editor names the editor its files open in, one of those the app
+	// finds; none is the app's own choice.
+	Editor string `json:"editor,omitempty"`
 }
 
 // Group is a named set of repositories, opened together.
@@ -200,6 +203,34 @@ func (l *Library) SetFetchOff(path string, off bool) error {
 	i := l.find(path)
 	if i >= 0 {
 		l.repos[i].NoFetch = off
+	}
+	l.mu.Unlock()
+	if i < 0 {
+		return errors.New("library: " + path + " is not a known repository")
+	}
+	return l.save()
+}
+
+// Editor is the editor a repository's files open in, "" the app's own
+// choice.
+func (l *Library) Editor(path string) string {
+	path = Clean(path)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if i := l.find(path); i >= 0 {
+		return l.repos[i].Editor
+	}
+	return ""
+}
+
+// SetEditor has a known repository's files open in the editor of that
+// name, "" in the app's own choice.
+func (l *Library) SetEditor(path, name string) error {
+	path = Clean(path)
+	l.mu.Lock()
+	i := l.find(path)
+	if i >= 0 {
+		l.repos[i].Editor = name
 	}
 	l.mu.Unlock()
 	if i < 0 {
