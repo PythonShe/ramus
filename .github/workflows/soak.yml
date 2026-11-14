@@ -1,0 +1,29 @@
+name: Soak
+
+# Opens, changes, refreshes and closes repositories for hours, then checks
+# that goroutines, open files, git processes and memory came back.
+on:
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      length:
+        description: How long to soak (a Go duration)
+        default: 2h
+
+permissions:
+  contents: read
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Soak
+        env:
+          RAMUS_SOAK: ${{ inputs.length || '2h' }}
+        run: go run ./bench -runs 1 -only '^soak$'
