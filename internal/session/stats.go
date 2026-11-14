@@ -222,7 +222,7 @@ func mailmapData(ctx context.Context, r *repo.Repository) [][]byte {
 	if r.WorkTree != "" {
 		readFile(filepath.Join(r.WorkTree, ".mailmap"), false)
 	}
-	blob, ok := r.Config.Get("mailmap.blob")
+	blob, ok := r.Config().Get("mailmap.blob")
 	if !ok && r.WorkTree == "" {
 		blob = "HEAD:.mailmap"
 	}
@@ -233,7 +233,7 @@ func mailmapData(ctx context.Context, r *repo.Repository) [][]byte {
 			out = append(out, res.Stdout)
 		}
 	}
-	if f, ok := r.Config.Get("mailmap.file"); ok && f != "" {
+	if f, ok := r.Config().Get("mailmap.file"); ok && f != "" {
 		if rest, ok := strings.CutPrefix(f, "~/"); ok {
 			if home, err := os.UserHomeDir(); err == nil {
 				f = filepath.Join(home, rest)

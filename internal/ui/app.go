@@ -241,6 +241,24 @@ func (a *App) CloseAll() {
 	a.tabs, a.active = nil, -1
 }
 
+// Reload reads the current repository again, the views' kept answers
+// dropped; the commit message being written stays.
+func (a *App) Reload() {
+	if t := a.current(); t != nil {
+		a.reload(t)
+	}
+}
+
+func (a *App) reload(t *tab) {
+	t.s.Reload()
+	t.commit.setup = nil
+	t.cv.diff.key = diffKey{}
+	t.links.For = nil
+	for _, cv := range []*commitView{&t.hist.detail, &t.file.detail, &t.reflog.detail, &t.stash.detail} {
+		cv.id = nil
+	}
+}
+
 // WindowFocused reads every open repository again for what the watcher
 // missed, unless the settings turn it off.
 func (a *App) WindowFocused() {
@@ -371,6 +389,9 @@ func (a *App) shortcuts(c *ui.Context) {
 	}
 	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyO) {
 		a.openManager()
+	}
+	if c.Shortcut(ui.Cmd, ui.KeyR) {
+		a.Reload()
 	}
 	if t := a.current(); t != nil && !c.FocusTakesText() {
 		// In a text field these keys undo the typing.

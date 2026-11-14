@@ -47,8 +47,8 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 		done(run.ErrRestricted)
 		return
 	}
-	gui, _ := r.Config.Get("diff.guitool")
-	tool, _ := r.Config.Get("diff.tool")
+	gui, _ := r.Config().Get("diff.guitool")
+	tool, _ := r.Config().Get("diff.tool")
 	if gui == "" && tool == "" {
 		done(ErrNoDiffTool)
 		return

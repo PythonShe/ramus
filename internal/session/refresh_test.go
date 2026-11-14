@@ -224,3 +224,39 @@ func TestFocusRefresh(t *testing.T) {
 		t.Fatalf("a staged file: %v", got)
 	}
 }
+
+// A config change made elsewhere is read again; Reload drops what was
+// kept and loads history again.
+func TestReload(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "status", func() bool { return s.State.Status != nil && s.State.Refs != nil })
+
+	r.Git("config", "diff.tool", "elsewhere")
+	m.until(t, "the new config", func() bool {
+		v, _ := s.Repo.Config().Get("diff.tool")
+		return v == "elsewhere"
+	})
+
+	s.LoadHistory()
+	m.until(t, "history", func() bool { return s.History.Done })
+	view := s.History.View
+	head := s.State.Head.OID
+	done := false
+	s.LoadCommit(head, func(d CommitDetail) { done = d.Done })
+	m.until(t, "the commit", func() bool { return done })
+
+	s.Reload()
+	done = false
+	s.LoadCommit(head, func(d CommitDetail) { done = d.Done })
+	if done {
+		t.Fatal("a commit kept past Reload")
+	}
+	m.until(t, "the commit again", func() bool { return done })
+	s.LoadHistory()
+	m.until(t, "history again", func() bool { return s.History.Done && s.History.View != view })
+}

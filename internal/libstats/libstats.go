@@ -160,7 +160,7 @@ func (l *Loader) read(ctx context.Context, out *Repo, progress func(read, total 
 		r.Close()
 		<-r.Life().Done()
 	}()
-	out.Email, _ = r.Config.Get("user.email")
+	out.Email, _ = r.Config().Get("user.email")
 	if out.Size, err = session.RepoSize(ctx, r); err != nil {
 		return err
 	}

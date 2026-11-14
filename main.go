@@ -250,6 +250,10 @@ func menu(app *ui.App) *mygo.Menu {
 				app.ShowPalette()
 				w.Invalidate()
 			}},
+			{Label: "Refresh", Accelerator: "CmdOrCtrl+R", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+				app.Reload()
+				w.Invalidate()
+			}},
 			mygo.Separator(),
 			{Role: mygo.RoleClose},
 		}},

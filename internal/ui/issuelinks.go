@@ -47,11 +47,11 @@ func (a *App) loadLinks(t *tab) {
 // remoteURL is the URL of origin, or of the first remote when there is no
 // origin.
 func remoteURL(r *repo.Repository) string {
-	if u, ok := r.Config.Get("remote.origin.url"); ok {
+	if u, ok := r.Config().Get("remote.origin.url"); ok {
 		return u
 	}
-	for _, name := range r.Config.Subsections("remote", "url") {
-		if u, ok := r.Config.Get("remote." + name + ".url"); ok {
+	for _, name := range r.Config().Subsections("remote", "url") {
+		if u, ok := r.Config().Get("remote." + name + ".url"); ok {
 			return u
 		}
 	}

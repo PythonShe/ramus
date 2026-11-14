@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ramus/internal/git/catfile"
@@ -23,7 +24,8 @@ import (
 // run off the main thread.
 type Repository struct {
 	Location
-	Config *config.Config
+	// config is the config as last read; Config returns it.
+	config atomic.Pointer[config.Config]
 	Caps   Capabilities
 	// Runner runs git for this repository: hardened when Restricted.
 	Runner *run.Runner
@@ -73,14 +75,36 @@ func Open(ctx context.Context, r *run.Runner, path string, trusted func(Location
 		return nil, err
 	}
 	repo := &Repository{
-		Location: loc, Config: cfg, Caps: Check(loc, cfg), Runner: r,
+		Location: loc, Caps: Check(loc, cfg), Runner: r,
 		life: lifetime.New(context.Background()),
 	}
+	repo.config.Store(cfg)
 	if !trusted(loc) {
 		repo.Restricted = true
 		repo.Runner = r.Hardened(trust.Hardening(cfg))
 	}
 	return repo, nil
+}
+
+// Config returns the repository's config as last read; safe from any
+// goroutine.
+func (r *Repository) Config() *config.Config { return r.config.Load() }
+
+// ReloadConfig reads the config again, after it changed. A repository
+// not trusted takes the overrides the new config needs first, so no
+// command runs a program it newly names. What the config says of the
+// repository's format (Caps) stays as it was at open: changing it takes
+// opening the repository again.
+func (r *Repository) ReloadConfig(ctx context.Context) error {
+	cfg, err := config.Read(ctx, r.Runner, r.GitDir)
+	if err != nil {
+		return err
+	}
+	if r.Restricted {
+		r.Runner.Reharden(trust.Hardening(cfg))
+	}
+	r.config.Store(cfg)
+	return nil
 }
 
 // Life is the repository's lifetime: run its goroutines with Life().Go and

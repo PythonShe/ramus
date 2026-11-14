@@ -2,12 +2,15 @@ package repo
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/run"
 )
 
 // Closing a repository stops its processes and releases its mappings, and
@@ -89,5 +92,58 @@ func TestCommitGraphReopens(t *testing.T) {
 	}
 	if first.Len() != 1 || first.Lookup(first.OID(0)) != 0 {
 		t.Error("the earlier graph no longer reads")
+	}
+}
+
+// A config that changed after open is read again; in a repository not
+// trusted, a filter it newly names does not run.
+func TestReloadConfig(t *testing.T) {
+	g := gittest.Init(t)
+	g.Write("a.txt", "one\n")
+	g.Write(".gitattributes", "*.txt filter=evil\n")
+	g.Commit("one")
+	runner := testrun.Runner(t)
+	ctx := context.Background()
+
+	r, err := Open(ctx, runner, g.Dir, trustAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	g.Git("config", "diff.tool", "later")
+	if _, ok := r.Config().Get("diff.tool"); ok {
+		t.Fatal("the config was read again unasked")
+	}
+	if err := r.ReloadConfig(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := r.Config().Get("diff.tool"); v != "later" {
+		t.Fatalf("diff.tool %q after reload", v)
+	}
+
+	u, err := Open(ctx, runner, g.Dir, func(Location) bool { return false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer u.Close()
+	marker := filepath.Join(t.TempDir(), "ran")
+	g.Git("config", "filter.evil.clean", "touch "+marker+"; cat")
+	g.Write("a.txt", "two\n")
+	diff := func(rn *run.Runner) {
+		t.Helper()
+		if _, err := rn.Run(ctx, &run.Cmd{GitDir: g.GitDir(), WorkTree: g.Dir, Read: true, Args: []string{"diff", "--", "a.txt"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := u.ReloadConfig(ctx); err != nil {
+		t.Fatal(err)
+	}
+	diff(u.Runner)
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("a filter named after open ran in a repository not trusted")
+	}
+	diff(runner) // the test's own check that the filter runs at all
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatal("the filter never runs; the test proves nothing")
 	}
 }

@@ -33,6 +33,7 @@ func (a *App) commands() []command {
 	t := a.current()
 	if t != nil {
 		cmds = append(cmds, command{"Close Tab", func() { a.Close(a.active) }})
+		cmds = append(cmds, command{"Refresh", func() { a.reload(t) }})
 		if t.s.State.Restricted {
 			cmds = append(cmds, command{"Trust This Repository", func() { t.s.Trust() }})
 		}

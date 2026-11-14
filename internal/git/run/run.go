@@ -42,8 +42,10 @@ type Runner struct {
 	git *gitexe.Git
 	env []string
 	*pool
-	// hardening is set on a runner for a repository that is not trusted.
-	hardening []string
+	// hardened is set on a runner for a repository that is not trusted;
+	// hardening is its overrides, replaced when the config changes.
+	hardened  bool
+	hardening atomic.Pointer[[]string]
 }
 
 // pool is shared by a runner and the hardened runners made from it.
@@ -72,11 +74,22 @@ func New(git *gitexe.Git, env []string, max int) *Runner {
 // no textconv; and any command not marked Read is refused, so nothing
 // writes.
 func (r *Runner) Hardened(config []string) *Runner {
-	return &Runner{git: r.git, env: r.env, pool: r.pool, hardening: append([]string{}, config...)}
+	h := &Runner{git: r.git, env: r.env, pool: r.pool, hardened: true}
+	h.Reharden(config)
+	return h
+}
+
+// Reharden replaces the overrides of a runner from Hardened, for config
+// that changed: commands started after it returns take them.
+func (r *Runner) Reharden(config []string) {
+	if r.hardened {
+		c := append([]string{}, config...)
+		r.hardening.Store(&c)
+	}
 }
 
 // IsHardened reports a runner from Hardened.
-func (r *Runner) IsHardened() bool { return r.hardening != nil }
+func (r *Runner) IsHardened() bool { return r.hardened }
 
 // DefaultMaxOutput bounds collected output: far over what a command the
 // engine reads whole prints for any real repository (the raw file list of
@@ -162,11 +175,11 @@ func (c *Cmd) argv() []string {
 // argv adds the hardening of a runner for a repository not trusted.
 func (r *Runner) argv(c *Cmd) []string {
 	a := c.argv()
-	if r.hardening == nil {
+	if !r.hardened {
 		return a
 	}
 	globals := a[: len(a)-len(c.Args) : len(a)-len(c.Args)]
-	for _, kv := range r.hardening {
+	for _, kv := range *r.hardening.Load() {
 		globals = append(globals, "-c", kv)
 	}
 	if len(c.Args) == 0 {
@@ -215,7 +228,7 @@ func (r *Runner) Run(ctx context.Context, c *Cmd) (Result, error) {
 	if c.GitDir == "" && !(c.Outside && c.WorkTree != "") {
 		return Result{}, errors.New("run: command names no repository")
 	}
-	if r.hardening != nil && !c.Read {
+	if r.hardened && !c.Read {
 		return Result{}, &Error{Line: c.Line(), ExitCode: -1, Err: ErrRestricted}
 	}
 	select {

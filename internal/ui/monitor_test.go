@@ -19,7 +19,7 @@ func TestMonitorOffer(t *testing.T) {
 	h.until("open", h.shows("No changes"))
 	tb := h.app.current()
 	rp := tb.s.Repo
-	a, ok := status.AdviseMonitor(runtime.GOOS, rp.Runner.Git().Version, rp.Config, rp.GitDir, rp.WorkTree, true, 2*time.Second)
+	a, ok := status.AdviseMonitor(runtime.GOOS, rp.Runner.Git().Version, rp.Config(), rp.GitDir, rp.WorkTree, true, 2*time.Second)
 	if !ok {
 		t.Skip("no offer on this system")
 	}

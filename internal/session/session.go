@@ -252,6 +252,15 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 // Refresh asks for what changed to be read again; bursts are merged.
 func (s *Session) Refresh(what repo.Change) { s.refreshPaths(what, nil) }
 
+// Reload reads everything again, for a refresh the user asks for: the
+// config, refs, a full status and history, with the patches and commits
+// kept dropped. Main thread only.
+func (s *Session) Reload() {
+	s.DropAnswers()
+	s.historyViewN++
+	s.Refresh(repo.Rescan)
+}
+
 // FocusRefresh is the window gaining focus, a fallback for changes the
 // watcher missed: while it watches, refs and the index's key are read,
 // and status only when they changed; when it does not, everything.
@@ -370,6 +379,10 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			res.err = err
 		}
 	}
+	if what&repo.ConfigChanged != 0 {
+		// Before status, which may run what the config names.
+		fail(r.ReloadConfig(ctx))
+	}
 	var key repo.IndexKey
 	keyErr := errors.New("not read")
 	if what&(repo.WorkTreeChanged|repo.IndexChanged|repo.RefsChanged) != 0 {
@@ -431,7 +444,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			seen.status = st
 		}
 		if err == nil && !rechecked && !s.monitorAnswered.Load() {
-			if a, ok := status.AdviseMonitor(runtime.GOOS, r.Runner.Git().Version, r.Config, r.GitDir, r.WorkTree, !r.Restricted, time.Since(start)); ok {
+			if a, ok := status.AdviseMonitor(runtime.GOOS, r.Runner.Git().Version, r.Config(), r.GitDir, r.WorkTree, !r.Restricted, time.Since(start)); ok {
 				res.monitor = &a
 			}
 		}

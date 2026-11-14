@@ -583,8 +583,8 @@ func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, wh
 	}
 	gui, tool := "", ""
 	if r := t.s.Repo; r != nil {
-		gui, _ = r.Config.Get("merge.guitool")
-		tool, _ = r.Config.Get("merge.tool")
+		gui, _ = r.Config().Get("merge.guitool")
+		tool, _ = r.Config().Get("merge.tool")
 	}
 	if menu.Item("Open in Merge Tool").Disabled(ro || gui == "" && tool == "").Chosen() {
 		*act = func() {
