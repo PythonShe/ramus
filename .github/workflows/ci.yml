@@ -18,7 +18,18 @@ jobs:
           go-version-file: go.mod
       - name: Check
         run: scripts/check.sh
-      - name: Cold start to first frame
+      - name: Build without cgo
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ramus" .
+      - name: The binary links only the system
         run: |
-          go build -o "$RUNNER_TEMP/ramus" .
-          go run ./scripts/coldstart -runs 10 -budget 200ms "$RUNNER_TEMP/ramus"
+          libs=$(otool -L "$RUNNER_TEMP/ramus" | tail -n +2 | awk '{print $1}')
+          echo "$libs"
+          if echo "$libs" | grep -v -e '^/usr/lib/' -e '^/System/Library/'; then
+            echo "links a library outside the system" >&2
+            exit 1
+          fi
+      # The hosted runner is a VM with a virtual GPU: its median varies
+      # from 150 to 290 ms, nearly all AppKit and Metal. The gate catches
+      # a regression; the 200 ms target is for hardware.
+      - name: Cold start to first frame
+        run: go run ./scripts/coldstart -runs 10 -budget 300ms "$RUNNER_TEMP/ramus"
