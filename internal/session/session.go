@@ -68,11 +68,15 @@ type Session struct {
 	// History is the history list as loaded; LoadHistory fills it.
 	History HistoryState
 
-	mu      sync.Mutex
-	dirty   repo.Change
-	wake    chan struct{}
-	closed  bool
-	timeNow func() time.Time
+	mu    sync.Mutex
+	dirty repo.Change
+	// dirtyPaths are the work-tree paths the merged changes named, unless
+	// one named none (dirtyAll).
+	dirtyPaths []string
+	dirtyAll   bool
+	wake       chan struct{}
+	closed     bool
+	timeNow    func() time.Time
 	// stop cancels an open in progress; opened is the repository once
 	// open, before the main thread has taken it, so Close reaches both.
 	stop   context.CancelFunc
@@ -106,6 +110,8 @@ type refreshSeen struct {
 	index     repo.IndexKey
 	indexRead bool
 	refs      *refs.List
+	// status is the last status published, for a recheck to merge into.
+	status *status.Status
 }
 
 // Debounce gathers a burst of file changes into one refresh.
@@ -191,7 +197,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 					if slices.Contains(n.Paths, ".gitmodules") {
 						what |= modulesChanged
 					}
-					s.Refresh(what)
+					s.refreshPaths(what, n.Paths)
 				case <-ctx.Done():
 					return
 				}
@@ -202,9 +208,23 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 }
 
 // Refresh asks for what changed to be read again; bursts are merged.
-func (s *Session) Refresh(what repo.Change) {
+func (s *Session) Refresh(what repo.Change) { s.refreshPaths(what, nil) }
+
+// refreshPaths is Refresh for work-tree changes the watcher named: while
+// every change merged into the next refresh names its paths, and they are
+// few, status reads only them.
+func (s *Session) refreshPaths(what repo.Change, paths []string) {
 	s.mu.Lock()
 	s.dirty |= what
+	switch {
+	case what&(repo.WorkTreeChanged|repo.Rescan) == 0:
+	case paths == nil || what&repo.Rescan != 0 || s.dirtyAll:
+		s.dirtyAll, s.dirtyPaths = true, nil
+	case len(s.dirtyPaths)+len(paths) > status.MaxRecheckPaths:
+		s.dirtyAll, s.dirtyPaths = true, nil
+	default:
+		s.dirtyPaths = append(s.dirtyPaths, paths...)
+	}
 	s.mu.Unlock()
 	select {
 	case s.wake <- struct{}{}:
@@ -226,11 +246,14 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 			return
 		}
 		s.mu.Lock()
-		what := s.dirty
-		s.dirty = 0
+		what, paths := s.dirty, s.dirtyPaths
+		if s.dirtyAll {
+			paths = nil
+		}
+		s.dirty, s.dirtyPaths, s.dirtyAll = 0, nil, false
 		s.mu.Unlock()
 		if what != 0 {
-			s.read(ctx, r, what, &seen)
+			s.read(ctx, r, what, paths, &seen)
 		}
 	}
 }
@@ -240,7 +263,7 @@ const modulesChanged repo.Change = 1 << 7
 
 const all = modulesChanged | repo.WorkTreeChanged | repo.IndexChanged | repo.RefsChanged | repo.OperationChanged | repo.ConfigChanged
 
-func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change, seen *refreshSeen) {
+func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change, paths []string, seen *refreshSeen) {
 	if what&repo.Rescan != 0 {
 		what |= all
 	}
@@ -304,16 +327,33 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 	}
 	if what&(repo.WorkTreeChanged|repo.IndexChanged|repo.RefsChanged) != 0 {
 		start := time.Now()
-		st, err := status.Read(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, status.Options{})
+		var st *status.Status
+		var err error
+		rechecked := false
+		if what == repo.WorkTreeChanged && seen.status != nil && status.CanRecheck(paths) {
+			// Edits to files git knows: read those alone and merge.
+			var part *status.Status
+			if part, err = status.ReadPaths(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, paths); err == nil {
+				st, rechecked = seen.status.Replace(paths, part)
+			}
+		}
+		if !rechecked {
+			st, err = status.Read(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, status.Options{})
+		}
 		fail(err)
 		res.st = st
 		res.readAt = s.timeNow()
-		if err == nil && !s.monitorAnswered.Load() {
+		if err == nil {
+			seen.status = st
+		}
+		if err == nil && !rechecked && !s.monitorAnswered.Load() {
 			if a, ok := status.AdviseMonitor(runtime.GOOS, r.Runner.Git().Version, r.Config, r.GitDir, r.WorkTree, !r.Restricted, time.Since(start)); ok {
 				res.monitor = &a
 			}
 		}
-		if err == nil {
+		if err == nil && !rechecked {
+			// A recheck read the work tree only; an index notice still
+			// to come must not find its key already seen.
 			seen.index, seen.indexRead = key, keyErr == nil
 		}
 	}
