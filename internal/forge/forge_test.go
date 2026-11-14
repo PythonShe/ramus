@@ -341,3 +341,40 @@ func TestStacks(t *testing.T) {
 		t.Fatalf("lastFailure %q", got)
 	}
 }
+
+// Knows takes the public host, the one the environment names, and those
+// the tool's own config is logged in to, read again when it changes; a
+// remote naming any other github.* or gitlab.* host is not asked.
+func TestKnownHosts(t *testing.T) {
+	conf := t.TempDir()
+	c, err := Find(append(fakeTool(t, `{}`, 0), "GH_CONFIG_DIR="+conf, "GH_HOST=ghe.corp.example"), GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Knows("github.com") || !c.Knows("ghe.corp.example") || c.Knows("github.corp.example") || c.Knows("gitlab.com") {
+		t.Fatal("without a config")
+	}
+	hosts := "github.com:\n    user: me\ngithub.corp.example:\n    oauth_token: x\n    users:\n        me:\n"
+	if err := os.WriteFile(filepath.Join(conf, "hosts.yml"), []byte(hosts), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Knows("GitHub.Corp.Example") || c.Knows("github.evil.example") || c.Knows("me") || c.Knows("users") {
+		t.Fatalf("with %q", hosts)
+	}
+	spoofed := Repo{GitHub, "github.evil.example", "o/r"}
+	if _, err := c.Pulls(context.Background(), spoofed, spoofed, []string{"x"}); !errors.Is(err, ErrUnknownHost) {
+		t.Fatalf("pulls on a spoofed host: %v", err)
+	}
+	if _, _, err := c.CommitPull(context.Background(), spoofed, strings.Repeat("ab", 20), 0); !errors.Is(err, ErrUnknownHost) {
+		t.Fatalf("commit pull on a spoofed host: %v", err)
+	}
+
+	glab := "git_protocol: ssh\nhosts:\n  gitlab.com:\n    token: x\n    api_host: gitlab.com\n  gitlab.corp.example:8443:\n    token: y\n    nested:\n      deeper.example:\nother:\n  gitlab.evil.example:\n"
+	got := configHosts(GitLab, []byte(glab))
+	if strings.Join(got, " ") != "gitlab.com gitlab.corp.example:8443" {
+		t.Fatalf("glab hosts %q", got)
+	}
+	if got := configHosts(GitHub, []byte(hosts)); strings.Join(got, " ") != "github.com github.corp.example" {
+		t.Fatalf("gh hosts %q", got)
+	}
+}

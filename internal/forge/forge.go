@@ -23,7 +23,9 @@ const (
 type Repo struct {
 	Kind Kind
 	// Host is the web host, as github.com or a company's GitHub
-	// Enterprise or GitLab host.
+	// Enterprise or GitLab host. Any github.* or gitlab.* host is taken
+	// for one, so a remote may name it: the tool is asked only about a
+	// host it knows (CLI.Knows).
 	Host string
 	// Path is owner/name on GitHub, group/.../project on GitLab.
 	Path string

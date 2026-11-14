@@ -160,10 +160,14 @@ func (p restPull) pull() Pull {
 // into r: the one numbered hint when GitHub names several, else a merged
 // one, else an open one. When GitHub names none, hint, the number the
 // subject ends with (see SquashHint), is asked for by itself; 0 asks
-// nothing more. ok is false when there is none.
+// nothing more. ok is false when there is none. A host the tool does
+// not know (Knows) is not asked: ErrUnknownHost.
 func (c *CLI) CommitPull(ctx context.Context, r Repo, sha string, hint int) (p Pull, ok bool, err error) {
 	if r.Kind != GitHub || c.Kind != GitHub {
 		return Pull{}, false, ErrNoCLI
+	}
+	if !c.Knows(r.Host) {
+		return Pull{}, false, ErrUnknownHost
 	}
 	if !hexID(sha) {
 		return Pull{}, false, fmt.Errorf("forge: %q is not a commit id", sha)

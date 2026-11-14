@@ -106,11 +106,17 @@ func RemoteURLs(r *repo.Repository) (upstream, origin string) {
 // requests of the branches of info that track a remote branch, and hands
 // the answer to done on it. A fork's branches are asked about in the
 // repository it was forked from (PullsRepo). A repository whose tool is
-// missing or not logged in is skipped, with that error.
+// missing or not logged in is skipped, with that error; one on a host the
+// tool does not know is skipped without one. A repository not trusted
+// asks nothing: its remotes name the hosts.
 func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *RefInfo, done func(PullsResult)) {
 	r := s.Repo
 	if r == nil || info == nil {
 		done(PullsResult{Err: errors.New("session: the repository is not open")})
+		return
+	}
+	if r.Restricted {
+		done(PullsResult{})
 		return
 	}
 	type where struct{ base, head forge.Repo }
@@ -160,7 +166,7 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 				if ctx.Err() != nil {
 					return
 				}
-				if res.Err == nil {
+				if res.Err == nil && !errors.Is(err, forge.ErrUnknownHost) {
 					res.Err = err
 				}
 				continue
@@ -199,11 +205,16 @@ func commitPullKey(oid []byte) string { return "p\x00" + string(oid) }
 // brought commit oid in, whose subject is subject, and hands the answer
 // to done on it: from the repository named upstream when there is one,
 // for a fork's commits came in there, else from origin. A repository
-// not on GitHub is not asked. The answer is kept per commit for
-// CommitPullMaxAge. cancel stops the asking and drops its answer.
+// not on GitHub, on a host gh does not know, or not trusted, is not
+// asked. The answer is kept per commit for CommitPullMaxAge. cancel stops
+// the asking and drops its answer.
 func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid []byte, subject string, done func(CommitPullResult)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
+		return func() {}
+	}
+	if r.Restricted {
+		done(CommitPullResult{})
 		return func() {}
 	}
 	key := commitPullKey(oid)
@@ -249,6 +260,9 @@ func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(
 		return CommitPullResult{Err: err}
 	}
 	p, found, err := c.CommitPull(ctx, gh, sha, hint)
+	if errors.Is(err, forge.ErrUnknownHost) {
+		return CommitPullResult{}
+	}
 	if err != nil {
 		return CommitPullResult{Err: err}
 	}

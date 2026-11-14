@@ -32,6 +32,8 @@ type CLI struct {
 	env  []string
 	// slots bounds the calls running at once.
 	slots chan struct{}
+	// known are the hosts the tool's config says it is logged in to.
+	known *knownHosts
 }
 
 // ErrNoCLI is a host whose tool is not installed.
@@ -71,7 +73,8 @@ func Find(env []string, k Kind) (*CLI, error) {
 	if !ok {
 		return nil, ErrNoCLI
 	}
-	return &CLI{Kind: k, Path: p, env: quiet(env), slots: make(chan struct{}, maxRunning)}, nil
+	return &CLI{Kind: k, Path: p, env: quiet(env), slots: make(chan struct{}, maxRunning),
+		known: &knownHosts{files: configFiles(env, k)}}, nil
 }
 
 // lookPath finds an executable named name in env's PATH, not the app's,
@@ -194,10 +197,14 @@ func (w *capped) Write(p []byte) (int, error) {
 // names them: head is base itself, or a fork of it whose pull requests
 // go to base. A branch's open pull request wins, else its latest merged
 // or closed one; a branch with none is left out. At most MaxBranches are
-// asked about.
+// asked about. A host the tool does not know (Knows) is not asked:
+// ErrUnknownHost.
 func (c *CLI) Pulls(ctx context.Context, base, head Repo, branches []string) (map[string]Pull, error) {
 	if base.Kind != c.Kind || head.Kind != c.Kind {
 		return nil, ErrNoCLI
+	}
+	if !c.Knows(base.Host) {
+		return nil, ErrUnknownHost
 	}
 	branches = branches[:min(len(branches), MaxBranches)]
 	out := map[string]Pull{}
