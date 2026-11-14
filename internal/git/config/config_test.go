@@ -68,3 +68,11 @@ func FuzzParse(f *testing.F) {
 		}
 	})
 }
+
+// busy knows Git for Windows' message for a config file being replaced.
+func TestBusy(t *testing.T) {
+	msg := "warning: unable to access '.git/config': Permission denied\nfatal: unknown error occurred while reading the configuration files"
+	if !busy(msg) || busy("fatal: bad config line 1 in file .git/config") {
+		t.Fatal("busy")
+	}
+}

@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"ramus/internal/git/run"
 )
@@ -46,11 +48,28 @@ type Config struct {
 }
 
 // Read runs git config --list for the repository.
+//
+// On Windows a git that starts while another renames config.lock over a
+// config file cannot open it; read just after a change, as the watcher
+// does, that is common, so Read tries again for a moment.
 func Read(ctx context.Context, r *run.Runner, gitDir string) (*Config, error) {
-	res, err := r.Run(ctx, &run.Cmd{
-		GitDir: gitDir, Read: true, Untranslated: true,
-		Args: []string{"config", "--list", "-z", "--show-origin", "--show-scope"},
-	})
+	var res run.Result
+	var err error
+	for try := 0; ; try++ {
+		res, err = r.Run(ctx, &run.Cmd{
+			GitDir: gitDir, Read: true, Untranslated: true,
+			Args: []string{"config", "--list", "-z", "--show-origin", "--show-scope"},
+		})
+		var e *run.Error
+		if err == nil || runtime.GOOS != "windows" || try >= busyTries || !errors.As(err, &e) || !busy(e.Stderr) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(busyWait):
+		}
+	}
 	if err != nil {
 		var e *run.Error
 		// An empty config is an error exit in some versions; read nothing.
@@ -65,6 +84,18 @@ func Read(ctx context.Context, r *run.Runner, gitDir string) (*Config, error) {
 	}
 	c.UnknownExtensions = unknownExtensions(res.Stderr)
 	return c, nil
+}
+
+// busyTries and busyWait bound the tries of a config file being
+// replaced: a rename takes milliseconds.
+const (
+	busyTries = 10
+	busyWait  = 50 * time.Millisecond
+)
+
+// busy reports git's message for a config file it could not open.
+func busy(stderr string) bool {
+	return strings.Contains(stderr, "unable to access") && strings.Contains(stderr, "Permission denied")
 }
 
 // unknownExtensions reads git's warning:

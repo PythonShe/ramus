@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Repo is a fixture repository in a temporary directory.
@@ -133,7 +134,25 @@ func (r *Repo) Git(args ...string) string {
 
 // Run runs git with stdin and returns its output, or an error carrying its
 // standard error.
+//
+// On Windows a git that starts while another renames config.lock over
+// config cannot open it, and stops before doing anything; a test that
+// reads while the app writes meets that, so Run tries again.
 func (r *Repo) Run(stdin []byte, args ...string) (string, error) {
+	for try := 0; ; try++ {
+		out, errText, err := r.run(stdin, args)
+		if err != nil && runtime.GOOS == "windows" && try < 20 && configBusy(errText) {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if err != nil {
+			return out, fmt.Errorf("%w: %s", err, errText)
+		}
+		return out, nil
+	}
+}
+
+func (r *Repo) run(stdin []byte, args []string) (string, string, error) {
 	cmd := exec.Command("git", append([]string{"-C", r.Dir}, args...)...)
 	cmd.Env = append(Env(), r.Env...)
 	if stdin != nil {
@@ -141,10 +160,13 @@ func (r *Repo) Run(stdin []byte, args ...string) (string, error) {
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		return stdout.String(), fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	return stdout.String(), nil
+	err := cmd.Run()
+	return stdout.String(), strings.TrimSpace(stderr.String()), err
+}
+
+// configBusy reports git's message for a config file it could not open.
+func configBusy(stderr string) bool {
+	return strings.Contains(stderr, "unable to access") && strings.Contains(stderr, "config': Permission denied")
 }
 
 // Write writes a file in the work tree, creating its directories.
