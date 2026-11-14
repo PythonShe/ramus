@@ -16,10 +16,13 @@ import (
 // commitState is a tab's commit editor.
 type commitState struct {
 	subject, body string
-	coAuthors     string
-	amend         bool
-	signOff       bool
-	noVerify      bool
+	// coAuthors are the co-authors chosen, as Name <email> separated by
+	// commas, which is how a draft keeps them.
+	coAuthors string
+	pick      coAuthorPick
+	amend     bool
+	signOff   bool
+	noVerify  bool
 	// sign is the Sign box, set from commit.gpgSign as the setup is read.
 	sign bool
 	// setup is loaded once per tab; loading is set meanwhile.
@@ -79,6 +82,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	ui.Column(c).Padding(spaceM).Gap(spaceS).Background(th.Surface).FillWidth().Children(func() {
 		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &cs.subject).Label(locales.CommitBoxSummary()).Placeholder(locales.CommitBoxSummary()).Grow(1).Disabled(cs.busy)
+			a.coAuthorButton(c, t)
 			if cs.setup != nil && len(cs.setup.Recent) > 0 {
 				recent := cs.setup.Recent
 				ui.PopoverMenuButton(c, locales.CommitBoxRecent(), func(m *ui.Menu) {
@@ -92,7 +96,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 			}
 		})
 		ui.TextArea(c, &cs.body).Label(locales.CommitBoxDescription()).Placeholder(locales.CommitBoxDescription()).Lines(2, 8).FillWidth().Disabled(cs.busy)
-		ui.TextInput(c, &cs.coAuthors).Label(locales.CommitBoxCoAuthors()).Placeholder(locales.CommitBoxCoAuthorsPlaceholder()).FillWidth().Disabled(cs.busy)
+		coAuthorChips(c, cs)
 		ui.Row(c).Gap(spaceL).Children(func() {
 			ui.Checkbox(c, &cs.amend, locales.CommitBoxAmend()).Disabled(cs.busy || head.Unborn || len(head.OID) == 0)
 			ui.Checkbox(c, &cs.signOff, locales.CommitBoxSignOff())

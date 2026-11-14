@@ -738,7 +738,21 @@
     "description": "The body of a commit message, under its summary."
   },
   "commitBoxCoAuthors": "Co-authors",
-  "commitBoxCoAuthorsPlaceholder": "Co-authors: Name <email>, …",
+  "@commitBoxCoAuthors": {
+    "description": "Names the people chosen as co-authors of the commit, shown under its description."
+  },
+  "commitBoxAddCoAuthor": "Add Co-Author",
+  "commitBoxSearchPeople": "Search People",
+  "commitBoxPeople": "People",
+  "@commitBoxPeople": {
+    "description": "Names the list of people who wrote the repository's recent commits, to choose co-authors from."
+  },
+  "commitBoxAddPerson": "Add {person}",
+  "@commitBoxAddPerson": {
+    "description": "A row adding someone typed in the search as Name <email>, who has no commit here."
+  },
+  "commitBoxNoPeople": "No matching people",
+  "commitBoxRemoveCoAuthor": "Remove {name}",
   "commitBoxAmend": "Amend",
   "@commitBoxAmend": {
     "description": "A checkbox: the commit replaces the last one."

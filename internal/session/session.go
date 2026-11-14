@@ -118,6 +118,7 @@ type Session struct {
 	stats       statsLoad
 	tools       diffTools
 	refInfo     refLoad
+	authors     authorsLoad
 	blame       blames
 	view        viewScope
 	fetch       backgroundFetch

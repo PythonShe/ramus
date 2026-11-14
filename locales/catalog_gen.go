@@ -4031,22 +4031,92 @@ func (msgs Messages) CommitBoxDescription() string {
 
 // CommitBoxCoAuthors says "Co-authors"
 // in the language the app shows.
+//
+// Names the people chosen as co-authors of the commit, shown under its
+// description.
 func CommitBoxCoAuthors() string { return In(i18n.Locale()).CommitBoxCoAuthors() }
 
 // CommitBoxCoAuthors says "Co-authors"
 // in the language of msgs.
+//
+// Names the people chosen as co-authors of the commit, shown under its
+// description.
 func (msgs Messages) CommitBoxCoAuthors() string {
 	return Catalog.Format(msgs.locale, "commitBoxCoAuthors", nil)
 }
 
-// CommitBoxCoAuthorsPlaceholder says "Co-authors: Name <email>, …"
+// CommitBoxAddCoAuthor says "Add Co-Author"
 // in the language the app shows.
-func CommitBoxCoAuthorsPlaceholder() string { return In(i18n.Locale()).CommitBoxCoAuthorsPlaceholder() }
+func CommitBoxAddCoAuthor() string { return In(i18n.Locale()).CommitBoxAddCoAuthor() }
 
-// CommitBoxCoAuthorsPlaceholder says "Co-authors: Name <email>, …"
+// CommitBoxAddCoAuthor says "Add Co-Author"
 // in the language of msgs.
-func (msgs Messages) CommitBoxCoAuthorsPlaceholder() string {
-	return Catalog.Format(msgs.locale, "commitBoxCoAuthorsPlaceholder", nil)
+func (msgs Messages) CommitBoxAddCoAuthor() string {
+	return Catalog.Format(msgs.locale, "commitBoxAddCoAuthor", nil)
+}
+
+// CommitBoxSearchPeople says "Search People"
+// in the language the app shows.
+func CommitBoxSearchPeople() string { return In(i18n.Locale()).CommitBoxSearchPeople() }
+
+// CommitBoxSearchPeople says "Search People"
+// in the language of msgs.
+func (msgs Messages) CommitBoxSearchPeople() string {
+	return Catalog.Format(msgs.locale, "commitBoxSearchPeople", nil)
+}
+
+// CommitBoxPeople says "People"
+// in the language the app shows.
+//
+// Names the list of people who wrote the repository's recent commits, to
+// choose co-authors from.
+func CommitBoxPeople() string { return In(i18n.Locale()).CommitBoxPeople() }
+
+// CommitBoxPeople says "People"
+// in the language of msgs.
+//
+// Names the list of people who wrote the repository's recent commits, to
+// choose co-authors from.
+func (msgs Messages) CommitBoxPeople() string {
+	return Catalog.Format(msgs.locale, "commitBoxPeople", nil)
+}
+
+// CommitBoxAddPerson says "Add {person}"
+// in the language the app shows.
+//
+// A row adding someone typed in the search as Name <email>, who has no
+// commit here.
+func CommitBoxAddPerson(person string) string { return In(i18n.Locale()).CommitBoxAddPerson(person) }
+
+// CommitBoxAddPerson says "Add {person}"
+// in the language of msgs.
+//
+// A row adding someone typed in the search as Name <email>, who has no
+// commit here.
+func (msgs Messages) CommitBoxAddPerson(person string) string {
+	return Catalog.Format(msgs.locale, "commitBoxAddPerson", map[string]any{"person": person})
+}
+
+// CommitBoxNoPeople says "No matching people"
+// in the language the app shows.
+func CommitBoxNoPeople() string { return In(i18n.Locale()).CommitBoxNoPeople() }
+
+// CommitBoxNoPeople says "No matching people"
+// in the language of msgs.
+func (msgs Messages) CommitBoxNoPeople() string {
+	return Catalog.Format(msgs.locale, "commitBoxNoPeople", nil)
+}
+
+// CommitBoxRemoveCoAuthor says "Remove {name}"
+// in the language the app shows.
+func CommitBoxRemoveCoAuthor(name string) string {
+	return In(i18n.Locale()).CommitBoxRemoveCoAuthor(name)
+}
+
+// CommitBoxRemoveCoAuthor says "Remove {name}"
+// in the language of msgs.
+func (msgs Messages) CommitBoxRemoveCoAuthor(name string) string {
+	return Catalog.Format(msgs.locale, "commitBoxRemoveCoAuthor", map[string]any{"name": name})
 }
 
 // CommitBoxAmend says "Amend"
