@@ -85,6 +85,17 @@ func TestWorktreeActions(t *testing.T) {
 		t.Fatalf("upstream %q, %d tabs", up, len(h.app.tabs))
 	}
 
+	t.Cleanup(func() {
+		if t.Failed() {
+			st := tb.s.State
+			t.Logf("worktrees %+v; refresh error %v; watch error %v", st.Worktrees, st.RefreshErr, st.WatchErr)
+			for _, e := range tb.s.Log {
+				t.Logf("log: %s: %v %q", e.Name, e.Err, e.Output)
+			}
+		}
+	})
+	h.until("the feature worktree in the sidebar", h.shows("feature  feature"))
+
 	// Its folder gone: choosing it offers to prune, not a failed open.
 	if err := os.RemoveAll(feature); err != nil {
 		t.Fatal(err)
