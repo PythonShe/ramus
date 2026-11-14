@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/write"
 )
 
 func conflictingRepo(h *harness) *gittest.Repo {
@@ -46,6 +47,11 @@ func TestMergeAndResolve(t *testing.T) {
 	h.until("the preview", h.shows("3 files will conflict"))
 	if !hasExact(h, "a.txt") || !hasExact(h, "conflict") {
 		t.Fatalf("preview %q", h.tt.Texts())
+	}
+	h.click("Fast-Forward If Possible")
+	h.click("Create Merge Commit")
+	if m := mergeModes[h.app.mergeUI.mode]; m != write.MergeNoFF {
+		t.Fatalf("mode %v chosen", m)
 	}
 	h.click("Merge")
 	h.until("the stop", h.shows("Merge stopped: 3 conflicted files left"))

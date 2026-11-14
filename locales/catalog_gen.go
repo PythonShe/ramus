@@ -2345,6 +2345,20 @@ func (msgs Messages) MergeDialogTitle(branch string, into string) string {
 	return Catalog.Format(msgs.locale, "mergeDialogTitle", map[string]any{"branch": branch, "into": into})
 }
 
+// MergeMode says "Method"
+// in the language the app shows.
+//
+// Names the pop-up menu choosing how a branch is merged.
+func MergeMode() string { return In(i18n.Locale()).MergeMode() }
+
+// MergeMode says "Method"
+// in the language of msgs.
+//
+// Names the pop-up menu choosing how a branch is merged.
+func (msgs Messages) MergeMode() string {
+	return Catalog.Format(msgs.locale, "mergeMode", nil)
+}
+
 // MergeModeFastForward says "Fast-Forward If Possible"
 // in the language the app shows.
 func MergeModeFastForward() string { return In(i18n.Locale()).MergeModeFastForward() }
@@ -2365,11 +2379,11 @@ func (msgs Messages) MergeModeFastForwardOnly() string {
 	return Catalog.Format(msgs.locale, "mergeModeFastForwardOnly", nil)
 }
 
-// MergeModeMergeCommit says "Always Merge Commit"
+// MergeModeMergeCommit says "Create Merge Commit"
 // in the language the app shows.
 func MergeModeMergeCommit() string { return In(i18n.Locale()).MergeModeMergeCommit() }
 
-// MergeModeMergeCommit says "Always Merge Commit"
+// MergeModeMergeCommit says "Create Merge Commit"
 // in the language of msgs.
 func (msgs Messages) MergeModeMergeCommit() string {
 	return Catalog.Format(msgs.locale, "mergeModeMergeCommit", nil)

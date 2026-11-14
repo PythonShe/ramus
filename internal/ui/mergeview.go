@@ -473,6 +473,13 @@ func (a *App) openMerge(t *tab, what string) {
 
 var mergeModes = []write.MergeMode{write.MergeDefault, write.MergeFFOnly, write.MergeNoFF, write.MergeSquash}
 
+// mergeModeNames name mergeModes, in their order.
+var mergeModeNames = []func() string{locales.MergeModeFastForward, locales.MergeModeFastForwardOnly, locales.MergeModeMergeCommit, locales.MergeModeSquash}
+
+// mergeFileRows are the files of a merge preview shown before the list
+// scrolls.
+const mergeFileRows = 10
+
 func (a *App) mergeDialogView(c *ui.Context) {
 	d := &a.mergeUI
 	if !d.open || d.t == nil {
@@ -486,9 +493,12 @@ func (a *App) mergeDialogView(c *ui.Context) {
 		into = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
 	ui.Modal(c, &d.open, func() {
-		dialogBox(c).Width(dialogMedium).Height(420).Children(func() {
+		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, locales.MergeDialogTitle(redact.Control(strings.TrimPrefix(d.what, "refs/heads/")), redact.Control(into))).Bold()
-			ui.Segmented(c, &d.mode, locales.MergeModeFastForward(), locales.MergeModeFastForwardOnly(), locales.MergeModeMergeCommit(), locales.MergeModeSquash())
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+				name := ui.Text(c, locales.MergeMode())
+				choice(c, &d.mode, []int{0, 1, 2, 3}, func(i int) string { return mergeModeNames[i]() }).LabelledBy(name)
+			})
 			p := d.preview
 			switch {
 			case d.err != "":
@@ -523,9 +533,7 @@ func (a *App) mergeDialogView(c *ui.Context) {
 							ui.Text(c, locales.MergeFileMerges()).FontSize(textSmall).TextColor(th.TextMuted)
 						}
 					})
-				}).Label(locales.MergeFilesLabel()).Grow(1)
-			} else {
-				ui.Spacer(c)
+				}).Label(locales.MergeFilesLabel()).FillWidth().Height(float32(min(len(files), mergeFileRows) * rowHeight))
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)

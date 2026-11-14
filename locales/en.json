@@ -430,9 +430,13 @@
   "mergeAbortMessage": "Files go back to where they were before it; resolutions made so far are kept in a snapshot.",
   "mergeAbort": "Abort",
   "mergeDialogTitle": "Merge {branch} into {into}",
+  "mergeMode": "Method",
+  "@mergeMode": {
+    "description": "Names the pop-up menu choosing how a branch is merged."
+  },
   "mergeModeFastForward": "Fast-Forward If Possible",
   "mergeModeFastForwardOnly": "Fast-Forward Only",
-  "mergeModeMergeCommit": "Always Merge Commit",
+  "mergeModeMergeCommit": "Create Merge Commit",
   "mergeModeSquash": "Squash",
   "@mergeModeSquash": {
     "description": "A merge mode: squash the branch's commits into one change."
