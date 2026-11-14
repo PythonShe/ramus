@@ -184,8 +184,9 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	sr := t.sideRefs.build(t)
 	heads, remotes, tags := sr.heads, sr.remotes, sr.tags
 	th := c.Theme()
+	// A section with no refs is left out until it has one.
 	section := func(key string, title func(int) string, refs []string, prefix string) {
-		if !a.shown(key) {
+		if !a.shown(key) || len(refs) == 0 {
 			return
 		}
 		open := t.open[key]

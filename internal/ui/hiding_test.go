@@ -58,6 +58,20 @@ func TestHideSidebarParts(t *testing.T) {
 	h.until("the sidebar", func() bool { return hasExact(h, "History") })
 }
 
+// A section of refs with none is left out, and comes when one is made.
+func TestEmptySectionsLeftOut(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the branches", h.shows("Branches (1)"))
+	if h.tt.HasText("Remotes (0)") || h.tt.HasText("Tags (0)") {
+		t.Fatalf("empty sections shown: %q", h.tt.Texts())
+	}
+	r.Git("tag", "v1")
+	h.until("the tags", h.shows("Tags (1)"))
+}
+
 // A refresh that failed says so in a bar of its own, gone once all is
 // well again.
 func TestWarningBar(t *testing.T) {
