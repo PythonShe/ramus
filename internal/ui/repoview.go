@@ -270,7 +270,8 @@ func changesLabel(st session.State) string {
 func (a *App) statusBar(c *ui.Context, t *tab) {
 	th := c.Theme()
 	st := t.s.State
-	if a.Settings.NoStatusBar && st.Operation == "" && a.gitWarning == "" && st.WatchErr == nil && st.RefreshErr == nil {
+	running := runningWrite(t.s.Log)
+	if a.Settings.NoStatusBar && running == nil && st.Operation == "" && a.gitWarning == "" && st.WatchErr == nil && st.RefreshErr == nil {
 		return
 	}
 	ui.Row(c).Padding(4, 12).Gap(16).Background(th.Surface).Children(func() {
@@ -284,6 +285,14 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 		}
 		if len(st.Fallbacks) > 0 {
 			ui.Text(c, "Through git: "+strings.Join(st.Fallbacks, ", ")).FontSize(12).TextColor(th.TextMuted)
+		}
+		if e := running; e != nil {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, e.Name+": "+e.Progress).FontSize(12).TextColor(th.Accent).SingleLine().MaxWidth(520)
+				if ui.Button(c, "Cancel").Label("Cancel "+e.Name).Padding(0, 6).Clicked() {
+					e.Cancel()
+				}
+			})
 		}
 		ui.Spacer(c)
 		if a.gitWarning != "" {
@@ -300,6 +309,18 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 			ui.Text(c, "Refresh failed: "+errText(st.RefreshErr)).FontSize(12).TextColor(th.Danger).SingleLine().MaxWidth(480)
 		}
 	})
+}
+
+// runningWrite is the last write still running that Cancel stops and
+// that printed something, nil none: the queue runs one at a time, and a
+// quick write that prints nothing would only flash by.
+func runningWrite(log []*session.LogEntry) *session.LogEntry {
+	for i := len(log) - 1; i >= 0; i-- {
+		if log[i].Cancellable() && log[i].Progress != "" {
+			return log[i]
+		}
+	}
+	return nil
 }
 
 // showPath is how a path from git is shown: as it is, unless it holds

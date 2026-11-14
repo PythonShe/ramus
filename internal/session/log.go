@@ -26,7 +26,24 @@ type LogEntry struct {
 	Err     error
 	Started time.Time
 	Ended   time.Time
+	// Progress is the last line git printed while running, as
+	// "Receiving objects:  42% (…)", Percent the share it reports, -1
+	// none.
+	Progress string
+	Percent  int
+	// job is the write running, for Cancel; nil for an action.
+	job *write.Job
 }
+
+// Cancel stops the write while it runs; git and what it started end.
+func (e *LogEntry) Cancel() {
+	if e.Running && e.job != nil {
+		e.job.Cancel()
+	}
+}
+
+// Cancellable reports a write that Cancel stops.
+func (e *LogEntry) Cancellable() bool { return e.Running && e.job != nil }
 
 // Bounds on what the log keeps.
 const (
@@ -61,9 +78,14 @@ func (e *LogEntry) add(lines []string) {
 type batcher struct {
 	mu      sync.Mutex
 	pending []string
-	update  func(func())
-	e       *LogEntry
-	timer   *time.Timer
+	// progress is the last line seen, percent its share; moved is set
+	// when either changed since the last flush.
+	progress string
+	percent  int
+	moved    bool
+	update   func(func())
+	e        *LogEntry
+	timer    *time.Timer
 }
 
 const flushEvery = 50 * time.Millisecond
@@ -77,13 +99,29 @@ func (b *batcher) line(l string) {
 	}
 }
 
+// seen notes the line git printed last, kept or not, as the progress.
+func (b *batcher) seen(l string, percent int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.progress, b.percent, b.moved = l, percent, true
+	if b.timer == nil {
+		b.timer = time.AfterFunc(flushEvery, b.flush)
+	}
+}
+
 func (b *batcher) flush() {
 	b.mu.Lock()
 	lines := b.pending
-	b.pending, b.timer = nil, nil
+	progress, percent, moved := b.progress, b.percent, b.moved
+	b.pending, b.timer, b.moved = nil, nil, false
 	b.mu.Unlock()
-	if len(lines) > 0 {
-		b.update(func() { b.e.add(lines) })
+	if len(lines) > 0 || moved {
+		b.update(func() {
+			b.e.add(lines)
+			if moved {
+				b.e.Progress, b.e.Percent = redact.Shown(progress), percent
+			}
+		})
 	}
 }
 
@@ -108,12 +146,16 @@ func (b *batcher) finish(err error, ended time.Time) {
 
 // follow logs a write job's output and result.
 func (s *Session) follow(e *LogEntry, j *write.Job) {
+	e.job, e.Percent = j, -1
 	b := &batcher{update: s.update, e: e}
 	go func() {
 		defer s.recoverWork()
 		for ev := range j.Events() {
 			if ev.Percent < 0 || strings.Contains(ev.Line, "done") {
 				b.line(ev.Line) // progress redraws are not kept, only their last state
+			}
+			if strings.TrimSpace(ev.Line) != "" {
+				b.seen(ev.Line, ev.Percent)
 			}
 		}
 		_, err := j.Result()
