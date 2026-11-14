@@ -6713,18 +6713,36 @@ func (msgs Messages) HistoryColumnCommit() string {
 	return Catalog.Format(msgs.locale, "historyColumnCommit", nil)
 }
 
+// HistoryColumnShow says "Show {column}"
+// in the language the app shows.
+//
+// Names, for a screen reader, the thin column left in the history's header
+// where the user shut a column; column is one of the historyColumn* titles.
+func HistoryColumnShow(column string) string { return In(i18n.Locale()).HistoryColumnShow(column) }
+
+// HistoryColumnShow says "Show {column}"
+// in the language of msgs.
+//
+// Names, for a screen reader, the thin column left in the history's header
+// where the user shut a column; column is one of the historyColumn* titles.
+func (msgs Messages) HistoryColumnShow(column string) string {
+	return Catalog.Format(msgs.locale, "historyColumnShow", map[string]any{"column": column})
+}
+
 // HistoryGraphCollapse says "Collapse Graph"
 // in the language the app shows.
 //
-// Narrows the history's graph to its thin form: from the header's menu, or
-// a click on the graph's divider.
+// Narrows the history's graph to its thin form: from the header's menu;
+// also names the graph's title, which a click collapses, for a screen
+// reader.
 func HistoryGraphCollapse() string { return In(i18n.Locale()).HistoryGraphCollapse() }
 
 // HistoryGraphCollapse says "Collapse Graph"
 // in the language of msgs.
 //
-// Narrows the history's graph to its thin form: from the header's menu, or
-// a click on the graph's divider.
+// Narrows the history's graph to its thin form: from the header's menu;
+// also names the graph's title, which a click collapses, for a screen
+// reader.
 func (msgs Messages) HistoryGraphCollapse() string {
 	return Catalog.Format(msgs.locale, "historyGraphCollapse", nil)
 }
@@ -6732,13 +6750,17 @@ func (msgs Messages) HistoryGraphCollapse() string {
 // HistoryGraphExpand says "Expand Graph"
 // in the language the app shows.
 //
-// Widens the history's graph from its thin form.
+// Widens the history's graph from its thin form: from the header's menu;
+// also names the thin graph's title, which a click expands, for a screen
+// reader.
 func HistoryGraphExpand() string { return In(i18n.Locale()).HistoryGraphExpand() }
 
 // HistoryGraphExpand says "Expand Graph"
 // in the language of msgs.
 //
-// Widens the history's graph from its thin form.
+// Widens the history's graph from its thin form: from the header's menu;
+// also names the thin graph's title, which a click expands, for a screen
+// reader.
 func (msgs Messages) HistoryGraphExpand() string {
 	return Catalog.Format(msgs.locale, "historyGraphExpand", nil)
 }

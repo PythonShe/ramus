@@ -1246,13 +1246,17 @@
   "@historyColumnCommit": {
     "description": "Heads the history list's column of abbreviated commit hashes."
   },
+  "historyColumnShow": "Show {column}",
+  "@historyColumnShow": {
+    "description": "Names, for a screen reader, the thin column left in the history's header where the user shut a column; column is one of the historyColumn* titles."
+  },
   "historyGraphCollapse": "Collapse Graph",
   "@historyGraphCollapse": {
-    "description": "Narrows the history's graph to its thin form: from the header's menu, or a click on the graph's divider."
+    "description": "Narrows the history's graph to its thin form: from the header's menu; also names the graph's title, which a click collapses, for a screen reader."
   },
   "historyGraphExpand": "Expand Graph",
   "@historyGraphExpand": {
-    "description": "Widens the history's graph from its thin form."
+    "description": "Widens the history's graph from its thin form: from the header's menu; also names the thin graph's title, which a click expands, for a screen reader."
   },
   "historyColumnsReset": "Reset Columns",
   "@historyColumnsReset": {

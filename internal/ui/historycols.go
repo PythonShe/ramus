@@ -2,6 +2,7 @@ package ui
 
 import (
 	"maps"
+	"math"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -30,15 +31,14 @@ import (
 //
 // A drag resizes a column, down to its least width and no further, so
 // that none shows part of its values. A click on a column's title shuts
-// it, and a click on its divider, which stays where the column was, a
-// second line beside the one before it, brings it back; so does dragging that divider out into the room at the
-// end, and the header's menu.
+// it; in its place stays a thin column, a line beside the divider before
+// it, which a click opens again, as does the header's menu.
 //
 // The graph does not shut but collapses to a thin form, its lanes at
-// their closest, which still shows where history branches and merges;
-// its title and divider collapse and expand it as they shut and open the
-// others. Narrower than its lanes need, the graph draws them closer
-// together rather than cutting them off.
+// their closest, which still shows where history branches and merges: a
+// click on it, or on its divider when thin, collapses or expands it.
+// Narrower than its lanes need, the graph draws them closer together
+// rather than cutting them off.
 //
 // The message is what a row is read by. It would like the room its
 // subjects take, up to historyMessageWant, or the width the user gave it
@@ -135,14 +135,14 @@ func (l *histLayout) graphStyle() graph.Style {
 }
 
 // gap is the space after column k: its divider's, which closes with
-// the column but for a handle. The hash, the last, has none but its
-// handle.
+// the column, or, shut by the user, the thin column in its place. The
+// hash, the last, has no divider.
 func (l *histLayout) gap(k histColumn) float32 { return columnGap(k, l.w[k], l.handle[k]) }
 
 func columnGap(k histColumn, w float32, handle bool) float32 {
 	switch {
 	case handle:
-		return spaceM
+		return spaceL
 	case k == colHash:
 		return 0
 	}
@@ -210,23 +210,38 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 			dividers[k].Width(l.gap(k)).Hidden(!l.shown[k] && !l.handle[k])
 		}
 		p := a.Settings.HistoryColumns[histColumnKeys[k]]
-		if !l.shown[k] || p.Hidden || k == colGraph && p.Thin {
+		if k == colGraph {
+			// Thin for want of room, a click could not widen it.
+			if !p.Thin && l.to.w[k] <= l.least[k] {
+				continue
+			}
+			label := locales.HistoryGraphCollapse()
+			if p.Thin {
+				label = locales.HistoryGraphExpand()
+			}
+			titles[k].Label(label)
+		}
+		if !l.shown[k] || p.Hidden {
 			continue
 		}
-		if titles[k].Clicked() {
+		titles[k].Role(ui.RoleButton)
+		// Still opening, it takes no click: the second of a double click
+		// on the thin column it opened from lands on it.
+		if titles[k].Clicked() && abs(l.w[k]-l.to.w[k]) < 0.5 {
 			a.collapseColumn(k)
 		}
 		if titles[k].Hovered() {
 			// A box behind the title, into the gaps at its sides short of
 			// the dividers, says a click acts on it.
 			titles[k].Draw(func(p *ui.Painter, r ui.Rect) {
-				const side, h = spaceM/2 - 1, rowHeight - spaceXS
-				p.Fill(ui.Rect{X: r.X - side, Y: r.Y + r.H/2 - h/2, W: r.W + 2*side, H: h}, th.SurfaceHover, 4)
+				const side = spaceM/2 - 1
+				hoverBox(p, ui.Rect{X: r.X - side, Y: r.Y, W: r.W + 2*side, H: r.H}, th.SurfaceHover)
 			})
 		}
 	}
 	head.ContextMenu(func(m *ui.Menu) {
-		for k := range histColumns {
+		// The graph does not shut; it collapses, below.
+		for k := colAuthor; k < histColumns; k++ {
 			p := a.Settings.HistoryColumns[histColumnKeys[k]]
 			if m.Item(histColumnName(k)).Checked(!p.Hidden).Chosen() {
 				a.showColumn(k, p.Hidden)
@@ -267,11 +282,10 @@ func (a *App) historyColumns(head ui.Element, hv *historyState, snap *lanes.Snap
 		} else {
 			l.w[k] = head.AnimateTo(k, want.w[k], columnSettle)
 		}
-		// Under half a point a column is gone; the one dragged stays,
-		// for its divider to keep the pointer.
-		l.shown[k] = l.w[k] >= 0.5 || d.active && d.col == k
+		// Under half a point a column is gone.
+		l.shown[k] = l.w[k] >= 0.5
 	}
-	if d.active && d.col != colGraph {
+	if d.active {
 		l.end = head.Jump("end", want.end)
 	} else {
 		l.end = head.AnimateTo("end", want.end, columnSettle)
@@ -302,29 +316,20 @@ func (a *App) letGo(d *colDrag, want colWant, snap *lanes.Snapshot) {
 		return
 	}
 	p := a.Settings.HistoryColumns[histColumnKeys[k]]
-	switch least := histColumnMin[k]; {
-	case k == colGraph:
-		// A thin graph dragged out stays thin when let go nearer its
-		// thin form than the full graph's least; the width it had stays,
-		// for when it expands. The message is left as it was.
+	if k == colGraph {
+		// A thin graph, thin by the user's choice or for want of room,
+		// let go nearer its thin form than the full graph's least stays
+		// as it was. The message is left as it was.
 		thin, least := graphThin(snap), graphLeast(snap)
-		p.Hidden, p.Thin = false, want.w[k] < (thin+least)/2
-		if !p.Thin {
-			p.Width = max(least, want.w[k])
+		if want.w[k] < (thin+least)/2 {
+			return
 		}
+		p.Thin, p.Width = false, max(least, want.w[k])
 		a.setHistoryColumn(k, p)
 		return
-	case want.w[k] < least/2 || d.w0+d.end0 < least:
-		// A shut column dragged out too little, or with no room to open
-		// whole, stays shut.
-		want.end += want.w[k]
-	default:
-		w := max(least, want.w[k])
-		p.Hidden = false
-		if k == colAuthor {
-			p.Width = w
-		}
-		want.end -= w - want.w[k]
+	}
+	if k == colAuthor {
+		p.Width = want.w[k]
 	}
 	// The message stays as wide as it was, the room the column took or
 	// left free at the end.
@@ -343,11 +348,11 @@ func (a *App) keepMessage(msg, end, subj float32) {
 	a.keepSettings()
 }
 
-// columnHandles are the columns whose divider stays as they shut: those
-// the user shut and the one being dragged.
+// columnHandles are the columns the user shut, which keep a thin column
+// in their place to open them again.
 func (a *App) columnHandles(hv *historyState) (handles [histColumns]bool) {
 	for k := range histColumns {
-		handles[k] = a.Settings.HistoryColumns[histColumnKeys[k]].Hidden || hv.colDrag.active && hv.colDrag.col == k
+		handles[k] = a.Settings.HistoryColumns[histColumnKeys[k]].Hidden
 	}
 	return handles
 }
@@ -381,7 +386,7 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) colWant {
 	dragged := histColumn(-1)
 	if d.active {
 		// The column dragged follows the pointer, down to its least
-		// width, or out from nothing when it was shut: the graph into the
+		// width: the graph into the
 		// room the message has over the room it would like, the others
 		// into the room at the end, which they leave as they narrow, the
 		// message staying as wide as it was.
@@ -396,14 +401,11 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) colWant {
 		case colMessage:
 			msg = clamp(d.raw, historyMessageMin, d.w0+d.end0)
 		default:
-			least, most := float32(0), d.w0+d.end0
-			if d.w0 > 0 {
-				least = histColumnMin[k]
-			}
+			most := d.w0 + d.end0
 			if k != colAuthor {
 				most = min(most, histColumnWidth[k])
 			}
-			cw.w[k] = clamp(d.raw, least, most)
+			cw.w[k] = clamp(d.raw, histColumnMin[k], max(histColumnMin[k], most))
 			msg = d.msg0
 		}
 	}
@@ -466,21 +468,26 @@ func columnTitle(c *ui.Context, title string) ui.Element {
 	return ui.Text(c, title).FontSize(textCaption).TextColor(c.Theme().TextMuted).SingleLine()
 }
 
-// columnDivider resizes the column on its left, k, when dragged; a shut
-// column's, or a thin graph's, clicked, brings it back. The author's,
-// double-clicked, puts it back at its own width, and the message's gives
-// the message the room at the end. The hash's, there only as it is shut,
-// is clicked and not dragged.
+// columnDivider resizes the column on its left, k, when dragged; a thin
+// graph's, clicked, expands it. The author's, double-clicked, puts it back
+// at its own width, and the message's gives the message the room at the
+// end. A column the user shut has instead a thin column in its place.
 func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.Element {
 	th := c.Theme()
+	var p settings.Column
+	if k != colMessage {
+		p = a.Settings.HistoryColumns[histColumnKeys[k]]
+	}
+	if p.Hidden {
+		return a.shutColumn(c, k)
+	}
 	d := &hv.colDrag
 	g := ui.Box(c).FillHeight().Cursor(ui.CursorResizeEW).Role(ui.RoleNone)
-	var dx float32
-	var held bool
-	if k != colHash {
-		dx, _, held = g.Dragged()
-	}
+	dx, _, held := g.Dragged()
 	switch {
+	case g.PressCanceled() && d.active && d.col == k:
+		// The system took the press: the column goes back as it was.
+		*d = colDrag{}
 	case held && (!d.active || d.col != k):
 		to := hv.cols.to
 		*d = colDrag{active: true, col: k, msg0: to.msg, end0: to.end, room0: to.room}
@@ -493,23 +500,16 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 	case !held && d.active && d.col == k:
 		d.done = true
 	}
-	if held && dx != 0 {
-		d.moved = true
+	if held {
 		d.raw += dx
-	}
-	var p settings.Column
-	if k != colMessage {
-		p = a.Settings.HistoryColumns[histColumnKeys[k]]
+		// A click that slips a little is still a click.
+		d.moved = d.moved || abs(d.raw-d.w0) >= dragSlop
 	}
 	switch {
-	case k != colMessage && (p.Hidden || k == colGraph && p.Thin):
+	case k == colGraph && p.Thin:
 		// The click that ends a drag is the drag's.
 		if g.Clicked() && !(d.active && d.col == k && d.moved) {
-			if p.Hidden {
-				a.showColumn(k, true)
-			} else {
-				a.toggleThinGraph()
-			}
+			a.toggleThinGraph()
 		}
 	case k == colMessage && g.DoubleClicked():
 		a.Settings.HistoryMessage = 0
@@ -519,16 +519,56 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 		a.setHistoryColumn(k, p)
 	}
 	on := g.Hovered() || held
-	// A shut column's divider stays drawn: beside the one before it, the
-	// pair marks where a column is shut, as a spreadsheet's does.
 	g.Draw(func(p *ui.Painter, r ui.Rect) {
 		col := th.Border
 		if on {
 			col = th.Accent
 		}
-		p.Fill(ui.Rect{X: r.X + r.W/2 - 0.5, Y: r.Y + r.H/4, W: 1, H: r.H / 2}, col, 0)
+		dividerLine(p, r, col)
 	})
 	return g
+}
+
+// dragSlop is how far a divider's press moves before it is a drag.
+const dragSlop = 3
+
+// shutColumn stands for column k, shut by the user: a thin column, its
+// line beside the divider before it, that a click opens again.
+func (a *App) shutColumn(c *ui.Context, k histColumn) ui.Element {
+	th := c.Theme()
+	g := ui.Box(c).FillHeight().Role(ui.RoleButton).Label(locales.HistoryColumnShow(histColumnName(k)))
+	if g.Clicked() {
+		a.showColumn(k, true)
+	}
+	on := g.Hovered()
+	g.Draw(func(p *ui.Painter, r ui.Rect) {
+		if on {
+			hoverBox(p, r, th.SurfaceHover)
+		}
+		dividerLine(p, r, th.Border)
+	})
+	return g
+}
+
+// dividerLine is a divider's line, down the middle of r, on whole
+// pixels so that every divider is as sharp as the others.
+func dividerLine(p *ui.Painter, r ui.Rect, col ui.Color) {
+	p.Fill(snapRect(p, ui.Rect{X: r.X + r.W/2 - 0.5, Y: r.Y + r.H/4, W: 1, H: r.H / 2}), col, 0)
+}
+
+// hoverBox is the box behind a header's title or thin column as the
+// pointer is over it, centred down r and short of the header's height.
+func hoverBox(p *ui.Painter, r ui.Rect, col ui.Color) {
+	const h = rowHeight - spaceXS
+	p.Fill(snapRect(p, ui.Rect{X: r.X, Y: r.Y + r.H/2 - h/2, W: r.W, H: h}), col, 4)
+}
+
+// snapRect moves r's edges to the display's pixels.
+func snapRect(p *ui.Painter, r ui.Rect) ui.Rect {
+	s := p.Scale()
+	at := func(v float32) float32 { return float32(math.Round(float64(v*s))) / s }
+	x, y := at(r.X), at(r.Y)
+	return ui.Rect{X: x, Y: y, W: max(1/s, at(r.X+r.W)-x), H: max(1/s, at(r.Y+r.H)-y)}
 }
 
 // showColumn shows column k or shuts it, from the header's menu, its
@@ -541,8 +581,8 @@ func (a *App) showColumn(k histColumn, show bool) {
 	a.setHistoryColumn(k, p)
 }
 
-// collapseColumn shuts column k, or collapses the graph, as its title is
-// clicked.
+// collapseColumn shuts column k, or collapses the graph or expands it,
+// as its title is clicked.
 func (a *App) collapseColumn(k histColumn) {
 	if k == colGraph {
 		a.toggleThinGraph()
@@ -576,3 +616,5 @@ func (a *App) setHistoryColumn(k histColumn, p settings.Column) {
 	a.Settings.HistoryColumns = cols
 	a.keepSettings()
 }
+
+func abs(v float32) float32 { return max(v, -v) }

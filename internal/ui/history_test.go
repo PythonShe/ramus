@@ -435,8 +435,8 @@ func TestCommitMessageDragsTaller(t *testing.T) {
 // right, a column pushes the ones after it into the free room at the end
 // and stops where there is none; dragged left, it draws them along and
 // leaves that room, down to its least width. A click on its title shuts
-// it, and a shut column keeps its divider, to click or drag out again.
-// The date and the hash keep their widths. A list too narrow for the message gives up the room
+// it, leaving a thin column that a click opens again. The date and the
+// hash keep their widths. A list too narrow for the message gives up the room
 // at the end, then shuts the columns at the end first.
 func TestHistoryColumns(t *testing.T) {
 	h := newHarness(t)
@@ -508,34 +508,30 @@ func TestHistoryColumns(t *testing.T) {
 		settle()
 	}
 	clickTitle("Date")
-	if hasExact(h, "Date") || !h.app.Settings.HistoryColumns["date"].Hidden || at("Commit").X != hash-histColumnMin[colDate] {
+	if hasExact(h, "Date") || !h.app.Settings.HistoryColumns["date"].Hidden || at("Commit").X != hash-histColumnMin[colDate]-spaceM+spaceL {
 		t.Fatalf("date not shut: %+v, hash at %v from %v", h.app.Settings.HistoryColumns["date"], at("Commit").X, hash)
 	}
-	// Shut, it keeps its divider, after the author's, to drag it out
-	// again into the room at the end, or to click.
-	x, y := after("Author")+spaceM, head.Y+head.H/2
-	h.tt.Move(x, y)
+	// Shut, a thin column after the author's divider stands for it; a
+	// click opens it again, even one that slips a little.
+	x, y := after("Author")+spaceM/2+spaceL/2, head.Y+head.H/2
+	if hv.cols.end != 20+112+spaceM-spaceL {
+		t.Fatalf("room at the end %v with the date shut", hv.cols.end)
+	}
+	h.tt.Press(x, y)
 	h.tt.Frame()
-	if h.tt.Cursor() != ui.CursorResizeEW {
-		t.Fatalf("cursor over a shut column's divider is %v", h.tt.Cursor())
-	}
-	drag(x, 112, "Commit", 1)
-	if at("Date").W != histColumnMin[colDate] || hv.cols.end != 20 {
-		t.Fatalf("date dragged out to %v, room at the end %v", at("Date"), hv.cols.end)
-	}
-	clickTitle("Date")
-	h.tt.ClickAt(x, y)
+	h.tt.Move(x+1, y)
+	h.tt.Frame()
+	h.tt.Release(x+1, y)
 	settle()
 	if !hasExact(h, "Date") || at("Date").W != histColumnMin[colDate] || hv.cols.end != 20 {
 		t.Fatalf("date clicked back to %v, room at the end %v", at("Date"), hv.cols.end)
 	}
-	// The hash, shut by its title, keeps a divider at the end of the
-	// header, which brings it back.
+	// The hash, shut by its title, leaves its thin column at the end.
 	clickTitle("Commit")
 	if hasExact(h, "Commit") || !h.app.Settings.HistoryColumns["hash"].Hidden {
 		t.Fatal("hash column not shut by its title")
 	}
-	h.tt.ClickAt(after("Date")+spaceM, y)
+	h.tt.ClickAt(after("Date")+spaceM/2+spaceL/2, y)
 	settle()
 	if !hasExact(h, "Commit") || hv.cols.end != 20 {
 		t.Fatalf("hash not back from its divider: room at the end %v", hv.cols.end)
@@ -552,6 +548,17 @@ func TestHistoryColumns(t *testing.T) {
 	settle()
 	if hasExact(h, "Author") == false || at("Ramus Test").W != histColumnMin[colAuthor] {
 		t.Fatalf("author let go at %v", at("Ramus Test").W)
+	}
+	// A press the system takes undoes its drag.
+	end := hv.cols.end
+	h.tt.Press(after("Author"), y)
+	h.tt.Frame()
+	h.tt.Move(after("Author")+40, y)
+	h.tt.Frame()
+	h.tt.CancelPress()
+	settle()
+	if at("Ramus Test").W != histColumnMin[colAuthor] || hv.cols.end != end {
+		t.Fatalf("canceled drag left the author %v wide, room at the end %v", at("Ramus Test").W, hv.cols.end)
 	}
 	// Or the header's menu brings it back, into the room at the end.
 	if err := h.tt.RightClick("Message"); err != nil {
@@ -613,7 +620,7 @@ func TestHistoryColumns(t *testing.T) {
 }
 
 // The graph collapses to a thin form rather than shutting: by a click on
-// its title, and a click on its divider expands it again. A drag stops
+// its title, and a click on it or its divider expands it again. A drag stops
 // at its least width. Thin, its lanes are drawn closer together, all of
 // them still shown.
 func TestHistoryGraphCollapses(t *testing.T) {
@@ -667,6 +674,13 @@ func TestHistoryGraphCollapses(t *testing.T) {
 	if st := hv.cols.graphStyle(); st.Columns(thin) < snap.Width() {
 		t.Fatalf("thin, %d of %d lanes drawn", st.Columns(thin), snap.Width())
 	}
+	h.tt.ClickAt(title())
+	settle()
+	if hv.cols.w[colGraph] != full {
+		t.Fatalf("thin title clicked, graph %v wide, want %v", hv.cols.w[colGraph], full)
+	}
+	h.tt.ClickAt(title())
+	settle()
 	h.tt.ClickAt(divider())
 	settle()
 	if hv.cols.w[colGraph] != full {
@@ -699,6 +713,15 @@ func TestHistoryGraphCollapses(t *testing.T) {
 		}
 		h.tt.Release(x+dx, y)
 		settle()
+	}
+	// Thin for want of room, a press that slips does not keep it thin.
+	hv.detailW = 260
+	settle()
+	drag(2)
+	hv.detailW = 640
+	settle()
+	if p := h.app.Settings.HistoryColumns["graph"]; p.Thin || hv.cols.w[colGraph] != full {
+		t.Fatalf("thin for want of room, a slip kept it %+v, %v wide", p, hv.cols.w[colGraph])
 	}
 	drag(-full)
 	if least := graphLeast(snap); hv.cols.w[colGraph] != least || h.app.Settings.HistoryColumns["graph"].Thin {
