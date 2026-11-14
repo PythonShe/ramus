@@ -9659,6 +9659,24 @@ func (msgs Messages) KeysSettings() string {
 	return Catalog.Format(msgs.locale, "keysSettings", nil)
 }
 
+// TabsApp says "Ramus"
+// in the language the app shows.
+//
+// Names, for its tooltip and for a screen reader, the gear button at the
+// end of the tab bar, whose menu holds Settings, Check for Updates and
+// About.
+func TabsApp() string { return In(i18n.Locale()).TabsApp() }
+
+// TabsApp says "Ramus"
+// in the language of msgs.
+//
+// Names, for its tooltip and for a screen reader, the gear button at the
+// end of the tab bar, whose menu holds Settings, Check for Updates and
+// About.
+func (msgs Messages) TabsApp() string {
+	return Catalog.Format(msgs.locale, "tabsApp", nil)
+}
+
 // KeysKeyboardShortcuts says "Keyboard Shortcuts…"
 // in the language the app shows.
 func KeysKeyboardShortcuts() string { return In(i18n.Locale()).KeysKeyboardShortcuts() }

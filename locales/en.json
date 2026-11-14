@@ -1911,6 +1911,10 @@
   "keysNew": "New Repository…",
   "keysRepositories": "Repositories…",
   "keysSettings": "Settings…",
+  "tabsApp": "Ramus",
+  "@tabsApp": {
+    "description": "Names, for its tooltip and for a screen reader, the gear button at the end of the tab bar, whose menu holds Settings, Check for Updates and About."
+  },
   "keysKeyboardShortcuts": "Keyboard Shortcuts…",
   "keysLibraryStats": "Library Statistics…",
   "keysCrashReports": "Show Crash Reports",

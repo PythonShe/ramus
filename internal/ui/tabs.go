@@ -59,6 +59,8 @@ func (a *App) tabBar(c *ui.Context) {
 			}
 		})
 		a.openMore(c)
+		ui.Spacer(c)
+		a.appButton(c)
 	})
 	if act != nil {
 		act()
@@ -81,6 +83,31 @@ func (a *App) indexOf(id int) int {
 		}
 	}
 	return -1
+}
+
+// appButton is the app's own: its settings, its updates and About, at
+// the end of the bar.
+func (a *App) appButton(c *ui.Context) {
+	label := locales.TabsApp()
+	ui.Toolbar(c, func() {
+		b := ui.Button(c, "").Label(label).Tooltip(label)
+		b.Children(func() { ui.Icon(c, navIcons().gear).FontSize(16) })
+		b.Menu(func(m *ui.Menu) {
+			if m.Item(locales.KeysSettings()).Chosen() {
+				a.openSettings()
+			}
+			if a.ShowAbout == nil {
+				return
+			}
+			m.Separator()
+			if m.Item(locales.MenuCheckForUpdates()).Chosen() {
+				a.ShowAbout(true)
+			}
+			if m.Item(locales.MenuAbout()).Chosen() {
+				a.ShowAbout(false)
+			}
+		})
+	}).Label(label)
 }
 
 // openMore opens another repository: the ways the welcome view offers,

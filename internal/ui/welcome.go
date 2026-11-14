@@ -16,8 +16,20 @@ type welcomeState struct {
 // welcomeView is the window with no repository open: open, clone, and
 // the known repositories, searchable.
 func (a *App) welcomeView(c *ui.Context) {
+	ui.Column(c).Fill().Children(func() {
+		// The app's button where the tab bar has it once a repository is
+		// open.
+		ui.Row(c).FillWidth().Padding(spaceXS, insetX).AlignItems(ui.Center).Children(func() {
+			ui.Spacer(c)
+			a.appButton(c)
+		})
+		a.welcomeBody(c)
+	})
+}
+
+func (a *App) welcomeBody(c *ui.Context) {
 	th := c.Theme()
-	ui.Column(c).Fill().Center().Children(func() {
+	ui.Column(c).Grow(1).FillWidth().Center().Children(func() {
 		ui.Column(c).Width(560).Gap(spaceXL).Children(func() {
 			ui.Text(c, "Ramus").FontSize(textDisplay).Bold()
 			ui.Row(c).Gap(spaceM).Children(func() {

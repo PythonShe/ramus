@@ -54,6 +54,9 @@ func (a *App) commands() []command {
 		cmds = append(cmds, cmd("crash-reports", func() { go tools.Reveal(dir) }))
 	}
 	cmds = append(cmds, cmd("diagnostics", a.openDiagnostics))
+	if a.ShowAbout != nil {
+		cmds = append(cmds, cmd("about", func() { a.ShowAbout(false) }), cmd("check-for-updates", func() { a.ShowAbout(true) }))
+	}
 	if a.NewWindow != nil {
 		cmds = append(cmds, cmd("new-window", func() { a.NewWindow(nil) }))
 	}

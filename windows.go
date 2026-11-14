@@ -126,6 +126,7 @@ func (ws *windows) add() *window {
 	}
 	if ws.probe == "" {
 		d.NewWindow = ws.open
+		d.ShowAbout = ws.showAbout
 	}
 	d.SettingsChanged = func(s settings.Settings) {
 		ws.deps.Settings = s

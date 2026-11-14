@@ -168,6 +168,8 @@ var bindable = append([]bindableCommand{
 	{"repositories", locales.KeysRepositories},
 	{"settings", locales.KeysSettings},
 	{"keyboard-shortcuts", locales.KeysKeyboardShortcuts},
+	{"about", locales.MenuAbout},
+	{"check-for-updates", locales.MenuCheckForUpdates},
 	{"library-stats", locales.KeysLibraryStats},
 	{"crash-reports", locales.KeysCrashReports},
 	{"diagnostics", locales.KeysDiagnostics},
