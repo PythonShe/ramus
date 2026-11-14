@@ -66,6 +66,23 @@ func Discard(w Where, paths []string) Op {
 		Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Undo: FilesOnly}
 }
 
+// RestoreFrom puts path in the work tree back as it is in commit (hex),
+// after keeping it in a snapshot; it is undoable. The index is left as
+// it is, so the change shows unstaged, to be read before it is taken. A
+// path commit does not have is removed, as it was then.
+func RestoreFrom(w Where, path, commit string) (Op, error) {
+	path = strings.TrimSuffix(path, "/")
+	if path == "" {
+		return Op{}, errors.New("write: no file chosen")
+	}
+	if !isHex(commit) {
+		return Op{}, fmt.Errorf("write: %q is not a commit id", commit)
+	}
+	name := "Restore " + path + " as of " + short(commit)
+	return Op{Name: name, Cmd: w.cmd(fromStdin("restore", "--source="+commit, "--worktree", "--no-overlay")...),
+		Input: pathspecs([]string{path}), Snapshot: &snapshot.Options{Reason: name, Paths: []string{path}}, Undo: FilesOnly}, nil
+}
+
 // MaxArgPaths bounds the paths a write passes as arguments in one
 // command, where git reads none from standard input.
 const MaxArgPaths = 1000

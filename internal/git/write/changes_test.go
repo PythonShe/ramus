@@ -116,6 +116,53 @@ func TestChanges(t *testing.T) {
 	}
 }
 
+func TestRestoreFrom(t *testing.T) {
+	r, q, _ := newQueue(t)
+	q.Refs = refs.New(r.GitDir(), r.GitDir(), 20)
+	w := Where{GitDir: r.GitDir(), WorkTree: r.Dir}
+	r.Write("a", "one\n")
+	first := r.Commit("one")
+	r.Write("a", "two\n")
+	r.Write("dir/b", "b\n")
+	r.Commit("two")
+	r.Write("a", "local\n")
+	r.Git("add", "a")
+	r.Write("a", "local, unstaged\n")
+	read := func(name string) string { b, _ := os.ReadFile(filepath.Join(r.Dir, name)); return string(b) }
+	ok := func(op Op, err error) {
+		t.Helper()
+		if err == nil {
+			_, err = wait(t, q.Submit(op))
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ok(RestoreFrom(w, "a", first))
+	if got := read("a"); got != "one\n" {
+		t.Fatalf("work tree a %q", got)
+	}
+	if got := r.Git("show", ":a"); got != "local\n" {
+		t.Fatalf("index a %q, want it left as it was", got)
+	}
+	if _, err := wait(t, q.Undo()); err != nil {
+		t.Fatal(err)
+	}
+	if got := read("a"); got != "local, unstaged\n" {
+		t.Fatalf("after undo a %q", got)
+	}
+
+	// A folder the commit did not have goes, as it was then.
+	ok(RestoreFrom(w, "dir/", first))
+	if _, err := os.Stat(filepath.Join(r.Dir, "dir", "b")); err == nil {
+		t.Fatal("dir/b left")
+	}
+	if _, err := RestoreFrom(w, "a", "--orphan"); err == nil {
+		t.Fatal("an option taken for a commit")
+	}
+}
+
 func TestIgnore(t *testing.T) {
 	r, q, _ := newQueue(t)
 	w := Where{GitDir: r.GitDir(), WorkTree: r.Dir}

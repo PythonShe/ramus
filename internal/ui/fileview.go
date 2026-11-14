@@ -13,6 +13,7 @@ import (
 
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
+	"ramus/internal/git/write"
 	"ramus/internal/session"
 )
 
@@ -215,6 +216,9 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 					if m.Item("Copy Hash").Chosen() {
 						a.clip = hex.EncodeToString(fc.OID)
 					}
+					if fc.Path == "" || fc.Path == fs.path {
+						a.restoreFromItem(m, t, fs.path, hex.EncodeToString(fc.OID))
+					}
 					a.commitActions(m, t, fc.OID)
 				})
 			}).Label("Commits of the file").Grow(1)
@@ -356,4 +360,25 @@ func statDir(p string) (bool, error) {
 		return false, err
 	}
 	return st.IsDir(), nil
+}
+
+// restoreFromItem offers to put path in the work tree back as it is in
+// commit, which keeps it in a snapshot first.
+func (a *App) restoreFromItem(m *ui.Menu, t *tab, path, commit string) {
+	what := "File"
+	if strings.HasSuffix(path, "/") {
+		what = "Folder"
+	}
+	if !m.Item("Restore " + what + " as of This Commit…").Disabled(t.s.Queue == nil).Chosen() {
+		return
+	}
+	op, err := write.RestoreFrom(t.s.Where(), path, commit)
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
+	shown, _ := showPath(path)
+	a.confirm = confirmState{open: true, title: "Restore " + shown + "?",
+		message: "The work tree copy becomes as it was in " + commit[:8] + "; the change is left unstaged.\n\nA snapshot is kept: Undo or the Snapshots view brings it back.",
+		button:  "Restore", run: func() { a.submit(t, op, nil) }}
 }

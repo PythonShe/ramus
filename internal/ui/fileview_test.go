@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -34,6 +35,19 @@ func TestFileHistoryAndBlame(t *testing.T) {
 	tb := h.app.current()
 	if len(tb.file.bcommits) != 3 {
 		t.Fatalf("blamed on %d commits: %+v", len(tb.file.bcommits), tb.file.bcommits)
+	}
+
+	// Restore the file as it was before B; the change is left unstaged.
+	h.app.ShowFile(filepath.Join(r.Dir, "src", "b.go"), false)
+	h.until("the history again", func() bool { return hasExact(h, "rename to b") })
+	h.menu("rename to b", "Restore File as of This Commit…")
+	h.click("Restore")
+	h.until("the restore", func() bool {
+		b, _ := os.ReadFile(filepath.Join(r.Dir, "src", "b.go"))
+		return string(b) == "package a\n"
+	})
+	if s := r.Git("status", "--porcelain"); s != " M src/b.go\n" {
+		t.Fatalf("status after restore:\n%s", s)
 	}
 
 	// A folder's history, from the menu of the same tab.
