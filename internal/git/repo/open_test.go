@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,6 +95,71 @@ func TestCommitGraphReopens(t *testing.T) {
 	if first.Len() != 1 || first.Lookup(first.OID(0)) != 0 {
 		t.Error("the earlier graph no longer reads")
 	}
+}
+
+// What makes git ignore the commit-graph, done in a terminal while the
+// repository is open, makes the engine ignore it too, and undone, lets it
+// use the graph again.
+func TestCommitGraphUsableChanges(t *testing.T) {
+	up := gittest.Init(t)
+	for i := 0; i < 3; i++ {
+		up.Commit("c")
+	}
+	clone := filepath.Join(t.TempDir(), "clone")
+	up.Git("clone", "-q", "file://"+up.Dir, clone)
+	g := gittest.Open(t, clone)
+	g.Git("commit-graph", "write", "--reachable")
+	ctx := context.Background()
+	r, err := Open(ctx, testrun.Runner(t), g.Dir, trustAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	usable := func(want bool, what string) {
+		t.Helper()
+		graph, err := r.CommitGraph()
+		if err != nil || (graph != nil) != want || r.CommitGraphUsable() != want {
+			t.Fatalf("%s: graph %v, usable %v, %v", what, graph != nil, r.CommitGraphUsable(), err)
+		}
+	}
+	usable(true, "at open")
+
+	a := strings.TrimSpace(g.Git("rev-parse", "HEAD~1"))
+	b := strings.TrimSpace(g.Git("rev-parse", "HEAD~2"))
+	g.Git("replace", a, b)
+	usable(false, "replace ref")
+	g.Git("pack-refs", "--all")
+	usable(false, "packed replace ref")
+	g.Git("replace", "-d", a)
+	usable(true, "replace ref deleted")
+
+	g.Git("config", "core.commitGraph", "false")
+	usable(true, "config not read again yet")
+	if err := r.ReloadConfig(ctx); err != nil {
+		t.Fatal(err)
+	}
+	usable(false, "core.commitGraph=false")
+	g.Git("config", "--unset", "core.commitGraph")
+	r.ReloadConfig(ctx)
+	usable(true, "core.commitGraph unset")
+
+	grafts := filepath.Join(g.GitDir(), "info", "grafts")
+	os.MkdirAll(filepath.Dir(grafts), 0o755)
+	os.WriteFile(grafts, []byte(a+"\n"), 0o644)
+	usable(false, "grafts")
+	os.Remove(grafts)
+	usable(true, "grafts removed")
+
+	g.Git("fetch", "-q", "--depth=1", "origin")
+	if _, err := os.Stat(filepath.Join(g.GitDir(), "shallow")); err != nil {
+		t.Fatal("the fetch made no shallow file")
+	}
+	usable(false, "shallow")
+	if !slices.Contains(r.Capabilities().Fallbacks(), "shallow history") {
+		t.Errorf("fallbacks %q", r.Capabilities().Fallbacks())
+	}
+	g.Git("fetch", "-q", "--unshallow", "origin")
+	usable(true, "unshallowed")
 }
 
 // A config that changed after open is read again; in a repository not

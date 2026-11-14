@@ -200,7 +200,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		pos, covered = history.Covered(g, tips)
 	}
 	var advice *history.Advice
-	if a, ok := history.GraphAdvice(r.GitDir, r.Caps.CommitGraphUsable(), g, covered); ok && !r.Restricted {
+	if a, ok := history.GraphAdvice(r.GitDir, r.CommitGraphUsable(), g, covered); ok && !r.Restricted {
 		advice = &a
 	}
 	var l lanes.Layout

@@ -26,13 +26,19 @@ type Repository struct {
 	Location
 	// config is the config as last read; Config returns it.
 	config atomic.Pointer[config.Config]
-	Caps   Capabilities
+	// Caps is the repository as it was at open. What changes while it is
+	// open without opening it again (shallow history, grafts, replace
+	// refs, core.commitGraph) Capabilities reads anew.
+	Caps Capabilities
 	// Runner runs git for this repository: hardened when Restricted.
 	Runner *run.Runner
 	// Restricted is a repository the user has not trusted: git only reads,
 	// with nothing from the repository's own config allowed to run.
 	Restricted bool
 	life       *lifetime.Lifetime
+
+	capsMu   sync.Mutex
+	replaced replaceSeen
 
 	mu    sync.Mutex
 	cat   *catfile.Process
@@ -94,7 +100,8 @@ func (r *Repository) Config() *config.Config { return r.config.Load() }
 // not trusted takes the overrides the new config needs first, so no
 // command runs a program it newly names. What the config says of the
 // repository's format (Caps) stays as it was at open: changing it takes
-// opening the repository again.
+// opening the repository again. core.commitGraph and core.useReplaceRefs
+// Capabilities reads from the config as it is now.
 func (r *Repository) ReloadConfig(ctx context.Context) error {
 	cfg, err := config.Read(ctx, r.Runner, r.GitDir)
 	if err != nil {
@@ -106,6 +113,21 @@ func (r *Repository) ReloadConfig(ctx context.Context) error {
 	r.config.Store(cfg)
 	return nil
 }
+
+// Capabilities returns Caps with what can change while the repository is
+// open read again: whether it is shallow, has grafts or replace refs, and
+// whether the config turns the commit-graph off. It reads a few files, so
+// it runs off the main thread.
+func (r *Repository) Capabilities() Capabilities {
+	r.capsMu.Lock()
+	defer r.capsMu.Unlock()
+	c := r.Caps
+	c.checkHistory(r.Location, r.Config(), &r.replaced)
+	return c
+}
+
+// CommitGraphUsable is Capabilities().CommitGraphUsable().
+func (r *Repository) CommitGraphUsable() bool { return r.Capabilities().CommitGraphUsable() }
 
 // Life is the repository's lifetime: run its goroutines with Life().Go and
 // its git processes under Life().Context().
@@ -154,8 +176,9 @@ func (r *Repository) CatFile() (*catfile.Process, error) {
 func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !r.Caps.CommitGraphUsable() || r.Caps.HashSize != 20 {
-		r.tried = true
+	if !r.Capabilities().CommitGraphUsable() || r.Caps.HashSize != 20 {
+		// Opened again once git would use it again.
+		r.graph, r.tried, r.graphAt = nil, false, [2]fileStamp{}
 		return nil, nil
 	}
 	info := filepath.Join(r.CommonDir, "objects", "info")

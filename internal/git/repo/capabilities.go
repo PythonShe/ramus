@@ -31,6 +31,8 @@ type Capabilities struct {
 	ReplaceRefs bool
 	// CommitGraphOff is core.commitGraph=false.
 	CommitGraphOff bool
+	// Shallow, Grafts, ReplaceRefs and CommitGraphOff change while the
+	// repository is open; Repository.Capabilities reads them again.
 	// Unknown lists extensions this version does not know; git refuses
 	// such a repository unless it knows them, so all of it goes to git.
 	Unknown []string
@@ -96,10 +98,7 @@ func Check(loc Location, cfg *config.Config) Capabilities {
 			c.Unknown = append(c.Unknown, name)
 		}
 	}
-	c.CommitGraphOff = !cfg.Bool("core.commitgraph", true)
-	c.Shallow = exists(filepath.Join(loc.CommonDir, "shallow"))
-	c.Grafts = exists(filepath.Join(loc.CommonDir, "info", "grafts"))
-	c.ReplaceRefs = hasReplaceRefs(loc, c) && cfg.Bool("core.usereplacerefs", true) && os.Getenv("GIT_NO_REPLACE_OBJECTS") == ""
+	c.checkHistory(loc, cfg, nil)
 	if cfg.Bool("core.splitindex", false) {
 		c.SplitIndex = true
 	}
@@ -108,6 +107,25 @@ func Check(loc Location, cfg *config.Config) Capabilities {
 		c.SparseIndex = x.Sparse()
 	}
 	return c
+}
+
+// checkHistory reads what decides whether the commit-graph describes the
+// history git shows, which can change while the repository is open: a
+// shallow fetch, git replace, grafts, the config. seen, when not nil,
+// keeps what the last check of replace refs read.
+func (c *Capabilities) checkHistory(loc Location, cfg *config.Config, seen *replaceSeen) {
+	c.CommitGraphOff = !cfg.Bool("core.commitgraph", true)
+	c.Shallow = exists(filepath.Join(loc.CommonDir, "shallow"))
+	c.Grafts = exists(graftFile(loc))
+	c.ReplaceRefs = cfg.Bool("core.usereplacerefs", true) && os.Getenv("GIT_NO_REPLACE_OBJECTS") == "" && hasReplaceRefs(loc, *c, seen)
+}
+
+// graftFile is where git reads grafts from.
+func graftFile(loc Location) string {
+	if f := os.Getenv("GIT_GRAFT_FILE"); f != "" {
+		return f
+	}
+	return filepath.Join(loc.CommonDir, "info", "grafts")
 }
 
 // formatKnown reports whether git would work in the repository at all,
@@ -178,14 +196,31 @@ func replaceBase() string {
 	return b
 }
 
+// replaceSeen is what a check of replace refs read, kept so the next
+// reads again only what changed since: packed-refs, or the reftable
+// stack's list, by stamp.
+type replaceSeen struct {
+	at    fileStamp
+	base  string
+	found bool
+	ok    bool
+}
+
 // hasReplaceRefs reports whether the repository holds a replace ref. One
 // that cannot be told counts as holding some, so the commit-graph, which
 // knows nothing of them, is not trusted.
-func hasReplaceRefs(loc Location, c Capabilities) bool {
+func hasReplaceRefs(loc Location, c Capabilities, seen *replaceSeen) bool {
 	base := replaceBase()
+	if seen == nil {
+		seen = &replaceSeen{}
+	}
 	if c.RefStorage == "reftable" {
-		found, err := refs.NewReftable(loc.GitDir, loc.CommonDir, c.HashSize).HasShared(base)
-		return found || err != nil
+		at := stamp(filepath.Join(loc.CommonDir, "reftable", "tables.list"))
+		if !seen.ok || seen.at != at || seen.base != base {
+			found, err := refs.NewReftable(loc.GitDir, loc.CommonDir, c.HashSize).HasShared(base)
+			*seen = replaceSeen{at: at, base: base, found: found || err != nil, ok: err == nil}
+		}
+		return seen.found
 	}
 	found := false
 	filepath.WalkDir(filepath.Join(loc.CommonDir, filepath.FromSlash(base)), func(p string, d fs.DirEntry, err error) error {
@@ -198,9 +233,17 @@ func hasReplaceRefs(loc Location, c Capabilities) bool {
 	if found {
 		return true
 	}
-	b, err := os.ReadFile(filepath.Join(loc.CommonDir, "packed-refs"))
-	if err != nil {
-		return !errors.Is(err, fs.ErrNotExist)
+	packed := filepath.Join(loc.CommonDir, "packed-refs")
+	at := stamp(packed)
+	if seen.ok && seen.at == at && seen.base == base {
+		return seen.found
 	}
-	return strings.Contains(string(b), " "+base)
+	b, err := os.ReadFile(packed)
+	if err != nil {
+		found = !errors.Is(err, fs.ErrNotExist)
+	} else {
+		found = strings.Contains(string(b), " "+base)
+	}
+	*seen = replaceSeen{at: at, base: base, found: found, ok: err == nil || errors.Is(err, fs.ErrNotExist)}
+	return found
 }

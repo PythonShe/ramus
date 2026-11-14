@@ -19,6 +19,8 @@ const (
 	RefsChanged
 	OperationChanged
 	ConfigChanged
+	// GraphChanged is the commit-graph, or what decides whether git uses
+	// it: shallow history, grafts.
 	GraphChanged
 	// Rescan means notices were lost: refresh everything.
 	Rescan
@@ -51,7 +53,8 @@ func classifyGit(rel string) Change {
 		return OperationChanged | RefsChanged
 	case rel == "config" || rel == "config.worktree":
 		return ConfigChanged
-	case rel == "objects/info/commit-graph" || strings.HasPrefix(rel, "objects/info/commit-graphs"):
+	case rel == "objects/info/commit-graph" || strings.HasPrefix(rel, "objects/info/commit-graphs") ||
+		rel == "shallow" || rel == "info/grafts":
 		return GraphChanged
 	case first == "worktrees":
 		// Another work tree's HEAD and refs, and a work tree added, removed
