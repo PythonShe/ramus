@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -90,5 +92,49 @@ func TestCloneSubmodulesWhenAsked(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "sub", "inside")); err != nil {
 		t.Fatal("submodule not cloned when asked")
+	}
+}
+
+// A repository with files in Git LFS clones with their content, git-lfs
+// running as git's filter, its progress among the events. Needs git-lfs.
+func TestCloneLFS(t *testing.T) {
+	if _, err := exec.LookPath("git-lfs"); err != nil {
+		t.Skip("no git-lfs:", err)
+	}
+	g := testrun.Runner(t).Git()
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	// What git lfs install writes to the user's config.
+	lfs := "[filter \"lfs\"]\n\tclean = git-lfs clean -- %f\n\tsmudge = git-lfs smudge -- %f\n\tprocess = git-lfs filter-process\n\trequired = true\n"
+	if err := os.WriteFile(global, []byte(lfs), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := append(gittest.Env(), "GIT_CONFIG_GLOBAL="+global)
+	src := gittest.Init(t)
+	src.Env = append(src.Env, "GIT_CONFIG_GLOBAL="+global)
+	src.Write(".gitattributes", "*.bin filter=lfs diff=lfs merge=lfs -text\n")
+	src.Write("big.bin", "large content\n")
+	src.Git("add", ".gitattributes", "big.bin")
+	src.Commit("lfs")
+	if p := src.Git("cat-file", "-p", "HEAD:big.bin"); !strings.HasPrefix(p, "version https://git-lfs") {
+		t.Fatalf("not a pointer: %q", p)
+	}
+
+	dir := filepath.Join(t.TempDir(), "clone")
+	j, err := Clone(run.New(g, env, 4), CloneOptions{URL: "file://" + filepath.ToSlash(src.Dir), Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lines []string
+	for ev := range j.Events() {
+		lines = append(lines, ev.Line)
+	}
+	if _, err := wait(t, j); err != nil {
+		t.Fatalf("%v\n%s", err, strings.Join(lines, "\n"))
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "big.bin")); string(b) != "large content\n" {
+		t.Fatalf("big.bin holds %q", b)
+	}
+	if !slices.ContainsFunc(lines, func(l string) bool { return strings.Contains(l, "Filtering content") || strings.Contains(l, "LFS") }) {
+		t.Errorf("no LFS progress among\n%s", strings.Join(lines, "\n"))
 	}
 }

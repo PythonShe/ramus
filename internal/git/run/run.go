@@ -302,8 +302,13 @@ func (r *Runner) command(ctx context.Context, c *Cmd) *exec.Cmd {
 		cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
 	}
 	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
-	if !c.Read && !c.NoPrompt {
-		cmd.Env = append(cmd.Env, r.prompt...)
+	if !c.Read {
+		// git-lfs shows its progress only on a terminal unless told; the
+		// app shows what a write prints as it comes.
+		cmd.Env = append(cmd.Env, "GIT_LFS_FORCE_PROGRESS=1")
+		if !c.NoPrompt {
+			cmd.Env = append(cmd.Env, r.prompt...)
+		}
 	}
 	if c.Untranslated {
 		// LC_ALL would override LC_MESSAGES; the C locale ignores LANGUAGE.
