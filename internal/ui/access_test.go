@@ -106,7 +106,7 @@ func TestAccessibility(t *testing.T) {
 	for _, open := range []struct {
 		name string
 		fn   func()
-	}{{"settings", h.app.openSettings}, {"manager", h.app.openManager}, {"palette", func() { h.app.palette.open = true }}, {"clone", h.app.ShowClone}} {
+	}{{"settings", h.app.openSettings}, {"manager", h.app.openManager}, {"palette", func() { h.app.palette.open = true }}, {"clone", h.app.ShowClone}, {"keys", h.app.openKeys}} {
 		open.fn()
 		h.settle()
 		unnamed(h, open.name)

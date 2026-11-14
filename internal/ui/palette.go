@@ -44,6 +44,7 @@ func (a *App) commands() []command {
 		cmd("clone", func() { a.clone.open = true }),
 		cmd("new", a.initAndOpen),
 		cmd("settings", a.openSettings),
+		cmd("keyboard-shortcuts", a.openKeys),
 		cmd("repositories", a.openManager),
 		cmd("library-stats", a.openLibStats),
 	}

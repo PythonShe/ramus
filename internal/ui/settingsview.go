@@ -94,6 +94,9 @@ func (a *App) settingsView(c *ui.Context) {
 				ui.Text(c, s.err).TextColor(th.Danger)
 			}
 			ui.Row(c).Gap(8).Children(func() {
+				if ui.Button(c, "Keyboard Shortcuts…").Clicked() {
+					a.openKeys()
+				}
 				if a.SettingsPath != "" && ui.Button(c, "Open Settings File").Clicked() {
 					p := a.SettingsPath
 					go tools.OpenDefault(p)

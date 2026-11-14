@@ -77,6 +77,7 @@ type App struct {
 	clone      cloneState
 	palette    paletteState
 	settingsUI settingsState
+	keysUI     keysState
 	manager    managerState
 	prompt     promptState
 	links      linksDialog
@@ -389,6 +390,7 @@ func (a *App) View(c *ui.Context) {
 	a.compareView(c)
 	a.mergeToolView(c)
 	a.confirmView(c, &a.confirm)
+	a.keysView(c)
 	a.paletteView(c)
 }
 
