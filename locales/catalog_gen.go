@@ -6649,6 +6649,84 @@ func (msgs Messages) HistoryCommits() string {
 	return Catalog.Format(msgs.locale, "historyCommits", nil)
 }
 
+// HistoryColumnGraph says "Graph"
+// in the language the app shows.
+//
+// Heads the history list's column of branch lines, and toggles it in the
+// header's menu.
+func HistoryColumnGraph() string { return In(i18n.Locale()).HistoryColumnGraph() }
+
+// HistoryColumnGraph says "Graph"
+// in the language of msgs.
+//
+// Heads the history list's column of branch lines, and toggles it in the
+// header's menu.
+func (msgs Messages) HistoryColumnGraph() string {
+	return Catalog.Format(msgs.locale, "historyColumnGraph", nil)
+}
+
+// HistoryColumnMessage says "Message"
+// in the language the app shows.
+//
+// Heads the history list's column of commit subjects.
+func HistoryColumnMessage() string { return In(i18n.Locale()).HistoryColumnMessage() }
+
+// HistoryColumnMessage says "Message"
+// in the language of msgs.
+//
+// Heads the history list's column of commit subjects.
+func (msgs Messages) HistoryColumnMessage() string {
+	return Catalog.Format(msgs.locale, "historyColumnMessage", nil)
+}
+
+// HistoryColumnAuthor says "Author"
+// in the language the app shows.
+func HistoryColumnAuthor() string { return In(i18n.Locale()).HistoryColumnAuthor() }
+
+// HistoryColumnAuthor says "Author"
+// in the language of msgs.
+func (msgs Messages) HistoryColumnAuthor() string {
+	return Catalog.Format(msgs.locale, "historyColumnAuthor", nil)
+}
+
+// HistoryColumnDate says "Date"
+// in the language the app shows.
+func HistoryColumnDate() string { return In(i18n.Locale()).HistoryColumnDate() }
+
+// HistoryColumnDate says "Date"
+// in the language of msgs.
+func (msgs Messages) HistoryColumnDate() string {
+	return Catalog.Format(msgs.locale, "historyColumnDate", nil)
+}
+
+// HistoryColumnCommit says "Commit"
+// in the language the app shows.
+//
+// Heads the history list's column of abbreviated commit hashes.
+func HistoryColumnCommit() string { return In(i18n.Locale()).HistoryColumnCommit() }
+
+// HistoryColumnCommit says "Commit"
+// in the language of msgs.
+//
+// Heads the history list's column of abbreviated commit hashes.
+func (msgs Messages) HistoryColumnCommit() string {
+	return Catalog.Format(msgs.locale, "historyColumnCommit", nil)
+}
+
+// HistoryColumnsReset says "Reset Columns"
+// in the language the app shows.
+//
+// In the history header's menu: shows every column again at its own width.
+func HistoryColumnsReset() string { return In(i18n.Locale()).HistoryColumnsReset() }
+
+// HistoryColumnsReset says "Reset Columns"
+// in the language of msgs.
+//
+// In the history header's menu: shows every column again at its own width.
+func (msgs Messages) HistoryColumnsReset() string {
+	return Catalog.Format(msgs.locale, "historyColumnsReset", nil)
+}
+
 // HistoryBadEncoding says "Not valid in its encoding: bytes shown as \\xNN"
 // in the language the app shows.
 func HistoryBadEncoding() string { return In(i18n.Locale()).HistoryBadEncoding() }

@@ -1232,6 +1232,24 @@
     "description": "A ref at a commit, for a screen reader: kind is one of the historyKind* words."
   },
   "historyCommits": "Commits",
+  "historyColumnGraph": "Graph",
+  "@historyColumnGraph": {
+    "description": "Heads the history list's column of branch lines, and toggles it in the header's menu."
+  },
+  "historyColumnMessage": "Message",
+  "@historyColumnMessage": {
+    "description": "Heads the history list's column of commit subjects."
+  },
+  "historyColumnAuthor": "Author",
+  "historyColumnDate": "Date",
+  "historyColumnCommit": "Commit",
+  "@historyColumnCommit": {
+    "description": "Heads the history list's column of abbreviated commit hashes."
+  },
+  "historyColumnsReset": "Reset Columns",
+  "@historyColumnsReset": {
+    "description": "In the history header's menu: shows every column again at its own width."
+  },
   "historyBadEncoding": "Not valid in its encoding: bytes shown as \\xNN",
   "historyGraphCommit": "commit",
   "@historyGraphCommit": {

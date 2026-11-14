@@ -63,10 +63,24 @@ type historyState struct {
 	path    ui.Path
 	detail  commitView
 	detailW float32
-	// rowW is the list's width as last laid out.
-	rowW     float32
+	// rowW is the list's width as last laid out, 0 before.
+	rowW float32
+	// cols are the columns as laid out in this frame; colDrag a divider
+	// being dragged.
+	cols     histLayout
+	colDrag  colDrag
+	widthKey listWidthKey
 	chosenID []byte
 	filter   historyFilter
+}
+
+// listWidthKey is what sets the width of the history list: the window's,
+// the sidebar's and the commit's beside it.
+type listWidthKey struct {
+	window, side, sideOut float32
+	noSidebar             bool
+	split, listW          float32
+	patch                 bool
 }
 
 // histLoad names one load of history: the refs and the view it was for.
@@ -463,17 +477,18 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		}
 		return out
 	}
+	a.historyHeader(c, hv, snap)
 	l := ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Label(locales.HistoryCommits()).Grow(1)
-	hv.rowW = l.LayoutBounds().W
+	// The list's width is known once it is laid out, after the columns
+	// were: when what sets it changes, a frame more measures it, and one
+	// more lays the columns out for it.
+	ww, _ := c.Size()
+	key := listWidthKey{ww, t.sideW, t.sideOut, a.Settings.NoSidebar, hv.detailW, hv.detail.listW, hv.detail.patchOpen()}
+	if w := l.LayoutBounds().W; key != hv.widthKey || w != hv.rowW {
+		hv.widthKey, hv.rowW = key, w
+		c.AnimationFrame()
+	}
 }
-
-// The list widths under which a row leaves out its author, then its
-// date too, so that a narrow list, beside an open patch, still shows the
-// subjects.
-const (
-	historyNoAuthorW = 640
-	historyNoDateW   = 480
-)
 
 func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int) {
 	th := c.Theme()
@@ -481,46 +496,59 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 	snap := h.Snap
 	subject, author, when, ok := a.historyRow(t, h, i)
 	id := h.OID(snap.Commit(i))
-	gw := graphWidth(snap)
+	lay := &hv.cols
+	gw := lay.w[colGraph]
 	cols := graph.DefaultStyle.Columns(gw)
 	r, buf := snap.Row(i, cols, hv.buf)
 	hv.buf = buf
 	merge := r.Merges > 0
-	row := ui.Row(c).Height(historyRowHeight).Gap(spaceM).Padding(0, insetX).AlignItems(ui.Center).FillWidth()
+	// No gap: each column's opens and closes with it, as the header's.
+	row := ui.Row(c).Height(historyRowHeight).Padding(0, insetX).AlignItems(ui.Center).FillWidth()
 	row.Children(func() {
-		ui.Box(c).Width(gw).Height(historyRowHeight).
-			Role(ui.RoleImage).Label(describeRow(r, hv.historyMerged(i))).
-			Draw(func(p *ui.Painter, rect ui.Rect) {
-				// Read again here: the edges built above are reused by
-				// the next row.
-				var lr lanes.Row
-				lr, hv.buf = snap.Row(i, cols, hv.buf)
-				graph.Paint(p, rect, lr, graph.DefaultStyle, th.Background, &hv.path)
-			})
-		labels := hv.labels[string(id)]
-		for j, l := range labels {
-			if j == 3 {
-				ui.Text(c, "+"+strconv.Itoa(len(labels)-3)).FontSize(textCaption).TextColor(th.TextMuted)
-				break
-			}
-			refChip(c, l)
+		if lay.shown[colGraph] {
+			ui.Box(c).Width(gw).Height(historyRowHeight).Clip().Opacity(lay.fade(colGraph)).
+				Role(ui.RoleImage).Label(describeRow(r, hv.historyMerged(i))).
+				Draw(func(p *ui.Painter, rect ui.Rect) {
+					// Read again here: the edges built above are reused by
+					// the next row.
+					var lr lanes.Row
+					lr, hv.buf = snap.Row(i, cols, hv.buf)
+					graph.Paint(p, rect, lr, graph.DefaultStyle, th.Background, &hv.path)
+				})
 		}
+		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Grow(1).Shrink(1).MarginStart(lay.gap(colGraph)).Children(func() {
+			labels := hv.labels[string(id)]
+			for j, l := range labels {
+				if j == 3 {
+					ui.Text(c, "+"+strconv.Itoa(len(labels)-3)).FontSize(textCaption).TextColor(th.TextMuted)
+					break
+				}
+				refChip(c, l)
+			}
+			if !ok {
+				ui.Text(c, "…").TextColor(th.TextMuted).Grow(1)
+				return
+			}
+			subj := ui.Text(c, subject).SingleLine().Grow(1)
+			if ch := hv.loaded(i); ch != nil && ch.Odd(i) {
+				subj.TextColor(th.Warning).Description(locales.HistoryBadEncoding())
+			}
+		})
 		if !ok {
-			ui.Text(c, "…").TextColor(th.TextMuted).Grow(1)
 			return
 		}
-		subj := ui.Text(c, subject).SingleLine().Grow(1)
-		if ch := hv.loaded(i); ch != nil && ch.Odd(i) {
-			subj.TextColor(th.Warning).Description(locales.HistoryBadEncoding())
+		cell := func(k histColumn, e ui.Element) {
+			e.SingleLine().Width(lay.w[k]).MarginStart(lay.gap(k)).Opacity(lay.fade(k)).TextColor(th.TextMuted)
 		}
-		// rowW is the list's width in the last frame, 0 before the first.
-		if w := hv.rowW; w == 0 || w >= historyNoAuthorW {
-			ui.Text(c, author).SingleLine().Width(120).TextColor(th.TextMuted)
+		if lay.shown[colAuthor] {
+			cell(colAuthor, ui.Text(c, author))
 		}
-		if w := hv.rowW; w == 0 || w >= historyNoDateW {
-			ui.Text(c, when.Format("2006-01-02 15:04")).SingleLine().Width(112).TextColor(th.TextMuted)
+		if lay.shown[colDate] {
+			cell(colDate, ui.Text(c, when.Format("2006-01-02 15:04")))
 		}
-		ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
+		if lay.shown[colHash] {
+			cell(colHash, ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall))
+		}
 	})
 	row.ContextMenu(func(m *ui.Menu) {
 		ids, n := a.historyIDs(t, h, i)

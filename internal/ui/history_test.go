@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/history"
 	"ramus/internal/issuelink"
+	"ramus/internal/settings"
 )
 
 func TestHistoryView(t *testing.T) {
@@ -50,8 +52,12 @@ func TestHistoryView(t *testing.T) {
 	// The subject is the line above the Author row; the list shows the
 	// same text, so it is found by place, with the patch closed and the
 	// rows each a line.
+	// The list's author column is collapsed for Author to name the
+	// detail's row alone.
 	h.tt.Key(0, ui.KeyEscape)
+	h.app.setHistoryColumn(colAuthor, settings.Column{Hidden: true})
 	h.tt.Frame()
+	h.tt.Advance(time.Second)
 	author, _ := h.tt.Find("Author")
 	cv := &h.app.current().hist.detail
 	x, y := author.X+spaceXS, author.Y-spaceS-cv.subjectH/2
@@ -390,8 +396,13 @@ func TestCommitMessageDragsTaller(t *testing.T) {
 		t.Fatalf("a one-line body takes %v, fitted %v", cv.msgH, cv.fittedMessage())
 	}
 
+	// The list's author column is collapsed for Author to name the
+	// detail's row alone.
+	h.app.setHistoryColumn(colAuthor, settings.Column{Hidden: true})
+	h.tt.Frame()
+	h.tt.Advance(time.Second)
 	h.click("long")
-	h.until("the detail", h.shows("Author"))
+	h.until("the detail", h.shows("body line 30"))
 	h.tt.Frame()
 	before, _ := h.tt.Find("Author")
 	// The divider is msgH below the top of the message: its padding, the
@@ -417,5 +428,102 @@ func TestCommitMessageDragsTaller(t *testing.T) {
 	h.tt.Frame()
 	if cv.msgH != dragged {
 		t.Fatalf("height %v after choosing another commit, dragged to %v", cv.msgH, dragged)
+	}
+}
+
+// The history's columns resize from the dividers in their header, the
+// room coming from the message. A column follows the pointer all the way
+// and settles when let go: at its least width, or shut when dragged under
+// half of it; the header's menu brings it back. A list too narrow for
+// the message shuts the columns at the end first.
+func TestHistoryColumns(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "alpha\n")
+	r.Commit("add alpha")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the rows", h.shows("Ramus Test"))
+	h.tt.Frame()
+	hv := &h.app.current().hist
+	head, _ := h.tt.Find("Author")
+	cell, _ := h.tt.Find("Ramus Test")
+	if head.X != cell.X || head.W != cell.W {
+		t.Fatalf("author header at %v, its cells at %v", head, cell)
+	}
+
+	// drag moves the divider left of the header title by dx, checking
+	// that the title keeps up with the pointer, and lets the column
+	// settle.
+	drag := func(title string, dx float32) {
+		b, _ := h.tt.Find(title)
+		x, y := b.X-spaceM/2, b.Y+b.H/2
+		h.tt.Press(x, y)
+		h.tt.Frame()
+		for _, f := range []float32{0.25, 0.5, 0.75, 1} {
+			h.tt.Move(x+dx*f, y)
+			h.tt.Frame()
+			if now, _ := h.tt.Find(title); now.X != b.X+dx*f {
+				t.Fatalf("%s at %v with the pointer moved %v, from %v", title, now.X, dx*f, b.X)
+			}
+		}
+		h.tt.Release(x+dx, y)
+		h.tt.Frame()
+		h.tt.Advance(time.Second)
+	}
+	drag("Author", -60)
+	if w := h.app.Settings.HistoryColumns["author"].Width; w != 180 {
+		t.Fatalf("author %v wide, dragged to 180", w)
+	}
+	if cell, _ := h.tt.Find("Ramus Test"); cell.W != 180 {
+		t.Fatalf("author cells %v wide", cell.W)
+	}
+
+	// Let go under its least width, but not under half, it settles at
+	// its least.
+	drag("Commit", 20)
+	if b, _ := h.tt.Find("Commit"); b.W != histColumnMin[colHash] || h.app.Settings.HistoryColumns["hash"].Width != histColumnMin[colHash] {
+		t.Fatalf("hash column %v, kept %+v", b, h.app.Settings.HistoryColumns["hash"])
+	}
+	drag("Commit", 40)
+	if hasExact(h, "Commit") || !h.app.Settings.HistoryColumns["hash"].Hidden {
+		t.Fatalf("hash column %+v not shut", h.app.Settings.HistoryColumns["hash"])
+	}
+	if err := h.tt.RightClick("Message"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Commit"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	h.tt.Advance(time.Second)
+	if b, _ := h.tt.Find("Commit"); b.W != histColumnMin[colHash] {
+		t.Fatalf("hash column back at %v", b)
+	}
+
+	// Narrowed, the list shuts the hash, then the date, then the
+	// author, each whole, and keeps the message.
+	h.app.Settings.HistoryColumns = nil
+	for _, c := range []struct {
+		w     float32
+		shown [histColumns]bool
+	}{
+		{640, [histColumns]bool{true, true, true, true}},
+		{560, [histColumns]bool{true, true, true, false}},
+		{480, [histColumns]bool{true, true, false, false}},
+		{360, [histColumns]bool{true, false, false, false}},
+	} {
+		hv.detailW = c.w
+		h.tt.Frame()
+		h.tt.Advance(time.Second)
+		if hv.cols.shown != c.shown {
+			t.Logf("rowW %v cols %+v key %+v", hv.rowW, hv.cols, hv.widthKey)
+			t.Fatalf("a list %v wide shows columns %v, want %v", c.w, hv.cols.shown, c.shown)
+		}
+		if msg, _ := h.tt.Find("Message"); msg.W < historyMessageMin-1 {
+			t.Fatalf("a list %v wide leaves the message %v", c.w, msg.W)
+		}
 	}
 }

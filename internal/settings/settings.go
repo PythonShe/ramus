@@ -54,10 +54,20 @@ type Settings struct {
 	// status bar, but while it has a warning.
 	NoSidebar   bool `json:"noSidebar,omitempty"`
 	NoStatusBar bool `json:"noStatusBar,omitempty"`
+	// HistoryColumns are the history list's columns the user resized or
+	// collapsed, by key: "graph", "author", "date", "hash".
+	HistoryColumns map[string]Column `json:"historyColumns,omitempty"`
 	// Keys are the user's shortcuts by command, in place of the app's
 	// own: accelerators such as "CmdOrCtrl+Shift+P"; an empty list
 	// leaves a command without one.
 	Keys map[string][]string `json:"keys,omitempty"`
+}
+
+// Column is a list column as the user left it: its width, 0 for the
+// list's own, and whether it is collapsed.
+type Column struct {
+	Width  float32 `json:"width,omitempty"`
+	Hidden bool    `json:"hidden,omitempty"`
 }
 
 // MinFetchMinutes is the shortest wait between background fetches.
