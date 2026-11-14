@@ -39,7 +39,7 @@ type refsState struct {
 	rowsFor   rowsKey
 	// rowsAsked is the key of rows being grouped off the main thread.
 	rowsAsked rowsKey
-	list      ui.ListState
+	list      tableState
 	chosen    int
 	// byName indexes the branches and tags of byNameFor by full name.
 	byName    map[string]int
@@ -285,11 +285,37 @@ func (a *App) refList(c *ui.Context, t *tab) {
 		return redact.Control(rows[i].label)
 	}
 	var act func()
-	ui.List(c, &rs.list, len(rows), func(i int) {
+	rs.list.CellMenu = func(m *ui.Menu, i, _ int) {
+		switch r := rows[i]; {
+		case r.idx < 0:
+		case rs.kind == refsBranches:
+			a.branchMenu(m, t, info.Branches[r.idx], &act)
+		default:
+			a.tagMenu(m, t, info.Tags[r.idx], &act)
+		}
+	}
+	table, cols := "branches", []ui.TableColumn{
+		{Title: locales.ColumnName(), ID: "name", Width: nameColumn, MinWidth: 120},
+		{Title: locales.ColumnUpstream(), ID: "upstream", Width: 190, MinWidth: 60},
+		{Title: locales.ColumnLastCommit(), ID: "subject", MinWidth: 80},
+		// As wide as the Switch button the chosen branch shows here.
+		{Title: locales.ColumnDate(), ID: "date", Width: 100, MinWidth: 80},
+	}
+	if rs.kind == refsTags {
+		table, cols = "tags", []ui.TableColumn{
+			cols[0],
+			{Title: locales.ColumnKind(), ID: "kind", Width: 100, MinWidth: 60},
+			{Title: locales.ColumnMessage(), ID: "subject", MinWidth: 80},
+			dateColumn(),
+		}
+	}
+	tbl := a.savedTable(c, table, &rs.list, cols, len(rows), func(i, col int) {
 		r := rows[i]
-		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
-		row.Children(func() {
-			if r.idx < 0 {
+		if r.idx < 0 {
+			if col != 0 {
+				return
+			}
+			ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Width(float32(r.depth) * 16)
 				k := prefix + r.folder
 				arrow := "▾"
@@ -300,15 +326,17 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					act = func() { rs.closed[k] = !rs.closed[k]; rs.closedGen++ }
 				}
 				ui.Text(c, redact.Control(r.label)+"/").SingleLine().Grow(1)
-				return
-			}
-			// The name column is as wide at every depth, so the columns
-			// after it line up.
+			})
+			return
+		}
+		if col == 0 {
+			// Indented as deep as the ref is, in a column as wide at
+			// every depth, so the columns after it line up.
 			var b session.BranchInfo
 			if rs.kind == refsBranches {
 				b = info.Branches[r.idx]
 			}
-			ui.Row(c).Width(nameColumn).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Width(float32(r.depth)*16 + 20)
 				name := ui.Text(c, redact.Control(r.label)).SingleLine().Grow(1)
 				if rs.kind == refsBranches && !head.Detached && b.Name == head.Target {
@@ -327,31 +355,39 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					a.stackBadge(c, t, info, b)
 				}
 			})
-			if rs.kind == refsBranches {
-				tr := ui.Text(c, tracking(b)).FontSize(textSmall).Width(180).SingleLine()
+			return
+		}
+		if rs.kind == refsBranches {
+			b := info.Branches[r.idx]
+			switch col {
+			case 1:
+				tr := ui.Text(c, tracking(b)).FontSize(textSmall).SingleLine()
 				if b.Gone {
 					tr.TextColor(th.Warning)
 				} else {
 					tr.TextColor(th.TextMuted)
 				}
-				ui.Text(c, redact.Control(b.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
+			case 2:
+				ui.Text(c, redact.Control(b.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+			case 3:
 				// The branch chosen offers to switch to it where its time
-				// is, so that the row keeps its width; hovering changes
-				// nothing, as in the other lists. One checked out in
-				// another worktree cannot be switched to.
+				// is, so that the row keeps its width and its height;
+				// hovering changes nothing, as in the other lists. One
+				// checked out in another worktree cannot be switched to.
 				current := !head.Detached && b.Name == head.Target
 				if !current && b.Worktree == "" && t.s.Queue != nil && rs.chosen == i {
-					ui.Row(c).Width(88).Children(func() {
-						if ui.Button(c, locales.RefsSwitch()).Label(locales.RefsSwitchTo(redact.Control(r.label))).Padding(0, spaceM).Clicked() {
-							act = func() { a.checkOut(t, b) }
-						}
-					})
+					if ui.Button(c, locales.RefsSwitch()).Label(locales.RefsSwitchTo(redact.Control(r.label))).Padding(0, spaceM).Clicked() {
+						act = func() { a.checkOut(t, b) }
+					}
 					return
 				}
-				ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
-				return
+				ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 			}
-			tg := info.Tags[r.idx]
+			return
+		}
+		tg := info.Tags[r.idx]
+		switch col {
+		case 1:
 			kind := locales.RefsTagKindLightweight()
 			switch {
 			case tg.Signed:
@@ -359,28 +395,29 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			case tg.Annotated:
 				kind = locales.RefsTagKindAnnotated()
 			}
-			ui.Text(c, kind).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, kind).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+		case 2:
 			if v, ok := rs.sigs[tg.Object]; ok {
-				ui.Row(c).Grow(1).Children(func() { sigText(c, v) })
+				sigText(c, v)
 			} else {
-				ui.Text(c, redact.Control(tg.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
+				ui.Text(c, redact.Control(tg.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 			}
-			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).Width(88).TextColor(th.TextMuted).SingleLine()
-		})
-		if r.idx < 0 {
-			return
+		case 3:
+			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 		}
-		if rs.kind == refsBranches {
-			b := info.Branches[r.idx]
-			if row.RowDoubleClicked() {
-				act = func() { a.checkOut(t, b) }
-			}
-			row.ContextMenu(func(m *ui.Menu) { a.branchMenu(m, t, b, &act) })
-			return
-		}
-		tg := info.Tags[r.idx]
-		row.ContextMenu(func(m *ui.Menu) { a.tagMenu(m, t, tg, &act) })
 	}).Label(locales.RefsListLabel()).Grow(1)
+	// A double click or Enter checks a branch out, as its menu's first
+	// item does, and opens or closes a folder.
+	if tbl.Submitted() && rs.chosen >= 0 && rs.chosen < len(rows) {
+		switch r := rows[rs.chosen]; {
+		case r.idx < 0 && rs.filter == "":
+			k := prefix + r.folder
+			act = func() { rs.closed[k] = !rs.closed[k]; rs.closedGen++ }
+		case r.idx >= 0 && rs.kind == refsBranches:
+			b := info.Branches[r.idx]
+			act = func() { a.checkOut(t, b) }
+		}
+	}
 	if rs.chosen >= 0 && rs.chosen < len(rows) && rows[rs.chosen].idx >= 0 {
 		rs.chosenName = fullRef(info, rs.kind, rows[rs.chosen].idx)
 	}
