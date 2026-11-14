@@ -299,7 +299,7 @@ func (a *App) cleanView(c *ui.Context) {
 				cs.list.Label = func(i int) string { return paths[i] }
 				ui.List(c, &cs.list, len(paths), func(i int) {
 					shown, why := showPath(paths[i])
-					txt := ui.Text(c, shown).Font("monospace").FontSize(textSmall).SingleLine().Padding(rowPadY, insetX)
+					txt := pathLabel(c, shown).Font("monospace").FontSize(textSmall).Padding(rowPadY, insetX)
 					if why != "" {
 						txt.TextColor(th.Warning).Description(why)
 					}

@@ -263,7 +263,7 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, l.Status(i)))
 				shown, why := showPath(name(i))
-				txt := ui.Text(c, shown).SingleLine().Grow(1)
+				txt := pathLabel(c, shown).Grow(1)
 				if why != "" {
 					txt.TextColor(th.Warning).Tooltip(why)
 				}

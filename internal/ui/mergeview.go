@@ -515,7 +515,7 @@ func (a *App) mergeDialogView(c *ui.Context) {
 				ui.List(c, &d.list, len(files), func(i int) {
 					ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).FillWidth().Children(func() {
 						shown, _ := showPath(files[i])
-						ui.Text(c, shown).Font("monospace").FontSize(textSmall).SingleLine().Grow(1)
+						pathLabel(c, shown).Font("monospace").FontSize(textSmall).Grow(1)
 						if conflicts[files[i]] {
 							ui.Text(c, locales.MergeFileConflicts()).FontSize(textSmall).TextColor(th.Warning)
 						} else {

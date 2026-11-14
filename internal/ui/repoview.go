@@ -364,6 +364,13 @@ func runningWrite(log []*session.LogEntry) *session.LogEntry {
 	return nil
 }
 
+// pathLabel shows path shown, from showPath, in a list's row on one line.
+// Cut, it keeps its start and its end, where the file's name is, and the
+// pointer resting on it shows it whole.
+func pathLabel(c *ui.Context, shown string) ui.Element {
+	return ui.Text(c, shown).SingleLine().TruncateMiddle().Tooltip(shown)
+}
+
 // showPath is how a path from git is shown: as it is, unless it holds
 // what could hide or fake another path (line breaks, control characters,
 // a .git lookalike, ..), when it is quoted and flagged with why. It is

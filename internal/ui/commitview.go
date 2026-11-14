@@ -374,7 +374,7 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, f.Status(i)))
 			shown, why := showPath(commitFileName(f, i))
-			txt := ui.Text(c, shown).SingleLine().Grow(1)
+			txt := pathLabel(c, shown).Grow(1)
 			if why != "" {
 				txt.TextColor(th.Warning).Tooltip(why)
 			}

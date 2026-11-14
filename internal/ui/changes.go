@@ -210,7 +210,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 		if f, why := showPath(string(m.st.Path(i))); why != "" {
 			shown, flagged = f, why
 		}
-		name := ui.Text(c, shown).SingleLine().Grow(1)
+		name := pathLabel(c, shown).Grow(1)
 		if flagged != "" {
 			name.TextColor(th.Warning).Description(flagged)
 		}
