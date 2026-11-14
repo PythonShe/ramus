@@ -13,6 +13,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // historyEdit is the editor of a run of history: its commits, oldest
@@ -36,8 +37,25 @@ type editRow struct {
 	loaded bool
 }
 
-// actionLabels name the actions in the order of write.Action.
-var actionLabels = [...]string{"Pick", "Reword", "Edit", "Squash", "Fix Up", "Drop"}
+// editActions are the actions of a row, in the order of the menu.
+var editActions = [...]write.Action{write.DoPick, write.DoReword, write.DoEdit, write.DoSquash, write.DoFixup, write.DoDrop}
+
+// actionLabel names action act.
+func actionLabel(act write.Action) string {
+	switch act {
+	case write.DoReword:
+		return locales.RewriteReword()
+	case write.DoEdit:
+		return locales.RewriteActionEdit()
+	case write.DoSquash:
+		return locales.RewriteSquash()
+	case write.DoFixup:
+		return locales.RewriteActionFixUp()
+	case write.DoDrop:
+		return locales.RewriteDrop()
+	}
+	return locales.RewriteActionPick()
+}
 
 // editHistory opens the editor of the history from commit id to HEAD,
 // its rows as prefill makes them when it is not nil.
@@ -117,21 +135,20 @@ func (a *App) historyEditView(c *ui.Context) {
 	th := c.Theme()
 	ui.Modal(c, &he.open, func() {
 		dialogBox(c).Width(760).Children(func() {
-			ui.Text(c, "Edit History from "+he.rw.Commit[:min(10, len(he.rw.Commit))]).Bold()
+			ui.Text(c, locales.RewriteEditHistoryFrom(he.rw.Commit[:min(10, len(he.rw.Commit))])).Bold()
 			rows := he.rows
 			he.list.Selected = &he.chosen
 			he.list.Key = func(i int) any { return string(rows[i].OID) }
 			he.list.Label = func(i int) string {
-				return actionLabels[rows[i].action] + ", " + redact.Control(rows[i].Subject)
+				return locales.RewriteRowLabel(actionLabel(rows[i].action), redact.Control(rows[i].Subject))
 			}
 			he.list.Reorder = he.move
 			ui.List(c, &he.list, len(rows), func(i int) {
 				r := &rows[i]
 				ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-					ui.PopoverMenuButton(c, actionLabels[r.action], func(m *ui.Menu) {
-						for k, label := range actionLabels {
-							act := write.Action(k)
-							if m.Item(label).Checked(r.action == act).Chosen() {
+					ui.PopoverMenuButton(c, actionLabel(r.action), func(m *ui.Menu) {
+						for _, act := range editActions {
+							if m.Item(actionLabel(act)).Checked(r.action == act).Chosen() {
 								a.setAction(he, i, act)
 							}
 						}
@@ -145,13 +162,13 @@ func (a *App) historyEditView(c *ui.Context) {
 					}
 					ui.Text(c, hex.EncodeToString(r.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 				})
-			}).Label("Commits, oldest first").Height(min(float32(len(rows))*30+8, 360))
+			}).Label(locales.RewriteCommitsLabel()).Height(min(float32(len(rows))*30+8, 360))
 			if i := he.chosen; i >= 0 && i < len(rows) {
 				switch r := &rows[i]; r.action {
 				case write.DoReword:
-					ui.TextArea(c, &r.message).Label("Message").Lines(3, 10).FillWidth()
+					ui.TextArea(c, &r.message).Label(locales.CommonMessage()).Lines(3, 10).FillWidth()
 				case write.DoSquash:
-					ui.TextArea(c, &r.message).Label("Message").Placeholder("The messages, one after another").Lines(3, 10).FillWidth()
+					ui.TextArea(c, &r.message).Label(locales.CommonMessage()).Placeholder(locales.RewriteSquashPlaceholder()).Lines(3, 10).FillWidth()
 				}
 			}
 			if he.err != "" {
@@ -159,11 +176,11 @@ func (a *App) historyEditView(c *ui.Context) {
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					he.open = false
 				}
 				n := len(rows)
-				if ui.PrimaryButton(c, "Rewrite "+countOf(n, "Commit")).Disabled(!he.changed()).Clicked() {
+				if ui.PrimaryButton(c, locales.RewriteCommits(n)).Disabled(!he.changed()).Clicked() {
 					op, err := write.EditHistory(t.s.Where(), he.rw, he.steps(), t.s.Seen())
 					if err != nil {
 						he.err = errText(err)
@@ -232,7 +249,7 @@ func squashPlan(into string, folded []string) func([]editRow) ([]editRow, error)
 			}
 		}
 		if at < 0 || len(moved) != len(fold) {
-			return nil, errors.New("the commits are not all on HEAD's line of first parents")
+			return nil, errors.New(locales.RewriteNotOnFirstParents())
 		}
 		return append(append(append(make([]editRow, 0, len(rows)), rest[:at+1]...), moved...), rest[at+1:]...), nil
 	}
@@ -249,7 +266,7 @@ func dropPlan(dropped []string) func([]editRow) ([]editRow, error) {
 			}
 		}
 		if n != len(dropped) {
-			return nil, errors.New("the commits are not all on HEAD's line of first parents")
+			return nil, errors.New(locales.RewriteNotOnFirstParents())
 		}
 		return rows, nil
 	}
@@ -265,10 +282,10 @@ func (a *App) rewriteMany(m *ui.Menu, t *tab, ids func() []string, n int) {
 		oldest, _ := hex.DecodeString(list[len(list)-1])
 		a.editHistory(t, oldest, plan(list))
 	}
-	if m.Item("Squash " + countOf(n, "Commit") + "…").Disabled(ro).Chosen() {
+	if m.Item(locales.RewriteSquashCommits(n)).Disabled(ro).Chosen() {
 		open(func(list []string) func([]editRow) ([]editRow, error) { return squashPlan(list[len(list)-1], list) })
 	}
-	if m.Item("Drop " + countOf(n, "Commit") + "…").Disabled(ro).Danger().Chosen() {
+	if m.Item(locales.RewriteDropCommits(n)).Disabled(ro).Danger().Chosen() {
 		open(dropPlan)
 	}
 }

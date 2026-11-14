@@ -8,6 +8,7 @@ import (
 
 	"ramus/internal/git/status"
 	"ramus/internal/ui/pathtree"
+	"ramus/locales"
 )
 
 // section is a part of the changes list.
@@ -21,7 +22,13 @@ const (
 )
 
 func (s section) title() string {
-	return [...]string{"Conflicts", "Staged", "Changes"}[s]
+	switch s {
+	case secConflicts:
+		return locales.ChangesSectionConflicts()
+	case secStaged:
+		return locales.ChangesSectionStaged()
+	}
+	return locales.ChangesSectionChanges()
 }
 
 type rowKind uint8

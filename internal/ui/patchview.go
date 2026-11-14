@@ -17,6 +17,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/session"
 	"ramus/internal/settings"
+	"ramus/locales"
 )
 
 // diffOptions are how every patch shows: the layout and wrapping are
@@ -45,7 +46,7 @@ func (a *App) diffOpts() *diffOptions {
 func (a *App) diffBar(c *ui.Context, more func()) {
 	o := a.diffOpts()
 	ui.Row(c).Padding(0, insetX, spaceS, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-		ws := []string{"All White Space", "Ignore Space Changes", "Ignore All Space"}
+		ws := []string{locales.DiffAllWhiteSpace(), locales.DiffIgnoreSpaceChanges(), locales.DiffIgnoreAllSpace()}
 		ui.PopoverMenuButton(c, ws[o.ws], func(m *ui.Menu) {
 			for i, label := range ws {
 				if m.Item(label).Checked(o.ws == i).Chosen() {
@@ -53,8 +54,8 @@ func (a *App) diffBar(c *ui.Context, more func()) {
 				}
 			}
 		})
-		wrap := ui.Checkbox(c, &o.wrap, "Wrap")
-		layout := ui.Segmented(c, &o.split, "Unified", "Split")
+		wrap := ui.Checkbox(c, &o.wrap, locales.DiffWrap())
+		layout := ui.Segmented(c, &o.split, locales.DiffUnified(), locales.DiffSplit())
 		ui.Spacer(c)
 		if more != nil {
 			more()
@@ -65,7 +66,7 @@ func (a *App) diffBar(c *ui.Context, more func()) {
 				path, saved, update := a.SettingsPath, a.Settings, a.Update
 				go func() {
 					if err := settings.Save(path, saved); err != nil {
-						update(func() { a.notice = "Settings not saved: " + errText(err) })
+						update(func() { a.notice = locales.DiffSettingsNotSaved(errText(err)) })
 					}
 				}()
 			}
@@ -237,7 +238,7 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 		loading(c, "")
 		return
 	case len(p.Files) == 0 || len(p.Hunks) == 0 && !p.Files[0].Binary:
-		emptyState(c, "No differences in content")
+		emptyState(c, locales.PatchNoDifferences())
 		return
 	case pv.sub != nil && t != nil:
 		a.submoduleChange(c, t, pv.sub)
@@ -246,18 +247,22 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 		pictures(c, pv)
 		return
 	case p.Files[0].Binary:
-		emptyState(c, "Binary file")
+		emptyState(c, locales.PatchBinary())
 		return
 	case pv.failed:
-		emptyState(c, "This patch cannot be shown")
+		emptyState(c, locales.PatchCannotShow())
 		return
 	case pv.d == nil:
 		loading(c, "")
 		return
 	}
 	if pv.endings != "" {
-		ui.Text(c, "Line endings change from "+pv.endings+" on every line shown").
-			FontSize(textSmall).TextColor(th.Warning).Padding(rowPadY, insetX)
+		// The engine names the change as "CRLF to LF" or "LF to CRLF".
+		msg := locales.PatchEndingsToCRLF()
+		if pv.endings == "CRLF to LF" {
+			msg = locales.PatchEndingsToLF()
+		}
+		ui.Text(c, msg).FontSize(textSmall).TextColor(th.Warning).Padding(rowPadY, insetX)
 	}
 	d := pv.d
 	a.setDiffView(d, actions)
@@ -328,7 +333,7 @@ func decodePicture(data []byte) (ui.ImageSource, string) {
 func pictures(c *ui.Context, pv *patchView) {
 	th := c.Theme()
 	ui.Row(c).Fill().Gap(spaceXL).Padding(spaceXL).Children(func() {
-		for k, title := range []string{"Before", "After"} {
+		for k, title := range []string{locales.PatchBefore(), locales.PatchAfter()} {
 			if pv.images[k] == nil && pv.about[k] == "" {
 				continue
 			}
@@ -342,7 +347,7 @@ func pictures(c *ui.Context, pv *patchView) {
 						w, h := ui.ImageSize(img)
 						ui.Image(c, img).MaxWidth(w).MaxHeight(h).FillWidth().Label(title)
 					} else {
-						ui.Text(c, "Not a picture that can be shown").TextColor(th.TextMuted)
+						ui.Text(c, locales.PatchNotAPicture()).TextColor(th.TextMuted)
 					}
 				})
 			})
@@ -358,13 +363,13 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 	what := ""
 	switch {
 	case sc.old == nil:
-		what = "Submodule added at " + short(sc.new)
+		what = locales.PatchSubmoduleAdded(short(sc.new))
 	case sc.new == nil:
-		what = "Submodule removed, was at " + short(sc.old)
+		what = locales.PatchSubmoduleRemoved(short(sc.old))
 	case bytes.Equal(sc.old, sc.new):
-		what = "Submodule at " + short(sc.new)
+		what = locales.PatchSubmoduleAt(short(sc.new))
 	default:
-		what = "Submodule moves from " + short(sc.old) + " to " + short(sc.new)
+		what = locales.PatchSubmoduleMoves(short(sc.old), short(sc.new))
 	}
 	if sc.old != nil && sc.new != nil && !bytes.Equal(sc.old, sc.new) && !sc.asked {
 		sc.asked = true
@@ -386,7 +391,7 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 	ui.Column(c).Fill().Gap(spaceM).Padding(spaceL).Children(func() {
 		ui.Text(c, what).Bold().Selectable()
 		if sc.dirty {
-			ui.Text(c, "Its work tree has changes of its own").FontSize(textSmall).TextColor(th.Warning)
+			ui.Text(c, locales.PatchSubmoduleDirty()).FontSize(textSmall).TextColor(th.Warning)
 		}
 		r := sc.rng
 		switch {
@@ -399,20 +404,24 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 			ui.Text(c, errText(r.Err)).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 			return
 		}
-		summary := fmt.Sprintf("%s added", commitCount(len(r.Added)))
-		if len(r.Removed) > 0 {
-			summary += fmt.Sprintf(", %s removed", commitCount(len(r.Removed)))
-		}
-		if r.More {
-			summary += ", the latest 500 each way listed"
+		added, removed := len(r.Added), len(r.Removed)
+		var summary string
+		switch {
+		case removed > 0 && r.More:
+			summary = locales.PatchSubmoduleSummaryRemovedMore(added, removed)
+		case removed > 0:
+			summary = locales.PatchSubmoduleSummaryRemoved(added, removed)
+		case r.More:
+			summary = locales.PatchSubmoduleSummaryMore(added)
+		default:
+			summary = locales.PatchSubmoduleSummary(added)
 		}
 		ui.Text(c, summary).FontSize(textSmall).TextColor(th.TextMuted)
 		sc.list.Label = func(i int) string {
-			verb := "added"
 			if rows[i].removed {
-				verb = "removed"
+				return locales.PatchSubmoduleCommitRemoved(rows[i].c.Subject)
 			}
-			return verb + " " + rows[i].c.Subject
+			return locales.PatchSubmoduleCommitAdded(rows[i].c.Subject)
 		}
 		ui.List(c, &sc.list, len(rows), func(i int) {
 			rc := rows[i]
@@ -425,6 +434,6 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 				ui.Text(c, rc.c.ID[:min(10, len(rc.c.ID))]).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted)
 				ui.Text(c, redact.Control(rc.c.Subject)).SingleLine().Grow(1)
 			})
-		}).Label("Submodule commits").Grow(1)
+		}).Label(locales.PatchSubmoduleCommits()).Grow(1)
 	})
 }

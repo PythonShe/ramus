@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"ramus/internal/git/message"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // commitState is a tab's commit editor.
@@ -78,10 +78,10 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	head := t.s.State.Head
 	ui.Column(c).Padding(spaceM).Gap(spaceS).Background(th.Surface).FillWidth().Children(func() {
 		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
-			ui.TextInput(c, &cs.subject).Label("Summary").Placeholder("Summary").Grow(1).Disabled(cs.busy)
+			ui.TextInput(c, &cs.subject).Label(locales.CommitBoxSummary()).Placeholder(locales.CommitBoxSummary()).Grow(1).Disabled(cs.busy)
 			if cs.setup != nil && len(cs.setup.Recent) > 0 {
 				recent := cs.setup.Recent
-				ui.PopoverMenuButton(c, "Recent", func(m *ui.Menu) {
+				ui.PopoverMenuButton(c, locales.CommitBoxRecent(), func(m *ui.Menu) {
 					for _, msg := range recent {
 						subject, _ := message.Split(msg)
 						if m.Item(subject).Chosen() {
@@ -91,15 +91,15 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 				})
 			}
 		})
-		ui.TextArea(c, &cs.body).Label("Description").Placeholder("Description").Lines(2, 8).FillWidth().Disabled(cs.busy)
-		ui.TextInput(c, &cs.coAuthors).Label("Co-authors").Placeholder("Co-authors: Name <email>, …").FillWidth().Disabled(cs.busy)
+		ui.TextArea(c, &cs.body).Label(locales.CommitBoxDescription()).Placeholder(locales.CommitBoxDescription()).Lines(2, 8).FillWidth().Disabled(cs.busy)
+		ui.TextInput(c, &cs.coAuthors).Label(locales.CommitBoxCoAuthors()).Placeholder(locales.CommitBoxCoAuthorsPlaceholder()).FillWidth().Disabled(cs.busy)
 		ui.Row(c).Gap(spaceL).Children(func() {
-			ui.Checkbox(c, &cs.amend, "Amend").Disabled(cs.busy || head.Unborn || len(head.OID) == 0)
-			ui.Checkbox(c, &cs.signOff, "Sign off")
+			ui.Checkbox(c, &cs.amend, locales.CommitBoxAmend()).Disabled(cs.busy || head.Unborn || len(head.OID) == 0)
+			ui.Checkbox(c, &cs.signOff, locales.CommitBoxSignOff())
 			if cs.setup != nil && cs.setup.CanSign {
-				ui.Checkbox(c, &cs.sign, "Sign")
+				ui.Checkbox(c, &cs.sign, locales.CommitBoxSign())
 			}
-			ui.Checkbox(c, &cs.noVerify, "Skip hooks")
+			ui.Checkbox(c, &cs.noVerify, locales.CommitBoxSkipHooks())
 		})
 		if cs.err != "" {
 			ui.Text(c, cs.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
@@ -107,17 +107,17 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		ready := commitReady(t)
 		ui.Row(c).Gap(spaceM).Children(func() {
 			branch := strings.TrimPrefix(head.Target, "refs/heads/")
-			label := "Commit to " + branch
+			label := locales.CommitBoxCommitTo(branch)
 			if head.Detached {
-				label = "Commit"
+				label = locales.CommitBoxCommit()
 			}
 			if cs.amend {
-				label = "Amend Last Commit"
+				label = locales.CommitBoxAmendLast()
 			}
 			if ui.PrimaryButton(c, label).Disabled(!ready).Grow(1).Clicked() {
 				a.startCommit(t, false)
 			}
-			if ui.Button(c, "Commit and Push").Disabled(!ready || head.Detached).Clicked() {
+			if ui.Button(c, locales.CommitBoxCommitAndPush()).Disabled(!ready || head.Detached).Clicked() {
 				a.startCommit(t, true)
 			}
 		})
@@ -201,7 +201,7 @@ func (a *App) startCommit(t *tab, push bool) {
 	t.s.CheckLineEnds(func(le session.LineEnds) {
 		if le.Err != nil {
 			// A check that fails does not stop a commit, but says so.
-			a.notice = "Line endings not checked: " + errText(le.Err)
+			a.notice = locales.CommitBoxLineEndsNotChecked(errText(le.Err))
 		}
 		if le.Err != nil || len(le.Findings) == 0 {
 			a.commit(t, push)
@@ -209,9 +209,9 @@ func (a *App) startCommit(t *tab, push bool) {
 		}
 		cs.confirm = confirmState{
 			open:    true,
-			title:   "Line endings change in " + countFiles(len(le.Findings)),
+			title:   locales.CommitBoxLineEndsTitle(len(le.Findings)),
 			message: lineEndMessage(le),
-			button:  "Commit Anyway",
+			button:  locales.CommitBoxCommitAnyway(),
 			run:     func() { a.commit(t, push) },
 		}
 		cs.busy = false
@@ -222,29 +222,31 @@ func lineEndMessage(le session.LineEnds) string {
 	var b strings.Builder
 	for i, f := range le.Findings {
 		if i == 5 {
-			fmt.Fprintf(&b, "and %d more\n", len(le.Findings)-5)
+			b.WriteString(locales.ChangesAndMore(len(le.Findings)-5) + "\n")
 			break
 		}
 		shown, _ := showPath(f.Path)
-		what := "mixes LF and CRLF line endings"
-		if f.AddsCRLF {
-			what = "gets CRLF line endings; it had LF only"
-		}
-		b.WriteString(shown + " " + what)
-		if f.Attr != "" {
-			b.WriteString(" (.gitattributes: " + f.Attr + ")")
+		switch {
+		case f.AddsCRLF && f.Attr != "":
+			b.WriteString(locales.CommitBoxAddsCRLFAttr(shown, f.Attr))
+		case f.AddsCRLF:
+			b.WriteString(locales.CommitBoxAddsCRLF(shown))
+		case f.Attr != "":
+			b.WriteString(locales.CommitBoxMixedEndingsAttr(shown, f.Attr))
+		default:
+			b.WriteString(locales.CommitBoxMixedEndings(shown))
 		}
 		b.WriteByte('\n')
 	}
-	setting := func(name, v string) string {
+	setting := func(v string) string {
 		if v == "" {
-			v = "not set"
+			return locales.CommitBoxNotSet()
 		}
-		return name + ": " + v
+		return v
 	}
-	b.WriteString("\n" + setting("core.autocrlf", le.AutoCRLF) + ", " + setting("core.eol", le.EOL))
+	b.WriteString("\n" + locales.CommitBoxEndingSettings(setting(le.AutoCRLF), setting(le.EOL)))
 	if !le.Complete {
-		b.WriteString("\nSome staged files were too many or too large to check.")
+		b.WriteString("\n" + locales.CommitBoxNotAllChecked())
 	}
 	return b.String()
 }

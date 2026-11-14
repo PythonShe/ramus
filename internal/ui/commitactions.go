@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // branchDialog asks for the name of a branch to make at a commit.
@@ -24,13 +25,13 @@ type branchDialog struct {
 func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
 	ro := t.s.Queue == nil
 	commit := hex.EncodeToString(id)
-	if m.Item("Check Out Commit").Disabled(ro).Chosen() {
+	if m.Item(locales.CommitCheckOut()).Disabled(ro).Chosen() {
 		a.submit(t, write.Detach(t.s.Where(), commit, t.s.Seen()), nil)
 	}
-	if m.Item("Create Branch Here…").Disabled(ro).Chosen() {
+	if m.Item(locales.CommitCreateBranchHere()).Disabled(ro).Chosen() {
 		a.branchUI = branchDialog{open: true, t: t, commit: commit, checkout: true}
 	}
-	if m.Item("Create Tag Here…").Disabled(ro).Chosen() {
+	if m.Item(locales.CommitCreateTagHere()).Disabled(ro).Chosen() {
 		a.tagDialog(t, commit)
 	}
 	head := t.s.State.Head
@@ -38,15 +39,15 @@ func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
 	if !head.Detached {
 		target = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
-	m.Submenu("Reset "+target+" to Here", func(sub *ui.Menu) {
+	m.Submenu(locales.CommitResetTo(target), func(sub *ui.Menu) {
 		for _, mode := range []struct {
 			label string
 			mode  write.ResetMode
 		}{
-			{"Soft: Keep Index and Files", write.ResetSoft},
-			{"Mixed: Keep Files", write.ResetMixed},
-			{"Keep: Update Files, Keep Local Changes", write.ResetKeep},
-			{"Hard: Drop Local Changes…", write.ResetHard},
+			{locales.CommitResetSoft(), write.ResetSoft},
+			{locales.CommitResetMixed(), write.ResetMixed},
+			{locales.CommitResetKeep(), write.ResetKeep},
+			{locales.CommitResetHard(), write.ResetHard},
 		} {
 			if sub.Item(mode.label).Disabled(ro || len(head.OID) == 0).Chosen() {
 				a.reset(t, commit, mode.mode)
@@ -75,9 +76,9 @@ func (a *App) reset(t *tab, commit string, mode write.ResetMode) {
 	}
 	a.confirm = confirmState{
 		open:    true,
-		title:   "Drop local changes and reset to " + commit[:10] + "?",
-		message: "Changed files are kept in a snapshot first, and the branch in a backup; Undo brings both back.",
-		button:  "Reset",
+		title:   locales.CommitResetHardTitle(commit[:10]),
+		message: locales.CommitResetHardMessage(),
+		button:  locales.CommitReset(),
 		run:     func() { a.submitRewrite(t, op, nil) },
 	}
 }
@@ -90,18 +91,18 @@ func (a *App) branchView(c *ui.Context) {
 	th := c.Theme()
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
-			ui.Text(c, "Create Branch at "+d.commit[:10]).Bold()
-			in := ui.TextInput(c, &d.name).Placeholder("Branch name").Label("Branch name").AutoFocus()
-			ui.Checkbox(c, &d.checkout, "Switch to it")
+			ui.Text(c, locales.CommitCreateBranchAt(d.commit[:10])).Bold()
+			in := ui.TextInput(c, &d.name).Placeholder(locales.CommonBranchName()).Label(locales.CommonBranchName()).AutoFocus()
+			ui.Checkbox(c, &d.checkout, locales.CommitSwitchToBranch())
 			if d.err != "" {
 				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger)
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, "Create").Disabled(strings.TrimSpace(d.name) == "").Clicked() || in.Submitted() {
+				if ui.PrimaryButton(c, locales.CommonCreate()).Disabled(strings.TrimSpace(d.name) == "").Clicked() || in.Submitted() {
 					t := d.t
 					op, err := write.CreateBranch(t.s.Where(), strings.TrimSpace(d.name), d.commit, d.checkout, t.s.Seen())
 					if err == nil {

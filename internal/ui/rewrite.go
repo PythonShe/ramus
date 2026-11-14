@@ -12,6 +12,7 @@ import (
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // messageDialog asks for a commit message, to reword a commit or squash
@@ -31,34 +32,34 @@ func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 	ro := t.s.Queue == nil || t.s.Repo == nil
 	staged := hasStaged(t.s.State.Status)
 	m.Separator()
-	if m.Item("Reword…").Disabled(ro).Chosen() {
+	if m.Item(locales.RewriteRewordMenu()).Disabled(ro).Chosen() {
 		a.withCommit(t, id, func(d session.CommitDetail) {
 			rw := t.s.Rewrite(d)
-			a.message = messageDialog{open: true, t: t, title: "Reword " + shortID(id), button: "Reword",
+			a.message = messageDialog{open: true, t: t, title: locales.RewriteRewordTitle(shortID(id)), button: locales.RewriteReword(),
 				message: string(bytes.TrimRight(d.Commit.Message, "\n")),
 				run:     func(msg string) (write.Op, error) { return write.Reword(t.s.Where(), rw, msg, t.s.Seen()) }}
 		})
 	}
-	if m.Item("Fix Up with Staged Changes").Disabled(ro || !staged).Chosen() {
+	if m.Item(locales.RewriteFixUpStaged()).Disabled(ro || !staged).Chosen() {
 		a.withCommit(t, id, func(d session.CommitDetail) {
 			op, err := write.FixupInto(t.s.Where(), t.s.Rewrite(d), "", t.s.Seen())
 			a.submitRewrite(t, op, err)
 		})
 	}
 	if !ro && t.s.Repo.Runner.Git().Version.Has(gitexe.HistoryFixup) {
-		if m.Item("Squash Staged Changes into This…").Disabled(!staged).Chosen() {
+		if m.Item(locales.RewriteSquashStaged()).Disabled(!staged).Chosen() {
 			a.withCommit(t, id, func(d session.CommitDetail) {
 				rw := t.s.Rewrite(d)
-				a.message = messageDialog{open: true, t: t, title: "Squash into " + shortID(id), button: "Squash",
+				a.message = messageDialog{open: true, t: t, title: locales.RewriteSquashIntoTitle(shortID(id)), button: locales.RewriteSquash(),
 					message: string(bytes.TrimRight(d.Commit.Message, "\n")),
 					run:     func(msg string) (write.Op, error) { return write.FixupInto(t.s.Where(), rw, msg, t.s.Seen()) }}
 			})
 		}
 	}
-	if m.Item("Edit History from Here…").Disabled(ro).Chosen() {
+	if m.Item(locales.RewriteEditHistoryHere()).Disabled(ro).Chosen() {
 		a.editHistory(t, id, nil)
 	}
-	if m.Item("Drop Commit…").Disabled(ro).Danger().Chosen() {
+	if m.Item(locales.RewriteDropCommit()).Disabled(ro).Danger().Chosen() {
 		a.withCommit(t, id, func(d session.CommitDetail) {
 			op, err := write.DropCommit(t.s.Where(), t.s.Rewrite(d), t.s.Seen())
 			if err != nil {
@@ -68,9 +69,9 @@ func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 			subject, _, _ := bytes.Cut(d.Commit.Message, []byte("\n"))
 			a.confirm = confirmState{
 				open:    true,
-				title:   "Drop " + shortID(id) + "?",
-				message: "“" + string(subject) + "” and its changes leave the history; the commits after it are rewritten. Undo brings it back.",
-				button:  "Drop",
+				title:   locales.RewriteDropTitle(shortID(id)),
+				message: locales.RewriteDropMessage(string(subject)),
+				button:  locales.RewriteDrop(),
 				run:     func() { a.submitRewrite(t, op, nil) },
 			}
 		})
@@ -116,20 +117,20 @@ func (a *App) messageView(c *ui.Context) {
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, d.title).Bold()
-			ui.TextArea(c, &d.message).Label("Message").Lines(4, 14).FillWidth().AutoFocus()
+			ui.TextArea(c, &d.message).Label(locales.CommonMessage()).Lines(4, 14).FillWidth().AutoFocus()
 			if d.err != "" {
 				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
 				if ui.PrimaryButton(c, d.button).Disabled(len(bytes.TrimSpace([]byte(d.message))) == 0).Clicked() {
 					op, err := d.run(d.message + "\n")
 					if err != nil {
 						if errors.Is(err, write.ErrNeedsNewerGit) {
-							err = errors.New("this git cannot do it; git 2.55 or later can")
+							err = errors.New(locales.RewriteNeedsNewerGit())
 						}
 						d.err = errText(err)
 						return
@@ -188,11 +189,11 @@ func (a *App) forcePushOffer(c *ui.Context, t *tab) {
 	}
 	th := c.Theme()
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).FillWidth().Children(func() {
-		ui.Text(c, redact.Control(strings.TrimPrefix(fp.branch, "refs/heads/"))+" was rewritten after it was pushed to "+redact.Control(fp.upstream)).Grow(1)
-		if ui.Button(c, "Not Now").Clicked() {
+		ui.Text(c, locales.RewritePushedOffer(redact.Control(strings.TrimPrefix(fp.branch, "refs/heads/")), redact.Control(fp.upstream))).Grow(1)
+		if ui.Button(c, locales.RewriteNotNow()).Clicked() {
 			t.forcePush = forcePush{}
 		}
-		if ui.PrimaryButton(c, "Force Push with Lease").Disabled(t.s.Queue == nil).Clicked() {
+		if ui.PrimaryButton(c, locales.RewriteForcePush()).Disabled(t.s.Queue == nil).Clicked() {
 			t.forcePush = forcePush{}
 			a.submit(t, write.Push(t.s.Where(), write.PushOptions{ForceWithLease: true}), nil)
 		}

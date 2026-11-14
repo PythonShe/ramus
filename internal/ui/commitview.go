@@ -14,6 +14,7 @@ import (
 	"ramus/internal/git/signature"
 	"ramus/internal/git/textenc"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // commitView is the detail of the commit chosen in the history: its
@@ -52,7 +53,7 @@ type sigResult struct {
 // commitDetail shows commit id in cv, reading it when id changes.
 func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 	if id == nil {
-		emptyState(c, "Choose a commit to see it")
+		emptyState(c, locales.CommitChooseCommit())
 		return
 	}
 	if !bytes.Equal(cv.id, id) {
@@ -109,12 +110,12 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 				ui.Text(c, signatureTime(p).Format("2006-01-02 15:04:05 -0700")).FontSize(textSmall).TextColor(th.TextMuted)
 			})
 		}
-		person("Author", cm.Author)
+		person(locales.CommitAuthor(), cm.Author)
 		if !samePerson(cm.Author, cm.Committer) {
-			person("Committer", cm.Committer)
+			person(locales.CommitCommitter(), cm.Committer)
 		}
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Commit").FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+			ui.Text(c, locales.CommitHashLabel()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 			ui.Text(c, hex.EncodeToString(d.OID)).Font("monospace").FontSize(textSmall).Selectable()
 		})
 		if cm.Signed {
@@ -128,13 +129,13 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 				})
 			}
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Signature").FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				sigText(c, cv.sig)
 			})
 		}
 		if enc := string(cm.Encoding); !textenc.IsUTF8(enc) || d.Odd {
 			ui.Row(c).Gap(spaceM).Children(func() {
-				ui.Text(c, "Encoding").FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitEncoding()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				name := redact.Control(enc)
 				if textenc.IsUTF8(enc) {
 					name = "UTF-8"
@@ -143,16 +144,12 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 					ui.Text(c, name).FontSize(textSmall)
 					return
 				}
-				ui.Text(c, "Not valid "+name+": bytes shown as \\xNN").FontSize(textSmall).TextColor(th.Warning)
+				ui.Text(c, locales.CommitEncodingInvalid(name)).FontSize(textSmall).TextColor(th.Warning)
 			})
 		}
 		if len(d.Parents) > 0 {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				label := "Parent"
-				if len(d.Parents) > 1 {
-					label = "Parents"
-				}
-				ui.Text(c, label).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitParents(len(d.Parents))).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				for _, p := range d.Parents {
 					if ui.Button(c, hex.EncodeToString(p)[:10]).Font("monospace").Clicked() {
 						a.chooseCommit(t, p)
@@ -162,7 +159,7 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 		}
 		if s := signatureText(d, t.s.State.Restricted); s != "" {
 			ui.Row(c).Gap(spaceM).Children(func() {
-				ui.Text(c, "Signature").FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				col := th.TextMuted
 				switch d.Signature {
 				case "G":
@@ -176,13 +173,13 @@ func (a *App) commitHeader(c *ui.Context, t *tab, cv *commitView, d *session.Com
 			})
 		}
 		ui.Row(c).Gap(spaceM).Children(func() {
-			if ui.Button(c, "Copy Hash").Clicked() {
+			if ui.Button(c, locales.CommonCopyHash()).Clicked() {
 				a.clip = hex.EncodeToString(d.OID)
 			}
-			if ui.Button(c, "Copy Message").Clicked() {
+			if ui.Button(c, locales.CommitCopyMessage()).Clicked() {
 				a.clip = string(cm.Message)
 			}
-			if ui.Button(c, "Copy Patch").Disabled(len(d.Parents) > 1).Clicked() {
+			if ui.Button(c, locales.CommitCopyPatch()).Disabled(len(d.Parents) > 1).Clicked() {
 				a.copyPatch(t, d.OID)
 			}
 		})
@@ -203,32 +200,35 @@ func signatureText(d *session.CommitDetail, restricted bool) string {
 		return ""
 	}
 	if d.Checking {
-		return "Signed; checking"
+		return locales.CommitSigChecking()
 	}
-	who := ""
-	if d.Signer != "" {
-		who = " by " + redact.Control(d.Signer)
+	// by picks the message that names the signer, when git named one.
+	by := func(anon func() string, named func(string) string) string {
+		if d.Signer == "" {
+			return anon()
+		}
+		return named(redact.Control(d.Signer))
 	}
 	switch d.Signature {
 	case "G":
-		return "Good signature" + who
+		return by(locales.CommitSigGood, locales.CommitSigGoodBy)
 	case "B":
-		return "Bad signature" + who
+		return by(locales.CommitSigBad, locales.CommitSigBadBy)
 	case "U":
-		return "Good signature" + who + ", from a key not trusted"
+		return by(locales.CommitSigUntrusted, locales.CommitSigUntrustedBy)
 	case "X":
-		return "Good signature" + who + ", expired"
+		return by(locales.CommitSigExpired, locales.CommitSigExpiredBy)
 	case "Y":
-		return "Good signature" + who + ", from an expired key"
+		return by(locales.CommitSigExpiredKey, locales.CommitSigExpiredKeyBy)
 	case "R":
-		return "Good signature" + who + ", from a revoked key"
+		return by(locales.CommitSigRevoked, locales.CommitSigRevokedBy)
 	case "E":
-		return "Signed; the signature cannot be checked here"
+		return locales.CommitSigCannotCheck()
 	}
 	if restricted {
-		return "Signed; not checked until you trust this repository"
+		return locales.CommitSigNotTrusted()
 	}
-	return "Signed"
+	return locales.CommitSigned()
 }
 
 func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail) {
@@ -239,12 +239,12 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 		return
 	}
 	if f == nil || f.Len() == 0 {
-		ui.Text(c, "No files changed").TextColor(th.TextMuted).Padding(spaceM, insetX)
+		ui.Text(c, locales.CommitNoFiles()).TextColor(th.TextMuted).Padding(spaceM, insetX)
 		return
 	}
-	ui.Text(c, countFiles(f.Len())+" changed").FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX)
+	ui.Text(c, locales.CommitFilesChanged(f.Len())).FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX)
 	cv.files.Selected = &cv.file
-	cv.files.Label = func(i int) string { return fileStatusWord(f.Status(i)) + " " + commitFileName(f, i) }
+	cv.files.Label = func(i int) string { return locales.ChangesFileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i)) }
 	ui.List(c, &cv.files, f.Len(), func(i int) {
 		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, f.Status(i)))
@@ -254,7 +254,7 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 				txt.TextColor(th.Warning).Tooltip(why)
 			}
 		})
-	}).Label("Files of the commit").Grow(1)
+	}).Label(locales.CommitFilesLabel()).Grow(1)
 }
 
 func commitFileName(f *diff.Raw, i int) string {
@@ -267,18 +267,10 @@ func commitFileName(f *diff.Raw, i int) string {
 
 func fileStatusWord(st byte) string {
 	switch st {
-	case 'A':
-		return "added"
-	case 'D':
-		return "deleted"
-	case 'R':
-		return "renamed"
-	case 'C':
-		return "copied"
-	case 'T':
-		return "type changed"
+	case 'A', 'D', 'R', 'C', 'T':
+		return locales.ChangesState(string(st))
 	}
-	return "modified"
+	return locales.ChangesState("M")
 }
 
 func fileStatusColor(th *ui.Theme, st byte) ui.Color {
@@ -296,7 +288,7 @@ func fileStatusColor(th *ui.Theme, st byte) ui.Color {
 func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	f := d.Files
 	if f == nil || cv.file < 0 || cv.file >= f.Len() {
-		emptyState(c, "Choose a file to see its changes")
+		emptyState(c, locales.DiffChooseFile())
 		return
 	}
 	paths := []string{string(f.Path(cv.file))}
@@ -336,7 +328,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
 		})
 		a.diffBar(c, func() {
-			if ui.Button(c, "Open in Diff Tool").Disabled(t.s.Queue == nil || len(d.Parents) == 0).Clicked() {
+			if ui.Button(c, locales.DiffOpenInTool()).Disabled(t.s.Queue == nil || len(d.Parents) == 0).Clicked() {
 				t.s.OpenDiffTool(session.DiffToolRequest{Paths: paths, From: d.Parents[0], To: d.OID}, a.toolDone)
 			}
 		})
@@ -351,11 +343,11 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 func sigText(c *ui.Context, r *sigResult) {
 	th := c.Theme()
 	if r == nil {
-		ui.Text(c, "Checking…").FontSize(textSmall).TextColor(th.TextMuted)
+		ui.Text(c, locales.CommitSigCheckingVerdict()).FontSize(textSmall).TextColor(th.TextMuted)
 		return
 	}
 	if r.err != nil {
-		ui.Text(c, "Not checked: "+errText(r.err)).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
+		ui.Text(c, locales.CommitSigNotChecked(errText(r.err))).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 		return
 	}
 	st := r.st
@@ -369,11 +361,14 @@ func sigText(c *ui.Context, r *sigResult) {
 		color = th.TextMuted
 	}
 	text := st.Text()
-	if st.Signer != "" {
-		text += ", signer " + redact.Control(st.Signer)
-	}
-	if st.Key != "" {
-		text += ", key " + redact.Control(st.Key)
+	signer, key := redact.Control(st.Signer), redact.Control(st.Key)
+	switch {
+	case st.Signer != "" && st.Key != "":
+		text = locales.CommitSigVerdictSignerKey(text, signer, key)
+	case st.Signer != "":
+		text = locales.CommitSigVerdictSigner(text, signer)
+	case st.Key != "":
+		text = locales.CommitSigVerdictKey(text, key)
 	}
 	ui.Text(c, text).FontSize(textSmall).TextColor(color).Selectable()
 }

@@ -1,11 +1,10 @@
 package ui
 
 import (
-	"fmt"
-
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // Patch reads step up: a first page that shows at once, then the rest up
@@ -63,9 +62,9 @@ func (p *patchPager) more(res session.PatchResult) bool {
 // sizeText is a limit as the notices say it.
 func sizeText(n int) string {
 	if n >= 1<<20 {
-		return fmt.Sprintf("%d MB", n>>20)
+		return locales.PatchSizeMB(n >> 20)
 	}
-	return fmt.Sprintf("%d KB", n>>10)
+	return locales.PatchSizeKB(n >> 10)
 }
 
 // cut reports a patch shown only in part.
@@ -74,26 +73,30 @@ func cut(res session.PatchResult) bool {
 }
 
 // pagerNotice says what of the patch is shown, with the button that reads
-// all of it; whole runs that read. staging, when set, is said of a part.
-func (a *App) pagerNotice(c *ui.Context, p *patchPager, res session.PatchResult, loading bool, staging string, whole func()) {
+// all of it; whole runs that read. cutNote, when set, says a patch cut
+// short in place of the usual notice.
+func (a *App) pagerNotice(c *ui.Context, p *patchPager, res session.PatchResult, loading bool, cutNote string, whole func()) {
 	th := c.Theme()
 	var msg string
 	offer := false
 	switch {
 	case cut(res) && loading:
-		msg = "Showing the first " + sizeText(firstPatchPage) + " while the rest is read"
+		msg = locales.PatchShowingFirst(sizeText(firstPatchPage))
 	case cut(res):
-		msg = "Only the first " + sizeText(p.max()) + " of this patch are shown" + staging
+		msg = cutNote
+		if msg == "" {
+			msg = locales.PatchShownInPart(sizeText(p.max()))
+		}
 		offer = p.stage != pageWhole
 	case res.SidesTooLarge && !loading:
-		msg = "The file is too large to unfold the lines around the changes"
+		msg = locales.PatchSidesTooLarge()
 		offer = p.stage != pageWhole
 	default:
 		return
 	}
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 		ui.Text(c, msg).FontSize(textSmall).TextColor(th.Warning).Grow(1)
-		if offer && ui.Button(c, "Load Whole Patch").Disabled(loading).Clicked() {
+		if offer && ui.Button(c, locales.PatchLoadWhole()).Disabled(loading).Clicked() {
 			p.stage = pageWhole
 			whole()
 		}

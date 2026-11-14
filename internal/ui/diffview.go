@@ -2,7 +2,6 @@ package ui
 
 import (
 	"encoding/hex"
-	"fmt"
 
 	"github.com/egoist/mygo/ui"
 
@@ -10,6 +9,7 @@ import (
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // diffKey is what a shown patch was read for; a new status reads it again.
@@ -49,7 +49,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	cv := &t.cv
 	r, ok := cv.chosenFile()
 	if !ok {
-		emptyState(c, "Choose a file to see its changes")
+		emptyState(c, locales.DiffChooseFile())
 		return
 	}
 	m := cv.model
@@ -96,7 +96,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		a.diffHeader(c, t, m, r)
-		a.pagerNotice(c, &d.pager, d.res, d.loading, "; lines cannot be staged from it", d.load)
+		a.pagerNotice(c, &d.pager, d.res, d.loading, locales.PatchShownInPartNoStaging(sizeText(d.pager.max())), d.load)
 		res := d.res
 		if d.loading && res.Parsed == nil {
 			res = session.PatchResult{}
@@ -157,15 +157,15 @@ func (a *App) changeActions(c *ui.Context, t *tab, r changeRow, change int) {
 	ro := t.s.Queue == nil
 	lines := d.pv.changeLines(change)
 	if r.sec == secStaged {
-		if ui.Button(c, "Unstage").Disabled(ro).Clicked() {
+		if ui.Button(c, locales.DiffUnstage()).Disabled(ro).Clicked() {
 			a.applyLines(t, lines, true, true)
 		}
 		return
 	}
-	if ui.Button(c, "Discard…").Disabled(ro).Clicked() {
+	if ui.Button(c, locales.DiffDiscardChange()).Disabled(ro).Clicked() {
 		a.askDiscardLines(t, lines)
 	}
-	if ui.Button(c, "Stage").Disabled(ro).Clicked() {
+	if ui.Button(c, locales.DiffStage()).Disabled(ro).Clicked() {
 		a.applyLines(t, lines, true, false)
 	}
 }
@@ -191,26 +191,22 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 		ui.Text(c, shown).Bold().SingleLine().Grow(1)
 		ui.Text(c, entryWords(m.st, int(r.idx), r.sec)).FontSize(textSmall).TextColor(th.TextMuted)
 		if picked, n := d.pv.selectedLines(); d.partialOK() && n > 0 {
-			lines := fmt.Sprintf(" %d Lines", n)
-			if n == 1 {
-				lines = " 1 Line"
-			}
 			if r.sec == secStaged {
-				if ui.Button(c, "Unstage"+lines).Disabled(ro).Clicked() {
+				if ui.Button(c, locales.DiffUnstageLines(n)).Disabled(ro).Clicked() {
 					a.applyLines(t, picked, true, true)
 				}
 			} else {
-				if ui.Button(c, "Discard"+lines+"…").Disabled(ro).Clicked() {
+				if ui.Button(c, locales.DiffDiscardLines(n)).Disabled(ro).Clicked() {
 					a.askDiscardLines(t, picked)
 				}
-				if ui.Button(c, "Stage"+lines).Disabled(ro).Clicked() {
+				if ui.Button(c, locales.DiffStageLines(n)).Disabled(ro).Clicked() {
 					a.applyLines(t, picked, true, false)
 				}
 			}
 		}
 	})
 	a.diffBar(c, func() {
-		if ui.Button(c, "Open in Diff Tool").Disabled(ro || d.key.src == diff.Untracked).Clicked() {
+		if ui.Button(c, locales.DiffOpenInTool()).Disabled(ro || d.key.src == diff.Untracked).Clicked() {
 			t.s.OpenDiffTool(session.DiffToolRequest{Paths: d.key.paths(), Cached: d.key.src == diff.Staged}, a.toolDone)
 		}
 	})
@@ -296,15 +292,11 @@ func (a *App) askDiscardLinesOf(t *tab, lt lineTarget, confirm *confirmState, ch
 				op.Expect.Branch = head.Target
 			}
 			shown, _ := showPath(path)
-			lines := fmt.Sprintf("%d changed lines", n)
-			if n == 1 {
-				lines = "1 changed line"
-			}
 			*confirm = confirmState{
 				open:    true,
-				title:   "Discard " + lines + "?",
-				message: "This takes " + lines + " in " + shown + " back to what is staged.\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
-				button:  "Discard",
+				title:   locales.DiffDiscardLinesTitle(n),
+				message: locales.DiffDiscardLinesMessage(n, shown),
+				button:  locales.ChangesDiscard(),
 				run: func() {
 					if _, err := t.s.Submit(op); err != nil {
 						a.notice = errText(err)

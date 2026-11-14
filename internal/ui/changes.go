@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -11,6 +12,7 @@ import (
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/locales"
 )
 
 // changesState is a tab's changes list.
@@ -98,17 +100,17 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 	a.rebuildChanges(t)
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.SearchField(c, &cv.filter).Label("Filter changes by path").Placeholder("Filter by path").Grow(1)
-			ui.Segmented(c, &cv.mode, "List", "Tree")
+			ui.SearchField(c, &cv.filter).Label(locales.ChangesFilterLabel()).Placeholder(locales.ChangesFilterPlaceholder()).Grow(1)
+			ui.Segmented(c, &cv.mode, locales.ChangesList(), locales.ChangesTree())
 			ro := t.s.Queue == nil
-			ui.PopoverMenuButton(c, "More", func(m *ui.Menu) {
-				if m.Item("Stash Changes…").Disabled(ro).Chosen() {
+			ui.PopoverMenuButton(c, locales.ChangesMore(), func(m *ui.Menu) {
+				if m.Item(locales.ChangesStashChanges()).Disabled(ro).Chosen() {
 					a.openStash(t)
 				}
-				if m.Item("Clean Untracked Files…").Disabled(ro).Chosen() {
+				if m.Item(locales.ChangesCleanUntracked()).Disabled(ro).Chosen() {
 					a.openClean(t)
 				}
-				if m.Item("Apply Patch File…").Disabled(ro || a.PickFile == nil).Chosen() {
+				if m.Item(locales.ChangesApplyPatchFile()).Disabled(ro || a.PickFile == nil).Chosen() {
 					a.applyPatchFile(t)
 				}
 			})
@@ -120,9 +122,9 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		}
 		if len(m.rows) == 0 {
 			ui.Column(c).Fill().Center().Children(func() {
-				msg := "No changes"
+				msg := locales.ChangesNone()
 				if m.filter != "" {
-					msg = "No changed path holds “" + m.filter + "”"
+					msg = locales.ChangesNoneMatch(m.filter)
 				}
 				ui.Text(c, msg).TextColor(th.TextMuted)
 			})
@@ -135,7 +137,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		cv.list.Header = func(i int) bool { return rows[i].kind == rowHeader }
 		cv.list.Label = func(i int) string { return rowLabel(m, rows[i]) }
 		var act func()
-		l := ui.List(c, &cv.list, len(rows), func(i int) { a.changeRow(c, t, m, rows[i], &act) }).Label("Changed files").Grow(1)
+		l := ui.List(c, &cv.list, len(rows), func(i int) { a.changeRow(c, t, m, rows[i], &act) }).Label(locales.ChangesListLabel()).Grow(1)
 		if l.Submitted() && cv.chosen >= 0 && cv.chosen < len(rows) {
 			r := rows[cv.chosen]
 			act = func() { a.toggleStage(t, m, []changeRow{r}) }
@@ -159,11 +161,11 @@ func (a *App) changesPane(c *ui.Context, t *tab) {
 func rowLabel(m *changeModel, r changeRow) string {
 	switch r.kind {
 	case rowHeader:
-		return fmt.Sprintf("%s, %d files", r.sec.title(), len(m.files[r.sec]))
+		return locales.ChangesSectionLabel(r.sec.title(), len(m.files[r.sec]))
 	case rowDir:
-		return "Folder " + m.name(r)
+		return locales.ChangesFolderLabel(m.name(r))
 	}
-	return entryWords(m.st, int(r.idx), r.sec) + " " + string(m.st.Path(int(r.idx)))
+	return locales.ChangesFileLabel(entryWords(m.st, int(r.idx), r.sec), string(m.st.Path(int(r.idx))))
 }
 
 func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act *func()) {
@@ -176,9 +178,9 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 			var label string
 			switch r.sec {
 			case secStaged:
-				label = "Unstage All"
+				label = locales.ChangesUnstageAll()
 			case secUnstaged:
-				label = "Stage All"
+				label = locales.ChangesStageAll()
 			}
 			if label != "" && ui.Button(c, label).Disabled(ro).Clicked() {
 				sec := r.sec
@@ -242,31 +244,15 @@ func entryLetter(st *status.Status, i int, sec section) string {
 func entryWords(st *status.Status, i int, sec section) string {
 	switch st.Kind(i) {
 	case status.Untracked:
-		return "untracked"
+		return locales.ChangesState("untracked")
 	case status.Unmerged:
-		return "conflicted"
+		return locales.ChangesState("conflicted")
 	}
-	var what string
-	switch entryLetter(st, i, sec) {
-	case "M":
-		what = "modified"
-	case "A":
-		what = "added"
-	case "D":
-		what = "deleted"
-	case "R":
-		what = "renamed"
-	case "C":
-		what = "copied"
-	case "T":
-		what = "type changed"
-	default:
-		what = "changed"
-	}
+	// The messages choose their words by the status letter.
 	if sec == secStaged {
-		return "staged " + what
+		return locales.ChangesStagedState(entryLetter(st, i, sec))
 	}
-	return what
+	return locales.ChangesState(entryLetter(st, i, sec))
 }
 
 // Git file modes with meanings of their own.
@@ -292,19 +278,19 @@ func entryNote(st *status.Status, i int, sec section) string {
 	}
 	var notes []string
 	if st.Kind(i) == status.Renamed && sec == secStaged {
-		notes = append(notes, "from "+string(st.OrigPath(i)))
+		notes = append(notes, locales.ChangesNoteFrom(string(st.OrigPath(i))))
 	}
 	switch {
 	case to == modeGitlink || from == modeGitlink:
 		notes = append(notes, submoduleNote(st.Submodule(i)))
 	case to == modeSymlink || from == modeSymlink:
 		if from != to && from != 0 && to != 0 {
-			notes = append(notes, "now a "+modeName(to))
+			notes = append(notes, locales.ChangesNoteNowA(modeName(to)))
 		} else {
-			notes = append(notes, "symlink")
+			notes = append(notes, locales.ChangesModeSymlink())
 		}
 	case from != to && from != 0 && to != 0:
-		notes = append(notes, modeName(from)+" → "+modeName(to))
+		notes = append(notes, locales.ChangesNoteModeChange(modeName(from), modeName(to)))
 	}
 	return strings.Join(notes, ", ")
 }
@@ -312,36 +298,36 @@ func entryNote(st *status.Status, i int, sec section) string {
 func modeName(m uint32) string {
 	switch m {
 	case modeSymlink:
-		return "symlink"
+		return locales.ChangesModeSymlink()
 	case modeGitlink:
-		return "submodule"
+		return locales.ChangesModeSubmodule()
 	case modeExec:
-		return "executable"
+		return locales.ChangesModeExecutable()
 	case modeFile:
-		return "file"
+		return locales.ChangesModeFile()
 	}
-	return fmt.Sprintf("mode %o", m)
+	return locales.ChangesModeOther(strconv.FormatUint(uint64(m), 8))
 }
 
 // submoduleNote reads porcelain v2's S<c><m><u>.
 func submoduleNote(s string) string {
 	if len(s) != 4 || s[0] != 'S' {
-		return "submodule"
+		return locales.ChangesModeSubmodule()
 	}
 	var what []string
 	if s[1] == 'C' {
-		what = append(what, "new commits")
+		what = append(what, locales.ChangesNoteNewCommits())
 	}
 	if s[2] == 'M' {
-		what = append(what, "modified content")
+		what = append(what, locales.ChangesNoteModifiedContent())
 	}
 	if s[3] == 'U' {
-		what = append(what, "untracked content")
+		what = append(what, locales.ChangesNoteUntrackedContent())
 	}
 	if len(what) == 0 {
-		return "submodule"
+		return locales.ChangesModeSubmodule()
 	}
-	return "submodule: " + strings.Join(what, ", ")
+	return locales.ChangesNoteSubmodule(strings.Join(what, ", "))
 }
 
 // chosenRows are the rows an action from row r acts on: the rows picked
@@ -398,52 +384,48 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 	es := m.entries(rows)
 	ro := t.s.Queue == nil
 	n := len(es)
-	what := "File"
-	if n != 1 {
-		what = fmt.Sprintf("%d Files", n)
-	}
 	switch r.sec {
 	case secStaged:
-		if menu.Item("Unstage " + what).Disabled(ro || n == 0).Chosen() {
+		if menu.Item(locales.ChangesUnstageFiles(n)).Disabled(ro || n == 0).Chosen() {
 			*act = func() { a.stageEntries(t, m, r.sec, es) }
 		}
 	case secUnstaged:
-		if menu.Item("Stage " + what).Disabled(ro || n == 0).Chosen() {
+		if menu.Item(locales.ChangesStageFiles(n)).Disabled(ro || n == 0).Chosen() {
 			*act = func() { a.stageEntries(t, m, r.sec, es) }
 		}
-		if menu.Item("Discard Changes to " + what + "…").Disabled(ro || n == 0).Danger().Chosen() {
+		if menu.Item(locales.ChangesDiscardFiles(n)).Disabled(ro || n == 0).Danger().Chosen() {
 			*act = func() { a.askDiscard(t, m, es) }
 		}
 	case secConflicts:
-		a.conflictMenu(menu, t, m, es, what, act)
-		if menu.Item("Mark " + what + " Resolved").Disabled(ro || n == 0).Chosen() {
+		a.conflictMenu(menu, t, m, es, locales.ChangesFiles(n), act)
+		if menu.Item(locales.ChangesMarkResolved(n)).Disabled(ro || n == 0).Chosen() {
 			*act = func() { a.stageEntries(t, m, secUnstaged, es) }
 		}
 	}
 	if r.kind == rowFile && r.sec != secStaged {
 		p := string(m.st.Path(int(r.idx)))
 		menu.Separator()
-		if menu.Item("Ignore " + p).Disabled(ro).Chosen() {
+		if menu.Item(locales.ChangesIgnorePath(p)).Disabled(ro).Chosen() {
 			*act = func() { a.ignore(t, write.IgnorePattern(p)) }
 		}
 		if ext := path.Ext(p); ext != "" && !strings.ContainsAny(ext, `*?[\ `) {
-			if menu.Item("Ignore All *" + ext + " Files").Disabled(ro).Chosen() {
+			if menu.Item(locales.ChangesIgnoreExt(ext)).Disabled(ro).Chosen() {
 				*act = func() { a.ignore(t, "*"+ext) }
 			}
 		}
 	}
 	if r.sec != secConflicts && n > 0 {
 		ps := paths(m.st, es)
-		if menu.Item("Stash Changes to " + what + "…").Disabled(ro).Chosen() {
+		if menu.Item(locales.ChangesStashFiles(n)).Disabled(ro).Chosen() {
 			*act = func() { a.openStashPaths(t, ps) }
 		}
-		if r.sec == secStaged && canStashStaged(t) && menu.Item("Stash Staged Changes…").Disabled(ro).Chosen() {
+		if r.sec == secStaged && canStashStaged(t) && menu.Item(locales.ChangesStashStaged()).Disabled(ro).Chosen() {
 			*act = func() {
 				a.openStash(t)
 				a.stashUI.what = 1
 			}
 		}
-		if menu.Item("Save Changes to " + what + " as Patch…").Disabled(a.SaveFile == nil).Chosen() {
+		if menu.Item(locales.ChangesSavePatch(n)).Disabled(a.SaveFile == nil).Chosen() {
 			var paths []string
 			for _, e := range es {
 				paths = append(paths, string(m.st.Path(int(e))))
@@ -531,18 +513,19 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 			if !head.Detached {
 				expect.Branch = head.Target
 			}
-			var parts []string
-			if len(tracked) > 0 {
-				parts = append(parts, "discard the changes to "+countFiles(len(tracked)))
-			}
-			if len(untracked) > 0 {
-				parts = append(parts, "delete "+countFiles(len(untracked))+" Git does not track")
+			names := nameList(append(tracked, untracked...))
+			message := locales.ChangesDiscardBoth(len(tracked), len(untracked), names)
+			switch {
+			case len(untracked) == 0:
+				message = locales.ChangesDiscardTracked(len(tracked), names)
+			case len(tracked) == 0:
+				message = locales.ChangesDiscardUntracked(len(untracked), names)
 			}
 			*confirm = confirmState{
 				open:    true,
-				title:   "Discard " + countFiles(n) + "?",
-				message: "This will " + strings.Join(parts, " and ") + ":\n" + nameList(append(tracked, untracked...)) + "\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
-				button:  "Discard",
+				title:   locales.ChangesDiscardTitle(n),
+				message: message,
+				button:  locales.ChangesDiscard(),
 				run: func() {
 					if len(tracked) > 0 {
 						op := write.Discard(w, tracked)
@@ -568,10 +551,7 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 }
 
 func countFiles(n int) string {
-	if n == 1 {
-		return "1 file"
-	}
-	return fmt.Sprintf("%d files", n)
+	return locales.ChangesFileCount(n)
 }
 
 // nameList names up to five paths, and how many more.
@@ -580,7 +560,7 @@ func nameList(ps []string) string {
 	var b strings.Builder
 	for i, p := range ps {
 		if i == show {
-			fmt.Fprintf(&b, "and %d more", len(ps)-show)
+			b.WriteString(locales.ChangesAndMore(len(ps) - show))
 			break
 		}
 		shown, _ := showPath(p)
@@ -595,7 +575,7 @@ func (a *App) confirmView(c *ui.Context, q *confirmState) {
 	if !q.open {
 		return
 	}
-	if ui.AlertDialog(c, &q.open, q.title, q.message, q.button, "Cancel") == 0 && q.run != nil {
+	if ui.AlertDialog(c, &q.open, q.title, q.message, q.button, locales.CommonCancel()) == 0 && q.run != nil {
 		run := q.run
 		q.run = nil
 		run()

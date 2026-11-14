@@ -577,5 +577,389 @@
   "@stashDropMessage": {
     "description": "message is the stash's own message."
   },
-  "stashDrop": "Drop"
+  "stashDrop": "Drop",
+  "changesFilterLabel": "Filter changes by path",
+  "changesFilterPlaceholder": "Filter by path",
+  "changesList": "List",
+  "@changesList": {
+    "description": "Shows the changed files as a flat list; the other choice is Tree."
+  },
+  "changesTree": "Tree",
+  "@changesTree": {
+    "description": "Shows the changed files in their folders; the other choice is List."
+  },
+  "changesMore": "More",
+  "@changesMore": {
+    "description": "A menu button of more actions on the changes."
+  },
+  "changesStashChanges": "Stash Changes…",
+  "changesCleanUntracked": "Clean Untracked Files…",
+  "changesApplyPatchFile": "Apply Patch File…",
+  "changesNone": "No changes",
+  "changesNoneMatch": "No changed path holds “{filter}”",
+  "@changesNoneMatch": {
+    "description": "The changes list is empty under a filter; filter is what was typed."
+  },
+  "changesListLabel": "Changed files",
+  "changesSectionConflicts": "Conflicts",
+  "@changesSectionConflicts": {
+    "description": "Title of the section of files with merge conflicts."
+  },
+  "changesSectionStaged": "Staged",
+  "@changesSectionStaged": {
+    "description": "Title of the section of changes staged for the next commit."
+  },
+  "changesSectionChanges": "Changes",
+  "@changesSectionChanges": {
+    "description": "Title of the section of changes not staged."
+  },
+  "changesSectionLabel": "{section}, {count, plural, one {# file} other {# files}}",
+  "@changesSectionLabel": {
+    "description": "Read aloud for a section's header; section is its title."
+  },
+  "changesFolderLabel": "Folder {name}",
+  "@changesFolderLabel": {
+    "description": "Read aloud for a folder in the changes tree."
+  },
+  "changesFileLabel": "{state} {path}",
+  "@changesFileLabel": {
+    "description": "Read aloud for a changed file: its state (modified, staged added...) and its path."
+  },
+  "changesUnstageAll": "Unstage All",
+  "changesStageAll": "Stage All",
+  "changesState": "{state, select, M {modified} A {added} D {deleted} R {renamed} C {copied} T {type changed} untracked {untracked} conflicted {conflicted} other {changed}}",
+  "@changesState": {
+    "description": "The state of a changed file, by git's status letter."
+  },
+  "changesStagedState": "{state, select, M {staged modified} A {staged added} D {staged deleted} R {staged renamed} C {staged copied} T {staged type changed} other {staged changed}}",
+  "@changesStagedState": {
+    "description": "The state of a file's change staged for the next commit, by git's status letter."
+  },
+  "changesNoteFrom": "from {path}",
+  "@changesNoteFrom": {
+    "description": "A renamed file's old path, after its new one."
+  },
+  "changesNoteNowA": "now a {kind}",
+  "@changesNoteNowA": {
+    "description": "A file that became another kind: kind is symlink, executable, file or a mode."
+  },
+  "changesNoteModeChange": "{from} → {to}",
+  "@changesNoteModeChange": {
+    "description": "A file's kind changed, as from executable to file."
+  },
+  "changesModeSymlink": "symlink",
+  "changesModeSubmodule": "submodule",
+  "changesModeExecutable": "executable",
+  "@changesModeExecutable": {
+    "description": "An executable file."
+  },
+  "changesModeFile": "file",
+  "changesModeOther": "mode {mode}",
+  "@changesModeOther": {
+    "description": "A git file mode without a name; mode is its octal number."
+  },
+  "changesNoteSubmodule": "submodule: {what}",
+  "@changesNoteSubmodule": {
+    "description": "What changed in a submodule: a list of new commits, modified content, untracked content."
+  },
+  "changesNoteNewCommits": "new commits",
+  "changesNoteModifiedContent": "modified content",
+  "changesNoteUntrackedContent": "untracked content",
+  "changesFiles": "{count, plural, one {File} other {# Files}}",
+  "@changesFiles": {
+    "description": "The files a menu acts on, in a menu item's title."
+  },
+  "changesUnstageFiles": "{count, plural, one {Unstage File} other {Unstage # Files}}",
+  "changesStageFiles": "{count, plural, one {Stage File} other {Stage # Files}}",
+  "changesDiscardFiles": "{count, plural, one {Discard Changes to File…} other {Discard Changes to # Files…}}",
+  "changesMarkResolved": "{count, plural, one {Mark File Resolved} other {Mark # Files Resolved}}",
+  "changesIgnorePath": "Ignore {path}",
+  "changesIgnoreExt": "Ignore All *{ext} Files",
+  "@changesIgnoreExt": {
+    "description": "Ignores every file with an extension; ext starts with its dot, as .log."
+  },
+  "changesStashFiles": "{count, plural, one {Stash Changes to File…} other {Stash Changes to # Files…}}",
+  "changesStashStaged": "Stash Staged Changes…",
+  "changesSavePatch": "{count, plural, one {Save Changes to File as Patch…} other {Save Changes to # Files as Patch…}}",
+  "changesDiscardTitle": "Discard {count, plural, one {# file} other {# files}}?",
+  "changesDiscardTracked": "This will discard the changes to {tracked, plural, one {# file} other {# files}}:\n{files}\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
+  "@changesDiscardTracked": {
+    "description": "files is the list of paths, one per line."
+  },
+  "changesDiscardUntracked": "This will delete {untracked, plural, one {# file} other {# files}} Git does not track:\n{files}\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
+  "@changesDiscardUntracked": {
+    "description": "files is the list of paths, one per line."
+  },
+  "changesDiscardBoth": "This will discard the changes to {tracked, plural, one {# file} other {# files}} and delete {untracked, plural, one {# file} other {# files}} Git does not track:\n{files}\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
+  "@changesDiscardBoth": {
+    "description": "files is the list of paths, one per line."
+  },
+  "changesDiscard": "Discard",
+  "@changesDiscard": {
+    "description": "A button that discards changes, as a verb."
+  },
+  "changesFileCount": "{count, plural, one {# file} other {# files}}",
+  "changesAndMore": "and {n} more",
+  "@changesAndMore": {
+    "description": "Ends a list of paths cut short.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "commitBoxSummary": "Summary",
+  "@commitBoxSummary": {
+    "description": "The first line of a commit message."
+  },
+  "commitBoxRecent": "Recent",
+  "@commitBoxRecent": {
+    "description": "A menu of recent commit messages."
+  },
+  "commitBoxDescription": "Description",
+  "@commitBoxDescription": {
+    "description": "The body of a commit message, under its summary."
+  },
+  "commitBoxCoAuthors": "Co-authors",
+  "commitBoxCoAuthorsPlaceholder": "Co-authors: Name <email>, …",
+  "commitBoxAmend": "Amend",
+  "@commitBoxAmend": {
+    "description": "A checkbox: the commit replaces the last one."
+  },
+  "commitBoxSignOff": "Sign off",
+  "@commitBoxSignOff": {
+    "description": "A checkbox: add a Signed-off-by line to the message."
+  },
+  "commitBoxSign": "Sign",
+  "@commitBoxSign": {
+    "description": "A checkbox: sign the commit cryptographically."
+  },
+  "commitBoxSkipHooks": "Skip hooks",
+  "commitBoxCommitTo": "Commit to {branch}",
+  "commitBoxCommit": "Commit",
+  "@commitBoxCommit": {
+    "description": "A button that commits, as a verb."
+  },
+  "commitBoxAmendLast": "Amend Last Commit",
+  "commitBoxCommitAndPush": "Commit and Push",
+  "commitBoxLineEndsNotChecked": "Line endings not checked: {reason}",
+  "commitBoxLineEndsTitle": "Line endings change in {count, plural, one {# file} other {# files}}",
+  "commitBoxCommitAnyway": "Commit Anyway",
+  "commitBoxMixedEndings": "{path} mixes LF and CRLF line endings",
+  "commitBoxMixedEndingsAttr": "{path} mixes LF and CRLF line endings (.gitattributes: {attr})",
+  "commitBoxAddsCRLF": "{path} gets CRLF line endings; it had LF only",
+  "commitBoxAddsCRLFAttr": "{path} gets CRLF line endings; it had LF only (.gitattributes: {attr})",
+  "commitBoxEndingSettings": "core.autocrlf: {autocrlf}, core.eol: {eol}",
+  "@commitBoxEndingSettings": {
+    "description": "Two git settings and their values; keep the setting names."
+  },
+  "commitBoxNotSet": "not set",
+  "@commitBoxNotSet": {
+    "description": "The value of a git setting that has none."
+  },
+  "commitBoxNotAllChecked": "Some staged files were too many or too large to check.",
+  "commitChooseCommit": "Choose a commit to see it",
+  "commitAuthor": "Author",
+  "commitCommitter": "Committer",
+  "commitHashLabel": "Commit",
+  "@commitHashLabel": {
+    "description": "Labels a commit's hash, as a noun."
+  },
+  "commitSignature": "Signature",
+  "commitEncoding": "Encoding",
+  "@commitEncoding": {
+    "description": "Labels the text encoding of a commit's message."
+  },
+  "commitEncodingInvalid": "Not valid {encoding}: bytes shown as \\xNN",
+  "commitParents": "{count, plural, one {Parent} other {Parents}}",
+  "@commitParents": {
+    "description": "Labels a commit's parent commits."
+  },
+  "commitCopyMessage": "Copy Message",
+  "commitCopyPatch": "Copy Patch",
+  "commitSigChecking": "Signed; checking",
+  "commitSigGood": "Good signature",
+  "commitSigGoodBy": "Good signature by {signer}",
+  "commitSigBad": "Bad signature",
+  "commitSigBadBy": "Bad signature by {signer}",
+  "commitSigUntrusted": "Good signature, from a key not trusted",
+  "commitSigUntrustedBy": "Good signature by {signer}, from a key not trusted",
+  "commitSigExpired": "Good signature, expired",
+  "commitSigExpiredBy": "Good signature by {signer}, expired",
+  "commitSigExpiredKey": "Good signature, from an expired key",
+  "commitSigExpiredKeyBy": "Good signature by {signer}, from an expired key",
+  "commitSigRevoked": "Good signature, from a revoked key",
+  "commitSigRevokedBy": "Good signature by {signer}, from a revoked key",
+  "commitSigCannotCheck": "Signed; the signature cannot be checked here",
+  "commitSigNotTrusted": "Signed; not checked until you trust this repository",
+  "commitSigned": "Signed",
+  "@commitSigned": {
+    "description": "A commit has a signature that was not checked."
+  },
+  "commitNoFiles": "No files changed",
+  "commitFilesChanged": "{count, plural, one {# file changed} other {# files changed}}",
+  "commitFilesLabel": "Files of the commit",
+  "commitSigCheckingVerdict": "Checking…",
+  "@commitSigCheckingVerdict": {
+    "description": "A commit's signature is being checked."
+  },
+  "commitSigNotChecked": "Not checked: {reason}",
+  "commitSigVerdictSigner": "{verdict}, signer {signer}",
+  "commitSigVerdictKey": "{verdict}, key {key}",
+  "commitSigVerdictSignerKey": "{verdict}, signer {signer}, key {key}",
+  "commitCheckOut": "Check Out Commit",
+  "commitCreateBranchHere": "Create Branch Here…",
+  "commitCreateTagHere": "Create Tag Here…",
+  "commitResetTo": "Reset {branch} to Here",
+  "@commitResetTo": {
+    "description": "A submenu that resets a branch, or HEAD, to the commit."
+  },
+  "commitResetSoft": "Soft: Keep Index and Files",
+  "commitResetMixed": "Mixed: Keep Files",
+  "commitResetKeep": "Keep: Update Files, Keep Local Changes",
+  "commitResetHard": "Hard: Drop Local Changes…",
+  "commitResetHardTitle": "Drop local changes and reset to {commit}?",
+  "commitResetHardMessage": "Changed files are kept in a snapshot first, and the branch in a backup; Undo brings both back.",
+  "commitReset": "Reset",
+  "@commitReset": {
+    "description": "A button that resets the branch, as a verb."
+  },
+  "commitCreateBranchAt": "Create Branch at {commit}",
+  "commitSwitchToBranch": "Switch to it",
+  "@commitSwitchToBranch": {
+    "description": "A checkbox: check out the branch once it is made."
+  },
+  "diffChooseFile": "Choose a file to see its changes",
+  "diffUnstage": "Unstage",
+  "diffDiscardChange": "Discard…",
+  "diffStage": "Stage",
+  "@diffStage": {
+    "description": "A button that stages a change, as a verb."
+  },
+  "diffUnstageLines": "{count, plural, one {Unstage # Line} other {Unstage # Lines}}",
+  "diffDiscardLines": "{count, plural, one {Discard # Line…} other {Discard # Lines…}}",
+  "diffStageLines": "{count, plural, one {Stage # Line} other {Stage # Lines}}",
+  "diffOpenInTool": "Open in Diff Tool",
+  "diffDiscardLinesTitle": "Discard {count, plural, one {# changed line} other {# changed lines}}?",
+  "diffDiscardLinesMessage": "This takes {count, plural, one {# changed line} other {# changed lines}} in {path} back to what is staged.\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
+  "diffAllWhiteSpace": "All White Space",
+  "@diffAllWhiteSpace": {
+    "description": "Patches show every change of white space."
+  },
+  "diffIgnoreSpaceChanges": "Ignore Space Changes",
+  "diffIgnoreAllSpace": "Ignore All Space",
+  "diffWrap": "Wrap",
+  "@diffWrap": {
+    "description": "A checkbox: long lines of a patch wrap."
+  },
+  "diffUnified": "Unified",
+  "@diffUnified": {
+    "description": "A patch's layout with both sides in one column; the other choice is Split."
+  },
+  "diffSplit": "Split",
+  "@diffSplit": {
+    "description": "A patch's layout with its sides side by side; the other choice is Unified."
+  },
+  "diffSettingsNotSaved": "Settings not saved: {reason}",
+  "patchNoDifferences": "No differences in content",
+  "patchBinary": "Binary file",
+  "patchCannotShow": "This patch cannot be shown",
+  "patchEndingsToLF": "Line endings change from CRLF to LF on every line shown",
+  "patchEndingsToCRLF": "Line endings change from LF to CRLF on every line shown",
+  "patchBefore": "Before",
+  "@patchBefore": {
+    "description": "A picture before its change."
+  },
+  "patchAfter": "After",
+  "@patchAfter": {
+    "description": "A picture after its change."
+  },
+  "patchNotAPicture": "Not a picture that can be shown",
+  "patchSubmoduleAdded": "Submodule added at {commit}",
+  "patchSubmoduleRemoved": "Submodule removed, was at {commit}",
+  "patchSubmoduleAt": "Submodule at {commit}",
+  "patchSubmoduleMoves": "Submodule moves from {from} to {to}",
+  "patchSubmoduleDirty": "Its work tree has changes of its own",
+  "patchSubmoduleSummary": "{added, plural, one {# commit} other {# commits}} added",
+  "patchSubmoduleSummaryMore": "{added, plural, one {# commit} other {# commits}} added, the latest 500 each way listed",
+  "patchSubmoduleSummaryRemoved": "{added, plural, one {# commit} other {# commits}} added, {removed, plural, one {# commit} other {# commits}} removed",
+  "patchSubmoduleSummaryRemovedMore": "{added, plural, one {# commit} other {# commits}} added, {removed, plural, one {# commit} other {# commits}} removed, the latest 500 each way listed",
+  "patchSubmoduleCommitAdded": "added {subject}",
+  "@patchSubmoduleCommitAdded": {
+    "description": "Read aloud for a commit the submodule gained; subject is its message's first line."
+  },
+  "patchSubmoduleCommitRemoved": "removed {subject}",
+  "@patchSubmoduleCommitRemoved": {
+    "description": "Read aloud for a commit the submodule lost; subject is its message's first line."
+  },
+  "patchSubmoduleCommits": "Submodule commits",
+  "patchSizeMB": "{n} MB",
+  "@patchSizeMB": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "patchSizeKB": "{n} KB",
+  "@patchSizeKB": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "patchShowingFirst": "Showing the first {size} while the rest is read",
+  "patchShownInPart": "Only the first {size} of this patch are shown",
+  "patchShownInPartNoStaging": "Only the first {size} of this patch are shown; lines cannot be staged from it",
+  "patchSidesTooLarge": "The file is too large to unfold the lines around the changes",
+  "patchLoadWhole": "Load Whole Patch",
+  "rewriteActionPick": "Pick",
+  "@rewriteActionPick": {
+    "description": "In the history editor: keep the commit as it is."
+  },
+  "rewriteReword": "Reword",
+  "@rewriteReword": {
+    "description": "Change a commit's message, as a verb: a history editor action and a button."
+  },
+  "rewriteActionEdit": "Edit",
+  "@rewriteActionEdit": {
+    "description": "In the history editor: stop at the commit to change it."
+  },
+  "rewriteSquash": "Squash",
+  "@rewriteSquash": {
+    "description": "Fold a commit into the one before, as a verb: a history editor action and a button."
+  },
+  "rewriteActionFixUp": "Fix Up",
+  "@rewriteActionFixUp": {
+    "description": "In the history editor: fold the commit into the one before, dropping its message."
+  },
+  "rewriteDrop": "Drop",
+  "@rewriteDrop": {
+    "description": "Remove a commit from the history, as a verb: a history editor action and a button."
+  },
+  "rewriteEditHistoryFrom": "Edit History from {commit}",
+  "rewriteRowLabel": "{action}, {subject}",
+  "@rewriteRowLabel": {
+    "description": "Read aloud for a commit in the history editor: what is done with it, and its message's first line."
+  },
+  "rewriteCommitsLabel": "Commits, oldest first",
+  "rewriteSquashPlaceholder": "The messages, one after another",
+  "rewriteCommits": "{count, plural, one {Rewrite # Commit} other {Rewrite # Commits}}",
+  "rewriteNotOnFirstParents": "the commits are not all on HEAD's line of first parents",
+  "rewriteSquashCommits": "{count, plural, one {Squash # Commit…} other {Squash # Commits…}}",
+  "rewriteDropCommits": "{count, plural, one {Drop # Commit…} other {Drop # Commits…}}",
+  "rewriteRewordMenu": "Reword…",
+  "rewriteRewordTitle": "Reword {commit}",
+  "rewriteFixUpStaged": "Fix Up with Staged Changes",
+  "rewriteSquashStaged": "Squash Staged Changes into This…",
+  "rewriteSquashIntoTitle": "Squash into {commit}",
+  "rewriteEditHistoryHere": "Edit History from Here…",
+  "rewriteDropCommit": "Drop Commit…",
+  "rewriteDropTitle": "Drop {commit}?",
+  "rewriteDropMessage": "“{subject}” and its changes leave the history; the commits after it are rewritten. Undo brings it back.",
+  "rewriteNeedsNewerGit": "this git cannot do it; git 2.55 or later can",
+  "rewritePushedOffer": "{branch} was rewritten after it was pushed to {upstream}",
+  "rewriteNotNow": "Not Now",
+  "rewriteForcePush": "Force Push with Lease"
 }
