@@ -6933,6 +6933,146 @@ func (msgs Messages) HistoryColumnsReset() string {
 	return Catalog.Format(msgs.locale, "historyColumnsReset", nil)
 }
 
+// ColumnName says "Name"
+// in the language the app shows.
+//
+// A column heading of the branch and tag lists.
+func ColumnName() string { return In(i18n.Locale()).ColumnName() }
+
+// ColumnName says "Name"
+// in the language of msgs.
+//
+// A column heading of the branch and tag lists.
+func (msgs Messages) ColumnName() string {
+	return Catalog.Format(msgs.locale, "columnName", nil)
+}
+
+// ColumnUpstream says "Upstream"
+// in the language the app shows.
+//
+// A column heading: the remote branch a branch tracks, and how far ahead
+// and behind it is.
+func ColumnUpstream() string { return In(i18n.Locale()).ColumnUpstream() }
+
+// ColumnUpstream says "Upstream"
+// in the language of msgs.
+//
+// A column heading: the remote branch a branch tracks, and how far ahead
+// and behind it is.
+func (msgs Messages) ColumnUpstream() string {
+	return Catalog.Format(msgs.locale, "columnUpstream", nil)
+}
+
+// ColumnLastCommit says "Last Commit"
+// in the language the app shows.
+//
+// A column heading: the subject of a branch's newest commit.
+func ColumnLastCommit() string { return In(i18n.Locale()).ColumnLastCommit() }
+
+// ColumnLastCommit says "Last Commit"
+// in the language of msgs.
+//
+// A column heading: the subject of a branch's newest commit.
+func (msgs Messages) ColumnLastCommit() string {
+	return Catalog.Format(msgs.locale, "columnLastCommit", nil)
+}
+
+// ColumnKind says "Kind"
+// in the language the app shows.
+//
+// A column heading: whether a tag is lightweight, annotated or signed.
+func ColumnKind() string { return In(i18n.Locale()).ColumnKind() }
+
+// ColumnKind says "Kind"
+// in the language of msgs.
+//
+// A column heading: whether a tag is lightweight, annotated or signed.
+func (msgs Messages) ColumnKind() string {
+	return Catalog.Format(msgs.locale, "columnKind", nil)
+}
+
+// ColumnMessage says "Message"
+// in the language the app shows.
+//
+// A column heading: a commit's subject, a tag's, a stash's or a reflog
+// entry's message.
+func ColumnMessage() string { return In(i18n.Locale()).ColumnMessage() }
+
+// ColumnMessage says "Message"
+// in the language of msgs.
+//
+// A column heading: a commit's subject, a tag's, a stash's or a reflog
+// entry's message.
+func (msgs Messages) ColumnMessage() string {
+	return Catalog.Format(msgs.locale, "columnMessage", nil)
+}
+
+// ColumnAuthor says "Author"
+// in the language the app shows.
+func ColumnAuthor() string { return In(i18n.Locale()).ColumnAuthor() }
+
+// ColumnAuthor says "Author"
+// in the language of msgs.
+func (msgs Messages) ColumnAuthor() string {
+	return Catalog.Format(msgs.locale, "columnAuthor", nil)
+}
+
+// ColumnDate says "Date"
+// in the language the app shows.
+func ColumnDate() string { return In(i18n.Locale()).ColumnDate() }
+
+// ColumnDate says "Date"
+// in the language of msgs.
+func (msgs Messages) ColumnDate() string {
+	return Catalog.Format(msgs.locale, "columnDate", nil)
+}
+
+// ColumnCommit says "Commit"
+// in the language the app shows.
+//
+// A column heading: an abbreviated commit hash.
+func ColumnCommit() string { return In(i18n.Locale()).ColumnCommit() }
+
+// ColumnCommit says "Commit"
+// in the language of msgs.
+//
+// A column heading: an abbreviated commit hash.
+func (msgs Messages) ColumnCommit() string {
+	return Catalog.Format(msgs.locale, "columnCommit", nil)
+}
+
+// ColumnEntry says "Entry"
+// in the language the app shows.
+//
+// A column heading: git's name of a reflog or stash entry, as HEAD@{2} or
+// stash@{0}.
+func ColumnEntry() string { return In(i18n.Locale()).ColumnEntry() }
+
+// ColumnEntry says "Entry"
+// in the language of msgs.
+//
+// A column heading: git's name of a reflog or stash entry, as HEAD@{2} or
+// stash@{0}.
+func (msgs Messages) ColumnEntry() string {
+	return Catalog.Format(msgs.locale, "columnEntry", nil)
+}
+
+// ColumnsReset says "Reset Columns"
+// in the language the app shows.
+//
+// In a list header's menu: puts its columns back in their own order and
+// widths.
+func ColumnsReset() string { return In(i18n.Locale()).ColumnsReset() }
+
+// ColumnsReset says "Reset Columns"
+// in the language of msgs.
+//
+// In a list header's menu: puts its columns back in their own order and
+// widths.
+func (msgs Messages) ColumnsReset() string {
+	return Catalog.Format(msgs.locale, "columnsReset", nil)
+}
+
 // HistoryBadEncoding says "Not valid in its encoding: bytes shown as \\xNN"
 // in the language the app shows.
 func HistoryBadEncoding() string { return In(i18n.Locale()).HistoryBadEncoding() }

@@ -1302,6 +1302,40 @@
   "@historyColumnsReset": {
     "description": "In the history header's menu: shows every column again at its own width."
   },
+  "columnName": "Name",
+  "@columnName": {
+    "description": "A column heading of the branch and tag lists."
+  },
+  "columnUpstream": "Upstream",
+  "@columnUpstream": {
+    "description": "A column heading: the remote branch a branch tracks, and how far ahead and behind it is."
+  },
+  "columnLastCommit": "Last Commit",
+  "@columnLastCommit": {
+    "description": "A column heading: the subject of a branch's newest commit."
+  },
+  "columnKind": "Kind",
+  "@columnKind": {
+    "description": "A column heading: whether a tag is lightweight, annotated or signed."
+  },
+  "columnMessage": "Message",
+  "@columnMessage": {
+    "description": "A column heading: a commit's subject, a tag's, a stash's or a reflog entry's message."
+  },
+  "columnAuthor": "Author",
+  "columnDate": "Date",
+  "columnCommit": "Commit",
+  "@columnCommit": {
+    "description": "A column heading: an abbreviated commit hash."
+  },
+  "columnEntry": "Entry",
+  "@columnEntry": {
+    "description": "A column heading: git's name of a reflog or stash entry, as HEAD@{2} or stash@{0}."
+  },
+  "columnsReset": "Reset Columns",
+  "@columnsReset": {
+    "description": "In a list header's menu: puts its columns back in their own order and widths."
+  },
   "historyBadEncoding": "Not valid in its encoding: bytes shown as \\xNN",
   "historyGraphCommit": "commit",
   "@historyGraphCommit": {
