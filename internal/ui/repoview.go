@@ -202,7 +202,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 				if r == st.Head.Target {
 					it.Bold()
 				}
-				if slices.Contains(t.prefs.hidden, r) {
+				if sr.hidden[r] {
 					it.TextColor(th.TextMuted).Tooltip(locales.RepoHiddenInHistory())
 				}
 				a.sidebarRefMenu(it, t, r)

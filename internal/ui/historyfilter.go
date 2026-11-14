@@ -259,6 +259,9 @@ type sideRefs struct {
 	refs                 *refs.List
 	gen                  int
 	heads, remotes, tags []string
+	// hidden are the refs hidden from history, as a set for the rows
+	// the sidebar shows each frame.
+	hidden map[string]bool
 }
 
 func (sr *sideRefs) build(t *tab) *sideRefs {
@@ -266,7 +269,10 @@ func (sr *sideRefs) build(t *tab) *sideRefs {
 	if list == sr.refs && t.prefs.gen == sr.gen {
 		return sr
 	}
-	*sr = sideRefs{refs: list, gen: t.prefs.gen}
+	*sr = sideRefs{refs: list, gen: t.prefs.gen, hidden: make(map[string]bool, len(t.prefs.hidden))}
+	for _, h := range t.prefs.hidden {
+		sr.hidden[h] = true
+	}
 	if list == nil {
 		return sr
 	}

@@ -66,6 +66,9 @@ func TestHistoryFilter(t *testing.T) {
 	if got := tb.sideRefs.build(tb).heads; !slices.Equal(got, []string{"refs/heads/side", "refs/heads/main"}) {
 		t.Fatalf("branches %v", got)
 	}
+	if sr := tb.sideRefs.build(tb); !sr.hidden["refs/heads/side"] || sr.hidden["refs/heads/main"] {
+		t.Fatalf("hidden in the sidebar %v", sr.hidden)
+	}
 	h.until("prefs saved", func() bool {
 		p, hidden := h.lib.RefPrefs(r.Dir)
 		return slices.Equal(p, []string{"refs/heads/side"}) && slices.Equal(hidden, []string{"refs/heads/side"})
