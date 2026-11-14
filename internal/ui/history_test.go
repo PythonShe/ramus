@@ -431,11 +431,13 @@ func TestCommitMessageDragsTaller(t *testing.T) {
 	}
 }
 
-// The history's columns resize from the dividers in their header, the
-// room coming from the message. A column follows the pointer all the way
-// and settles when let go: at its least width, or shut when dragged under
-// half of it; the header's menu brings it back. A list too narrow for
-// the message shuts the columns at the end first.
+// The history's dividers belong to the column on their left. Dragged
+// right, a column pushes the ones after it into the free room at the end
+// and stops where there is none; dragged left, it draws them along and
+// leaves that room, and shuts when let go under half its least width. A
+// shut column keeps its divider to drag out again. The date and the hash
+// keep their widths. A list too narrow for the message gives up the room
+// at the end, then shuts the columns at the end first.
 func TestHistoryColumns(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
@@ -448,77 +450,84 @@ func TestHistoryColumns(t *testing.T) {
 	h.until("the rows", h.shows("Ramus Test"))
 	h.tt.Frame()
 	hv := &h.app.current().hist
-	head, _ := h.tt.Find("Author")
-	cell, _ := h.tt.Find("Ramus Test")
+	at := func(s string) ui.Rect { b, _ := h.tt.Find(s); return b }
+	head, cell := at("Author"), at("Ramus Test")
 	if head.X != cell.X || head.W != cell.W {
 		t.Fatalf("author header at %v, its cells at %v", head, cell)
 	}
-
-	// drag moves the divider left of the header title by dx, checking
-	// that the title keeps up with the pointer, and lets the column
-	// settle.
-	drag := func(title string, dx float32) {
-		b, _ := h.tt.Find(title)
-		x, y := b.X-spaceM/2, b.Y+b.H/2
+	settle := func() {
+		h.tt.Frame()
+		h.tt.Advance(time.Second)
+	}
+	// drag moves the divider at x by dx, title following it by follow
+	// of the pointer's way, and lets go.
+	drag := func(x float32, dx float32, title string, follow float32) {
+		y := head.Y + head.H/2
+		from := at(title).X
 		h.tt.Press(x, y)
 		h.tt.Frame()
 		for _, f := range []float32{0.25, 0.5, 0.75, 1} {
 			h.tt.Move(x+dx*f, y)
 			h.tt.Frame()
-			if now, _ := h.tt.Find(title); now.X != b.X+dx*f {
-				t.Fatalf("%s at %v with the pointer moved %v, from %v", title, now.X, dx*f, b.X)
+			if got := at(title).X; got != from+dx*f*follow {
+				t.Fatalf("%s at %v with the pointer moved %v, from %v", title, got, dx*f, from)
 			}
 		}
 		h.tt.Release(x+dx, y)
-		h.tt.Frame()
-		h.tt.Advance(time.Second)
+		settle()
 	}
-	drag("Author", -60)
-	if w := h.app.Settings.HistoryColumns["author"].Width; w != 180 {
-		t.Fatalf("author %v wide, dragged to 180", w)
-	}
-	if cell, _ := h.tt.Find("Ramus Test"); cell.W != 180 {
-		t.Fatalf("author cells %v wide", cell.W)
-	}
+	after := func(title string) float32 { b := at(title); return b.X + b.W + spaceM/2 }
+	before := func(title string) float32 { return at(title).X - spaceM/2 }
 
-	// Let go under its least width, but not under half, it settles at
-	// its least.
-	drag("Commit", 20)
-	if b, _ := h.tt.Find("Commit"); b.W != histColumnMin[colHash] || h.app.Settings.HistoryColumns["hash"].Width != histColumnMin[colHash] {
-		t.Fatalf("hash column %v, kept %+v", b, h.app.Settings.HistoryColumns["hash"])
+	// A full row: the author's divider has nowhere to push the date.
+	drag(after("Author"), 40, "Date", 0)
+	if at("Ramus Test").W != 120 {
+		t.Fatalf("author %v wide, pushed into no room", at("Ramus Test").W)
 	}
-	drag("Commit", 40)
-	if hasExact(h, "Commit") || !h.app.Settings.HistoryColumns["hash"].Hidden {
-		t.Fatalf("hash column %+v not shut", h.app.Settings.HistoryColumns["hash"])
+	// The message's divider makes room at the end, the columns drawn
+	// along; the author's then pushes the date and the hash into it.
+	drag(before("Author"), -60, "Author", 1)
+	if e := h.app.Settings.HistoryEnd; e != 60 {
+		t.Fatalf("room at the end %v, made 60", e)
 	}
-	// Shut, it keeps its divider, past the date's, to drag it out again.
-	date, _ := h.tt.Find("Date")
-	x, y := date.X+date.W+spaceM/2, date.Y+date.H/2
-	h.tt.Move(x, y)
+	drag(after("Author"), 40, "Date", 1)
+	if at("Ramus Test").W != 160 || h.app.Settings.HistoryEnd != 20 {
+		t.Fatalf("author %v wide, room at the end %v", at("Ramus Test").W, h.app.Settings.HistoryEnd)
+	}
+	// The date keeps its width: dragged right it stays, let go short of
+	// half it comes back whole, past half it shuts and the hash moves up.
+	drag(after("Date"), 20, "Commit", 0)
+	drag(after("Date"), -30, "Commit", 1)
+	if at("Date").W != histColumnMin[colDate] {
+		t.Fatalf("date at %v after a short drag", at("Date"))
+	}
+	hash := at("Commit").X
+	drag(after("Date"), -80, "Commit", 1)
+	if hasExact(h, "Date") || !h.app.Settings.HistoryColumns["date"].Hidden || at("Commit").X != hash-histColumnMin[colDate] {
+		t.Fatalf("date not shut: %+v, hash at %v from %v", h.app.Settings.HistoryColumns["date"], at("Commit").X, hash)
+	}
+	// Shut, it keeps its divider, after the author's, to drag it out
+	// again into the room at the end.
+	x := after("Author") + spaceM
+	h.tt.Move(x, head.Y+head.H/2)
 	h.tt.Frame()
 	if h.tt.Cursor() != ui.CursorResizeEW {
 		t.Fatalf("cursor over a shut column's divider is %v", h.tt.Cursor())
 	}
-	h.tt.Press(x, y)
-	h.tt.Frame()
-	for _, dx := range []float32{-40, -80} {
-		h.tt.Move(x+dx, y)
-		h.tt.Frame()
+	drag(x, 112, "Commit", 1)
+	if at("Date").W != histColumnMin[colDate] || h.app.Settings.HistoryEnd != 20 {
+		t.Fatalf("date dragged out to %v, room at the end %v", at("Date"), h.app.Settings.HistoryEnd)
 	}
-	h.tt.Release(x-80, y)
-	h.tt.Frame()
-	h.tt.Advance(time.Second)
-	if b, _ := h.tt.Find("Commit"); b.W != 80 || h.app.Settings.HistoryColumns["hash"].Hidden {
-		t.Fatalf("hash column dragged out to %v, kept %+v", b, h.app.Settings.HistoryColumns["hash"])
+	// Or the header's menu brings it back, into the room at the end.
+	if err := h.tt.RightClick("Message"); err != nil {
+		t.Fatal(err)
 	}
-	if cell, _ := h.tt.Find("Ramus Test"); cell.W != 180 {
-		t.Fatalf("author cells %v wide after the hash came back", cell.W)
+	if err := h.tt.ChooseMenuItem("Commit"); err != nil {
+		t.Fatal(err)
 	}
-
-	// Or the header's menu brings it back.
-	drag("Commit", 80)
+	settle()
 	if hasExact(h, "Commit") {
-		t.Fatal("hash column not shut again")
+		t.Fatal("hash column not shut from the menu")
 	}
 	if err := h.tt.RightClick("Message"); err != nil {
 		t.Fatal(err)
@@ -526,15 +535,14 @@ func TestHistoryColumns(t *testing.T) {
 	if err := h.tt.ChooseMenuItem("Commit"); err != nil {
 		t.Fatal(err)
 	}
-	h.tt.Frame()
-	h.tt.Advance(time.Second)
-	if b, _ := h.tt.Find("Commit"); b.W != 80 {
-		t.Fatalf("hash column back at %v", b)
+	settle()
+	if !hasExact(h, "Commit") {
+		t.Fatal("hash column not back from the menu")
 	}
 
-	// Narrowed, the list shuts the hash, then the date, then the
-	// author, each whole, and keeps the message.
-	h.app.Settings.HistoryColumns = nil
+	// Narrowed, the list gives up the room at the end first, then shuts
+	// the hash, the date, the author, each whole, and keeps the message.
+	h.app.Settings.HistoryColumns, h.app.Settings.HistoryEnd = nil, 0
 	for _, c := range []struct {
 		w     float32
 		shown [histColumns]bool
@@ -545,38 +553,19 @@ func TestHistoryColumns(t *testing.T) {
 		{360, [histColumns]bool{true, false, false, false}},
 	} {
 		hv.detailW = c.w
-		h.tt.Frame()
-		h.tt.Advance(time.Second)
+		settle()
 		if hv.cols.shown != c.shown {
-			t.Logf("rowW %v cols %+v key %+v", hv.rowW, hv.cols, hv.widthKey)
 			t.Fatalf("a list %v wide shows columns %v, want %v", c.w, hv.cols.shown, c.shown)
 		}
-		if msg, _ := h.tt.Find("Message"); msg.W < historyMessageMin-1 {
+		if msg := at("Message"); msg.W < historyMessageMin-1 {
 			t.Fatalf("a list %v wide leaves the message %v", c.w, msg.W)
 		}
 	}
-
-	// Widened in a list that shut the date and the hash, a column takes
-	// the room they left to the message, no more.
-	hv.detailW = 480
-	h.tt.Frame()
-	h.tt.Advance(time.Second)
-	drag("Author", -20)
-	if cell, _ := h.tt.Find("Ramus Test"); cell.W != 140 {
-		t.Fatalf("author widened to %v in a narrow list, want 140", cell.W)
-	}
-	// Past the room it stops, short of the pointer.
-	b, _ := h.tt.Find("Author")
-	x, y = b.X-spaceM/2, b.Y+b.H/2
-	h.tt.Press(x, y)
-	h.tt.Frame()
-	h.tt.Move(x-200, y)
-	h.tt.Frame()
-	h.tt.Release(x-200, y)
-	h.tt.Frame()
-	h.tt.Advance(time.Second)
-	if msg, _ := h.tt.Find("Message"); msg.W < historyMessageMin-1 || !hasExact(h, "Author") {
-		t.Fatalf("author widened past the room: message %v", msg.W)
+	h.app.Settings.HistoryEnd = 100
+	hv.detailW = 640
+	settle()
+	if hv.cols.shown != [histColumns]bool{true, true, true, true} || hv.cols.end >= 100 {
+		t.Fatalf("room at the end %v kept over the columns %v", hv.cols.end, hv.cols.shown)
 	}
 }
 

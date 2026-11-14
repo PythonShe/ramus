@@ -503,11 +503,23 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 	r, buf := snap.Row(i, cols, hv.buf)
 	hv.buf = buf
 	merge := r.Merges > 0
-	// No gap: each column's opens and closes with it, as the header's.
-	row := ui.Row(c).Height(historyRowHeight).Padding(0, insetX).AlignItems(ui.Center).FillWidth()
+	// No gap: the one after each column opens and closes with it, as the
+	// header's divider; the free room at the end follows.
+	row := ui.Row(c).Height(historyRowHeight).Padding(0, insetX).PaddingEnd(insetX + lay.end).AlignItems(ui.Center).FillWidth()
+	// gap stands for the divider after column k, shown or kept as the
+	// column shut.
+	gap := func(k histColumn, e ui.Element) {
+		switch {
+		case lay.shown[k]:
+			e.MarginEnd(lay.gap(k))
+		case lay.handle[k]:
+			ui.Box(c).Width(lay.gap(k))
+		}
+	}
 	row.Children(func() {
+		var g ui.Element
 		if lay.shown[colGraph] {
-			ui.Box(c).Width(gw).Height(historyRowHeight).Clip().Opacity(lay.fade(colGraph)).
+			g = ui.Box(c).Width(gw).Height(historyRowHeight).Clip().Opacity(lay.fade(colGraph)).
 				Role(ui.RoleImage).Label(describeRow(r, hv.historyMerged(i))).
 				Draw(func(p *ui.Painter, rect ui.Rect) {
 					// Read again here: the edges built above are reused by
@@ -517,7 +529,8 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 					graph.Paint(p, rect, lr, style, th.Background, &hv.path)
 				})
 		}
-		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Grow(1).Shrink(1).MarginStart(lay.gap(colGraph)).Children(func() {
+		gap(colGraph, g)
+		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Grow(1).Shrink(1).MarginEnd(spaceM).Children(func() {
 			labels := hv.labels[string(id)]
 			for j, l := range labels {
 				if j == 3 {
@@ -540,10 +553,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		}
 		for k := colAuthor; k < histColumns; k++ {
 			if !lay.shown[k] {
-				if lay.handle[k] {
-					// The room of a shut column's divider in the header.
-					ui.Box(c).Width(lay.gap(k))
-				}
+				gap(k, ui.Element{})
 				continue
 			}
 			var e ui.Element
@@ -555,7 +565,8 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 			default:
 				e = ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall)
 			}
-			e.SingleLine().Width(lay.w[k]).MarginStart(lay.gap(k)).Opacity(lay.fade(k)).TextColor(th.TextMuted)
+			e.SingleLine().Width(lay.w[k]).Opacity(lay.fade(k)).TextColor(th.TextMuted)
+			gap(k, e)
 		}
 	})
 	row.ContextMenu(func(m *ui.Menu) {
