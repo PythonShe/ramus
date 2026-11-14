@@ -27,6 +27,10 @@ type pullsState struct {
 	key     string
 	at      time.Time
 	loading bool
+	// infoKey is pullsKey of infoFor, made once per ref info and not
+	// each frame the branches show.
+	infoFor *session.RefInfo
+	infoKey string
 }
 
 // forgeTools finds the user's gh and glab once each; find runs off the
@@ -102,7 +106,10 @@ func (a *App) loadPulls(t *tab) {
 		return
 	}
 	a.findStackTool()
-	key, now := pullsKey(info), a.Now()
+	if ps.infoFor != info {
+		ps.infoFor, ps.infoKey = info, pullsKey(info)
+	}
+	key, now := ps.infoKey, a.Now()
 	if key == ps.key && now.Sub(ps.at) < pullsMaxAge {
 		return
 	}
