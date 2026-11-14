@@ -51,6 +51,10 @@ type Settings struct {
 	// status bar, but while it has a warning.
 	NoSidebar   bool `json:"noSidebar,omitempty"`
 	NoStatusBar bool `json:"noStatusBar,omitempty"`
+	// Keys are the user's shortcuts by command, in place of the app's
+	// own: accelerators such as "CmdOrCtrl+Shift+P"; an empty list
+	// leaves a command without one.
+	Keys map[string][]string `json:"keys,omitempty"`
 }
 
 // MinFetchMinutes is the shortest wait between background fetches.

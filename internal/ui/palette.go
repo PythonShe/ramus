@@ -1,10 +1,13 @@
 package ui
 
 import (
+	"encoding/hex"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/write"
 	"ramus/internal/tools"
 )
 
@@ -15,89 +18,50 @@ type paletteState struct {
 	found bool
 }
 
-// command is one entry of the palette.
+// command is one entry of the palette. One with an id can be given a
+// shortcut; a hidden one is run by its shortcut alone.
 type command struct {
-	label string
-	run   func()
+	id     string
+	label  string
+	run    func()
+	hidden bool
+}
+
+// cmd is the command id, under the name bindable gives it.
+func cmd(id string, run func()) command {
+	for _, b := range bindable {
+		if b.id == id {
+			return command{id: id, label: b.name, run: run}
+		}
+	}
+	return command{id: id, label: id, run: run}
 }
 
 func (a *App) commands() []command {
 	cmds := []command{
-		{"Open Repository…", a.pickAndOpen},
-		{"Clone Repository…", func() { a.clone.open = true }},
-		{"New Repository…", a.initAndOpen},
-		{"Settings…", a.openSettings},
-		{"Repositories…", a.openManager},
-		{"Library Statistics…", a.openLibStats},
+		{id: "palette", label: "Command Palette", run: func() { a.palette.open = true }, hidden: true},
+		cmd("open", a.pickAndOpen),
+		cmd("clone", func() { a.clone.open = true }),
+		cmd("new", a.initAndOpen),
+		cmd("settings", a.openSettings),
+		cmd("repositories", a.openManager),
+		cmd("library-stats", a.openLibStats),
 	}
 	t := a.current()
 	if t != nil {
-		cmds = append(cmds, command{"Close Tab", func() { a.Close(a.active) }})
-		cmds = append(cmds, command{"Refresh", func() { a.reload(t) }})
-		if t.s.State.Restricted {
-			cmds = append(cmds, command{"Trust This Repository", func() { t.s.Trust() }})
-		}
-		dir := t.s.Path
-		for _, tl := range a.palette.tools {
-			cmds = append(cmds, command{"Open in " + tl.Name, func() {
-				if err := tl.Open(dir, 0); err != nil {
-					a.notice = errText(err)
-				}
-			}})
-		}
-		cmds = append(cmds, command{"Reveal in File Manager", func() { go tools.Reveal(dir) }})
-		cmds = append(cmds, command{"Show History", func() { t.sel = "history" }})
-		cmds = append(cmds, command{"Show Reflog", func() { t.sel = "reflog" }})
-		cmds = append(cmds, command{"Show Statistics", func() { t.sel = "stats" }})
-		cmds = append(cmds, command{"Find Lost Commits", func() { t.sel, t.reflog.lostShown = "reflog", 1 }})
-		cmds = append(cmds, command{"Issue Links…", func() { a.openLinks(t) }})
-		cmds = append(cmds, a.hidingCommands()...)
-		if a.Settings.FetchMinutes > 0 && t.prefs.loaded {
-			label, off := "Stop Fetching This Repository in the Background", true
-			if t.prefs.fetchOff {
-				label, off = "Fetch This Repository in the Background", false
-			}
-			path := t.s.Path
-			cmds = append(cmds, command{label, func() { a.setFetchOff(path, off) }})
-		}
-		cmds = append(cmds, command{"Show Command Log", func() { t.sel = "log" }})
-		cmds = append(cmds, command{"Show Snapshots", func() { t.sel = "snapshots" }})
-		cmds = append(cmds, command{"Show Branches and Tags", func() { t.sel = "refs" }})
-		cmds = append(cmds, command{"Show Stashes", func() { t.sel = "stashes" }})
-		if t.s.Queue != nil {
-			cmds = append(cmds, command{"Stash Changes…", func() { a.openStash(t) }})
-			cmds = append(cmds, command{"Clean Untracked Files…", func() { a.openClean(t) }})
-			if a.PickFile != nil {
-				cmds = append(cmds, command{"Apply Patch File…", func() { a.applyPatchFile(t) }})
-			}
-		}
-		if q := t.s.Queue; q != nil {
-			cmds = append(cmds, command{"Snapshot Now", func() {
-				if _, err := t.s.SnapshotNow(false); err != nil {
-					a.notice = errText(err)
-				}
-			}})
-			undo, redo := q.History.Next()
-			if undo != "" {
-				cmds = append(cmds, command{"Undo " + undo, func() { a.undo(t, false) }})
-			}
-			if redo != "" {
-				cmds = append(cmds, command{"Redo " + redo, func() { a.undo(t, true) }})
-			}
-		}
-		for _, x := range a.Settings.Actions {
-			if x.On == "" {
-				cmds = append(cmds, command{x.Name, func() { a.startAction(t, x, varsFor(t)) }})
-			}
-		}
+		cmds = append(cmds, a.tabCommands(t)...)
 	}
 	for i, other := range a.tabs {
-		cmds = append(cmds, command{"Go to " + a.title(other), func() { a.active = i }})
+		cmds = append(cmds, command{label: "Go to " + a.title(other), run: func() { a.active = i }})
+		if i < 9 {
+			id := "tab-" + strconv.Itoa(i+1)
+			cmds = append(cmds, command{id: id, label: id, run: func() { a.active = i }, hidden: true})
+		}
 	}
 	if a.Library != nil {
 		for _, g := range a.Library.Groups() {
 			paths := g.Paths
-			cmds = append(cmds, command{"Open Group " + g.Name, func() {
+			cmds = append(cmds, command{label: "Open Group " + g.Name, run: func() {
 				for _, p := range paths {
 					a.Open(p)
 				}
@@ -105,8 +69,124 @@ func (a *App) commands() []command {
 		}
 		for _, r := range a.Library.Recent(a.Settings.WithDefaults().RecentLimit) {
 			p := r.Path
-			cmds = append(cmds, command{"Open " + r.Name + " (" + r.Path + ")", func() { a.Open(p) }})
+			cmds = append(cmds, command{label: "Open " + r.Name + " (" + r.Path + ")", run: func() { a.Open(p) }})
 		}
+	}
+	return cmds
+}
+
+// tabCommands are the commands on the repository of tab t.
+func (a *App) tabCommands(t *tab) []command {
+	cmds := []command{
+		cmd("close-tab", func() { a.Close(a.active) }),
+		cmd("refresh", func() { a.reload(t) }),
+	}
+	if t.s.State.Restricted {
+		cmds = append(cmds, cmd("trust", func() { t.s.Trust() }))
+	}
+	dir := t.s.Path
+	for _, tl := range a.palette.tools {
+		cmds = append(cmds, command{id: toolID(tl.Name), label: "Open in " + tl.Name, run: func() {
+			if err := tl.Open(dir, 0); err != nil {
+				a.notice = errText(err)
+			}
+		}})
+	}
+	cmds = append(cmds,
+		cmd("reveal", func() { go tools.Reveal(dir) }),
+		cmd("show-changes", func() { t.sel = "changes" }),
+		cmd("show-history", func() { t.sel = "history" }),
+		cmd("show-reflog", func() { t.sel = "reflog" }),
+		cmd("show-stats", func() { t.sel = "stats" }),
+		cmd("lost-commits", func() { t.sel, t.reflog.lostShown = "reflog", 1 }),
+		cmd("issue-links", func() { a.openLinks(t) }),
+	)
+	cmds = append(cmds, a.hidingCommands()...)
+	if a.Settings.FetchMinutes > 0 && t.prefs.loaded {
+		label, off := "Stop Fetching This Repository in the Background", true
+		if t.prefs.fetchOff {
+			label, off = "Fetch This Repository in the Background", false
+		}
+		path := t.s.Path
+		cmds = append(cmds, command{label: label, run: func() { a.setFetchOff(path, off) }})
+	}
+	cmds = append(cmds,
+		cmd("show-log", func() { t.sel = "log" }),
+		cmd("show-snapshots", func() { t.sel = "snapshots" }),
+		cmd("show-refs", func() { t.sel = "refs" }),
+		cmd("show-stashes", func() { t.sel = "stashes" }),
+	)
+	if q := t.s.Queue; q != nil {
+		cmds = append(cmds, a.writeCommands(t)...)
+		cmds = append(cmds, cmd("snapshot", func() {
+			if _, err := t.s.SnapshotNow(false); err != nil {
+				a.notice = errText(err)
+			}
+		}))
+		// The shortcuts try whenever pressed, as the last write may be
+		// about to finish; the palette lists what there is to undo.
+		undo, redo := q.History.Next()
+		u, r := cmd("undo", func() { a.undo(t, false) }), cmd("redo", func() { a.undo(t, true) })
+		u.label, u.hidden = "Undo "+undo, undo == ""
+		r.label, r.hidden = "Redo "+redo, redo == ""
+		cmds = append(cmds, u, r)
+	}
+	for _, x := range a.Settings.Actions {
+		if x.On == "" {
+			cmds = append(cmds, command{id: actionID(x.Name), label: x.Name, run: func() { a.startAction(t, x, varsFor(t)) }})
+		}
+	}
+	return cmds
+}
+
+// writeCommands are the commands that change the repository of tab t.
+func (a *App) writeCommands(t *tab) []command {
+	w := t.s.Where()
+	head := t.s.State.Head
+	cmds := []command{
+		cmd("stash", func() { a.openStash(t) }),
+		cmd("clean", func() { a.openClean(t) }),
+		cmd("fetch", func() {
+			op, err := write.Fetch(w, "", t.refs.prune)
+			a.submit(t, op, err)
+		}),
+	}
+	if a.PickFile != nil {
+		cmds = append(cmds, cmd("apply-patch", func() { a.applyPatchFile(t) }))
+	}
+	if commitReady(t) {
+		cmds = append(cmds, cmd("commit", func() { a.startCommit(t, false) }))
+		if !head.Detached {
+			cmds = append(cmds, cmd("commit-push", func() { a.startCommit(t, true) }))
+		}
+	}
+	if m := t.cv.model; m != nil {
+		if es := m.files[secUnstaged]; len(es) > 0 {
+			cmds = append(cmds, cmd("stage-all", func() { a.stageEntries(t, m, secUnstaged, es) }))
+		}
+		if es := m.files[secStaged]; len(es) > 0 {
+			cmds = append(cmds, cmd("unstage-all", func() { a.stageEntries(t, m, secStaged, es) }))
+		}
+	}
+	if !head.Detached && !head.Unborn {
+		for _, p := range []struct {
+			id   string
+			mode write.PullMode
+		}{{"pull-merge", write.PullMerge}, {"pull-rebase", write.PullRebase}, {"pull-ff", write.PullFFOnly}} {
+			cmds = append(cmds, cmd(p.id, func() {
+				op, err := write.Pull(w, p.mode, t.s.LocalBranches(), t.s.Seen())
+				a.submit(t, op, err)
+			}))
+		}
+		cmds = append(cmds, cmd("push", func() { a.submit(t, write.Push(w, write.PushOptions{}), nil) }))
+	}
+	if len(head.OID) > 0 {
+		cmds = append(cmds,
+			cmd("new-branch", func() {
+				a.branchUI = branchDialog{open: true, t: t, commit: hex.EncodeToString(head.OID), checkout: true}
+			}),
+			cmd("new-tag", func() { a.tagDialog(t, "HEAD") }),
+		)
 	}
 	return cmds
 }
@@ -143,13 +223,22 @@ func (a *App) paletteView(c *ui.Context) {
 		cb := ui.ComboboxBase(c, &p.query)
 		cb.Input.AutoFocus().Placeholder("Type a command").Label("Command").Width(520)
 		cb.Popup(func(panel ui.Element) {
+			km := a.keys()
 			for _, cmd := range cmds {
-				cb.Item(cmd.label).Padding(6, 10).Children(func() { ui.Text(c, cmd.label).SingleLine() })
+				if cmd.hidden {
+					continue
+				}
+				cb.Item(cmd.label).Padding(6, 10).Gap(16).Children(func() {
+					ui.Text(c, cmd.label).SingleLine().Grow(1)
+					if ks := km.byID[cmd.id]; cmd.id != "" && len(ks) > 0 {
+						ui.Text(c, ks[0].label()).FontSize(12).TextColor(c.Theme().TextMuted)
+					}
+				})
 			}
 		})
 		if label, ok := cb.Chosen(); ok {
 			for _, cmd := range cmds {
-				if cmd.label == label {
+				if cmd.label == label && !cmd.hidden {
 					run = cmd.run
 				}
 			}

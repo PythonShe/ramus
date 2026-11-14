@@ -60,18 +60,18 @@ func (a *App) hidingCommands() []command {
 	for _, p := range sidebarParts {
 		if !a.shown(p.key) {
 			key := p.key
-			cmds = append(cmds, command{"Show " + p.name + " in the Sidebar", func() { a.setShown(key, true) }})
+			cmds = append(cmds, command{label: "Show " + p.name + " in the Sidebar", run: func() { a.setShown(key, true) }})
 		}
 	}
 	if a.Settings.NoSidebar {
-		cmds = append(cmds, command{"Show Sidebar", func() { a.setSidebar(true) }})
+		cmds = append(cmds, command{id: "toggle-sidebar", label: "Show Sidebar", run: func() { a.setSidebar(true) }})
 	} else {
-		cmds = append(cmds, command{"Hide Sidebar", func() { a.setSidebar(false) }})
+		cmds = append(cmds, command{id: "toggle-sidebar", label: "Hide Sidebar", run: func() { a.setSidebar(false) }})
 	}
 	if a.Settings.NoStatusBar {
-		cmds = append(cmds, command{"Show Status Bar", func() { a.Settings.NoStatusBar = false; a.keepSettings() }})
+		cmds = append(cmds, command{id: "toggle-status-bar", label: "Show Status Bar", run: func() { a.Settings.NoStatusBar = false; a.keepSettings() }})
 	} else {
-		cmds = append(cmds, command{"Hide Status Bar", func() { a.Settings.NoStatusBar = true; a.keepSettings() }})
+		cmds = append(cmds, command{id: "toggle-status-bar", label: "Hide Status Bar", run: func() { a.Settings.NoStatusBar = true; a.keepSettings() }})
 	}
 	return cmds
 }

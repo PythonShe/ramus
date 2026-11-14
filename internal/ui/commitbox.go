@@ -67,12 +67,6 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		cs.subject, cs.body = message.Split(cs.setup.Last)
 	}
 	cs.wasAmend = cs.amend
-	// The model is built off the main thread; until the first one is,
-	// nothing counts as staged.
-	staged := 0
-	if m := t.cv.model; m != nil {
-		staged = m.staged
-	}
 	head := t.s.State.Head
 	ui.Column(c).Padding(8).Gap(6).Background(th.Surface).FillWidth().Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -99,8 +93,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		if cs.err != "" {
 			ui.Text(c, cs.err).FontSize(12).TextColor(th.Danger).Selectable()
 		}
-		// The setup names the encoding the message is written in.
-		ready := !cs.busy && cs.encodingRead && strings.TrimSpace(cs.subject) != "" && (staged > 0 || cs.amend)
+		ready := commitReady(t)
 		ui.Row(c).Gap(8).Children(func() {
 			branch := strings.TrimPrefix(head.Target, "refs/heads/")
 			label := "Commit to " + branch
@@ -119,6 +112,19 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		})
 	})
 	a.confirmView(c, &cs.confirm)
+}
+
+// commitReady reports whether the commit box can commit now.
+func commitReady(t *tab) bool {
+	cs := &t.commit
+	// The model is built off the main thread; until the first one is,
+	// nothing counts as staged.
+	staged := 0
+	if m := t.cv.model; m != nil {
+		staged = m.staged
+	}
+	// The setup names the encoding the message is written in.
+	return !cs.busy && cs.encodingRead && strings.TrimSpace(cs.subject) != "" && (staged > 0 || cs.amend)
 }
 
 // startCommit checks line endings of what is staged, asks when one

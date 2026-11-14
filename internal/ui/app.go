@@ -50,6 +50,9 @@ type Deps struct {
 	ApplyTheme func(theme string)
 	// Now is the clock, for tests.
 	Now func() time.Time
+	// KeysChanged is called on the main thread when the shortcuts
+	// change, for the app menu to show them; Accelerator reads them.
+	KeysChanged func()
 }
 
 // App is the state the main window shows. View reads it on the main
@@ -69,6 +72,7 @@ type App struct {
 	// off the main thread cannot reach the clipboard itself.
 	clip string
 
+	keymap     *keymap
 	welcome    welcomeState
 	clone      cloneState
 	palette    paletteState
@@ -386,41 +390,6 @@ func (a *App) View(c *ui.Context) {
 	a.mergeToolView(c)
 	a.confirmView(c, &a.confirm)
 	a.paletteView(c)
-}
-
-func (a *App) shortcuts(c *ui.Context) {
-	if c.Shortcut(ui.Cmd, ui.KeyO) {
-		a.pickAndOpen()
-	}
-	if c.Shortcut(ui.Cmd, ui.KeyW) && a.current() != nil {
-		a.Close(a.active)
-	}
-	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyP) || c.Shortcut(ui.Cmd, ui.KeyK) {
-		a.palette.open = true
-	}
-	if c.Shortcut(ui.Cmd, ui.KeyComma) {
-		a.openSettings()
-	}
-	if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyO) {
-		a.openManager()
-	}
-	if c.Shortcut(ui.Cmd, ui.KeyR) {
-		a.Reload()
-	}
-	if t := a.current(); t != nil && !c.FocusTakesText() {
-		// In a text field these keys undo the typing.
-		if c.Shortcut(ui.Cmd, ui.KeyZ) {
-			a.undo(t, false)
-		}
-		if c.Shortcut(ui.Cmd|ui.Shift, ui.KeyZ) {
-			a.undo(t, true)
-		}
-	}
-	for i, k := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9} {
-		if c.Shortcut(ui.Cmd, k) && i < len(a.tabs) {
-			a.active = i
-		}
-	}
 }
 
 // title is what a tab and the window call a repository.

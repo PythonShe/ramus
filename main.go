@@ -95,6 +95,7 @@ func main() {
 			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: title, DefaultPath: name, CreateDirectories: true})
 		},
 	})
+	app.KeysChanged = func() { mygo.App.SetMenu(menu(app)) }
 	for _, e := range []error{cfgErr, libErr} {
 		if e != nil {
 			app.Notify(e.Error())
@@ -248,29 +249,29 @@ func menu(app *ui.App) *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: "File", Submenu: []*mygo.MenuItem{
-			{Label: "Open Repository…", Accelerator: "CmdOrCtrl+O", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+			{Label: "Open Repository…", Accelerator: app.Accelerator("open"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 				app.PickAndOpen()
 				w.Invalidate()
 			}},
-			{Label: "Clone Repository…", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+			{Label: "Clone Repository…", Accelerator: app.Accelerator("clone"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 				app.ShowClone()
 				w.Invalidate()
 			}},
-			{Label: "Repositories…", Accelerator: "CmdOrCtrl+Shift+O", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+			{Label: "Repositories…", Accelerator: app.Accelerator("repositories"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 				app.ShowManager()
 				w.Invalidate()
 			}},
 			{Role: mygo.RoleOpenRecent},
 			mygo.Separator(),
-			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+			{Label: "Settings…", Accelerator: app.Accelerator("settings"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 				app.ShowSettings()
 				w.Invalidate()
 			}},
-			{Label: "Command Palette", Accelerator: "CmdOrCtrl+Shift+P", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+			{Label: "Command Palette", Accelerator: app.Accelerator("palette"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 				app.ShowPalette()
 				w.Invalidate()
 			}},
-			{Label: "Refresh", Accelerator: "CmdOrCtrl+R", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+			{Label: "Refresh", Accelerator: app.Accelerator("refresh"), Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 				app.Reload()
 				w.Invalidate()
 			}},
