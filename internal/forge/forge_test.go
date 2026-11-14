@@ -178,3 +178,35 @@ func TestLiveGitHub(t *testing.T) {
 		t.Fatal("a pull request for a branch that has none")
 	}
 }
+
+func TestStacks(t *testing.T) {
+	dir := t.TempDir()
+	if st, err := ReadStacks(dir); err != nil || st != nil {
+		t.Fatalf("no file: %v %v", st, err)
+	}
+	file := `{"schemaVersion":1,"repository":"github.com/o/r","stacks":[
+		{"id":"S_1","number":3,"trunk":{"branch":"main","head":"aa"},"branches":[
+			{"branch":"auth","head":"bb","pullRequest":{"number":41,"id":"PR_1","url":"https://github.com/o/r/pull/41","merged":true}},
+			{"branch":"api"}]},
+		{"trunk":{"branch":"main"},"branches":[]}]}`
+	if err := os.WriteFile(filepath.Join(dir, "gh-stack"), []byte(file), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := ReadStacks(dir)
+	if err != nil || len(st) != 1 {
+		t.Fatalf("%+v %v", st, err)
+	}
+	want := Stack{Number: 3, Trunk: "main", Branches: []StackBranch{{Name: "auth", PR: 41, URL: "https://github.com/o/r/pull/41", Merged: true}, {Name: "api"}}}
+	if st[0].Number != want.Number || st[0].Trunk != want.Trunk || len(st[0].Branches) != 2 || st[0].Branches[0] != want.Branches[0] || st[0].Branches[1] != want.Branches[1] {
+		t.Fatalf("got %+v", st[0])
+	}
+	if s, i, ok := StackOf(st, "api"); !ok || i != 1 || s.Number != 3 {
+		t.Fatalf("StackOf api: %v %d %v", s, i, ok)
+	}
+	if _, _, ok := StackOf(st, "main"); ok {
+		t.Fatal("the trunk is in its stack")
+	}
+	if got := lastFailure("Pushing...\n✗ failed to push: rejected\nhint: x\n"); got != "failed to push: rejected" {
+		t.Fatalf("lastFailure %q", got)
+	}
+}

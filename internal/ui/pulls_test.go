@@ -88,3 +88,76 @@ func TestPullRequests(t *testing.T) {
 		t.Fatalf("said again: %q", h.app.notice)
 	}
 }
+
+// With gh's stack extension, branches stacked here become a GitHub stack
+// through gh stack init, shown in their rows from the file it keeps, and
+// the stack of the branch checked out is submitted through it.
+func TestGitHubStack(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake gh is a shell script")
+	}
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "https://github.com/o/r.git")
+	for _, b := range []string{"a", "b"} {
+		r.Git("checkout", "-q", "-b", b)
+		r.Write(b+".txt", b)
+		r.Commit(b)
+		r.Git("update-ref", "refs/remotes/origin/"+b, "HEAD")
+		r.Git("config", "branch."+b+".remote", "origin")
+		r.Git("config", "branch."+b+".merge", "refs/heads/"+b)
+	}
+	r.Git("checkout", "-q", "main")
+	dir := t.TempDir()
+	log := filepath.Join(dir, "calls")
+	stackJSON := `{"schemaVersion":1,"repository":"github.com/o/r","stacks":[{"trunk":{"branch":"main"},"branches":[{"branch":"a"},{"branch":"b","pullRequest":{"number":12,"url":"https://github.com/o/r/pull/12"}}]}]}`
+	script := `#!/bin/sh
+echo "$@" >> '` + log + `'
+case "$1 $2" in
+"stack --version") echo "gh stack version 0.1.0" ;;
+"stack init") printf '%s' '` + stackJSON + `' > "$(git rev-parse --git-dir)/gh-stack"; git checkout -q b ;;
+"stack submit") echo "Stack submitted" ;;
+"api graphql") echo '{"data":{"repository":{}}}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tools := &forgeTools{env: []string{"PATH=" + dir + ":" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME")}}
+	h.app.forgeFind = tools.find
+	h.app.Settings.PullRequests = true
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("Branches and Tags"))
+	h.click("Branches and Tags")
+	h.until("gh stack found", func() bool { return h.app.ghStack.ok })
+	calls := func() string { b, _ := os.ReadFile(log); return string(b) }
+
+	h.until("the stack found here", func() bool { info := h.app.current().refs.info; return info != nil && len(info.Stacks) == 1 })
+	if err := h.tt.RightClick("b"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Create GitHub Stack of 2 Branches…"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the question", h.shows("Create a GitHub stack?"))
+	h.click("Create")
+	h.until("gh stack init", func() bool { return strings.Contains(calls(), "stack init -- a b") })
+	tb := h.app.current()
+	h.until("b checked out", func() bool { return tb.s.State.Head.Target == "refs/heads/b" })
+	h.until("the stack shown", h.shows("Branch 2 of 2 in a GitHub stack"))
+	if !h.tt.HasText("#12") {
+		t.Fatalf("no pull request from the stack's file: %q", h.tt.Texts())
+	}
+
+	if err := h.tt.RightClick("a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Submit GitHub Stack…"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the question", h.shows("Submit the stack?"))
+	h.click("Submit")
+	h.until("gh stack submit", func() bool { return strings.Contains(calls(), "stack submit --auto") })
+	h.idle(tb, "the submit")
+}

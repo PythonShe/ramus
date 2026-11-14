@@ -3,9 +3,11 @@ package session
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 
 	"ramus/internal/forge"
+	"ramus/internal/git/write"
 )
 
 // PullInfo is a branch's open pull request, and the repository it is in.
@@ -131,4 +133,17 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 			}
 		})
 	})
+}
+
+// GitHubStack runs gh stack with args in the work tree, as a write that
+// takes its turn in the queue; name is what the log calls it.
+func (s *Session) GitHubStack(c *forge.CLI, name string, args ...string) (*write.Job, error) {
+	if s.Repo == nil || s.Queue == nil {
+		return nil, errReadOnly
+	}
+	dir := s.Repo.WorkTree
+	line := "gh stack " + strings.Join(args, " ")
+	return s.Submit(write.External(s.Where(), name, line, func(ctx context.Context, stdout, stderr io.Writer) error {
+		return c.Stack(ctx, dir, stdout, stderr, args...)
+	}))
 }

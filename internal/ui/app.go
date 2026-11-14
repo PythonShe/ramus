@@ -104,6 +104,7 @@ type App struct {
 	forges      *forgeTools
 	forgeFind   func(forge.Kind) (*forge.CLI, error)
 	forgeWarned map[string]bool
+	ghStack     stackTool
 
 	keymap     *keymap
 	welcome    welcomeState

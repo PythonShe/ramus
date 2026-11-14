@@ -321,6 +321,9 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				if p, ok := t.pulls.by[b.Name]; ok && a.Settings.PullRequests {
 					pullBadge(c, p)
 				}
+				if rs.kind == refsBranches {
+					a.stackBadge(c, t, info, b)
+				}
 			})
 			if rs.kind == refsBranches {
 				tr := ui.Text(c, tracking(b)).FontSize(12).Width(180).SingleLine()
@@ -548,7 +551,7 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	if m.Item("Copy Name").Chosen() {
 		a.clip = short
 	}
-	a.pullItems(m, t, b)
+	a.pullItems(m, t, b, act)
 	m.Separator()
 	pin := "Pin to Top"
 	if slices.Contains(t.prefs.pinned, b.Name) {

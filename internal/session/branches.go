@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"ramus/internal/forge"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/internal/git/stack"
@@ -55,7 +56,9 @@ type RefInfo struct {
 	// Stacks are branches stacked on each other off the trunk, each from
 	// the bottom branch to the top, by full ref name.
 	Stacks [][]string
-	Err    error
+	// GitHubStacks are the stacks gh stack keeps for this worktree.
+	GitHubStacks []forge.Stack
+	Err          error
 }
 
 // StackOf returns the stack name is in whose top is name or, failing
@@ -169,6 +172,7 @@ func readRefInfo(ctx context.Context, r *repo.Repository) RefInfo {
 	}
 	// Stacks are a help; a repository too deep for them shows none.
 	info.Stacks, _ = stack.Find(ctx, r.Runner, r.GitDir, heads, trunk)
+	info.GitHubStacks, _ = forge.ReadStacks(r.GitDir)
 	info.Remotes, info.Err = readRemotes(ctx, r)
 	return info
 }

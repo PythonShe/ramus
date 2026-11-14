@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -86,6 +88,7 @@ func (a *App) loadPulls(t *tab) {
 	if !a.Settings.PullRequests || info == nil || info.Err != nil || ps.loading || a.Runner == nil && a.forgeFind == nil {
 		return
 	}
+	a.findStackTool()
 	key, now := pullsKey(info), a.Now()
 	if key == ps.key && now.Sub(ps.at) < pullsMaxAge {
 		return
@@ -151,7 +154,7 @@ func pullBadge(c *ui.Context, p session.PullInfo) {
 
 // pullItems are a branch's menu items for its pull requests on the web:
 // the one open, the branch's list, and a new one. They need no tool.
-func (a *App) pullItems(m *ui.Menu, t *tab, b session.BranchInfo) {
+func (a *App) pullItems(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) {
 	info := t.refs.info
 	if info == nil {
 		return
@@ -171,5 +174,109 @@ func (a *App) pullItems(m *ui.Menu, t *tab, b session.BranchInfo) {
 	}
 	if m.Item("Create " + what + " in Browser").Disabled(!pushed).Chosen() {
 		a.openURL = repo.NewPull(name)
+	}
+	a.stackItems(m, t, b, repo, act)
+}
+
+// stackTool is the user's gh with the stack extension, looked for once
+// pull requests are turned on.
+type stackTool struct {
+	asked, ok bool
+	c         *forge.CLI
+}
+
+// findStackTool looks, off the main thread, for gh stack.
+func (a *App) findStackTool() {
+	if a.ghStack.asked {
+		return
+	}
+	a.ghStack.asked = true
+	find, update := a.findForge(), a.Update
+	go func() {
+		c, err := find(forge.GitHub)
+		ok := false
+		if err == nil {
+			_, ok = c.HasStack(context.Background())
+		}
+		update(func() { a.ghStack.c, a.ghStack.ok = c, ok })
+	}()
+}
+
+// stackBadge shows where a branch is in the GitHub stack gh stack keeps,
+// and its pull request there when the host was not asked.
+func (a *App) stackBadge(c *ui.Context, t *tab, info *session.RefInfo, b session.BranchInfo) {
+	th := c.Theme()
+	short := strings.TrimPrefix(b.Name, "refs/heads/")
+	st, i, ok := forge.StackOf(info.GitHubStacks, short)
+	if !ok {
+		return
+	}
+	what := fmt.Sprintf("Branch %d of %d in a GitHub stack", i+1, len(st.Branches))
+	if st.Number > 0 {
+		what += fmt.Sprintf(", #%d", st.Number)
+	}
+	ui.Text(c, fmt.Sprintf("stack %d/%d", i+1, len(st.Branches))).FontSize(12).TextColor(th.TextMuted).SingleLine().Label(what).Tooltip(what)
+	if _, asked := t.pulls.by[b.Name]; !asked || !a.Settings.PullRequests {
+		if br := st.Branches[i]; br.PR > 0 && br.URL != "" && !br.Merged {
+			ui.Link(c, fmt.Sprintf("#%d", br.PR), br.URL).FontSize(12)
+		}
+	}
+}
+
+// stackItems are a branch's menu items for GitHub stacks, when gh has
+// the stack extension: make a stack of the branches stacked here, or
+// push the stack it is in and make or update its pull requests. gh stack
+// works on the stack of the branch checked out.
+func (a *App) stackItems(m *ui.Menu, t *tab, b session.BranchInfo, repo forge.Repo, act *func()) {
+	info := t.refs.info
+	if !a.ghStack.ok || repo.Kind != forge.GitHub || info == nil {
+		return
+	}
+	ro := t.s.Queue == nil
+	c := a.ghStack.c
+	short := strings.TrimPrefix(b.Name, "refs/heads/")
+	if st, _, ok := forge.StackOf(info.GitHubStacks, short); ok {
+		head := t.s.State.Head
+		cur, _, onIt := forge.StackOf(info.GitHubStacks, strings.TrimPrefix(head.Target, "refs/heads/"))
+		onIt = onIt && !head.Detached && cur.Branches[0].Name == st.Branches[0].Name
+		n := len(st.Branches)
+		if m.Item("Submit GitHub Stack…").Disabled(ro || !onIt).Chosen() {
+			*act = func() {
+				t.refs.ask = confirmState{open: true, title: "Submit the stack?",
+					message: fmt.Sprintf("gh stack pushes the %s of the stack and creates or updates their pull requests on GitHub; new ones are drafts.", plural(n, "branch")),
+					button:  "Submit",
+					run:     func() { a.runStack(t, c, "Submit GitHub stack", "submit", "--auto") }}
+			}
+		}
+		if m.Item("Push GitHub Stack").Disabled(ro || !onIt).Chosen() {
+			*act = func() { a.runStack(t, c, "Push GitHub stack", "push") }
+		}
+		return
+	}
+	local := info.StackOf(b.Name)
+	if len(local) < 2 {
+		return
+	}
+	names := make([]string, len(local))
+	for i, n := range local {
+		names[i] = strings.TrimPrefix(n, "refs/heads/")
+		if _, _, in := forge.StackOf(info.GitHubStacks, names[i]); in {
+			return
+		}
+	}
+	if m.Item(fmt.Sprintf("Create GitHub Stack of %d Branches…", len(names))).Disabled(ro).Chosen() {
+		*act = func() {
+			top := names[len(names)-1]
+			t.refs.ask = confirmState{open: true, title: "Create a GitHub stack?",
+				message: "gh stack makes a stack of " + strings.Join(names, ", ") + ", from the bottom, and checks out " + top + ".",
+				button:  "Create",
+				run:     func() { a.runStack(t, c, "Create GitHub stack", append([]string{"init", "--"}, names...)...) }}
+		}
+	}
+}
+
+func (a *App) runStack(t *tab, c *forge.CLI, name string, args ...string) {
+	if _, err := t.s.GitHubStack(c, name, args...); err != nil {
+		a.notice = errText(err)
 	}
 }
