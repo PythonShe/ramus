@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 
@@ -241,13 +242,17 @@ func (a *App) statusBar(c *ui.Context, t *tab) {
 // never hidden.
 func showPath(p string) (shown, why string) {
 	f := pathsafe.Check(p)
-	if redact.Control(p) != p {
+	valid := utf8.ValidString(p)
+	if valid && redact.Control(p) != p {
 		f |= pathsafe.LineBreak
 	}
-	if f == 0 {
+	if f == 0 && valid {
 		return p, ""
 	}
 	var reasons []string
+	if !valid {
+		reasons = append(reasons, `is not UTF-8, its other bytes shown as \xNN`)
+	}
 	if f&pathsafe.DotGit != 0 {
 		reasons = append(reasons, "looks like .git")
 	}

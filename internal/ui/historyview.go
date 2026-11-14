@@ -320,14 +320,22 @@ func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author
 	return s, au, w, true
 }
 
+// loaded is the chunk holding row i's text, nil until it is read.
+func (hv *historyState) loaded(i int) *history.TextChunk {
+	ch := hv.text[i/history.TextChunkRows]
+	if ch == nil || i-ch.First >= ch.Len() {
+		return nil
+	}
+	return ch
+}
+
 // historyMerged is the abbreviated parents of row i when it is a merge
 // and its text is loaded, else "".
 func (hv *historyState) historyMerged(i int) string {
-	ch := hv.text[i/history.TextChunkRows]
-	if ch == nil || i-ch.First >= ch.Len() {
-		return ""
+	if ch := hv.loaded(i); ch != nil {
+		return ch.Merged(i)
 	}
-	return ch.Merged(i)
+	return ""
 }
 
 // evict drops the chunks used longest ago past the text budget.
@@ -411,7 +419,10 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 			ui.Text(c, "…").TextColor(th.TextMuted).Grow(1)
 			return
 		}
-		ui.Text(c, subject).SingleLine().Grow(1)
+		subj := ui.Text(c, subject).SingleLine().Grow(1)
+		if ch := hv.loaded(i); ch != nil && ch.Odd(i) {
+			subj.TextColor(th.Warning).Description("Not valid in its encoding: bytes shown as \\xNN")
+		}
 		ui.Text(c, author).SingleLine().Width(120).TextColor(th.TextMuted)
 		ui.Text(c, when.Format("2006-01-02 15:04")).SingleLine().Width(112).TextColor(th.TextMuted)
 		ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(12).Width(64).TextColor(th.TextMuted)

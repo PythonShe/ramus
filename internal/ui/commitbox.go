@@ -22,8 +22,12 @@ type commitState struct {
 	// setup is loaded once per tab; loading is set meanwhile.
 	setup   *session.CommitSetup
 	loading bool
-	busy    bool
-	err     string
+	// encoding is the setup's commit encoding, kept while the setup is
+	// read again after a commit; encodingRead once it was read at all.
+	encoding     string
+	encodingRead bool
+	busy         bool
+	err          string
 	// wasAmend is amend as of the last frame, to load HEAD's message
 	// when amend is turned on over an empty editor.
 	wasAmend bool
@@ -53,6 +57,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		cs.loading = true
 		t.s.LoadCommitSetup(func(setup session.CommitSetup) {
 			cs.loading, cs.setup = false, &setup
+			cs.encoding, cs.encodingRead = setup.Encoding, true
 			if cs.subject == "" && cs.body == "" && setup.Template != "" {
 				cs.subject, cs.body = message.Split(setup.Template)
 			}
@@ -98,7 +103,8 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		if cs.err != "" {
 			ui.Text(c, cs.err).FontSize(12).TextColor(th.Danger).Selectable()
 		}
-		ready := !cs.busy && strings.TrimSpace(cs.subject) != "" && (staged > 0 || cs.amend)
+		// The setup names the encoding the message is written in.
+		ready := !cs.busy && cs.encodingRead && strings.TrimSpace(cs.subject) != "" && (staged > 0 || cs.amend)
 		ui.Row(c).Gap(8).Children(func() {
 			branch := strings.TrimPrefix(head.Target, "refs/heads/")
 			label := "Commit to " + branch
@@ -182,6 +188,7 @@ func (a *App) commit(t *tab, push bool) {
 		msg = message.StripTemplate(msg, s.Template, s.Comment)
 	}
 	opt := write.CommitOptions{Message: msg, Amend: cs.amend, SignOff: cs.signOff, NoVerify: cs.noVerify, CoAuthors: coAuthorList(cs.coAuthors)}
+	opt.Encoding = cs.encoding
 	cs.busy = true
 	err := t.s.Commit(opt, push, func(err error) {
 		cs.busy = false

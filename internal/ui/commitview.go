@@ -11,6 +11,7 @@ import (
 	"ramus/internal/git/diff"
 	"ramus/internal/git/object"
 	"ramus/internal/git/redact"
+	"ramus/internal/git/textenc"
 	"ramus/internal/session"
 )
 
@@ -101,6 +102,20 @@ func (a *App) commitHeader(c *ui.Context, t *tab, d *session.CommitDetail) {
 			ui.Text(c, "Commit").FontSize(12).TextColor(th.TextMuted).Width(76)
 			ui.Text(c, hex.EncodeToString(d.OID)).Font("monospace").FontSize(12).Selectable()
 		})
+		if enc := string(cm.Encoding); !textenc.IsUTF8(enc) || d.Odd {
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Text(c, "Encoding").FontSize(12).TextColor(th.TextMuted).Width(76)
+				name := redact.Control(enc)
+				if textenc.IsUTF8(enc) {
+					name = "UTF-8"
+				}
+				if !d.Odd {
+					ui.Text(c, name).FontSize(12)
+					return
+				}
+				ui.Text(c, "Not valid "+name+": bytes shown as \\xNN").FontSize(12).TextColor(th.Warning)
+			})
+		}
 		if len(d.Parents) > 0 {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				label := "Parent"
