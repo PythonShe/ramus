@@ -241,11 +241,15 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 	meta := ui.Column(c).Padding(spaceS, insetX, spaceM, insetX).Gap(spaceS).FillWidth()
 	cv.metaH = meta.LayoutBounds().H
 	meta.Children(func() {
+		// The time goes under the person it is theirs, rather than beside
+		// them, where a narrow panel would break it over lines.
 		person := func(role string, p object.Signature) {
-			ui.Row(c).Gap(spaceM).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
 				ui.Text(c, role).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
-				ui.Text(c, fmt.Sprintf("%s <%s>", redact.Control(string(p.Name)), redact.Control(string(p.Email)))).FontSize(textSmall).Selectable().Grow(1)
-				ui.Text(c, signatureTime(p).Format("2006-01-02 15:04:05 -0700")).FontSize(textSmall).TextColor(th.TextMuted)
+				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).Children(func() {
+					ui.Text(c, fmt.Sprintf("%s <%s>", redact.Control(string(p.Name)), redact.Control(string(p.Email)))).FontSize(textSmall).Selectable()
+					ui.Text(c, signatureTime(p).Format("2006-01-02 15:04:05 -0700")).FontSize(textSmall).TextColor(th.TextMuted)
+				})
 			})
 		}
 		person(locales.CommitAuthor(), cm.Author)
