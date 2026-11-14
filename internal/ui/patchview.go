@@ -265,8 +265,25 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 		ui.Text(c, "Line endings change from "+pv.endings+" on every line shown").
 			FontSize(12).TextColor(th.Warning).Padding(4, 12)
 	}
-	o := a.diffOpts()
 	d := pv.d
+	a.setDiffView(d, actions)
+	editor.DiffView(c, d).Fill()
+	switch {
+	case !pv.shown:
+		pv.shown = true
+		if pv.scrollTo >= 0 {
+			c.AnimationFrame()
+		}
+	case pv.scrollTo >= 0:
+		d.SetScrollY(pv.scrollTo)
+		pv.scrollTo = -1
+	}
+}
+
+// setDiffView sets the viewer to the options chosen, with actions, when
+// set, on the change under the pointer and lines that can be selected.
+func (a *App) setDiffView(d *editor.DiffState, actions func(c *ui.Context, change int)) {
+	o := a.diffOpts()
 	d.Layout = editor.DiffUnified
 	if o.split == 1 {
 		d.Layout = editor.DiffSplit
@@ -281,17 +298,6 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 			i := h.Index
 			bar.Children(func() { actions(c, i) })
 		}
-	}
-	editor.DiffView(c, d).Fill()
-	switch {
-	case !pv.shown:
-		pv.shown = true
-		if pv.scrollTo >= 0 {
-			c.AnimationFrame()
-		}
-	case pv.scrollTo >= 0:
-		d.SetScrollY(pv.scrollTo)
-		pv.scrollTo = -1
 	}
 }
 

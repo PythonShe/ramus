@@ -175,12 +175,14 @@ func (a *App) changeActions(c *ui.Context, t *tab, r changeRow, change int) {
 
 // partialOK reports whether lines of this patch can be staged, unstaged
 // or discarded one by one.
-func (d *diffState) partialOK() bool {
-	p := d.res.Parsed
+func (d *diffState) partialOK() bool { return partialOK(d.res, d.key) }
+
+func partialOK(res session.PatchResult, key diffKey) bool {
+	p := res.Parsed
 	// Lines of a rename applied back would undo the rename with them.
 	return p != nil && len(p.Files) == 1 && !p.Files[0].Binary && !p.Files[0].Quoted &&
-		!d.res.Truncated && !p.Cut && d.key.src != diff.Untracked && d.key.ws == diff.AllWhitespace &&
-		d.key.orig == ""
+		!res.Truncated && !p.Cut && key.src != diff.Untracked && key.ws == diff.AllWhitespace &&
+		key.orig == ""
 }
 
 func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
@@ -224,44 +226,64 @@ func (a *App) toolDone(err error) {
 	}
 }
 
+// lineTarget is a file's patch that lines are staged, unstaged or
+// discarded from, and the viewer that selects them.
+type lineTarget struct {
+	p    *diff.Parsed
+	path string
+	pv   *patchView
+}
+
+// shownLines is the target of the file shown in the changes view.
+func (t *tab) shownLines() lineTarget {
+	d := &t.cv.diff
+	return lineTarget{p: d.res.Parsed, path: d.key.path, pv: &d.pv}
+}
+
 // applyLines stages (cached, not reverse), unstages (cached, reverse) or
-// discards (reverse) the chosen lines of the patch shown.
+// discards (reverse) the chosen lines of the file shown.
 func (a *App) applyLines(t *tab, chosen func(int) bool, cached, reverse bool) {
-	op, err := a.linesOp(t, chosen, cached, reverse)
+	a.applyLinesOf(t, t.shownLines(), chosen, cached, reverse)
+}
+
+func (a *App) applyLinesOf(t *tab, lt lineTarget, chosen func(int) bool, cached, reverse bool) {
+	op, err := linesOp(t, lt, chosen, cached, reverse)
 	if err == nil {
 		_, err = t.s.Submit(op)
 	}
 	if err != nil {
 		a.notice = errText(err)
 	}
-	t.cv.diff.pv.clearSelection()
+	lt.pv.clearSelection()
 }
 
-func (a *App) linesOp(t *tab, chosen func(int) bool, cached, reverse bool) (write.Op, error) {
-	d := &t.cv.diff
-	patch, err := d.res.Parsed.Select(0, reverse, chosen)
+func linesOp(t *tab, lt lineTarget, chosen func(int) bool, cached, reverse bool) (write.Op, error) {
+	patch, err := lt.p.Select(0, reverse, chosen)
 	if err != nil {
 		return write.Op{}, err
 	}
-	return write.Apply(t.s.Where(), write.Partial{Path: d.key.path, Patch: patch, Cached: cached, Reverse: reverse}), nil
+	return write.Apply(t.s.Where(), write.Partial{Path: lt.path, Patch: patch, Cached: cached, Reverse: reverse}), nil
 }
 
-// askDiscardLines asks before discarding lines from the work tree.
+// askDiscardLines asks before discarding lines of the file shown from
+// the work tree.
 func (a *App) askDiscardLines(t *tab, chosen func(int) bool) {
-	d := &t.cv.diff
-	p := d.res.Parsed
+	a.askDiscardLinesOf(t, t.shownLines(), &t.cv.confirm, chosen)
+}
+
+func (a *App) askDiscardLinesOf(t *tab, lt lineTarget, confirm *confirmState, chosen func(int) bool) {
 	n := 0
-	for i, l := range p.Lines {
+	for i, l := range lt.p.Lines {
 		if (l.Kind == '+' || l.Kind == '-') && chosen(i) {
 			n++
 		}
 	}
-	op, err := a.linesOp(t, chosen, false, true)
+	op, err := linesOp(t, lt, chosen, false, true)
 	if err != nil {
 		a.notice = errText(err)
 		return
 	}
-	path := d.key.path
+	path := lt.path
 	w := t.s.Where()
 	head := t.s.State.Head
 	update := a.Update
@@ -281,7 +303,7 @@ func (a *App) askDiscardLines(t *tab, chosen func(int) bool) {
 			if n == 1 {
 				lines = "1 changed line"
 			}
-			t.cv.confirm = confirmState{
+			*confirm = confirmState{
 				open:    true,
 				title:   "Discard " + lines + "?",
 				message: "This takes " + lines + " in " + shown + " back to what is staged.\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
@@ -290,7 +312,7 @@ func (a *App) askDiscardLines(t *tab, chosen func(int) bool) {
 					if _, err := t.s.Submit(op); err != nil {
 						a.notice = errText(err)
 					}
-					d.pv.clearSelection()
+					lt.pv.clearSelection()
 				},
 			}
 		})

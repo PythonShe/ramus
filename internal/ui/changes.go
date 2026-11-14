@@ -511,6 +511,12 @@ func (a *App) askDiscard(t *tab, m *changeModel, es []int32) {
 			tracked = append(tracked, p)
 		}
 	}
+	a.askDiscardPaths(t, &t.cv.confirm, tracked, untracked)
+}
+
+// askDiscardPaths is askDiscard of paths, asking in confirm.
+func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked []string) {
+	n := len(tracked) + len(untracked)
 	w := t.s.Where()
 	head := t.s.State.Head
 	update := a.Update
@@ -532,9 +538,9 @@ func (a *App) askDiscard(t *tab, m *changeModel, es []int32) {
 			if len(untracked) > 0 {
 				parts = append(parts, "delete "+countFiles(len(untracked))+" Git does not track")
 			}
-			t.cv.confirm = confirmState{
+			*confirm = confirmState{
 				open:    true,
-				title:   "Discard " + countFiles(len(es)) + "?",
+				title:   "Discard " + countFiles(n) + "?",
 				message: "This will " + strings.Join(parts, " and ") + ":\n" + nameList(append(tracked, untracked...)) + "\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
 				button:  "Discard",
 				run: func() {

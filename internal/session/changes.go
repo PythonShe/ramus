@@ -112,8 +112,9 @@ func readWorkTreeFile(workTree, rel string, max int) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(f, int64(max)+1))
 }
 
-// patches cancels a patch read that a newer one replaced.
-type patches struct {
+// PatchSlot holds the one patch read of a view: a newer read in the slot
+// cancels the one before.
+type PatchSlot struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
 }
@@ -125,6 +126,12 @@ type patches struct {
 //
 // sides names the whole files, for the view to unfold lines from.
 func (s *Session) Patch(req diff.PatchRequest, sides Sides, done func(PatchResult)) {
+	s.PatchIn(&s.patch, req, sides, done)
+}
+
+// PatchIn is Patch in a slot of the caller's, for a view that reads
+// patches beside the changes view's.
+func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, done func(PatchResult)) {
 	r := s.Repo
 	if r == nil {
 		done(PatchResult{Err: errors.New("session: the repository is not open")})
@@ -132,13 +139,13 @@ func (s *Session) Patch(req diff.PatchRequest, sides Sides, done func(PatchResul
 	}
 	req.ForApply = true
 	update := s.update
-	s.patch.mu.Lock()
-	if s.patch.cancel != nil {
-		s.patch.cancel()
+	slot.mu.Lock()
+	if slot.cancel != nil {
+		slot.cancel()
 	}
 	ctx, cancel := context.WithCancel(s.viewContext(r))
-	s.patch.cancel = cancel
-	s.patch.mu.Unlock()
+	slot.cancel = cancel
+	slot.mu.Unlock()
 	key, work := workPatchKey(req, sides)
 	if key != "" && !work {
 		if a, ok := s.answers().Get(key); ok {

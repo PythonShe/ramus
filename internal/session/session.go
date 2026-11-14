@@ -97,13 +97,13 @@ type Session struct {
 	// stopped; done closes after Close once it is zero.
 	running sync.WaitGroup
 	done    chan struct{}
-	patch   patches
+	patch   PatchSlot
 	hist    hist
 	// historyView is what history shows, numbered by historyViewN.
 	historyView  HistoryView
 	historyViewN int
 	// commitPatch cancels a commit patch read that a newer one replaced.
-	commitPatch patches
+	commitPatch PatchSlot
 	// answerCache holds what views read, on the main thread; see answers.
 	answerCache *cache.Cache[string, answer]
 	stats       statsLoad
