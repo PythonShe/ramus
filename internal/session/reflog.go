@@ -11,6 +11,7 @@ import (
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/object"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 )
@@ -114,13 +115,15 @@ func (s *Session) LostCommits(done func([]LostCommit, error)) {
 	}
 	update := s.update
 	s.goView(r, func(ctx context.Context) {
-		lost, err := s.lostCommits(ctx, r.Runner, r.GitDir)
+		lost, err := lostCommits(ctx, r)
 		update(func() { done(lost, err) })
 	})
 }
 
-func (s *Session) lostCommits(ctx context.Context, rn *run.Runner, gitDir string) ([]LostCommit, error) {
-	res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Timeout: FsckTimeout, MaxOutput: 256 << 20,
+// lostCommits runs off the main thread, so it is handed the repository
+// instead of reading the session's, which only the main thread may.
+func lostCommits(ctx context.Context, r *repo.Repository) ([]LostCommit, error) {
+	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Timeout: FsckTimeout, MaxOutput: 256 << 20,
 		Args: []string{"fsck", "--dangling", "--no-reflogs", "--connectivity-only", "--no-progress"}})
 	// fsck exits non-zero when it finds damage, and still lists what it
 	// found; only a run that listed nothing is an error.
@@ -137,7 +140,7 @@ func (s *Session) lostCommits(ctx context.Context, rn *run.Runner, gitDir string
 			ids = append(ids, id)
 		}
 	}
-	cat, err := s.Repo.CatFile()
+	cat, err := r.CatFile()
 	if err != nil {
 		return nil, err
 	}
