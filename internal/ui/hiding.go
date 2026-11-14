@@ -11,7 +11,7 @@ import (
 // sidebarParts are the sidebar's items and sections that can be left
 // out, by key, with their names.
 var sidebarParts = []struct{ key, name string }{
-	{"history", "History"}, {"reflog", "Reflog"}, {"refs", "Branches and Tags"}, {"stats", "Statistics"},
+	{"review", "Review Changes"}, {"history", "History"}, {"reflog", "Reflog"}, {"refs", "Branches and Tags"}, {"stats", "Statistics"},
 	{"log", "Command Log"}, {"snapshots", "Snapshots"}, {"branches", "Branches"}, {"remotes", "Remotes"},
 	{"tags", "Tags"}, {"stashes", "Stashes"}, {"worktrees", "Worktrees"}, {"submodules", "Submodules"},
 }

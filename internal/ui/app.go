@@ -168,6 +168,7 @@ type tab struct {
 	stats     statsState
 	cmp       commitCompare
 	dash      dashState
+	rev       reviewState
 	forcePush forcePush
 	links     tabLinks
 	prefs     refPrefs

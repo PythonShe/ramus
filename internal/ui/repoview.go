@@ -81,6 +81,9 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 			case "worktrees":
 				a.worktreeDashboard(c, t)
 				return
+			case "review":
+				a.reviewView(c, t)
+				return
 			case "file":
 				a.fileView(c, t)
 				return
@@ -188,6 +191,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	}
 	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, "changes", nil, changesLabel(st))
+		item("review", "Review Changes")
 		item("history", "History")
 		item("reflog", "Reflog")
 		item("refs", "Branches and Tags")

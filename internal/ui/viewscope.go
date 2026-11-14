@@ -53,6 +53,8 @@ func (a *App) leaveView(t *tab, name string) {
 			}
 			fs.blameKey = ""
 		}
+	case "review":
+		t.rev.leave()
 	case "stats":
 		ss := &t.stats
 		if ss.loading {
