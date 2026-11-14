@@ -115,6 +115,41 @@ func SwitchWith(w Where, branch string, changes LocalChanges, seen Seen) Op {
 	return op
 }
 
+// CheckoutRemote switches to a new local branch name made at remote
+// branch remote ("refs/remotes/origin/x") and tracking it. A branch of
+// that name makes git refuse, unless force is set: then it is reset to
+// the remote branch, its old value (local, which the user saw) backed up
+// first so that Undo brings it back.
+func CheckoutRemote(w Where, remote, name, local string, force bool, changes LocalChanges, seen Seen) (Op, error) {
+	name = strings.TrimPrefix(name, "refs/heads/")
+	if err := checkName("branch", name); err != nil {
+		return Op{}, err
+	}
+	if !strings.HasPrefix(remote, "refs/remotes/") {
+		return Op{}, errors.New("write: not a remote branch: " + remote)
+	}
+	ref, short := "refs/heads/"+name, strings.TrimPrefix(remote, "refs/remotes/")
+	x := seen.expect()
+	x.Refs = map[string]string{ref: ""}
+	flag, what := "-c", "Check out "+short+" as "+name
+	if force {
+		x.Refs[ref] = local
+		flag, what = "-C", "Reset "+name+" to "+short+" and switch to it"
+	}
+	op := Op{Name: what, Undo: MovesHead, Expect: x, Refs: []string{ref},
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
+			Args: []string{"switch", "--track", flag, name, "--end-of-options", remote}}}
+	if force {
+		op.Backup = []string{ref}
+	}
+	if changes == StashChanges {
+		op.Name += ", stashing changes"
+		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
+			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before checking out " + short}}
+	}
+	return op, nil
+}
+
 // checkName refuses a name git would read as an option.
 func checkName(what, name string) error {
 	if name == "" || strings.HasPrefix(name, "-") {
