@@ -49,3 +49,11 @@ func TestLoadSave(t *testing.T) {
 		t.Fatalf("broken file replaced: %+v %v", s, err)
 	}
 }
+
+func TestFetchMinutes(t *testing.T) {
+	for in, want := range map[int]int{-3: 0, 0: 0, 1: MinFetchMinutes, MinFetchMinutes: MinFetchMinutes, 60: 60} {
+		if got := (Settings{FetchMinutes: in}).WithDefaults().FetchMinutes; got != want {
+			t.Errorf("%d minutes: got %d, want %d", in, got, want)
+		}
+	}
+}

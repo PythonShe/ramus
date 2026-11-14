@@ -67,6 +67,10 @@ func (a *App) managerView(c *ui.Context) {
 							p := r.Path
 							act = func() { a.Open(p); m.open = false }
 						}
+						if a.Settings.FetchMinutes > 0 && menu.Item("Fetch in the Background").Checked(!r.NoFetch).Chosen() {
+							p, off := r.Path, !r.NoFetch
+							act = func() { a.setFetchOff(p, off) }
+						}
 						menu.Separator()
 						if menu.Item("Remove from This List").Chosen() {
 							p := r.Path

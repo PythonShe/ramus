@@ -32,6 +32,8 @@ type Repo struct {
 	// hold full ref names.
 	Pinned []string `json:"pinned,omitempty"`
 	Hidden []string `json:"hidden,omitempty"`
+	// NoFetch keeps the repository from fetching in the background.
+	NoFetch bool `json:"noFetch,omitempty"`
 }
 
 // Group is a named set of repositories, opened together.
@@ -170,6 +172,34 @@ func (l *Library) SetRefPrefs(path string, pinned, hidden []string) error {
 	i := l.find(path)
 	if i >= 0 {
 		l.repos[i].Pinned, l.repos[i].Hidden = slices.Clone(pinned), slices.Clone(hidden)
+	}
+	l.mu.Unlock()
+	if i < 0 {
+		return errors.New("library: " + path + " is not a known repository")
+	}
+	return l.save()
+}
+
+// FetchOff reports whether a repository is kept from fetching in the
+// background.
+func (l *Library) FetchOff(path string) bool {
+	path = Clean(path)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if i := l.find(path); i >= 0 {
+		return l.repos[i].NoFetch
+	}
+	return false
+}
+
+// SetFetchOff keeps a known repository from fetching in the background,
+// or lets it again.
+func (l *Library) SetFetchOff(path string, off bool) error {
+	path = Clean(path)
+	l.mu.Lock()
+	i := l.find(path)
+	if i >= 0 {
+		l.repos[i].NoFetch = off
 	}
 	l.mu.Unlock()
 	if i < 0 {

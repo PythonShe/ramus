@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"ramus/internal/git/history"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
+	"ramus/internal/library"
 	"ramus/internal/session"
 )
 
@@ -31,6 +33,8 @@ type refPrefs struct {
 	loaded         bool
 	loading        bool
 	pinned, hidden []string
+	// fetchOff keeps the repository from fetching in the background.
+	fetchOff bool
 	// gen counts changes, for what is built from them.
 	gen int
 }
@@ -50,8 +54,10 @@ func (a *App) loadRefPrefs(t *tab) {
 	lib, path, update := a.Library, t.s.Path, a.Update
 	go func() {
 		pinned, hidden := lib.RefPrefs(path)
+		fetchOff := lib.FetchOff(path)
 		update(func() {
 			rp.loading, rp.loaded = false, true
+			rp.fetchOff = fetchOff
 			rp.pinned, rp.hidden = pinned, hidden
 			rp.gen++
 			if len(hidden) > 0 {
@@ -284,4 +290,29 @@ func (sr *sideRefs) build(t *tab) *sideRefs {
 	})
 	sr.heads = append(pinned, sr.heads...)
 	return sr
+}
+
+// keepFetching has t's repository fetch in the background as the
+// settings and the repository's own choice say.
+func (a *App) keepFetching(t *tab) {
+	a.loadRefPrefs(t)
+	every := time.Duration(a.Settings.FetchMinutes) * time.Minute
+	if !t.prefs.loaded || t.prefs.fetchOff {
+		every = 0
+	}
+	path := t.s.Path
+	t.s.SetBackgroundFetch(every, func(err error) {
+		a.notice = "Background fetch stopped for " + filepath.Base(path) + ": " + errText(err)
+	})
+}
+
+// setFetchOff keeps the repository at path from fetching in the
+// background, or lets it again, in its open tab and in the library.
+func (a *App) setFetchOff(path string, off bool) {
+	for _, t := range a.tabs {
+		if t.s.Path == path {
+			t.prefs.fetchOff = off
+		}
+	}
+	a.libraryWrite(func(l *library.Library) error { return l.SetFetchOff(path, off) })
 }

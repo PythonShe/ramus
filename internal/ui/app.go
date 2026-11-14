@@ -346,6 +346,9 @@ func (a *App) View(c *ui.Context) {
 	if root.FileDragOver() {
 		root.Border(2, c.Theme().Accent)
 	}
+	for _, t := range a.tabs {
+		a.keepFetching(t)
+	}
 	root.Children(func() {
 		if len(a.tabs) > 0 {
 			a.tabBar(c)

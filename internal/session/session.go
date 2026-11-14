@@ -107,6 +107,7 @@ type Session struct {
 	refInfo     refLoad
 	blame       blames
 	view        viewScope
+	fetch       backgroundFetch
 	// monitorAnswered is set once the user turned the monitor on or said
 	// not now; the refresher reads it.
 	monitorAnswered atomic.Bool
