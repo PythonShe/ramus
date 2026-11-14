@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"ramus/internal/git/write"
+
+	"ramus/locales"
 )
 
 // An older commit is reworded, fixed up with what is staged, and dropped
@@ -198,7 +200,7 @@ func TestRewriteManyAndDragSquash(t *testing.T) {
 			}
 			return he.open
 		})
-		h.click("Rewrite " + countOf(len(he.rows), "Commit"))
+		h.click(locales.RewriteCommits(len(he.rows)))
 		h.until(want, func() bool {
 			if l := tb.s.Log; len(l) > 0 && l[len(l)-1].Err != nil {
 				t.Fatalf("%s: %v", l[len(l)-1].Name, l[len(l)-1].Err)

@@ -45,13 +45,16 @@ var textFields = map[string]bool{
 // git's own words, symbols.
 var untranslated = map[string]bool{
 	"HEAD": true, "Ramus": true, "monospace": true, "×": true, "…": true, "git": true,
+	// Examples in placeholders: a URL, paths and a pattern read the same
+	// in every language.
+	"https://github.com/owner/repo.git":          true,
+	`\bPROJ-(\d+)\b`:                             true,
+	"https://tracker.example.com/browse/PROJ-$1": true,
+	"/usr/local/bin/code --wait":                 true,
+	"/Applications/Ghostty.app":                  true,
 }
 
 func TestTextComesFromTheCatalog(t *testing.T) {
-	// Until every view says its text from the catalog.
-	if os.Getenv("RAMUS_I18N_STRICT") == "" {
-		t.Skip("set RAMUS_I18N_STRICT=1")
-	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)

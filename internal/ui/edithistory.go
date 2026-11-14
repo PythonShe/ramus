@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -213,14 +212,6 @@ func (a *App) setAction(he *historyEdit, i int, act write.Action) {
 			}
 		}
 	})
-}
-
-// countOf is n things, with the plural made by adding s.
-func countOf(n int, thing string) string {
-	if n == 1 {
-		return "1 " + thing
-	}
-	return strconv.Itoa(n) + " " + thing + "s"
 }
 
 // squashPlan gathers the rows of folded (hex) right after the row of

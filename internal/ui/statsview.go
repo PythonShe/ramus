@@ -110,13 +110,6 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 	})
 }
 
-func people(n int) string {
-	if n == 1 {
-		return "1 person"
-	}
-	return strconv.Itoa(n) + " people"
-}
-
 // countStats asks for the counts the controls name.
 func (a *App) countStats(t *tab) {
 	ss := &t.stats
@@ -328,13 +321,6 @@ func barChart(c *ui.Context, title string, bars []bar, height float32) {
 			})
 		}
 	})
-}
-
-func commitCount(n int) string {
-	if n == 1 {
-		return "1 commit"
-	}
-	return strconv.Itoa(n) + " commits"
 }
 
 func (a *App) authorTable(c *ui.Context, t *tab, st stats.Stats) {

@@ -550,10 +550,6 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 	}()
 }
 
-func countFiles(n int) string {
-	return locales.ChangesFileCount(n)
-}
-
 // nameList names up to five paths, and how many more.
 func nameList(ps []string) string {
 	const show = 5
