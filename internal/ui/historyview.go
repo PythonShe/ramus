@@ -12,6 +12,7 @@ import (
 
 	"ramus/internal/git/history"
 	"ramus/internal/git/lanes"
+	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/session"
 	"ramus/internal/ui/graph"
@@ -130,7 +131,9 @@ func (l refLabel) name() string {
 	case labelBisectSkip:
 		return locales.HistoryBisectSkipped()
 	}
-	return l.text
+	// A ref's name is the repository's to choose: a bidi override in it
+	// could make one branch read as another.
+	return redact.Control(l.text)
 }
 
 // historyView is the history list beside the chosen commit.

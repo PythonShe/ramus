@@ -419,10 +419,11 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 		}
 		ui.Text(c, summary).FontSize(textSmall).TextColor(th.TextMuted)
 		sc.list.Label = func(i int) string {
+			subject := redact.Control(rows[i].c.Subject)
 			if rows[i].removed {
-				return locales.PatchSubmoduleCommitRemoved(rows[i].c.Subject)
+				return locales.PatchSubmoduleCommitRemoved(subject)
 			}
-			return locales.PatchSubmoduleCommitAdded(rows[i].c.Subject)
+			return locales.PatchSubmoduleCommitAdded(subject)
 		}
 		ui.List(c, &sc.list, len(rows), func(i int) {
 			rc := rows[i]
