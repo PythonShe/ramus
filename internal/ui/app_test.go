@@ -460,6 +460,21 @@ func TestSnapshotsView(t *testing.T) {
 	})
 }
 
+// A snapshot of a clean work tree holds no file but HEAD's: it says so
+// and stops reading, though the list of its files comes back empty.
+func TestSnapshotOfACleanWorkTree(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	h.app.current().sel = "snapshots"
+	h.until("the empty list", h.shows("No snapshots"))
+	h.click("Snapshot Now")
+	h.until("the snapshot", h.shows("Snapshot now"))
+	h.until("its files read", h.shows("Nothing in it differs from the commit it was taken on"))
+}
+
 func TestChangesStageAndDiscard(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()

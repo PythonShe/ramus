@@ -22,10 +22,14 @@ type snapState struct {
 	snapList ui.ListState
 	chosen   int
 
-	filesOf  string // ref the files were read for
-	files    []snapshot.File
-	fileList ui.ListState
-	picked   ui.Selection[string]
+	filesOf string // ref the files were read for
+	// filesRead says the files of filesOf came back, as none when the
+	// snapshot holds what HEAD does; filesErr is why they did not.
+	filesRead bool
+	filesErr  string
+	files     []snapshot.File
+	fileList  ui.ListState
+	picked    ui.Selection[string]
 
 	ignored bool
 }
@@ -111,7 +115,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 	th := c.Theme()
 	ss := &t.snaps
 	if ss.filesOf != s.Ref {
-		ss.filesOf, ss.files = s.Ref, nil
+		ss.filesOf, ss.files, ss.filesRead, ss.filesErr = s.Ref, nil, false, ""
 		ss.picked.Clear()
 		ss.fileList = ui.ListState{}
 		ref := s.Ref
@@ -119,8 +123,9 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 			if ss.filesOf != ref {
 				return
 			}
+			ss.filesRead = true
 			if err != nil {
-				ss.err = errText(err)
+				ss.filesErr = errText(err)
 			}
 			ss.files = files
 		})
@@ -140,8 +145,12 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 		if parts != "" {
 			ui.Text(c, parts).FontSize(textSmall).TextColor(th.TextMuted)
 		}
-		if files == nil {
+		if !ss.filesRead {
 			ui.Spinner(c)
+			return
+		}
+		if ss.filesErr != "" {
+			ui.Text(c, ss.filesErr).TextColor(th.Danger)
 			return
 		}
 		if len(files) == 0 {
