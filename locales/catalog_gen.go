@@ -12932,3 +12932,19 @@ func ColumnOwner() string { return In(i18n.Locale()).ColumnOwner() }
 func (msgs Messages) ColumnOwner() string {
 	return Catalog.Format(msgs.locale, "columnOwner", nil)
 }
+
+// PatchNotFetched says "Not downloaded from Git LFS"
+// in the language the app shows.
+//
+// Shown in place of one side of a picture's change whose content Git LFS
+// has not downloaded.
+func PatchNotFetched() string { return In(i18n.Locale()).PatchNotFetched() }
+
+// PatchNotFetched says "Not downloaded from Git LFS"
+// in the language of msgs.
+//
+// Shown in place of one side of a picture's change whose content Git LFS
+// has not downloaded.
+func (msgs Messages) PatchNotFetched() string {
+	return Catalog.Format(msgs.locale, "patchNotFetched", nil)
+}

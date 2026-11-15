@@ -107,6 +107,11 @@ type patchView struct {
 	// none or not a picture, and what each says of itself.
 	images [2]ui.ImageSource
 	about  [2]string
+	// lfs is a picture stored in Git LFS, shown as pictures once
+	// pictured, whatever git made of its pointers; notFetched are the
+	// sides whose content was never downloaded.
+	lfs, pictured bool
+	notFetched    [2]bool
 	// sub is a submodule's change, shown as the commits it moves over.
 	sub *subChange
 }
@@ -139,6 +144,7 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		scroll = pv.d.ScrollY()
 	}
 	pv.d, pv.p, pv.failed, pv.images, pv.about, pv.sub = nil, res.Parsed, false, [2]ui.ImageSource{}, [2]string{}, nil
+	pv.lfs, pv.pictured, pv.notFetched = false, false, [2]bool{}
 	p := res.Parsed
 	if p == nil || len(p.Files) == 0 {
 		return
@@ -147,17 +153,22 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		pv.sub = &subChange{path: p.Path(0), old: old, new: new, dirty: dirty}
 		return
 	}
-	if p.Files[0].Binary {
+	// git diffs a picture in LFS as its pointers, as text.
+	lfsPicture := res.LFS && res.HasSides && isPicture(p.Path(0))
+	if p.Files[0].Binary || lfsPicture {
+		pv.lfs, pv.notFetched = lfsPicture, res.NotFetched
 		if res.HasSides && isPicture(p.Path(0)) {
 			a.goWork(nil, func() {
 				var imgs [2]ui.ImageSource
 				var about [2]string
 				for k, data := range [][]byte{res.Old, res.New} {
-					imgs[k], about[k] = decodePicture(data)
+					if !res.NotFetched[k] {
+						imgs[k], about[k] = decodePicture(data)
+					}
 				}
 				update(func() {
 					if pv.gen == gen {
-						pv.images, pv.about = imgs, about
+						pv.images, pv.about, pv.pictured = imgs, about, true
 					}
 				})
 			})
@@ -175,7 +186,9 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 			})
 			return
 		}
-		if res.HasSides {
+		// The sides of a file in LFS are its content, not the pointers
+		// the patch is of.
+		if res.HasSides && !res.LFS {
 			next.whole = next.d.SetPatchFiles(fps[0], string(res.Old), string(res.New)) == nil
 		}
 		if !next.whole {
@@ -251,8 +264,11 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 	case pv.sub != nil && t != nil:
 		a.submoduleChange(c, t, pv.sub)
 		return
-	case p.Files[0].Binary && (pv.images[0] != nil || pv.images[1] != nil):
+	case p.Files[0].Binary && (pv.images[0] != nil || pv.images[1] != nil), pv.lfs && pv.pictured:
 		pictures(c, pv)
+		return
+	case pv.lfs:
+		loading(c, "")
 		return
 	case p.Files[0].Binary:
 		emptyState(c, locales.PatchBinary())
@@ -343,7 +359,7 @@ func pictures(c *ui.Context, pv *patchView) {
 	th := c.Theme()
 	ui.Row(c).Fill().Gap(spaceXL).Padding(spaceXL).Children(func() {
 		for k, title := range []string{locales.PatchBefore(), locales.PatchAfter()} {
-			if pv.images[k] == nil && pv.about[k] == "" {
+			if pv.images[k] == nil && pv.about[k] == "" && !pv.notFetched[k] {
 				continue
 			}
 			ui.Column(c).Key(k).Grow(1).Basis(0).FillHeight().Gap(spaceM).Children(func() {
@@ -355,6 +371,8 @@ func pictures(c *ui.Context, pv *patchView) {
 					if img := pv.images[k]; img != nil {
 						w, h := ui.ImageSize(img)
 						ui.Image(c, img).MaxWidth(w).MaxHeight(h).FillWidth().Label(title)
+					} else if pv.notFetched[k] {
+						ui.Text(c, locales.PatchNotFetched()).TextColor(th.TextMuted)
 					} else {
 						ui.Text(c, locales.PatchNotAPicture()).TextColor(th.TextMuted)
 					}

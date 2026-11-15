@@ -2635,5 +2635,9 @@
   "columnOwner": "Owner",
   "@columnOwner": {
     "description": "Column naming who holds a lock."
+  },
+  "patchNotFetched": "Not downloaded from Git LFS",
+  "@patchNotFetched": {
+    "description": "Shown in place of one side of a picture's change whose content Git LFS has not downloaded."
   }
 }

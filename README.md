@@ -33,8 +33,9 @@ repositories and runs your own git.
   including GitHub stacks.
 - **Worktrees**: every worktree's branch, changes, and how far ahead or
   behind it is.
-- **Git LFS locks**: see who holds a lock, lock a file before editing it,
-  and release or force off a lock, through your `git-lfs`.
+- **Git LFS**: see who holds a lock, lock a file before editing it, and
+  release or force off a lock, through your `git-lfs`; pictures stored in
+  LFS diff as pictures.
 - **Snapshots**: uncommitted work is kept before anything that would drop
   it, and can be restored or taken by hand at any time.
 - **Statistics**: commits by person, a calendar, heat map and treemaps.

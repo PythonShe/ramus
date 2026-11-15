@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ramus/internal/git/diff"
+	"ramus/internal/git/lfs"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
 )
@@ -34,6 +35,11 @@ type PatchResult struct {
 	// SidesTooLarge is set when a side was past Sides.Max, so the lines
 	// around the hunks cannot unfold.
 	SidesTooLarge bool
+	// LFS is a file stored in Git LFS: the sides are its content, read
+	// from the local LFS store in place of the pointers git keeps, except
+	// those NotFetched, whose content was never downloaded.
+	LFS        bool
+	NotFetched [2]bool
 }
 
 // Sides names the whole files a patch was made from: blobs by id, a nil
@@ -83,6 +89,24 @@ func readSides(r *repo.Repository, sd Sides, res *PatchResult) {
 			return
 		}
 	}
+	sides := [2][]byte{old, new}
+	for k, b := range sides {
+		p, ok := lfs.ParsePointer(b)
+		if !ok {
+			continue
+		}
+		res.LFS = true
+		switch content, err := lfs.ReadObject(r.CommonDir, p, int64(max)); {
+		case err == nil:
+			sides[k] = content
+		case errors.Is(err, lfs.ErrTooLarge):
+			res.SidesTooLarge = true
+			return
+		default:
+			res.NotFetched[k] = true
+		}
+	}
+	old, new = sides[0], sides[1]
 	if len(old) > max || len(new) > max {
 		res.SidesTooLarge = true
 		return
