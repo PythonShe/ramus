@@ -17,8 +17,8 @@ func (a *App) Layout() layout.Window {
 	w := layout.Window{Active: a.active}
 	for _, t := range a.tabs {
 		lt := layout.Tab{Path: t.s.Path}
-		if t.sel != "changes" && slices.Contains(restorable, t.sel) {
-			lt.Section = t.sel
+		if name := viewName(t); name != "changes" && slices.Contains(restorable, name) {
+			lt.Section = name
 		}
 		if id := t.hist.chosenID; id != nil {
 			lt.Commit = hex.EncodeToString(id)
@@ -60,7 +60,10 @@ type restoredTab struct {
 }
 
 func (r restoredTab) apply(t *tab) {
-	if slices.Contains(restorable, r.Section) {
+	switch {
+	case r.Section == "review": // a mode of the changes view
+		t.sel, t.cv.mode = "changes", modeReview
+	case slices.Contains(restorable, r.Section):
 		t.sel = r.Section
 	}
 	if id, err := hex.DecodeString(r.Commit); err == nil && len(id) > 0 {

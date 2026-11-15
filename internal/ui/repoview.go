@@ -117,9 +117,6 @@ func (a *App) page(c *ui.Context, t *tab) {
 	case "worktrees":
 		a.worktreeDashboard(c, t)
 		return
-	case "review":
-		a.reviewView(c, t)
-		return
 	case "file":
 		a.fileView(c, t)
 		return
@@ -130,6 +127,10 @@ func (a *App) page(c *ui.Context, t *tab) {
 	if strings.HasPrefix(t.sel, "refs/heads/") || strings.HasPrefix(t.sel, "refs/tags/") {
 		t.refs.showRef(t.sel)
 		a.refsView(c, t)
+		return
+	}
+	if t.cv.mode == modeReview {
+		a.reviewView(c, t)
 		return
 	}
 	ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
@@ -236,7 +237,6 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, sideChanges, nil, changesLabel(st))
 		item("history", locales.RepoSectionHistory())
-		item("review", locales.RepoSectionReview())
 		item("refs", locales.RepoSectionRefs())
 		if t.cmp.to != nil {
 			ui.SidebarItem(c, sideCompare, nil, locales.RepoSectionComparison())

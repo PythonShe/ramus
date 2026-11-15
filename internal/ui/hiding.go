@@ -15,7 +15,7 @@ var sidebarParts = []struct {
 	key  string
 	name func() string
 }{
-	{"history", locales.RepoSectionHistory}, {"review", locales.RepoSectionReview}, {"refs", locales.RepoSectionRefs},
+	{"history", locales.RepoSectionHistory}, {"refs", locales.RepoSectionRefs},
 	{"branches", locales.RepoSectionBranches}, {"remotes", locales.RepoSectionRemotes}, {"tags", locales.RepoSectionTags},
 	{"stashes", locales.RepoSectionStashes}, {"worktrees", locales.RepoSectionWorktrees}, {"submodules", locales.RepoSectionSubmodules},
 	{"snapshots", locales.RepoSectionSnapshots}, {"reflog", locales.RepoSectionReflog}, {"log", locales.RepoSectionLog},

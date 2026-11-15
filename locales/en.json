@@ -640,6 +640,10 @@
   "@changesTree": {
     "description": "Shows the changed files in their folders; the other choice is List."
   },
+  "changesReview": "Review",
+  "@changesReview": {
+    "description": "Shows every unstaged change as one list of patches, to stage or discard each in turn; the other choices are List and Tree."
+  },
   "changesMore": "More",
   "@changesMore": {
     "description": "A menu button of more actions on the changes."
@@ -1143,7 +1147,6 @@
       }
     }
   },
-  "repoSectionReview": "Review Changes",
   "repoSectionHistory": "History",
   "@repoSectionHistory": {
     "description": "A sidebar item, and the file view's mode listing a file's commits."

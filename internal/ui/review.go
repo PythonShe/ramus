@@ -125,6 +125,7 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 	var act func()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			changesModes(c, &t.cv)
 			what := locales.ReviewToReview(len(files))
 			if rv.onlyNew {
 				what = locales.ReviewChangedSinceSeenCount(len(files))

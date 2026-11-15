@@ -26,7 +26,7 @@ type changesState struct {
 	builtTree   bool
 	builtOpen   int
 	filter      string
-	mode        int // 0 list, 1 tree
+	mode        int // modeList, modeTree or modeReview
 	open        map[openKey]bool
 	openGen     int
 	list        ui.ListState
@@ -56,7 +56,7 @@ func newChangesState() changesState {
 func (a *App) rebuildChanges(t *tab) {
 	cv := &t.cv
 	st := t.s.State.Status
-	tree := cv.mode == 1
+	tree := cv.mode == modeTree
 	if st == nil || cv.building || (cv.builtFor == st && cv.builtFilter == cv.filter && cv.builtTree == tree && cv.builtOpen == cv.openGen) {
 		return
 	}
@@ -101,7 +101,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.SearchField(c, &cv.filter).Label(locales.ChangesFilterLabel()).Placeholder(locales.ChangesFilterPlaceholder()).Grow(1)
-			ui.Segmented(c, &cv.mode, locales.ChangesList(), locales.ChangesTree())
+			changesModes(c, cv)
 			ro := t.s.Queue == nil
 			ui.PopoverMenuButton(c, locales.ChangesMore(), func(m *ui.Menu) {
 				if m.Item(locales.ChangesStashChanges()).Disabled(ro).Chosen() {
@@ -150,6 +150,20 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 }
 
 // changesPane is the changes list with the commit editor under it.
+// The ways the changes view shows the changes: the files as a list or in
+// their folders, beside the patch of the one chosen, or every patch not
+// staged yet one after the other, to review (review.go).
+const (
+	modeList = iota
+	modeTree
+	modeReview
+)
+
+// changesModes chooses among them, at the top of each.
+func changesModes(c *ui.Context, cv *changesState) {
+	ui.Segmented(c, &cv.mode, locales.ChangesList(), locales.ChangesTree(), locales.ChangesReview())
+}
+
 func (a *App) changesPane(c *ui.Context, t *tab) {
 	ui.Column(c).Fill().Children(func() {
 		a.monitorOffer(c, t)

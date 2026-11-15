@@ -26,7 +26,7 @@ func TestReviewAll(t *testing.T) {
 	r.Write("new.txt", "x\n")
 	tb := h.app.current()
 	h.until("the changes", func() bool { st := tb.s.State.Status; return st != nil && st.Len() == 3 })
-	h.click("Review Changes")
+	h.click("Review")
 	h.until("the review", h.shows("3 files to review"))
 	rv := &tb.rev
 	h.until("every patch", func() bool {
@@ -98,7 +98,7 @@ func TestReviewLayoutOfItsOwn(t *testing.T) {
 	if tb.cv.diff.pv.d.Layout != editor.DiffUnified {
 		t.Fatal("the patch in Changes is not unified")
 	}
-	h.click("Review Changes")
+	h.click("Review")
 	h.until("the review's patch", func() bool { it := tb.rev.items["a.txt"]; return it != nil && it.pv.d != nil })
 	if tb.rev.items["a.txt"].pv.d.Layout != editor.DiffSplit {
 		t.Fatal("the review is not side by side")
@@ -111,7 +111,7 @@ func TestReviewLayoutOfItsOwn(t *testing.T) {
 	if !h.app.Settings.ReviewUnified || h.app.Settings.DiffSplit {
 		t.Fatalf("settings %+v", h.app.Settings)
 	}
-	h.click("Changes (1)")
+	h.click("List")
 	h.click("Split")
 	h.until("the patch in Changes", func() bool { return tb.cv.diff.pv.d != nil && tb.cv.diff.pv.d.Layout == editor.DiffSplit })
 	if !h.app.Settings.ReviewUnified || !h.app.Settings.DiffSplit {

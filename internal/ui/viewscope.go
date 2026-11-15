@@ -6,12 +6,22 @@ import "strings"
 // what the view left was still reading: the session cancels those reads,
 // and the view reads again when it is shown again.
 func (a *App) showView(t *tab) {
-	if t.shown == t.sel {
+	name := viewName(t)
+	if t.shown == name {
 		return
 	}
 	a.leaveView(t, t.shown)
-	t.shown = t.sel
-	t.s.SetView(t.sel)
+	t.shown = name
+	t.s.SetView(name)
+}
+
+// viewName names the view of t shown: its sidebar item's, or "review"
+// for the changes shown to review.
+func viewName(t *tab) string {
+	if t.sel == "changes" && t.cv.mode == modeReview {
+		return "review"
+	}
+	return t.sel
 }
 
 // hideTab is showView for a tab put in the background.

@@ -3543,6 +3543,22 @@ func (msgs Messages) ChangesTree() string {
 	return Catalog.Format(msgs.locale, "changesTree", nil)
 }
 
+// ChangesReview says "Review"
+// in the language the app shows.
+//
+// Shows every unstaged change as one list of patches, to stage or discard
+// each in turn; the other choices are List and Tree.
+func ChangesReview() string { return In(i18n.Locale()).ChangesReview() }
+
+// ChangesReview says "Review"
+// in the language of msgs.
+//
+// Shows every unstaged change as one list of patches, to stage or discard
+// each in turn; the other choices are List and Tree.
+func (msgs Messages) ChangesReview() string {
+	return Catalog.Format(msgs.locale, "changesReview", nil)
+}
+
 // ChangesMore says "More"
 // in the language the app shows.
 //
@@ -6301,16 +6317,6 @@ func RepoSectionChangesCount(n int) string { return In(i18n.Locale()).RepoSectio
 // in the language of msgs.
 func (msgs Messages) RepoSectionChangesCount(n int) string {
 	return Catalog.Format(msgs.locale, "repoSectionChangesCount", map[string]any{"n": n})
-}
-
-// RepoSectionReview says "Review Changes"
-// in the language the app shows.
-func RepoSectionReview() string { return In(i18n.Locale()).RepoSectionReview() }
-
-// RepoSectionReview says "Review Changes"
-// in the language of msgs.
-func (msgs Messages) RepoSectionReview() string {
-	return Catalog.Format(msgs.locale, "repoSectionReview", nil)
 }
 
 // RepoSectionHistory says "History"
