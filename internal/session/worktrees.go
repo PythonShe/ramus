@@ -1,12 +1,10 @@
 package session
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -192,14 +190,14 @@ func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktre
 		return sum
 	}
 	sum.Changes = st.Len()
-	var lines map[string][2]int
+	var lines *diff.NumStat
 	if wt.Head != "" {
 		res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: wt.Path, Discover: true, Read: true, MaxOutput: dashboardMaxOutput,
 			Config: []string{"core.quotePath=false"},
 			// diff-index, not diff, which refreshes the index (diff.Head).
 			Args: []string{"diff-index", "--numstat", "-z", "--no-renames", "--ignore-submodules=dirty", "HEAD"}})
 		if err == nil {
-			lines = numstatLines(res.Stdout)
+			lines, _ = diff.ParseNumStat(res.Stdout)
 		}
 	}
 	budget := maxCountedBytes
@@ -207,8 +205,8 @@ func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktre
 		f := WorktreeFile{Path: string(st.Path(i)), Untracked: st.Kind(i) == status.Untracked}
 		x, y := st.XY(i)
 		f.Deleted = x == 'D' || y == 'D'
-		if n, ok := lines[f.Path]; ok {
-			f.Added, f.Removed, f.Binary = n[0], n[1], n[0] < 0
+		if l := lines.Find(st.Path(i), st.Path(i)); l.Known {
+			f.Added, f.Removed, f.Binary = int(l.Added), int(l.Deleted), l.Binary
 		}
 		file := filepath.Join(wt.Path, filepath.FromSlash(f.Path))
 		if !f.Deleted {
@@ -235,25 +233,6 @@ func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktre
 	return sum
 }
 
-// numstatLines reads git diff --numstat -z --no-renames: the lines
-// added and removed by path, -1 for a binary file.
-func numstatLines(out []byte) map[string][2]int {
-	m := map[string][2]int{}
-	for rec := range bytes.SplitSeq(out, []byte{0}) {
-		parts := bytes.SplitN(rec, []byte{'\t'}, 3)
-		if len(parts) != 3 {
-			continue
-		}
-		add, err1 := strconv.Atoi(string(parts[0]))
-		del, err2 := strconv.Atoi(string(parts[1]))
-		if err1 != nil || err2 != nil {
-			add, del = -1, -1
-		}
-		m[string(parts[2])] = [2]int{add, del}
-	}
-	return m
-}
-
 // countLines counts the lines of a file that is not binary, as git
 // would show it added whole: a NUL in its start makes it binary.
 func countLines(file string) (n int, binary bool) {
@@ -266,14 +245,8 @@ func countLines(file string) (n int, binary bool) {
 	if err != nil {
 		return 0, false
 	}
-	if bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0 {
-		return 0, true
-	}
-	n = bytes.Count(data, []byte{'\n'})
-	if len(data) > 0 && data[len(data)-1] != '\n' {
-		n++
-	}
-	return n, false
+	l := diff.CountText(data)
+	return int(l.Added), l.Binary
 }
 
 // WorktreePatch reads, off the main thread, the patch of one file in a
