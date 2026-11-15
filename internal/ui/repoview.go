@@ -399,10 +399,10 @@ func fileIcon(c *ui.Context, path string) {
 }
 
 // pathLabel shows path shown, from showPath, in a list's row on one line.
-// Cut, it keeps its start and its end, where the file's name is, and the
-// pointer resting on it shows it whole.
+// Cut, it loses its start and keeps its end, the file's name and the
+// folders nearest it, and the pointer resting on it shows it whole.
 func pathLabel(c *ui.Context, shown string) ui.Element {
-	return ui.Text(c, shown).SingleLine().TruncateMiddle().Tooltip(shown)
+	return ui.Text(c, shown).SingleLine().TruncateStart().Tooltip(shown)
 }
 
 // showPath is how a path from git is shown: as it is, unless it holds

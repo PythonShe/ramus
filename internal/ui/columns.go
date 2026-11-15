@@ -60,6 +60,8 @@ func (a *App) savedTable(c *ui.Context, key string, s *tableState, cols []ui.Tab
 		s.key, s.from = key, saved
 		s.Columns = ui.TableLayout(saved)
 	}
+	// Rows as dense as the history's, not the theme's roomier ones.
+	s.RowHeight = rowHeight
 	// Headers name the columns quietly, below the rows' text.
 	s.HeaderCell = func(cell ui.Element, _ int) { cell.FontSize(textSmall) }
 	s.HeaderMenu = func(m *ui.Menu, _ int) {
