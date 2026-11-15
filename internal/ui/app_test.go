@@ -349,6 +349,9 @@ func TestSettings(t *testing.T) {
 	exe, _ := os.Executable()
 	picked := filepath.Join(t.TempDir(), "nope")
 	h.app.PickFile = func(string) (string, error) { return picked, nil }
+	// The tools are found in the background; the menu names the one
+	// found once they are.
+	h.until("the tools", func() bool { return h.app.palette.found })
 	auto := "Automatic"
 	if name := h.app.palette.auto[tools.Editor]; name != "" {
 		auto = "Automatic (" + name + ")"

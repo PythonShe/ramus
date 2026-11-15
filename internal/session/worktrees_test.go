@@ -141,9 +141,12 @@ func TestWatchWorktrees(t *testing.T) {
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	s.worktreeEvery = 10 * time.Millisecond
 	m.until(t, "the worktrees", func() bool { return len(s.State.Worktrees) == 2 })
+	// The worktree by the path git gives, as the app has it: on Windows
+	// the temporary directory's may be a short name git writes long.
+	path := s.State.Worktrees[1].Path
 	var last WorktreeSummary
 	stop := s.WatchWorktrees(s.State.Worktrees, func(sum WorktreeSummary) {
-		if sum.Path == wt {
+		if sum.Path == path {
 			last = sum
 		}
 	})
@@ -153,7 +156,7 @@ func TestWatchWorktrees(t *testing.T) {
 	m.until(t, "the change read again", func() bool { return last.Added == 1 })
 
 	var got *PatchResult
-	s.WorktreePatch(wt, "a.txt", false, func(res PatchResult) { got = &res })
+	s.WorktreePatch(path, "a.txt", false, func(res PatchResult) { got = &res })
 	m.until(t, "the patch", func() bool { return got != nil })
 	if got.Err != nil || got.Parsed == nil || len(got.Parsed.Files) != 1 {
 		t.Fatalf("patch %+v", got)
