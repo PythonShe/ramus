@@ -130,7 +130,12 @@ func (a *App) page(c *ui.Context, t *tab) {
 		return
 	}
 	if t.cv.mode == modeReview {
-		a.reviewView(c, t)
+		// The commit box under the review, as under the list: what is kept
+		// is committed without leaving it.
+		ui.Column(c).Fill().Children(func() {
+			ui.Column(c).Grow(1).Children(func() { a.reviewView(c, t) })
+			a.commitBox(c, t)
+		})
 		return
 	}
 	ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
