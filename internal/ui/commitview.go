@@ -170,6 +170,18 @@ func (cv *commitView) patchOpen() bool {
 	return cv.d != nil && cv.d.Files != nil && cv.file >= 0 && cv.file < cv.d.Files.Len()
 }
 
+// listPane is the width listBesideCommit gives the list: *w, or the
+// list's own while the commit's patch is open.
+func listPane(w float32, cv *commitView) float32 {
+	if !cv.patchOpen() {
+		return w
+	}
+	if cv.listW == 0 {
+		return commitListW
+	}
+	return cv.listW
+}
+
 // listBesideCommit splits a list of commits from the commit chosen in it.
 // While the commit's patch is open, the list takes a width of its own,
 // narrower, which leaves the patch room; it goes back to *w as the patch

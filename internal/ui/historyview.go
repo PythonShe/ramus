@@ -69,8 +69,11 @@ type historyState struct {
 	path    ui.Path
 	detail  commitView
 	detailW float32
-	// rowW is the list's width as last laid out, 0 before.
-	rowW float32
+	// rowW is the list's width as last laid out, 0 before, when its pane
+	// was rowPane wide; pane is its pane's width in this pass, and
+	// lastPane in the pass before, which rowW was measured in. colRoom is
+	// the width the columns were last laid out for.
+	rowW, rowPane, pane, lastPane, colRoom float32
 	// cols are the columns as laid out in this frame; colDrag a divider
 	// being dragged.
 	cols    histLayout
@@ -156,6 +159,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	a.followHistory(t, h)
 	a.findWanted(t, h)
 	a.buildLabels(hv, t.s.State, h)
+	hv.lastPane, hv.pane = hv.pane, listPane(hv.detailW, &hv.detail)
 	listBesideCommit(c, &hv.detailW, 640, &hv.detail, func() {
 		ui.Column(c).Fill().Children(func() {
 			a.bisectBar(c, t)
@@ -544,10 +548,23 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	// more lays the columns out for it.
 	ww, _ := c.Size()
 	key := listWidthKey{ww, t.sideW, t.sideOut, a.Settings.NoSidebar, hv.detailW, hv.detail.listW, hv.detail.patchOpen()}
-	if w := l.LayoutBounds().W; key != hv.widthKey || w != hv.rowW {
-		hv.widthKey, hv.rowW = key, w
+	w := l.LayoutBounds().W
+	if key != hv.widthKey || w != hv.rowW {
+		hv.widthKey = key
 		c.AnimationFrame()
 	}
+	hv.rowW, hv.rowPane = w, hv.lastPane
+}
+
+// roomW is the width the list has in this pass: as last laid out, and
+// what its pane gained or lost since. Measured alone, a file's patch
+// opening beside the commit would show the columns a frame or two at
+// the width the list had before, over the edge of the narrower one.
+func (hv *historyState) roomW() float32 {
+	if hv.rowW == 0 || hv.rowPane == 0 {
+		return hv.rowW
+	}
+	return max(0, hv.rowW+hv.pane-hv.rowPane)
 }
 
 // keepInView tells the session the commits to find again in a history

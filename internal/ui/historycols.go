@@ -265,9 +265,16 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 }
 
 // historyColumns lays the columns out for the list as wide as it was in
-// the last frame, their widths animated on head.
+// the last frame, their widths animated on head. Only what the user does
+// to a column animates: the list narrowing or widening, as a file's
+// patch opens beside the commit, the sidebar or the window is resized,
+// moves the columns at once, as mygo has a window's resizing do; animated,
+// each change of room had the graph and the message sweep across.
 func (a *App) historyColumns(head ui.Element, hv *historyState, snap *lanes.Snapshot) histLayout {
 	d := &hv.colDrag
+	room := hv.roomW()
+	resized := hv.colRoom != room
+	hv.colRoom = room
 	want := a.columnWidths(hv, snap)
 	if d.active && d.done {
 		a.letGo(d, want, snap)
@@ -277,7 +284,7 @@ func (a *App) historyColumns(head ui.Element, hv *historyState, snap *lanes.Snap
 	l := histLayout{least: histColumnMin, lanes: snap.Width(), handle: a.columnHandles(hv), to: want}
 	l.least[colGraph] = graphThin(snap)
 	for k := range histColumns {
-		if d.active && d.col == k {
+		if d.active && d.col == k || resized {
 			l.w[k] = head.Jump(k, want.w[k])
 		} else {
 			l.w[k] = head.AnimateTo(k, want.w[k], columnSettle)
@@ -285,7 +292,7 @@ func (a *App) historyColumns(head ui.Element, hv *historyState, snap *lanes.Snap
 		// Under half a point a column is gone.
 		l.shown[k] = l.w[k] >= 0.5
 	}
-	if d.active {
+	if d.active || resized {
 		l.end = head.Jump("end", want.end)
 	} else {
 		l.end = head.AnimateTo("end", want.end, columnSettle)
@@ -416,10 +423,10 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) colWant {
 	}
 	handles := a.columnHandles(hv)
 	cw.msg, cw.room = want, 1e6
-	if hv.rowW == 0 {
+	if hv.roomW() == 0 {
 		return cw
 	}
-	room := hv.rowW - 2*insetX - spaceM - want
+	room := hv.roomW() - 2*insetX - spaceM - want
 	for k := range histColumns {
 		room -= cw.w[k] + columnGap(k, cw.w[k], handles[k])
 	}

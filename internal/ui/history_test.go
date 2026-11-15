@@ -754,6 +754,27 @@ func TestHistoryGraphCollapses(t *testing.T) {
 	if h.app.Settings.HistoryColumns["graph"].Thin {
 		t.Fatal("thin for want of room kept as the user's")
 	}
+	// The list's room changing, as a file's patch opens beside the
+	// commit, moves the columns at once, with the clock standing still;
+	// a click on a title still animates.
+	for _, c := range []struct{ w, graph float32 }{{260, thin}, {640, full}} {
+		hv.detailW = c.w
+		for range 4 {
+			h.tt.Frame()
+		}
+		if hv.cols.w != hv.cols.to.w {
+			t.Fatalf("a list resized to %v: columns %v on their way to %v", c.w, hv.cols.w, hv.cols.to.w)
+		}
+	}
+	h.tt.ClickAt(title())
+	h.tt.Frame()
+	h.tt.Frame()
+	if w := hv.cols.w[colGraph]; w == thin {
+		t.Fatal("a title clicked moved the column at once")
+	}
+	settle()
+	h.tt.ClickAt(title())
+	settle()
 
 	// Dragged to the end, it stops at its least; thin, dragged out, full
 	// again.
@@ -1059,4 +1080,55 @@ func oidRow(tb *tab, id string) int {
 		}
 	}
 	return -1
+}
+
+// A file's patch opening beside the commit narrows the list, and the
+// columns are laid out for its new width in the frame it first shows
+// at, not the one after: there is no frame of them over its edge.
+func TestHistoryColumnsKeepUpWithThePatch(t *testing.T) {
+	h := newHarness(t)
+	// Each pass of the view, as tt.Frame runs as many as it asks for.
+	type pass struct {
+		room, rowW float32
+		cols, to   [histColumns]float32
+	}
+	var passes []pass
+	var hv *historyState
+	h.tt = ui.NewTester(func(c *ui.Context) {
+		h.app.View(c)
+		if hv != nil {
+			passes = append(passes, pass{hv.colRoom, hv.rowW, hv.cols.w, hv.cols.to.w})
+		}
+	}, 1200, 800)
+	r := h.repoWith()
+	r.Write("a.txt", "x\n")
+	r.Commit("two")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the rows", h.shows("two"))
+	hv = &h.app.current().hist
+	hv.chosen = 0
+	h.until("the commit's files", func() bool { return hv.detail.d != nil && hv.detail.d.Files != nil })
+	h.tt.Frame()
+	for _, open := range []bool{true, false} {
+		if open {
+			hv.detail.file = 0
+		} else {
+			hv.detail.file = -1
+		}
+		passes = nil
+		h.tt.Frame()
+		// A pass's list is as wide as the next one measures it.
+		for i := 0; i+1 < len(passes); i++ {
+			p := passes[i]
+			if p.room != passes[i+1].rowW || p.cols != p.to {
+				t.Fatalf("patch open %v, pass %d of %d: columns %v laid out for %v, want %v for %v", open, i, len(passes), p.cols, p.room, p.to, passes[i+1].rowW)
+			}
+		}
+		if len(passes) < 2 {
+			t.Fatalf("%d passes", len(passes))
+		}
+	}
 }
