@@ -283,7 +283,9 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.CommitHashLabel()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 			id := hex.EncodeToString(d.OID)
-			if clickable(ui.Text(c, id).Font("monospace").FontSize(textSmall)).Tooltip(locales.CommonCopyHash()).Clicked() {
+			// A hash is one word: it breaks anywhere to fit a narrow panel,
+			// rather than run past its edge.
+			if clickable(ui.Text(c, id).Font("monospace").FontSize(textSmall).Grow(1).Shrink(1).MinWidth(0)).Tooltip(locales.CommonCopyHash()).Clicked() {
 				a.clip = id
 			}
 		})
@@ -330,9 +332,9 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		if len(d.Parents) > 0 {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
 				ui.Text(c, locales.CommitParents(len(d.Parents))).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
-				ui.Column(c).Gap(space2XS).Children(func() {
+				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					for _, p := range d.Parents {
-						if clickable(ui.Text(c, hex.EncodeToString(p)).Font("monospace").FontSize(textSmall)).Tooltip(locales.CommitGoToParent()).Clicked() {
+						if clickable(ui.Text(c, hex.EncodeToString(p)).Font("monospace").FontSize(textSmall).FillWidth().MinWidth(0)).Tooltip(locales.CommitGoToParent()).Clicked() {
 							t.sel = "history"
 							a.chooseCommit(t, p)
 						}
