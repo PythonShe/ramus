@@ -120,6 +120,15 @@ func quiet(env []string) []string {
 // run runs the tool with args in dir, which may be "", and returns what
 // it printed.
 func (c *CLI) run(ctx context.Context, dir string, host string, args ...string) ([]byte, error) {
+	return c.runWith(ctx, dir, host, nil, args...)
+}
+
+// runInput is run with stdin on the tool's standard input.
+func (c *CLI) runInput(ctx context.Context, host string, stdin []byte, args ...string) ([]byte, error) {
+	return c.runWith(ctx, "", host, stdin, args...)
+}
+
+func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte, args ...string) ([]byte, error) {
 	select {
 	case c.slots <- struct{}{}:
 	case <-ctx.Done():
@@ -130,6 +139,9 @@ func (c *CLI) run(ctx context.Context, dir string, host string, args ...string) 
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.Path, args...)
 	cmd.Dir, cmd.Env = dir, c.env
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	cmd.WaitDelay = 2 * time.Second
 	ownGroup(cmd)
 	out := &capped{max: maxOutput}
