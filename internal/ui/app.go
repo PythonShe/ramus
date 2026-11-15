@@ -194,6 +194,7 @@ type tab struct {
 	refs      refsState
 	stash     stashState
 	locks     lockState
+	pr        prState
 	merge     mergeState
 	file      fileState
 	bisect    bisectState
@@ -330,7 +331,7 @@ func (a *App) Open(path string) {
 		return
 	}
 	a.nextID++
-	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), locks: newLockState(), refs: newRefsState(), stash: newStashState(), file: newFileState(),
+	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), locks: newLockState(), pr: newPRState(), refs: newRefsState(), stash: newStashState(), file: newFileState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
 	a.tabs = append(a.tabs, t)
 	r, restored := a.restoring[path]
@@ -412,6 +413,10 @@ func (a *App) reload(t *tab) {
 	t.cv.diff.key = diffKey{}
 	t.links.For = nil
 	t.locks.listed = -1
+	t.pr.listAt = time.Time{}
+	if rv := t.pr.rv; rv != nil {
+		rv.reread()
+	}
 	for _, cv := range []*commitView{&t.hist.detail, &t.file.detail, &t.reflog.detail, &t.stash.detail} {
 		cv.id = nil
 	}

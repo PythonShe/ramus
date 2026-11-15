@@ -249,36 +249,44 @@ func (pv *patchView) clearSelection() {
 // builds the buttons on the change under the pointer, and lets lines be
 // selected.
 func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchResult, actions func(c *ui.Context, change int)) {
+	a.patchBodyWith(c, t, pv, res, actions, nil)
+}
+
+// patchBodyWith is patchBody with decorate, when set, given the viewer
+// before it is built, to add what a review shows on its lines; it
+// returns the viewer's element, or none while there is no viewer.
+func (a *App) patchBodyWith(c *ui.Context, t *tab, pv *patchView, res session.PatchResult, actions func(c *ui.Context, change int),
+	decorate func(d *editor.DiffState)) ui.Element {
 	th := c.Theme()
 	p := res.Parsed
 	switch {
 	case res.Err != nil:
 		errorMessage(c, errText(res.Err))
-		return
+		return ui.Element{}
 	case p == nil:
 		loading(c, "")
-		return
+		return ui.Element{}
 	case len(p.Files) == 0 || len(p.Hunks) == 0 && !p.Files[0].Binary:
 		emptyState(c, locales.PatchNoDifferences())
-		return
+		return ui.Element{}
 	case pv.sub != nil && t != nil:
 		a.submoduleChange(c, t, pv.sub)
-		return
+		return ui.Element{}
 	case p.Files[0].Binary && (pv.images[0] != nil || pv.images[1] != nil), pv.lfs && pv.pictured:
 		pictures(c, pv)
-		return
+		return ui.Element{}
 	case pv.lfs:
 		loading(c, "")
-		return
+		return ui.Element{}
 	case p.Files[0].Binary:
 		emptyState(c, locales.PatchBinary())
-		return
+		return ui.Element{}
 	case pv.failed:
 		emptyState(c, locales.PatchCannotShow())
-		return
+		return ui.Element{}
 	case pv.d == nil:
 		loading(c, "")
-		return
+		return ui.Element{}
 	}
 	if pv.endings != "" {
 		// The engine names the change as "CRLF to LF" or "LF to CRLF".
@@ -290,7 +298,11 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 	}
 	d := pv.d
 	a.setDiffView(d, false, actions)
-	editor.DiffView(c, d).Fill()
+	d.Annotations, d.RenderAnnotation, d.OnGutterButton = nil, nil, nil
+	if decorate != nil {
+		decorate(d)
+	}
+	el := editor.DiffView(c, d).Fill()
 	switch {
 	case !pv.shown:
 		pv.shown = true
@@ -301,6 +313,7 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 		d.SetScrollY(pv.scrollTo)
 		pv.scrollTo = -1
 	}
+	return el
 }
 
 // setDiffView sets the viewer to the options chosen, the review's or
@@ -464,4 +477,67 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 			})
 		}).Label(locales.PatchSubmoduleCommits()).Grow(1)
 	})
+}
+
+// fileLine is the line of the file, from 1, that line i of the viewer's
+// side shows; 0 for none, as a hunk's header or a side's padding.
+func (pv *patchView) fileLine(side editor.DiffSide, i int) int {
+	if i < 0 {
+		return 0
+	}
+	if pv.whole {
+		return i + 1
+	}
+	at := pv.newAt
+	if side == editor.DiffOld {
+		at = pv.oldAt
+	}
+	if pv.p == nil || i >= len(at) || at[i] < 0 || int(at[i]) >= len(pv.p.Lines) {
+		return 0
+	}
+	l := pv.p.Lines[at[i]]
+	if side == editor.DiffOld {
+		return int(l.Old)
+	}
+	return int(l.New)
+}
+
+// viewLine is the line of the viewer's side that shows line n of the
+// file, from 1; -1 when it shows none.
+func (pv *patchView) viewLine(side editor.DiffSide, n int) int {
+	if n <= 0 {
+		return -1
+	}
+	if pv.whole {
+		return n - 1
+	}
+	at := pv.newAt
+	if side == editor.DiffOld {
+		at = pv.oldAt
+	}
+	for i := range at {
+		if pv.fileLine(side, i) == n {
+			return i
+		}
+	}
+	return -1
+}
+
+// inHunk reports whether line n of the file, from 1, on side is among
+// the patch's hunks, context lines included: where a host takes a
+// comment on a pull request's diff.
+func (pv *patchView) inHunk(side editor.DiffSide, n int) bool {
+	if pv.p == nil {
+		return false
+	}
+	for _, h := range pv.p.Hunks {
+		start, count := h.NewStart, h.NewCount
+		if side == editor.DiffOld {
+			start, count = h.OldStart, h.OldCount
+		}
+		if int32(n) >= start && int32(n) < start+count {
+			return true
+		}
+	}
+	return false
 }

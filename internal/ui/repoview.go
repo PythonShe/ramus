@@ -117,6 +117,9 @@ func (a *App) page(c *ui.Context, t *tab) {
 	case sideLocks:
 		a.lfsLocksView(c, t)
 		return
+	case sidePulls:
+		a.pullsView(c, t)
+		return
 	case "worktrees":
 		a.worktreeDashboard(c, t)
 		return
@@ -246,6 +249,9 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		ui.SidebarItem(c, sideChanges, nil, changesLabel(st))
 		item("history", locales.RepoSectionHistory())
 		item("refs", locales.RepoSectionRefs())
+		if a.hasPulls(t) {
+			item(sidePulls, locales.RepoSectionPulls())
+		}
 		if t.cmp.to != nil {
 			ui.SidebarItem(c, sideCompare, nil, locales.RepoSectionComparison())
 		}

@@ -30,7 +30,9 @@ repositories and runs your own git.
   another, and clean up branches that are gone.
 - **Pull requests**: each branch's pull or merge request and the one each
   commit came in by, from GitHub through `gh` or GitLab through `glab`,
-  including GitHub stacks.
+  including GitHub stacks. Review a GitHub pull request in the app: its
+  files diffed locally with the threads under their lines, reply, resolve,
+  comment on a line or a range, and approve or request changes.
 - **Worktrees**: every worktree's branch, changes, and how far ahead or
   behind it is.
 - **Git LFS**: see who holds a lock, lock a file before editing it, and

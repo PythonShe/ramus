@@ -137,6 +137,9 @@ func (a *App) tabCommands(t *tab) []command {
 		cmd("show-refs", func() { t.sel = "refs" }),
 		cmd("show-stashes", func() { t.sel = "stashes" }),
 	)
+	if a.hasPulls(t) {
+		cmds = append(cmds, cmd("show-pulls", func() { t.sel = sidePulls }))
+	}
 	if t.s.State.LFS {
 		cmds = append(cmds, cmd("show-lfs-locks", func() { t.sel = sideLocks }))
 	}

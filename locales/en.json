@@ -2639,5 +2639,201 @@
   "patchNotFetched": "Not downloaded from Git LFS",
   "@patchNotFetched": {
     "description": "Shown in place of one side of a picture's change whose content Git LFS has not downloaded."
+  },
+  "repoSectionPulls": "Pull Requests",
+  "@repoSectionPulls": {
+    "description": "Sidebar item and page title: the repository's open pull requests on GitHub."
+  },
+  "keysShowPulls": "Show Pull Requests",
+  "@keysShowPulls": {
+    "description": "Command that shows the pull requests page."
+  },
+  "columnTitle": "Title",
+  "@columnTitle": {
+    "description": "Column of a pull request's title."
+  },
+  "columnBranch": "Branch",
+  "@columnBranch": {
+    "description": "Column of a pull request's branch."
+  },
+  "columnReview": "Review",
+  "@columnReview": {
+    "description": "Column of what a pull request's reviews and checks add up to."
+  },
+  "columnUpdated": "Updated",
+  "@columnUpdated": {
+    "description": "Column of when a pull request last changed."
+  },
+  "prsNone": "No open pull requests.",
+  "@prsNone": {
+    "description": "Shown when the repository has no open pull requests."
+  },
+  "prsMore": "{count, plural, one {Only the most recently updated pull request is listed.} other {Only the # most recently updated are listed.}}",
+  "@prsMore": {
+    "description": "Shown above the list when the host has more open pull requests than were read."
+  },
+  "prsNoReview": "Pull requests can be reviewed in the app on GitHub only so far.",
+  "@prsNoReview": {
+    "description": "Shown when the repository's pull requests are on a host the app cannot review on."
+  },
+  "prsList": "Open pull requests",
+  "@prsList": {
+    "description": "Accessibility label of the table of pull requests."
+  },
+  "prsRow": "#{number, number, ::group-off} {title}, by {author}",
+  "@prsRow": {
+    "description": "Accessibility label of a pull request's row."
+  },
+  "prsOpenInBrowser": "Open in Browser",
+  "@prsOpenInBrowser": {
+    "description": "Opens the pull request's page on the host."
+  },
+  "prsTitle": "#{number, number, ::group-off} {title}",
+  "@prsTitle": {
+    "description": "Title of the pull request under review."
+  },
+  "prsMeta": "{author} wants to merge {head} into {base}",
+  "@prsMeta": {
+    "description": "Under the title of a pull request: who opened it and its branches."
+  },
+  "prsDecision": "{decision, select, approved {Approved} changes {Changes requested} other {Review required}}",
+  "@prsDecision": {
+    "description": "What a pull request's reviews add up to."
+  },
+  "prsMoreOnHost": "More comments are on the pull request's page than are shown here.",
+  "@prsMoreOnHost": {
+    "description": "Shown when the host holds more comments, reviews or threads than were read."
+  },
+  "prsFiles": "{count, plural, one {Files (#)} other {Files (#)}}",
+  "@prsFiles": {
+    "description": "Tab of the files a pull request changes."
+  },
+  "prsConversation": "{count, plural, one {Conversation (#)} other {Conversation (#)}}",
+  "@prsConversation": {
+    "description": "Tab of a pull request's description, comments and reviews."
+  },
+  "prsConversationLabel": "Conversation",
+  "@prsConversationLabel": {
+    "description": "Accessibility label of the list of a pull request's comments and reviews."
+  },
+  "prsReading": "Reading the pull request…",
+  "@prsReading": {
+    "description": "Shown while the pull request is read from the host."
+  },
+  "prsFetching": "Fetching the pull request’s commits…",
+  "@prsFetching": {
+    "description": "Shown while the pull request's commits are fetched and compared."
+  },
+  "prsSubmitReview": "{count, plural, =0 {Submit Review…} other {Submit Review (#)…}}",
+  "@prsSubmitReview": {
+    "description": "Button that opens the dialog submitting the review; count is the comments pending."
+  },
+  "prsSubmitTitle": "Submit your review of #{number, number, ::group-off}",
+  "@prsSubmitTitle": {
+    "description": "Title of the dialog that submits a review."
+  },
+  "prsSummary": "Summary",
+  "@prsSummary": {
+    "description": "Label and placeholder of the text of a review."
+  },
+  "prsVerdictComment": "Comment",
+  "@prsVerdictComment": {
+    "description": "Choice of a review that only comments."
+  },
+  "prsVerdictApprove": "Approve",
+  "@prsVerdictApprove": {
+    "description": "Choice of a review that approves the pull request."
+  },
+  "prsVerdictRequestChanges": "Request Changes",
+  "@prsVerdictRequestChanges": {
+    "description": "Choice of a review that asks for changes."
+  },
+  "prsPendingCount": "{count, plural, one {# pending comment goes with it.} other {# pending comments go with it.}}",
+  "@prsPendingCount": {
+    "description": "In the submit dialog: the comments on lines sent with the review."
+  },
+  "prsCommentCount": "{count, plural, one {# comment} other {# comments}}",
+  "@prsCommentCount": {
+    "description": "Tooltip of the count of comments on a file."
+  },
+  "prsReply": "Reply",
+  "@prsReply": {
+    "description": "Button and label of the field replying to a review thread."
+  },
+  "prsReplyPlaceholder": "Reply…",
+  "@prsReplyPlaceholder": {
+    "description": "Placeholder of the field replying to a review thread."
+  },
+  "prsResolve": "Resolve",
+  "@prsResolve": {
+    "description": "Marks a review thread resolved."
+  },
+  "prsUnresolve": "Unresolve",
+  "@prsUnresolve": {
+    "description": "Marks a resolved review thread open again."
+  },
+  "prsResolvedThread": "{count, plural, one {Resolved thread, # comment} other {Resolved thread, # comments}}",
+  "@prsResolvedThread": {
+    "description": "A resolved review thread, folded."
+  },
+  "prsShow": "Show",
+  "@prsShow": {
+    "description": "Unfolds a resolved review thread."
+  },
+  "prsHide": "Hide",
+  "@prsHide": {
+    "description": "Folds a resolved review thread again."
+  },
+  "prsPending": "Pending",
+  "@prsPending": {
+    "description": "Marks a comment that goes with the review when it is submitted."
+  },
+  "prsCommentLine": "Comment on line {line, number, ::group-off}",
+  "@prsCommentLine": {
+    "description": "Title of a comment being written on one line."
+  },
+  "prsCommentLines": "Comment on lines {start, number, ::group-off} to {line, number, ::group-off}",
+  "@prsCommentLines": {
+    "description": "Title of a comment being written on several lines."
+  },
+  "prsCommentPlaceholder": "Leave a comment",
+  "@prsCommentPlaceholder": {
+    "description": "Placeholder of a comment being written."
+  },
+  "prsCommentNow": "Comment Now",
+  "@prsCommentNow": {
+    "description": "Sends one comment on lines at once, apart from the review."
+  },
+  "prsAddToReview": "Add to Review",
+  "@prsAddToReview": {
+    "description": "Keeps a comment on lines to send with the review."
+  },
+  "prsNotInDiff": "GitHub takes comments only on changed lines and the lines around them.",
+  "@prsNotInDiff": {
+    "description": "Shown when the user starts a comment on a line outside the diff's hunks."
+  },
+  "prsOpened": "opened this",
+  "@prsOpened": {
+    "description": "In the conversation: the pull request's description."
+  },
+  "prsCommented": "commented",
+  "@prsCommented": {
+    "description": "In the conversation: a comment."
+  },
+  "prsReviewed": "{verdict, select, approved {approved} changes {requested changes} dismissed {reviewed, dismissed} other {reviewed}}",
+  "@prsReviewed": {
+    "description": "In the conversation: a review submitted."
+  },
+  "prsOutdatedOn": "on {path}, line {line, number, ::group-off}, since changed",
+  "@prsOutdatedOn": {
+    "description": "In the conversation: a review thread on lines the pull request has changed since."
+  },
+  "prsNoDescription": "No description.",
+  "@prsNoDescription": {
+    "description": "Shown for a pull request without a description."
+  },
+  "prsAddComment": "Comment",
+  "@prsAddComment": {
+    "description": "Adds a comment to the pull request's conversation."
   }
 }

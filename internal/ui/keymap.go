@@ -190,6 +190,7 @@ var bindable = append([]bindableCommand{
 	{"show-log", locales.KeysShowLog},
 	{"show-snapshots", locales.KeysShowSnapshots},
 	{"show-lfs-locks", locales.KeysShowLocks},
+	{"show-pulls", locales.KeysShowPulls},
 	{"commit", locales.KeysCommit},
 	{"commit-push", locales.KeysCommitPush},
 	{"stage-all", locales.KeysStageAll},

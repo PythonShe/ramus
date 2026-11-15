@@ -12948,3 +12948,707 @@ func PatchNotFetched() string { return In(i18n.Locale()).PatchNotFetched() }
 func (msgs Messages) PatchNotFetched() string {
 	return Catalog.Format(msgs.locale, "patchNotFetched", nil)
 }
+
+// RepoSectionPulls says "Pull Requests"
+// in the language the app shows.
+//
+// Sidebar item and page title: the repository's open pull requests on
+// GitHub.
+func RepoSectionPulls() string { return In(i18n.Locale()).RepoSectionPulls() }
+
+// RepoSectionPulls says "Pull Requests"
+// in the language of msgs.
+//
+// Sidebar item and page title: the repository's open pull requests on
+// GitHub.
+func (msgs Messages) RepoSectionPulls() string {
+	return Catalog.Format(msgs.locale, "repoSectionPulls", nil)
+}
+
+// KeysShowPulls says "Show Pull Requests"
+// in the language the app shows.
+//
+// Command that shows the pull requests page.
+func KeysShowPulls() string { return In(i18n.Locale()).KeysShowPulls() }
+
+// KeysShowPulls says "Show Pull Requests"
+// in the language of msgs.
+//
+// Command that shows the pull requests page.
+func (msgs Messages) KeysShowPulls() string {
+	return Catalog.Format(msgs.locale, "keysShowPulls", nil)
+}
+
+// ColumnTitle says "Title"
+// in the language the app shows.
+//
+// Column of a pull request's title.
+func ColumnTitle() string { return In(i18n.Locale()).ColumnTitle() }
+
+// ColumnTitle says "Title"
+// in the language of msgs.
+//
+// Column of a pull request's title.
+func (msgs Messages) ColumnTitle() string {
+	return Catalog.Format(msgs.locale, "columnTitle", nil)
+}
+
+// ColumnBranch says "Branch"
+// in the language the app shows.
+//
+// Column of a pull request's branch.
+func ColumnBranch() string { return In(i18n.Locale()).ColumnBranch() }
+
+// ColumnBranch says "Branch"
+// in the language of msgs.
+//
+// Column of a pull request's branch.
+func (msgs Messages) ColumnBranch() string {
+	return Catalog.Format(msgs.locale, "columnBranch", nil)
+}
+
+// ColumnReview says "Review"
+// in the language the app shows.
+//
+// Column of what a pull request's reviews and checks add up to.
+func ColumnReview() string { return In(i18n.Locale()).ColumnReview() }
+
+// ColumnReview says "Review"
+// in the language of msgs.
+//
+// Column of what a pull request's reviews and checks add up to.
+func (msgs Messages) ColumnReview() string {
+	return Catalog.Format(msgs.locale, "columnReview", nil)
+}
+
+// ColumnUpdated says "Updated"
+// in the language the app shows.
+//
+// Column of when a pull request last changed.
+func ColumnUpdated() string { return In(i18n.Locale()).ColumnUpdated() }
+
+// ColumnUpdated says "Updated"
+// in the language of msgs.
+//
+// Column of when a pull request last changed.
+func (msgs Messages) ColumnUpdated() string {
+	return Catalog.Format(msgs.locale, "columnUpdated", nil)
+}
+
+// PrsNone says "No open pull requests."
+// in the language the app shows.
+//
+// Shown when the repository has no open pull requests.
+func PrsNone() string { return In(i18n.Locale()).PrsNone() }
+
+// PrsNone says "No open pull requests."
+// in the language of msgs.
+//
+// Shown when the repository has no open pull requests.
+func (msgs Messages) PrsNone() string {
+	return Catalog.Format(msgs.locale, "prsNone", nil)
+}
+
+// PrsMore says "{count, plural, one {Only the most recently updated pull request is listed.} other {Only the # most recently updated …"
+// in the language the app shows.
+//
+// Shown above the list when the host has more open pull requests than were
+// read.
+func PrsMore(count int) string { return In(i18n.Locale()).PrsMore(count) }
+
+// PrsMore says "{count, plural, one {Only the most recently updated pull request is listed.} other {Only the # most recently updated …"
+// in the language of msgs.
+//
+// Shown above the list when the host has more open pull requests than were
+// read.
+func (msgs Messages) PrsMore(count int) string {
+	return Catalog.Format(msgs.locale, "prsMore", map[string]any{"count": count})
+}
+
+// PrsNoReview says "Pull requests can be reviewed in the app on GitHub only so far."
+// in the language the app shows.
+//
+// Shown when the repository's pull requests are on a host the app cannot
+// review on.
+func PrsNoReview() string { return In(i18n.Locale()).PrsNoReview() }
+
+// PrsNoReview says "Pull requests can be reviewed in the app on GitHub only so far."
+// in the language of msgs.
+//
+// Shown when the repository's pull requests are on a host the app cannot
+// review on.
+func (msgs Messages) PrsNoReview() string {
+	return Catalog.Format(msgs.locale, "prsNoReview", nil)
+}
+
+// PrsList says "Open pull requests"
+// in the language the app shows.
+//
+// Accessibility label of the table of pull requests.
+func PrsList() string { return In(i18n.Locale()).PrsList() }
+
+// PrsList says "Open pull requests"
+// in the language of msgs.
+//
+// Accessibility label of the table of pull requests.
+func (msgs Messages) PrsList() string {
+	return Catalog.Format(msgs.locale, "prsList", nil)
+}
+
+// PrsRow says "#{number, number, ::group-off} {title}, by {author}"
+// in the language the app shows.
+//
+// Accessibility label of a pull request's row.
+func PrsRow(number int, title string, author string) string {
+	return In(i18n.Locale()).PrsRow(number, title, author)
+}
+
+// PrsRow says "#{number, number, ::group-off} {title}, by {author}"
+// in the language of msgs.
+//
+// Accessibility label of a pull request's row.
+func (msgs Messages) PrsRow(number int, title string, author string) string {
+	return Catalog.Format(msgs.locale, "prsRow", map[string]any{"number": number, "title": title, "author": author})
+}
+
+// PrsOpenInBrowser says "Open in Browser"
+// in the language the app shows.
+//
+// Opens the pull request's page on the host.
+func PrsOpenInBrowser() string { return In(i18n.Locale()).PrsOpenInBrowser() }
+
+// PrsOpenInBrowser says "Open in Browser"
+// in the language of msgs.
+//
+// Opens the pull request's page on the host.
+func (msgs Messages) PrsOpenInBrowser() string {
+	return Catalog.Format(msgs.locale, "prsOpenInBrowser", nil)
+}
+
+// PrsTitle says "#{number, number, ::group-off} {title}"
+// in the language the app shows.
+//
+// Title of the pull request under review.
+func PrsTitle(number int, title string) string { return In(i18n.Locale()).PrsTitle(number, title) }
+
+// PrsTitle says "#{number, number, ::group-off} {title}"
+// in the language of msgs.
+//
+// Title of the pull request under review.
+func (msgs Messages) PrsTitle(number int, title string) string {
+	return Catalog.Format(msgs.locale, "prsTitle", map[string]any{"number": number, "title": title})
+}
+
+// PrsMeta says "{author} wants to merge {head} into {base}"
+// in the language the app shows.
+//
+// Under the title of a pull request: who opened it and its branches.
+func PrsMeta(author string, head string, base string) string {
+	return In(i18n.Locale()).PrsMeta(author, head, base)
+}
+
+// PrsMeta says "{author} wants to merge {head} into {base}"
+// in the language of msgs.
+//
+// Under the title of a pull request: who opened it and its branches.
+func (msgs Messages) PrsMeta(author string, head string, base string) string {
+	return Catalog.Format(msgs.locale, "prsMeta", map[string]any{"author": author, "head": head, "base": base})
+}
+
+// PrsDecision says "{decision, select, approved {Approved} changes {Changes requested} other {Review required}}"
+// in the language the app shows.
+//
+// What a pull request's reviews add up to.
+func PrsDecision(decision string) string { return In(i18n.Locale()).PrsDecision(decision) }
+
+// PrsDecision says "{decision, select, approved {Approved} changes {Changes requested} other {Review required}}"
+// in the language of msgs.
+//
+// What a pull request's reviews add up to.
+func (msgs Messages) PrsDecision(decision string) string {
+	return Catalog.Format(msgs.locale, "prsDecision", map[string]any{"decision": decision})
+}
+
+// PrsMoreOnHost says "More comments are on the pull request's page than are shown here."
+// in the language the app shows.
+//
+// Shown when the host holds more comments, reviews or threads than were
+// read.
+func PrsMoreOnHost() string { return In(i18n.Locale()).PrsMoreOnHost() }
+
+// PrsMoreOnHost says "More comments are on the pull request's page than are shown here."
+// in the language of msgs.
+//
+// Shown when the host holds more comments, reviews or threads than were
+// read.
+func (msgs Messages) PrsMoreOnHost() string {
+	return Catalog.Format(msgs.locale, "prsMoreOnHost", nil)
+}
+
+// PrsFiles says "{count, plural, one {Files (#)} other {Files (#)}}"
+// in the language the app shows.
+//
+// Tab of the files a pull request changes.
+func PrsFiles(count int) string { return In(i18n.Locale()).PrsFiles(count) }
+
+// PrsFiles says "{count, plural, one {Files (#)} other {Files (#)}}"
+// in the language of msgs.
+//
+// Tab of the files a pull request changes.
+func (msgs Messages) PrsFiles(count int) string {
+	return Catalog.Format(msgs.locale, "prsFiles", map[string]any{"count": count})
+}
+
+// PrsConversation says "{count, plural, one {Conversation (#)} other {Conversation (#)}}"
+// in the language the app shows.
+//
+// Tab of a pull request's description, comments and reviews.
+func PrsConversation(count int) string { return In(i18n.Locale()).PrsConversation(count) }
+
+// PrsConversation says "{count, plural, one {Conversation (#)} other {Conversation (#)}}"
+// in the language of msgs.
+//
+// Tab of a pull request's description, comments and reviews.
+func (msgs Messages) PrsConversation(count int) string {
+	return Catalog.Format(msgs.locale, "prsConversation", map[string]any{"count": count})
+}
+
+// PrsConversationLabel says "Conversation"
+// in the language the app shows.
+//
+// Accessibility label of the list of a pull request's comments and reviews.
+func PrsConversationLabel() string { return In(i18n.Locale()).PrsConversationLabel() }
+
+// PrsConversationLabel says "Conversation"
+// in the language of msgs.
+//
+// Accessibility label of the list of a pull request's comments and reviews.
+func (msgs Messages) PrsConversationLabel() string {
+	return Catalog.Format(msgs.locale, "prsConversationLabel", nil)
+}
+
+// PrsReading says "Reading the pull request…"
+// in the language the app shows.
+//
+// Shown while the pull request is read from the host.
+func PrsReading() string { return In(i18n.Locale()).PrsReading() }
+
+// PrsReading says "Reading the pull request…"
+// in the language of msgs.
+//
+// Shown while the pull request is read from the host.
+func (msgs Messages) PrsReading() string {
+	return Catalog.Format(msgs.locale, "prsReading", nil)
+}
+
+// PrsFetching says "Fetching the pull request’s commits…"
+// in the language the app shows.
+//
+// Shown while the pull request's commits are fetched and compared.
+func PrsFetching() string { return In(i18n.Locale()).PrsFetching() }
+
+// PrsFetching says "Fetching the pull request’s commits…"
+// in the language of msgs.
+//
+// Shown while the pull request's commits are fetched and compared.
+func (msgs Messages) PrsFetching() string {
+	return Catalog.Format(msgs.locale, "prsFetching", nil)
+}
+
+// PrsSubmitReview says "{count, plural, =0 {Submit Review…} other {Submit Review (#)…}}"
+// in the language the app shows.
+//
+// Button that opens the dialog submitting the review; count is the comments
+// pending.
+func PrsSubmitReview(count int) string { return In(i18n.Locale()).PrsSubmitReview(count) }
+
+// PrsSubmitReview says "{count, plural, =0 {Submit Review…} other {Submit Review (#)…}}"
+// in the language of msgs.
+//
+// Button that opens the dialog submitting the review; count is the comments
+// pending.
+func (msgs Messages) PrsSubmitReview(count int) string {
+	return Catalog.Format(msgs.locale, "prsSubmitReview", map[string]any{"count": count})
+}
+
+// PrsSubmitTitle says "Submit your review of #{number, number, ::group-off}"
+// in the language the app shows.
+//
+// Title of the dialog that submits a review.
+func PrsSubmitTitle(number int) string { return In(i18n.Locale()).PrsSubmitTitle(number) }
+
+// PrsSubmitTitle says "Submit your review of #{number, number, ::group-off}"
+// in the language of msgs.
+//
+// Title of the dialog that submits a review.
+func (msgs Messages) PrsSubmitTitle(number int) string {
+	return Catalog.Format(msgs.locale, "prsSubmitTitle", map[string]any{"number": number})
+}
+
+// PrsSummary says "Summary"
+// in the language the app shows.
+//
+// Label and placeholder of the text of a review.
+func PrsSummary() string { return In(i18n.Locale()).PrsSummary() }
+
+// PrsSummary says "Summary"
+// in the language of msgs.
+//
+// Label and placeholder of the text of a review.
+func (msgs Messages) PrsSummary() string {
+	return Catalog.Format(msgs.locale, "prsSummary", nil)
+}
+
+// PrsVerdictComment says "Comment"
+// in the language the app shows.
+//
+// Choice of a review that only comments.
+func PrsVerdictComment() string { return In(i18n.Locale()).PrsVerdictComment() }
+
+// PrsVerdictComment says "Comment"
+// in the language of msgs.
+//
+// Choice of a review that only comments.
+func (msgs Messages) PrsVerdictComment() string {
+	return Catalog.Format(msgs.locale, "prsVerdictComment", nil)
+}
+
+// PrsVerdictApprove says "Approve"
+// in the language the app shows.
+//
+// Choice of a review that approves the pull request.
+func PrsVerdictApprove() string { return In(i18n.Locale()).PrsVerdictApprove() }
+
+// PrsVerdictApprove says "Approve"
+// in the language of msgs.
+//
+// Choice of a review that approves the pull request.
+func (msgs Messages) PrsVerdictApprove() string {
+	return Catalog.Format(msgs.locale, "prsVerdictApprove", nil)
+}
+
+// PrsVerdictRequestChanges says "Request Changes"
+// in the language the app shows.
+//
+// Choice of a review that asks for changes.
+func PrsVerdictRequestChanges() string { return In(i18n.Locale()).PrsVerdictRequestChanges() }
+
+// PrsVerdictRequestChanges says "Request Changes"
+// in the language of msgs.
+//
+// Choice of a review that asks for changes.
+func (msgs Messages) PrsVerdictRequestChanges() string {
+	return Catalog.Format(msgs.locale, "prsVerdictRequestChanges", nil)
+}
+
+// PrsPendingCount says "{count, plural, one {# pending comment goes with it.} other {# pending comments go with it.}}"
+// in the language the app shows.
+//
+// In the submit dialog: the comments on lines sent with the review.
+func PrsPendingCount(count int) string { return In(i18n.Locale()).PrsPendingCount(count) }
+
+// PrsPendingCount says "{count, plural, one {# pending comment goes with it.} other {# pending comments go with it.}}"
+// in the language of msgs.
+//
+// In the submit dialog: the comments on lines sent with the review.
+func (msgs Messages) PrsPendingCount(count int) string {
+	return Catalog.Format(msgs.locale, "prsPendingCount", map[string]any{"count": count})
+}
+
+// PrsCommentCount says "{count, plural, one {# comment} other {# comments}}"
+// in the language the app shows.
+//
+// Tooltip of the count of comments on a file.
+func PrsCommentCount(count int) string { return In(i18n.Locale()).PrsCommentCount(count) }
+
+// PrsCommentCount says "{count, plural, one {# comment} other {# comments}}"
+// in the language of msgs.
+//
+// Tooltip of the count of comments on a file.
+func (msgs Messages) PrsCommentCount(count int) string {
+	return Catalog.Format(msgs.locale, "prsCommentCount", map[string]any{"count": count})
+}
+
+// PrsReply says "Reply"
+// in the language the app shows.
+//
+// Button and label of the field replying to a review thread.
+func PrsReply() string { return In(i18n.Locale()).PrsReply() }
+
+// PrsReply says "Reply"
+// in the language of msgs.
+//
+// Button and label of the field replying to a review thread.
+func (msgs Messages) PrsReply() string {
+	return Catalog.Format(msgs.locale, "prsReply", nil)
+}
+
+// PrsReplyPlaceholder says "Reply…"
+// in the language the app shows.
+//
+// Placeholder of the field replying to a review thread.
+func PrsReplyPlaceholder() string { return In(i18n.Locale()).PrsReplyPlaceholder() }
+
+// PrsReplyPlaceholder says "Reply…"
+// in the language of msgs.
+//
+// Placeholder of the field replying to a review thread.
+func (msgs Messages) PrsReplyPlaceholder() string {
+	return Catalog.Format(msgs.locale, "prsReplyPlaceholder", nil)
+}
+
+// PrsResolve says "Resolve"
+// in the language the app shows.
+//
+// Marks a review thread resolved.
+func PrsResolve() string { return In(i18n.Locale()).PrsResolve() }
+
+// PrsResolve says "Resolve"
+// in the language of msgs.
+//
+// Marks a review thread resolved.
+func (msgs Messages) PrsResolve() string {
+	return Catalog.Format(msgs.locale, "prsResolve", nil)
+}
+
+// PrsUnresolve says "Unresolve"
+// in the language the app shows.
+//
+// Marks a resolved review thread open again.
+func PrsUnresolve() string { return In(i18n.Locale()).PrsUnresolve() }
+
+// PrsUnresolve says "Unresolve"
+// in the language of msgs.
+//
+// Marks a resolved review thread open again.
+func (msgs Messages) PrsUnresolve() string {
+	return Catalog.Format(msgs.locale, "prsUnresolve", nil)
+}
+
+// PrsResolvedThread says "{count, plural, one {Resolved thread, # comment} other {Resolved thread, # comments}}"
+// in the language the app shows.
+//
+// A resolved review thread, folded.
+func PrsResolvedThread(count int) string { return In(i18n.Locale()).PrsResolvedThread(count) }
+
+// PrsResolvedThread says "{count, plural, one {Resolved thread, # comment} other {Resolved thread, # comments}}"
+// in the language of msgs.
+//
+// A resolved review thread, folded.
+func (msgs Messages) PrsResolvedThread(count int) string {
+	return Catalog.Format(msgs.locale, "prsResolvedThread", map[string]any{"count": count})
+}
+
+// PrsShow says "Show"
+// in the language the app shows.
+//
+// Unfolds a resolved review thread.
+func PrsShow() string { return In(i18n.Locale()).PrsShow() }
+
+// PrsShow says "Show"
+// in the language of msgs.
+//
+// Unfolds a resolved review thread.
+func (msgs Messages) PrsShow() string {
+	return Catalog.Format(msgs.locale, "prsShow", nil)
+}
+
+// PrsHide says "Hide"
+// in the language the app shows.
+//
+// Folds a resolved review thread again.
+func PrsHide() string { return In(i18n.Locale()).PrsHide() }
+
+// PrsHide says "Hide"
+// in the language of msgs.
+//
+// Folds a resolved review thread again.
+func (msgs Messages) PrsHide() string {
+	return Catalog.Format(msgs.locale, "prsHide", nil)
+}
+
+// PrsPending says "Pending"
+// in the language the app shows.
+//
+// Marks a comment that goes with the review when it is submitted.
+func PrsPending() string { return In(i18n.Locale()).PrsPending() }
+
+// PrsPending says "Pending"
+// in the language of msgs.
+//
+// Marks a comment that goes with the review when it is submitted.
+func (msgs Messages) PrsPending() string {
+	return Catalog.Format(msgs.locale, "prsPending", nil)
+}
+
+// PrsCommentLine says "Comment on line {line, number, ::group-off}"
+// in the language the app shows.
+//
+// Title of a comment being written on one line.
+func PrsCommentLine(line int) string { return In(i18n.Locale()).PrsCommentLine(line) }
+
+// PrsCommentLine says "Comment on line {line, number, ::group-off}"
+// in the language of msgs.
+//
+// Title of a comment being written on one line.
+func (msgs Messages) PrsCommentLine(line int) string {
+	return Catalog.Format(msgs.locale, "prsCommentLine", map[string]any{"line": line})
+}
+
+// PrsCommentLines says "Comment on lines {start, number, ::group-off} to {line, number, ::group-off}"
+// in the language the app shows.
+//
+// Title of a comment being written on several lines.
+func PrsCommentLines(start int, line int) string {
+	return In(i18n.Locale()).PrsCommentLines(start, line)
+}
+
+// PrsCommentLines says "Comment on lines {start, number, ::group-off} to {line, number, ::group-off}"
+// in the language of msgs.
+//
+// Title of a comment being written on several lines.
+func (msgs Messages) PrsCommentLines(start int, line int) string {
+	return Catalog.Format(msgs.locale, "prsCommentLines", map[string]any{"start": start, "line": line})
+}
+
+// PrsCommentPlaceholder says "Leave a comment"
+// in the language the app shows.
+//
+// Placeholder of a comment being written.
+func PrsCommentPlaceholder() string { return In(i18n.Locale()).PrsCommentPlaceholder() }
+
+// PrsCommentPlaceholder says "Leave a comment"
+// in the language of msgs.
+//
+// Placeholder of a comment being written.
+func (msgs Messages) PrsCommentPlaceholder() string {
+	return Catalog.Format(msgs.locale, "prsCommentPlaceholder", nil)
+}
+
+// PrsCommentNow says "Comment Now"
+// in the language the app shows.
+//
+// Sends one comment on lines at once, apart from the review.
+func PrsCommentNow() string { return In(i18n.Locale()).PrsCommentNow() }
+
+// PrsCommentNow says "Comment Now"
+// in the language of msgs.
+//
+// Sends one comment on lines at once, apart from the review.
+func (msgs Messages) PrsCommentNow() string {
+	return Catalog.Format(msgs.locale, "prsCommentNow", nil)
+}
+
+// PrsAddToReview says "Add to Review"
+// in the language the app shows.
+//
+// Keeps a comment on lines to send with the review.
+func PrsAddToReview() string { return In(i18n.Locale()).PrsAddToReview() }
+
+// PrsAddToReview says "Add to Review"
+// in the language of msgs.
+//
+// Keeps a comment on lines to send with the review.
+func (msgs Messages) PrsAddToReview() string {
+	return Catalog.Format(msgs.locale, "prsAddToReview", nil)
+}
+
+// PrsNotInDiff says "GitHub takes comments only on changed lines and the lines around them."
+// in the language the app shows.
+//
+// Shown when the user starts a comment on a line outside the diff's hunks.
+func PrsNotInDiff() string { return In(i18n.Locale()).PrsNotInDiff() }
+
+// PrsNotInDiff says "GitHub takes comments only on changed lines and the lines around them."
+// in the language of msgs.
+//
+// Shown when the user starts a comment on a line outside the diff's hunks.
+func (msgs Messages) PrsNotInDiff() string {
+	return Catalog.Format(msgs.locale, "prsNotInDiff", nil)
+}
+
+// PrsOpened says "opened this"
+// in the language the app shows.
+//
+// In the conversation: the pull request's description.
+func PrsOpened() string { return In(i18n.Locale()).PrsOpened() }
+
+// PrsOpened says "opened this"
+// in the language of msgs.
+//
+// In the conversation: the pull request's description.
+func (msgs Messages) PrsOpened() string {
+	return Catalog.Format(msgs.locale, "prsOpened", nil)
+}
+
+// PrsCommented says "commented"
+// in the language the app shows.
+//
+// In the conversation: a comment.
+func PrsCommented() string { return In(i18n.Locale()).PrsCommented() }
+
+// PrsCommented says "commented"
+// in the language of msgs.
+//
+// In the conversation: a comment.
+func (msgs Messages) PrsCommented() string {
+	return Catalog.Format(msgs.locale, "prsCommented", nil)
+}
+
+// PrsReviewed says "{verdict, select, approved {approved} changes {requested changes} dismissed {reviewed, dismissed} other {reviewed}}"
+// in the language the app shows.
+//
+// In the conversation: a review submitted.
+func PrsReviewed(verdict string) string { return In(i18n.Locale()).PrsReviewed(verdict) }
+
+// PrsReviewed says "{verdict, select, approved {approved} changes {requested changes} dismissed {reviewed, dismissed} other {reviewed}}"
+// in the language of msgs.
+//
+// In the conversation: a review submitted.
+func (msgs Messages) PrsReviewed(verdict string) string {
+	return Catalog.Format(msgs.locale, "prsReviewed", map[string]any{"verdict": verdict})
+}
+
+// PrsOutdatedOn says "on {path}, line {line, number, ::group-off}, since changed"
+// in the language the app shows.
+//
+// In the conversation: a review thread on lines the pull request has
+// changed since.
+func PrsOutdatedOn(path string, line int) string { return In(i18n.Locale()).PrsOutdatedOn(path, line) }
+
+// PrsOutdatedOn says "on {path}, line {line, number, ::group-off}, since changed"
+// in the language of msgs.
+//
+// In the conversation: a review thread on lines the pull request has
+// changed since.
+func (msgs Messages) PrsOutdatedOn(path string, line int) string {
+	return Catalog.Format(msgs.locale, "prsOutdatedOn", map[string]any{"path": path, "line": line})
+}
+
+// PrsNoDescription says "No description."
+// in the language the app shows.
+//
+// Shown for a pull request without a description.
+func PrsNoDescription() string { return In(i18n.Locale()).PrsNoDescription() }
+
+// PrsNoDescription says "No description."
+// in the language of msgs.
+//
+// Shown for a pull request without a description.
+func (msgs Messages) PrsNoDescription() string {
+	return Catalog.Format(msgs.locale, "prsNoDescription", nil)
+}
+
+// PrsAddComment says "Comment"
+// in the language the app shows.
+//
+// Adds a comment to the pull request's conversation.
+func PrsAddComment() string { return In(i18n.Locale()).PrsAddComment() }
+
+// PrsAddComment says "Comment"
+// in the language of msgs.
+//
+// Adds a comment to the pull request's conversation.
+func (msgs Messages) PrsAddComment() string {
+	return Catalog.Format(msgs.locale, "prsAddComment", nil)
+}

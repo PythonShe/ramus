@@ -1,6 +1,9 @@
 package ui
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // showView tells the session which view of t is shown, and lets go of
 // what the view left was still reading: the session cancels those reads,
@@ -47,6 +50,24 @@ func (a *App) leaveView(t *tab, name string) {
 		}
 	case "stashes":
 		leaveDetail(&t.stash.detail)
+	case sidePulls:
+		// Its reads stop: what was read stays, and is read again.
+		ps := &t.pr
+		if ps.listing {
+			ps.listing, ps.listAt = false, time.Time{}
+		}
+		if rv := ps.rv; rv != nil {
+			if rv.loading {
+				rv.loading, rv.read = false, false
+			}
+			if rv.cancelCmp != nil {
+				rv.cancelCmp()
+				rv.cancelCmp, rv.fetching, rv.fetchedFor = nil, false, ""
+			}
+			if rv.patchLoading {
+				rv.patchFor, rv.patchLoading = "", false
+			}
+		}
 	case sideLocks:
 		// Its read stops, and others may have locked or unlocked files
 		// meanwhile: it is read again when shown, the list kept till then.
