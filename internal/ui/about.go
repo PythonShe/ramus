@@ -32,6 +32,7 @@ type Update interface {
 // About is the About window: the app's name and version, a check for a
 // newer one, and the license of everything the app is built from.
 type About struct {
+	themes  themes
 	Version string
 	// Icon is the app's icon for a light appearance, IconDark for a dark
 	// one.
@@ -160,6 +161,7 @@ func (ab *About) Close() {
 
 // View builds the About window.
 func (ab *About) View(c *ui.Context) {
+	ab.themes.apply(c, "")
 	th := c.Theme()
 	ui.Column(c).Fill().Background(th.Background).Children(func() {
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(space2XS).Padding(space3XL, insetX, spaceXL, insetX).Children(func() {

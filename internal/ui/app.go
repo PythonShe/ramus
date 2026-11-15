@@ -92,6 +92,7 @@ type Deps struct {
 // App is the state the main window shows. View reads it on the main
 // thread; other goroutines change it through Deps.Update.
 type App struct {
+	themes themes
 	Deps
 	tabs   []*tab
 	active int
@@ -485,6 +486,7 @@ func (a *App) initAndOpen() {
 
 // View builds the main window.
 func (a *App) View(c *ui.Context) {
+	a.themes.apply(c, a.Settings.Theme)
 	a.claimNotice()
 	a.shortcuts(c)
 	if a.clip != "" {

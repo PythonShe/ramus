@@ -54,7 +54,7 @@ func TestChosenRowTextIsReadable(t *testing.T) {
 	h.click("Branches and Tags")
 	h.until("the branch", func() bool { return hasExact(h, "old") })
 
-	th := ui.LightTheme()
+	th := ivoryTheme()
 	// "one" is the subject of the commit old is at, shown by no other row.
 	onAccent := func() bool {
 		o, ok := h.tt.Find("one")
