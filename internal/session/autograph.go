@@ -155,7 +155,7 @@ func (s *Session) retryGraph(r *repo.Repository, wait time.Duration) {
 func (s *Session) WriteCommitGraph() error {
 	r := s.Repo
 	if r == nil || s.Queue == nil {
-		return errReadOnly
+		return s.noWrites()
 	}
 	cmd := history.GraphWrite(r.GitDir, false)
 	if a := s.History.Advice; a != nil {

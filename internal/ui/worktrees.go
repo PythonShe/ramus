@@ -182,7 +182,7 @@ func (a *App) worktreeMenu(it ui.Element, t *tab, w repo.Worktree, main bool) {
 		ro := t.s.Queue == nil
 		var act func()
 		if m.Item(locales.WorktreeOpenInNewTab()).Disabled(w.Current || w.Prunable).Chosen() {
-			act = func() { a.Open(w.Path) }
+			act = func() { a.openWorktree(t, w) }
 		}
 		if a.NewWindow != nil && m.Item(locales.WorktreeOpenInNewWindow()).Disabled(w.Current || w.Prunable).Chosen() {
 			act = func() { a.NewWindow([]string{w.Path}) }

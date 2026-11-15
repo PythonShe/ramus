@@ -273,7 +273,7 @@ func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(
 // takes its turn in the queue; name is what the log calls it.
 func (s *Session) GitHubStack(c *forge.CLI, name string, args ...string) (*write.Job, error) {
 	if s.Repo == nil || s.Queue == nil {
-		return nil, errReadOnly
+		return nil, s.noWrites()
 	}
 	dir := s.Repo.WorkTree
 	line := "gh stack " + strings.Join(args, " ")

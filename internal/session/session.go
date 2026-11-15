@@ -43,6 +43,9 @@ type State struct {
 	// Restricted is a repository opened read-only until the user trusts
 	// it.
 	Restricted bool
+	// Held is a repository whose writes are held while another program
+	// works in it, until the user takes it over (HoldWrites).
+	Held bool
 	// Fallbacks name what goes to git, for the status line.
 	Fallbacks []string
 
@@ -131,8 +134,12 @@ type Session struct {
 	graph       autoGraph
 	// graphEvery and graphRetry, when set, replace the constants.
 	graphEvery, graphRetry time.Duration
-	// worktreeEvery, when set, replaces the constant.
-	worktreeEvery time.Duration
+	// worktreeEvery and fetchBusyWait, when set, replace the constants.
+	worktreeEvery, fetchBusyWait time.Duration
+	// holding keeps writes held (HoldWrites), the queue they would go to
+	// kept in held meanwhile.
+	holding bool
+	held    *write.Queue
 	// gitDir is the repository's, once open, for the crash log.
 	gitDir atomic.Pointer[string]
 	// monitorAnswered is set once the user turned the monitor on or said
@@ -265,8 +272,11 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 			r.Close()
 			return
 		}
+		if s.holding {
+			s.held, q = q, nil
+		}
 		s.Repo, s.Queue = r, q
-		s.State = State{Restricted: r.Restricted, Fallbacks: fallbacks, Operation: repo.InProgress(r.GitDir)}
+		s.State = State{Restricted: r.Restricted, Held: s.holding, Fallbacks: fallbacks, Operation: repo.InProgress(r.GitDir)}
 		s.State.WatchErr = werr
 	})
 	r.Life().Go(func(ctx context.Context) { s.refresher(ctx, r) })
@@ -687,7 +697,7 @@ func (s *Session) Submit(op write.Op) (*write.Job, error) {
 // it as one the app makes on its own (LogEntry.Quiet).
 func (s *Session) submit(op write.Op, what repo.Change, quiet bool) (*write.Job, error) {
 	if s.Queue == nil {
-		return nil, errReadOnly
+		return nil, s.noWrites()
 	}
 	j := s.Queue.Submit(op)
 	line := op.Cmd.Line()
@@ -701,6 +711,37 @@ func (s *Session) submit(op write.Op, what repo.Change, quiet bool) (*write.Job,
 	e.Quiet = quiet
 	s.followThen(e, j, what)
 	return j, nil
+}
+
+// HoldWrites keeps the session from writing, as for a repository not
+// trusted, while another program, as a coding agent, works in its
+// worktree: nothing the user clicks and nothing the app does on its own
+// (the background fetch, the commit-graph) runs git there to race it,
+// until TakeOver. Main thread only.
+func (s *Session) HoldWrites() {
+	s.holding, s.State.Held = true, true
+	if s.Queue != nil {
+		s.held, s.Queue = s.Queue, nil
+	}
+	s.fetch.halt()
+	if j := s.fetch.job; j != nil {
+		j.Cancel()
+	}
+	if j := s.graph.job; j != nil {
+		j.Cancel()
+	}
+}
+
+// TakeOver lets the session write again after HoldWrites. Main thread
+// only.
+func (s *Session) TakeOver() {
+	s.holding, s.State.Held = false, false
+	if s.held != nil {
+		s.Queue, s.held = s.held, nil
+	}
+	// The next SetBackgroundFetch starts the fetch it set while held.
+	s.fetch.halt()
+	s.fetch.every, s.fetch.repo = 0, nil
 }
 
 // Trust records that the user trusts the repository and opens it again
@@ -717,7 +758,7 @@ func (s *Session) Trust() error {
 	// repository's commit-graph mapping. The background fetch starts
 	// afresh, as it never ran while restricted, and so do the answers
 	// kept, which the hardened runner made: no textconv, no external diff.
-	s.Repo, s.Queue, s.State, s.History = nil, nil, State{Opening: true}, HistoryState{}
+	s.Repo, s.Queue, s.held, s.State, s.History = nil, nil, nil, State{Opening: true}, HistoryState{}
 	s.hist.reset()
 	s.fetch.halt()
 	s.fetch = backgroundFetch{}

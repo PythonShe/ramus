@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"ramus/internal/git/diff"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 )
@@ -156,5 +157,103 @@ func TestWatchWorktrees(t *testing.T) {
 	m.until(t, "the patch", func() bool { return got != nil })
 	if got.Err != nil || got.Parsed == nil || len(got.Parsed.Files) != 1 {
 		t.Fatalf("patch %+v", got)
+	}
+}
+
+// A session held writes nothing, the background fetch with it, until it
+// is taken over.
+func TestHoldWrites(t *testing.T) {
+	origin := gittest.Init(t)
+	origin.Write("a.txt", "a\n")
+	origin.Commit("one")
+	r := gittest.Init(t)
+	r.Git("remote", "add", "origin", origin.Dir)
+	r.Git("fetch", "-q", "origin")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	s.HoldWrites()
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	if s.Queue != nil || !s.State.Held {
+		t.Fatal("a held session can write")
+	}
+	want := origin.Commit("two")
+	fetched := func() bool {
+		got, _ := r.Run(nil, "rev-parse", "refs/remotes/origin/main")
+		return strings.TrimSpace(got) == want
+	}
+	s.SetBackgroundFetch(20*time.Millisecond, nil)
+	m.runFor(300 * time.Millisecond)
+	if fetched() {
+		t.Fatal("a held session fetched")
+	}
+	s.TakeOver()
+	if s.Queue == nil || s.State.Held {
+		t.Fatal("taken over, the session still cannot write")
+	}
+	s.SetBackgroundFetch(20*time.Millisecond, nil)
+	m.until(t, "the fetch once taken over", fetched)
+}
+
+// The background fetch waits while git works in another worktree.
+func TestFetchWaitsForBusyWorktrees(t *testing.T) {
+	origin := gittest.Init(t)
+	origin.Write("a.txt", "a\n")
+	origin.Commit("one")
+	r := gittest.Init(t)
+	r.Git("remote", "add", "origin", origin.Dir)
+	r.Git("fetch", "-q", "origin")
+	r.Git("checkout", "-q", "-b", "main", "origin/main")
+	wt := addWorktree(t, r, "agent")
+	old(t, wt)
+	old(t, r.GitDir())
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	s.fetchBusyWait = 20 * time.Millisecond
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	lock := filepath.Join(worktreeGitDir(wt), "index.lock")
+	os.WriteFile(lock, nil, 0o644)
+	want := origin.Commit("two")
+	fetched := func() bool {
+		got, _ := r.Run(nil, "rev-parse", "refs/remotes/origin/main")
+		return strings.TrimSpace(got) == want
+	}
+	s.SetBackgroundFetch(20*time.Millisecond, nil)
+	m.runFor(400 * time.Millisecond)
+	if fetched() {
+		t.Fatal("fetched while git held another worktree's index")
+	}
+	os.Remove(lock)
+	m.until(t, "the fetch once the worktree is quiet", fetched)
+}
+
+// A held session reads the patch of a change without writing the index,
+// which git diff would refresh.
+func TestHeldPatchLeavesTheIndex(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Write("same.txt", "same\n")
+	r.Commit("one")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	s.HoldWrites()
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	r.Write("a.txt", "one\ntwo\n")
+	old(t, r.Dir)
+	// Touched, not changed: git diff would write its new times down.
+	then := time.Now().Add(-30 * time.Minute)
+	os.Chtimes(filepath.Join(r.Dir, "same.txt"), then, then)
+	index := filepath.Join(r.GitDir(), "index")
+	fi, _ := os.Stat(index)
+	var got *PatchResult
+	s.Patch(diff.PatchRequest{Source: diff.Unstaged, Paths: []string{"a.txt", "same.txt"}}, Sides{}, func(res PatchResult) { got = &res })
+	m.until(t, "the patch", func() bool { return got != nil })
+	if got.Err != nil || got.Parsed == nil || len(got.Parsed.Hunks) != 1 {
+		t.Fatalf("patch %+v", got)
+	}
+	if after, _ := os.Stat(index); !after.ModTime().Equal(fi.ModTime()) {
+		t.Fatal("reading the patch wrote the index")
 	}
 }

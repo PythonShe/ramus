@@ -12,6 +12,15 @@ import (
 
 var errReadOnly = errors.New("session: the repository is open read-only until you trust it")
 
+// noWrites is why the session cannot write: the repository is not
+// trusted, or its writes are held while another program works there.
+func (s *Session) noWrites() error {
+	if s.holding {
+		return errors.New(locales.RepoHeldBanner())
+	}
+	return errReadOnly
+}
+
 // Snapshots reads the work tree's snapshots off the main thread, newest
 // first, and hands them to done on it.
 func (s *Session) Snapshots(done func([]snapshot.Snapshot, error)) {
@@ -54,7 +63,7 @@ func (s *Session) SnapshotFiles(snap snapshot.Snapshot, done func([]snapshot.Fil
 // when asked, logged.
 func (s *Session) SnapshotNow(ignored bool) (*write.Job, error) {
 	if s.Queue == nil {
-		return nil, errReadOnly
+		return nil, s.noWrites()
 	}
 	reason := locales.SessionSnapshotNow()
 	if ignored {
@@ -68,7 +77,7 @@ func (s *Session) SnapshotNow(ignored bool) (*write.Job, error) {
 // Restore writes paths of snap back over the work tree, logged.
 func (s *Session) Restore(snap snapshot.Snapshot, paths []string) (*write.Job, error) {
 	if s.Queue == nil {
-		return nil, errReadOnly
+		return nil, s.noWrites()
 	}
 	j := s.Queue.Restore(s.Repo.WorkTree, snap, paths)
 	s.follow(s.addLog(locales.SessionRestoreSnapshot(snap.Time.Format(time.DateTime)), ""), j)
@@ -78,7 +87,7 @@ func (s *Session) Restore(snap snapshot.Snapshot, paths []string) (*write.Job, e
 // Undo undoes the last write the app ran, logged.
 func (s *Session) Undo() (*write.Job, error) {
 	if s.Queue == nil {
-		return nil, errReadOnly
+		return nil, s.noWrites()
 	}
 	name, _ := s.Queue.History.Next()
 	j := s.Queue.Undo()
@@ -89,7 +98,7 @@ func (s *Session) Undo() (*write.Job, error) {
 // Redo redoes the last write undone, logged.
 func (s *Session) Redo() (*write.Job, error) {
 	if s.Queue == nil {
-		return nil, errReadOnly
+		return nil, s.noWrites()
 	}
 	_, name := s.Queue.History.Next()
 	j := s.Queue.Redo()

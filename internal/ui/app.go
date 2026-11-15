@@ -203,6 +203,7 @@ type tab struct {
 	prefs     refPrefs
 	sideRefs  sideRefs
 	pick      branchPick
+	wtp       wtPanel
 	// expired is set once old snapshots were cleared on open.
 	expired bool
 	sideW   float32
@@ -503,6 +504,7 @@ func (a *App) View(c *ui.Context) {
 	}
 	for _, t := range a.tabs {
 		a.keepFetching(t)
+		a.keepPanel(t)
 	}
 	root.Children(func() {
 		if len(a.tabs) > 0 {

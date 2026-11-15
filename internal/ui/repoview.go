@@ -53,6 +53,9 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		if st.Restricted {
 			a.trustBanner(c, t)
 		}
+		if st.Held {
+			a.heldBanner(c, t)
+		}
 		a.operationBar(c, t)
 		a.forcePushOffer(c, t)
 		main := func() {
@@ -140,6 +143,18 @@ func (a *App) trustBanner(c *ui.Context, t *tab) {
 			if err := t.s.Trust(); err != nil {
 				a.notice = errText(err)
 			}
+		}
+	})
+}
+
+// heldBanner says the tab writes nothing while another program works
+// in its worktree, and lets the user take it over.
+func (a *App) heldBanner(c *ui.Context, t *tab) {
+	th := c.Theme()
+	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+		ui.Text(c, locales.RepoHeldBanner()).Grow(1)
+		if ui.Button(c, locales.RepoTakeOver()).Clicked() {
+			t.s.TakeOver()
 		}
 	})
 }

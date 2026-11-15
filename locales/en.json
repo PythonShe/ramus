@@ -564,6 +564,38 @@
   "worktreeOpen": "Open",
   "worktreeOpenLabel": "Open {name}",
   "worktreeTableLabel": "Worktrees",
+  "worktreePanel": "Worktree Changes",
+  "@worktreePanel": {
+    "description": "Tooltip and accessibility label of the tab bar button that shows what changed in each worktree."
+  },
+  "worktreePanelList": "Worktrees and their changed files",
+  "worktreePanelFiles": "{count, plural, one {# file} other {# files}}",
+  "worktreePanelAdded": "+{count}",
+  "@worktreePanelAdded": {
+    "description": "Lines added, as in a diff stat.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "worktreePanelRemoved": "−{count}",
+  "@worktreePanelRemoved": {
+    "description": "Lines removed, as in a diff stat.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "worktreePanelChangingNow": "Changing now",
+  "@worktreePanelChangingNow": {
+    "description": "A worktree whose files changed in the last two minutes, as an agent writes there."
+  },
+  "worktreePanelOpenInTab": "Open in Tab",
+  "worktreePanelOpenLabel": "Open {name} in a tab",
+  "worktreePanelShowFiles": "Show the files changed in {name}",
+  "worktreePanelBack": "Back to Worktrees",
   "stashTitle": "Stash Changes",
   "stashFilesTitle": "Stash Changes to {count, plural, one {# File} other {# Files}}",
   "stashFileTitle": "Stash Changes to {path}",
@@ -1074,6 +1106,14 @@
   "repoOpening": "Opening {path}",
   "repoCannotOpen": "Cannot open {path}",
   "repoTrustBanner": "Read-only: this repository's hooks, filters and config commands do not run until you trust it.",
+  "repoHeldBanner": "Another program is working in this worktree.",
+  "@repoHeldBanner": {
+    "description": "Banner of a tab opened view-only on a worktree a coding agent or other program is using; nothing writes there until the user takes it over."
+  },
+  "repoTakeOver": "Take Over",
+  "@repoTakeOver": {
+    "description": "Verb: lets the app write in a worktree it opened view-only."
+  },
   "repoTrust": "Trust",
   "@repoTrust": {
     "description": "Verb: trusts the repository, so its hooks and filters run."

@@ -3133,6 +3133,130 @@ func (msgs Messages) WorktreeTableLabel() string {
 	return Catalog.Format(msgs.locale, "worktreeTableLabel", nil)
 }
 
+// WorktreePanel says "Worktree Changes"
+// in the language the app shows.
+//
+// Tooltip and accessibility label of the tab bar button that shows what
+// changed in each worktree.
+func WorktreePanel() string { return In(i18n.Locale()).WorktreePanel() }
+
+// WorktreePanel says "Worktree Changes"
+// in the language of msgs.
+//
+// Tooltip and accessibility label of the tab bar button that shows what
+// changed in each worktree.
+func (msgs Messages) WorktreePanel() string {
+	return Catalog.Format(msgs.locale, "worktreePanel", nil)
+}
+
+// WorktreePanelList says "Worktrees and their changed files"
+// in the language the app shows.
+func WorktreePanelList() string { return In(i18n.Locale()).WorktreePanelList() }
+
+// WorktreePanelList says "Worktrees and their changed files"
+// in the language of msgs.
+func (msgs Messages) WorktreePanelList() string {
+	return Catalog.Format(msgs.locale, "worktreePanelList", nil)
+}
+
+// WorktreePanelFiles says "{count, plural, one {# file} other {# files}}"
+// in the language the app shows.
+func WorktreePanelFiles(count int) string { return In(i18n.Locale()).WorktreePanelFiles(count) }
+
+// WorktreePanelFiles says "{count, plural, one {# file} other {# files}}"
+// in the language of msgs.
+func (msgs Messages) WorktreePanelFiles(count int) string {
+	return Catalog.Format(msgs.locale, "worktreePanelFiles", map[string]any{"count": count})
+}
+
+// WorktreePanelAdded says "+{count}"
+// in the language the app shows.
+//
+// Lines added, as in a diff stat.
+func WorktreePanelAdded(count int) string { return In(i18n.Locale()).WorktreePanelAdded(count) }
+
+// WorktreePanelAdded says "+{count}"
+// in the language of msgs.
+//
+// Lines added, as in a diff stat.
+func (msgs Messages) WorktreePanelAdded(count int) string {
+	return Catalog.Format(msgs.locale, "worktreePanelAdded", map[string]any{"count": count})
+}
+
+// WorktreePanelRemoved says "−{count}"
+// in the language the app shows.
+//
+// Lines removed, as in a diff stat.
+func WorktreePanelRemoved(count int) string { return In(i18n.Locale()).WorktreePanelRemoved(count) }
+
+// WorktreePanelRemoved says "−{count}"
+// in the language of msgs.
+//
+// Lines removed, as in a diff stat.
+func (msgs Messages) WorktreePanelRemoved(count int) string {
+	return Catalog.Format(msgs.locale, "worktreePanelRemoved", map[string]any{"count": count})
+}
+
+// WorktreePanelChangingNow says "Changing now"
+// in the language the app shows.
+//
+// A worktree whose files changed in the last two minutes, as an agent
+// writes there.
+func WorktreePanelChangingNow() string { return In(i18n.Locale()).WorktreePanelChangingNow() }
+
+// WorktreePanelChangingNow says "Changing now"
+// in the language of msgs.
+//
+// A worktree whose files changed in the last two minutes, as an agent
+// writes there.
+func (msgs Messages) WorktreePanelChangingNow() string {
+	return Catalog.Format(msgs.locale, "worktreePanelChangingNow", nil)
+}
+
+// WorktreePanelOpenInTab says "Open in Tab"
+// in the language the app shows.
+func WorktreePanelOpenInTab() string { return In(i18n.Locale()).WorktreePanelOpenInTab() }
+
+// WorktreePanelOpenInTab says "Open in Tab"
+// in the language of msgs.
+func (msgs Messages) WorktreePanelOpenInTab() string {
+	return Catalog.Format(msgs.locale, "worktreePanelOpenInTab", nil)
+}
+
+// WorktreePanelOpenLabel says "Open {name} in a tab"
+// in the language the app shows.
+func WorktreePanelOpenLabel(name string) string {
+	return In(i18n.Locale()).WorktreePanelOpenLabel(name)
+}
+
+// WorktreePanelOpenLabel says "Open {name} in a tab"
+// in the language of msgs.
+func (msgs Messages) WorktreePanelOpenLabel(name string) string {
+	return Catalog.Format(msgs.locale, "worktreePanelOpenLabel", map[string]any{"name": name})
+}
+
+// WorktreePanelShowFiles says "Show the files changed in {name}"
+// in the language the app shows.
+func WorktreePanelShowFiles(name string) string {
+	return In(i18n.Locale()).WorktreePanelShowFiles(name)
+}
+
+// WorktreePanelShowFiles says "Show the files changed in {name}"
+// in the language of msgs.
+func (msgs Messages) WorktreePanelShowFiles(name string) string {
+	return Catalog.Format(msgs.locale, "worktreePanelShowFiles", map[string]any{"name": name})
+}
+
+// WorktreePanelBack says "Back to Worktrees"
+// in the language the app shows.
+func WorktreePanelBack() string { return In(i18n.Locale()).WorktreePanelBack() }
+
+// WorktreePanelBack says "Back to Worktrees"
+// in the language of msgs.
+func (msgs Messages) WorktreePanelBack() string {
+	return Catalog.Format(msgs.locale, "worktreePanelBack", nil)
+}
+
 // StashTitle says "Stash Changes"
 // in the language the app shows.
 func StashTitle() string { return In(i18n.Locale()).StashTitle() }
@@ -6053,6 +6177,36 @@ func RepoTrustBanner() string { return In(i18n.Locale()).RepoTrustBanner() }
 // in the language of msgs.
 func (msgs Messages) RepoTrustBanner() string {
 	return Catalog.Format(msgs.locale, "repoTrustBanner", nil)
+}
+
+// RepoHeldBanner says "Another program is working in this worktree."
+// in the language the app shows.
+//
+// Banner of a tab opened view-only on a worktree a coding agent or other
+// program is using; nothing writes there until the user takes it over.
+func RepoHeldBanner() string { return In(i18n.Locale()).RepoHeldBanner() }
+
+// RepoHeldBanner says "Another program is working in this worktree."
+// in the language of msgs.
+//
+// Banner of a tab opened view-only on a worktree a coding agent or other
+// program is using; nothing writes there until the user takes it over.
+func (msgs Messages) RepoHeldBanner() string {
+	return Catalog.Format(msgs.locale, "repoHeldBanner", nil)
+}
+
+// RepoTakeOver says "Take Over"
+// in the language the app shows.
+//
+// Verb: lets the app write in a worktree it opened view-only.
+func RepoTakeOver() string { return In(i18n.Locale()).RepoTakeOver() }
+
+// RepoTakeOver says "Take Over"
+// in the language of msgs.
+//
+// Verb: lets the app write in a worktree it opened view-only.
+func (msgs Messages) RepoTakeOver() string {
+	return Catalog.Format(msgs.locale, "repoTakeOver", nil)
 }
 
 // RepoTrust says "Trust"

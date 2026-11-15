@@ -138,6 +138,7 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 		return
 	}
 	req.ForApply = true
+	req.NoRefresh = s.holding
 	update := s.update
 	slot.mu.Lock()
 	if slot.cancel != nil {

@@ -16,6 +16,10 @@ import (
 // fetchTimeout bounds a background fetch, which no one waits on.
 const fetchTimeout = 10 * time.Minute
 
+// fetchBusyWait is how soon a background fetch put off while another
+// worktree was busy is tried again.
+const fetchBusyWait = time.Minute
+
 // backgroundFetch is the fetch a session runs on its own, on the main
 // thread but for its timer.
 type backgroundFetch struct {
@@ -39,8 +43,10 @@ type backgroundFetch struct {
 // key: it cannot ask, see needsUser) ends fetching in the background
 // until the repository opens again, and failed is told, once. Any other
 // failure, as the network being down, is tried again, the wait doubling
-// each time up to maxFetchWait. An untrusted repository, or one with no
-// remote, never fetches.
+// each time up to maxFetchWait. While git works in another worktree of
+// the repository (othersBusy), the fetch waits for it. An untrusted
+// repository, one held (HoldWrites) or one with no remote never
+// fetches.
 func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
 	bf, r := &s.fetch, s.Repo
 	bf.onFailed = failed
@@ -55,6 +61,10 @@ func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
 	stop := make(chan struct{})
 	bf.stop = stop
 	update := s.update
+	busyWait := min(every, fetchBusyWait)
+	if s.fetchBusyWait > 0 {
+		busyWait = s.fetchBusyWait
+	}
 	r.Life().Go(func(ctx context.Context) {
 		wait := every
 		for {
@@ -67,6 +77,13 @@ func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
 				t.Stop()
 				return
 			case <-t.C:
+			}
+			// Not while git works in another worktree, as an agent's
+			// commit or fetch: both would lock the same refs, and the
+			// agent's would fail.
+			if othersBusy(ctx, r) {
+				wait = busyWait
+				continue
 			}
 			// The next wait is known once the fetch has ended.
 			next := make(chan time.Duration, 1)

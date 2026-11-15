@@ -13,6 +13,7 @@ import (
 
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
+	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -151,15 +152,43 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 }
 
 // openWorktree opens a worktree in its tab, or offers to prune one whose
-// folder is gone.
+// folder is gone. A worktree another program works in, as a coding
+// agent, opens view-only (HoldWrites), so that nothing the app does
+// there races it; one already open stays as it is.
 func (a *App) openWorktree(t *tab, w repo.Worktree) {
 	switch {
 	case w.Current:
 		t.sel = "changes"
 	case w.Prunable:
 		a.askPrune(t, w)
-	default:
+	case a.Has(w.Path):
 		a.Open(w.Path)
+	default:
+		// The live panel knows; anything else may be minutes old.
+		if sum, ok := t.wtp.sums[w.Path]; ok && t.wtp.stop != nil {
+			a.openHeld(w.Path, sum.InUse || sum.Err != nil)
+			return
+		}
+		path := w.Path
+		t.s.SummarizeWorktrees([]repo.Worktree{w}, func(sum session.WorktreeSummary) {
+			a.openHeld(path, sum.InUse || sum.Err != nil)
+		})
+	}
+}
+
+// openHeld opens the repository at path in a tab of its own, holding its
+// writes when hold is set and the tab is new.
+func (a *App) openHeld(path string, hold bool) {
+	known := a.Has(path)
+	a.Open(path)
+	if !hold || known {
+		return
+	}
+	path = library.Clean(path)
+	for _, t := range a.tabs {
+		if t.s.Path == path {
+			t.s.HoldWrites()
+		}
 	}
 }
 
