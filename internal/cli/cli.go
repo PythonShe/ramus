@@ -165,6 +165,23 @@ func (r Request) Args() []string {
 // and mergetool.
 const ToolName = "ramus"
 
+// Program is the path that starts the app whose executable is exe, for
+// commands kept after it quits, as git's config: the AppImage it runs
+// from, given by getenv's APPIMAGE, when exe is inside the AppImage's
+// mount, APPDIR, which goes when the app quits; else exe.
+func Program(exe string, getenv func(string) string) string {
+	image, dir := getenv("APPIMAGE"), getenv("APPDIR")
+	if image == "" || dir == "" || !filepath.IsAbs(image) {
+		return exe
+	}
+	// An app the AppImage started, which runs from elsewhere, is not in
+	// it: APPDIR is set for it all the same.
+	if rel, err := filepath.Rel(filepath.Clean(dir), exe); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return exe
+	}
+	return image
+}
+
 // ToolCommands are the commands git runs for the app as its difftool
 // and its mergetool, the app being program.
 func ToolCommands(program string) (diff, merge string) {

@@ -44,6 +44,12 @@ func TestSetTool(t *testing.T) {
 	if v, _ := globalGet(ctx, r, "difftool.ramus.cmd"); v != tool.DiffCmd {
 		t.Fatalf("difftool cmd %q", v)
 	}
+	// Left by the app at another path, it runs nothing: not set.
+	moved := tool
+	moved.DiffCmd = `/old/ramus diff --wait "$LOCAL" "$REMOTE"`
+	if on, err := ToolIsSet(ctx, r, moved); err != nil || on {
+		t.Fatalf("set for another path: %v %v", on, err)
+	}
 	// Set twice, it is there once.
 	if err := SetTool(ctx, r, tool, true); err != nil {
 		t.Fatal(err)

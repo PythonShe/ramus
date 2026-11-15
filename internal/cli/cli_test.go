@@ -101,3 +101,30 @@ func TestQuoteShell(t *testing.T) {
 		t.Fatalf("the shell ran something: %v", entries)
 	}
 }
+
+// An app running from an AppImage is started by the AppImage, not by its
+// executable in the mount that goes when it quits; any other by its own.
+func TestProgram(t *testing.T) {
+	env := func(image, dir string) func(string) string {
+		return func(k string) string {
+			return map[string]string{"APPIMAGE": image, "APPDIR": dir}[k]
+		}
+	}
+	for _, tc := range []struct {
+		exe, image, dir, want string
+	}{
+		{"/tmp/.mount_ab/usr/bin/ramus", "/home/me/ramus.AppImage", "/tmp/.mount_ab", "/home/me/ramus.AppImage"},
+		{"/opt/ramus/ramus", "", "", "/opt/ramus/ramus"},
+		// Started by an AppImage, from elsewhere.
+		{"/opt/ramus/ramus", "/home/me/other.AppImage", "/tmp/.mount_cd", "/opt/ramus/ramus"},
+		{"/tmp/.mount_ab2/ramus", "/home/me/ramus.AppImage", "/tmp/.mount_ab", "/tmp/.mount_ab2/ramus"},
+		{"/tmp/.mount_ab/ramus", "ramus.AppImage", "/tmp/.mount_ab", "/tmp/.mount_ab/ramus"},
+	} {
+		if runtime.GOOS == "windows" {
+			t.Skip("AppImages are Linux's")
+		}
+		if got := Program(tc.exe, env(tc.image, tc.dir)); got != tc.want {
+			t.Errorf("Program(%s, %s, %s) = %s, want %s", tc.exe, tc.image, tc.dir, got, tc.want)
+		}
+	}
+}

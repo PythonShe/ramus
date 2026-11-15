@@ -83,6 +83,9 @@ func main() {
 	lib, libErr := library.Load(filepath.Join(dir, "library.json"))
 
 	program, _ := os.Executable() // none only leaves the tool config out
+	if program != "" {
+		program = cli.Program(program, os.Getenv)
+	}
 	ws := &windows{probe: probe, deps: ui.Deps{
 		Trust: ts, Library: lib, Settings: cfg, SettingsPath: cfgPath, SettingsKeeper: settings.NewKeeper(cfgPath),
 		CacheDir: cacheDir, Program: program, Crash: crash,

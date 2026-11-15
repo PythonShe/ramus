@@ -18,11 +18,18 @@ type GlobalTool struct {
 }
 
 // ToolIsSet reports whether the user's global git config makes tool its
-// difftool and mergetool.
+// difftool and mergetool, with its commands as they are now: commands
+// left by the app at another path, moved or a build since gone, run
+// nothing, so they count as unset and turning it on writes them again.
 func ToolIsSet(ctx context.Context, r *run.Runner, tool GlobalTool) (bool, error) {
-	for _, key := range []string{"diff.tool", "merge.tool"} {
-		v, err := globalGet(ctx, r, key)
-		if err != nil || v != tool.Name {
+	for _, kv := range [][2]string{
+		{"diff.tool", tool.Name},
+		{"merge.tool", tool.Name},
+		{"difftool." + tool.Name + ".cmd", tool.DiffCmd},
+		{"mergetool." + tool.Name + ".cmd", tool.MergeCmd},
+	} {
+		v, err := globalGet(ctx, r, kv[0])
+		if err != nil || v != kv[1] {
 			return false, err
 		}
 	}

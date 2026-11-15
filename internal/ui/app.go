@@ -52,8 +52,9 @@ type Deps struct {
 	// only called off the main thread.
 	PickFile func(title string) (string, error)
 	SaveFile func(title, name string) (string, error)
-	// Program is the app's own executable, for the git config that makes
-	// it git's difftool and mergetool; "" offers none.
+	// Program is what starts the app, its executable or its AppImage
+	// (cli.Program), for the git config that makes it git's difftool and
+	// mergetool; "" offers none.
 	Program string
 	// ApplyTheme makes "system", "light" or "dark" the app's appearance.
 	ApplyTheme func(theme string)
