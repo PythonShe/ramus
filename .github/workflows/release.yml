@@ -1,7 +1,8 @@
 name: Release
 
 # Builds Ramus for every platform and uploads it with its updates to a
-# draft GitHub release, which you publish; installed apps then update to it.
+# GitHub release, a draft until every file is in, then published:
+# installed apps then update to it.
 #
 #   prepare ── ci (ci.yml) ── draft ── build (macOS | Linux and Windows) ── notes (release-notes.yml) ── finish
 #
@@ -335,5 +336,7 @@ jobs:
             mv "$m.new" "$m"
           done
           gh release upload "$TAG" SHA256SUMS "${manifests[@]}" --repo "$GITHUB_REPOSITORY" --clobber
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$NOTES"
-          echo "The draft $TAG is complete. Publish it when it reads right."
+          # Published only now, whole: the updater never sees a release
+          # with some of its files.
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$NOTES" --draft=false --latest
+          echo "$TAG is published."
