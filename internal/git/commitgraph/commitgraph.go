@@ -126,6 +126,19 @@ func Open(objectsDir string) (*Graph, error) { return OpenReusing(objectsDir, ni
 // file is named by its contents, so the same name at the same place in
 // the chain is the same layer. prev may be nil, or closed.
 func OpenReusing(objectsDir string, prev *Graph) (*Graph, error) {
+	// A file gone between reading the chain and opening it is git
+	// replacing the graph, which renames the new chain in before it
+	// removes the old files: read it again.
+	for try := 0; ; try++ {
+		g, err := openOnce(objectsDir, prev)
+		if try < 3 && errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		return g, err
+	}
+}
+
+func openOnce(objectsDir string, prev *Graph) (*Graph, error) {
 	chain := filepath.Join(objectsDir, "info", "commit-graphs", "commit-graph-chain")
 	hashes, err := readChain(chain)
 	switch {
