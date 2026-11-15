@@ -506,6 +506,9 @@ func (hv *historyState) historyMerged(h session.HistoryState, i int) string {
 	return ""
 }
 
+// rowRefs is how many of the refs at a commit its row shows by name.
+const rowRefs = 3
+
 func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	hv := &t.hist
 	snap := h.Snap
@@ -533,11 +536,18 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 			out = locales.HistoryRowMerge(m, s, au, date)
 		}
 		if labels := hv.labels[string(h.OID(snap.Commit(i)))]; len(labels) > 0 {
-			names := make([]string, len(labels))
-			for j, l := range labels {
-				names[j] = locales.HistoryRefNamed(l.kind.word(), l.name())
+			// The refs the row shows, named, as the row draws them: a
+			// commit can have tens of thousands, too many to read out or
+			// to format on every frame.
+			names := make([]string, 0, min(len(labels), rowRefs))
+			for _, l := range labels[:min(len(labels), rowRefs)] {
+				names = append(names, locales.HistoryRefNamed(l.kind.word(), l.name()))
 			}
-			out = locales.HistoryRowAt(out, strings.Join(names, ", "))
+			refs := strings.Join(names, ", ")
+			if len(labels) > rowRefs {
+				refs = locales.HistoryRefsMore(refs, len(labels)-rowRefs)
+			}
+			out = locales.HistoryRowAt(out, refs)
 		}
 		return out
 	}
@@ -625,8 +635,8 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Grow(1).Shrink(1).MarginEnd(spaceM).Children(func() {
 			labels := hv.labels[string(id)]
 			for j, l := range labels {
-				if j == 3 {
-					ui.Text(c, "+"+strconv.Itoa(len(labels)-3)).FontSize(textCaption).TextColor(th.TextMuted)
+				if j == rowRefs {
+					ui.Text(c, "+"+strconv.Itoa(len(labels)-rowRefs)).FontSize(textCaption).TextColor(th.TextMuted)
 					break
 				}
 				refChip(c, l)

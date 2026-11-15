@@ -37,6 +37,18 @@ func TestManyRefs(t *testing.T) {
 
 	h.click("History")
 	h.until("the labels", func() bool { return len(tb.hist.labels[string(tb.s.State.Head.OID)]) == 30001 })
+	// A screen reader hears the refs the row shows and how many more.
+	h.until("the row named", func() bool {
+		for _, a := range h.tt.AccessAll() {
+			if strings.Contains(a.Name, "more refs") {
+				if !strings.Contains(a.Name, "29,998 more refs") || strings.Count(a.Name, ", ") > 8 {
+					t.Fatalf("the row reads %.200q", a.Name)
+				}
+				return true
+			}
+		}
+		return false
+	})
 	history := h.frameTime(11, 50*time.Millisecond)
 
 	h.click("Branches and Tags")

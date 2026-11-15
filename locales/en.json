@@ -1310,6 +1310,10 @@
   "@historyRefNamed": {
     "description": "A ref at a commit, for a screen reader: kind is one of the historyKind* words."
   },
+  "historyRefsMore": "{refs}, {count, plural, one {# more ref} other {# more refs}}",
+  "@historyRefsMore": {
+    "description": "The first refs at a commit, named, and how many more there are, for a screen reader."
+  },
   "historyCommits": "Commits",
   "historyColumnGraph": "Graph",
   "@historyColumnGraph": {

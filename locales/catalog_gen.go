@@ -6937,6 +6937,24 @@ func (msgs Messages) HistoryRefNamed(kind string, name string) string {
 	return Catalog.Format(msgs.locale, "historyRefNamed", map[string]any{"kind": kind, "name": name})
 }
 
+// HistoryRefsMore says "{refs}, {count, plural, one {# more ref} other {# more refs}}"
+// in the language the app shows.
+//
+// The first refs at a commit, named, and how many more there are, for a
+// screen reader.
+func HistoryRefsMore(refs string, count int) string {
+	return In(i18n.Locale()).HistoryRefsMore(refs, count)
+}
+
+// HistoryRefsMore says "{refs}, {count, plural, one {# more ref} other {# more refs}}"
+// in the language of msgs.
+//
+// The first refs at a commit, named, and how many more there are, for a
+// screen reader.
+func (msgs Messages) HistoryRefsMore(refs string, count int) string {
+	return Catalog.Format(msgs.locale, "historyRefsMore", map[string]any{"refs": refs, "count": count})
+}
+
 // HistoryCommits says "Commits"
 // in the language the app shows.
 func HistoryCommits() string { return In(i18n.Locale()).HistoryCommits() }
