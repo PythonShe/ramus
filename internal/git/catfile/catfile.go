@@ -69,7 +69,7 @@ func Start(ctx context.Context, r *run.Runner, gitDir string) (*Process, error) 
 		cancel()
 		return nil, err
 	}
-	if err := cmd.Start(); err != nil {
+	if err := r.Start(cmd); err != nil {
 		cancel()
 		return nil, err
 	}

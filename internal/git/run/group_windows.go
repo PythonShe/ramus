@@ -4,7 +4,7 @@ package run
 
 import (
 	"os/exec"
-	"unsafe"
+	"sync"
 
 	"golang.org/x/sys/windows"
 )
@@ -12,58 +12,73 @@ import (
 // lower leaves the priority as it is: Windows has no nice.
 func lower(cmd *exec.Cmd) {}
 
-// stopGroup makes cancelling stop git and everything it started, as a
-// hook's shell and what that runs, as a process group does elsewhere:
-// killing git alone leaves its children running, holding the pipes the
-// app reads until WaitDelay and the folders they run in.
+// group is the job object a process and everything it starts run in,
+// which Windows passes on to each child as it is made: cancelling ends
+// all of it, as a process group does elsewhere. Killing git alone would
+// leave a hook's shell and what that runs going, holding the pipes the
+// app reads until WaitDelay, and the folders they run in.
+type group struct {
+	mu        sync.Mutex
+	job       windows.Handle
+	cancelled bool
+}
+
+// groups holds the group of each command prepared and not started yet.
+var groups sync.Map // *exec.Cmd -> *group
+
 func stopGroup(cmd *exec.Cmd) {
+	g := &group{}
+	groups.Store(cmd, g)
 	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return nil
+		g.mu.Lock()
+		g.cancelled = true
+		if g.job != 0 {
+			windows.TerminateJobObject(g.job, 1)
 		}
-		// Taken while git runs, so its children still name it as their
-		// parent.
-		tree := descendants(uint32(cmd.Process.Pid))
-		err := cmd.Process.Kill()
-		for _, pid := range tree {
-			if h, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, pid); err == nil {
-				windows.TerminateProcess(h, 1)
-				windows.CloseHandle(h)
-			}
-		}
-		return err
+		g.mu.Unlock()
+		return cmd.Process.Kill()
 	}
 }
 
-// descendants returns the processes pid started, and those they started,
-// from a snapshot of the processes running.
-func descendants(pid uint32) []uint32 {
-	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+// joinGroup puts a process just started in its job. It runs before git
+// can start anything: what it starts is in the job from the first.
+func joinGroup(cmd *exec.Cmd) {
+	v, ok := groups.LoadAndDelete(cmd)
+	if !ok {
+		return
+	}
+	g := v.(*group)
+	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
-		return nil
+		return
 	}
-	defer windows.CloseHandle(snap)
-	children := map[uint32][]uint32{}
-	e := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
-	for err = windows.Process32First(snap, &e); err == nil; err = windows.Process32Next(snap, &e) {
-		if e.ProcessID != e.ParentProcessID {
-			children[e.ParentProcessID] = append(children[e.ParentProcessID], e.ProcessID)
-		}
+	h, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, uint32(cmd.Process.Pid))
+	if err != nil {
+		windows.CloseHandle(job)
+		return
 	}
-	// A parent's ID can be reused by a process started after it ended:
-	// each process is taken once.
-	seen := map[uint32]bool{pid: true}
-	var out []uint32
-	for next := []uint32{pid}; len(next) > 0; {
-		p := next[0]
-		next = next[1:]
-		for _, c := range children[p] {
-			if !seen[c] {
-				seen[c] = true
-				out = append(out, c)
-				next = append(next, c)
-			}
-		}
+	if err := windows.AssignProcessToJobObject(job, h); err != nil {
+		windows.CloseHandle(h)
+		windows.CloseHandle(job)
+		return
 	}
-	return out
+	g.mu.Lock()
+	g.job = job
+	if g.cancelled {
+		windows.TerminateJobObject(job, 1)
+	}
+	g.mu.Unlock()
+	// Once git has exited, as on other systems, what it left running is
+	// let be: the job is let go without ending it.
+	go func() {
+		windows.WaitForSingleObject(h, windows.INFINITE)
+		windows.CloseHandle(h)
+		g.mu.Lock()
+		windows.CloseHandle(g.job)
+		g.job = 0
+		g.mu.Unlock()
+	}()
 }
+
+// leaveGroup forgets the group of a command that did not start.
+func leaveGroup(cmd *exec.Cmd) { groups.Delete(cmd) }

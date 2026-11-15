@@ -285,9 +285,10 @@ func (r *Runner) Run(ctx context.Context, c *Cmd) (Result, error) {
 
 // Command prepares a long-lived process, such as cat-file --batch-command,
 // that lives as long as its repository: it takes no slot of the pool and
-// has no time limit, and stops when ctx is cancelled. Track tells the
-// runner it started and ended, for Running. A write through a hardened
-// runner fails to start, with ErrRestricted, as Run refuses it.
+// has no time limit, and stops when ctx is cancelled. Start starts it;
+// Track tells the runner it started and ended, for Running. A write
+// through a hardened runner fails to start, with ErrRestricted, as Run
+// refuses it.
 func (r *Runner) Command(ctx context.Context, c *Cmd) *exec.Cmd {
 	if r.hardened && !c.Read {
 		// Start returns a Cmd's Err without running anything, so each
@@ -300,6 +301,17 @@ func (r *Runner) Command(ctx context.Context, c *Cmd) *exec.Cmd {
 	cmd.WaitDelay = 2 * time.Second
 	r.journal.record(c, c.Line(), time.Now(), Result{}, nil, true)
 	return cmd
+}
+
+// Start starts a process Command prepared in the group that cancelling
+// it stops, with everything it starts.
+func (r *Runner) Start(cmd *exec.Cmd) error {
+	if err := cmd.Start(); err != nil {
+		leaveGroup(cmd)
+		return err
+	}
+	joinGroup(cmd)
+	return nil
 }
 
 // Track counts a process started from Command until done is called.
@@ -379,7 +391,7 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	t0 := time.Now()
 	r.running.Add(1)
 	r.commands.Add(1)
-	err := cmd.Start()
+	err := r.Start(cmd)
 	if err == nil {
 		if c.Background {
 			lower(cmd)

@@ -80,7 +80,10 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 		var stderr strings.Builder
 		cmd.Stderr = &limitedWriter{w: &stderr, left: 8 << 10}
 		untrack := r.Runner.Track()
-		err := cmd.Run()
+		err := r.Runner.Start(cmd)
+		if err == nil {
+			err = cmd.Wait()
+		}
 		untrack()
 		if err != nil && ctx.Err() == nil {
 			if msg := strings.TrimSpace(stderr.String()); msg != "" {

@@ -26,3 +26,9 @@ func stopGroup(cmd *exec.Cmd) {
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 	}
 }
+
+// joinGroup has nothing to do: the session Setsid made is the group.
+func joinGroup(cmd *exec.Cmd) {}
+
+// leaveGroup has nothing to forget.
+func leaveGroup(cmd *exec.Cmd) {}
