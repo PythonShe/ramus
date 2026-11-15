@@ -35,7 +35,7 @@ func TestRefsAloneKeepStatus(t *testing.T) {
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil && s.State.Refs != nil })
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	before, read := fullStatusRuns(logged()), s.State.Refreshed
 
 	r.Git("tag", "v1")
@@ -53,7 +53,7 @@ func TestRefsAloneKeepStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.until(t, "the fetched branch", func() bool { return refOID(s.State.Refs, "refs/remotes/origin/main") != nil })
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	if n := fullStatusRuns(logged()) - before; n != 0 || !s.State.Refreshed.Equal(read) {
 		t.Fatalf("refs under refs/tags and refs/remotes ran status %d times", n)
 	}

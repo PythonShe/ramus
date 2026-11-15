@@ -186,6 +186,9 @@ func TestHoldWrites(t *testing.T) {
 		return strings.TrimSpace(got) == want
 	}
 	s.SetBackgroundFetch(20*time.Millisecond, nil)
+	if s.fetch.stop != nil {
+		t.Fatal("a held session has a fetch due")
+	}
 	m.runFor(300 * time.Millisecond)
 	if fetched() {
 		t.Fatal("a held session fetched")
@@ -223,7 +226,12 @@ func TestFetchWaitsForBusyWorktrees(t *testing.T) {
 		return strings.TrimSpace(got) == want
 	}
 	s.SetBackgroundFetch(20*time.Millisecond, nil)
-	m.runFor(400 * time.Millisecond)
+	// Put off more than once: it was due, and still held off.
+	for deadline := time.Now().Add(20 * time.Second); s.fetch.waited.Load() < 3; m.pump(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the fetch was never put off")
+		}
+	}
 	if fetched() {
 		t.Fatal("fetched while git held another worktree's index")
 	}

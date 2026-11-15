@@ -80,8 +80,11 @@ func TestBackgroundFetch(t *testing.T) {
 	if s.FetchStopped() == nil {
 		t.Fatal("not stopped")
 	}
+	if s.fetch.stop != nil {
+		t.Fatal("a fetch still due after one that needs the user")
+	}
 	n := fetches(s)
-	m.pump(300 * time.Millisecond)
+	m.settle(t, s)
 	if fetches(s) != n || len(failed) != 1 {
 		t.Fatalf("fetched %d more times after failing, told %d times", fetches(s)-n, len(failed))
 	}
@@ -91,7 +94,10 @@ func TestBackgroundFetch(t *testing.T) {
 		t.Fatal("opened trusted")
 	}
 	u.SetBackgroundFetch(50*time.Millisecond, nil)
-	mu.pump(300 * time.Millisecond)
+	if u.fetch.stop != nil {
+		t.Fatal("an untrusted repository has a fetch due")
+	}
+	mu.settle(t, u)
 	if fetches(u) != 0 {
 		t.Fatal("an untrusted repository fetched")
 	}
@@ -164,7 +170,10 @@ func TestTrustStartsTheBackgroundFetch(t *testing.T) {
 		return strings.TrimSpace(got) == want
 	}
 	keep()
-	m.pump(200 * time.Millisecond)
+	if s.fetch.stop != nil {
+		t.Fatal("a fetch due while restricted")
+	}
+	m.settle(t, s)
 	if fetched() {
 		t.Fatal("fetched while restricted")
 	}
@@ -192,7 +201,9 @@ func TestTrustStartsTheBackgroundFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.until(t, "the reopen", func() bool { return s.State.Status != nil })
-	m.pump(300 * time.Millisecond)
+	// The old fetch's end, killed with the repository it ran in, has
+	// come by now, however slowly.
+	m.settle(t, s)
 	if s.Fetching() || pickerDone || len(failed) != 0 {
 		t.Fatalf("after the reopen: fetching %v, the old fetch's done called %v, failures %v", s.Fetching(), pickerDone, failed)
 	}

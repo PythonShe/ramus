@@ -53,8 +53,19 @@ func TestWorktreeActions(t *testing.T) {
 	if !strings.Contains(list(), "worktree "+as(topic)+"\n") {
 		t.Fatalf("list\n%s", list())
 	}
+	// Closed, and done with its folder before it is removed below, which
+	// Windows would refuse while a handle in it is open.
+	closed := h.app.tabs[1].s
 	h.app.Close(1)
 	h.app.active = 0
+	h.until("the worktree closed", func() bool {
+		select {
+		case <-closed.Done():
+			return true
+		default:
+			return false
+		}
+	})
 	label := "topic  topic"
 	h.until("the worktree in the sidebar", h.shows(label))
 

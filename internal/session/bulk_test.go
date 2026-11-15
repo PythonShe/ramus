@@ -38,7 +38,7 @@ func TestBulkWrite(t *testing.T) {
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil })
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	statusRuns := func() int {
 		n := 0
 		for _, l := range logged() {
@@ -67,7 +67,7 @@ func TestBulkWrite(t *testing.T) {
 		return last.Len() == 5000
 	})
 	took := time.Since(start)
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	runs := statusRuns() - before
 	t.Logf("5,000 files written in %v; %d status runs, statuses shown %v, all shown after %v",
 		wrote.Round(time.Millisecond), runs, shown, took.Round(time.Millisecond))

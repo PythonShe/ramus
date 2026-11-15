@@ -32,16 +32,26 @@ func unnamed(h *harness, where string) {
 	}
 }
 
-// settle pumps updates and frames for a while, for views that load in
-// the background.
+// settle pumps updates and frames until the app has been quiet for
+// 300ms, for views that load in the background: no update posted, no
+// frame asked for and no git command running, however slow the machine.
 func (h *harness) settle() {
-	deadline := time.Now().Add(400 * time.Millisecond)
-	for time.Now().Before(deadline) {
+	h.t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	since := time.Now()
+	for time.Since(since) < 300*time.Millisecond {
 		h.tt.Frame()
 		select {
 		case fn := <-h.updates:
 			fn()
+			since = time.Now()
 		case <-time.After(10 * time.Millisecond):
+		}
+		if h.tt.FramePending() || h.runner.Commands() > 0 {
+			since = time.Now()
+		}
+		if time.Now().After(deadline) {
+			h.t.Fatalf("never settled: frame pending %v, %d git commands running", h.tt.FramePending(), h.runner.Commands())
 		}
 	}
 }

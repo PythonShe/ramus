@@ -43,7 +43,7 @@ func TestLeavingAViewCancelsItsReads(t *testing.T) {
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil })
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 
 	s.SetView("file")
 	answered := false
@@ -62,7 +62,7 @@ func TestLeavingAViewCancelsItsReads(t *testing.T) {
 		}
 		m.pump(10 * time.Millisecond)
 	}
-	m.pump(200 * time.Millisecond)
+	m.settle(t, s)
 	if answered {
 		t.Fatal("a read of the view left answered")
 	}

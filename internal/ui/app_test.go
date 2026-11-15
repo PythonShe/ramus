@@ -29,6 +29,7 @@ type harness struct {
 	updates chan func()
 	trust   *trust.Store
 	lib     *library.Library
+	runner  *run.Runner
 	// seen are the sessions of every tab a frame showed, so that one a
 	// test closed has stopped too before its folder is removed.
 	seen map[*session.Session]bool
@@ -64,7 +65,7 @@ func newHarnessWith(t *testing.T, r *run.Runner) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{t: t, updates: make(chan func(), 1024), trust: ts, lib: lib}
+	h := &harness{t: t, updates: make(chan func(), 1024), trust: ts, lib: lib, runner: r}
 	h.app = NewApp(Deps{Runner: r, Trust: ts, Library: lib, Settings: settings.Defaults,
 		Update: func(fn func()) { h.updates <- fn }})
 	h.tt = ui.NewTester(h.app.View, 1200, 800)

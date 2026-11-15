@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"ramus/internal/git/lifetime"
@@ -36,6 +37,9 @@ type backgroundFetch struct {
 	onFailed func(error)
 	// started is when the last fetch of either kind started.
 	started time.Time
+	// waited counts the fetches put off for another worktree's git, for
+	// a test to tell one put off from one not yet due.
+	waited atomic.Int32
 }
 
 // SetBackgroundFetch fetches every remote every so often, 0 for never.
@@ -82,6 +86,7 @@ func (s *Session) SetBackgroundFetch(every time.Duration, failed func(error)) {
 			// commit or fetch: both would lock the same refs, and the
 			// agent's would fail.
 			if othersBusy(ctx, r) {
+				bf.waited.Add(1)
 				wait = busyWait
 				continue
 			}

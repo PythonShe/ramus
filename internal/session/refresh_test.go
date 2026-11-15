@@ -55,6 +55,35 @@ func scriptRunner(t *testing.T, more string) (runner *run.Runner, logged func() 
 }
 
 // pump runs what the session hands the main thread for d.
+// settle pumps the main thread until s has been done for 4*Debounce in
+// a row: its refresher waiting with nothing to read or put off, and no
+// update waiting. A notice the watcher delivers late, or a status a slow
+// machine takes long over, then lands before a test takes what it
+// compares with, and a refresh asked for has run before a test says it
+// changed nothing.
+func (m mainThread) settle(t *testing.T, s *Session) {
+	t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	since := time.Now()
+	for time.Since(since) < 4*Debounce {
+		select {
+		case fn := <-m:
+			fn()
+			since = time.Now()
+		case <-time.After(5 * time.Millisecond):
+		}
+		s.mu.Lock()
+		dirty := s.dirty != 0 || s.now
+		s.mu.Unlock()
+		if dirty || !s.refreshIdle.Load() {
+			since = time.Now()
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the session never settled")
+		}
+	}
+}
+
 func (m mainThread) pump(d time.Duration) {
 	end := time.After(d)
 	for {
@@ -78,17 +107,17 @@ func TestRefreshKeyedOnContent(t *testing.T) {
 	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil && s.State.Refs != nil })
-	m.pump(4 * Debounce) // the watcher's notices of the open itself
+	m.settle(t, s) // the watcher's notices of the open itself
 
 	read, list := s.State.Refreshed, s.State.Refs
 	s.Refresh(repo.IndexChanged)
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	if !s.State.Refreshed.Equal(read) {
 		t.Fatal("status ran again for an index that did not change")
 	}
 
 	s.Refresh(repo.RefsChanged)
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	if s.State.Refs != list {
 		t.Fatal("refs with the same values made a new list")
 	}
@@ -131,12 +160,12 @@ func TestRefreshRechecksEditedFiles(t *testing.T) {
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil })
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	full0, re0 := statusRuns()
 
 	r.Write("a", "2")
 	m.until(t, "the edit", func() bool { return s.State.Status.Len() == 1 })
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	full1, re1 := statusRuns()
 	if full1 != full0 || re1 == re0 {
 		t.Fatalf("an edit ran %d full status and %d rechecks", full1-full0, re1-re0)
@@ -191,18 +220,18 @@ func TestFocusRefresh(t *testing.T) {
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil })
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 
 	before := statusRuns()
 	s.FocusRefresh()
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	if n := statusRuns() - before; n != 0 {
 		t.Fatalf("focus with nothing changed ran status %d times", n)
 	}
 
 	s.State.WatchErr = errors.New("not watching")
 	s.FocusRefresh()
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 	if n := statusRuns() - before; n != 1 {
 		t.Fatalf("focus with no watcher ran status %d times", n)
 	}

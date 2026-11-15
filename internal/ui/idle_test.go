@@ -28,8 +28,12 @@ func TestIdle(t *testing.T) {
 		t.Skip(err)
 	}
 	bin := t.TempDir()
-	logFile := filepath.Join(bin, "log")
-	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\nexec " + real + " \"$@\"\n"
+	logFile, ended := filepath.Join(bin, "log"), filepath.Join(bin, "ended")
+	// Each command is logged as it starts and, but for cat-file, which
+	// lives as long as its repository, as it ends.
+	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\n" +
+		"case \"$*\" in *cat-file*) exec " + real + " \"$@\";; esac\n" +
+		real + " \"$@\"\ns=$?\necho x >> " + ended + "\nexit $s\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -40,6 +44,18 @@ func TestIdle(t *testing.T) {
 	ran := func() int {
 		data, _ := os.ReadFile(logFile)
 		return strings.Count(string(data), "\n")
+	}
+	// running is the commands started and not ended, cat-file aside.
+	running := func() int {
+		started, _ := os.ReadFile(logFile)
+		done, _ := os.ReadFile(ended)
+		n := 0
+		for _, l := range strings.Split(string(started), "\n") {
+			if l != "" && !strings.Contains(l, "cat-file") {
+				n++
+			}
+		}
+		return n - strings.Count(string(done), "\n")
 	}
 	h := newHarnessWith(t, run.New(g, gittest.Env(), 8))
 	other := h.repoWith()
@@ -64,7 +80,8 @@ func TestIdle(t *testing.T) {
 	quiet := func(what string) {
 		t.Helper()
 		// Let what the view started finish: a spinner asks for frames
-		// until its work ends.
+		// until its work ends, and a git command, as a status a slow
+		// machine takes long over, posts nothing while it runs.
 		h.until(what+" settled", func() bool {
 			select {
 			case fn := <-h.updates:
@@ -73,7 +90,7 @@ func TestIdle(t *testing.T) {
 			case <-time.After(300 * time.Millisecond):
 			}
 			h.tt.Frame()
-			return !h.tt.FramePending()
+			return !h.tt.FramePending() && running() == 0
 		})
 		before := ran()
 		posted := 0

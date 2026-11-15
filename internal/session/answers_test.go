@@ -36,7 +36,7 @@ func TestAnswersKept(t *testing.T) {
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil && s.State.Status.Len() == 1 })
-	m.pump(4 * Debounce)
+	m.settle(t, s)
 
 	sides := func(src diff.Source) Sides {
 		st := s.State.Status

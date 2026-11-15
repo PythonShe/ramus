@@ -100,10 +100,13 @@ type Session struct {
 	dirtyAll   bool
 	// now asks the next refresh not to wait for changes to go quiet: a
 	// write of the app's own has ended, and the user waits on it.
-	now     bool
-	wake    chan struct{}
-	closed  bool
-	timeNow func() time.Time
+	now  bool
+	wake chan struct{}
+	// refreshIdle is set while the refresher waits with nothing put off,
+	// for a test to tell a session done with what it was told.
+	refreshIdle atomic.Bool
+	closed      bool
+	timeNow     func() time.Time
 	// stop cancels an open in progress; opened is the repository once
 	// open, before the main thread has taken it, so Close reaches both.
 	stop   context.CancelFunc
@@ -379,12 +382,14 @@ func (s *Session) refresher(ctx context.Context, r *repo.Repository) {
 	retry.Stop()
 	defer retry.Stop()
 	for {
+		s.refreshIdle.Store(!held)
 		select {
 		case <-s.wake:
 		case <-retry.C:
 		case <-ctx.Done():
 			return
 		}
+		s.refreshIdle.Store(false)
 		if !quiet(ctx, s.wake, s.urgent) {
 			return
 		}

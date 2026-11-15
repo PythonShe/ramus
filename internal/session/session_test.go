@@ -129,18 +129,17 @@ func TestOpenErrorAndCloseWhileOpening(t *testing.T) {
 	r.Commit("one")
 	s = Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
 	s.Close()
-	deadline := time.After(5 * time.Second)
-	for s.Repo == nil {
-		select {
-		case fn := <-m:
-			fn()
-		case <-deadline:
-			<-s.Done()
-			return // opened and closed without publishing: fine
-		}
-		if s.Repo != nil {
-			t.Fatal("a closed session took its repository")
-		}
+	// Done, it posts nothing more: what it posted is all waiting here.
+	select {
+	case <-s.Done():
+	case <-time.After(20 * time.Second):
+		t.Fatal("a session closed while opening did not stop")
+	}
+	for len(m) > 0 {
+		(<-m)()
+	}
+	if s.Repo != nil {
+		t.Fatal("a closed session took its repository")
 	}
 }
 

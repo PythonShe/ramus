@@ -56,9 +56,11 @@ type Runner struct {
 // pool is shared by a runner and the hardened runners made from it.
 type pool struct {
 	slots chan struct{}
-	// running counts processes alive, for the soak test and diagnostics.
-	running atomic.Int64
-	journal Journal
+	// running counts processes alive, for the soak test and diagnostics;
+	// commands those of them Run started.
+	running  atomic.Int64
+	commands atomic.Int64
+	journal  Journal
 }
 
 // New returns a runner for git with env (the resolved user environment)
@@ -129,6 +131,11 @@ func (r *Runner) Journal() *Journal { return &r.journal }
 
 // Running returns the number of processes alive.
 func (r *Runner) Running() int { return int(r.running.Load()) }
+
+// Commands returns the number of commands Run started that have not
+// ended: Running without the processes that live as long as their
+// repository.
+func (r *Runner) Commands() int { return int(r.commands.Load()) }
 
 // Cmd is one git command.
 type Cmd struct {
@@ -371,6 +378,7 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	cmd.WaitDelay = 2 * time.Second
 	t0 := time.Now()
 	r.running.Add(1)
+	r.commands.Add(1)
 	err := cmd.Start()
 	if err == nil {
 		if c.Background {
@@ -379,6 +387,7 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 		err = cmd.Wait()
 	}
 	r.running.Add(-1)
+	r.commands.Add(-1)
 	res := Result{Stdout: stdout.buf, Stderr: stderr.String(), Duration: time.Since(t0)}
 	if err != nil {
 		e := &Error{Line: c.Line(), ExitCode: -1, Stderr: res.Stderr, Err: err}

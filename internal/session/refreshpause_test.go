@@ -37,13 +37,14 @@ func TestFullStatusWaitsOutThePause(t *testing.T) {
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil })
-	m.pump(3 * took)
+	m.settle(t, s)
 
 	r.Write("new1", "x")
 	m.until(t, "the first new file", func() bool { return s.State.Status.Len() == 1 })
 	shown := time.Now()
 	r.Write("new2", "x")
 	m.until(t, "the second new file", func() bool { return s.State.Status.Len() == 2 })
+	last := time.Now()
 	// It waited out 2*took from the end of the last, then took as long.
 	if d := time.Since(shown); d < 2*took {
 		t.Fatalf("the next full status showed %v after the last", d)
@@ -51,10 +52,11 @@ func TestFullStatusWaitsOutThePause(t *testing.T) {
 
 	m.pump(Debounce)
 	before, read := fullStatusRuns(logged()), s.State.Refreshed
-	asked := time.Now()
 	s.Reload()
 	m.until(t, "the reload", func() bool { return !s.State.Refreshed.Equal(read) })
-	if d := time.Since(asked); d >= 2*took || fullStatusRuns(logged()) == before {
-		t.Fatalf("a reload the user asked for showed after %v", d)
+	// One that waited out the pause would show 2*took after the last
+	// ended, and take took more.
+	if d := time.Since(last); d >= 3*took || fullStatusRuns(logged()) == before {
+		t.Fatalf("a reload the user asked for showed %v after the last status", d)
 	}
 }
