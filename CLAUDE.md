@@ -34,14 +34,15 @@ RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json 
   PythonShe/ramus, signed with the key whose public half is in
   `mygo.json`; the secret half is the `MYGO_UPDATER_PRIVATE_KEY` secret
   of the repository and never goes in it.
-- `.github/workflows/release.yml`: on a `vX.Y.Z` tag, runs CI, has
-  `release-notes.yml` write the notes (a `## X.Y.Z` section of
-  `CHANGELOG.md` written by hand wins), and builds the macOS app,
-  signed with the Developer ID of `APPLE_CERTIFICATE` and notarized
-  with the App Store Connect key of `APPLE_API_KEY`, and the Linux and
-  Windows packages, unsigned, into a draft release. It names the
-  notary profile in the runner's `mygo.json` only, so local builds stay
-  ad hoc.
+- `.github/workflows/release.yml`: on a `vX.Y.Z` tag, runs CI and
+  builds the macOS app, signed with the Developer ID of
+  `APPLE_CERTIFICATE` and notarized with the App Store Connect key of
+  `APPLE_API_KEY`, and the Linux and Windows packages, unsigned, into a
+  draft release. Once every build succeeded, `release-notes.yml` writes
+  the notes (a `## X.Y.Z` section of `CHANGELOG.md` written by hand
+  wins), which go into the release and its update manifests. It names
+  the notary profile in the runner's `mygo.json` only, so local builds
+  stay ad hoc.
 - `internal/ui/`: app state and views. Views are tested without a window
   through `ui.NewTester`.
 - `internal/git/`: the engine. It imports nothing from mygo; `check.sh` fails

@@ -3,10 +3,12 @@ name: Release
 # Builds Ramus for every platform and uploads it with its updates to a
 # draft GitHub release, which you publish; installed apps then update to it.
 #
-#   prepare ── ci (ci.yml) ─┐
-#          └── notes (release-notes.yml) ── draft ── build (macOS | Linux and Windows) ── checksums
+#   prepare ── ci (ci.yml) ── draft ── build (macOS | Linux and Windows) ── notes (release-notes.yml) ── finish
 #
-# A pushed vX.Y.Z tag releases it; mygo.json's version must match.
+# A pushed vX.Y.Z tag releases it; mygo.json's version must match. The
+# notes are written last, once every build succeeded, so a failed release
+# costs no model call; finish puts them in the release and in its update
+# manifests, whose signatures cover the archives and not the notes.
 # Dispatched by hand without a tag, it is a dry run of the branch:
 # everything up to notarization, nothing uploaded, the apps kept as
 # artifacts of the run. Only the macOS app is signed and notarized; the
@@ -72,31 +74,15 @@ jobs:
     with:
       ref: ${{ needs.prepare.outputs.sha }}
 
-  notes:
-    needs: prepare
-    uses: ./.github/workflows/release-notes.yml
-    with:
-      ref: ${{ needs.prepare.outputs.sha }}
-      tag: ${{ needs.prepare.outputs.tag }}
-    secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
   # The draft exists before the builds start, so each uploads to it rather
   # than creating one of its own.
   draft:
-    needs: [prepare, ci, notes]
+    needs: [prepare, ci]
     runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
-      - name: Download notes
-        if: needs.prepare.outputs.tag != ''
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: release-notes
-          path: ${{ runner.temp }}/notes
-
-      - name: Create or update the draft release
+      - name: Create the draft release
         if: needs.prepare.outputs.tag != ''
         shell: bash
         env:
@@ -104,7 +90,6 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           set -euo pipefail
-          NOTES="$RUNNER_TEMP/notes/notes.md"
           if DRAFT=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null); then
             # Running again replaces the draft's files; a published
             # release is never rebuilt under the same version.
@@ -112,10 +97,9 @@ jobs:
               echo "::error::$TAG is already published."
               exit 1
             fi
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$NOTES"
           else
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --draft --verify-tag --title "$TAG" --notes-file "$NOTES"
+              --draft --verify-tag --title "$TAG" --notes "The notes are written once every build succeeded."
           fi
 
   build:
@@ -146,25 +130,6 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-
-      - name: Download notes
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: release-notes
-          path: ${{ runner.temp }}/notes
-
-      # The update manifests carry the version's section of CHANGELOG.md,
-      # which the update window shows. The section exists in this runner
-      # only, unless one was written by hand.
-      - name: Put the notes in the changelog
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f CHANGELOG.md ] && grep -Eq "^## \[?v?$VERSION([] ]|$)" CHANGELOG.md; then
-            exit 0
-          fi
-          { printf '## %s\n\n' "$VERSION"; cat "$RUNNER_TEMP/notes/notes.md"; echo; [ ! -f CHANGELOG.md ] || cat CHANGELOG.md; } > "$RUNNER_TEMP/CHANGELOG.md"
-          mv "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
 
       - name: Import the signing certificate
         if: runner.os == 'macOS'
@@ -295,23 +260,42 @@ jobs:
         if: always() && runner.os == 'macOS'
         run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
 
-  # Each build merged its files into the release's SHA256SUMS; check that
-  # every file is there and matches, and add the AppImage, which mygo does
-  # not make.
-  checksums:
+  # Only after every build succeeded, so that a failed release costs no
+  # model call; a dry run has none.
+  notes:
     needs: [prepare, build]
     if: needs.prepare.outputs.tag != ''
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  # Each build merged its files into the release's SHA256SUMS: check that
+  # every file is there and matches, and add the AppImage, which mygo does
+  # not make. Then put the notes in the release and in the update
+  # manifests, which the update window shows them from.
+  finish:
+    needs: [prepare, build, notes]
     runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
-      - name: Check and complete SHA256SUMS
+      - name: Download notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/notes
+
+      - name: Check and complete SHA256SUMS, and add the notes
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           set -euo pipefail
+          NOTES="$RUNNER_TEMP/notes/notes.md"
           mkdir assets && cd assets
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY"
           ls -l
@@ -330,5 +314,15 @@ jobs:
             grep -qxF "$f" <<<"$listed" || sha256sum "$f" >> SHA256SUMS
           done
           sort -k 2 -o SHA256SUMS SHA256SUMS
-          gh release upload "$TAG" SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
-          echo "Every file is in SHA256SUMS. Publish the draft $TAG when it reads right."
+
+          # The manifests are not in SHA256SUMS, and their signatures are
+          # of the archives, so the notes change neither.
+          manifests=(update-*.json)
+          [ -e "${manifests[0]}" ] || { echo "::error::The release has no update manifests."; exit 1; }
+          for m in "${manifests[@]}"; do
+            jq --rawfile notes "$NOTES" '.notes = ($notes | rtrimstr("\n"))' "$m" > "$m.new"
+            mv "$m.new" "$m"
+          done
+          gh release upload "$TAG" SHA256SUMS "${manifests[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$NOTES"
+          echo "The draft $TAG is complete. Publish it when it reads right."

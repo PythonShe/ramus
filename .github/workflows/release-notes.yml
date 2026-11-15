@@ -1,9 +1,10 @@
 name: Release Notes
 
 # Writes a release's notes with Claude from its commit subjects. Called by
-# release.yml before the builds, which put them in the update manifests
-# that the app's update window reads; dispatched by hand, it previews the
-# notes for a ref without publishing anything. A "## X.Y.Z" section in
+# release.yml once every build succeeded, which then puts them in the
+# release and in the update manifests that the app's update window reads;
+# dispatched by hand, it previews the notes for a ref without publishing
+# anything. A "## X.Y.Z" section in
 # CHANGELOG.md, written by hand, is used as it is instead. Every failure
 # falls back to fixed notes: a release never fails because of its notes.
 
