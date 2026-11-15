@@ -32,6 +32,10 @@ const (
 	historyFollow = 1000
 )
 
+// historySlide is how the list slides down to the commits that land on
+// its top.
+var historySlide = ui.Animation{Duration: 200 * time.Millisecond}
+
 // historyState is a tab's history list and the commit chosen in it.
 type historyState struct {
 	list   ui.ListState
@@ -84,9 +88,22 @@ type historyState struct {
 	msgWant  float32
 	widthKey listWidthKey
 	chosenID []byte
-	// keptTop is the commit at the top of the list as last laid out.
-	keptTop []byte
-	filter  historyFilter
+	// inView are the commits of the rows the list showed, first to last,
+	// of viewSnap's rows viewFirst to viewLast, in one buffer: a history
+	// laid out anew keeps the first of them still in it where it was.
+	inView              [][]byte
+	inViewBuf           []byte
+	viewSnap            *lanes.Snapshot
+	viewFirst, viewLast int
+	keep                [][]byte
+	// scroll slides the list to its top as commits land there: tracked
+	// only while it slides, for the list to keep its place by its rows
+	// otherwise. slideFrom is the frame the commits landed in, 0 for
+	// none: the slide starts in the next, from where the list laid the
+	// rows it showed out in it.
+	scroll    ui.ScrollState
+	slideFrom uint64
+	filter    historyFilter
 }
 
 // listWidthKey is what sets the width of the history list: the window's,
@@ -157,6 +174,14 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	h := t.s.History
 	hv.frame++
 	a.followHistory(t, h)
+	switch {
+	case hv.slideFrom == 0:
+	case hv.frame > hv.slideFrom:
+		hv.scroll.ScrollTo(0, 0, historySlide)
+		hv.slideFrom = 0
+	default:
+		c.AnimationFrame()
+	}
 	a.findWanted(t, h)
 	a.buildLabels(hv, t.s.State, h)
 	hv.lastPane, hv.pane = hv.pane, listPane(hv.detailW, &hv.detail)
@@ -215,10 +240,12 @@ func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 // history loads again. Commits laid on top of the history shown move its
 // rows down by as many, which the list follows on its own by the rows'
 // keys, as far as it looks; history laid out anew comes with the rows of
-// the commits kept in view (Session.KeepInView). A list showing its top
-// stays there instead, for the commits that land to show; the choice
-// still stays with its commit. A load of another view chooses the commit
-// chosen once it finds it, as one jumped to.
+// the commits kept in view (Session.KeepInView): the first commit shown
+// that it still holds stays where it showed, whatever went above it. A
+// list showing its top slides down to the commits that land there
+// instead, or shows its new top; the choice still stays with its commit.
+// A load of another view chooses the commit chosen once it finds it, as
+// one jumped to.
 func (a *App) followHistory(t *tab, h session.HistoryState) {
 	hv := &t.hist
 	if h.Load != hv.textLoad {
@@ -241,6 +268,12 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 	}
 	first, last := hv.list.Visible()
 	atTop := last >= first && first == 0
+	shown := last - first + 1
+	if hv.scroll.Scrolling() || hv.slideFrom != 0 {
+		// A slide on its way stops: the rows moved under it. The next
+		// starts from where they are.
+		hv.scroll, hv.slideFrom = ui.ScrollState{}, 0
+	}
 	switch {
 	case prev == nil || h.Snap == nil || prevLoad == hv.loadFor:
 		// The first rows, or more of the same load.
@@ -251,7 +284,7 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 		}
 		switch {
 		case atTop:
-			hv.list.ScrollTo(0, ui.Start)
+			hv.slideDown(h.Added, h.Added, shown)
 		case h.Added > historyFollow && last >= first:
 			hv.list.ScrollTo(first+h.Added, ui.Start)
 		}
@@ -261,10 +294,14 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 			row = -1
 		}
 		hv.list.Choose(row)
-		if atTop {
+		k, at := hv.survivor(h.Found)
+		switch {
+		case atTop && k >= 0:
+			hv.slideDown(at-k, at-k, shown)
+		case atTop:
 			hv.list.ScrollTo(0, ui.Start)
-		} else if top, ok := h.Found[string(hv.keptTop)]; ok && top >= 0 {
-			hv.list.ScrollTo(top, ui.Start)
+		case k >= 0:
+			hv.list.ScrollTo(max(0, at-k), ui.Start)
 		}
 	default:
 		hv.list.Choose(-1)
@@ -272,6 +309,31 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 			hv.want, hv.wantFor = hv.chosenID, nil
 		}
 	}
+}
+
+// slideDown shows the top of the list, which n rows came above: from
+// row top, where the rows it showed went, it slides there in the frames
+// after this one, which lays them out where they showed. Rows that went
+// (n below 0), and more than it shows, it shows at once.
+func (hv *historyState) slideDown(n, top, shown int) {
+	if n <= 0 || n > shown || top <= 0 {
+		hv.list.ScrollTo(0, ui.Start)
+		return
+	}
+	hv.list.ScrollTo(top, ui.Start)
+	hv.slideFrom = hv.frame
+}
+
+// survivor returns the first commit in view that a history laid out
+// anew still holds: how far down the view it was, and its row now; -1
+// for none.
+func (hv *historyState) survivor(found map[string]int) (k, row int) {
+	for k, id := range hv.inView {
+		if row, ok := found[string(id)]; ok && row >= 0 {
+			return k, row
+		}
+	}
+	return -1, -1
 }
 
 func historyStatus(h session.HistoryState) string {
@@ -572,6 +634,9 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	}
 	a.historyHeader(c, hv, snap)
 	l := ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Label(locales.HistoryCommits()).Grow(1)
+	if hv.scroll.Scrolling() {
+		l.TrackScroll(&hv.scroll)
+	}
 	// The list's width is known once it is laid out, after the columns
 	// were: when what sets it changes, a frame more measures it, and one
 	// more lays the columns out for it.
@@ -597,18 +662,32 @@ func (hv *historyState) roomW() float32 {
 }
 
 // keepInView tells the session the commits to find again in a history
-// laid out anew: the one at the top of the list and the one chosen.
+// laid out anew: the ones in view and the one chosen.
 func (a *App) keepInView(t *tab, h session.HistoryState) {
 	hv := &t.hist
 	if h.Snap == nil {
 		return
 	}
-	if first, last := hv.list.Visible(); last >= first && first < h.Snap.Len() {
-		if id := h.OID(h.Snap.Commit(first)); string(id) != string(hv.keptTop) {
-			hv.keptTop = slices.Clone(id)
+	// Only of the rows the list laid out: a history just come is not.
+	first, last := hv.list.Visible()
+	if h.Snap == hv.snapFor && last >= first && last < h.Snap.Len() &&
+		(h.Snap != hv.viewSnap || first != hv.viewFirst || last != hv.viewLast) {
+		hv.viewSnap, hv.viewFirst, hv.viewLast = h.Snap, first, last
+		// Copied: the ids may point into the commit-graph's mapping,
+		// which goes when the repository reopens.
+		hv.inViewBuf = hv.inViewBuf[:0]
+		for i := first; i <= last; i++ {
+			hv.inViewBuf = append(hv.inViewBuf, h.OID(h.Snap.Commit(i))...)
+		}
+		hv.inView = hv.inView[:0]
+		for at, i := 0, first; i <= last; i++ {
+			n := len(h.OID(h.Snap.Commit(i)))
+			hv.inView = append(hv.inView, hv.inViewBuf[at:at+n:at+n])
+			at += n
 		}
 	}
-	t.s.KeepInView(hv.keptTop, hv.chosenID)
+	hv.keep = append(append(hv.keep[:0], hv.chosenID), hv.inView...)
+	t.s.KeepInView(hv.keep...)
 }
 
 func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int) {

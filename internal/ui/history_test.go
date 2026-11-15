@@ -1133,9 +1133,11 @@ func TestHistoryColumnsKeepUpWithThePatch(t *testing.T) {
 	}
 }
 
-// A list showing its top stays there as commits land, for them to show,
-// and the commit chosen stays chosen below them, a commit laid on top
-// and an amend alike.
+// A list showing its top stays there as commits land, sliding down to
+// them from where it showed, and the commit chosen stays chosen below
+// them; commits that go show the new top at once. Scrolled down, the
+// first commit in view still in history stays where it showed, whatever
+// went above it. In every frame the rows show with their text.
 func TestHistoryShowsCommitsLandingOnTop(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
@@ -1164,36 +1166,84 @@ func TestHistoryShowsCommitsLandingOnTop(t *testing.T) {
 	h.until("chosen", func() bool { return hv.chosen == 1 })
 	chosenID := hex.EncodeToString(hv.chosenID)
 	top := func() int { first, _ := hv.list.Visible(); return first }
+	oid := func(row int) string {
+		hs := tb.s.History
+		return hex.EncodeToString(hs.OID(hs.Snap.Commit(row)))
+	}
+	// steady checks the frame just drawn: the choice on its commit, and
+	// no row without its text.
+	steady := func(what string) {
+		t.Helper()
+		hs := tb.s.History
+		if hs.Snap == nil || hv.chosen < 0 || hv.chosen >= hs.Snap.Len() || oid(hv.chosen) != chosenID ||
+			hex.EncodeToString(hv.chosenID) != chosenID || !h.tt.HasText("commit 198") || hasExact(h, "commit, loading") {
+			t.Fatalf("%s: a frame with the top at row %d, chosen row %d, loading %v", what, top(), hv.chosen, hasExact(h, "commit, loading"))
+		}
+	}
 
 	for _, step := range []struct {
-		subject string
-		change  func()
-		row     int
+		what, subject string
+		change        func()
+		// row is the chosen commit's row after, slid whether the list
+		// slides to it.
+		row  int
+		slid bool
 	}{
-		{"new on top", func() {
+		{"a commit on top", "new on top", func() {
 			r.Write("g.txt", "g\n")
 			r.Commit("new on top")
-		}, 2},
-		{"amended on top", func() { r.Git("commit", "-q", "--amend", "-m", "amended on top") }, 2},
+		}, 2, true},
+		{"an amend", "amended on top", func() { r.Git("commit", "-q", "--amend", "-m", "amended on top") }, 2, false},
+		{"a reset", "commit 198", func() { r.Git("reset", "-q", "--hard", "HEAD~2") }, 0, false},
+		{"two commits on top", "second on top", func() {
+			r.Write("g.txt", "1\n")
+			r.Commit("first on top")
+			r.Write("g.txt", "2\n")
+			r.Commit("second on top")
+		}, 2, true},
 	} {
+		head := oid(0)
 		step.change()
-		// Every frame on the way: the top stays the top, the choice on its
-		// commit, and no row shows without its text.
-		h.until(step.subject, func() bool {
-			hs := tb.s.History
-			if top() != 0 || hv.chosen < 0 || hs.Snap == nil || hv.chosen >= hs.Snap.Len() ||
-				hex.EncodeToString(hs.OID(hs.Snap.Commit(hv.chosen))) != chosenID ||
-				hex.EncodeToString(hv.chosenID) != chosenID || !h.tt.HasText("commit 199") || hasExact(h, "commit, loading") {
-				t.Fatalf("%s: a frame with the top at row %d, chosen row %d, chosenID %v, 199 %v, loading %v", step.subject, top(), hv.chosen, hex.EncodeToString(hv.chosenID) == chosenID, h.tt.HasText("commit 199"), hasExact(h, "commit, loading"))
+		h.until(step.what, func() bool {
+			steady(step.what)
+			if top() > step.row {
+				t.Fatalf("%s: the top went to row %d", step.what, top())
 			}
-			return hs.For == tb.s.State.Refs && oidRow(tb, chosenID) == step.row
+			return tb.s.History.For == tb.s.State.Refs && oid(0) != head
 		})
-		h.settle()
-		if top() != 0 || !h.tt.HasText(step.subject) {
-			t.Errorf("%s: the top is row %d, shown %v", step.subject, top(), h.tt.HasText(step.subject))
+		// Refresh by refresh: the top comes up to the first row, never
+		// back down.
+		was, slid := top(), top() > 0
+		for range 30 {
+			h.tt.Advance(16 * time.Millisecond)
+			steady(step.what)
+			if top() > was {
+				t.Fatalf("%s: the top went back down, to row %d from %d", step.what, top(), was)
+			}
+			was = top()
 		}
-		if hv.chosen != step.row || hex.EncodeToString(hv.chosenID) != chosenID {
-			t.Errorf("%s: chosen row %d, want %d", step.subject, hv.chosen, step.row)
+		if top() != 0 || !h.tt.HasText(step.subject) || slid != step.slid {
+			t.Errorf("%s: the top is row %d, %q shown %v, slid %v", step.what, top(), step.subject, h.tt.HasText(step.subject), slid)
 		}
+		if hv.chosen != step.row {
+			t.Errorf("%s: chosen row %d, want %d", step.what, hv.chosen, step.row)
+		}
+	}
+
+	// Scrolled down, commits above the one at the top of the view go.
+	hv.list.ScrollTo(50, ui.Start)
+	h.until("scrolled", func() bool { return top() == 50 })
+	topID := oid(50)
+	r.Git("reset", "-q", "--hard", "HEAD~5")
+	head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	h.until("the reset", func() bool {
+		if oid(top()) != topID {
+			t.Fatalf("a frame with %s at the top, not %s", oid(top()), topID)
+		}
+		return tb.s.History.For == tb.s.State.Refs && oid(0) == head
+	})
+	h.tt.Advance(time.Second)
+	if top() != 45 || oid(top()) != topID {
+		t.Errorf("after the reset the top is row %d", top())
 	}
 }
