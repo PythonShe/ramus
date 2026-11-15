@@ -215,8 +215,10 @@ func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 // history loads again. Commits laid on top of the history shown move its
 // rows down by as many, which the list follows on its own by the rows'
 // keys, as far as it looks; history laid out anew comes with the rows of
-// the commits kept in view (Session.KeepInView). A load of another view
-// chooses the commit chosen once it finds it, as one jumped to.
+// the commits kept in view (Session.KeepInView). A list showing its top
+// stays there instead, for the commits that land to show; the choice
+// still stays with its commit. A load of another view chooses the commit
+// chosen once it finds it, as one jumped to.
 func (a *App) followHistory(t *tab, h session.HistoryState) {
 	hv := &t.hist
 	if h.Load != hv.textLoad {
@@ -232,18 +234,26 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 	}
 	hv.snapFor = h.Snap
 	clear(hv.asked)
+	if h.Text != nil && h.Names >= hv.text.names {
+		// In this frame, before the rows: one landing on top shows with
+		// its text, never a frame without it.
+		a.gotText(t, hv.text.gen, nil, h.Text, h.Names, nil)
+	}
+	first, last := hv.list.Visible()
+	atTop := last >= first && first == 0
 	switch {
 	case prev == nil || h.Snap == nil || prevLoad == hv.loadFor:
 		// The first rows, or more of the same load.
 	case h.Base == prev:
-		if h.Added > historyFollow {
+		if h.Added > historyFollow && hv.chosen >= 0 {
 			// Past where the list looks for the rows' keys.
-			if first, last := hv.list.Visible(); last >= first {
-				hv.list.ScrollTo(first+h.Added, ui.Start)
-			}
-			if hv.chosen >= 0 {
-				hv.list.Choose(hv.chosen + h.Added)
-			}
+			hv.list.Choose(hv.chosen + h.Added)
+		}
+		switch {
+		case atTop:
+			hv.list.ScrollTo(0, ui.Start)
+		case h.Added > historyFollow && last >= first:
+			hv.list.ScrollTo(first+h.Added, ui.Start)
 		}
 	case h.Found != nil:
 		row, ok := h.Found[string(hv.chosenID)]
@@ -251,7 +261,9 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 			row = -1
 		}
 		hv.list.Choose(row)
-		if top, ok := h.Found[string(hv.keptTop)]; ok && top >= 0 {
+		if atTop {
+			hv.list.ScrollTo(0, ui.Start)
+		} else if top, ok := h.Found[string(hv.keptTop)]; ok && top >= 0 {
 			hv.list.ScrollTo(top, ui.Start)
 		}
 	default:
@@ -464,27 +476,34 @@ func (a *App) askText(t *tab, h session.HistoryState, k int) {
 	gen := hv.text.gen
 	t.s.HistoryText(ids, func(ch *history.TextChunk, names int, err error) {
 		hv.inflight--
-		if names > hv.text.names {
-			// The mailmap changed: the names read before are stale.
-			hv.text.names = names
-			hv.text.stale()
-			gen = hv.text.gen
-			clear(hv.asked)
-		}
-		if err != nil {
-			hv.text.add(gen, ids, nil, hv.frame, 0)
-			a.tell(t, errText(err))
-			return
-		}
-		budget := historyTextBudget
-		if hv.textBudget > 0 {
-			budget = hv.textBudget
-		}
-		if hv.text.add(gen, ids, ch, hv.frame, budget) {
-			// Rows whose text went are asked for again when shown.
-			clear(hv.asked)
-		}
+		a.gotText(t, gen, ids, ch, names, err)
 	})
+}
+
+// gotText keeps the text ch of the commits ids, read in gen through the
+// mailmap names numbers.
+func (a *App) gotText(t *tab, gen int, ids [][]byte, ch *history.TextChunk, names int, err error) {
+	hv := &t.hist
+	if names > hv.text.names {
+		// The mailmap changed: the names read before are stale.
+		hv.text.names = names
+		hv.text.stale()
+		gen = hv.text.gen
+		clear(hv.asked)
+	}
+	if err != nil {
+		hv.text.add(gen, ids, nil, hv.frame, 0)
+		a.tell(t, errText(err))
+		return
+	}
+	budget := historyTextBudget
+	if hv.textBudget > 0 {
+		budget = hv.textBudget
+	}
+	if hv.text.add(gen, ids, ch, hv.frame, budget) {
+		// Rows whose text went are asked for again when shown.
+		clear(hv.asked)
+	}
 }
 
 // loaded is the chunk holding the text of row i's commit and its place

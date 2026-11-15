@@ -1132,3 +1132,68 @@ func TestHistoryColumnsKeepUpWithThePatch(t *testing.T) {
 		}
 	}
 }
+
+// A list showing its top stays there as commits land, for them to show,
+// and the commit chosen stays chosen below them, a commit laid on top
+// and an amend alike.
+func TestHistoryShowsCommitsLandingOnTop(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	// More than the list shows, for it to scroll.
+	var stream strings.Builder
+	for i := range 200 {
+		msg := fmt.Sprintf("commit %d\n", i)
+		fmt.Fprintf(&stream, "commit refs/heads/main\ncommitter A U Thor <a@example.com> %d +0000\ndata %d\n%s", 1700000000+i, len(msg), msg)
+		if i == 0 {
+			stream.WriteString("from refs/heads/main^0\n")
+		}
+		fmt.Fprintf(&stream, "M 644 inline f.txt\ndata %d\n%d\n\n", len(strconv.Itoa(i))+1, i)
+	}
+	if out, err := r.Run([]byte(stream.String()), "fast-import", "--quiet"); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	r.Git("reset", "-q", "--hard")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	hv := &tb.hist
+	h.click("History")
+	h.until("history", h.shows("commit 198"))
+	h.click("commit 198")
+	h.until("chosen", func() bool { return hv.chosen == 1 })
+	chosenID := hex.EncodeToString(hv.chosenID)
+	top := func() int { first, _ := hv.list.Visible(); return first }
+
+	for _, step := range []struct {
+		subject string
+		change  func()
+		row     int
+	}{
+		{"new on top", func() {
+			r.Write("g.txt", "g\n")
+			r.Commit("new on top")
+		}, 2},
+		{"amended on top", func() { r.Git("commit", "-q", "--amend", "-m", "amended on top") }, 2},
+	} {
+		step.change()
+		// Every frame on the way: the top stays the top, the choice on its
+		// commit, and no row shows without its text.
+		h.until(step.subject, func() bool {
+			hs := tb.s.History
+			if top() != 0 || hv.chosen < 0 || hs.Snap == nil || hv.chosen >= hs.Snap.Len() ||
+				hex.EncodeToString(hs.OID(hs.Snap.Commit(hv.chosen))) != chosenID ||
+				hex.EncodeToString(hv.chosenID) != chosenID || !h.tt.HasText("commit 199") || hasExact(h, "commit, loading") {
+				t.Fatalf("%s: a frame with the top at row %d, chosen row %d, chosenID %v, 199 %v, loading %v", step.subject, top(), hv.chosen, hex.EncodeToString(hv.chosenID) == chosenID, h.tt.HasText("commit 199"), hasExact(h, "commit, loading"))
+			}
+			return hs.For == tb.s.State.Refs && oidRow(tb, chosenID) == step.row
+		})
+		h.settle()
+		if top() != 0 || !h.tt.HasText(step.subject) {
+			t.Errorf("%s: the top is row %d, shown %v", step.subject, top(), h.tt.HasText(step.subject))
+		}
+		if hv.chosen != step.row || hex.EncodeToString(hv.chosenID) != chosenID {
+			t.Errorf("%s: chosen row %d, want %d", step.subject, hv.chosen, step.row)
+		}
+	}
+}

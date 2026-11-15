@@ -74,6 +74,13 @@ type HistoryState struct {
 	TagCommits map[string][]byte
 	// Stashes are the stash entries, newest first.
 	Stashes []Stash
+	// Text is the text of the rows a history published again comes with
+	// at its top, by Names' mailmap: the commits laid on top, or the
+	// first rows of one laid out anew, for a view showing its top to
+	// show them with their text from the first frame. Nil on a first
+	// load, and when it could not be read.
+	Text  *history.TextChunk
+	Names int
 }
 
 // key is which load h is.
@@ -281,6 +288,9 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		}
 		if whole && h.Base == nil {
 			h.Found = s.findKept(ctx, h)
+		}
+		if (whole || h.Base != nil) && h.Done && h.Err == nil {
+			h.Text, h.Names = s.topText(ctx, r, h)
 		}
 		// The load's context ends when it returns, before the main thread
 		// runs this; a newer load is what makes it stale.
@@ -532,6 +542,33 @@ func (s *Session) growHistory(ctx context.Context, r *repo.Repository, cat *catf
 	publish(HistoryState{Snap: snap, OID: src.OIDs(), Native: last.native, Done: true, Advice: advice,
 		Base: last.snap, Added: len(rows), First: took, Took: took})
 	return true
+}
+
+// topText reads the text of the rows at the top of h that a view showing
+// its top may not have read: the rows laid on top, or the first chunk of
+// a history laid out anew.
+func (s *Session) topText(ctx context.Context, r *repo.Repository, h HistoryState) (*history.TextChunk, int) {
+	n := min(h.Snap.Len(), history.TextChunkRows)
+	if h.Base != nil {
+		n = min(n, h.Added)
+	}
+	if n == 0 {
+		return nil, 0
+	}
+	cat, err := r.CatFile()
+	if err != nil {
+		return nil, 0
+	}
+	ids := make([][]byte, n)
+	for i := range ids {
+		ids[i] = h.OID(h.Snap.Commit(i))
+	}
+	mm, names := s.names(ctx, r)
+	c, err := history.LoadText(cat, ids, mm)
+	if err != nil {
+		return nil, 0
+	}
+	return c, names
 }
 
 // findKept finds the rows of the commits the view keeps in place in h.
