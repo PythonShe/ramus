@@ -28,7 +28,8 @@ const (
 	diffToolTime = 4 * time.Hour
 )
 
-// ErrNoDiffTool is a repository whose git config names no diff tool.
+// ErrNoDiffTool is a repository whose git config names no diff tool, nor
+// a merge tool for git difftool to fall back to.
 var ErrNoDiffTool error = &sayError{locales.SessionNoDiffTool}
 
 // diffTools counts the tools open.
@@ -48,8 +49,17 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 		done(run.ErrRestricted)
 		return
 	}
-	gui, _ := r.Config().Get("diff.guitool")
-	tool, _ := r.Config().Get("diff.tool")
+	// git difftool falls back to the merge tool when no diff tool is set.
+	cfg := r.Config()
+	get := func(keys ...string) string {
+		for _, k := range keys {
+			if v, _ := cfg.Get(k); v != "" {
+				return v
+			}
+		}
+		return ""
+	}
+	gui, tool := get("diff.guitool", "merge.guitool"), get("diff.tool", "merge.tool")
 	if gui == "" && tool == "" {
 		done(ErrNoDiffTool)
 		return

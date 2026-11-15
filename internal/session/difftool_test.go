@@ -60,7 +60,18 @@ func TestDiffTool(t *testing.T) {
 	if b, _ := os.ReadFile(out); string(b) != "one\ntwo\n" {
 		t.Fatalf("between commits the tool saw %q", b)
 	}
+	// Without a diff tool, git difftool runs the merge tool.
 	r.Git("config", "--unset", "diff.tool")
+	r.Git("config", "mergetool.record.cmd", `true`)
+	r.Git("config", "merge.tool", "record")
+	os.Remove(out)
+	if err := run1(open(true), DiffToolRequest{Paths: []string{"a.txt"}, From: head, To: next}); err != nil {
+		t.Fatalf("with a merge tool only: %v", err)
+	}
+	if b, _ := os.ReadFile(out); string(b) != "one\ntwo\n" {
+		t.Fatalf("with a merge tool only the tool saw %q", b)
+	}
+	r.Git("config", "--unset", "merge.tool")
 	if err := run1(open(true), DiffToolRequest{Paths: []string{"a.txt"}}); !errors.Is(err, ErrNoDiffTool) {
 		t.Fatalf("no tool: %v", err)
 	}
