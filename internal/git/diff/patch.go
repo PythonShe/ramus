@@ -18,6 +18,12 @@ const (
 	Staged
 	// Untracked shows a file git does not track as added whole.
 	Untracked
+	// Head compares the work tree with HEAD, staged or not: all that
+	// changed there since the last commit. It runs the plumbing
+	// diff-index, which never writes the index: git diff refreshes it,
+	// --no-optional-locks or not, which in a worktree another program
+	// works in could take the lock from under it.
+	Head
 )
 
 // Whitespace is what changes of white space a patch leaves out.
@@ -68,6 +74,12 @@ type PatchRequest struct {
 	// Renames finds renames among Paths whatever diff.renames says: a
 	// file status found renamed shows against its old path.
 	Renames bool
+	// NoRefresh compares the work tree with the index through the
+	// plumbing diff-files, which never writes the index, where git diff
+	// refreshes it: for a worktree another program works in, whose own
+	// git would find the index locked. It leaves out the diff settings
+	// only the porcelain reads, as diff.algorithm.
+	NoRefresh bool
 }
 
 // Patch is a unified diff as git prints it.
@@ -84,6 +96,12 @@ type Patch struct {
 // run: the app shows the patch itself.
 func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, req PatchRequest) (Patch, error) {
 	args := []string{"diff", "--no-color", "--no-ext-diff", "--submodule=short"}
+	switch {
+	case req.Source == Head:
+		args = []string{"diff-index", "-p", "--no-color", "--no-ext-diff", "--submodule=short"}
+	case req.Source == Unstaged && req.NoRefresh:
+		args = []string{"diff-files", "-p", "--no-color", "--no-ext-diff", "--submodule=short"}
+	}
 	if req.Context >= 0 {
 		args = append(args, "-U"+strconv.Itoa(req.Context))
 	}
@@ -99,6 +117,8 @@ func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 	switch req.Source {
 	case Staged:
 		args = append(args, "--cached")
+	case Head:
+		args = append(args, "HEAD")
 	case Untracked:
 		if len(req.Paths) != 1 {
 			return Patch{}, errors.New("diff: an untracked patch takes one path")

@@ -72,7 +72,9 @@ func readLineLog(ctx context.Context, rn *run.Runner, gitDir, workTree, path str
 	}
 	res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, MaxOutput: 64 << 20,
 		Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Config: []string{"core.quotePath=false"},
-		Args: []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "-U0", "HEAD", "--", path}})
+		// diff-index: git diff HEAD would refresh the index, and the
+		// worktree may be one another program works in (HoldWrites).
+		Args: []string{"diff-index", "-p", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "-U0", "HEAD", "--", path}})
 	if err != nil {
 		return nil, err
 	}
