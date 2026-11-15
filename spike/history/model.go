@@ -91,7 +91,7 @@ func (m *model) load() {
 		return
 	}
 	go m.fetcher(g)
-	w := history.NewTopoWalk(g, tips)
+	w := history.NewTopoWalk(history.NewSource(g, nil, 20), tips)
 	var l lanes.Layout
 	next := 1000
 	for {

@@ -159,6 +159,9 @@ func (s *Store) OID(id uint32) []byte { return s.s.oid(id) }
 // named as a parent but not added.
 func (s *Store) Parents(id uint32, dst []uint32) ([]uint32, bool) { return s.s.parentsOf(id, dst) }
 
+// Added reports whether commit id was added, not only named as a parent.
+func (s *Store) Added(id uint32) bool { return s.s.m(id).np != unknown }
+
 // CommitTime returns commit id's committer time, 0 if not added.
 func (s *Store) CommitTime(id uint32) int64 { return s.s.m(id).time }
 

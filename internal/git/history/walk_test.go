@@ -73,11 +73,11 @@ func TestWalkOrder(t *testing.T) {
 	r.Git("commit-graph", "write", "--reachable")
 
 	g := openGraph(t, r.GitDir())
-	for _, w := range []walker{NewWalk(g, tips(t, r, g)), NewTopoWalk(g, tips(t, r, g))} {
+	for _, w := range []walker{NewWalk(g, tips(t, r, g)), NewTopoWalk(NewSource(g, nil, 20), tips(t, r, g))} {
 		checkWalk(t, r, g, w)
 	}
 	// git's own --topo-order is the oracle for the order itself.
-	w := NewTopoWalk(g, tips(t, r, g))
+	w := NewTopoWalk(NewSource(g, nil, 20), tips(t, r, g))
 	var got []string
 	for {
 		pos, _, ok := w.Next()
@@ -140,7 +140,7 @@ func TestTopoOrderKernel(t *testing.T) {
 	g := openGraph(t, filepath.Join(dir, ".git"))
 	want := strings.Fields(r.Git("rev-list", "--topo-order", "--all"))
 	start := time.Now()
-	w := NewTopoWalk(g, tips(t, r, g))
+	w := NewTopoWalk(NewSource(g, nil, 20), tips(t, r, g))
 	first := time.Duration(0)
 	n := 0
 	for {
@@ -174,7 +174,7 @@ func BenchmarkKernel(b *testing.B) {
 	ts := tips(b, r, g)
 	for b.Loop() {
 		start := time.Now()
-		w := walker(NewTopoWalk(g, ts))
+		w := walker(NewTopoWalk(NewSource(g, nil, 20), ts))
 		if os.Getenv("WALK") == "date" {
 			w = NewWalk(g, ts)
 		}

@@ -127,7 +127,7 @@ func TestCommitGraphReleased(t *testing.T) {
 			t.Fatal(first, err)
 		}
 		tip := first.Lookup(hexID(t, g.Git("rev-parse", "HEAD")))
-		walk := history.NewTopoWalk(first, []uint32{tip})
+		walk := history.NewTopoWalk(history.NewSource(first, nil, 20), []uint32{tip})
 		walk.Next()
 		settle := func() {
 			for i := 0; i < 3; i++ {

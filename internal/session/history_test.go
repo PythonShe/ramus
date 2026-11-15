@@ -127,6 +127,44 @@ func TestHistoryLoadsEveryTip(t *testing.T) {
 	}
 }
 
+// History is ordered natively past a commit-graph that lacks the newest
+// commits, merges among them included, exactly as git orders it.
+func TestHistoryPastTheGraph(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	r.Git("checkout", "-q", "-b", "side")
+	r.Write("b", "1")
+	r.Commit("side one")
+	r.Git("checkout", "-q", "main")
+	r.Write("a", "2")
+	r.Commit("two")
+	r.Git("commit-graph", "write", "--reachable", "--split")
+	r.Git("checkout", "-q", "-b", "topic", "main~1")
+	r.Write("c", "1")
+	r.Commit("topic one")
+	r.Git("checkout", "-q", "main")
+	r.Write("a", "3")
+	r.Commit("three")
+	r.Env = []string{"GIT_COMMITTER_DATE=@" + strconv.FormatInt(r.Tick(), 10) + " +0000"}
+	r.Git("merge", "-q", "--no-ff", "-m", "merge topic and side", "topic", "side")
+	r.Env = nil
+
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "refs", func() bool { return s.State.Refs != nil })
+	s.LoadHistory()
+	m.until(t, "history", func() bool { return s.History.Done })
+	if s.History.Err != nil || !s.History.Native {
+		t.Fatalf("history err %v native %v", s.History.Err, s.History.Native)
+	}
+	want := strings.Fields(r.Git("rev-list", "--topo-order", "HEAD", "--branches"))
+	if got := historyOIDs(s.History); !slices.Equal(got, want) {
+		t.Fatalf("rows\n%v\nwant\n%v", got, want)
+	}
+}
+
 // Hiding a branch, showing one alone and filtering each load history
 // again with what git itself would list.
 func TestHistoryView(t *testing.T) {

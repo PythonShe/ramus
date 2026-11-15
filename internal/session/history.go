@@ -119,6 +119,11 @@ func (h *hist) current(gen int) bool {
 // filterPublish is how often a search publishes what it found.
 const filterPublish = 250 * time.Millisecond
 
+// staleRead bounds the commits read from their objects to order history
+// past a commit-graph that lacks them; past it git orders history, which
+// it does as fast.
+const staleRead = 1 << 17
+
 // firstScreen is the rows published first; later publishes come at four
 // times the rows before, so a long history is published a dozen times.
 const firstScreen = 1000
@@ -189,16 +194,28 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		fail(err)
 		return
 	}
-	pos, covered := history.Covered(g, tips)
-	if g != nil && !covered {
-		// A tag may name a tree or a blob (the kernel's v2.6.11 names a
-		// tree), which no graph holds; only a missing commit means the
-		// graph is behind.
-		if tips, err = commitTips(cat, g, tips); err != nil {
-			fail(err)
+	// The commit-graph orders history natively, with the commits made
+	// since it was written read from their objects. Without one, or with
+	// more of them than git would take to order, git orders it.
+	var src *history.Source
+	var ids []uint32
+	covered := false
+	if g != nil && g.HasGenerations() {
+		src = history.NewSource(g, nil, r.Caps.HashSize)
+		ids, err = src.Resolve(ctx, cat, tips, staleRead)
+		switch {
+		case ctx.Err() != nil:
 			return
+		case err != nil:
+			// Past the limit, or a commit that cannot be read: git
+			// orders it, or says what is wrong.
+			src = nil
+		default:
+			// A tag may name a tree or a blob (the kernel's v2.6.11
+			// names a tree), which no graph holds; only a commit read
+			// means the graph is behind.
+			covered = src.Read() == 0
 		}
-		pos, covered = history.Covered(g, tips)
 	}
 	var advice *history.Advice
 	if a, ok := history.GraphAdvice(r.GitDir, r.CommitGraphUsable(), g, covered); ok && !r.Restricted {
@@ -245,9 +262,9 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		publish(HistoryState{Snap: l.Snapshot(), OID: snap.OID, Done: true, Err: err, First: first, Took: time.Since(t0)})
 		return
 	}
-	if covered {
-		oid := g.OID
-		w := history.NewTopoWalk(g, pos)
+	if src != nil {
+		oid := src.OIDs()
+		w := history.NewTopoWalk(src, ids)
 		for n := 0; ; n++ {
 			p, ps, ok := w.Next()
 			if !ok {
