@@ -19,9 +19,11 @@ repositories and runs your own git.
 ## What it does
 
 - **History**: the commit graph of the whole repository, with filters,
-  a file's or a line's history, and blame.
-- **Changes**: stage, unstage or discard a file, a change or single lines,
-  and commit with co-authors.
+  a file's or a line's history, and blame. Each commit's files show the
+  lines they add and delete.
+- **Changes**: the lines each change adds and deletes, staged and not;
+  stage, unstage or discard a file, a change or single lines, and commit
+  with co-authors.
 - **Edit history**: reorder, reword, squash, fix up or drop commits by
   dragging them.
 - **Conflicts**: a merge editor that takes a side or both, previews the
@@ -31,7 +33,8 @@ repositories and runs your own git.
 - **Pull requests**: each branch's pull or merge request and the one each
   commit came in by, from GitHub through `gh` or GitLab through `glab`,
   including GitHub stacks. Review a pull or merge request in the app: its
-  files diffed locally with the threads under their lines, reply, resolve,
+  files diffed locally, with the lines each changes and the threads under
+  their lines; reply, resolve,
   comment on lines, and approve or request changes.
 - **Worktrees**: every worktree's branch, changes, and how far ahead or
   behind it is.

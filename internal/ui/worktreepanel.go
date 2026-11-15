@@ -308,18 +308,6 @@ func wtFileRow(c *ui.Context, f session.WorktreeFile) ui.Element {
 	return row
 }
 
-// lineCounts shows the lines added and removed, as a diff stat does,
-// leaving out a count of none.
-func lineCounts(c *ui.Context, added, removed int) {
-	th := c.Theme()
-	if added > 0 {
-		ui.Text(c, locales.WorktreePanelAdded(added)).FontSize(textSmall).TextColor(th.Success)
-	}
-	if removed > 0 {
-		ui.Text(c, locales.WorktreePanelRemoved(removed)).FontSize(textSmall).TextColor(th.Danger)
-	}
-}
-
 // wtPatchView shows the patch of the file chosen in the panel, read only,
 // with the way back to the list.
 func (a *App) wtPatchView(c *ui.Context, p *wtPanel) {

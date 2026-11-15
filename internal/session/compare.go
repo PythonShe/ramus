@@ -13,8 +13,9 @@ import (
 // Compare reads the files changed from commit from to commit to off the
 // main thread, renames found, and hands them to done on it as a
 // CommitDetail of to whose one parent is from: CommitPatch then reads a
-// file's patch between the two. cancel stops the read; done is not called
-// after it. A comparison read before is handed over at once.
+// file's patch between the two. done is called again, Done set, once
+// the lines are counted. cancel stops the read; done is not called after
+// it. A comparison read before is handed over at once.
 func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
@@ -30,11 +31,29 @@ func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func
 	dropped := false // main thread only
 	r.Life().Go(func(context.Context) {
 		defer stop()
-		d := CommitDetail{OID: to, Parents: [][]byte{from}, Done: true}
+		d := CommitDetail{OID: to, Parents: [][]byte{from}}
 		d.Files, _, d.Err = diff.Renames(ctx, r.Runner, r.GitDir, r.Caps.HashSize, from, to)
 		if ctx.Err() != nil {
 			return
 		}
+		// The list shows while its lines are counted, which reads every
+		// file in it.
+		if d.Err == nil {
+			listed := d
+			s.update(func() {
+				if !dropped {
+					done(listed)
+				}
+			})
+			if ns, err := diff.CommitLines(ctx, r.Runner, r.GitDir, from, to); err == nil {
+				d.Lines = ns.ForRaw(d.Files)
+				d.Sum = diff.Total(d.Lines)
+			}
+			if ctx.Err() != nil {
+				return
+			}
+		}
+		d.Done = true
 		s.update(func() {
 			if d.Err == nil {
 				s.keep(r, key, answer{detail: &d})

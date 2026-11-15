@@ -82,7 +82,9 @@ func TestAccessibility(t *testing.T) {
 	h.click("a.txt")
 	h.until("the patch", func() bool { return h.app.current().cv.diff.pv.d != nil })
 	unnamed(h, "changes")
-	if a, ok := h.tt.Access("staged added st.txt"); !ok || a.Role != ui.RoleListItem || a.PosInSet != 2 || a.SetSize != 5 {
+	staged := "staged added st.txt, 1 line added, 0 deleted"
+	h.until("the changes counted", func() bool { _, ok := h.tt.Access(staged); return ok })
+	if a, ok := h.tt.Access(staged); !ok || a.Role != ui.RoleListItem || a.PosInSet != 2 || a.SetSize != 5 {
 		t.Errorf("the staged row reads as %+v, %v", a, ok)
 	}
 

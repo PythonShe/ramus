@@ -113,6 +113,7 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 	}
 	a.stampReview(t, st)
 	a.rebuildReview(t, st)
+	t.cv.countLines(t)
 	cur := st
 	if st = rv.filesOf; st == nil {
 		loading(c, "")
@@ -273,6 +274,7 @@ func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro b
 		shown, _ := showPath(path)
 		ui.Text(c, shown).Bold().SingleLine().Grow(1)
 		ui.Text(c, entryWords(st, e, secUnstaged)).FontSize(textSmall).TextColor(th.TextMuted)
+		fileLines(c, t.cv.entryLines(st, e, secUnstaged))
 		lt := lineTarget{p: it.res.Parsed, path: path, pv: &it.pv}
 		if picked, n := it.pv.selectedLines(); partialOK(it.res, it.key) && n > 0 {
 			if ui.Button(c, locales.ReviewDiscardLines(n)).Disabled(ro).Clicked() {

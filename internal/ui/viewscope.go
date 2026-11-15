@@ -79,6 +79,10 @@ func (a *App) leaveView(t *tab, name string) {
 		if cc.loading {
 			cc.cancel()
 			cc.loading = false
+			// Listed but not counted: read again when shown.
+			if cc.d != nil && !cc.d.Done {
+				cc.d = nil
+			}
 		}
 		if cc.cv.patchLoading {
 			cc.cv.patchFor, cc.cv.patchLoading = "", false
@@ -97,6 +101,7 @@ func (a *App) leaveView(t *tab, name string) {
 		}
 	case "review":
 		t.rev.leave()
+		t.cv.leaveCount()
 	case "stats":
 		ss := &t.stats
 		if ss.loading {
@@ -108,6 +113,7 @@ func (a *App) leaveView(t *tab, name string) {
 			}
 		}
 	default: // the changes view and what it shows beside the list
+		t.cv.leaveCount()
 		if d := &t.cv.diff; d.loading {
 			d.key, d.loading = diffKey{}, false
 		}

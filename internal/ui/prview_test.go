@@ -63,11 +63,11 @@ func TestPullRequestReview(t *testing.T) {
 	list := `{"data":{"repository":{"pullRequests":{"totalCount":1,"nodes":[{"number":7,"title":"Add a thing",
 "url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},"headRefName":"thing",
 "baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","reviewDecision":"REVIEW_REQUIRED","headRepositoryOwner":{"login":"o"},
-"commits":{"nodes":[]}}]}}}}`
+"additions":12,"deletions":3,"commits":{"nodes":[]}}]}}}}`
 	review := `{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":{"number":7,"title":"Add a thing",
 "url":"https://github.com/o/r/pull/7","body":"<!-- template -->Why it matters","state":"OPEN","isDraft":false,"author":{"login":"ann"},
 "baseRefName":"main","headRefName":"thing","baseRefOid":"","headRefOid":"` + head + `","reviewDecision":"REVIEW_REQUIRED",
-"createdAt":"2026-11-10T09:00:00Z","commits":{"nodes":[]},
+"createdAt":"2026-11-10T09:00:00Z","additions":2,"deletions":1,"commits":{"nodes":[]},
 "comments":{"totalCount":0,"nodes":[]},"reviews":{"totalCount":0,"nodes":[]},
 "reviewThreads":{"totalCount":2,"nodes":[
  {"id":"T1","isResolved":false,"isOutdated":false,"path":"a.txt","line":2,"startLine":null,"originalLine":2,"diffSide":"RIGHT",
@@ -85,9 +85,21 @@ func TestPullRequestReview(t *testing.T) {
 	h.until("the pull requests in the sidebar", h.shows("Pull Requests"))
 	h.click("Pull Requests")
 	h.until("the list", h.shows("Add a thing"))
+	// The lines it changes, as GitHub counts them.
+	if !h.tt.HasText("+12") || !h.tt.HasText("−3") {
+		t.Fatalf("list %q", h.tt.Texts())
+	}
 	h.click("Add a thing")
 	h.until("the pull request", h.shows("ann wants to merge thing into main"))
 	h.until("its files, fetched", func() bool { return h.tt.HasText("a.txt") && h.tt.HasText("b.go") })
+	// Each file's lines, as git counts them in the commits fetched.
+	h.until("its files counted", func() bool {
+		_, ok := h.tt.Access("modified a.txt, 1 line added, 1 deleted")
+		return ok
+	})
+	if _, ok := h.tt.Access("added b.go, 1 line added, 0 deleted"); !ok || !h.tt.HasText("+2") {
+		t.Fatalf("texts %q", h.tt.Texts())
+	}
 	if got := strings.TrimSpace(r.Git("rev-parse", "refs/ramus/pulls/7/head")); got != head {
 		t.Fatalf("fetched %s, want %s", got, head)
 	}
@@ -197,7 +209,8 @@ func TestMergeRequestReview(t *testing.T) {
 
 	list := `{"data":{"project":{"mergeRequests":{"count":1,"nodes":[{"iid":"12","title":"Add a thing",
 "webUrl":"https://gitlab.com/g/p/-/merge_requests/12","draft":false,"state":"opened","author":{"username":"ann"},
-"sourceBranch":"thing","targetBranch":"main","updatedAt":"2026-11-13T16:04:48Z","approved":false,"detailedMergeStatus":"NOT_APPROVED"}]}}}}`
+"sourceBranch":"thing","targetBranch":"main","updatedAt":"2026-11-13T16:04:48Z","approved":false,"detailedMergeStatus":"NOT_APPROVED",
+"diffStatsSummary":{"additions":40,"deletions":2}}]}}}}`
 	review := `{"data":{"currentUser":{"username":"me"},"project":{"mergeRequest":{"iid":"12","title":"Add a thing",
 "webUrl":"https://gitlab.com/g/p/-/merge_requests/12","description":"Why it matters","state":"opened","draft":false,"author":{"username":"ann"},
 "sourceBranch":"thing","targetBranch":"main","createdAt":"2026-11-10T09:00:00Z","approved":false,"detailedMergeStatus":"NOT_APPROVED",
@@ -215,6 +228,9 @@ func TestMergeRequestReview(t *testing.T) {
 	h.until("the merge requests in the sidebar", h.shows("Merge Requests"))
 	h.click("Merge Requests")
 	h.until("the list", h.shows("!12"))
+	if !h.tt.HasText("+40") || !h.tt.HasText("−2") {
+		t.Fatalf("list %q", h.tt.Texts())
+	}
 	h.click("Add a thing")
 	h.until("the merge request", h.shows("!12 Add a thing"))
 	h.until("its files, fetched", h.shows("a.txt"))

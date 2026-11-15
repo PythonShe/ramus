@@ -88,7 +88,7 @@ func (c *CLI) OpenPulls(ctx context.Context, r Repo) (list []Listed, more bool, 
 func (c *CLI) githubOpenPulls(ctx context.Context, r Repo) ([]Listed, bool, error) {
 	owner, name, _ := strings.Cut(r.Path, "/")
 	q := "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:" + strconv.Itoa(MaxListed) +
-		",orderBy:{field:UPDATED_AT,direction:DESC}){totalCount nodes{number title url isDraft state author{login} headRefName baseRefName updatedAt reviewDecision headRepositoryOwner{login} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}}"
+		",orderBy:{field:UPDATED_AT,direction:DESC}){totalCount nodes{number title url isDraft state author{login} headRefName baseRefName updatedAt reviewDecision additions deletions headRepositoryOwner{login} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}}"
 	out, err := c.run(ctx, "", r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q, "-f", "owner="+owner, "-f", "name="+name)
 	if err != nil {
 		return nil, false, err
@@ -138,7 +138,7 @@ func parseOpenPulls(out []byte) ([]Listed, bool, error) {
 	prs := ans.Data.Repository.PullRequests
 	list := make([]Listed, 0, len(prs.Nodes))
 	for _, n := range prs.Nodes {
-		p := Pull{Number: n.Number, Title: n.Title, URL: n.URL, Branch: n.Head, Draft: n.IsDraft, State: githubState(n.State)}
+		p := Pull{Number: n.Number, Title: n.Title, URL: n.URL, Branch: n.Head, Draft: n.IsDraft, State: githubState(n.State), Added: n.Additions, Deleted: n.Deletions}
 		if ns := n.Commits.Nodes; len(ns) > 0 && ns[0].Commit.Rollup != nil {
 			p.Checks = githubChecks(ns[0].Commit.Rollup.State)
 		}
@@ -256,7 +256,7 @@ func (c *CLI) githubPullReview(ctx context.Context, r Repo, n int) (Review, erro
 	owner, name, _ := strings.Cut(r.Path, "/")
 	page := func(n int) string { return "(first:" + strconv.Itoa(n) + ")" }
 	q := "query($owner:String!,$name:String!,$n:Int!){viewer{login} repository(owner:$owner,name:$name){pullRequest(number:$n){" +
-		"number title url body state isDraft author{login} baseRefName headRefName baseRefOid headRefOid reviewDecision createdAt " +
+		"number title url body state isDraft author{login} baseRefName headRefName baseRefOid headRefOid reviewDecision createdAt additions deletions " +
 		"commits(last:1){nodes{commit{statusCheckRollup{state}}}} " +
 		"comments" + page(maxComments) + "{totalCount nodes{id databaseId author{login} body createdAt}} " +
 		"reviews" + page(maxComments) + "{totalCount nodes{author{login} state body submittedAt}} " +
@@ -344,7 +344,8 @@ func parseReview(out []byte) (Review, error) {
 	}
 	p := ans.Data.Repository.PullRequest
 	rv := Review{
-		Pull:   Pull{Number: p.Number, Title: p.Title, URL: p.URL, Branch: p.Head, Draft: p.IsDraft, State: githubState(p.State)},
+		Pull: Pull{Number: p.Number, Title: p.Title, URL: p.URL, Branch: p.Head, Draft: p.IsDraft, State: githubState(p.State),
+			Added: p.Additions, Deleted: p.Deletions},
 		Author: p.Author.login(), Body: p.Body, Base: p.Base, BaseOID: p.BaseOID, HeadOID: p.HeadOID,
 		Decision: reviewState(p.Decision), Created: p.Created, Viewer: ans.Data.Viewer.Login,
 	}

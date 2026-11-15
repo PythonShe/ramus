@@ -588,20 +588,44 @@
   },
   "worktreePanelList": "Worktrees and their changed files",
   "worktreePanelFiles": "{count, plural, one {# file} other {# files}}",
-  "worktreePanelAdded": "+{count}",
-  "@worktreePanelAdded": {
-    "description": "Lines added, as in a diff stat.",
+  "linesAdded": "+{count}",
+  "@linesAdded": {
+    "description": "Lines a change adds, as in a diff stat.",
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
   },
-  "worktreePanelRemoved": "−{count}",
-  "@worktreePanelRemoved": {
-    "description": "Lines removed, as in a diff stat.",
+  "linesDeleted": "−{count}",
+  "@linesDeleted": {
+    "description": "Lines a change deletes, as in a diff stat.",
     "placeholders": {
       "count": {
+        "type": "int"
+      }
+    }
+  },
+  "linesChanged": "{added, plural, one {# line added} other {# lines added}}, {deleted, plural, one {# deleted} other {# deleted}}",
+  "@linesChanged": {
+    "description": "Read aloud for the lines a change adds and deletes, shown as +added and −deleted.",
+    "placeholders": {
+      "added": {
+        "type": "int"
+      },
+      "deleted": {
+        "type": "int"
+      }
+    }
+  },
+  "changesFileLinesLabel": "{state} {path}, {added, plural, one {# line added} other {# lines added}}, {deleted, plural, one {# deleted} other {# deleted}}",
+  "@changesFileLinesLabel": {
+    "description": "Read aloud for a changed file: its state (modified, staged added...), its path, and the lines the change adds and deletes.",
+    "placeholders": {
+      "added": {
+        "type": "int"
+      },
+      "deleted": {
         "type": "int"
       }
     }
@@ -2671,6 +2695,10 @@
   "columnUpdated": "Updated",
   "@columnUpdated": {
     "description": "Column of when a pull request last changed."
+  },
+  "columnLines": "Lines",
+  "@columnLines": {
+    "description": "Column of the lines a pull request adds and deletes."
   },
   "prsNone": "{kind, select, gitlab {No open merge requests.} other {No open pull requests.}}",
   "@prsNone": {

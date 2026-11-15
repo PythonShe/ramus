@@ -439,12 +439,17 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 		ui.Text(c, locales.CommitNoFiles()).TextColor(th.TextMuted).Padding(spaceM, insetX)
 		return
 	}
-	count := ui.Text(c, locales.CommitFilesChanged(f.Len())).FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX)
-	if onCopy != nil && clickable(count).Tooltip(locales.CommitCopyPatch()).Clicked() {
-		onCopy()
-	}
+	ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		count := ui.Text(c, locales.CommitFilesChanged(f.Len())).FontSize(textSmall).TextColor(th.TextMuted)
+		if onCopy != nil && clickable(count).Tooltip(locales.CommitCopyPatch()).Clicked() {
+			onCopy()
+		}
+		lineCounts(c, int(d.Sum.Added), int(d.Sum.Deleted))
+	})
 	cv.files.Selected = &cv.file
-	cv.files.Label = func(i int) string { return locales.ChangesFileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i)) }
+	cv.files.Label = func(i int) string {
+		return fileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i), lineAt(d.Lines, i))
+	}
 	ui.List(c, &cv.files, f.Len(), func(i int) {
 		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, f.Status(i)))
@@ -454,6 +459,7 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 			if why != "" {
 				txt.TextColor(th.Warning).Tooltip(why)
 			}
+			fileLines(c, lineAt(d.Lines, i))
 		})
 	}).Label(locales.CommitFilesLabel()).Grow(1)
 }
@@ -527,6 +533,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, cv.file))
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
+			fileLines(c, lineAt(d.Lines, cv.file))
 			if closeButton(c, locales.CommitClosePatch()).Clicked() {
 				cv.file = -1
 			}

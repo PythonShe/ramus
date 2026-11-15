@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/diff"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
@@ -38,6 +39,68 @@ type changesState struct {
 	picked  ui.Selection[rowKey]
 	confirm confirmState
 	diff    diffState
+	// lines are the lines each change adds and deletes, counted for the
+	// status countFor asked; totals adds them up by section, for the
+	// model and the count totalsFor names.
+	lines     session.ChangeLines
+	countFor  *status.Status
+	totals    [sections]diff.Lines
+	totalsFor struct {
+		m  *changeModel
+		st *status.Status
+	}
+}
+
+// leaveCount forgets a count still running when its view is left, which
+// stops it, so that it runs again when the view is shown.
+func (cv *changesState) leaveCount() {
+	if cv.countFor != cv.lines.For {
+		cv.countFor = nil
+	}
+}
+
+// countLines counts the lines of the changes of the status last read,
+// once per status.
+func (cv *changesState) countLines(t *tab) {
+	st := t.s.State.Status
+	if st == nil || st == cv.countFor {
+		return
+	}
+	cv.countFor = st
+	t.s.CountChanges(st, func(l session.ChangeLines) { cv.lines = l })
+}
+
+// entryLines is the count of entry i of st in sec: from the count of
+// st, or, while that is counted, by path from the count before.
+func (cv *changesState) entryLines(st *status.Status, i int, sec section) diff.Lines {
+	l := &cv.lines
+	if l.For == nil || sec == secConflicts {
+		return diff.Lines{}
+	}
+	var staged, unstaged diff.Lines
+	if l.For == st {
+		staged, unstaged = l.Staged[i], l.Unstaged[i]
+	} else {
+		staged, unstaged = l.Find(st.Path(i))
+	}
+	if sec == secStaged {
+		return staged
+	}
+	return unstaged
+}
+
+// sectionLines adds up the counts of sec's files in m.
+func (cv *changesState) sectionLines(m *changeModel, sec section) diff.Lines {
+	if cv.totalsFor.m != m || cv.totalsFor.st != cv.lines.For {
+		cv.totalsFor.m, cv.totalsFor.st = m, cv.lines.For
+		for s := range sections {
+			cv.totals[s] = diff.Lines{}
+			for _, i := range m.files[s] {
+				cv.totals[s].Add(cv.entryLines(m.st, int(i), s))
+			}
+		}
+	}
+	return cv.totals[sec]
 }
 
 // confirmState is a question asked before a write that drops work.
@@ -99,6 +162,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 	th := c.Theme()
 	cv := &t.cv
 	a.rebuildChanges(t)
+	cv.countLines(t)
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.SearchField(c, &cv.filter).Label(locales.ChangesFilterLabel()).Placeholder(locales.ChangesFilterPlaceholder()).Grow(1)
@@ -136,7 +200,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		cv.list.Selected = &cv.chosen
 		cv.list.Selection = &cv.picked
 		cv.list.Header = func(i int) bool { return rows[i].kind == rowHeader }
-		cv.list.Label = func(i int) string { return rowLabel(m, rows[i]) }
+		cv.list.Label = func(i int) string { return rowLabel(cv, m, rows[i]) }
 		var act func()
 		l := ui.List(c, &cv.list, len(rows), func(i int) { a.changeRow(c, t, m, rows[i], &act) }).Label(locales.ChangesListLabel()).Grow(1)
 		if l.Submitted() && cv.chosen >= 0 && cv.chosen < len(rows) {
@@ -173,14 +237,15 @@ func (a *App) changesPane(c *ui.Context, t *tab) {
 	})
 }
 
-func rowLabel(m *changeModel, r changeRow) string {
+func rowLabel(cv *changesState, m *changeModel, r changeRow) string {
 	switch r.kind {
 	case rowHeader:
 		return locales.ChangesSectionLabel(r.sec.title(), len(m.files[r.sec]))
 	case rowDir:
 		return locales.ChangesFolderLabel(m.name(r))
 	}
-	return locales.ChangesFileLabel(entryWords(m.st, int(r.idx), r.sec), string(m.st.Path(int(r.idx))))
+	i := int(r.idx)
+	return fileLabel(entryWords(m.st, i, r.sec), string(m.st.Path(i)), cv.entryLines(m.st, i, r.sec))
 }
 
 func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act *func()) {
@@ -190,6 +255,8 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 	if r.kind == rowHeader {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Background(th.Surface).Children(func() {
 			ui.Text(c, fmt.Sprintf("%s (%d)", r.sec.title(), len(m.files[r.sec]))).Bold().Grow(1)
+			tot := cv.sectionLines(m, r.sec)
+			lineCounts(c, int(tot.Added), int(tot.Deleted))
 			var label string
 			switch r.sec {
 			case secStaged:
@@ -238,6 +305,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 		if note := entryNote(m.st, i, r.sec); note != "" {
 			ui.Text(c, note).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 		}
+		fileLines(c, cv.entryLines(m.st, i, r.sec))
 	})
 	if row.RowDoubleClicked() {
 		*act = func() { a.toggleStage(t, m, []changeRow{r}) }

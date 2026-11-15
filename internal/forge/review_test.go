@@ -13,7 +13,7 @@ import (
 
 const listAnswer = `{"data":{"repository":{"pullRequests":{"totalCount":3,"nodes":[
 {"number":7,"title":"Add a thing","url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},
- "headRefName":"thing","baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","reviewDecision":"CHANGES_REQUESTED",
+ "headRefName":"thing","baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","reviewDecision":"CHANGES_REQUESTED","additions":120,"deletions":7,
  "headRepositoryOwner":{"login":"ann"},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}},
 {"number":5,"title":"Draft","url":"https://evil.example/x","isDraft":true,"state":"OPEN","author":null,
  "headRefName":"d","baseRefName":"main","updatedAt":"2026-11-12T10:00:00Z","reviewDecision":null,
@@ -25,7 +25,8 @@ func TestParseOpenPulls(t *testing.T) {
 		t.Fatalf("%+v %v %v", list, more, err)
 	}
 	a, b := list[0], list[1]
-	if a.Number != 7 || a.Author != "ann" || a.Base != "main" || a.Decision != ReviewChangesRequested || a.Checks != ChecksPassing || a.Updated.IsZero() {
+	if a.Number != 7 || a.Author != "ann" || a.Base != "main" || a.Decision != ReviewChangesRequested || a.Checks != ChecksPassing || a.Updated.IsZero() ||
+		a.Added != 120 || a.Deleted != 7 {
 		t.Errorf("first %+v", a)
 	}
 	if !b.Draft || b.Author != "ghost" || b.Decision != ReviewNone {
@@ -40,7 +41,7 @@ const reviewAnswer = `{"data":{"viewer":{"login":"me"},"repository":{"pullReques
 "number":7,"title":"Add a thing","url":"https://github.com/o/r/pull/7","body":"Why\n","state":"OPEN","isDraft":false,
 "author":{"login":"ann"},"baseRefName":"main","headRefName":"thing",
 "baseRefOid":"1111111111111111111111111111111111111111","headRefOid":"2222222222222222222222222222222222222222",
-"reviewDecision":"REVIEW_REQUIRED","createdAt":"2026-11-10T09:00:00Z",
+"reviewDecision":"REVIEW_REQUIRED","createdAt":"2026-11-10T09:00:00Z","additions":3,"deletions":1,
 "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"PENDING"}}}]},
 "comments":{"totalCount":1,"nodes":[{"id":"IC_1","databaseId":11,"author":{"login":"bob"},"body":"Looks fine","createdAt":"2026-11-11T09:00:00Z"}]},
 "reviews":{"totalCount":2,"nodes":[{"author":{"login":"bob"},"state":"COMMENTED","body":"","submittedAt":"2026-11-11T10:00:00Z"}]},
@@ -56,6 +57,9 @@ func TestParseReview(t *testing.T) {
 	rv, err := parseReview([]byte(reviewAnswer))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if rv.Added != 3 || rv.Deleted != 1 {
+		t.Errorf("lines +%d -%d", rv.Added, rv.Deleted)
 	}
 	if rv.Number != 7 || rv.Viewer != "me" || rv.Author != "ann" || rv.Base != "main" || rv.HeadOID[0] != '2' ||
 		rv.Decision != ReviewRequired || rv.Checks != ChecksPending || rv.Body != "Why\n" {

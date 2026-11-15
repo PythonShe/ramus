@@ -14,14 +14,16 @@ import (
 func TestParseGitLabOpen(t *testing.T) {
 	out := `{"data":{"project":{"mergeRequests":{"count":4,"nodes":[
 {"iid":"12","title":"Add","webUrl":"https://gitlab.com/g/p/-/merge_requests/12","draft":false,"state":"opened","author":{"username":"ann"},
- "sourceBranch":"add","targetBranch":"main","updatedAt":"2026-11-13T16:04:48Z","approved":false,"detailedMergeStatus":"REQUESTED_CHANGES","headPipeline":{"status":"FAILED"}},
+ "sourceBranch":"add","targetBranch":"main","updatedAt":"2026-11-13T16:04:48Z","approved":false,"detailedMergeStatus":"REQUESTED_CHANGES","headPipeline":{"status":"FAILED"},
+ "diffStatsSummary":{"additions":40,"deletions":2}},
 {"iid":"x","title":"Bad iid"},
 {"iid":"9","title":"Ok","draft":true,"state":"opened","author":null,"approved":true,"detailedMergeStatus":"MERGEABLE","headPipeline":null}]}}}}`
 	list, more, err := parseGitLabOpen([]byte(out), "g/p")
 	if err != nil || !more || len(list) != 2 {
 		t.Fatalf("%+v %v %v", list, more, err)
 	}
-	if a := list[0]; a.Number != 12 || a.Author != "ann" || a.Base != "main" || a.Decision != ReviewChangesRequested || a.Checks != ChecksFailing {
+	if a := list[0]; a.Number != 12 || a.Author != "ann" || a.Base != "main" || a.Decision != ReviewChangesRequested || a.Checks != ChecksFailing ||
+		a.Added != 40 || a.Deleted != 2 {
 		t.Errorf("first %+v", a)
 	}
 	if b := list[1]; b.Author != "ghost" || !b.Draft || b.Decision != ReviewApproved {
@@ -35,7 +37,7 @@ func TestParseGitLabOpen(t *testing.T) {
 const glReviewAnswer = `{"data":{"currentUser":{"username":"me"},"project":{"mergeRequest":{
 "iid":"12","title":"Add","webUrl":"https://gitlab.com/g/p/-/merge_requests/12","description":"Why","state":"opened","draft":false,
 "author":{"username":"ann"},"sourceBranch":"add","targetBranch":"main","createdAt":"2026-11-10T09:00:00Z","approved":false,
-"detailedMergeStatus":"NOT_APPROVED","headPipeline":null,
+"detailedMergeStatus":"NOT_APPROVED","headPipeline":null,"diffStatsSummary":{"additions":5,"deletions":0},
 "diffRefs":{"baseSha":"1111111111111111111111111111111111111111","startSha":"3333333333333333333333333333333333333333","headSha":"2222222222222222222222222222222222222222"},
 "userPermissions":{"createNote":true},"approvedBy":{"nodes":[{"username":"cat"}]},
 "notes":{"pageInfo":{"hasNextPage":false},"nodes":[
@@ -55,6 +57,9 @@ func TestParseGitLabReview(t *testing.T) {
 	rv, err := parseGitLabReview([]byte(glReviewAnswer))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if rv.Added != 5 || rv.Deleted != 0 {
+		t.Errorf("lines +%d -%d", rv.Added, rv.Deleted)
 	}
 	if rv.Number != 12 || rv.Viewer != "me" || rv.Author != "ann" || rv.Base != "main" || rv.Body != "Why" || rv.Decision != ReviewRequired ||
 		rv.BaseOID[0] != '1' || rv.StartOID[0] != '3' || rv.HeadOID[0] != '2' || rv.More {

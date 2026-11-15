@@ -3247,32 +3247,68 @@ func (msgs Messages) WorktreePanelFiles(count int) string {
 	return Catalog.Format(msgs.locale, "worktreePanelFiles", map[string]any{"count": count})
 }
 
-// WorktreePanelAdded says "+{count}"
+// LinesAdded says "+{count}"
 // in the language the app shows.
 //
-// Lines added, as in a diff stat.
-func WorktreePanelAdded(count int) string { return In(i18n.Locale()).WorktreePanelAdded(count) }
+// Lines a change adds, as in a diff stat.
+func LinesAdded(count int) string { return In(i18n.Locale()).LinesAdded(count) }
 
-// WorktreePanelAdded says "+{count}"
+// LinesAdded says "+{count}"
 // in the language of msgs.
 //
-// Lines added, as in a diff stat.
-func (msgs Messages) WorktreePanelAdded(count int) string {
-	return Catalog.Format(msgs.locale, "worktreePanelAdded", map[string]any{"count": count})
+// Lines a change adds, as in a diff stat.
+func (msgs Messages) LinesAdded(count int) string {
+	return Catalog.Format(msgs.locale, "linesAdded", map[string]any{"count": count})
 }
 
-// WorktreePanelRemoved says "−{count}"
+// LinesDeleted says "−{count}"
 // in the language the app shows.
 //
-// Lines removed, as in a diff stat.
-func WorktreePanelRemoved(count int) string { return In(i18n.Locale()).WorktreePanelRemoved(count) }
+// Lines a change deletes, as in a diff stat.
+func LinesDeleted(count int) string { return In(i18n.Locale()).LinesDeleted(count) }
 
-// WorktreePanelRemoved says "−{count}"
+// LinesDeleted says "−{count}"
 // in the language of msgs.
 //
-// Lines removed, as in a diff stat.
-func (msgs Messages) WorktreePanelRemoved(count int) string {
-	return Catalog.Format(msgs.locale, "worktreePanelRemoved", map[string]any{"count": count})
+// Lines a change deletes, as in a diff stat.
+func (msgs Messages) LinesDeleted(count int) string {
+	return Catalog.Format(msgs.locale, "linesDeleted", map[string]any{"count": count})
+}
+
+// LinesChanged says "{added, plural, one {# line added} other {# lines added}}, {deleted, plural, one {# deleted} other {# deleted}}"
+// in the language the app shows.
+//
+// Read aloud for the lines a change adds and deletes, shown as +added and
+// −deleted.
+func LinesChanged(added int, deleted int) string {
+	return In(i18n.Locale()).LinesChanged(added, deleted)
+}
+
+// LinesChanged says "{added, plural, one {# line added} other {# lines added}}, {deleted, plural, one {# deleted} other {# deleted}}"
+// in the language of msgs.
+//
+// Read aloud for the lines a change adds and deletes, shown as +added and
+// −deleted.
+func (msgs Messages) LinesChanged(added int, deleted int) string {
+	return Catalog.Format(msgs.locale, "linesChanged", map[string]any{"added": added, "deleted": deleted})
+}
+
+// ChangesFileLinesLabel says "{state} {path}, {added, plural, one {# line added} other {# lines added}}, {deleted, plural, one {# deleted} other {#…"
+// in the language the app shows.
+//
+// Read aloud for a changed file: its state (modified, staged added...), its
+// path, and the lines the change adds and deletes.
+func ChangesFileLinesLabel(added int, deleted int, state string, path string) string {
+	return In(i18n.Locale()).ChangesFileLinesLabel(added, deleted, state, path)
+}
+
+// ChangesFileLinesLabel says "{state} {path}, {added, plural, one {# line added} other {# lines added}}, {deleted, plural, one {# deleted} other {#…"
+// in the language of msgs.
+//
+// Read aloud for a changed file: its state (modified, staged added...), its
+// path, and the lines the change adds and deletes.
+func (msgs Messages) ChangesFileLinesLabel(added int, deleted int, state string, path string) string {
+	return Catalog.Format(msgs.locale, "changesFileLinesLabel", map[string]any{"added": added, "deleted": deleted, "state": state, "path": path})
 }
 
 // WorktreePanelChangingNow says "Changing now"
@@ -13065,6 +13101,20 @@ func ColumnUpdated() string { return In(i18n.Locale()).ColumnUpdated() }
 // Column of when a pull request last changed.
 func (msgs Messages) ColumnUpdated() string {
 	return Catalog.Format(msgs.locale, "columnUpdated", nil)
+}
+
+// ColumnLines says "Lines"
+// in the language the app shows.
+//
+// Column of the lines a pull request adds and deletes.
+func ColumnLines() string { return In(i18n.Locale()).ColumnLines() }
+
+// ColumnLines says "Lines"
+// in the language of msgs.
+//
+// Column of the lines a pull request adds and deletes.
+func (msgs Messages) ColumnLines() string {
+	return Catalog.Format(msgs.locale, "columnLines", nil)
 }
 
 // PrsNone says "{kind, select, gitlab {No open merge requests.} other {No open pull requests.}}"

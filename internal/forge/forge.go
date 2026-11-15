@@ -215,6 +215,9 @@ type Pull struct {
 	// Checks are read for an open pull request only: a merged or closed
 	// one's say nothing of what is to come.
 	Checks Checks
+	// Added and Deleted count the lines it changes, as the host counts
+	// them; they are read for a list of open ones and for a review.
+	Added, Deleted int
 }
 
 // SquashHint is the pull request number a commit subject ends with, as

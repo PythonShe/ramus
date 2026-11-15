@@ -733,6 +733,11 @@ type CommitDetail struct {
 	// Files are the files changed from the first parent, renames found;
 	// nil while they are read.
 	Files *diff.Raw
+	// Lines are the lines each of Files adds and deletes, in its order;
+	// nil while they are counted, and when git could not count them.
+	// Sum adds them up.
+	Lines []diff.Lines
+	Sum   diff.Lines
 	// Sig is git's verdict on a signed commit's signature, its Code 0
 	// while not checked: in a repository not trusted, the verifier named
 	// in its config does not run. SigErr is why git gave none.
@@ -749,9 +754,9 @@ type CommitDetail struct {
 }
 
 // LoadCommit reads one commit off the main thread and hands it to done on
-// it as it is read: the message first, then its changed files, then its
-// signature, so a commit of 10,000 files or a slow signature check holds
-// back nothing read before. cancel stops the reading; done is not called
+// it as it is read: the message first, then its changed files, then the
+// lines they change and its signature, side by side, so a commit of
+// 10,000 files or a slow signature check holds back nothing read before. cancel stops the reading; done is not called
 // after it. A commit read before is handed over whole, at once.
 func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()) {
 	r := s.Repo
@@ -836,13 +841,40 @@ func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitD
 	if d.Files, _, err = diff.Renames(ctx, r.Runner, r.GitDir, r.Caps.HashSize, parent, d.OID); err != nil {
 		return err
 	}
-	if d.Commit.Signed && !r.Restricted {
-		d.Checking = true
+	publish(*d)
+	// Counting the lines reads every file changed, and checking the
+	// signature may wait on a key server: they run side by side, each
+	// shown when done. mu orders their changes to d and what is handed
+	// over of them.
+	var mu sync.Mutex
+	set := func(f func()) {
+		mu.Lock()
+		defer mu.Unlock()
+		f()
 		publish(*d)
-		d.Sig, d.SigErr = signature.Commit(ctx, r.Runner, r.GitDir, hex.EncodeToString(d.OID))
+	}
+	counted := make(chan struct{})
+	defer func() { <-counted }()
+	from, files := parent, d.Files
+	if from == nil {
+		from = emptyTree(r.Caps.HashSize)
+	}
+	go func() {
+		defer close(counted)
+		ns, err := diff.CommitLines(ctx, r.Runner, r.GitDir, from, d.OID)
+		if err != nil || ctx.Err() != nil {
+			return
+		}
+		ls := ns.ForRaw(files)
+		set(func() { d.Lines, d.Sum = ls, diff.Total(ls) })
+	}()
+	if d.Commit.Signed && !r.Restricted {
+		set(func() { d.Checking = true })
+		sig, sigErr := signature.Commit(ctx, r.Runner, r.GitDir, hex.EncodeToString(d.OID))
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		set(func() { d.Sig, d.SigErr, d.Checking = sig, sigErr, false })
 	}
 	return nil
 }

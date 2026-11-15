@@ -48,7 +48,8 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 		from, to := cc.from, cc.to
 		cc.cancel = t.s.Compare(from, to, func(d session.CommitDetail) {
 			if bytes.Equal(cc.from, from) && bytes.Equal(cc.to, to) {
-				cc.loading, cc.d = false, &d
+				// Listed first, then again counted.
+				cc.loading, cc.d = !d.Done, &d
 			}
 		})
 	}

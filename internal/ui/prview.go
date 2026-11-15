@@ -219,6 +219,7 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 			{Title: locales.ColumnAuthor(), ID: "author", Width: 120, MinWidth: 60},
 			{Title: locales.ColumnBranch(), ID: "branch", Width: 160, MinWidth: 60},
 			{Title: locales.ColumnReview(), ID: "review", Width: 150, MinWidth: 60},
+			{Title: locales.ColumnLines(), ID: "lines", Width: 100, MinWidth: 60},
 			{Title: locales.ColumnUpdated(), ID: "updated", Width: 100, MinWidth: 60},
 		}
 		now := a.Now()
@@ -242,6 +243,8 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 			case 4:
 				ui.Text(c, prStatus(p.Decision, p.Checks)).FontSize(textSmall).TextColor(decisionColor(k, p.Decision)).SingleLine()
 			case 5:
+				inkLineCounts(c, k, p.Added, p.Deleted)
+			case 6:
 				mutedCell(c, k, ago(now, p.Updated))
 			}
 		}).Label(locales.PrsList(kindName(ps.repo.Kind))).Grow(1)
@@ -393,11 +396,19 @@ func (a *App) compareReview(t *tab, rv *prReview) {
 		if t.pr.rv != rv {
 			return
 		}
-		rv.fetching, rv.detail, rv.cancelCmp = false, &d, nil
+		// The list comes first, then again with its lines counted: the
+		// patch shown stays.
+		listed := rv.detail == nil || rv.detail.Files != d.Files
+		rv.fetching, rv.detail = false, &d
+		if d.Done {
+			rv.cancelCmp = nil
+		}
 		if d.Err != nil {
 			rv.fetchErr = errText(d.Err)
 		}
-		rv.patchFor = ""
+		if listed {
+			rv.patchFor = ""
+		}
 	})
 }
 
@@ -454,6 +465,7 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			if s := prStatus(r.Decision, r.Checks); s != "" {
 				ui.Text(c, s).FontSize(textSmall).TextColor(decisionColor(plainInk(th), r.Decision)).SingleLine()
 			}
+			lineCounts(c, r.Added, r.Deleted)
 		})
 		if r.More {
 			ui.Text(c, locales.PrsMoreOnHost(kindName(rv.repo.Kind))).FontSize(textSmall).TextColor(th.Warning).Padding(0, insetX)
@@ -501,7 +513,7 @@ func (a *App) prFiles(c *ui.Context, t *tab, rv *prReview) {
 	ui.Split(c, &rv.listW, func() {
 		rv.files.Selected = &rv.file
 		rv.files.Label = func(i int) string {
-			return locales.ChangesFileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i))
+			return fileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i), lineAt(rv.detail.Lines, i))
 		}
 		ui.List(c, &rv.files, f.Len(), func(i int) {
 			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
@@ -512,6 +524,7 @@ func (a *App) prFiles(c *ui.Context, t *tab, rv *prReview) {
 				if n := threads[string(f.Path(i))]; n > 0 {
 					ui.Text(c, fmt.Sprint(n)).FontSize(textSmall).TextColor(th.Accent).Tooltip(locales.PrsCommentCount(n))
 				}
+				fileLines(c, lineAt(rv.detail.Lines, i))
 			})
 		}).Label(locales.CommitFilesLabel()).Fill()
 	}, func() { a.prPatch(c, t, rv) }).SplitReset(300).Fill()
@@ -561,6 +574,7 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, rv.file))
 			ui.Text(c, shown).Bold().SingleLine().Grow(1)
+			fileLines(c, lineAt(d.Lines, rv.file))
 			if closeButton(c, locales.CommitClosePatch()).Clicked() {
 				rv.file = -1
 			}

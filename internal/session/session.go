@@ -129,6 +129,9 @@ type Session struct {
 	historyLoadN int
 	// commitPatch cancels a commit patch read that a newer one replaced.
 	commitPatch PatchSlot
+	// changeLines cancels a count of the changes' lines that a newer one
+	// replaced.
+	changeLines PatchSlot
 	// answerCache holds what views read, on the main thread; see answers.
 	answerCache *cache.Cache[string, answer]
 	stats       statsLoad

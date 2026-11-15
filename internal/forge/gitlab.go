@@ -55,6 +55,11 @@ type gitlabMR struct {
 	Pipeline *struct {
 		Status string `json:"status"`
 	} `json:"headPipeline"`
+	// Stats are read where a query asks for them.
+	Stats *struct {
+		Additions int `json:"additions"`
+		Deletions int `json:"deletions"`
+	} `json:"diffStatsSummary"`
 }
 
 // parseGitLab reads the answer to gitlabQuery on the project at path,

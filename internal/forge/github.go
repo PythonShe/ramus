@@ -53,7 +53,10 @@ type githubPull struct {
 	IsDraft bool   `json:"isDraft"`
 	State   string `json:"state"`
 	Head    string `json:"headRefName"`
-	Owner   *struct {
+	// Additions and Deletions are read where a query asks for them.
+	Additions int `json:"additions"`
+	Deletions int `json:"deletions"`
+	Owner     *struct {
 		Login string `json:"login"`
 	} `json:"headRepositoryOwner"`
 	Commits struct {

@@ -17,7 +17,7 @@ import (
 func (c *CLI) gitlabOpenPulls(ctx context.Context, r Repo) ([]Listed, bool, error) {
 	q := "query{project(fullPath:" + literal(r.Path) + "){mergeRequests(state:opened,first:" + strconv.Itoa(MaxListed) +
 		",sort:UPDATED_DESC){count nodes{iid title webUrl draft state author{username} sourceBranch targetBranch updatedAt " +
-		"approved detailedMergeStatus headPipeline{status}}}}}"
+		"approved detailedMergeStatus headPipeline{status} diffStatsSummary{additions deletions}}}}}"
 	out, err := c.run(ctx, "", r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q)
 	if err != nil {
 		return nil, false, err
@@ -68,6 +68,9 @@ func (m glListed) pull() (Pull, bool) {
 	if m.Pipeline != nil {
 		p.Checks = gitlabChecks(m.Pipeline.Status)
 	}
+	if m.Stats != nil {
+		p.Added, p.Deleted = m.Stats.Additions, m.Stats.Deletions
+	}
 	return p, true
 }
 
@@ -108,7 +111,7 @@ func (c *CLI) gitlabPullReview(ctx context.Context, r Repo, n int) (Review, erro
 	page := "(first:" + strconv.Itoa(maxComments) + ")"
 	q := "query{currentUser{username} project(fullPath:" + literal(r.Path) + "){mergeRequest(iid:" + literal(strconv.Itoa(n)) + "){" +
 		"iid title webUrl description state draft author{username} sourceBranch targetBranch createdAt approved detailedMergeStatus " +
-		"headPipeline{status} diffRefs{baseSha startSha headSha} userPermissions{createNote} approvedBy" + page + "{nodes{username}} " +
+		"headPipeline{status} diffStatsSummary{additions deletions} diffRefs{baseSha startSha headSha} userPermissions{createNote} approvedBy" + page + "{nodes{username}} " +
 		"notes(filter:ONLY_COMMENTS,first:" + strconv.Itoa(glMaxNotes) + "){pageInfo{hasNextPage} nodes{id author{username} body createdAt system " +
 		"discussion{id resolvable resolved userPermissions{resolveNote}} " +
 		"position{positionType filePath oldPath newPath oldLine newLine diffRefs{headSha}}}}}}}"

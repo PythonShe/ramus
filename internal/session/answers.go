@@ -87,6 +87,7 @@ func (a answer) bytes() int {
 		if d.Files != nil {
 			n += d.Files.Bytes()
 		}
+		n += len(d.Lines) * int(unsafe.Sizeof(diff.Lines{}))
 	}
 	if p := a.pull; p != nil {
 		n += 128 + len(p.Pull.Title) + len(p.Pull.URL) + len(p.Pull.Branch) + len(p.Pull.Repo.Host) + len(p.Pull.Repo.Path)
