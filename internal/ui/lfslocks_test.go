@@ -47,11 +47,19 @@ func TestLFSLocksView(t *testing.T) {
 		}
 		h.tt.Frame()
 	}
+	// A lock taken elsewhere shows once the page is shown again.
+	srv.Add("elsewhere.psd", "bob")
+	h.click("Snapshots")
+	h.click("LFS Locks")
+	h.until("the lock taken elsewhere", h.shows("elsewhere.psd"))
+
 	menu("mine.psd", "Unlock")
 	h.until("the lock released", func() bool { return !h.tt.HasText("mine.psd") })
 
 	menu("theirs.psd", "Force Unlock…")
 	h.until("the question", h.shows("Force unlock “theirs.psd”?"))
+	h.click("Force Unlock")
+	menu("elsewhere.psd", "Force Unlock…")
 	h.click("Force Unlock")
 	h.until("no locks", h.shows("No files are locked."))
 	if ls := srv.Locks(); len(ls) != 0 {

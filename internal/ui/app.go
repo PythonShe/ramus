@@ -411,6 +411,7 @@ func (a *App) reload(t *tab) {
 	t.commit.setup = nil
 	t.cv.diff.key = diffKey{}
 	t.links.For = nil
+	t.locks.listed = -1
 	for _, cv := range []*commitView{&t.hist.detail, &t.file.detail, &t.reflog.detail, &t.stash.detail} {
 		cv.id = nil
 	}

@@ -48,10 +48,9 @@ func (a *App) leaveView(t *tab, name string) {
 	case "stashes":
 		leaveDetail(&t.stash.detail)
 	case sideLocks:
-		// Its read stops: it is read again when shown.
-		if t.locks.loading {
-			t.locks.loading, t.locks.listed = false, -1
-		}
+		// Its read stops, and others may have locked or unlocked files
+		// meanwhile: it is read again when shown, the list kept till then.
+		t.locks.loading, t.locks.listed = false, -1
 	case "compare":
 		cc := &t.cmp
 		if cc.loading {
