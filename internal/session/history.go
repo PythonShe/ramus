@@ -17,6 +17,7 @@ import (
 	"ramus/internal/git/diff"
 	"ramus/internal/git/history"
 	"ramus/internal/git/lanes"
+	"ramus/internal/git/mailmap"
 	"ramus/internal/git/object"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
@@ -697,25 +698,28 @@ func tagTarget(data []byte) []byte {
 	return id
 }
 
-// HistoryText reads the text of rows of h through cat-file, off the main
-// thread, and hands it to done on it.
-func (s *Session) HistoryText(h HistoryState, first, n int, done func(*history.TextChunk, error)) {
+// HistoryText reads the text of the commits ids, at most
+// history.TextChunkRows of them, through cat-file, off the main thread,
+// and hands it to done on it with the number of the mailmap that named
+// their authors: text named through a mailmap of a lower number is stale.
+// The ids must stay as they are until then: not the bytes of a
+// commit-graph's mapping.
+func (s *Session) HistoryText(ids [][]byte, done func(c *history.TextChunk, names int, err error)) {
 	r := s.Repo
-	if r == nil || h.Snap == nil {
+	if r == nil {
 		return
-	}
-	ids := make([]uint32, n)
-	for i := range ids {
-		ids[i] = h.Snap.Commit(first + i)
 	}
 	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		cat, err := r.CatFile()
 		var c *history.TextChunk
+		var names int
 		if err == nil {
-			c, err = history.LoadText(cat, h.OID, first, n, func(row int) uint32 { return ids[row-first] }, s.mailmap(ctx, r))
+			var mm *mailmap.Map
+			mm, names = s.names(ctx, r)
+			c, err = history.LoadText(cat, ids, mm)
 		}
-		update(func() { done(c, err) })
+		update(func() { done(c, names, err) })
 	})
 }
 

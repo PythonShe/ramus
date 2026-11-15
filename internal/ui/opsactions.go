@@ -85,7 +85,7 @@ func (a *App) historyIDs(t *tab, h session.HistoryState, i int) (func() []string
 	hv := &t.hist
 	snap := h.Snap
 	k := snap.Commit(i)
-	if hv.picked.Len() < 2 || !hv.picked.Has(k) {
+	if hv.picked.Len() < 2 || !hv.picked.Has(string(h.OID(k))) {
 		id := hex.EncodeToString(h.OID(k))
 		return func() []string { return []string{id} }, 1
 	}
@@ -94,8 +94,8 @@ func (a *App) historyIDs(t *tab, h session.HistoryState, i int) (func() []string
 		// Rows are newest first; walk them until every pick is found.
 		var out []string
 		for r := 0; r < snap.Len() && len(out) < n; r++ {
-			if c := snap.Commit(r); hv.picked.Has(c) {
-				out = append(out, hex.EncodeToString(h.OID(c)))
+			if id := h.OID(snap.Commit(r)); hv.picked.Has(string(id)) {
+				out = append(out, hex.EncodeToString(id))
 			}
 		}
 		return out

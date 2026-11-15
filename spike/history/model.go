@@ -135,7 +135,11 @@ func (m *model) fetcher(g *commitgraph.Graph) {
 	for req := range m.fetch {
 		first := req.chunk * history.TextChunkRows
 		n := min(history.TextChunkRows, req.snap.Len()-first)
-		c, err := history.LoadText(p, g.OID, first, n, req.snap.Commit, nil)
+		ids := make([][]byte, n)
+		for k := range ids {
+			ids[k] = g.OID(req.snap.Commit(first + k))
+		}
+		c, err := history.LoadText(p, ids, nil)
 		m.update(func() {
 			if err != nil {
 				m.err = err
@@ -200,7 +204,7 @@ func (m *model) row(i int) (subject, author string, when time.Time, ok bool) {
 		return "", "", time.Time{}, false
 	}
 	m.used[k] = m.frameNo
-	s, a, w := c.Row(i)
+	s, a, w := c.Row(i - k*history.TextChunkRows)
 	return s, a, w, true
 }
 

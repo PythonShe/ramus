@@ -27,22 +27,28 @@ const (
 	historyTextBudget = 8 << 20
 	// textReads bounds the chunk reads in flight while scrolling fast.
 	textReads = 4
+	// historyFollow is as many rows as the list looks around for a row's
+	// key; it holds on to the place and the choice past it by hand.
+	historyFollow = 1000
 )
 
 // historyState is a tab's history list and the commit chosen in it.
 type historyState struct {
 	list   ui.ListState
 	chosen int
-	// textFor is the load the text chunks were read for: rows of another
-	// load are other commits.
-	textFor histLoad
-	text    map[int]*history.TextChunk
+	// loadFor is the load of history shown, snapFor its snapshot.
+	loadFor histLoad
+	snapFor *lanes.Snapshot
+	// text is the commits' text, by object id; textLoad the
+	// Session.History.Load it was read after.
+	text     historyText
+	textLoad int
 	// textBudget, when set, replaces historyTextBudget.
 	textBudget int
-	used       map[int]uint64
-	asked      map[int]bool
-	inflight   int
-	frame      uint64
+	// asked are the chunks of rows of snapFor whose text was asked for.
+	asked    map[int]bool
+	inflight int
+	frame    uint64
 
 	// labels are built for the refs and the history (its stashes and
 	// tags) they were built from.
@@ -60,8 +66,8 @@ type historyState struct {
 	// jumpN numbers the go-to requests; only the latest is answered.
 	jumpN int
 	buf   []lanes.Edge
-	// picked are the commits chosen together, by commit index.
-	picked  ui.Selection[uint32]
+	// picked are the commits chosen together, by object id.
+	picked  ui.Selection[string]
 	path    ui.Path
 	detail  commitView
 	detailW float32
@@ -77,7 +83,9 @@ type historyState struct {
 	msgWant  float32
 	widthKey listWidthKey
 	chosenID []byte
-	filter   historyFilter
+	// keptTop is the commit at the top of the list as last laid out.
+	keptTop []byte
+	filter  historyFilter
 }
 
 // listWidthKey is what sets the width of the history list: the window's,
@@ -89,16 +97,17 @@ type listWidthKey struct {
 	patch                 bool
 }
 
-// histLoad names one load of history: the refs and the view it was for.
+// histLoad names one load of history: the refs, the view and the reload
+// it was for.
 type histLoad struct {
-	refs *refs.List
-	view int
+	refs       *refs.List
+	view, load int
 }
 
-func loadOf(h session.HistoryState) histLoad { return histLoad{h.For, h.View} }
+func loadOf(h session.HistoryState) histLoad { return histLoad{h.For, h.View, h.Load} }
 
 func newHistoryState() historyState {
-	return historyState{chosen: -1, detailW: 640, detail: commitView{}, text: map[int]*history.TextChunk{}, used: map[int]uint64{}, asked: map[int]bool{}}
+	return historyState{chosen: -1, detailW: 640, detail: commitView{}, asked: map[int]bool{}}
 }
 
 type labelKind uint8
@@ -140,19 +149,13 @@ func (l refLabel) name() string {
 func (a *App) historyView(c *ui.Context, t *tab) {
 	hv := &t.hist
 	a.loadRefPrefs(t)
+	// Set before the list is built, for Choose to work from the first frame.
+	hv.list.Selected, hv.list.Selection = &hv.chosen, &hv.picked
+	a.keepInView(t, t.s.History)
 	t.s.LoadHistory()
 	h := t.s.History
 	hv.frame++
-	if hv.textFor != loadOf(h) {
-		if hv.textFor.refs != nil && hv.chosenID != nil {
-			hv.want, hv.wantFor = hv.chosenID, nil
-		}
-		hv.textFor, hv.chosen, hv.writing = loadOf(h), -1, false
-		clear(hv.text)
-		clear(hv.used)
-		clear(hv.asked)
-		hv.msgWant = 0
-	}
+	a.followHistory(t, h)
 	a.findWanted(t, h)
 	a.buildLabels(hv, t.s.State, h)
 	listBesideCommit(c, &hv.detailW, 640, &hv.detail, func() {
@@ -215,6 +218,57 @@ func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 				}
 			}
 		})
+	}
+}
+
+// followHistory keeps the place and the choice on their commits as
+// history loads again. Commits laid on top of the history shown move its
+// rows down by as many, which the list follows on its own by the rows'
+// keys, as far as it looks; history laid out anew comes with the rows of
+// the commits kept in view (Session.KeepInView). A load of another view
+// chooses the commit chosen once it finds it, as one jumped to.
+func (a *App) followHistory(t *tab, h session.HistoryState) {
+	hv := &t.hist
+	if h.Load != hv.textLoad {
+		// Asked to reload: the text is read again as it shows.
+		hv.textLoad = h.Load
+		hv.text.stale()
+		clear(hv.asked)
+	}
+	prev, prevLoad := hv.snapFor, hv.loadFor
+	hv.loadFor = loadOf(h)
+	if h.Snap == prev {
+		return
+	}
+	hv.snapFor = h.Snap
+	clear(hv.asked)
+	switch {
+	case prev == nil || h.Snap == nil || prevLoad == hv.loadFor:
+		// The first rows, or more of the same load.
+	case h.Base == prev:
+		if h.Added > historyFollow {
+			// Past where the list looks for the rows' keys.
+			if first, last := hv.list.Visible(); last >= first {
+				hv.list.ScrollTo(first+h.Added, ui.Start)
+			}
+			if hv.chosen >= 0 {
+				hv.list.Choose(hv.chosen + h.Added)
+			}
+		}
+	case h.Found != nil:
+		row, ok := h.Found[string(hv.chosenID)]
+		if !ok {
+			row = -1
+		}
+		hv.list.Choose(row)
+		if top, ok := h.Found[string(hv.keptTop)]; ok && top >= 0 {
+			hv.list.ScrollTo(top, ui.Start)
+		}
+	default:
+		hv.list.Choose(-1)
+		if hv.chosenID != nil {
+			hv.want, hv.wantFor = hv.chosenID, nil
+		}
 	}
 }
 
@@ -285,10 +339,16 @@ func (a *App) findWanted(t *tab, h session.HistoryState) {
 			}
 			return
 		}
-		if loadOf(t.s.History) != hv.textFor {
+		if loadOf(t.s.History) != hv.loadFor {
 			return
 		}
-		hv.want, hv.chosen, hv.chosenID = nil, row, want
+		hv.want, hv.chosenID = nil, want
+		hv.list.Choose(row)
+		// Picked as a click picks it, for the choice to follow the commit
+		// as commits land above it: the list keeps the app's choice on its
+		// item while the item is picked.
+		hv.picked.Clear()
+		hv.picked.Add(string(want))
 		hv.list.ScrollTo(row, ui.Center)
 	})
 }
@@ -363,100 +423,105 @@ func labelMap(st session.State, h session.HistoryState) map[string][]refLabel {
 	return labels
 }
 
-// row returns the text of row i, asking for its chunk when it is not
-// read yet.
+// historyRow returns the text of row i, asking for the text of its chunk
+// of rows when it is not read yet.
 func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author string, when time.Time, ok bool) {
 	hv := &t.hist
-	k := i / history.TextChunkRows
-	ch := hv.text[k]
-	if ch == nil {
-		if !hv.asked[k] && hv.inflight < textReads {
-			hv.asked[k] = true
-			hv.inflight++
-			first := k * history.TextChunkRows
-			n := min(history.TextChunkRows, h.Snap.Len()-first)
-			// A chunk at the end of a list still loading is read again
-			// once the list has grown past it.
-			partial := n < history.TextChunkRows && !h.Done
-			For := loadOf(h)
-			t.s.HistoryText(h, first, n, func(ch *history.TextChunk, err error) {
-				hv.inflight--
-				if hv.textFor != For {
-					return
-				}
-				if err != nil || partial {
-					delete(hv.asked, k)
-					if err != nil {
-						a.tell(t, errText(err))
-						return
-					}
-				}
-				hv.text[k], hv.used[k] = ch, hv.frame
-				hv.evict()
-			})
-		}
+	id := h.OID(h.Snap.Commit(i))
+	ch, k, ok := hv.text.lookup(id)
+	if !ok {
+		a.askText(t, h, i/history.TextChunkRows)
 		return "", "", time.Time{}, false
 	}
-	if i-ch.First >= ch.Len() {
-		// A chunk read when the list was shorter.
-		if !hv.asked[k] {
-			delete(hv.text, k)
-		}
-		return "", "", time.Time{}, false
+	hv.text.use(id, hv.frame)
+	if hv.text.wanted(id) {
+		// Stale: shown until read again.
+		a.askText(t, h, i/history.TextChunkRows)
 	}
-	hv.used[k] = hv.frame
-	s, au, w := ch.Row(i)
+	s, au, w := ch.Row(k)
 	return s, au, w, true
 }
 
-// loaded is the chunk holding row i's text, nil until it is read.
-func (hv *historyState) loaded(i int) *history.TextChunk {
-	ch := hv.text[i/history.TextChunkRows]
-	if ch == nil || i-ch.First >= ch.Len() {
-		return nil
+// askText reads the text of the commits of chunk k of h's rows that is
+// neither read nor being read. Only these: of a chunk of rows that a
+// commit on top moved, it reads the text of that commit alone.
+func (a *App) askText(t *tab, h session.HistoryState, k int) {
+	hv := &t.hist
+	if hv.asked[k] || hv.inflight >= textReads {
+		return
 	}
-	return ch
+	hv.asked[k] = true
+	first := k * history.TextChunkRows
+	last := min(first+history.TextChunkRows, h.Snap.Len())
+	var ids [][]byte
+	var buf []byte
+	for r := first; r < last; r++ {
+		if id := h.OID(h.Snap.Commit(r)); hv.text.wanted(id) {
+			if buf == nil {
+				buf = make([]byte, 0, (last-r)*len(id))
+			}
+			// Copied: id may point into the commit-graph's mapping, which
+			// goes when nothing holds the graph.
+			buf = append(buf, id...)
+			ids = append(ids, buf[len(buf)-len(id):])
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	hv.text.ask(ids)
+	hv.inflight++
+	gen := hv.text.gen
+	t.s.HistoryText(ids, func(ch *history.TextChunk, names int, err error) {
+		hv.inflight--
+		if names > hv.text.names {
+			// The mailmap changed: the names read before are stale.
+			hv.text.names = names
+			hv.text.stale()
+			gen = hv.text.gen
+			clear(hv.asked)
+		}
+		if err != nil {
+			hv.text.add(gen, ids, nil, hv.frame, 0)
+			a.tell(t, errText(err))
+			return
+		}
+		budget := historyTextBudget
+		if hv.textBudget > 0 {
+			budget = hv.textBudget
+		}
+		if hv.text.add(gen, ids, ch, hv.frame, budget) {
+			// Rows whose text went are asked for again when shown.
+			clear(hv.asked)
+		}
+	})
+}
+
+// loaded is the chunk holding the text of row i's commit and its place
+// in it, nil until it is read.
+func (hv *historyState) loaded(h session.HistoryState, i int) (*history.TextChunk, int) {
+	ch, k, ok := hv.text.lookup(h.OID(h.Snap.Commit(i)))
+	if !ok {
+		return nil, 0
+	}
+	return ch, k
 }
 
 // historyMerged is the abbreviated parents of row i when it is a merge
 // and its text is loaded, else "".
-func (hv *historyState) historyMerged(i int) string {
-	if ch := hv.loaded(i); ch != nil {
-		return ch.Merged(i)
+func (hv *historyState) historyMerged(h session.HistoryState, i int) string {
+	if ch, k := hv.loaded(h, i); ch != nil {
+		return ch.Merged(k)
 	}
 	return ""
-}
-
-// evict drops the chunks used longest ago past the text budget.
-func (hv *historyState) evict() {
-	total := 0
-	for _, c := range hv.text {
-		total += c.Bytes()
-	}
-	budget := historyTextBudget
-	if hv.textBudget > 0 {
-		budget = hv.textBudget
-	}
-	for total > budget && len(hv.text) > 1 {
-		oldest, at := -1, ^uint64(0)
-		for k := range hv.text {
-			if hv.used[k] < at {
-				oldest, at = k, hv.used[k]
-			}
-		}
-		total -= hv.text[oldest].Bytes()
-		delete(hv.text, oldest)
-		delete(hv.asked, oldest)
-		delete(hv.used, oldest)
-	}
 }
 
 func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	hv := &t.hist
 	snap := h.Snap
-	hv.list.Selected = &hv.chosen
-	hv.list.Selection = &hv.picked
-	hv.list.Key = func(i int) any { return snap.Commit(i) }
+	// Keyed by object id, for the place and the choice to follow their
+	// commits from one load to the next.
+	hv.list.Key = func(i int) any { return string(h.OID(snap.Commit(i))) }
 	hv.list.DragRows = nil
 	if t.s.Queue != nil {
 		hv.list.DragRows = func(rows []int) any {
@@ -474,7 +539,7 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		}
 		date := w.Format("2006-01-02 15:04")
 		out := locales.HistoryRow(s, au, date)
-		if m := hv.historyMerged(i); m != "" {
+		if m := hv.historyMerged(h, i); m != "" {
 			out = locales.HistoryRowMerge(m, s, au, date)
 		}
 		if labels := hv.labels[string(h.OID(snap.Commit(i)))]; len(labels) > 0 {
@@ -497,6 +562,21 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		hv.widthKey, hv.rowW = key, w
 		c.AnimationFrame()
 	}
+}
+
+// keepInView tells the session the commits to find again in a history
+// laid out anew: the one at the top of the list and the one chosen.
+func (a *App) keepInView(t *tab, h session.HistoryState) {
+	hv := &t.hist
+	if h.Snap == nil {
+		return
+	}
+	if first, last := hv.list.Visible(); last >= first && first < h.Snap.Len() {
+		if id := h.OID(h.Snap.Commit(first)); string(id) != string(hv.keptTop) {
+			hv.keptTop = slices.Clone(id)
+		}
+	}
+	t.s.KeepInView(hv.keptTop, hv.chosenID)
 }
 
 func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int) {
@@ -529,7 +609,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		var g ui.Element
 		if lay.shown[colGraph] {
 			g = ui.Box(c).Width(gw).Height(historyRowHeight).Clip().Opacity(lay.fade(colGraph)).
-				Role(ui.RoleImage).Label(describeRow(r, hv.historyMerged(i))).
+				Role(ui.RoleImage).Label(describeRow(r, hv.historyMerged(h, i))).
 				Draw(func(p *ui.Painter, rect ui.Rect) {
 					// Read again here: the edges built above are reused by
 					// the next row.
@@ -554,7 +634,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 			}
 			hv.wantMessage(c, subject, labels)
 			subj := ui.Text(c, subject).SingleLine().Grow(1)
-			if ch := hv.loaded(i); ch != nil && ch.Odd(i) {
+			if ch, k := hv.loaded(h, i); ch != nil && ch.Odd(k) {
 				subj.TextColor(th.Warning).Description(locales.HistoryBadEncoding())
 			}
 		})

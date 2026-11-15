@@ -19,24 +19,34 @@ type people struct {
 	mu    sync.Mutex
 	stamp string
 	mm    *mailmap.Map
+	// n numbers the mailmaps read.
+	n int
 }
 
 // mailmap is the repository's mailmap as it stands. It runs off the main
 // thread.
 func (s *Session) mailmap(ctx context.Context, r *repo.Repository) *mailmap.Map {
+	mm, _ := s.names(ctx, r)
+	return mm
+}
+
+// names is mailmap with its number, which grows each time the mailmap is
+// read again, changed: names given through an older one are stale.
+func (s *Session) names(ctx context.Context, r *repo.Repository) (*mailmap.Map, int) {
 	p := &s.people
 	stamp := mailmapStamp(r)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.mm != nil && p.stamp == stamp {
-		return p.mm
+		return p.mm, p.n
 	}
 	var mm mailmap.Map
 	for _, d := range mailmapData(ctx, r) {
 		mm.Add(d)
 	}
 	p.mm, p.stamp = &mm, stamp
-	return p.mm
+	p.n++
+	return p.mm, p.n
 }
 
 // mailmapStamp changes when the files a mailmap is read from, or the

@@ -11,39 +11,44 @@ import (
 	"ramus/internal/git/textenc"
 )
 
-// TextChunkRows is the number of consecutive rows whose text loads as one
-// unit: one batch through cat-file, one allocation.
+// TextChunkRows is the most commits whose text loads as one unit: one
+// batch through cat-file, one allocation.
 const TextChunkRows = 256
 
-// TextChunk holds the one-line text of TextChunkRows consecutive rows:
-// subject and author name, in one buffer, and author times. It is
-// immutable once loaded, so the goroutine that loads it hands it to the UI
-// as it is.
+// TextChunk holds the one-line text of up to TextChunkRows commits, by
+// their place k in the chunk: subject and author name, in one buffer, and
+// author times, with the commits' object ids. It is immutable once
+// loaded, so the goroutine that loads it hands it to the UI as it is, and
+// it is the text of its commits whichever rows they are in.
 type TextChunk struct {
-	First int // the first row
-	buf   []byte
-	// ends holds, per row, the end of its subject, of its author and of
+	// oids holds the object ids, hashSize bytes each.
+	oids     []byte
+	hashSize int
+	buf      []byte
+	// ends holds, per commit, the end of its subject, of its author and of
 	// its merged parents in buf.
 	ends  []uint32
 	times []int64
 	zones []int16
-	// odd marks rows whose text was not valid in its encoding, shown with
-	// escapes.
+	// odd marks commits whose text was not valid in its encoding, shown
+	// with escapes.
 	odd []bool
 }
 
-// Len returns the number of rows the chunk holds.
+// Len returns the number of commits the chunk holds.
 func (c *TextChunk) Len() int { return len(c.times) }
 
 // Bytes returns the memory the chunk holds, for cache budgets.
 func (c *TextChunk) Bytes() int {
-	return cap(c.buf) + cap(c.ends)*4 + cap(c.times)*8 + cap(c.zones)*2 + cap(c.odd) + 64
+	return cap(c.oids) + cap(c.buf) + cap(c.ends)*4 + cap(c.times)*8 + cap(c.zones)*2 + cap(c.odd) + 64
 }
 
-// Row returns the subject, author name and author time of row i, which
-// must be within the chunk. The strings share the chunk's buffer.
-func (c *TextChunk) Row(i int) (subject, author string, when time.Time) {
-	k := i - c.First
+// OID returns the object id of commit k.
+func (c *TextChunk) OID(k int) []byte { return c.oids[k*c.hashSize : (k+1)*c.hashSize] }
+
+// Row returns the subject, author name and author time of commit k. The
+// strings share the chunk's buffer.
+func (c *TextChunk) Row(k int) (subject, author string, when time.Time) {
 	start := uint32(0)
 	if k > 0 {
 		start = c.ends[3*k-1]
@@ -54,37 +59,38 @@ func (c *TextChunk) Row(i int) (subject, author string, when time.Time) {
 	return string(s), string(a), time.Unix(c.times[k], 0).In(loc)
 }
 
-// Odd reports whether row i's subject or author was not valid text in
+// Odd reports whether commit k's subject or author was not valid text in
 // the commit's encoding: its bytes are then shown as \xNN escapes.
-func (c *TextChunk) Odd(i int) bool { return c.odd[i-c.First] }
+func (c *TextChunk) Odd(k int) bool { return c.odd[k] }
 
-// Merged returns the abbreviated parents of row i when it is a merge, as
-// "1a2b3c4 and 5d6e7f8", and "" for a commit with one parent or none.
-func (c *TextChunk) Merged(i int) string {
-	k := i - c.First
+// Merged returns the abbreviated parents of commit k when it is a merge,
+// as "1a2b3c4 and 5d6e7f8", and "" for a commit with one parent or none.
+func (c *TextChunk) Merged(k int) string {
 	return string(c.buf[c.ends[3*k+1]:c.ends[3*k+2]])
 }
 
 // mergedShort is how many hex digits name a merged parent.
 const mergedShort = 7
 
-// LoadText reads the text of rows first to first+n-1 through a cat-file
-// process. commit gives a row's commit number and oid that number's object
-// id: a commit-graph position and Graph.OID, or a commit store number and
-// its snapshot's OID. Authors are named as mm maps them, which may be
-// nil, as git log names them through the mailmap.
-func LoadText(p *catfile.Process, oid func(id uint32) []byte, first, n int, commit func(row int) uint32, mm *mailmap.Map) (*TextChunk, error) {
-	ids := make([][]byte, n)
-	for i := range ids {
-		ids[i] = oid(commit(first + i))
-	}
+// LoadText reads the text of the commits ids, at most TextChunkRows of
+// them, all of one hash size, through a cat-file process. Authors are
+// named as mm maps them, which may be nil, as git log names them through
+// the mailmap.
+func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, error) {
+	n := len(ids)
 	c := &TextChunk{
-		First: first,
 		buf:   make([]byte, 0, n*64),
 		ends:  make([]uint32, 0, 3*n),
 		times: make([]int64, 0, n),
 		zones: make([]int16, 0, n),
 		odd:   make([]bool, 0, n),
+	}
+	if n > 0 {
+		c.hashSize = len(ids[0])
+		c.oids = make([]byte, 0, n*c.hashSize)
+		for _, id := range ids {
+			c.oids = append(c.oids, id...)
+		}
 	}
 	err := p.Read(ids, func(i int, o catfile.Object) error {
 		var cm object.Commit

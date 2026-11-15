@@ -324,20 +324,18 @@ func TestHistoryTextBudget(t *testing.T) {
 	peak := 0
 	for row := 0; row <= n; row += 128 {
 		hv.list.ScrollTo(row, ui.Start)
-		h.until(fmt.Sprintf("row %d", row), func() bool { return hv.loaded(row) != nil })
-		total := 0
-		for _, c := range hv.text {
-			total += c.Bytes()
-		}
+		h.until(fmt.Sprintf("row %d", row), func() bool { ch, _ := hv.loaded(tb.s.History, row); return ch != nil })
+		chunks, total := hv.text.kept()
 		peak = max(peak, total)
 		if total > budget {
-			t.Fatalf("at row %d the text holds %d bytes in %d chunks, over %d", row, total, len(hv.text), budget)
+			t.Fatalf("at row %d the text holds %d bytes in %d chunks, over %d", row, total, chunks, budget)
 		}
 	}
-	if len(hv.text) < 2 || len(hv.text) >= (n+1)/history.TextChunkRows {
-		t.Fatalf("%d chunks kept of %d", len(hv.text), (n+1)/history.TextChunkRows)
+	if chunks, _ := hv.text.kept(); chunks < 2 || chunks >= (n+1)/history.TextChunkRows {
+		t.Fatalf("%d chunks kept of %d", chunks, (n+1)/history.TextChunkRows)
 	}
-	t.Logf("peak %d bytes, %d chunks kept", peak, len(hv.text))
+	chunks, _ := hv.text.kept()
+	t.Logf("peak %d bytes, %d chunks kept", peak, chunks)
 }
 
 // A commit message longer than the header gives it scrolls in its own box,
@@ -940,4 +938,125 @@ func TestHistoryMailmap(t *testing.T) {
 	h.until("mapped", func() bool { return hasExact(h, "handle") && !hasExact(h, "Full Name") })
 	h.click("merged on the web")
 	h.until("the detail", h.shows("handle <me@example.com>"))
+}
+
+// History shown as commits land: a commit on top, then the commit on top
+// amended, which lays history out anew. In every frame the list shows
+// rows with their text, the commit at its top stays at its top and the
+// commit chosen stays chosen, scrolled far from the top; and the new
+// commit comes.
+func TestHistoryStaysAsCommitsLand(t *testing.T) {
+	for _, graph := range []bool{false, true} {
+		t.Run(fmt.Sprintf("graph=%v", graph), func(t *testing.T) {
+			h := newHarness(t)
+			r := h.repoWith()
+			var stream strings.Builder
+			const n = 600
+			for i := range n {
+				msg := fmt.Sprintf("commit %d\n", i)
+				fmt.Fprintf(&stream, "commit refs/heads/main\ncommitter A U Thor <a@example.com> %d +0000\ndata %d\n%s", 1700000000+i, len(msg), msg)
+				if i == 0 {
+					stream.WriteString("from refs/heads/main^0\n")
+				}
+				fmt.Fprintf(&stream, "M 644 inline f.txt\ndata %d\n%d\n\n", len(strconv.Itoa(i))+1, i)
+			}
+			if out, err := r.Run([]byte(stream.String()), "fast-import", "--quiet"); err != nil {
+				t.Fatalf("%v: %s", err, out)
+			}
+			r.Git("reset", "-q", "--hard")
+			if graph {
+				r.Git("commit-graph", "write", "--reachable", "--split")
+			}
+			h.trust.Set(r.GitDir(), true)
+			h.app.Open(r.Dir)
+			h.until("the repository", h.shows("No changes"))
+			tb := h.app.current()
+			hv := &tb.hist
+			h.click("History")
+			h.until("history", func() bool { hs := tb.s.History; return hs.Done && hs.Snap != nil && hs.Snap.Len() == n+1 })
+
+			oid := func(row int) string {
+				hs := tb.s.History
+				return hex.EncodeToString(hs.OID(hs.Snap.Commit(row)))
+			}
+			top := func() int { first, _ := hv.list.Visible(); return first }
+			hv.list.ScrollTo(300, ui.Start)
+			h.until("scrolled", func() bool { return top() == 300 && h.tt.HasText("commit 299") })
+			h.click("commit 297")
+			// Rows are newest first, under the first commit's: commit 297
+			// is row 302.
+			h.until("chosen", func() bool { return hv.chosen == 302 })
+			topID, chosenID := oid(top()), oid(302)
+
+			// steady checks the frame just drawn.
+			steady := func(what string) {
+				t.Helper()
+				hs := tb.s.History
+				if hs.Snap == nil || hs.Snap.Len() == 0 || !hs.Done || !h.tt.HasText("Commits") {
+					t.Fatalf("%s: history went: %+v, texts %q", what, hs, h.tt.Texts())
+				}
+				if got := oid(top()); got != topID {
+					t.Fatalf("%s: the top is %s, was %s", what, got, topID)
+				}
+				if hv.chosen < 0 || oid(hv.chosen) != chosenID || hex.EncodeToString(hv.chosenID) != chosenID {
+					t.Fatalf("%s: chosen %d", what, hv.chosen)
+				}
+				if !h.tt.HasText("commit 299") || !h.tt.HasText("commit 297") {
+					t.Fatalf("%s: the rows' text went: %q", what, h.tt.Texts())
+				}
+			}
+			for _, step := range []struct {
+				what, subject string
+				change        func()
+			}{
+				{"a commit on top", "new on top", func() {
+					r.Write("g.txt", "g\n")
+					r.Commit("new on top")
+				}},
+				{"an amend", "amended on top", func() { r.Git("commit", "-q", "--amend", "-m", "amended on top") }},
+				// More than the list looks around for its rows' keys.
+				{"a fetch of 1500", "fetched 1499", func() {
+					var b strings.Builder
+					for i := range 1500 {
+						fmt.Fprintf(&b, "commit refs/remotes/origin/main\ncommitter F <f@example.com> %d +0000\ndata 12\nfetched %04d\n", 1800000000+i, i)
+						if i == 0 {
+							b.WriteString("from refs/heads/main^0\n")
+						}
+						b.WriteString("\n")
+					}
+					if out, err := r.Run([]byte(b.String()), "fast-import", "--quiet"); err != nil {
+						t.Fatalf("%v: %s", err, out)
+					}
+				}},
+			} {
+				head := oid(0)
+				step.change()
+				now := strings.TrimSpace(r.Git("rev-list", "-1", "--all"))
+				h.until(step.what, func() bool {
+					steady(step.what)
+					hs := tb.s.History
+					return hs.For == tb.s.State.Refs && oid(0) == now && oid(0) != head
+				})
+				h.settle()
+				steady(step.what + ", settled")
+				hv.list.ScrollTo(0, ui.Start)
+				h.until(step.subject, h.shows(step.subject))
+				if hasExact(h, "commit, loading") {
+					t.Fatalf("%s: rows shown without their text", step.what)
+				}
+				hv.list.ScrollTo(oidRow(tb, topID), ui.Start)
+				h.until("back", func() bool { return oid(top()) == topID && h.tt.HasText("commit 299") })
+			}
+		})
+	}
+}
+
+func oidRow(tb *tab, id string) int {
+	hs := tb.s.History
+	for i := range hs.Snap.Len() {
+		if hex.EncodeToString(hs.OID(hs.Snap.Commit(i))) == id {
+			return i
+		}
+	}
+	return -1
 }

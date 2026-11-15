@@ -183,8 +183,8 @@ func TestRewriteManyAndDragSquash(t *testing.T) {
 		for _, s := range subjects {
 			id := strings.TrimSpace(r.Git("log", "-1", "--format=%H", "--grep=^"+s+"$"))
 			for k := 0; k < hs.Snap.Len(); k++ {
-				if c := hs.Snap.Commit(k); hex.EncodeToString(hs.OID(c)) == id {
-					tb.hist.picked.Add(c)
+				if c := hs.OID(hs.Snap.Commit(k)); hex.EncodeToString(c) == id {
+					tb.hist.picked.Add(string(c))
 				}
 			}
 		}

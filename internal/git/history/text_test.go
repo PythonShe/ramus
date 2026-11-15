@@ -1,6 +1,7 @@
 package history
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"strings"
@@ -44,12 +45,15 @@ func TestLoadTextMerged(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	c, err := LoadText(p, func(id uint32) []byte { return ids[id] }, 0, len(ids), func(row int) uint32 { return uint32(row) }, nil)
+	c, err := LoadText(p, ids, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i := range ids {
 		subject, _, _ := c.Row(i)
+		if !bytes.Equal(c.OID(i), ids[i]) {
+			t.Errorf("row %d is %x, want %x", i, c.OID(i), ids[i])
+		}
 		if got := c.Merged(i); got != want[i] {
 			t.Errorf("row %d (%s): merged %q, want %q", i, subject, got, want[i])
 		}
@@ -102,7 +106,7 @@ func TestLoadTextEncodings(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	c, err := LoadText(p, func(id uint32) []byte { return ids[id] }, 0, len(ids), func(row int) uint32 { return uint32(row) }, nil)
+	c, err := LoadText(p, ids, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

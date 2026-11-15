@@ -80,7 +80,11 @@ func TestHistoryLoadsEveryTip(t *testing.T) {
 		}
 
 		var c *history.TextChunk
-		s.HistoryText(h, 0, h.Snap.Len(), func(tc *history.TextChunk, err error) {
+		var ids [][]byte
+		for i := range h.Snap.Len() {
+			ids = append(ids, slices.Clone(h.OID(h.Snap.Commit(i))))
+		}
+		s.HistoryText(ids, func(tc *history.TextChunk, _ int, err error) {
 			if err != nil {
 				t.Error(err)
 			}
