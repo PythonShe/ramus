@@ -33,6 +33,8 @@ repositories and runs your own git.
   including GitHub stacks.
 - **Worktrees**: every worktree's branch, changes, and how far ahead or
   behind it is.
+- **Git LFS locks**: see who holds a lock, lock a file before editing it,
+  and release or force off a lock, through your `git-lfs`.
 - **Snapshots**: uncommitted work is kept before anything that would drop
   it, and can be restored or taken by hand at any time.
 - **Statistics**: commits by person, a calendar, heat map and treemaps.
@@ -63,7 +65,8 @@ numbers were taken: [docs/benchmarks.md](docs/benchmarks.md).
 
 Ramus needs git 2.36 or later. Pull requests need
 [`gh`](https://cli.github.com) or [`glab`](https://gitlab.com/gitlab-org/cli),
-logged in.
+logged in. Git LFS locks need
+[`git-lfs`](https://git-lfs.com).
 
 **macOS** (signed and notarized), 12 or later:
 

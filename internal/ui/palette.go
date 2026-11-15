@@ -137,6 +137,9 @@ func (a *App) tabCommands(t *tab) []command {
 		cmd("show-refs", func() { t.sel = "refs" }),
 		cmd("show-stashes", func() { t.sel = "stashes" }),
 	)
+	if t.s.State.LFS {
+		cmds = append(cmds, cmd("show-lfs-locks", func() { t.sel = sideLocks }))
+	}
 	if q := t.s.Queue; q != nil {
 		cmds = append(cmds, a.writeCommands(t)...)
 		cmds = append(cmds, cmd("snapshot", func() {

@@ -12644,3 +12644,291 @@ func SessionNotCommitted() string { return In(i18n.Locale()).SessionNotCommitted
 func (msgs Messages) SessionNotCommitted() string {
 	return Catalog.Format(msgs.locale, "sessionNotCommitted", nil)
 }
+
+// RepoSectionLocks says "LFS Locks"
+// in the language the app shows.
+//
+// Sidebar item and page title: the files locked on the repository's Git LFS
+// server.
+func RepoSectionLocks() string { return In(i18n.Locale()).RepoSectionLocks() }
+
+// RepoSectionLocks says "LFS Locks"
+// in the language of msgs.
+//
+// Sidebar item and page title: the files locked on the repository's Git LFS
+// server.
+func (msgs Messages) RepoSectionLocks() string {
+	return Catalog.Format(msgs.locale, "repoSectionLocks", nil)
+}
+
+// KeysShowLocks says "Show LFS Locks"
+// in the language the app shows.
+//
+// Command that shows the Git LFS locks page.
+func KeysShowLocks() string { return In(i18n.Locale()).KeysShowLocks() }
+
+// KeysShowLocks says "Show LFS Locks"
+// in the language of msgs.
+//
+// Command that shows the Git LFS locks page.
+func (msgs Messages) KeysShowLocks() string {
+	return Catalog.Format(msgs.locale, "keysShowLocks", nil)
+}
+
+// LocksPath says "File to lock"
+// in the language the app shows.
+//
+// Placeholder and label of the field naming a file, relative to the
+// repository, to lock on the Git LFS server.
+func LocksPath() string { return In(i18n.Locale()).LocksPath() }
+
+// LocksPath says "File to lock"
+// in the language of msgs.
+//
+// Placeholder and label of the field naming a file, relative to the
+// repository, to lock on the Git LFS server.
+func (msgs Messages) LocksPath() string {
+	return Catalog.Format(msgs.locale, "locksPath", nil)
+}
+
+// LocksLock says "Lock"
+// in the language the app shows.
+//
+// Button that locks the file named in the field on the Git LFS server.
+func LocksLock() string { return In(i18n.Locale()).LocksLock() }
+
+// LocksLock says "Lock"
+// in the language of msgs.
+//
+// Button that locks the file named in the field on the Git LFS server.
+func (msgs Messages) LocksLock() string {
+	return Catalog.Format(msgs.locale, "locksLock", nil)
+}
+
+// LocksNone says "No files are locked."
+// in the language the app shows.
+//
+// Shown when the Git LFS server holds no locks for the repository.
+func LocksNone() string { return In(i18n.Locale()).LocksNone() }
+
+// LocksNone says "No files are locked."
+// in the language of msgs.
+//
+// Shown when the Git LFS server holds no locks for the repository.
+func (msgs Messages) LocksNone() string {
+	return Catalog.Format(msgs.locale, "locksNone", nil)
+}
+
+// LocksNoLFS says "Git LFS is not installed. Install git-lfs to see and change file locks."
+// in the language the app shows.
+//
+// Shown in place of the locks when git cannot run git-lfs.
+func LocksNoLFS() string { return In(i18n.Locale()).LocksNoLFS() }
+
+// LocksNoLFS says "Git LFS is not installed. Install git-lfs to see and change file locks."
+// in the language of msgs.
+//
+// Shown in place of the locks when git cannot run git-lfs.
+func (msgs Messages) LocksNoLFS() string {
+	return Catalog.Format(msgs.locale, "locksNoLFS", nil)
+}
+
+// LocksList says "Locked files"
+// in the language the app shows.
+//
+// Accessibility label of the table of locked files.
+func LocksList() string { return In(i18n.Locale()).LocksList() }
+
+// LocksList says "Locked files"
+// in the language of msgs.
+//
+// Accessibility label of the table of locked files.
+func (msgs Messages) LocksList() string {
+	return Catalog.Format(msgs.locale, "locksList", nil)
+}
+
+// LocksRow says "{path}, locked by {owner}"
+// in the language the app shows.
+//
+// Accessibility label of a locked file's row.
+func LocksRow(path string, owner string) string { return In(i18n.Locale()).LocksRow(path, owner) }
+
+// LocksRow says "{path}, locked by {owner}"
+// in the language of msgs.
+//
+// Accessibility label of a locked file's row.
+func (msgs Messages) LocksRow(path string, owner string) string {
+	return Catalog.Format(msgs.locale, "locksRow", map[string]any{"path": path, "owner": owner})
+}
+
+// LocksYou says "{owner} (you)"
+// in the language the app shows.
+//
+// The owner of a lock the user holds.
+func LocksYou(owner string) string { return In(i18n.Locale()).LocksYou(owner) }
+
+// LocksYou says "{owner} (you)"
+// in the language of msgs.
+//
+// The owner of a lock the user holds.
+func (msgs Messages) LocksYou(owner string) string {
+	return Catalog.Format(msgs.locale, "locksYou", map[string]any{"owner": owner})
+}
+
+// LocksUnlock says "Unlock"
+// in the language the app shows.
+//
+// Menu item that releases a Git LFS lock.
+func LocksUnlock() string { return In(i18n.Locale()).LocksUnlock() }
+
+// LocksUnlock says "Unlock"
+// in the language of msgs.
+//
+// Menu item that releases a Git LFS lock.
+func (msgs Messages) LocksUnlock() string {
+	return Catalog.Format(msgs.locale, "locksUnlock", nil)
+}
+
+// LocksForceUnlock says "Force Unlock…"
+// in the language the app shows.
+//
+// Menu item that releases a Git LFS lock even when someone else holds it;
+// asks first.
+func LocksForceUnlock() string { return In(i18n.Locale()).LocksForceUnlock() }
+
+// LocksForceUnlock says "Force Unlock…"
+// in the language of msgs.
+//
+// Menu item that releases a Git LFS lock even when someone else holds it;
+// asks first.
+func (msgs Messages) LocksForceUnlock() string {
+	return Catalog.Format(msgs.locale, "locksForceUnlock", nil)
+}
+
+// LocksForceTitle says "Force unlock “{path}”?"
+// in the language the app shows.
+//
+// Title of the question before a lock is forced off.
+func LocksForceTitle(path string) string { return In(i18n.Locale()).LocksForceTitle(path) }
+
+// LocksForceTitle says "Force unlock “{path}”?"
+// in the language of msgs.
+//
+// Title of the question before a lock is forced off.
+func (msgs Messages) LocksForceTitle(path string) string {
+	return Catalog.Format(msgs.locale, "locksForceTitle", map[string]any{"path": path})
+}
+
+// LocksForceMessage says "{owner} holds this lock and is not told it was removed. Changes they push to the file may then conflict with others’."
+// in the language the app shows.
+//
+// Message of the question before forcing off a lock someone else holds.
+func LocksForceMessage(owner string) string { return In(i18n.Locale()).LocksForceMessage(owner) }
+
+// LocksForceMessage says "{owner} holds this lock and is not told it was removed. Changes they push to the file may then conflict with others’."
+// in the language of msgs.
+//
+// Message of the question before forcing off a lock someone else holds.
+func (msgs Messages) LocksForceMessage(owner string) string {
+	return Catalog.Format(msgs.locale, "locksForceMessage", map[string]any{"owner": owner})
+}
+
+// LocksForceMessageOurs says "The lock is removed even if the file has changes not committed."
+// in the language the app shows.
+//
+// Message of the question before forcing off a lock the user holds.
+func LocksForceMessageOurs() string { return In(i18n.Locale()).LocksForceMessageOurs() }
+
+// LocksForceMessageOurs says "The lock is removed even if the file has changes not committed."
+// in the language of msgs.
+//
+// Message of the question before forcing off a lock the user holds.
+func (msgs Messages) LocksForceMessageOurs() string {
+	return Catalog.Format(msgs.locale, "locksForceMessageOurs", nil)
+}
+
+// LocksForceButton says "Force Unlock"
+// in the language the app shows.
+//
+// Button that forces a Git LFS lock off.
+func LocksForceButton() string { return In(i18n.Locale()).LocksForceButton() }
+
+// LocksForceButton says "Force Unlock"
+// in the language of msgs.
+//
+// Button that forces a Git LFS lock off.
+func (msgs Messages) LocksForceButton() string {
+	return Catalog.Format(msgs.locale, "locksForceButton", nil)
+}
+
+// LocksLockFile says "Lock File"
+// in the language the app shows.
+//
+// Menu item of a changed file that locks it on the Git LFS server.
+func LocksLockFile() string { return In(i18n.Locale()).LocksLockFile() }
+
+// LocksLockFile says "Lock File"
+// in the language of msgs.
+//
+// Menu item of a changed file that locks it on the Git LFS server.
+func (msgs Messages) LocksLockFile() string {
+	return Catalog.Format(msgs.locale, "locksLockFile", nil)
+}
+
+// LocksUnlockFile says "Unlock File"
+// in the language the app shows.
+//
+// Menu item of a changed file that releases the user's Git LFS lock on it.
+func LocksUnlockFile() string { return In(i18n.Locale()).LocksUnlockFile() }
+
+// LocksUnlockFile says "Unlock File"
+// in the language of msgs.
+//
+// Menu item of a changed file that releases the user's Git LFS lock on it.
+func (msgs Messages) LocksUnlockFile() string {
+	return Catalog.Format(msgs.locale, "locksUnlockFile", nil)
+}
+
+// LocksLockedBy says "Locked by {owner}"
+// in the language the app shows.
+//
+// Disabled menu item of a changed file someone else holds the Git LFS lock
+// on.
+func LocksLockedBy(owner string) string { return In(i18n.Locale()).LocksLockedBy(owner) }
+
+// LocksLockedBy says "Locked by {owner}"
+// in the language of msgs.
+//
+// Disabled menu item of a changed file someone else holds the Git LFS lock
+// on.
+func (msgs Messages) LocksLockedBy(owner string) string {
+	return Catalog.Format(msgs.locale, "locksLockedBy", map[string]any{"owner": owner})
+}
+
+// ColumnFile says "File"
+// in the language the app shows.
+//
+// Column of a table listing files.
+func ColumnFile() string { return In(i18n.Locale()).ColumnFile() }
+
+// ColumnFile says "File"
+// in the language of msgs.
+//
+// Column of a table listing files.
+func (msgs Messages) ColumnFile() string {
+	return Catalog.Format(msgs.locale, "columnFile", nil)
+}
+
+// ColumnOwner says "Owner"
+// in the language the app shows.
+//
+// Column naming who holds a lock.
+func ColumnOwner() string { return In(i18n.Locale()).ColumnOwner() }
+
+// ColumnOwner says "Owner"
+// in the language of msgs.
+//
+// Column naming who holds a lock.
+func (msgs Messages) ColumnOwner() string {
+	return Catalog.Format(msgs.locale, "columnOwner", nil)
+}

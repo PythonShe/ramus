@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"ramus/internal/git/commitgraph"
+	"ramus/internal/git/lfs"
 	"ramus/internal/git/lifetime"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
@@ -48,6 +49,9 @@ type State struct {
 	Held bool
 	// Fallbacks name what goes to git, for the status line.
 	Fallbacks []string
+	// LFS is a trusted repository that keeps files in Git LFS, as it was
+	// at open: its file locks can be shown.
+	LFS bool
 
 	Head       refs.Head
 	Refs       *refs.List
@@ -269,6 +273,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 	notices, werr := r.Watch(nil)
 	// Off the main thread: whether history goes to git reads files.
 	fallbacks := r.Capabilities().Fallbacks()
+	usesLFS := !r.Restricted && lfs.Uses(r.CommonDir, r.WorkTree)
 	s.update(func() {
 		s.mu.Lock()
 		closed := s.closed
@@ -281,7 +286,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 			s.held, q = q, nil
 		}
 		s.Repo, s.Queue = r, q
-		s.State = State{Restricted: r.Restricted, Held: s.holding, Fallbacks: fallbacks, Operation: repo.InProgress(r.GitDir)}
+		s.State = State{Restricted: r.Restricted, Held: s.holding, Fallbacks: fallbacks, LFS: usesLFS, Operation: repo.InProgress(r.GitDir)}
 		s.State.WatchErr = werr
 	})
 	r.Life().Go(func(ctx context.Context) { s.refresher(ctx, r) })

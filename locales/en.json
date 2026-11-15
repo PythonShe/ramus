@@ -2555,5 +2555,85 @@
   "@sessionNoCommitNamed": {
     "description": "name is what was asked for, quoted."
   },
-  "sessionNotCommitted": "these lines are not committed yet"
+  "sessionNotCommitted": "these lines are not committed yet",
+  "repoSectionLocks": "LFS Locks",
+  "@repoSectionLocks": {
+    "description": "Sidebar item and page title: the files locked on the repository's Git LFS server."
+  },
+  "keysShowLocks": "Show LFS Locks",
+  "@keysShowLocks": {
+    "description": "Command that shows the Git LFS locks page."
+  },
+  "locksPath": "File to lock",
+  "@locksPath": {
+    "description": "Placeholder and label of the field naming a file, relative to the repository, to lock on the Git LFS server."
+  },
+  "locksLock": "Lock",
+  "@locksLock": {
+    "description": "Button that locks the file named in the field on the Git LFS server."
+  },
+  "locksNone": "No files are locked.",
+  "@locksNone": {
+    "description": "Shown when the Git LFS server holds no locks for the repository."
+  },
+  "locksNoLFS": "Git LFS is not installed. Install git-lfs to see and change file locks.",
+  "@locksNoLFS": {
+    "description": "Shown in place of the locks when git cannot run git-lfs."
+  },
+  "locksList": "Locked files",
+  "@locksList": {
+    "description": "Accessibility label of the table of locked files."
+  },
+  "locksRow": "{path}, locked by {owner}",
+  "@locksRow": {
+    "description": "Accessibility label of a locked file's row."
+  },
+  "locksYou": "{owner} (you)",
+  "@locksYou": {
+    "description": "The owner of a lock the user holds."
+  },
+  "locksUnlock": "Unlock",
+  "@locksUnlock": {
+    "description": "Menu item that releases a Git LFS lock."
+  },
+  "locksForceUnlock": "Force Unlock…",
+  "@locksForceUnlock": {
+    "description": "Menu item that releases a Git LFS lock even when someone else holds it; asks first."
+  },
+  "locksForceTitle": "Force unlock “{path}”?",
+  "@locksForceTitle": {
+    "description": "Title of the question before a lock is forced off."
+  },
+  "locksForceMessage": "{owner} holds this lock and is not told it was removed. Changes they push to the file may then conflict with others’.",
+  "@locksForceMessage": {
+    "description": "Message of the question before forcing off a lock someone else holds."
+  },
+  "locksForceMessageOurs": "The lock is removed even if the file has changes not committed.",
+  "@locksForceMessageOurs": {
+    "description": "Message of the question before forcing off a lock the user holds."
+  },
+  "locksForceButton": "Force Unlock",
+  "@locksForceButton": {
+    "description": "Button that forces a Git LFS lock off."
+  },
+  "locksLockFile": "Lock File",
+  "@locksLockFile": {
+    "description": "Menu item of a changed file that locks it on the Git LFS server."
+  },
+  "locksUnlockFile": "Unlock File",
+  "@locksUnlockFile": {
+    "description": "Menu item of a changed file that releases the user's Git LFS lock on it."
+  },
+  "locksLockedBy": "Locked by {owner}",
+  "@locksLockedBy": {
+    "description": "Disabled menu item of a changed file someone else holds the Git LFS lock on."
+  },
+  "columnFile": "File",
+  "@columnFile": {
+    "description": "Column of a table listing files."
+  },
+  "columnOwner": "Owner",
+  "@columnOwner": {
+    "description": "Column naming who holds a lock."
+  }
 }

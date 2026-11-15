@@ -19,7 +19,7 @@ var sidebarParts = []struct {
 	{"branches", locales.RepoSectionBranches}, {"remotes", locales.RepoSectionRemotes}, {"tags", locales.RepoSectionTags},
 	{"stashes", locales.RepoSectionStashes}, {"worktrees", locales.RepoSectionWorktrees}, {"submodules", locales.RepoSectionSubmodules},
 	{"snapshots", locales.RepoSectionSnapshots}, {"reflog", locales.RepoSectionReflog}, {"log", locales.RepoSectionLog},
-	{"stats", locales.RepoSectionStats},
+	{"stats", locales.RepoSectionStats}, {sideLocks, locales.RepoSectionLocks},
 }
 
 func partName(key string) string {

@@ -114,6 +114,9 @@ func (a *App) page(c *ui.Context, t *tab) {
 	case "stashes":
 		a.stashView(c, t)
 		return
+	case sideLocks:
+		a.lfsLocksView(c, t)
+		return
 	case "worktrees":
 		a.worktreeDashboard(c, t)
 		return
@@ -285,8 +288,11 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		}
 		if slices.ContainsFunc(sideTools, a.shown) {
 			sideDivider(c)
-			// Four items, always open: nothing to fold away.
+			// A few items, always open: nothing to fold away.
 			ui.SidebarSection(c, locales.RepoSectionTools(), nil, func() {
+				if st.LFS {
+					item(sideLocks, locales.RepoSectionLocks())
+				}
 				item("snapshots", locales.RepoSectionSnapshots())
 				item("reflog", locales.RepoSectionReflog())
 				item("log", locales.RepoSectionLog())
@@ -301,7 +307,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 }
 
 // sideTools are the keys of the sidebar's tools, at its end.
-var sideTools = []string{"snapshots", "reflog", "log", "stats"}
+var sideTools = []string{sideLocks, "snapshots", "reflog", "log", "stats"}
 
 // sideDivider is the line between the sidebar's groups.
 func sideDivider(c *ui.Context) {
