@@ -39,4 +39,4 @@ chmod +x "$app/AppRun"
 mkdir -p "$out"
 # The tool is an AppImage itself; extracting it needs no FUSE.
 ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$work/appimagetool" --no-appstream \
-	--runtime-file "$work/runtime" "$app" "$out/Ramus-$version-x86_64.AppImage"
+	--runtime-file "$work/runtime" "$app" "$out/ramus-$version-linux-x86_64.AppImage"

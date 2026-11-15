@@ -251,7 +251,7 @@ jobs:
           set -euo pipefail
           scripts/appimage.sh build/linux-amd64 build
           if [ -n "$TAG" ]; then
-            gh release upload "$TAG" build/Ramus-*-x86_64.AppImage --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" build/ramus-*-linux-x86_64.AppImage --repo "$GITHUB_REPOSITORY" --clobber
           fi
 
       - name: Keep the apps of a dry run

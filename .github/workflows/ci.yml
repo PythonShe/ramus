@@ -91,8 +91,8 @@ jobs:
           tar tzf linux-amd64/ramus-*-linux-amd64.tar.gz | grep -qx 'ramus'
           rpm -qip linux-amd64/ramus-*.x86_64.rpm
           rpm -qlp linux-amd64/ramus-*.x86_64.rpm | grep -q '/opt/ramus/ramus$'
-          chmod +x Ramus-*-x86_64.AppImage
-          ./Ramus-*-x86_64.AppImage --appimage-extract >/dev/null
+          chmod +x ramus-*-linux-x86_64.AppImage
+          ./ramus-*-linux-x86_64.AppImage --appimage-extract >/dev/null
           test -x squashfs-root/usr/lib/ramus/ramus
       - name: The deb installs, and the app starts as far as its command line
         run: |
