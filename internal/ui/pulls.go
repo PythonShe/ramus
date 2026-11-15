@@ -215,7 +215,7 @@ func (a *App) pullItems(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) {
 	pushed := b.Upstream != "" && !b.Gone
 	if m.Item(locales.PullsShowInBrowser(kind)).Disabled(!pushed).Chosen() {
 		// A fork's are in the repository it was forked from.
-		a.openURL = session.PullsRepo(repo, info.Remotes).BranchPulls(name)
+		a.openURL = t.s.PullsRepo(repo, info.Remotes).BranchPulls(name)
 	}
 	if m.Item(locales.PullsCreateInBrowser(kind)).Disabled(!pushed).Chosen() {
 		a.openURL = repo.NewPull(name)
@@ -265,7 +265,7 @@ func (a *App) stackBadge(c *ui.Context, k ink, t *tab, info *session.RefInfo, b 
 		// as a folder brings along: its link goes to the remote's host only.
 		repo, _, isOn := session.BranchRepo(b, info.Remotes)
 		if br := st.Branches[i]; br.PR > 0 && br.URL != "" && !br.Merged && isOn && repo.Kind == forge.GitHub {
-			ui.Link(c, fmt.Sprintf("#%d", br.PR), session.PullsRepo(repo, info.Remotes).PullURL(br.URL, br.PR)).FontSize(textSmall)
+			ui.Link(c, fmt.Sprintf("#%d", br.PR), t.s.PullsRepo(repo, info.Remotes).PullURL(br.URL, br.PR)).FontSize(textSmall)
 		}
 	}
 }

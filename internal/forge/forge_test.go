@@ -413,3 +413,27 @@ func TestKnownHosts(t *testing.T) {
 		t.Fatalf("gh hosts %q", got)
 	}
 }
+
+// A fork names its parent; a repository that is none, or names one no
+// remote could, has none.
+func TestParent(t *testing.T) {
+	c, err := Find(fakeREST(t, `repos/me/r) echo '{"full_name":"me/r","fork":true,"parent":{"full_name":"up/r"}}' ;;
+repos/up/r) echo '{"full_name":"up/r","fork":false}' ;;
+repos/me/odd) echo '{"parent":{"full_name":"../x"}}' ;;`), GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	p, ok, err := c.Parent(ctx, Repo{GitHub, "github.com", "me/r"})
+	if err != nil || !ok || p != (Repo{GitHub, "github.com", "up/r"}) {
+		t.Fatalf("%+v %v %v", p, ok, err)
+	}
+	for _, path := range []string{"up/r", "me/odd"} {
+		if p, ok, err := c.Parent(ctx, Repo{GitHub, "github.com", path}); err != nil || ok {
+			t.Errorf("%s: %+v %v %v", path, p, ok, err)
+		}
+	}
+	if _, _, err := c.Parent(ctx, Repo{GitHub, "github.evil.example", "me/r"}); !errors.Is(err, ErrUnknownHost) {
+		t.Errorf("an unknown host: %v", err)
+	}
+}

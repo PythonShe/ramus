@@ -248,3 +248,63 @@ func literal(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
 }
+
+// Parent is the repository r was forked from, on r's host; ok is false
+// when r is no fork. A fork's clone need not name it as a remote, and
+// its pull requests and the merged ones of its commits are there. A host
+// the tool does not know (Knows) is not asked: ErrUnknownHost.
+func (c *CLI) Parent(ctx context.Context, r Repo) (p Repo, ok bool, err error) {
+	if r.Kind != c.Kind {
+		return Repo{}, false, ErrNoCLI
+	}
+	if !c.Knows(r.Host) {
+		return Repo{}, false, ErrUnknownHost
+	}
+	var path string
+	switch r.Kind {
+	case GitHub:
+		out, err := c.run(ctx, "", r.Host, "api", "repos/"+r.Path, "--hostname", r.Host)
+		if err != nil {
+			return Repo{}, false, err
+		}
+		var a struct {
+			Parent *struct {
+				FullName string `json:"full_name"`
+			} `json:"parent"`
+		}
+		if err := json.Unmarshal(out, &a); err != nil {
+			return Repo{}, false, fmt.Errorf("gh: %w", err)
+		}
+		if a.Parent != nil {
+			path = a.Parent.FullName
+		}
+	case GitLab:
+		out, err := c.run(ctx, "", r.Host, "api", "projects/"+strings.ReplaceAll(r.Path, "/", "%2F"), "--hostname", r.Host)
+		if err != nil {
+			return Repo{}, false, err
+		}
+		var a struct {
+			From *struct {
+				Path string `json:"path_with_namespace"`
+			} `json:"forked_from_project"`
+		}
+		if err := json.Unmarshal(out, &a); err != nil {
+			return Repo{}, false, fmt.Errorf("glab: %w", err)
+		}
+		if a.From != nil {
+			path = a.From.Path
+		}
+	}
+	// The answer goes into the paths of later calls and of pages opened:
+	// what a remote could name, no more.
+	parts := strings.Split(path, "/")
+	if path == "" || r.Kind == GitHub && len(parts) != 2 || len(parts) < 2 {
+		return Repo{}, false, nil
+	}
+	for _, s := range parts {
+		if !namePart(s) {
+			return Repo{}, false, nil
+		}
+	}
+	return Repo{Kind: r.Kind, Host: r.Host, Path: path}, true, nil
+}

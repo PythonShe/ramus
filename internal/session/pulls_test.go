@@ -135,3 +135,56 @@ func TestCommitPullOfAFork(t *testing.T) {
 		t.Errorf("asked\n%s\nwant\n%s", b, want)
 	}
 }
+
+// A fork's clone that names no upstream remote finds its branches' pull
+// requests and its commits' merged ones in the repository GitHub says it
+// was forked from, asked once.
+func TestPullsOfAForkWithoutUpstream(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake gh is a shell script")
+	}
+	dir := t.TempDir()
+	sha := strings.Repeat("ab", 20)
+	script := "#!/bin/sh\necho \"$2 $8\" >> '" + filepath.Join(dir, "asked") + "'\ncase \"$2\" in\n" +
+		"repos/me/r) echo '{\"parent\":{\"full_name\":\"up/r\"}}' ;;\n" +
+		"repos/up/r/commits/" + sha + "/pulls) echo '[{\"number\":5,\"html_url\":\"https://github.com/up/r/pull/5\",\"state\":\"closed\",\"merged_at\":\"2026-11-01T00:00:00Z\"}]' ;;\n" +
+		"graphql) case \"$8\" in owner=up) echo '{\"data\":{\"repository\":{\"b0\":{\"nodes\":[{\"number\":7,\"url\":\"https://github.com/up/r/pull/7\",\"state\":\"OPEN\",\"headRefName\":\"feature\",\"headRepositoryOwner\":{\"login\":\"me\"}}]}}}}' ;; *) echo '{\"data\":{\"repository\":{}}}' ;; esac ;;\n" +
+		"*) echo '[]' ;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"PATH=" + dir + ":/usr/bin:/bin", "GH_CONFIG_DIR=" + t.TempDir()}
+	find := func(k forge.Kind) (*forge.CLI, error) { return forge.Find(env, k) }
+
+	r := gittest.Init(t)
+	r.Commit("one")
+	r.Git("remote", "add", "origin", "https://github.com/me/r.git")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+
+	remotes := []RemoteInfo{{Name: "origin", URL: "https://github.com/me/r.git"}}
+	info := &RefInfo{Branches: []BranchInfo{{Name: "refs/heads/feature", Upstream: "refs/remotes/origin/feature"}}, Remotes: remotes}
+	var res *PullsResult
+	s.LoadPulls(find, info, func(got PullsResult) { res = &got })
+	m.until(t, "the pull requests", func() bool { return res != nil })
+	if p := res.Pulls["refs/heads/feature"]; res.Err != nil || p.Number != 7 || p.Repo.Path != "up/r" {
+		t.Fatalf("pulls: %+v", res)
+	}
+	if got := s.PullsRepo(forge.Repo{Kind: forge.GitHub, Host: "github.com", Path: "me/r"}, remotes); got.Path != "up/r" {
+		t.Errorf("PullsRepo %+v, want the parent", got)
+	}
+
+	oid, _ := hex.DecodeString(sha)
+	var cp *CommitPullResult
+	s.LoadCommitPull(find, oid, "Subject", func(got CommitPullResult) { cp = &got })
+	m.until(t, "the commit's pull request", func() bool { return cp != nil })
+	if cp.Err != nil || !cp.Found || cp.Pull.Number != 5 || cp.Pull.State != forge.PullMerged {
+		t.Fatalf("commit pull: %+v", cp)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "asked"))
+	if n := strings.Count(string(b), "repos/me/r "); n != 1 {
+		t.Errorf("asked for the parent %d times:\n%s", n, b)
+	}
+}

@@ -135,6 +135,8 @@ type Session struct {
 	view        viewScope
 	fetch       backgroundFetch
 	graph       autoGraph
+	// forks are the parents the hosts named; see PullsRepo.
+	forks forks
 	// graphEvery and graphRetry, when set, replace the constants.
 	graphEvery, graphRetry time.Duration
 	// worktreeEvery and fetchBusyWait, when set, replace the constants.

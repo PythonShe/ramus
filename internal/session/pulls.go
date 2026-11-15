@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"ramus/internal/forge"
@@ -69,19 +70,74 @@ func BranchRepo(b BranchInfo, remotes []RemoteInfo) (forge.Repo, string, bool) {
 const ParentRemote = "upstream"
 
 // PullsRepo is the repository the pull requests from head's branches go
-// to: the remote named upstream, when it is on the same host, else head
-// itself.
-func PullsRepo(head forge.Repo, remotes []RemoteInfo) forge.Repo {
+// to: the remote named upstream, when it is on the same host, else the
+// repository head was forked from, once its host has named it (LoadPulls
+// and LoadCommitPull ask), else head itself.
+func (s *Session) PullsRepo(head forge.Repo, remotes []RemoteInfo) forge.Repo {
+	if up, ok := upstreamRepo(head, remotes); ok {
+		return up
+	}
+	if p, ok := s.forks.get(head); ok && p != (forge.Repo{}) {
+		return p
+	}
+	return head
+}
+
+// upstreamRepo is the remote named upstream, when it is on head's host.
+func upstreamRepo(head forge.Repo, remotes []RemoteInfo) (forge.Repo, bool) {
 	for _, rm := range remotes {
 		if rm.Name != ParentRemote {
 			continue
 		}
 		// Its fetch URL: a fork's clone often turns upstream's push off.
 		if up, ok := forge.Parse(rm.URL); ok && up.Kind == head.Kind && up.Host == head.Host {
-			return up
+			return up, true
 		}
 	}
-	return head
+	return forge.Repo{}, false
+}
+
+// forks keeps what the hosts said of the repositories asked about,
+// whether each is a fork and of what, so each is asked once a session:
+// a fork's clone need not name its parent as a remote. It holds one entry
+// per remote asked about. Any goroutine.
+type forks struct {
+	mu sync.Mutex
+	// parent is the zero Repo for a repository that is no fork.
+	parent map[forge.Repo]forge.Repo
+}
+
+func (f *forks) get(r forge.Repo) (forge.Repo, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p, ok := f.parent[r]
+	return p, ok
+}
+
+// parentOf is the repository head was forked from, asked of its host the
+// first time, else head itself; a failure is asked again next time.
+func (f *forks) parentOf(ctx context.Context, c *forge.CLI, head forge.Repo) forge.Repo {
+	p, ok := f.get(head)
+	if !ok {
+		var fork bool
+		var err error
+		if p, fork, err = c.Parent(ctx, head); err != nil {
+			return head
+		}
+		if !fork {
+			p = forge.Repo{}
+		}
+		f.mu.Lock()
+		if f.parent == nil {
+			f.parent = map[forge.Repo]forge.Repo{}
+		}
+		f.parent[head] = p
+		f.mu.Unlock()
+	}
+	if p == (forge.Repo{}) {
+		return head
+	}
+	return p
 }
 
 // RemoteURLs are the URLs of a repository's remote named upstream, ""
@@ -105,7 +161,8 @@ func RemoteURLs(r *repo.Repository) (upstream, origin string) {
 // gives for each (called off the main thread too), about the pull
 // requests of the branches of info that track a remote branch, and hands
 // the answer to done on it. A fork's branches are asked about in the
-// repository it was forked from (PullsRepo). A repository whose tool is
+// repository it was forked from (PullsRepo), which its host is asked for
+// when no remote names it. A repository whose tool is
 // missing or not logged in is skipped, with that error; one on a host the
 // tool does not know is skipped without one. A repository not trusted
 // asks nothing: its remotes name the hosts.
@@ -133,7 +190,7 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 		if !ok {
 			continue
 		}
-		w := where{PullsRepo(head, info.Remotes), head}
+		w := where{s.PullsRepo(head, info.Remotes), head}
 		a := asks[w]
 		if a == nil {
 			a = &ask{}
@@ -161,7 +218,11 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 				continue
 			}
 			a := asks[w]
-			got, err := c.Pulls(ctx, w.base, w.head, a.remote)
+			base := w.base
+			if base == w.head {
+				base = s.forks.parentOf(ctx, c, w.head)
+			}
+			got, err := c.Pulls(ctx, base, w.head, a.remote)
 			if err != nil {
 				if ctx.Err() != nil {
 					return
@@ -173,7 +234,7 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 			}
 			for i, remote := range a.remote {
 				if p, ok := got[remote]; ok {
-					res.Pulls[a.local[i]] = PullInfo{Pull: p, Repo: w.base}
+					res.Pulls[a.local[i]] = PullInfo{Pull: p, Repo: base}
 				}
 			}
 		}
@@ -204,8 +265,9 @@ func commitPullKey(oid []byte) string { return "p\x00" + string(oid) }
 // gives (called off the main thread too), for the pull request that
 // brought commit oid in, whose subject is subject, and hands the answer
 // to done on it: from the repository named upstream when there is one,
-// for a fork's commits came in there, then from origin, where a fork's
-// branch's commits are until merged. A repository
+// for a fork's commits came in there, or else from the repository origin
+// was forked from, then from origin, where a fork's branch's commits are
+// until merged. A repository
 // not on GitHub, on a host gh does not know, or not trusted, is not
 // asked. The answer is kept per commit for CommitPullMaxAge. cancel stops
 // the asking and drops its answer.
@@ -250,10 +312,12 @@ func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid 
 func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(forge.Kind) (*forge.CLI, error), sha string, hint int) CommitPullResult {
 	up, origin := RemoteURLs(r)
 	var asks []forge.Repo
-	for _, u := range []string{up, origin} {
-		if gh, ok := forge.Parse(u); ok && gh.Kind == forge.GitHub && (len(asks) == 0 || gh != asks[0]) {
-			asks = append(asks, gh)
-		}
+	if gh, ok := forge.Parse(up); ok && gh.Kind == forge.GitHub {
+		asks = append(asks, gh)
+	}
+	gh, ok := forge.Parse(origin)
+	if ok && gh.Kind == forge.GitHub && (len(asks) == 0 || gh != asks[0]) {
+		asks = append(asks, gh)
 	}
 	if len(asks) == 0 {
 		return CommitPullResult{}
@@ -261,6 +325,12 @@ func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(
 	c, err := find(forge.GitHub)
 	if err != nil {
 		return CommitPullResult{Err: err}
+	}
+	if len(asks) == 1 && up == "" {
+		// A fork's clone without the remote: its parent, as GitHub names it.
+		if p := s.forks.parentOf(ctx, c, asks[0]); p != asks[0] {
+			asks = []forge.Repo{p, asks[0]}
+		}
 	}
 	for i, gh := range asks {
 		// GitHub names a pull request of a fork's branch, until it is
