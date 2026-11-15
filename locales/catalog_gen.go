@@ -8305,6 +8305,50 @@ func (msgs Messages) SnapshotsNow() string {
 	return Catalog.Format(msgs.locale, "snapshotsNow", nil)
 }
 
+// SnapshotsName says "Name"
+// in the language the app shows.
+//
+// The placeholder of the optional name of a snapshot taken by hand.
+func SnapshotsName() string { return In(i18n.Locale()).SnapshotsName() }
+
+// SnapshotsName says "Name"
+// in the language of msgs.
+//
+// The placeholder of the optional name of a snapshot taken by hand.
+func (msgs Messages) SnapshotsName() string {
+	return Catalog.Format(msgs.locale, "snapshotsName", nil)
+}
+
+// SnapshotsDelete says "Delete"
+// in the language the app shows.
+func SnapshotsDelete() string { return In(i18n.Locale()).SnapshotsDelete() }
+
+// SnapshotsDelete says "Delete"
+// in the language of msgs.
+func (msgs Messages) SnapshotsDelete() string {
+	return Catalog.Format(msgs.locale, "snapshotsDelete", nil)
+}
+
+// SnapshotsDeleteTitle says "Delete snapshot “{name}”?"
+// in the language the app shows.
+func SnapshotsDeleteTitle(name string) string { return In(i18n.Locale()).SnapshotsDeleteTitle(name) }
+
+// SnapshotsDeleteTitle says "Delete snapshot “{name}”?"
+// in the language of msgs.
+func (msgs Messages) SnapshotsDeleteTitle(name string) string {
+	return Catalog.Format(msgs.locale, "snapshotsDeleteTitle", map[string]any{"name": name})
+}
+
+// SnapshotsDeleteMessage says "Its files can no longer be restored."
+// in the language the app shows.
+func SnapshotsDeleteMessage() string { return In(i18n.Locale()).SnapshotsDeleteMessage() }
+
+// SnapshotsDeleteMessage says "Its files can no longer be restored."
+// in the language of msgs.
+func (msgs Messages) SnapshotsDeleteMessage() string {
+	return Catalog.Format(msgs.locale, "snapshotsDeleteMessage", nil)
+}
+
 // SnapshotsNone says "No snapshots. One is kept before anything the app does that drops changes."
 // in the language the app shows.
 func SnapshotsNone() string { return In(i18n.Locale()).SnapshotsNone() }
@@ -12369,32 +12413,102 @@ func (msgs Messages) SessionWriteCommitGraph() string {
 	return Catalog.Format(msgs.locale, "sessionWriteCommitGraph", nil)
 }
 
-// SessionSnapshotNow says "Snapshot now"
+// SessionSnapshotNow says "Snapshot: {name}"
 // in the language the app shows.
 //
-// Why a snapshot of the work tree was taken; kept with the snapshot.
-func SessionSnapshotNow() string { return In(i18n.Locale()).SessionSnapshotNow() }
+// An entry of the command log; name is the snapshot's.
+func SessionSnapshotNow(name string) string { return In(i18n.Locale()).SessionSnapshotNow(name) }
 
-// SessionSnapshotNow says "Snapshot now"
+// SessionSnapshotNow says "Snapshot: {name}"
 // in the language of msgs.
 //
-// Why a snapshot of the work tree was taken; kept with the snapshot.
-func (msgs Messages) SessionSnapshotNow() string {
-	return Catalog.Format(msgs.locale, "sessionSnapshotNow", nil)
+// An entry of the command log; name is the snapshot's.
+func (msgs Messages) SessionSnapshotNow(name string) string {
+	return Catalog.Format(msgs.locale, "sessionSnapshotNow", map[string]any{"name": name})
 }
 
-// SessionSnapshotNowIgnored says "Snapshot now, with ignored files"
+// SessionSnapshotNowIgnored says "Snapshot with ignored files: {name}"
 // in the language the app shows.
 //
-// Why a snapshot of the work tree was taken; kept with the snapshot.
-func SessionSnapshotNowIgnored() string { return In(i18n.Locale()).SessionSnapshotNowIgnored() }
+// An entry of the command log; name is the snapshot's.
+func SessionSnapshotNowIgnored(name string) string {
+	return In(i18n.Locale()).SessionSnapshotNowIgnored(name)
+}
 
-// SessionSnapshotNowIgnored says "Snapshot now, with ignored files"
+// SessionSnapshotNowIgnored says "Snapshot with ignored files: {name}"
 // in the language of msgs.
 //
-// Why a snapshot of the work tree was taken; kept with the snapshot.
-func (msgs Messages) SessionSnapshotNowIgnored() string {
-	return Catalog.Format(msgs.locale, "sessionSnapshotNowIgnored", nil)
+// An entry of the command log; name is the snapshot's.
+func (msgs Messages) SessionSnapshotNowIgnored(name string) string {
+	return Catalog.Format(msgs.locale, "sessionSnapshotNowIgnored", map[string]any{"name": name})
+}
+
+// SessionSnapshotName says "{branch} at {commit}, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}"
+// in the language the app shows.
+//
+// The name of a snapshot taken by hand without one: the branch and the
+// commit it was taken on, and the files changed then.
+func SessionSnapshotName(branch string, commit string, changed int) string {
+	return In(i18n.Locale()).SessionSnapshotName(branch, commit, changed)
+}
+
+// SessionSnapshotName says "{branch} at {commit}, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}"
+// in the language of msgs.
+//
+// The name of a snapshot taken by hand without one: the branch and the
+// commit it was taken on, and the files changed then.
+func (msgs Messages) SessionSnapshotName(branch string, commit string, changed int) string {
+	return Catalog.Format(msgs.locale, "sessionSnapshotName", map[string]any{"branch": branch, "commit": commit, "changed": changed})
+}
+
+// SessionSnapshotNameDetached says "{commit}, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}"
+// in the language the app shows.
+//
+// The name of a snapshot taken by hand without one, on a commit no branch
+// is checked out at.
+func SessionSnapshotNameDetached(commit string, changed int) string {
+	return In(i18n.Locale()).SessionSnapshotNameDetached(commit, changed)
+}
+
+// SessionSnapshotNameDetached says "{commit}, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}"
+// in the language of msgs.
+//
+// The name of a snapshot taken by hand without one, on a commit no branch
+// is checked out at.
+func (msgs Messages) SessionSnapshotNameDetached(commit string, changed int) string {
+	return Catalog.Format(msgs.locale, "sessionSnapshotNameDetached", map[string]any{"commit": commit, "changed": changed})
+}
+
+// SessionSnapshotNameUnborn says "{branch}, before its first commit, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}"
+// in the language the app shows.
+//
+// The name of a snapshot taken by hand, without one, on a branch with no
+// commit yet.
+func SessionSnapshotNameUnborn(branch string, changed int) string {
+	return In(i18n.Locale()).SessionSnapshotNameUnborn(branch, changed)
+}
+
+// SessionSnapshotNameUnborn says "{branch}, before its first commit, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}"
+// in the language of msgs.
+//
+// The name of a snapshot taken by hand, without one, on a branch with no
+// commit yet.
+func (msgs Messages) SessionSnapshotNameUnborn(branch string, changed int) string {
+	return Catalog.Format(msgs.locale, "sessionSnapshotNameUnborn", map[string]any{"branch": branch, "changed": changed})
+}
+
+// SessionDeleteSnapshot says "Delete snapshot: {name}"
+// in the language the app shows.
+//
+// An entry of the command log; name is the snapshot's.
+func SessionDeleteSnapshot(name string) string { return In(i18n.Locale()).SessionDeleteSnapshot(name) }
+
+// SessionDeleteSnapshot says "Delete snapshot: {name}"
+// in the language of msgs.
+//
+// An entry of the command log; name is the snapshot's.
+func (msgs Messages) SessionDeleteSnapshot(name string) string {
+	return Catalog.Format(msgs.locale, "sessionDeleteSnapshot", map[string]any{"name": name})
 }
 
 // SessionRestoreSnapshot says "Restore snapshot of {time}"

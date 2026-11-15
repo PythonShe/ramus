@@ -140,7 +140,7 @@ func (a *App) tabCommands(t *tab) []command {
 	if q := t.s.Queue; q != nil {
 		cmds = append(cmds, a.writeCommands(t)...)
 		cmds = append(cmds, cmd("snapshot", func() {
-			if _, err := t.s.SnapshotNow(false); err != nil {
+			if _, err := t.s.SnapshotNow("", false); err != nil {
 				a.notice = errText(err)
 			}
 		}))

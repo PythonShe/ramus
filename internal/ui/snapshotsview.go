@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/git/snapshot"
 	"ramus/locales"
 )
@@ -32,6 +33,11 @@ type snapState struct {
 	picked    ui.Selection[string]
 
 	ignored bool
+	// name is what the next snapshot taken by hand is called; blank, it
+	// is named by where it is taken.
+	name string
+	// ask confirms deleting a snapshot.
+	ask confirmState
 }
 
 func newSnapState() snapState { return snapState{listed: -1} }
@@ -46,10 +52,13 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.RepoSectionSnapshots()).Bold().Grow(1)
 			ro := t.s.Queue == nil
+			name := ui.TextInput(c, &ss.name).Label(locales.SnapshotsName()).Placeholder(locales.SnapshotsName()).Width(220).Disabled(ro)
 			ui.Checkbox(c, &ss.ignored, locales.OpsIncludeIgnoredFiles()).Disabled(ro)
-			if ui.Button(c, locales.SnapshotsNow()).Disabled(ro).Clicked() {
-				if _, err := t.s.SnapshotNow(ss.ignored); err != nil {
+			if ui.Button(c, locales.SnapshotsNow()).Disabled(ro).Clicked() || name.Submitted() && !ro {
+				if _, err := t.s.SnapshotNow(ss.name, ss.ignored); err != nil {
 					a.notice = errText(err)
+				} else {
+					ss.name = ""
 				}
 			}
 		})
@@ -132,7 +141,10 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 	}
 	files := ss.files
 	ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
-		ui.Text(c, s.Reason).Bold()
+		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, s.Reason).Bold().Grow(1)
+			a.deleteSnapshotButton(c, t, s)
+		})
 		var parts string
 		switch head := s.Head[:min(len(s.Head), 12)]; {
 		case head != "" && s.Ignored:
@@ -193,6 +205,21 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 			}
 		})
 	})
+}
+
+// deleteSnapshotButton deletes snapshot s once the user confirms: it is
+// the last copy of what it holds.
+func (a *App) deleteSnapshotButton(c *ui.Context, t *tab, s snapshot.Snapshot) {
+	ss := &t.snaps
+	if ui.Button(c, locales.SnapshotsDelete()).Disabled(t.s.Queue == nil).Clicked() {
+		ss.ask = confirmState{open: true, title: locales.SnapshotsDeleteTitle(redact.Control(s.Reason)), message: locales.SnapshotsDeleteMessage(),
+			button: locales.CommonDelete(), run: func() {
+				if _, err := t.s.DeleteSnapshot(s); err != nil {
+					a.notice = errText(err)
+				}
+			}}
+	}
+	a.confirmView(c, &ss.ask)
 }
 
 // restore writes files back; what they are now is kept first, so a

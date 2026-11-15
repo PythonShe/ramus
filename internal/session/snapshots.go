@@ -2,7 +2,9 @@ package session
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"strings"
 	"time"
 
 	"ramus/internal/git/snapshot"
@@ -60,17 +62,55 @@ func (s *Session) SnapshotFiles(snap snapshot.Snapshot, done func([]snapshot.Fil
 }
 
 // SnapshotNow keeps the whole work tree in a snapshot, ignored files too
-// when asked, logged.
-func (s *Session) SnapshotNow(ignored bool) (*write.Job, error) {
+// when asked, logged, named name, or when name is blank by where it was
+// taken: the branch, the commit and how many files were changed, which
+// tells apart snapshots taken on the same commit.
+func (s *Session) SnapshotNow(name string, ignored bool) (*write.Job, error) {
 	if s.Queue == nil {
 		return nil, s.noWrites()
 	}
-	reason := locales.SessionSnapshotNow()
-	if ignored {
-		reason = locales.SessionSnapshotNowIgnored()
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = s.snapshotName()
 	}
-	j := s.Queue.SnapshotNow(s.Repo.WorkTree, snapshot.Options{Reason: reason, Ignored: ignored})
-	s.follow(s.addLog(reason, ""), j)
+	j := s.Queue.SnapshotNow(s.Repo.WorkTree, snapshot.Options{Reason: name, Ignored: ignored})
+	log := locales.SessionSnapshotNow(name)
+	if ignored {
+		log = locales.SessionSnapshotNowIgnored(name)
+	}
+	s.follow(s.addLog(log, ""), j)
+	return j, nil
+}
+
+// snapshotName names a snapshot of the work tree as it is now.
+func (s *Session) snapshotName() string {
+	head := s.State.Head
+	commit := hex.EncodeToString(head.OID)[:min(8, 2*len(head.OID))]
+	branch := ""
+	if !head.Detached {
+		branch = strings.TrimPrefix(head.Target, "refs/heads/")
+	}
+	changed := 0
+	if st := s.State.Status; st != nil {
+		changed = st.Len()
+	}
+	switch {
+	case commit == "":
+		return locales.SessionSnapshotNameUnborn(branch, changed)
+	case branch == "":
+		return locales.SessionSnapshotNameDetached(commit, changed)
+	}
+	return locales.SessionSnapshotName(branch, commit, changed)
+}
+
+// DeleteSnapshot removes snap, logged: its files can no longer be
+// restored.
+func (s *Session) DeleteSnapshot(snap snapshot.Snapshot) (*write.Job, error) {
+	if s.Queue == nil {
+		return nil, s.noWrites()
+	}
+	j := s.Queue.DeleteSnapshots(s.Repo.WorkTree, []snapshot.Snapshot{snap})
+	s.follow(s.addLog(locales.SessionDeleteSnapshot(snap.Reason), ""), j)
 	return j, nil
 }
 

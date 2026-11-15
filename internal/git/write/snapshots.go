@@ -44,6 +44,14 @@ func (q *Queue) Restore(workTree string, s snapshot.Snapshot, paths []string) *J
 	}})
 }
 
+// DeleteSnapshots queues removing the snapshots in list.
+func (q *Queue) DeleteSnapshots(workTree string, list []snapshot.Snapshot) *Job {
+	w := snapshot.Where{GitDir: q.gitDir, WorkTree: workTree}
+	return q.Submit(Op{Name: "Delete snapshots", do: func(ctx context.Context, _ *Job) (run.Result, error) {
+		return run.Result{}, snapshot.Delete(ctx, q.r, w, list)
+	}})
+}
+
 // Expire queues removing the snapshots in list taken before cutoff.
 func (q *Queue) Expire(workTree string, list []snapshot.Snapshot, cutoff time.Time) *Job {
 	w := snapshot.Where{GitDir: q.gitDir, WorkTree: workTree}

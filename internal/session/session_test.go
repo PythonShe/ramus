@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -196,10 +197,16 @@ func TestSnapshotsRestoreAndUndo(t *testing.T) {
 	m.until(t, "open", func() bool { return s.Queue != nil })
 
 	r.Write("a", "work")
-	if _, err := s.SnapshotNow(false); err != nil {
+	m.until(t, "the change", func() bool { return s.State.Status != nil && s.State.Status.Len() == 1 })
+	// Named as asked, else by where it was taken.
+	if _, err := s.SnapshotNow("  Before the agent  ", false); err != nil {
 		t.Fatal(err)
 	}
 	m.until(t, "the snapshot", func() bool { return s.Writes == 1 })
+	if _, err := s.SnapshotNow("", false); err != nil {
+		t.Fatal(err)
+	}
+	m.until(t, "the second snapshot", func() bool { return s.Writes == 2 })
 	var list []snapshot.Snapshot
 	s.Snapshots(func(l []snapshot.Snapshot, err error) {
 		if err != nil {
@@ -208,9 +215,16 @@ func TestSnapshotsRestoreAndUndo(t *testing.T) {
 		list = l
 	})
 	m.until(t, "the list", func() bool { return list != nil })
-	if len(list) != 1 || list[0].Reason != "Snapshot now" {
-		t.Fatalf("snapshots %+v", list)
+	branch := strings.TrimPrefix(strings.TrimSpace(r.Git("symbolic-ref", "HEAD")), "refs/heads/")
+	auto := branch + " at " + strings.TrimSpace(r.Git("rev-parse", "--short=8", "HEAD")) + ", 1 changed file"
+	var reasons []string
+	for _, sn := range list {
+		reasons = append(reasons, sn.Reason)
 	}
+	if !slices.Contains(reasons, "Before the agent") || !slices.Contains(reasons, auto) || len(list) != 2 {
+		t.Fatalf("snapshots %q, want %q", reasons, auto)
+	}
+	// Both hold the work tree as it was.
 	var files []snapshot.File
 	s.SnapshotFiles(list[0], func(f []snapshot.File, err error) { files = f })
 	m.until(t, "the files", func() bool { return files != nil })
@@ -222,7 +236,7 @@ func TestSnapshotsRestoreAndUndo(t *testing.T) {
 	if _, err := s.Restore(list[0], []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
-	m.until(t, "the restore", func() bool { return s.Writes == 2 })
+	m.until(t, "the restore", func() bool { return s.Writes == 3 })
 	if got, _ := os.ReadFile(filepath.Join(r.Dir, "a")); string(got) != "work" {
 		t.Fatalf("a is %q", got)
 	}
@@ -230,7 +244,7 @@ func TestSnapshotsRestoreAndUndo(t *testing.T) {
 	if _, err := s.Undo(); err != nil {
 		t.Fatal(err)
 	}
-	m.until(t, "the undo", func() bool { return s.Writes == 3 })
+	m.until(t, "the undo", func() bool { return s.Writes == 4 })
 	if e := s.Log[len(s.Log)-1]; e.Err == nil || !strings.Contains(e.Err.Error(), "nothing to undo") {
 		t.Fatalf("undo with nothing done: %+v", e)
 	}

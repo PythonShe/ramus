@@ -549,22 +549,33 @@ func known(ctx context.Context, r *run.Runner, w Where, tree string, index bool,
 
 // Expire removes the snapshots taken before cutoff, in one transaction.
 func Expire(ctx context.Context, r *run.Runner, w Where, list []Snapshot, cutoff time.Time) (int, error) {
-	var in bytes.Buffer
-	n := 0
+	var old []Snapshot
 	for _, s := range list {
 		if s.Time.Before(cutoff) {
-			fmt.Fprintf(&in, "delete %s %s\n", s.Ref, s.Commit)
-			n++
+			old = append(old, s)
 		}
 	}
-	if n == 0 {
-		return 0, nil
-	}
-	_, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, Stdin: &in, Args: []string{"update-ref", "--stdin"}})
-	if err != nil {
+	if err := Delete(ctx, r, w, old); err != nil {
 		return 0, err
 	}
-	return n, nil
+	return len(old), nil
+}
+
+// Delete removes the snapshots in list, in one transaction: all of them,
+// or none when one is no longer what was listed.
+func Delete(ctx context.Context, r *run.Runner, w Where, list []Snapshot) error {
+	if len(list) == 0 {
+		return nil
+	}
+	var in bytes.Buffer
+	for _, s := range list {
+		if !strings.HasPrefix(s.Ref, Prefix) {
+			return fmt.Errorf("snapshot: %q is not a snapshot", s.Ref)
+		}
+		fmt.Fprintf(&in, "delete %s %s\n", s.Ref, s.Commit)
+	}
+	_, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, Stdin: &in, Args: []string{"update-ref", "--stdin"}})
+	return err
 }
 
 // foldUnmerged takes the work tree's version of each path the (copied)

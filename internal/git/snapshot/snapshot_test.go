@@ -230,6 +230,39 @@ func TestSurvivesGCAndExpires(t *testing.T) {
 	}
 }
 
+// Delete removes the snapshots asked for and leaves the others; one that
+// is no longer what was listed, or a ref that is no snapshot, removes
+// nothing.
+func TestDelete(t *testing.T) {
+	f := setup(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	f.r.Write("a", "2")
+	first := f.take(Options{Reason: "first", Paths: []string{"a"}})
+	f.r.Write("a", "3")
+	second := f.take(Options{Reason: "second", Paths: []string{"a"}})
+	ctx := context.Background()
+	stale := first
+	stale.Commit = second.Commit
+	if err := Delete(ctx, f.run, f.w, []Snapshot{second, stale}); err == nil {
+		t.Fatal("a snapshot no longer as listed deleted")
+	}
+	branch := Snapshot{Ref: "refs/heads/main", Commit: first.Commit}
+	if err := Delete(ctx, f.run, f.w, []Snapshot{branch}); err == nil {
+		t.Fatal("a branch deleted as a snapshot")
+	}
+	if list, _ := f.list(f.w.GitDir, f.w.GitDir); len(list) != 2 {
+		t.Fatalf("a failed delete left %d", len(list))
+	}
+	if err := Delete(ctx, f.run, f.w, []Snapshot{first}); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := f.list(f.w.GitDir, f.w.GitDir)
+	if len(list) != 1 || list[0].Reason != "second" {
+		t.Fatalf("left %+v", list)
+	}
+}
+
 func TestPerWorktree(t *testing.T) {
 	f := setup(t)
 	f.r.Write("a", "1")

@@ -13,6 +13,7 @@ import (
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
+	"ramus/internal/git/snapshot"
 	"ramus/internal/git/trust"
 	"ramus/internal/library"
 	"ramus/internal/session"
@@ -461,10 +462,11 @@ func TestSnapshotsView(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("No changes"))
 	r.Write("README", "work in progress")
+	h.until("the change", h.shows("Changes (1)"))
 	h.app.current().sel = "snapshots"
 	h.until("the empty list", h.shows("No snapshots"))
 	h.click("Snapshot Now")
-	h.until("the snapshot", h.shows("Snapshot now"))
+	h.until("the snapshot, named by where it was taken", h.shows("1 changed file"))
 	h.until("its files", h.shows("README"))
 
 	r.Write("README", "an agent broke this")
@@ -493,8 +495,35 @@ func TestSnapshotOfACleanWorkTree(t *testing.T) {
 	h.app.current().sel = "snapshots"
 	h.until("the empty list", h.shows("No snapshots"))
 	h.click("Snapshot Now")
-	h.until("the snapshot", h.shows("Snapshot now"))
+	h.until("the snapshot", h.shows("no changed files"))
 	h.until("its files read", h.shows("Nothing in it differs from the commit it was taken on"))
+}
+
+// A snapshot taken by hand has the name typed for it, and is deleted
+// once the user confirms.
+func TestSnapshotNamedAndDeleted(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	h.app.current().sel = "snapshots"
+	h.until("the empty list", h.shows("No snapshots"))
+	h.click("Name")
+	h.tt.Type("before the agent")
+	h.tt.Frame()
+	h.click("Snapshot Now")
+	h.until("the named snapshot", func() bool { return hasExact(h, "before the agent") })
+	if h.app.current().snaps.name != "" {
+		t.Fatal("the name stays for the next snapshot")
+	}
+	h.click("Delete")
+	h.until("the question", h.shows("Delete snapshot “before the agent”?"))
+	h.click("Delete")
+	h.until("the snapshot gone", h.shows("No snapshots"))
+	if refs := strings.TrimSpace(r.Git("for-each-ref", snapshot.Prefix)); refs != "" {
+		t.Fatalf("refs left: %s", refs)
+	}
 }
 
 func TestChangesStageAndDiscard(t *testing.T) {

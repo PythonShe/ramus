@@ -1568,6 +1568,13 @@
     "description": "Verb: stages one change of a file."
   },
   "snapshotsNow": "Snapshot Now",
+  "snapshotsName": "Name",
+  "snapshotsDelete": "Delete",
+  "snapshotsDeleteTitle": "Delete snapshot “{name}”?",
+  "snapshotsDeleteMessage": "Its files can no longer be restored.",
+  "@snapshotsName": {
+    "description": "The placeholder of the optional name of a snapshot taken by hand."
+  },
   "snapshotsNone": "No snapshots. One is kept before anything the app does that drops changes.",
   "snapshotsReading": "Reading snapshots…",
   "snapshotsSaved": "Saved snapshots",
@@ -2492,13 +2499,29 @@
   "@sessionWriteCommitGraph": {
     "description": "An entry of the command log; commit-graph is git's file."
   },
-  "sessionSnapshotNow": "Snapshot now",
+  "sessionSnapshotNow": "Snapshot: {name}",
   "@sessionSnapshotNow": {
-    "description": "Why a snapshot of the work tree was taken; kept with the snapshot."
+    "description": "An entry of the command log; name is the snapshot's."
   },
-  "sessionSnapshotNowIgnored": "Snapshot now, with ignored files",
+  "sessionSnapshotNowIgnored": "Snapshot with ignored files: {name}",
   "@sessionSnapshotNowIgnored": {
-    "description": "Why a snapshot of the work tree was taken; kept with the snapshot."
+    "description": "An entry of the command log; name is the snapshot's."
+  },
+  "sessionSnapshotName": "{branch} at {commit}, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}",
+  "@sessionSnapshotName": {
+    "description": "The name of a snapshot taken by hand without one: the branch and the commit it was taken on, and the files changed then."
+  },
+  "sessionSnapshotNameDetached": "{commit}, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}",
+  "@sessionSnapshotNameDetached": {
+    "description": "The name of a snapshot taken by hand without one, on a commit no branch is checked out at."
+  },
+  "sessionSnapshotNameUnborn": "{branch}, before its first commit, {changed, plural, =0 {no changed files} one {# changed file} other {# changed files}}",
+  "@sessionSnapshotNameUnborn": {
+    "description": "The name of a snapshot taken by hand, without one, on a branch with no commit yet."
+  },
+  "sessionDeleteSnapshot": "Delete snapshot: {name}",
+  "@sessionDeleteSnapshot": {
+    "description": "An entry of the command log; name is the snapshot's."
   },
   "sessionRestoreSnapshot": "Restore snapshot of {time}",
   "@sessionRestoreSnapshot": {
