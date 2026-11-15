@@ -313,17 +313,23 @@ func TestHistoryRewritten(t *testing.T) {
 	} {
 		walks := s.hist.walked()
 		step.change()
+		// A step moves refs more than once, as a rebase does commit by
+		// commit, and a slow machine shows the states between: the
+		// history to judge is the one of the refs git ends with.
+		end := want()
 		h := shown(t, m, s, step.what)
-		if h.Base != nil || s.hist.walked() != walks+1 {
+		m.until(t, step.what+": the end", func() bool {
+			s.LoadHistory()
+			h = s.History
+			return h.Done && h.Err == nil && h.For == s.State.Refs && h.Load == s.historyLoadN &&
+				slices.Equal(historyOIDs(h), end)
+		})
+		if h.Base != nil || s.hist.walked() <= walks {
 			t.Fatalf("%s: laid on top of the history before (%v), walks %d, was %d", step.what, h.Base != nil, s.hist.walked(), walks)
-		}
-		got := historyOIDs(h)
-		if !slices.Equal(got, want()) {
-			t.Fatalf("%s: rows\n%v\nwant\n%v", step.what, got, want())
 		}
 		for _, id := range [][]byte{kept, mustHex(t, one)} {
 			row, ok := h.Found[string(id)]
-			if wantRow := slices.Index(got, hex.EncodeToString(id)); !ok || row != wantRow {
+			if wantRow := slices.Index(end, hex.EncodeToString(id)); !ok || row != wantRow {
 				t.Fatalf("%s: %x found at %d (%v), it is at %d", step.what, id, row, ok, wantRow)
 			}
 		}

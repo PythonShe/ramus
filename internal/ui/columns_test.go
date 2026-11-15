@@ -63,6 +63,7 @@ func TestColumnsKept(t *testing.T) {
 
 	// A new window, with the settings as the file has them.
 	h2 := newHarness(t)
+	t.Cleanup(h2.closeAll) // before the repository's folder goes
 	h2.app.Settings = saved
 	h2.trust.Set(r.GitDir(), true)
 	h2.app.Open(r.Dir)
