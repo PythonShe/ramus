@@ -52,7 +52,33 @@ apart, in CI.
 
 With a commit-graph Ramus walks history itself. Without one it asks
 `git rev-list --topo-order`, which prints nothing until it has walked
-every commit; the history view then offers to write the commit-graph.
+every commit, and then writes the commit-graph in the background, a
+layer at a time, as history would have it.
+
+### History as commits land
+
+The `reload-kernel` and `reload-100k` cases load history with the
+commit-graph ten commits behind, then time the refs moving to the history
+showing the new tip with every row laid out: one commit on top, then a
+fetch of 100 on a remote branch. The kernel case works in a bare clone
+sharing the fixture's objects, with its commit-graph linked in; the other
+in a made repository of 100,010 commits. These were taken on 2026-11-15
+on the machine above at GOMAXPROCS 18 and normal priority, 3 runs each.
+
+| Case | Kernel | 100,010 commits |
+|---|---|---|
+| Graph 10 behind: first screen | 14 ms | 7.4 ms |
+| Graph 10 behind: whole history | 879 ms | 14 ms |
+| A commit on top: shown | 142 ms | 199 ms |
+| A fetch of 100 commits: shown | 149 ms | 141 ms |
+| Peak memory (app / git) | 178 MiB / 18 MiB | 32 MiB / 12 MiB |
+
+The commits the graph lacks are read from their objects and history is
+ordered natively, where git used to order it whole: before, the same
+cases took 682 ms and 1.57 s for the first screen and the whole kernel
+history, 1.67 s and 1.66 s for the commit and the fetch on top, at
+285 MiB / 325 MiB. Commits on top of the history shown are laid out
+alone above its rows, which stay as they were.
 
 ### A 390,000-file repository
 
