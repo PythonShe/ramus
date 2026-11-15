@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui/editor"
 )
 
 // The review lists every file with changes not staged, each patch in
@@ -75,4 +77,44 @@ func TestReviewAll(t *testing.T) {
 	h.until("nothing new", h.shows("Nothing changed since you marked it seen"))
 	r.Write("a.txt", "one\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\ntwelve\nthirteen\n")
 	h.until("the change since", h.shows("1 file changed since seen"))
+}
+
+// The review has a layout of its own, side by side until changed, and
+// choosing one there leaves that of the patch in Changes.
+func TestReviewLayoutOfItsOwn(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "1\n2\n3\n")
+	r.Commit("a")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	r.Write("a.txt", "1\ntwo\n3\n")
+	tb := h.app.current()
+	h.until("the change", h.shows("a.txt"))
+
+	h.click("a.txt")
+	h.until("its patch", func() bool { return tb.cv.diff.pv.d != nil })
+	if tb.cv.diff.pv.d.Layout != editor.DiffUnified {
+		t.Fatal("the patch in Changes is not unified")
+	}
+	h.click("Review Changes")
+	h.until("the review's patch", func() bool { it := tb.rev.items["a.txt"]; return it != nil && it.pv.d != nil })
+	if tb.rev.items["a.txt"].pv.d.Layout != editor.DiffSplit {
+		t.Fatal("the review is not side by side")
+	}
+
+	h.click("Unified")
+	if tb.rev.items["a.txt"].pv.d.Layout != editor.DiffUnified {
+		t.Fatal("the review did not take the layout chosen")
+	}
+	if !h.app.Settings.ReviewUnified || h.app.Settings.DiffSplit {
+		t.Fatalf("settings %+v", h.app.Settings)
+	}
+	h.click("Changes (1)")
+	h.click("Split")
+	h.until("the patch in Changes", func() bool { return tb.cv.diff.pv.d != nil && tb.cv.diff.pv.d.Layout == editor.DiffSplit })
+	if !h.app.Settings.ReviewUnified || !h.app.Settings.DiffSplit {
+		t.Fatalf("settings %+v", h.app.Settings)
+	}
 }

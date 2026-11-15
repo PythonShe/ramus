@@ -216,7 +216,7 @@ func (a *App) compareView(c *ui.Context) {
 					ui.Text(c, redact.Control(p)).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
 				}
 			})
-			a.diffBar(c, func() {
+			a.diffBar(c, false, func() {
 				if ui.PrimaryButton(c, locales.CommonClose()).Clicked() {
 					cs.open = false
 				}

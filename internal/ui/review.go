@@ -136,7 +136,7 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 				rv.gen++
 			}
 		})
-		a.diffBar(c, nil)
+		a.diffBar(c, true, nil)
 		switch {
 		case rv.onlyNew && rv.stampedFor != cur, rv.builtOnly != rv.onlyNew:
 			loading(c, "")
@@ -360,7 +360,7 @@ func (a *App) reviewBody(c *ui.Context, t *tab, st *status.Status, e int, ro boo
 				}
 			}
 		}
-		a.setDiffView(pv.d, actions)
+		a.setDiffView(pv.d, true, actions)
 		pv.d.FitContent = true
 		editor.DiffView(c, pv.d).FillWidth()
 	}

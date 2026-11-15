@@ -205,7 +205,7 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 			}
 		}
 	})
-	a.diffBar(c, func() {
+	a.diffBar(c, false, func() {
 		if ui.Button(c, locales.DiffOpenInTool()).Disabled(ro || d.key.src == diff.Untracked).Clicked() {
 			t.s.OpenDiffTool(session.DiffToolRequest{Paths: d.key.paths(), Cached: d.key.src == diff.Staged}, a.toolDone)
 		}

@@ -19,12 +19,22 @@ import (
 	"ramus/locales"
 )
 
-// diffOptions are how every patch shows: the layout and wrapping are
-// kept in the settings, white space for the session.
+// diffOptions are how every patch shows: the layouts and wrapping are
+// kept in the settings, white space for the session. The review has a
+// layout of its own (reviewSplit): it has the window's width, where a
+// patch beside a list may not.
 type diffOptions struct {
-	split int // 0 unified, 1 side by side
-	wrap  bool
-	ws    int // a diff.Whitespace
+	split, reviewSplit int // 0 unified, 1 side by side
+	wrap               bool
+	ws                 int // a diff.Whitespace
+}
+
+// layout is the layout of the review's patches, or of the others.
+func (o *diffOptions) layout(review bool) *int {
+	if review {
+		return &o.reviewSplit
+	}
+	return &o.split
 }
 
 func (a *App) diffOpts() *diffOptions {
@@ -34,15 +44,18 @@ func (a *App) diffOpts() *diffOptions {
 		if a.Settings.DiffSplit {
 			o.split = 1
 		}
+		if !a.Settings.ReviewUnified {
+			o.reviewSplit = 1
+		}
 		o.wrap = !a.Settings.DiffNoWrap
 	}
 	return &o.diffOptions
 }
 
 // diffBar is a row of the options of the patch shown: white space,
-// wrapping and layout, then what more builds. A change of layout or
-// wrapping is saved in the settings.
-func (a *App) diffBar(c *ui.Context, more func()) {
+// wrapping and layout, the review's or the others', then what more
+// builds. A change of layout or wrapping is saved in the settings.
+func (a *App) diffBar(c *ui.Context, review bool, more func()) {
 	o := a.diffOpts()
 	// A toolbar: what does not fit a narrow patch goes into its menu.
 	ui.Toolbar(c, func() {
@@ -55,13 +68,13 @@ func (a *App) diffBar(c *ui.Context, more func()) {
 			}
 		})
 		wrap := ui.Checkbox(c, &o.wrap, locales.DiffWrap())
-		layout := ui.Segmented(c, &o.split, locales.DiffUnified(), locales.DiffSplit())
+		layout := ui.Segmented(c, o.layout(review), locales.DiffUnified(), locales.DiffSplit())
 		ui.Spacer(c)
 		if more != nil {
 			more()
 		}
 		if wrap.Changed() || layout.Changed() {
-			a.Settings.DiffSplit, a.Settings.DiffNoWrap = o.split == 1, !o.wrap
+			a.Settings.DiffSplit, a.Settings.ReviewUnified, a.Settings.DiffNoWrap = o.split == 1, o.reviewSplit == 0, !o.wrap
 			a.writeSettings(a.Settings, locales.DiffSettingsNotSaved)
 		}
 	}).Label(locales.DiffOptions()).Padding(0, insetX, spaceS, insetX)
@@ -258,7 +271,7 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 		ui.Text(c, msg).FontSize(textSmall).TextColor(th.Warning).Padding(rowPadY, insetX)
 	}
 	d := pv.d
-	a.setDiffView(d, actions)
+	a.setDiffView(d, false, actions)
 	editor.DiffView(c, d).Fill()
 	switch {
 	case !pv.shown:
@@ -272,12 +285,13 @@ func (a *App) patchBody(c *ui.Context, t *tab, pv *patchView, res session.PatchR
 	}
 }
 
-// setDiffView sets the viewer to the options chosen, with actions, when
-// set, on the change under the pointer and lines that can be selected.
-func (a *App) setDiffView(d *editor.DiffState, actions func(c *ui.Context, change int)) {
+// setDiffView sets the viewer to the options chosen, the review's or
+// the others', with actions, when set, on the change under the pointer
+// and lines that can be selected.
+func (a *App) setDiffView(d *editor.DiffState, review bool, actions func(c *ui.Context, change int)) {
 	o := a.diffOpts()
 	d.Layout = editor.DiffUnified
-	if o.split == 1 {
+	if *o.layout(review) == 1 {
 		d.Layout = editor.DiffSplit
 	}
 	d.Wrap = o.wrap

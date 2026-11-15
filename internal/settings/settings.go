@@ -35,9 +35,12 @@ type Settings struct {
 	// user.email, for statistics of their own commits.
 	Emails []string `json:"emails,omitempty"`
 	// DiffSplit shows patches side by side; DiffNoWrap leaves their long
-	// lines unwrapped, which they are not by default.
-	DiffSplit  bool `json:"diffSplit,omitempty"`
-	DiffNoWrap bool `json:"diffNoWrap,omitempty"`
+	// lines unwrapped, which they are not by default. ReviewUnified shows
+	// the patches of the review one above the other: it has a layout of
+	// its own, side by side by default, as it has the window's width.
+	DiffSplit     bool `json:"diffSplit,omitempty"`
+	DiffNoWrap    bool `json:"diffNoWrap,omitempty"`
+	ReviewUnified bool `json:"reviewUnified,omitempty"`
 	// NoFocusRefresh turns off reading the repository again when the
 	// window gains focus, the fallback for changes the watcher missed.
 	NoFocusRefresh bool `json:"noFocusRefresh,omitempty"`
