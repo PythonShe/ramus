@@ -24,6 +24,8 @@ type benchCase struct {
 var cases = []benchCase{
 	{"history-kernel", "open the Linux kernel: refs, first screen of history, the whole graph", historyKernel(false)},
 	{"history-kernel-no-graph", "the same with core.commitGraph=false, as a repository without a commit-graph", historyKernel(true)},
+	{"reload-kernel", "commits landing in the kernel: history with the commit-graph 10 commits behind, a commit on top, a fetch of 100", historyKernelReload},
+	{"reload-100k", "the same in a made repository of 100,000 commits with a commit-graph", history100k},
 	{"filter-kernel", "filter the kernel's history by message, author and path, to the first screen and to the end", filterKernel},
 	{"status-monorepo", "open a 390k-file repository to a populated status, without fsmonitor", statusMonorepo},
 	{"touch-20k", "one file saved in an open repository of 20,000 files, to the status showing it", touchOne},
