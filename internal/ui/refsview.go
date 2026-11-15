@@ -373,11 +373,13 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			case 3:
 				// The branch chosen offers to switch to it where its time
 				// is, so that the row keeps its width and its height;
-				// hovering changes nothing, as in the other lists. One
+				// hovering changes nothing, as in the other lists. In the
+				// small text of the column it is lower than the row's name in
+				// any font, as a font a little taller grows the row. One
 				// checked out in another worktree cannot be switched to.
 				current := !head.Detached && b.Name == head.Target
 				if !current && b.Worktree == "" && t.s.Queue != nil && rs.chosen == i {
-					if ui.Button(c, locales.RefsSwitch()).Label(locales.RefsSwitchTo(redact.Control(r.label))).Padding(0, spaceM).Clicked() {
+					if ui.Button(c, locales.RefsSwitch()).Label(locales.RefsSwitchTo(redact.Control(r.label))).FontSize(textSmall).Padding(0, spaceM).Clicked() {
 						act = func() { a.checkOut(t, b) }
 					}
 					return
