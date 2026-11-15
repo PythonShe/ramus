@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -138,9 +139,28 @@ func check(ctx context.Context, r *run.Runner, gitDir, workTree string, x *Expec
 			return &StaleError{What: name, Saw: short(saw), Now: short(now)}
 		}
 	}
+	seen := make(map[string]bool, len(x.Files))
+	for _, f := range x.Files {
+		seen[f.Path] = true
+	}
 	for _, f := range x.Files {
 		if now := stat(workTree, f.Path); !now.same(f) {
 			return &StaleError{What: f.Path, Saw: describe(f), Now: describe(now)}
+		}
+		if !f.Exists || !f.Mode.IsDir() {
+			continue
+		}
+		// A file added to a folder seen is found by listing it: the
+		// folder's own time is not always moved by it, as on Windows.
+		es, err := os.ReadDir(filepath.Join(workTree, filepath.FromSlash(f.Path)))
+		if err != nil {
+			return err
+		}
+		for _, e := range es {
+			p := path.Join(f.Path, e.Name())
+			if !seen[p] && !(e.IsDir() && e.Name() == ".git") {
+				return &StaleError{What: p, Saw: describe(FileState{}), Now: describe(stat(workTree, p))}
+			}
 		}
 	}
 	return nil

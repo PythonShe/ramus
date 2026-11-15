@@ -122,6 +122,15 @@ func TestCherryPickRevertAndClean(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.r.Write("junk/late", "1")
+	// A file added to a folder is caught even when the folder's time did
+	// not move, as on Windows.
+	for _, f := range seen {
+		if f.Path == "junk" {
+			if err := os.Chtimes(filepath.Join(h.r.Dir, "junk"), f.ModTime, f.ModTime); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	op, err = Clean(h.w, []string{"junk/", "y.log"}, true, seen)
 	h.do(op, err, false)
 	seen, _ = Observe(h.w.WorkTree, []string{"junk/", "y.log"})
