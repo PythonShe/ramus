@@ -468,6 +468,9 @@ func TestSnapshotsView(t *testing.T) {
 	h.click("Snapshot Now")
 	h.until("the snapshot, named by where it was taken", h.shows("1 changed file"))
 	h.until("its files", h.shows("README"))
+	h.click("README")
+	ss := &h.app.current().snaps
+	h.until("the patch of README", func() bool { return ss.pv.d != nil && strings.Contains(ss.pv.d.New.String(), "work in progress") })
 
 	r.Write("README", "an agent broke this")
 	h.click("Restore All")

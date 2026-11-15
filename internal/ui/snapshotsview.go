@@ -1,13 +1,17 @@
 package ui
 
 import (
+	"encoding/hex"
+	"fmt"
 	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/diff"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/snapshot"
+	"ramus/internal/session"
 	"ramus/locales"
 )
 
@@ -31,6 +35,17 @@ type snapState struct {
 	files     []snapshot.File
 	fileList  ui.ListState
 	picked    ui.Selection[string]
+	// fileAt is the file last clicked, whose patch shows beside the
+	// snapshot, as a commit's does, -1 for none; infoW is the snapshot's
+	// width then.
+	fileAt       int
+	infoW        float32
+	patchFor     string
+	patch        session.PatchResult
+	pv           patchView
+	pager        patchPager
+	patchLoading bool
+	loadPatch    func()
 
 	ignored bool
 	// name is what the next snapshot taken by hand is called; blank, it
@@ -40,7 +55,7 @@ type snapState struct {
 	ask confirmState
 }
 
-func newSnapState() snapState { return snapState{listed: -1} }
+func newSnapState() snapState { return snapState{listed: -1, fileAt: -1, infoW: commitInfoW} }
 
 // snapshotsView lists the snapshots kept in the repository and restores
 // all or some of the files of one.
@@ -127,6 +142,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 		ss.filesOf, ss.files, ss.filesRead, ss.filesErr = s.Ref, nil, false, ""
 		ss.picked.Clear()
 		ss.fileList = ui.ListState{}
+		ss.fileAt, ss.patchFor = -1, ""
 		ref := s.Ref
 		t.s.SnapshotFiles(s, func(files []snapshot.File, err error) {
 			if ss.filesOf != ref {
@@ -140,70 +156,128 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 		})
 	}
 	files := ss.files
-	ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
-		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, s.Reason).Bold().Grow(1)
-			a.deleteSnapshotButton(c, t, s)
-		})
-		var parts string
-		switch head := s.Head[:min(len(s.Head), 12)]; {
-		case head != "" && s.Ignored:
-			parts = locales.SnapshotsTakenOnIgnored(head)
-		case head != "":
-			parts = locales.SnapshotsTakenOn(head)
-		case s.Ignored:
-			parts = locales.SnapshotsIgnoredIncluded()
-		}
-		if parts != "" {
-			ui.Text(c, parts).FontSize(textSmall).TextColor(th.TextMuted)
-		}
-		if !ss.filesRead {
-			ui.Spinner(c)
-			return
-		}
-		if ss.filesErr != "" {
-			ui.Text(c, ss.filesErr).TextColor(th.Danger)
-			return
-		}
-		if len(files) == 0 {
-			ui.Text(c, locales.SnapshotsNothingDiffers()).TextColor(th.TextMuted)
-			return
-		}
-		ss.fileList.Key = func(i int) any { return files[i].Path }
-		ss.fileList.Selection = &ss.picked
-		ss.fileList.Label = func(i int) string { return files[i].Path }
-		ui.List(c, &ss.fileList, len(files), func(i int) {
-			f := files[i]
-			shown, flagged := showPath(f.Path)
-			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).Children(func() {
-				ui.Text(c, string(rune(f.Status))).Font("monospace").TextColor(th.TextMuted).Width(16)
-				fileIcon(c, f.Path)
-				name := pathLabel(c, shown).Grow(1)
-				if flagged != "" {
-					name.TextColor(th.Warning).Description(flagged)
+	info := func() {
+		ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, s.Reason).Bold().Grow(1)
+				a.deleteSnapshotButton(c, t, s)
+			})
+			var parts string
+			switch head := s.Head[:min(len(s.Head), 12)]; {
+			case head != "" && s.Ignored:
+				parts = locales.SnapshotsTakenOnIgnored(head)
+			case head != "":
+				parts = locales.SnapshotsTakenOn(head)
+			case s.Ignored:
+				parts = locales.SnapshotsIgnoredIncluded()
+			}
+			if parts != "" {
+				ui.Text(c, parts).FontSize(textSmall).TextColor(th.TextMuted)
+			}
+			if !ss.filesRead {
+				ui.Spinner(c)
+				return
+			}
+			if ss.filesErr != "" {
+				ui.Text(c, ss.filesErr).TextColor(th.Danger)
+				return
+			}
+			if len(files) == 0 {
+				ui.Text(c, locales.SnapshotsNothingDiffers()).TextColor(th.TextMuted)
+				return
+			}
+			ss.fileList.Key = func(i int) any { return files[i].Path }
+			ss.fileList.Selection = &ss.picked
+			ss.fileList.Selected = &ss.fileAt
+			ss.fileList.Label = func(i int) string { return files[i].Path }
+			ui.List(c, &ss.fileList, len(files), func(i int) {
+				f := files[i]
+				shown, flagged := showPath(f.Path)
+				ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).Children(func() {
+					ui.Text(c, string(rune(f.Status))).Font("monospace").TextColor(th.TextMuted).Width(16)
+					fileIcon(c, f.Path)
+					name := pathLabel(c, shown).Grow(1)
+					if flagged != "" {
+						name.TextColor(th.Warning).Description(flagged)
+					}
+				})
+			}).Label(locales.SnapshotsFiles()).Grow(1)
+			ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
+				ro := t.s.Queue == nil
+				n := ss.picked.Len()
+				if ui.Button(c, locales.SnapshotsRestoreSelected(n)).Disabled(ro || n == 0).Clicked() {
+					var paths []string
+					for _, f := range files {
+						if ss.picked.Has(f.Path) {
+							paths = append(paths, f.Path)
+						}
+					}
+					a.restore(t, s, paths)
+				}
+				if ui.Button(c, locales.SnapshotsRestoreAll()).Disabled(ro).Clicked() {
+					paths := make([]string, len(files))
+					for i, f := range files {
+						paths[i] = f.Path
+					}
+					a.restore(t, s, paths)
 				}
 			})
-		}).Label(locales.SnapshotsFiles()).Grow(1)
-		ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
-			ro := t.s.Queue == nil
-			n := ss.picked.Len()
-			if ui.Button(c, locales.SnapshotsRestoreSelected(n)).Disabled(ro || n == 0).Clicked() {
-				var paths []string
-				for _, f := range files {
-					if ss.picked.Has(f.Path) {
-						paths = append(paths, f.Path)
-					}
+		})
+	}
+	// Until a file is chosen the snapshot takes the column; the file's
+	// patch opens in a column of its own beside it, as a commit's does.
+	if ss.fileAt < 0 || ss.fileAt >= len(files) {
+		info()
+		return
+	}
+	f := files[ss.fileAt]
+	ui.Split(c, &ss.infoW, info, func() { a.snapshotPatch(c, t, s, f) }).SplitReset(commitInfoW).Fill()
+}
+
+// snapshotPatch shows what snapshot s holds of file f, against the commit
+// it was taken on, as its list of files says how f differs.
+func (a *App) snapshotPatch(c *ui.Context, t *tab, s snapshot.Snapshot, f snapshot.File) {
+	ss := &t.snaps
+	ws := diff.Whitespace(a.diffOpts().ws)
+	key := fmt.Sprintf("%s\x00%s\x00%d", s.Ref, f.Path, ws)
+	if ss.patchFor != key {
+		ss.patchFor, ss.patch, ss.pager = key, session.PatchResult{}, patchPager{}
+		var detail session.CommitDetail
+		detail.OID, _ = hex.DecodeString(s.Commit)
+		if head, err := hex.DecodeString(s.Head); err == nil && len(head) > 0 {
+			detail.Parents = [][]byte{head}
+		}
+		paths := []string{f.Path}
+		var load func()
+		load = func() {
+			ss.patchLoading = true
+			t.s.CommitPatch(detail, paths, ss.pager.max(), ws, session.Sides{}, func(res session.PatchResult) {
+				if ss.patchFor != key {
+					return
 				}
-				a.restore(t, s, paths)
-			}
-			if ui.Button(c, locales.SnapshotsRestoreAll()).Disabled(ro).Clicked() {
-				paths := make([]string, len(files))
-				for i, f := range files {
-					paths[i] = f.Path
+				ss.patch = res
+				a.setPatch(&ss.pv, res)
+				if ss.pager.more(res) {
+					load()
+					return
 				}
-				a.restore(t, s, paths)
+				ss.patchLoading = false
+			})
+		}
+		ss.loadPatch = load
+		load()
+	}
+	ui.Column(c).Fill().Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			shown, _ := showPath(f.Path)
+			ui.Text(c, shown).Bold().SingleLine().Grow(1)
+			if closeButton(c, locales.CommitClosePatch()).Clicked() {
+				ss.fileAt = -1
 			}
 		})
+		a.diffBar(c, false, nil)
+		a.pagerNotice(c, &ss.pager, ss.patch, ss.patchLoading, "", ss.loadPatch)
+		a.patchBody(c, t, &ss.pv, ss.patch, nil)
 	})
 }
 
