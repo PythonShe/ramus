@@ -6,6 +6,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/egoist/mygo/ui"
 
@@ -219,8 +220,13 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 			return
 		}
 		i := int(r.idx)
-		ui.Text(c, entryLetter(m.st, i, r.sec)).Font("monospace").TextColor(th.TextMuted).Width(16).Description(entryWords(m.st, i, r.sec))
-		fileIcon(c, string(m.st.Path(i)))
+		letter := entryLetter(m.st, i, r.sec)
+		ui.Text(c, letter).Font("monospace").TextColor(entryColor(th, m.st, i, letter)).Width(16).Description(entryWords(m.st, i, r.sec))
+		if untrackedFolder(m.st, i) {
+			ui.Icon(c, changeIcons().folder).FontSize(16).Width(16).TextColor(th.TextMuted)
+		} else {
+			fileIcon(c, string(m.st.Path(i)))
+		}
 		shown, flagged := showPath(m.name(r))
 		if f, why := showPath(string(m.st.Path(i))); why != "" {
 			shown, flagged = f, why
@@ -239,13 +245,15 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 	row.ContextMenu(func(menu *ui.Menu) { a.changeMenu(menu, t, m, r, act) })
 }
 
-// entryLetter is the status letter shown for entry i in sec.
+// entryLetter is the status letter shown for entry i in sec: git's
+// own, but U for a file or folder git does not track, as most editors
+// show it, and ! for a conflict, which git writes U.
 func entryLetter(st *status.Status, i int, sec section) string {
 	switch st.Kind(i) {
 	case status.Untracked:
-		return "?"
-	case status.Unmerged:
 		return "U"
+	case status.Unmerged:
+		return "!"
 	}
 	x, y := st.XY(i)
 	if sec == secStaged {
@@ -259,6 +267,9 @@ func entryLetter(st *status.Status, i int, sec section) string {
 func entryWords(st *status.Status, i int, sec section) string {
 	switch st.Kind(i) {
 	case status.Untracked:
+		if untrackedFolder(st, i) {
+			return locales.ChangesState("untrackedFolder")
+		}
 		return locales.ChangesState("untracked")
 	case status.Unmerged:
 		return locales.ChangesState("conflicted")
@@ -602,3 +613,29 @@ func (a *App) confirmView(c *ui.Context, q *confirmState) {
 		run()
 	}
 }
+
+// untrackedFolder reports whether entry i is a folder git does not
+// track: git lists one with nothing tracked in it whole, its path
+// ending in a slash, rather than each file in it.
+func untrackedFolder(st *status.Status, i int) bool {
+	p := st.Path(i)
+	return st.Kind(i) == status.Untracked && len(p) > 0 && p[len(p)-1] == '/'
+}
+
+// entryColor is the colour of entry i's letter: the commit lists' for
+// git's letters, new for what git does not track, danger for a conflict.
+func entryColor(th *ui.Theme, st *status.Status, i int, letter string) ui.Color {
+	switch st.Kind(i) {
+	case status.Untracked:
+		return th.Success
+	case status.Unmerged:
+		return th.Danger
+	}
+	return fileStatusColor(th, letter[0])
+}
+
+// changeIcons are the change list's own icons, parsed once.
+var changeIcons = sync.OnceValue(func() (icons struct{ folder *ui.SVG }) {
+	icons.folder = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>`))
+	return icons
+})

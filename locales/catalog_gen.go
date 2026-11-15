@@ -3825,13 +3825,13 @@ func (msgs Messages) ChangesStageAll() string {
 	return Catalog.Format(msgs.locale, "changesStageAll", nil)
 }
 
-// ChangesState says "{state, select, M {modified} A {added} D {deleted} R {renamed} C {copied} T {type changed} untracked {untracked} conf…"
+// ChangesState says "{state, select, M {modified} A {added} D {deleted} R {renamed} C {copied} T {type changed} untracked {untracked} untr…"
 // in the language the app shows.
 //
 // The state of a changed file, by git's status letter.
 func ChangesState(state string) string { return In(i18n.Locale()).ChangesState(state) }
 
-// ChangesState says "{state, select, M {modified} A {added} D {deleted} R {renamed} C {copied} T {type changed} untracked {untracked} conf…"
+// ChangesState says "{state, select, M {modified} A {added} D {deleted} R {renamed} C {copied} T {type changed} untracked {untracked} untr…"
 // in the language of msgs.
 //
 // The state of a changed file, by git's status letter.
