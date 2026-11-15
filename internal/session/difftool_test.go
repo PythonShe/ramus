@@ -72,6 +72,18 @@ func TestDiffTool(t *testing.T) {
 		t.Fatalf("with a merge tool only the tool saw %q", b)
 	}
 	r.Git("config", "--unset", "merge.tool")
+	// None set: the app's own, for this run only.
+	os.Remove(out)
+	own := `cat "$LOCAL" "$REMOTE" > ` + filepath.ToSlash(out)
+	if err := run1(open(true), DiffToolRequest{Paths: []string{"a.txt"}, From: head, To: next, Own: own}); err != nil {
+		t.Fatalf("the app's own: %v", err)
+	}
+	if b, _ := os.ReadFile(out); string(b) != "one\ntwo\n" {
+		t.Fatalf("the app's own saw %q", b)
+	}
+	if got := r.Git("config", "--get-regexp", "difftool"); strings.Contains(got, "ramus") {
+		t.Fatalf("the app's own left in the config: %s", got)
+	}
 	if err := run1(open(true), DiffToolRequest{Paths: []string{"a.txt"}}); !errors.Is(err, ErrNoDiffTool) {
 		t.Fatalf("no tool: %v", err)
 	}

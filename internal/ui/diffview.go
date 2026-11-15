@@ -207,9 +207,19 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	})
 	a.diffBar(c, false, func() {
 		if ui.Button(c, locales.DiffOpenInTool()).Disabled(ro || d.key.src == diff.Untracked).Clicked() {
-			t.s.OpenDiffTool(session.DiffToolRequest{Paths: d.key.paths(), Cached: d.key.src == diff.Staged}, a.toolDone)
+			t.s.OpenDiffTool(session.DiffToolRequest{Paths: d.key.paths(), Cached: d.key.src == diff.Staged, Own: a.ownDiffTool()}, a.toolDone)
 		}
 	})
+}
+
+// ownDiffTool is the command git runs for the app's own compare window
+// as its difftool, for a repository whose config names no diff tool; ""
+// when the app does not know its own path.
+func (a *App) ownDiffTool() string {
+	if a.Program == "" {
+		return ""
+	}
+	return a.globalTool().DiffCmd
 }
 
 // toolDone shows why an external tool did not run.
