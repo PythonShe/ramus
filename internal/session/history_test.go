@@ -3,6 +3,7 @@ package session
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -62,7 +63,7 @@ func TestHistoryLoadsEveryTip(t *testing.T) {
 
 	load := func(native bool) {
 		t.Helper()
-		s.History, s.hist.loading = HistoryState{}, nil
+		s.History, s.hist.loading, s.hist.last = HistoryState{}, histKey{}, nil
 		s.LoadHistory()
 		m.until(t, "history", func() bool { return s.History.Done })
 		h := s.History
@@ -162,6 +163,194 @@ func TestHistoryPastTheGraph(t *testing.T) {
 	want := strings.Fields(r.Git("rev-list", "--topo-order", "HEAD", "--branches"))
 	if got := historyOIDs(s.History); !slices.Equal(got, want) {
 		t.Fatalf("rows\n%v\nwant\n%v", got, want)
+	}
+}
+
+// shown pumps the main thread until history is loaded whole for the refs
+// as they are, checking every state published on the way: never empty,
+// never partial, as the history before stays until the new one is whole.
+func shown(t *testing.T, m mainThread, s *Session, what string) HistoryState {
+	t.Helper()
+	before := s.State.Refs
+	m.until(t, what+": the refs", func() bool { return s.State.Refs != before })
+	m.until(t, what, func() bool {
+		s.LoadHistory()
+		h := s.History
+		if h.Snap == nil || h.Snap.Len() == 0 || !h.Done || h.Err != nil {
+			t.Fatalf("%s: history published empty, partial or failed: %+v", what, h)
+		}
+		return h.For == s.State.Refs && h.Load == s.historyLoadN
+	})
+	return s.History
+}
+
+func (h *hist) walked() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.walks
+}
+
+// A commit on top, and a fetch of 100 commits on top, are laid out alone
+// above the rows there were, which stay as they were: no walk of the
+// whole history, with the commit-graph or without one.
+func TestHistoryGrowsOnTop(t *testing.T) {
+	for _, graph := range []bool{true, false} {
+		t.Run(fmt.Sprintf("graph=%v", graph), func(t *testing.T) {
+			r := gittest.Init(t)
+			r.Write("a", "1")
+			r.Commit("one")
+			r.Git("checkout", "-q", "-b", "side")
+			r.Write("b", "1")
+			r.Commit("side")
+			r.Git("checkout", "-q", "main")
+			r.Write("a", "2")
+			r.Commit("two")
+			r.Git("tag", "-a", "-m", "t", "v1")
+			if graph {
+				r.Git("commit-graph", "write", "--reachable", "--split")
+			}
+			m := make(mainThread, 64)
+			s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+			t.Cleanup(func() { s.Close(); <-s.Done() })
+			m.until(t, "refs", func() bool { return s.State.Refs != nil })
+			s.LoadHistory()
+			m.until(t, "history", func() bool { return s.History.Done })
+			if s.History.Native != graph {
+				t.Fatalf("native %v", s.History.Native)
+			}
+			want := func() []string {
+				return strings.Fields(r.Git("rev-list", "--topo-order", "HEAD", "--branches", "--tags", "--remotes"))
+			}
+			walks := s.hist.walked()
+			before := s.History
+			r.Write("a", "3")
+			r.Commit("three")
+			h := shown(t, m, s, "the commit on top")
+			if h.Base != before.Snap || h.Added != 1 || s.hist.walked() != walks {
+				t.Fatalf("a commit on top: base %v added %d walks %d, was %d", h.Base == before.Snap, h.Added, s.hist.walked(), walks)
+			}
+			if got := historyOIDs(h); !slices.Equal(got, want()) {
+				t.Fatalf("rows\n%v\nwant\n%v", got, want())
+			}
+
+			// A fetch: 100 commits on a remote branch, on top of the
+			// newest commit, with a merge of a branch made among them.
+			tip := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+			var b strings.Builder
+			when := r.Tick()
+			for i := range 100 {
+				when += 60
+				fmt.Fprintf(&b, "commit refs/remotes/origin/main\nmark :%d\ncommitter F <f@example.com> %d +0000\ndata 7\nfetched\n", i+1, when)
+				switch {
+				case i == 0:
+					fmt.Fprintf(&b, "from %s\n", tip)
+				case i == 60:
+					fmt.Fprintf(&b, "from :%d\nmerge :%d\n", i, i-10)
+				case i == 50:
+					fmt.Fprintf(&b, "from :%d\n", i-10)
+				default:
+					fmt.Fprintf(&b, "from :%d\n", i)
+				}
+				b.WriteString("\n")
+			}
+			r.Run([]byte(b.String()), "fast-import", "--quiet")
+			before = h
+			h = shown(t, m, s, "the fetch")
+			if h.Base != before.Snap || h.Added != 100 || s.hist.walked() != walks {
+				t.Fatalf("a fetch on top: base %v added %d walks %d, was %d", h.Base == before.Snap, h.Added, s.hist.walked(), walks)
+			}
+			if got := historyOIDs(h); !slices.Equal(got, want()) {
+				t.Fatalf("rows\n%v\nwant\n%v", got, want())
+			}
+		})
+	}
+}
+
+// History rewritten (an amend, a reset, a rebase) is laid out anew off
+// the main thread: the history before stays shown until the new one is
+// whole, which then finds the rows of the commits the view keeps.
+func TestHistoryRewritten(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	one := r.Commit("one")
+	r.Git("checkout", "-q", "-b", "side")
+	r.Write("b", "1")
+	r.Commit("side")
+	r.Git("checkout", "-q", "main")
+	for i := range 5 {
+		r.Write("a", strconv.Itoa(i))
+		r.Commit("main " + strconv.Itoa(i))
+	}
+	r.Git("commit-graph", "write", "--reachable", "--split")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "refs", func() bool { return s.State.Refs != nil })
+	s.LoadHistory()
+	m.until(t, "history", func() bool { return s.History.Done })
+	want := func() []string { return strings.Fields(r.Git("rev-list", "--topo-order", "HEAD", "--branches")) }
+	kept := mustHex(t, strings.TrimSpace(r.Git("rev-parse", "main~3")))
+	s.KeepInView(kept, mustHex(t, one))
+	for _, step := range []struct {
+		what   string
+		change func()
+	}{
+		{"an amend", func() { r.Git("commit", "-q", "--amend", "-m", "amended") }},
+		{"a reset", func() { r.Git("reset", "-q", "--hard", "HEAD~1") }},
+		{"a commit on an older branch", func() {
+			r.Git("checkout", "-q", "side")
+			r.Write("b", "2")
+			r.Commit("side again")
+			r.Git("checkout", "-q", "main")
+		}},
+		{"a rebase", func() { r.Git("rebase", "-q", "side") }},
+	} {
+		walks := s.hist.walked()
+		step.change()
+		h := shown(t, m, s, step.what)
+		if h.Base != nil || s.hist.walked() != walks+1 {
+			t.Fatalf("%s: laid on top of the history before (%v), walks %d, was %d", step.what, h.Base != nil, s.hist.walked(), walks)
+		}
+		got := historyOIDs(h)
+		if !slices.Equal(got, want()) {
+			t.Fatalf("%s: rows\n%v\nwant\n%v", step.what, got, want())
+		}
+		for _, id := range [][]byte{kept, mustHex(t, one)} {
+			row, ok := h.Found[string(id)]
+			if wantRow := slices.Index(got, hex.EncodeToString(id)); !ok || row != wantRow {
+				t.Fatalf("%s: %x found at %d (%v), it is at %d", step.what, id, row, ok, wantRow)
+			}
+		}
+	}
+}
+
+// A commit-graph written by git loads history again, ordered from it.
+func TestHistoryTakesANewGraph(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	r.Write("a", "2")
+	r.Commit("two")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "refs", func() bool { return s.State.Refs != nil })
+	s.LoadHistory()
+	m.until(t, "history", func() bool { return s.History.Done })
+	if s.History.Native {
+		t.Fatal("native without a commit-graph")
+	}
+	r.Git("commit-graph", "write", "--reachable", "--split")
+	h := s.History
+	m.until(t, "history from the graph", func() bool {
+		s.LoadHistory()
+		if s.History.Snap == nil || s.History.Snap.Len() != 2 {
+			t.Fatalf("history went: %+v", s.History)
+		}
+		return s.History.Native && s.History.Done
+	})
+	if s.History.Load == h.Load {
+		t.Fatal("loaded again without the graph changing")
 	}
 }
 

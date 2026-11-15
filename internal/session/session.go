@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"ramus/internal/git/commitgraph"
 	"ramus/internal/git/lifetime"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
@@ -113,6 +114,9 @@ type Session struct {
 	// historyView is what history shows, numbered by historyViewN.
 	historyView  HistoryView
 	historyViewN int
+	// historyLoadN counts the commit-graph changes and the reloads asked
+	// for: each loads history again whole.
+	historyLoadN int
 	// commitPatch cancels a commit patch read that a newer one replaced.
 	commitPatch PatchSlot
 	// answerCache holds what views read, on the main thread; see answers.
@@ -146,6 +150,10 @@ type refreshSeen struct {
 	// shows until one succeeds.
 	statusFailed bool
 	pause        statusPause
+	// graph is the commit-graph as last seen, once graphRead: when git
+	// writes another, or stops using it, history loads again.
+	graph     *commitgraph.Graph
+	graphRead bool
 }
 
 // focusChanges is what changed of refs, HEAD and the index since they
@@ -307,7 +315,7 @@ func (s *Session) urgent() bool {
 // kept dropped. Main thread only.
 func (s *Session) Reload() {
 	s.DropAnswers()
-	s.historyViewN++
+	s.historyLoadN++
 	s.refreshNow(repo.Rescan)
 }
 
@@ -491,6 +499,9 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		readAt  time.Time
 		changed bool
 		monitor *status.MonitorAdvice
+		// graphMoved is the commit-graph written again, or git no longer
+		// using it, or using it again.
+		graphMoved bool
 	}
 	var res result
 	fail := func(err error) {
@@ -539,6 +550,15 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		op := repo.InProgress(r.GitDir)
 		res.op = &op
+	}
+	if what&(repo.GraphChanged|repo.RefsChanged|repo.ConfigChanged) != 0 {
+		// A new graph, as one the app wrote, a ref that replaces a commit
+		// or the config turning the graph off: each changes how history
+		// is ordered.
+		if g, err := r.CommitGraph(); err == nil && (!seen.graphRead || g != seen.graph) {
+			res.graphMoved = seen.graphRead
+			seen.graph, seen.graphRead = g, true
+		}
 	}
 	if what&(repo.RefsChanged|repo.ConfigChanged) != 0 {
 		wts, err := r.Worktrees(ctx)
@@ -632,6 +652,9 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		st.RefreshErr = res.err
 		s.State = st
+		if res.graphMoved {
+			s.historyLoadN++
+		}
 	})
 	return wait
 }
@@ -672,6 +695,7 @@ func (s *Session) Trust() error {
 	// afresh, as it never ran while restricted, and so do the answers
 	// kept, which the hardened runner made: no textconv, no external diff.
 	s.Repo, s.Queue, s.State, s.History = nil, nil, State{Opening: true}, HistoryState{}
+	s.hist.reset()
 	s.fetch.halt()
 	s.fetch = backgroundFetch{}
 	s.DropAnswers()

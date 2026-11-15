@@ -254,7 +254,7 @@ func TestReload(t *testing.T) {
 
 	s.LoadHistory()
 	m.until(t, "history", func() bool { return s.History.Done })
-	view := s.History.View
+	load := s.History.Load
 	head := s.State.Head.OID
 	done := false
 	s.LoadCommit(head, func(d CommitDetail) { done = d.Done })
@@ -268,5 +268,5 @@ func TestReload(t *testing.T) {
 	}
 	m.until(t, "the commit again", func() bool { return done })
 	s.LoadHistory()
-	m.until(t, "history again", func() bool { return s.History.Done && s.History.View != view })
+	m.until(t, "history again", func() bool { return s.History.Done && s.History.Load != load })
 }

@@ -29,6 +29,9 @@ import (
 
 // HistoryState is the history list as loaded so far; it is published as
 // it grows, so the first screen shows before the whole history is read.
+// Loaded again as refs move, it is published once whole, the history
+// before shown until then: commits added on top come as Added rows over
+// the rows of Base, which stay as they were.
 type HistoryState struct {
 	Snap *lanes.Snapshot
 	// OID returns a row's commit object id from its number in Snap; it is
@@ -42,7 +45,8 @@ type HistoryState struct {
 	// Native is history ordered from the commit-graph; otherwise git
 	// ordered it.
 	Native bool
-	// Advice offers writing a commit-graph when one would help.
+	// Advice is the commit-graph write that would make history faster,
+	// which the session runs on its own (see autoGraph).
 	Advice *history.Advice
 	// First is how long the first screen took; Took the whole history.
 	First, Took time.Duration
@@ -50,6 +54,18 @@ type HistoryState struct {
 	// the number SetHistoryView gave it.
 	For  *refs.List
 	View int
+	// Load numbers the commit-graph changes and the reloads asked for
+	// that it was loaded after: with For and View, which load it is.
+	Load int
+	// Base, when set, is the history published before, and this one is
+	// it with Added rows on top: Base's rows are this one's from Added
+	// on, the same commits drawn the same.
+	Base  *lanes.Snapshot
+	Added int
+	// Found are the rows of the commits the view keeps in place
+	// (KeepInView), by object id, in a history laid out anew; -1 for one
+	// it does not have.
+	Found map[string]int
 	// Filtered is set when a filter picked the commits; until Done, git
 	// is still searching.
 	Filtered bool
@@ -59,6 +75,9 @@ type HistoryState struct {
 	// Stashes are the stash entries, newest first.
 	Stashes []Stash
 }
+
+// key is which load h is.
+func (h HistoryState) key() histKey { return histKey{h.For, h.View, h.Load} }
 
 // Stash is one stash entry; Base is the commit it was made on.
 type Stash struct {
@@ -95,10 +114,55 @@ func (v HistoryView) showsHead(head refs.Head) bool {
 type hist struct {
 	mu      sync.Mutex
 	cancel  context.CancelFunc
-	loading *refs.List
-	view    int
+	loading histKey
 	// gen numbers the loads; only the latest publishes.
 	gen int
+	// done is closed once the load started last has ended: the next one
+	// waits for it, as it may grow what that one leaves.
+	done chan struct{}
+	// last is what the last load to end whole left, for the next to lay
+	// new commits on top of; the loads, one at a time, read and replace
+	// it.
+	last *grown
+	// keep are the commits the view keeps in place (KeepInView).
+	keep [][]byte
+	// walks counts the loads that ordered the whole history.
+	walks int
+}
+
+// histKey names a load of history: the refs, the HistoryView by its
+// number, and the commit-graph changes and reloads before it, by their
+// count.
+type histKey struct {
+	refs       *refs.List
+	view, load int
+}
+
+// grown is a history loaded whole, kept so that commits landing on top
+// of it are laid out alone rather than all of it again.
+type grown struct {
+	repo *repo.Repository
+	key  histKey
+	src  *history.Source
+	// in holds the commits of the history, by their numbers in src.
+	in     bitset
+	starts []uint32
+	snap   *lanes.Snapshot
+	native bool
+}
+
+// bitset is a set of commit numbers, a bit each.
+type bitset []uint64
+
+func (b *bitset) add(id uint32) {
+	for int(id/64) >= len(*b) {
+		*b = append(*b, 0)
+	}
+	(*b)[id/64] |= 1 << (id % 64)
+}
+
+func (b bitset) has(id uint32) bool {
+	return int(id/64) < len(b) && b[id/64]&(1<<(id%64)) != 0
 }
 
 // SetHistoryView changes what history shows, and loads it again.
@@ -110,10 +174,37 @@ func (s *Session) SetHistoryView(v HistoryView) {
 // HistoryView returns what history shows.
 func (s *Session) HistoryView() HistoryView { return s.historyView }
 
+// KeepInView names the commits the view keeps where they are, the one at
+// the top of the list and the one chosen: a history laid out anew finds
+// their rows (HistoryState.Found). Main thread only.
+func (s *Session) KeepInView(ids ...[]byte) {
+	s.hist.mu.Lock()
+	defer s.hist.mu.Unlock()
+	if slices.EqualFunc(ids, s.hist.keep, bytes.Equal) {
+		return
+	}
+	s.hist.keep = s.hist.keep[:0]
+	for _, id := range ids {
+		if id != nil {
+			s.hist.keep = append(s.hist.keep, slices.Clone(id))
+		}
+	}
+}
+
 func (h *hist) current(gen int) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.gen == gen
+}
+
+// reset forgets the loads of a repository closed.
+func (h *hist) reset() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.cancel != nil {
+		h.cancel()
+	}
+	h.cancel, h.loading, h.last, h.done = nil, histKey{}, nil, nil
 }
 
 // filterPublish is how often a search publishes what it found.
@@ -124,21 +215,27 @@ const filterPublish = 250 * time.Millisecond
 // it does as fast.
 const staleRead = 1 << 17
 
+// growMax bounds the commits laid out on top of a history: past it, the
+// whole is laid out anew.
+const growMax = 1 << 14
+
 // firstScreen is the rows published first; later publishes come at four
 // times the rows before, so a long history is published a dozen times.
 const firstScreen = 1000
 
 // LoadHistory starts reading history for the current refs, unless it is
 // loaded or loading for them already. A load for older refs is cancelled;
-// its rows stay shown until the new first screen comes.
+// its rows stay shown until the new ones come: the new first screen for
+// another view, or the whole history for the same one.
 func (s *Session) LoadHistory() {
-	r, list, vn := s.Repo, s.State.Refs, s.historyViewN
-	if r == nil || list == nil || s.History.For == list && s.History.View == vn {
+	r, list := s.Repo, s.State.Refs
+	key := histKey{list, s.historyViewN, s.historyLoadN}
+	if r == nil || list == nil || s.History.key() == key {
 		return
 	}
 	s.hist.mu.Lock()
 	defer s.hist.mu.Unlock()
-	if s.hist.loading == list && s.hist.view == vn {
+	if s.hist.loading == key {
 		return
 	}
 	if s.hist.cancel != nil {
@@ -146,15 +243,32 @@ func (s *Session) LoadHistory() {
 	}
 	ctx, cancel := context.WithCancel(r.Life().Context())
 	s.hist.gen++
-	s.hist.cancel, s.hist.loading, s.hist.view = cancel, list, vn
+	prev, done := s.hist.done, make(chan struct{})
+	s.hist.cancel, s.hist.loading, s.hist.done = cancel, key, done
+	h := s.History
+	whole := h.Done && h.Err == nil && h.Snap != nil && h.View == key.view
 	head, gen, view := s.State.Head, s.hist.gen, s.historyView
-	r.Life().Go(func(context.Context) {
+	err := r.Life().Go(func(context.Context) {
+		defer close(done)
 		defer cancel()
-		s.loadHistory(ctx, gen, r, list, head, view, vn)
+		if prev != nil {
+			select {
+			case <-prev:
+			case <-ctx.Done():
+				return
+			}
+		}
+		s.loadHistory(ctx, gen, r, key, head, view, whole)
 	})
+	if err != nil {
+		close(done)
+		cancel()
+	}
 }
 
-func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, list *refs.List, head refs.Head, view HistoryView, vn int) {
+// loadHistory reads history for key. whole publishes it only once whole:
+// the same view is shown already, which stays until then.
+func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, key histKey, head refs.Head, view HistoryView, whole bool) {
 	t0 := time.Now()
 	var tagCommits map[string][]byte
 	var stashes []Stash
@@ -162,13 +276,19 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		if ctx.Err() != nil {
 			return
 		}
+		if whole && !h.Done {
+			return
+		}
+		if whole && h.Base == nil {
+			h.Found = s.findKept(ctx, h)
+		}
 		// The load's context ends when it returns, before the main thread
 		// runs this; a newer load is what makes it stale.
 		h.TagCommits, h.Stashes = tagCommits, stashes
 		s.update(func() {
 			if s.hist.current(gen) {
-				h.For, h.View, h.Filtered = list, vn, !view.Filter.IsZero()
-				if s.History.For == list && s.History.View == vn && s.History.First > 0 && h.First == 0 {
+				h.For, h.View, h.Load, h.Filtered = key.refs, key.view, key.load, !view.Filter.IsZero()
+				if s.History.View == key.view && s.History.First > 0 && h.First == 0 {
 					h.First = s.History.First
 				}
 				s.History = h
@@ -183,12 +303,18 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		fail(err)
 		return
 	}
-	tips, tc, err := historyTips(cat, list, head, view)
+	tips, tc, err := historyTips(cat, key.refs, head, view)
 	if err != nil {
 		fail(err)
 		return
 	}
-	tagCommits, stashes = tc, readStashes(ctx, r, list)
+	tagCommits, stashes = tc, readStashes(ctx, r, key.refs)
+	if view.Filter.IsZero() && s.growHistory(ctx, r, cat, key, tips, publish, t0) {
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
 	g, err := r.CommitGraph()
 	if err != nil {
 		fail(err)
@@ -217,10 +343,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 			covered = src.Read() == 0
 		}
 	}
-	var advice *history.Advice
-	if a, ok := history.GraphAdvice(r.GitDir, r.CommitGraphUsable(), g, covered); ok && !r.Restricted {
-		advice = &a
-	}
+	advice := graphAdvice(r, g, covered)
 	var l lanes.Layout
 	next := firstScreen
 	var first time.Duration
@@ -262,6 +385,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		publish(HistoryState{Snap: l.Snapshot(), OID: snap.OID, Done: true, Err: err, First: first, Took: time.Since(t0)})
 		return
 	}
+	var in bitset
 	if src != nil {
 		oid := src.OIDs()
 		w := history.NewTopoWalk(src, ids)
@@ -271,6 +395,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 				break
 			}
 			l.Append(p, ps)
+			in.add(p)
 			if n&4095 == 0 && ctx.Err() != nil {
 				return
 			}
@@ -279,7 +404,11 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		if first == 0 {
 			first = time.Since(t0)
 		}
-		publish(HistoryState{Snap: l.Snapshot(), OID: oid, Native: true, Done: true, Err: w.Err(), Advice: advice, First: first, Took: time.Since(t0)})
+		snap := l.Snapshot()
+		if w.Err() == nil {
+			s.keepGrown(&grown{repo: r, key: key, src: src, in: in, starts: w.Starts(), snap: snap, native: true})
+		}
+		publish(HistoryState{Snap: snap, OID: oid, Native: true, Done: true, Err: w.Err(), Advice: advice, First: first, Took: time.Since(t0)})
 		return
 	}
 	store := commits.New(r.Caps.HashSize)
@@ -297,8 +426,134 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 	if first == 0 {
 		first = time.Since(t0)
 	}
-	snap := store.Snapshot()
-	publish(HistoryState{Snap: l.Snapshot(), OID: snap.OID, Done: true, Err: err, Advice: advice, First: first, Took: time.Since(t0)})
+	snap := l.Snapshot()
+	if err == nil && growsWithGit(r) {
+		s.keepRevList(r, key, store, tips, snap)
+	}
+	publish(HistoryState{Snap: snap, OID: store.Snapshot().OID, Done: true, Err: err, Advice: advice, First: first, Took: time.Since(t0)})
+}
+
+// graphAdvice is the commit-graph write that would make history of r
+// faster, nil when none would or r is not trusted to write.
+func graphAdvice(r *repo.Repository, g *commitgraph.Graph, covered bool) *history.Advice {
+	if a, ok := history.GraphAdvice(r.GitDir, r.CommitGraphUsable(), g, covered); ok && !r.Restricted {
+		return &a
+	}
+	return nil
+}
+
+// growsWithGit reports whether commits landing on a history git ordered
+// can be read from their objects on top of it: not when grafts, replace
+// refs or a shallow boundary give commits parents other than theirs.
+func growsWithGit(r *repo.Repository) bool {
+	c := r.Capabilities()
+	return !c.Shallow && !c.Grafts && !c.ReplaceRefs
+}
+
+// keepGrown keeps a history loaded whole for the next load to grow.
+func (s *Session) keepGrown(g *grown) {
+	s.hist.mu.Lock()
+	defer s.hist.mu.Unlock()
+	s.hist.last = g
+	s.hist.walks++
+}
+
+// keepRevList keeps a history git ordered for the next load to grow:
+// store holds every commit of it.
+func (s *Session) keepRevList(r *repo.Repository, key histKey, store *commits.Store, tips [][]byte, snap *lanes.Snapshot) {
+	src := history.NewSource(nil, store, r.Caps.HashSize)
+	var ids []uint32
+	for _, t := range tips {
+		if id, ok := store.Lookup(t); ok && store.Added(id) {
+			ids = append(ids, id)
+		}
+	}
+	starts, err := history.RevStarts(src, ids)
+	if err != nil {
+		return
+	}
+	var in bitset
+	for id := range uint32(store.Len()) {
+		in.add(id)
+	}
+	s.keepGrown(&grown{repo: r, key: key, src: src, in: in, starts: starts, snap: snap})
+}
+
+// growHistory lays out the commits tips add on top of the history last
+// loaded whole, when the rest of it stays as it was, and publishes it. It
+// reports false when the whole is to be laid out anew.
+func (s *Session) growHistory(ctx context.Context, r *repo.Repository, cat *catfile.Process, key histKey, tips [][]byte, publish func(HistoryState), t0 time.Time) bool {
+	s.hist.mu.Lock()
+	last := s.hist.last
+	s.hist.mu.Unlock()
+	if last == nil || last.repo != r || last.key.view != key.view || last.key.load != key.load {
+		return false
+	}
+	real, err := r.CommitGraph()
+	g := real
+	if err != nil || g != nil && !g.HasGenerations() {
+		g = nil
+	}
+	if g != last.src.Graph() || !last.native && (g != nil || !growsWithGit(r)) {
+		return false
+	}
+	src := last.src
+	ids, err := src.Resolve(ctx, cat, tips, growMax)
+	if err != nil {
+		return false
+	}
+	rows, starts, ok, err := history.Above(src, last.in.has, last.starts, ids, growMax)
+	if err != nil || !ok {
+		return false
+	}
+	var l lanes.Layout
+	var ps []uint32
+	for _, id := range rows {
+		if ps, err = src.Parents(id, ps[:0]); err != nil {
+			return false
+		}
+		l.Append(id, ps)
+	}
+	snap, ok := l.Above(last.snap)
+	if !ok {
+		return false
+	}
+	for _, id := range rows {
+		last.in.add(id)
+	}
+	s.hist.mu.Lock()
+	s.hist.last = &grown{repo: r, key: key, src: src, in: last.in, starts: starts, snap: snap, native: last.native}
+	s.hist.mu.Unlock()
+	advice := graphAdvice(r, real, last.native && src.Read() == 0)
+	took := time.Since(t0)
+	publish(HistoryState{Snap: snap, OID: src.OIDs(), Native: last.native, Done: true, Advice: advice,
+		Base: last.snap, Added: len(rows), First: took, Took: took})
+	return true
+}
+
+// findKept finds the rows of the commits the view keeps in place in h.
+func (s *Session) findKept(ctx context.Context, h HistoryState) map[string]int {
+	s.hist.mu.Lock()
+	keep := slices.Clone(s.hist.keep)
+	s.hist.mu.Unlock()
+	if len(keep) == 0 || h.Snap == nil {
+		return nil
+	}
+	found := map[string]int{}
+	for _, k := range keep {
+		found[string(k)] = -1
+	}
+	left := len(found)
+	for i := 0; i < h.Snap.Len() && left > 0; i++ {
+		if i&65535 == 0 && ctx.Err() != nil {
+			return nil
+		}
+		if row, ok := found[string(h.OID(h.Snap.Commit(i)))]; ok && row < 0 {
+			found[string(h.OID(h.Snap.Commit(i)))] = i
+			left--
+		}
+	}
+	return found
 }
 
 // historyTips are the commits history starts from: HEAD, and the
@@ -740,10 +995,7 @@ func (s *Session) WriteCommitGraph(a history.Advice) error {
 			if s.Repo != r {
 				return
 			}
-			s.hist.mu.Lock()
-			s.hist.loading = nil
-			s.hist.mu.Unlock()
-			s.History.For = nil
+			s.historyLoadN++
 			s.LoadHistory()
 		})
 	})
