@@ -25,8 +25,10 @@ import (
 // patch beside a list may not.
 type diffOptions struct {
 	split, reviewSplit int // 0 unified, 1 side by side
-	wrap               bool
-	ws                 int // a diff.Whitespace
+	// noWrap keeps each line of a patch on one line; they wrap unless
+	// the user asks.
+	noWrap bool
+	ws     int // a diff.Whitespace
 }
 
 // layout is the layout of the review's patches, or of the others.
@@ -47,7 +49,7 @@ func (a *App) diffOpts() *diffOptions {
 		if !a.Settings.ReviewUnified {
 			o.reviewSplit = 1
 		}
-		o.wrap = !a.Settings.DiffNoWrap
+		o.noWrap = a.Settings.DiffNoWrap
 	}
 	return &o.diffOptions
 }
@@ -67,14 +69,14 @@ func (a *App) diffBar(c *ui.Context, review bool, more func()) {
 				}
 			}
 		})
-		wrap := ui.Checkbox(c, &o.wrap, locales.DiffWrap())
+		wrap := ui.Checkbox(c, &o.noWrap, locales.DiffNoWrap())
 		layout := ui.Segmented(c, o.layout(review), locales.DiffUnified(), locales.DiffSplit())
 		ui.Spacer(c)
 		if more != nil {
 			more()
 		}
 		if wrap.Changed() || layout.Changed() {
-			a.Settings.DiffSplit, a.Settings.ReviewUnified, a.Settings.DiffNoWrap = o.split == 1, o.reviewSplit == 0, !o.wrap
+			a.Settings.DiffSplit, a.Settings.ReviewUnified, a.Settings.DiffNoWrap = o.split == 1, o.reviewSplit == 0, o.noWrap
 			a.writeSettings(a.Settings, locales.DiffSettingsNotSaved)
 		}
 	}).Label(locales.DiffOptions()).Padding(0, insetX, spaceS, insetX)
@@ -294,7 +296,7 @@ func (a *App) setDiffView(d *editor.DiffState, review bool, actions func(c *ui.C
 	if *o.layout(review) == 1 {
 		d.Layout = editor.DiffSplit
 	}
-	d.Wrap = o.wrap
+	d.Wrap = !o.noWrap
 	d.LineSelection = actions != nil
 	d.HunkActions = actions != nil
 	d.RenderHunkActions = nil

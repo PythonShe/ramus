@@ -5197,18 +5197,20 @@ func (msgs Messages) DiffIgnoreAllSpace() string {
 	return Catalog.Format(msgs.locale, "diffIgnoreAllSpace", nil)
 }
 
-// DiffWrap says "Wrap"
+// DiffNoWrap says "No Wrap"
 // in the language the app shows.
 //
-// A checkbox: long lines of a patch wrap.
-func DiffWrap() string { return In(i18n.Locale()).DiffWrap() }
+// A checkbox, off by default: each line of a patch stays on one line,
+// scrolled sideways, instead of wrapping.
+func DiffNoWrap() string { return In(i18n.Locale()).DiffNoWrap() }
 
-// DiffWrap says "Wrap"
+// DiffNoWrap says "No Wrap"
 // in the language of msgs.
 //
-// A checkbox: long lines of a patch wrap.
-func (msgs Messages) DiffWrap() string {
-	return Catalog.Format(msgs.locale, "diffWrap", nil)
+// A checkbox, off by default: each line of a patch stays on one line,
+// scrolled sideways, instead of wrapping.
+func (msgs Messages) DiffNoWrap() string {
+	return Catalog.Format(msgs.locale, "diffNoWrap", nil)
 }
 
 // DiffUnified says "Unified"

@@ -940,9 +940,9 @@
   },
   "diffIgnoreSpaceChanges": "Ignore Space Changes",
   "diffIgnoreAllSpace": "Ignore All Space",
-  "diffWrap": "Wrap",
-  "@diffWrap": {
-    "description": "A checkbox: long lines of a patch wrap."
+  "diffNoWrap": "No Wrap",
+  "@diffNoWrap": {
+    "description": "A checkbox, off by default: each line of a patch stays on one line, scrolled sideways, instead of wrapping."
   },
   "diffUnified": "Unified",
   "@diffUnified": {
