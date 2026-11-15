@@ -93,7 +93,6 @@ func TestDifftoolSwitch(t *testing.T) {
 			t.Fatalf("already %v", on)
 		}
 		h.click("Use Ramus for git difftool and mergetool")
-		h.click("Save")
 		// Each key is a git of its own: wait for the last.
 		h.until("written", func() bool {
 			b, _ := os.ReadFile(cfg)

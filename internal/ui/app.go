@@ -486,6 +486,9 @@ func (a *App) initAndOpen() {
 
 // View builds the main window.
 func (a *App) View(c *ui.Context) {
+	// Before the theme: a setting changed since the last frame is in
+	// force in this one.
+	a.applySettings()
 	a.themes.apply(c, a.Settings.Theme)
 	a.claimNotice()
 	a.shortcuts(c)

@@ -55,13 +55,12 @@ func TestFetchSettingDefault(t *testing.T) {
 	h.tt.Frame()
 	h.click("Every 15 minutes")
 	h.click("Every 30 minutes")
-	h.app.saveSettings()
 	if h.app.Settings.FetchEvery() != 30 {
 		t.Fatalf("every %d", h.app.Settings.FetchEvery())
 	}
 	h.app.openSettings()
 	s.fetchMinutes = 0
-	h.app.saveSettings()
+	h.tt.Frame()
 	if h.app.Settings.FetchEvery() != 0 || h.app.Settings.FetchMinutes != 30 {
 		t.Fatalf("turned off: %+v", h.app.Settings)
 	}

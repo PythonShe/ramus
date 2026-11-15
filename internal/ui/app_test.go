@@ -331,20 +331,16 @@ func TestSettings(t *testing.T) {
 	if !h.tt.HasText("Language") || h.app.settingsUI.lang != "System" {
 		t.Fatalf("language %q; texts %q", h.app.settingsUI.lang, h.tt.Texts())
 	}
-	// Save waits for a change.
+	// What the form says is in force from the frame after it says it.
 	if h.app.settingsChanged() {
 		t.Fatalf("changed as opened: %+v", h.app.settingsUI)
 	}
 	h.app.settingsUI.theme = 2
-	if !h.app.settingsChanged() {
-		t.Fatal("a theme chosen is no change")
-	}
-	h.app.settingsUI.theme = 0
 	h.app.settingsUI.lang = "English"
-	if !h.app.settingsChanged() {
-		t.Fatal("a language chosen is no change")
+	h.tt.Frame()
+	if theme != "dark" || h.app.Settings.Theme != "dark" || chosen != "en" || h.app.settingsChanged() {
+		t.Fatalf("not in force: theme %q %q, language %q", theme, h.app.Settings.Theme, chosen)
 	}
-	h.app.settingsUI.theme = 2
 	// The editor is chosen, never typed: a program that cannot be one is
 	// refused, one that can is kept.
 	exe, _ := os.Executable()
@@ -364,12 +360,12 @@ func TestSettings(t *testing.T) {
 	h.click(auto)
 	h.click("Other…")
 	h.until("chosen", h.shows(filepath.Base(exe)))
-	h.click("Save")
-	if theme != "dark" || h.app.Settings.Theme != "dark" || len(h.app.Settings.Editor) != 1 || h.app.Settings.Editor[0] != exe {
-		t.Fatalf("applied %q %+v", theme, h.app.Settings)
+	if len(h.app.Settings.Editor) != 1 || h.app.Settings.Editor[0] != exe {
+		t.Fatalf("editor %+v", h.app.Settings)
 	}
-	if chosen != "en" {
-		t.Fatalf("language chosen %q", chosen)
+	h.click("Done")
+	if h.app.settingsUI.open {
+		t.Fatal("Done left the settings open")
 	}
 	h.app.openSettings()
 	if h.app.settingsUI.lang != "English" {

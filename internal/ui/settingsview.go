@@ -21,7 +21,7 @@ import (
 
 type settingsState struct {
 	open bool
-	// edit is the form; it is saved when the user presses Save.
+	// edit is the form; what it says is in force at once (applySettings).
 	edit  settings.Settings
 	theme int
 	lang  string
@@ -118,11 +118,8 @@ func (a *App) settingsView(c *ui.Context) {
 					a.goWork(nil, func() { tools.OpenDefault(p) })
 				}
 				ui.Spacer(c)
-				if ui.Button(c, locales.CommonCancel()).Clicked() {
+				if ui.PrimaryButton(c, locales.CommonDone()).Clicked() {
 					s.open = false
-				}
-				if ui.PrimaryButton(c, locales.CommonSave()).Disabled(!a.settingsChanged()).Clicked() {
-					a.saveSettings()
 				}
 			})
 		})
@@ -324,13 +321,18 @@ func settingsGroup(c *ui.Context, heading string, fn func(row settingsRow)) {
 	})
 }
 
-// saveSettings checks the form, applies it, and writes the file off the
-// main thread.
-func (a *App) saveSettings() {
+// applySettings puts what the form says in force as soon as it says it,
+// as the system's settings do: there is no Save. The file is written off
+// the main thread, the last of several changes in a row only.
+func (a *App) applySettings() {
 	s := &a.settingsUI
+	if !s.open || !a.settingsChanged() {
+		return
+	}
 	next := a.formSettings()
 	if s.difftoolRead && s.difftool != s.difftoolWas {
 		r, tool, on, update := a.Runner, a.globalTool(), s.difftool, a.Update
+		s.difftoolWas = on
 		a.goWork(nil, func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			err := write.SetTool(ctx, r, tool, on)
@@ -340,11 +342,11 @@ func (a *App) saveSettings() {
 			}
 		})
 	}
-	a.Settings, s.open = next.WithDefaults(), false
-	a.findTools()
-	if a.ApplyTheme != nil {
-		a.ApplyTheme(a.Settings.Theme)
+	if next.Theme != a.Settings.Theme && a.ApplyTheme != nil {
+		a.ApplyTheme(next.Theme)
 	}
+	a.Settings = next.WithDefaults()
+	a.findTools()
 	if tag, changed := a.formLanguage(); changed {
 		a.SetLocale(tag)
 	}
@@ -352,7 +354,7 @@ func (a *App) saveSettings() {
 }
 
 // settingsChanged reports whether the form says anything other than
-// what is in force, for Save to have something to do.
+// what is in force, for applySettings to have something to do.
 func (a *App) settingsChanged() bool {
 	s := &a.settingsUI
 	if _, changed := a.formLanguage(); changed || s.difftoolRead && s.difftool != s.difftoolWas {
