@@ -4555,18 +4555,18 @@ func (msgs Messages) CommitGoToParent() string {
 	return Catalog.Format(msgs.locale, "commitGoToParent", nil)
 }
 
-// CommitPullRequest says "Pull request"
+// CommitPullRequest says "{kind, select, gitlab {Merge request} other {Pull request}}"
 // in the language the app shows.
 //
 // Labels the GitHub pull request a commit came in by.
-func CommitPullRequest() string { return In(i18n.Locale()).CommitPullRequest() }
+func CommitPullRequest(kind string) string { return In(i18n.Locale()).CommitPullRequest(kind) }
 
-// CommitPullRequest says "Pull request"
+// CommitPullRequest says "{kind, select, gitlab {Merge request} other {Pull request}}"
 // in the language of msgs.
 //
 // Labels the GitHub pull request a commit came in by.
-func (msgs Messages) CommitPullRequest() string {
-	return Catalog.Format(msgs.locale, "commitPullRequest", nil)
+func (msgs Messages) CommitPullRequest(kind string) string {
+	return Catalog.Format(msgs.locale, "commitPullRequest", map[string]any{"kind": kind})
 }
 
 // CommitCopyMessage says "Copy Message"

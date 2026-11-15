@@ -156,11 +156,11 @@ func (p restPull) pull() Pull {
 	return Pull{Number: p.Number, Title: p.Title, URL: p.URL, Branch: p.Head.Ref, Draft: p.Draft, State: st}
 }
 
-// CommitPull asks GitHub for the pull request that brought commit sha
-// into r: the one numbered hint when GitHub names several, else a merged
-// one, else an open one. When GitHub names none, hint, the number the
-// subject ends with (see SquashHint), is asked for by itself; 0 asks
-// nothing more. ok is false when there is none. A host the tool does
+// CommitPull asks GitHub or GitLab for the pull or merge request that
+// brought commit sha into r: the one numbered hint when the host names
+// several, else a merged one, else an open one. When GitHub names none,
+// hint, the number the subject ends with (see SquashHint), is asked for
+// by itself; 0 asks nothing more, as GitLab's subjects end with none. ok is false when there is none. A host the tool does
 // not know (Knows) is not asked: ErrUnknownHost. Its URL is on r's host
 // (PullURL).
 func (c *CLI) CommitPull(ctx context.Context, r Repo, sha string, hint int) (p Pull, ok bool, err error) {
@@ -172,7 +172,7 @@ func (c *CLI) CommitPull(ctx context.Context, r Repo, sha string, hint int) (p P
 }
 
 func (c *CLI) commitPull(ctx context.Context, r Repo, sha string, hint int) (p Pull, ok bool, err error) {
-	if r.Kind != GitHub || c.Kind != GitHub {
+	if r.Kind != c.Kind {
 		return Pull{}, false, ErrNoCLI
 	}
 	if !c.Knows(r.Host) {
@@ -180,6 +180,9 @@ func (c *CLI) commitPull(ctx context.Context, r Repo, sha string, hint int) (p P
 	}
 	if !hexID(sha) {
 		return Pull{}, false, fmt.Errorf("forge: %q is not a commit id", sha)
+	}
+	if r.Kind == GitLab {
+		return c.gitlabCommitPull(ctx, r, sha)
 	}
 	out, err := c.run(ctx, "", r.Host, "api", "repos/"+r.Path+"/commits/"+sha+"/pulls", "--hostname", r.Host)
 	switch {
@@ -192,7 +195,11 @@ func (c *CLI) commitPull(ctx context.Context, r Repo, sha string, hint int) (p P
 		if err := json.Unmarshal(out, &list); err != nil {
 			return Pull{}, false, fmt.Errorf("gh: %w", err)
 		}
-		if p, ok := pickCommitPull(list, hint); ok {
+		pulls := make([]Pull, len(list))
+		for i, rp := range list {
+			pulls[i] = rp.pull()
+		}
+		if p, ok := pickCommitPull(pulls, hint); ok {
 			return p, true, nil
 		}
 	}
@@ -229,18 +236,16 @@ func hexID(s string) bool {
 	return true
 }
 
-// pickCommitPull chooses among the pull requests GitHub names for a
+// pickCommitPull chooses among the pull requests a host names for a
 // commit: the hinted one, else the first merged, else the first open,
 // else the first.
-func pickCommitPull(list []restPull, hint int) (Pull, bool) {
-	if len(list) == 0 {
+func pickCommitPull(pulls []Pull, hint int) (Pull, bool) {
+	if len(pulls) == 0 {
 		return Pull{}, false
 	}
-	pulls := make([]Pull, len(list))
-	for i, rp := range list {
-		pulls[i] = rp.pull()
-		if hint > 0 && rp.Number == hint {
-			return pulls[i], true
+	for _, p := range pulls {
+		if hint > 0 && p.Number == hint {
+			return p, true
 		}
 	}
 	for _, want := range []PullState{PullMerged, PullOpen} {

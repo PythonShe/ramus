@@ -287,13 +287,17 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				a.clip = id
 			}
 		})
-		// The row shows only once GitHub names a pull request: nothing
+		// The row shows only once the host names a pull request: nothing
 		// stands in for it while asking, so nothing moves when it does
 		// not.
 		a.loadCommitPull(t, cv, d)
 		if p := cv.pull.Pull; a.Settings.PullRequests && cv.pull.Found {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.CommitPullRequest()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				kind := "github"
+				if p.Repo.Kind == forge.GitLab {
+					kind = "gitlab"
+				}
+				ui.Text(c, locales.CommitPullRequest(kind)).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
 					ui.Link(c, p.Ref(p.Repo.Kind), p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
 					pullState(c, plainInk(th), p.Pull)
@@ -343,7 +347,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 	})
 }
 
-// loadCommitPull asks GitHub once per commit shown, when the settings
+// loadCommitPull asks GitHub or GitLab once per commit shown, when the settings
 // turn pull requests on, for the pull request that brought it in.
 func (a *App) loadCommitPull(t *tab, cv *commitView, d *session.CommitDetail) {
 	if !a.Settings.PullRequests || cv.noPull || cv.pullAsked || a.Runner == nil && a.forgeFind == nil {

@@ -246,8 +246,9 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 	})
 }
 
-// CommitPullResult is the pull request a commit came in by, as GitHub
-// says; Found is false when it names none, or was not asked.
+// CommitPullResult is the pull or merge request a commit came in by, as
+// GitHub or GitLab says; Found is false when it names none, or was not
+// asked.
 type CommitPullResult struct {
 	Pull  PullInfo
 	Found bool
@@ -255,21 +256,20 @@ type CommitPullResult struct {
 	at    time.Time
 }
 
-// CommitPullMaxAge is how long what GitHub said of a commit is kept: an
+// CommitPullMaxAge is how long what the host said of a commit is kept: an
 // open pull request may be merged since.
 const CommitPullMaxAge = 5 * time.Minute
 
 func commitPullKey(oid []byte) string { return "p\x00" + string(oid) }
 
-// LoadCommitPull asks GitHub, off the main thread, through the gh find
-// gives (called off the main thread too), for the pull request that
-// brought commit oid in, whose subject is subject, and hands the answer
-// to done on it: from the repository named upstream when there is one,
-// for a fork's commits came in there, or else from the repository origin
-// was forked from, then from origin, where a fork's branch's commits are
-// until merged. A repository
-// not on GitHub, on a host gh does not know, or not trusted, is not
-// asked. The answer is kept per commit for CommitPullMaxAge. cancel stops
+// LoadCommitPull asks GitHub or GitLab, off the main thread, through the
+// tool find gives (called off the main thread too), for the pull or merge
+// request that brought commit oid in, whose subject is subject, and hands
+// the answer to done on it: from the repository named upstream when there
+// is one, for a fork's commits came in there, or else from the repository
+// origin was forked from, then from origin, where a fork's branch's
+// commits are until merged. A repository on neither, on a host the tool
+// does not know, or not trusted, is not asked. The answer is kept per commit for CommitPullMaxAge. cancel stops
 // the asking and drops its answer.
 func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid []byte, subject string, done func(CommitPullResult)) (cancel func()) {
 	r := s.Repo
@@ -312,34 +312,39 @@ func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid 
 func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(forge.Kind) (*forge.CLI, error), sha string, hint int) CommitPullResult {
 	up, origin := RemoteURLs(r)
 	var asks []forge.Repo
-	if gh, ok := forge.Parse(up); ok && gh.Kind == forge.GitHub {
-		asks = append(asks, gh)
-	}
-	gh, ok := forge.Parse(origin)
-	if ok && gh.Kind == forge.GitHub && (len(asks) == 0 || gh != asks[0]) {
-		asks = append(asks, gh)
-	}
-	if len(asks) == 0 {
+	parent, named := forge.Parse(up)
+	o, ok := forge.Parse(origin)
+	switch {
+	case named && ok && parent.Kind != o.Kind:
+		// An upstream on another forge is no fork's parent.
+		asks, named = []forge.Repo{o}, false
+	case named && ok && parent != o:
+		asks = []forge.Repo{parent, o}
+	case named:
+		asks = []forge.Repo{parent}
+	case ok:
+		asks = []forge.Repo{o}
+	default:
 		return CommitPullResult{}
 	}
-	c, err := find(forge.GitHub)
+	c, err := find(asks[0].Kind)
 	if err != nil {
 		return CommitPullResult{Err: err}
 	}
-	if len(asks) == 1 && up == "" {
-		// A fork's clone without the remote: its parent, as GitHub names it.
+	if !named {
+		// A fork's clone without the remote: its parent, as the host names it.
 		if p := s.forks.parentOf(ctx, c, asks[0]); p != asks[0] {
 			asks = []forge.Repo{p, asks[0]}
 		}
 	}
-	for i, gh := range asks {
-		// GitHub names a pull request of a fork's branch, until it is
+	for i, fr := range asks {
+		// A host names a pull request of a fork's branch, until it is
 		// merged, only in the fork, where its commits are; the number the
 		// subject ends with is one of the upstream's.
 		if i > 0 {
 			hint = 0
 		}
-		p, found, err := c.CommitPull(ctx, gh, sha, hint)
+		p, found, err := c.CommitPull(ctx, fr, sha, hint)
 		if errors.Is(err, forge.ErrUnknownHost) {
 			continue
 		}
@@ -347,7 +352,7 @@ func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(
 			return CommitPullResult{Err: err}
 		}
 		if found {
-			return CommitPullResult{Pull: PullInfo{Pull: p, Repo: gh}, Found: true}
+			return CommitPullResult{Pull: PullInfo{Pull: p, Repo: fr}, Found: true}
 		}
 	}
 	return CommitPullResult{}

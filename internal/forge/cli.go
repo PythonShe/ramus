@@ -279,7 +279,7 @@ func (c *CLI) Parent(ctx context.Context, r Repo) (p Repo, ok bool, err error) {
 			path = a.Parent.FullName
 		}
 	case GitLab:
-		out, err := c.run(ctx, "", r.Host, "api", "projects/"+strings.ReplaceAll(r.Path, "/", "%2F"), "--hostname", r.Host)
+		out, err := c.run(ctx, "", r.Host, "api", "projects/"+projectID(r.Path), "--hostname", r.Host)
 		if err != nil {
 			return Repo{}, false, err
 		}

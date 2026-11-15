@@ -140,10 +140,13 @@ func TestSquashHint(t *testing.T) {
 
 func TestPickCommitPull(t *testing.T) {
 	merged := "2026-01-01T00:00:00Z"
-	list := []restPull{
+	var list []Pull
+	for _, rp := range []restPull{
 		{Number: 1, State: "open"},
 		{Number: 2, State: "closed", MergedAt: &merged},
 		{Number: 3, State: "closed"},
+	} {
+		list = append(list, rp.pull())
 	}
 	if p, ok := pickCommitPull(list, 0); !ok || p.Number != 2 || p.State != PullMerged {
 		t.Fatalf("merged first: %+v %v", p, ok)
@@ -227,12 +230,18 @@ func TestCLI(t *testing.T) {
 // case script, and returns the environment that finds it.
 func fakeREST(t *testing.T, cases string) []string {
 	t.Helper()
+	return fakeRESTTool(t, "gh", cases)
+}
+
+// fakeRESTTool is fakeREST for the program named program.
+func fakeRESTTool(t *testing.T, program, cases string) []string {
+	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake tool is a shell script")
 	}
 	dir := t.TempDir()
-	script := "#!/bin/sh\ncase \"$2\" in\n" + cases + "\n*) echo \"gh: Not Found (HTTP 404)\" >&2; exit 1 ;;\nesac\n"
-	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+	script := "#!/bin/sh\ncase \"$2\" in\n" + cases + "\n*) echo \"" + program + ": 404 Not Found (HTTP 404)\" >&2; exit 1 ;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(dir, program), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return []string{"PATH=" + dir + ":/usr/bin:/bin"}
@@ -435,5 +444,28 @@ repos/me/odd) echo '{"parent":{"full_name":"../x"}}' ;;`), GitHub)
 	}
 	if _, _, err := c.Parent(ctx, Repo{GitHub, "github.evil.example", "me/r"}); !errors.Is(err, ErrUnknownHost) {
 		t.Errorf("an unknown host: %v", err)
+	}
+}
+
+// GitLab names the merge requests a commit is in, merged first; one it
+// has not seen is in none. A fork names the project it was forked from.
+func TestGitLabCommitPull(t *testing.T) {
+	r := Repo{GitLab, "gitlab.com", "g/sub/p"}
+	sha := strings.Repeat("ab", 20)
+	c, err := Find(fakeRESTTool(t, "glab", `projects/g%2Fsub%2Fp/repository/commits/`+sha+`/merge_requests) echo '[{"iid":4,"title":"Open","web_url":"https://gitlab.com/g/sub/p/-/merge_requests/4","state":"opened","source_branch":"x"},{"iid":3,"title":"Merged","web_url":"https://gitlab.com/g/sub/p/-/merge_requests/3","state":"merged","source_branch":"y"}]' ;;
+projects/me%2Fp) echo '{"forked_from_project":{"path_with_namespace":"g/sub/p"}}' ;;`), GitLab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	p, ok, err := c.CommitPull(ctx, r, sha, 0)
+	if err != nil || !ok || p != (Pull{Number: 3, Title: "Merged", URL: "https://gitlab.com/g/sub/p/-/merge_requests/3", Branch: "y", State: PullMerged}) {
+		t.Fatalf("%+v %v %v", p, ok, err)
+	}
+	if _, ok, err := c.CommitPull(ctx, r, strings.Repeat("cd", 20), 0); err != nil || ok {
+		t.Fatalf("a commit not seen: %v %v", ok, err)
+	}
+	if p, ok, err := c.Parent(ctx, Repo{GitLab, "gitlab.com", "me/p"}); err != nil || !ok || p != r {
+		t.Fatalf("parent %+v %v %v", p, ok, err)
 	}
 }

@@ -841,7 +841,7 @@
     "description": "Labels a commit's parent commits."
   },
   "commitGoToParent": "Go to Parent",
-  "commitPullRequest": "Pull request",
+  "commitPullRequest": "{kind, select, gitlab {Merge request} other {Pull request}}",
   "@commitPullRequest": {
     "description": "Labels the GitHub pull request a commit came in by."
   },

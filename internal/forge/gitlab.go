@@ -3,6 +3,7 @@ package forge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -126,3 +127,39 @@ func gitlabChecks(status string) Checks {
 	}
 	return ChecksPending
 }
+
+type gitlabRESTMR struct {
+	IID    int    `json:"iid"`
+	Title  string `json:"title"`
+	WebURL string `json:"web_url"`
+	Draft  bool   `json:"draft"`
+	State  string `json:"state"`
+	Branch string `json:"source_branch"`
+}
+
+// gitlabCommitPull asks the project r for the merge requests commit sha
+// is in, merged ones and those still open.
+func (c *CLI) gitlabCommitPull(ctx context.Context, r Repo, sha string) (Pull, bool, error) {
+	out, err := c.run(ctx, "", r.Host, "api", "projects/"+projectID(r.Path)+"/repository/commits/"+sha+"/merge_requests", "--hostname", r.Host)
+	if errors.Is(err, ErrNotFound) {
+		// A commit GitLab has not seen, as one not pushed.
+		return Pull{}, false, nil
+	}
+	if err != nil {
+		return Pull{}, false, err
+	}
+	var list []gitlabRESTMR
+	if err := json.Unmarshal(out, &list); err != nil {
+		return Pull{}, false, fmt.Errorf("glab: %w", err)
+	}
+	pulls := make([]Pull, len(list))
+	for i, m := range list {
+		pulls[i] = Pull{Number: m.IID, Title: m.Title, URL: m.WebURL, Branch: m.Branch, Draft: m.Draft, State: gitlabState(m.State)}
+	}
+	p, ok := pickCommitPull(pulls, 0)
+	return p, ok, nil
+}
+
+// projectID is the project at path as GitLab's REST paths take it, its
+// slashes escaped.
+func projectID(path string) string { return strings.ReplaceAll(path, "/", "%2F") }

@@ -188,3 +188,37 @@ func TestPullsOfAForkWithoutUpstream(t *testing.T) {
 		t.Errorf("asked for the parent %d times:\n%s", n, b)
 	}
 }
+
+// A commit of a repository on GitLab is asked about there, through glab.
+func TestCommitPullOnGitLab(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake glab is a shell script")
+	}
+	dir := t.TempDir()
+	sha := strings.Repeat("ab", 20)
+	script := "#!/bin/sh\ncase \"$2\" in\n" +
+		"projects/g%2Fp) echo '{}' ;;\n" +
+		"projects/g%2Fp/repository/commits/" + sha + "/merge_requests) echo '[{\"iid\":9,\"web_url\":\"https://gitlab.com/g/p/-/merge_requests/9\",\"state\":\"merged\"}]' ;;\n" +
+		"*) echo 'glab: 404 Not Found (HTTP 404)' >&2; exit 1 ;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(dir, "glab"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"PATH=" + dir + ":/usr/bin:/bin", "GLAB_CONFIG_DIR=" + t.TempDir()}
+	find := func(k forge.Kind) (*forge.CLI, error) { return forge.Find(env, k) }
+
+	r := gittest.Init(t)
+	r.Commit("one")
+	r.Git("remote", "add", "origin", "git@gitlab.com:g/p.git")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+
+	oid, _ := hex.DecodeString(sha)
+	var cp *CommitPullResult
+	s.LoadCommitPull(find, oid, "Subject", func(got CommitPullResult) { cp = &got })
+	m.until(t, "the commit's merge request", func() bool { return cp != nil })
+	if cp.Err != nil || !cp.Found || cp.Pull.Number != 9 || cp.Pull.State != forge.PullMerged || cp.Pull.Repo.Kind != forge.GitLab {
+		t.Fatalf("commit pull: %+v", cp)
+	}
+}
