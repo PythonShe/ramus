@@ -119,6 +119,26 @@ func TestPullRequestReview(t *testing.T) {
 	h.tt.Frame()
 	h.click("Add to Review")
 	h.until("the pending comment", h.shows("Pending"))
+	// A second, on line 1, deleted: the other stays, under its line.
+	rv.pv.d.OnGutterButton(editor.DiffLineRange{Side: editor.DiffNew, Start: 0, End: 0})
+	h.tt.Frame()
+	h.until("the second comment being written", h.shows("Comment on line 1"))
+	h.tt.Type("Extra")
+	h.tt.Frame()
+	h.click("Add to Review")
+	h.until("both pending", h.shows("Submit Review (2)…"))
+	h.click("Delete")
+	h.until("one deleted", h.shows("Submit Review (1)…"))
+	if len(rv.drafts) != 1 {
+		t.Fatalf("drafts %+v", rv.drafts)
+	}
+	kept, gone := rv.drafts[0], "Nice"
+	if kept.Body == gone {
+		gone = "Extra"
+	}
+	if !h.tt.HasText(kept.Body) || h.tt.HasText(gone) {
+		t.Fatalf("kept %+v, texts %q", kept, h.tt.Texts())
+	}
 
 	h.click("Submit Review (1)…")
 	h.until("the dialog", h.shows("Submit your review of #7"))
@@ -145,7 +165,7 @@ func TestPullRequestReview(t *testing.T) {
 		t.Fatalf("%v: %q", err, line)
 	}
 	if sent.CommitID != head || sent.Event != "APPROVE" || sent.Body != "Good work" || len(sent.Comments) != 1 ||
-		sent.Comments[0].Path != "a.txt" || sent.Comments[0].Line != 2 || sent.Comments[0].Side != "RIGHT" || sent.Comments[0].Body != "Nice" {
+		sent.Comments[0].Path != "a.txt" || sent.Comments[0].Line != kept.Line || sent.Comments[0].Side != "RIGHT" || sent.Comments[0].Body != kept.Body {
 		t.Fatalf("sent %+v", sent)
 	}
 	h.until("the drafts gone", func() bool { return len(rv.drafts) == 0 && !rv.submit.open })

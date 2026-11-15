@@ -183,7 +183,8 @@ func (s *Session) LoadPullRange(n int, done func(PullRange, error)) {
 		head, err := out("rev-parse", "--verify", "--end-of-options", write.PullHead(n)+"^{commit}")
 		if err == nil {
 			pr.Head = head
-			pr.MergeBase, err = out("merge-base", "--end-of-options", write.PullBase(n), write.PullHead(n))
+			// The head read, not the ref, which a fetch may have moved since.
+			pr.MergeBase, err = out("merge-base", "--end-of-options", write.PullBase(n), hex.EncodeToString(head))
 		}
 		update(func() { done(pr, err) })
 	})

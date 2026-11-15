@@ -56,9 +56,12 @@ type prReview struct {
 	r       forge.Review
 	err     string
 
-	// fetchedFor is the head the commits were fetched for; a review read
-	// with another fetches again.
+	// fetchedFor is the head and base branch the commits were fetched
+	// for (fetchKey); a review read with others fetches again.
 	fetchedFor string
+	// mismatched counts the fetches in a row whose head was not the one
+	// the review was read at, which reread it.
+	mismatched int
 	fetching   bool
 	fetchErr   string
 	rng        session.PullRange
@@ -80,11 +83,17 @@ type prReview struct {
 	// under its lines are measured at.
 	diffW float32
 
-	drafts  []forge.Draft
-	compose *prCompose
-	replies map[string]*string
-	opened  map[string]bool // resolved threads shown whole
-	sending bool
+	drafts []forge.Draft
+	// draftsAt are the commits the drafts' lines are of: a head read
+	// since moves lines the drafts do not follow.
+	draftsAt forge.Revs
+	// dropDraft is the draft to delete, from 1, once no note under the
+	// patch's lines is being built.
+	dropDraft int
+	compose   *prCompose
+	replies   map[string]*string
+	opened    map[string]bool // resolved threads shown whole
+	sending   bool
 
 	conv    ui.ListState
 	comment string
@@ -316,7 +325,7 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 			return
 		}
 		rv.r = r
-		if r.HeadOID != rv.fetchedFor {
+		if fetchKey(r) != rv.fetchedFor {
 			a.fetchReview(t, rv)
 		}
 	})
@@ -324,11 +333,17 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 
 // fetchReview fetches the pull request's commits and reads what they
 // change.
+// fetchKey is what the commits fetched for r depend on: its head, and
+// the base branch it is diffed against.
+func fetchKey(r forge.Review) string { return r.HeadOID + "\x00" + r.Base }
+
 func (a *App) fetchReview(t *tab, rv *prReview) {
-	rv.fetching, rv.fetchErr, rv.fetchedFor = true, "", rv.r.HeadOID
+	rv.fetching, rv.fetchErr, rv.fetchedFor = true, "", fetchKey(rv.r)
+	// A fetch that failed is tried again when the review is read again.
+	failed := func(err error) { rv.fetching, rv.fetchErr, rv.fetchedFor = false, errText(err), "" }
 	j, err := t.s.FetchPull(rv.repo, rv.n, rv.r.Base)
 	if err != nil {
-		rv.fetching, rv.fetchErr = false, errText(err)
+		failed(err)
 		return
 	}
 	update := a.Update
@@ -340,7 +355,7 @@ func (a *App) fetchReview(t *tab, rv *prReview) {
 				return
 			}
 			if err != nil {
-				rv.fetching, rv.fetchErr = false, errText(err)
+				failed(err)
 				return
 			}
 			t.s.LoadPullRange(rv.n, func(pr session.PullRange, err error) {
@@ -348,9 +363,20 @@ func (a *App) fetchReview(t *tab, rv *prReview) {
 					return
 				}
 				if err != nil {
-					rv.fetching, rv.fetchErr = false, errText(err)
+					failed(err)
 					return
 				}
+				// The host moved the head between the review read and the
+				// fetch: its threads are of the head read, so it is read
+				// again, a few times at most, as the host's ref and its
+				// API may disagree for a while.
+				if fmt.Sprintf("%x", pr.Head) != rv.r.HeadOID && rv.mismatched < 2 {
+					rv.mismatched++
+					rv.fetching, rv.fetchedFor = false, ""
+					rv.reread()
+					return
+				}
+				rv.mismatched = 0
 				rv.rng = pr
 				a.compareReview(t, rv)
 			})
@@ -379,6 +405,12 @@ func (a *App) compareReview(t *tab, rv *prReview) {
 func (rv *prReview) reread() { rv.read = false }
 
 func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
+	if i := rv.dropDraft - 1; i >= 0 {
+		if i < len(rv.drafts) {
+			rv.drafts = slices.Delete(rv.drafts, i, i+1)
+		}
+		rv.dropDraft = 0
+	}
 	a.loadPRReview(t, rv)
 	th := c.Theme()
 	r := &rv.r
@@ -745,8 +777,8 @@ func (a *App) draftNote(c *ui.Context, rv *prReview, i int) {
 	ui.Text(c, shownBody(dr.Body)).FontSize(noteBodySize).Selectable().Grow(1)
 	ui.Row(c).Children(func() {
 		ui.Spacer(c)
-		if ui.Button(c, locales.CommonDelete()).Clicked() {
-			rv.drafts = slices.Delete(rv.drafts, i, i+1)
+		if ui.Button(c, locales.CommonDelete()).Disabled(rv.sending).Clicked() {
+			rv.dropDraft = i + 1
 		}
 	})
 }
@@ -769,9 +801,18 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 			dr, at := cp.draft(body), rv.revs()
 			a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error {
 				return cl.SubmitReview(ctx, rv.repo, rv.n, at, forge.VerdictComment, "", []forge.Draft{dr})
-			}, func() { rv.compose = nil })
+			}, func() {
+				if rv.compose == cp {
+					rv.compose = nil
+				}
+			})
 		}
-		if ui.PrimaryButton(c, locales.PrsAddToReview()).Disabled(body == "").Clicked() {
+		// A review being sent takes the drafts it was given away when it
+		// is through.
+		if ui.PrimaryButton(c, locales.PrsAddToReview()).Disabled(body == "" || rv.sending).Clicked() {
+			if len(rv.drafts) == 0 {
+				rv.draftsAt = rv.revs()
+			}
 			rv.drafts = append(rv.drafts, cp.draft(body))
 			rv.compose = nil
 		}
@@ -944,6 +985,9 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 				}
 				if ui.PrimaryButton(c, locales.PullsSubmit()).Disabled(empty || rv.sending).Clicked() {
 					drafts, at, v := slices.Clone(rv.drafts), rv.revs(), forge.Verdict(d.verdict)
+					if len(drafts) > 0 {
+						at = rv.draftsAt
+					}
 					rv.sending, d.err = true, ""
 					t.s.ForgeDo(a.findForge(), rv.repo, func(ctx context.Context, cl *forge.CLI) error {
 						return cl.SubmitReview(ctx, rv.repo, rv.n, at, v, body, drafts)
