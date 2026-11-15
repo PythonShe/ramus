@@ -10657,6 +10657,16 @@ func (msgs Messages) KeysSwitchBranch() string {
 	return Catalog.Format(msgs.locale, "keysSwitchBranch", nil)
 }
 
+// KeysSwitchRepository says "Switch Repository…"
+// in the language the app shows.
+func KeysSwitchRepository() string { return In(i18n.Locale()).KeysSwitchRepository() }
+
+// KeysSwitchRepository says "Switch Repository…"
+// in the language of msgs.
+func (msgs Messages) KeysSwitchRepository() string {
+	return Catalog.Format(msgs.locale, "keysSwitchRepository", nil)
+}
+
 // BranchPickerLabel says "Branch {name}"
 // in the language the app shows.
 //
@@ -11429,6 +11439,132 @@ func TabsOpenMore() string { return In(i18n.Locale()).TabsOpenMore() }
 // in the language of msgs.
 func (msgs Messages) TabsOpenMore() string {
 	return Catalog.Format(msgs.locale, "tabsOpenMore", nil)
+}
+
+// RepoPickerSearch says "Filter"
+// in the language the app shows.
+func RepoPickerSearch() string { return In(i18n.Locale()).RepoPickerSearch() }
+
+// RepoPickerSearch says "Filter"
+// in the language of msgs.
+func (msgs Messages) RepoPickerSearch() string {
+	return Catalog.Format(msgs.locale, "repoPickerSearch", nil)
+}
+
+// RepoPickerAdd says "Add"
+// in the language the app shows.
+func RepoPickerAdd() string { return In(i18n.Locale()).RepoPickerAdd() }
+
+// RepoPickerAdd says "Add"
+// in the language of msgs.
+func (msgs Messages) RepoPickerAdd() string {
+	return Catalog.Format(msgs.locale, "repoPickerAdd", nil)
+}
+
+// RepoPickerList says "Repositories"
+// in the language the app shows.
+func RepoPickerList() string { return In(i18n.Locale()).RepoPickerList() }
+
+// RepoPickerList says "Repositories"
+// in the language of msgs.
+func (msgs Messages) RepoPickerList() string {
+	return Catalog.Format(msgs.locale, "repoPickerList", nil)
+}
+
+// RepoPickerNone says "No repository matches"
+// in the language the app shows.
+func RepoPickerNone() string { return In(i18n.Locale()).RepoPickerNone() }
+
+// RepoPickerNone says "No repository matches"
+// in the language of msgs.
+func (msgs Messages) RepoPickerNone() string {
+	return Catalog.Format(msgs.locale, "repoPickerNone", nil)
+}
+
+// RepoPickerRecent says "Recent"
+// in the language the app shows.
+func RepoPickerRecent() string { return In(i18n.Locale()).RepoPickerRecent() }
+
+// RepoPickerRecent says "Recent"
+// in the language of msgs.
+func (msgs Messages) RepoPickerRecent() string {
+	return Catalog.Format(msgs.locale, "repoPickerRecent", nil)
+}
+
+// RepoPickerFavourites says "Favourites"
+// in the language the app shows.
+func RepoPickerFavourites() string { return In(i18n.Locale()).RepoPickerFavourites() }
+
+// RepoPickerFavourites says "Favourites"
+// in the language of msgs.
+func (msgs Messages) RepoPickerFavourites() string {
+	return Catalog.Format(msgs.locale, "repoPickerFavourites", nil)
+}
+
+// RepoPickerOther says "Other"
+// in the language the app shows.
+func RepoPickerOther() string { return In(i18n.Locale()).RepoPickerOther() }
+
+// RepoPickerOther says "Other"
+// in the language of msgs.
+func (msgs Messages) RepoPickerOther() string {
+	return Catalog.Format(msgs.locale, "repoPickerOther", nil)
+}
+
+// RepoPickerAhead says "↑{count}"
+// in the language the app shows.
+//
+// Commits the branch has to push, beside a repository.
+func RepoPickerAhead(count int) string { return In(i18n.Locale()).RepoPickerAhead(count) }
+
+// RepoPickerAhead says "↑{count}"
+// in the language of msgs.
+//
+// Commits the branch has to push, beside a repository.
+func (msgs Messages) RepoPickerAhead(count int) string {
+	return Catalog.Format(msgs.locale, "repoPickerAhead", map[string]any{"count": count})
+}
+
+// RepoPickerBehind says "↓{count}"
+// in the language the app shows.
+//
+// Commits the branch has to pull, beside a repository.
+func RepoPickerBehind(count int) string { return In(i18n.Locale()).RepoPickerBehind(count) }
+
+// RepoPickerBehind says "↓{count}"
+// in the language of msgs.
+//
+// Commits the branch has to pull, beside a repository.
+func (msgs Messages) RepoPickerBehind(count int) string {
+	return Catalog.Format(msgs.locale, "repoPickerBehind", map[string]any{"count": count})
+}
+
+// RepoPickerAheadLabel says "{count, plural, one {# commit to push} other {# commits to push}}"
+// in the language the app shows.
+//
+// Read aloud for the commits to push.
+func RepoPickerAheadLabel(count int) string { return In(i18n.Locale()).RepoPickerAheadLabel(count) }
+
+// RepoPickerAheadLabel says "{count, plural, one {# commit to push} other {# commits to push}}"
+// in the language of msgs.
+//
+// Read aloud for the commits to push.
+func (msgs Messages) RepoPickerAheadLabel(count int) string {
+	return Catalog.Format(msgs.locale, "repoPickerAheadLabel", map[string]any{"count": count})
+}
+
+// RepoPickerBehindLabel says "{count, plural, one {# commit to pull} other {# commits to pull}}"
+// in the language the app shows.
+//
+// Read aloud for the commits to pull.
+func RepoPickerBehindLabel(count int) string { return In(i18n.Locale()).RepoPickerBehindLabel(count) }
+
+// RepoPickerBehindLabel says "{count, plural, one {# commit to pull} other {# commits to pull}}"
+// in the language of msgs.
+//
+// Read aloud for the commits to pull.
+func (msgs Messages) RepoPickerBehindLabel(count int) string {
+	return Catalog.Format(msgs.locale, "repoPickerBehindLabel", map[string]any{"count": count})
 }
 
 // GitLogRowLabel says "{command}, {status}"

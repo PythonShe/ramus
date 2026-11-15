@@ -98,6 +98,11 @@ func TestOpenAnotherRepository(t *testing.T) {
 	if err := h.tt.Click("Open Another Repository"); err != nil {
 		t.Fatal(err)
 	}
+	h.tt.Frame()
+	// The picker's Add holds the ways to bring in a repository.
+	if err := h.tt.Click("Add"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Texts())
+	}
 	menu := h.tt.Menu()
 	for _, want := range []string{"Open Repository…", "Clone Repository…", "New Repository…", "Repositories…"} {
 		if !slices.Contains(menu, want) {
@@ -108,7 +113,7 @@ func TestOpenAnotherRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.tt.Frame()
-	if !h.app.clone.open {
-		t.Fatal("the clone dialog did not open")
+	if !h.app.clone.open || h.app.repoPick.open {
+		t.Fatal("the clone dialog did not open in the picker's place")
 	}
 }

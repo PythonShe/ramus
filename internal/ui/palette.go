@@ -65,6 +65,7 @@ func (a *App) commands() []command {
 	}
 	t := a.current()
 	if t != nil {
+		cmds = append(cmds, cmd("switch-repository", a.openRepoPicker))
 		cmds = append(cmds, a.tabCommands(t)...)
 	}
 	for i, other := range a.tabs {

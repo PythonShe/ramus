@@ -166,6 +166,7 @@ var bindable = append([]bindableCommand{
 	{"clone", locales.KeysClone},
 	{"new", locales.KeysNew},
 	{"repositories", locales.KeysRepositories},
+	{"switch-repository", locales.KeysSwitchRepository},
 	{"settings", locales.KeysSettings},
 	{"keyboard-shortcuts", locales.KeysKeyboardShortcuts},
 	{"about", locales.MenuAbout},
@@ -228,16 +229,17 @@ func goToTabs() []bindableCommand {
 
 // defaultKeys are the shortcuts the app ships with.
 var defaultKeys = map[string][]string{
-	"palette":      {"CmdOrCtrl+Shift+P", "CmdOrCtrl+K"},
-	"open":         {"CmdOrCtrl+O"},
-	"repositories": {"CmdOrCtrl+Shift+O"},
-	"settings":     {"CmdOrCtrl+,"},
-	"close-tab":    {"CmdOrCtrl+W"},
-	"new-window":   {"CmdOrCtrl+Shift+N"},
-	"refresh":      {"CmdOrCtrl+R"},
-	"undo":         {"CmdOrCtrl+Z"},
-	"redo":         {"CmdOrCtrl+Shift+Z"},
-	"commit":       {"CmdOrCtrl+Enter"},
+	"palette":           {"CmdOrCtrl+Shift+P", "CmdOrCtrl+K"},
+	"open":              {"CmdOrCtrl+O"},
+	"repositories":      {"CmdOrCtrl+Shift+O"},
+	"switch-repository": {"CmdOrCtrl+T"},
+	"settings":          {"CmdOrCtrl+,"},
+	"close-tab":         {"CmdOrCtrl+W"},
+	"new-window":        {"CmdOrCtrl+Shift+N"},
+	"refresh":           {"CmdOrCtrl+R"},
+	"undo":              {"CmdOrCtrl+Z"},
+	"redo":              {"CmdOrCtrl+Shift+Z"},
+	"commit":            {"CmdOrCtrl+Enter"},
 	// The system's own: Control-Command-S on macOS, as in Finder and
 	// Xcode.
 	"toggle-sidebar": {sidebarKey},

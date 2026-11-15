@@ -2110,6 +2110,7 @@
   "keysIssueLinks": "Issue Links…",
   "keysToggleSidebar": "Show or Hide the Sidebar",
   "keysSwitchBranch": "Switch Branch…",
+  "keysSwitchRepository": "Switch Repository…",
   "branchPickerLabel": "Branch {name}",
   "@branchPickerLabel": {
     "description": "What assistive technology calls the tab bar's button naming the branch checked out, which opens the branch picker."
@@ -2269,6 +2270,49 @@
   "tabsCloseTab": "Close Tab",
   "tabsClose": "Close {name}",
   "tabsOpenMore": "Open Another Repository",
+  "repoPickerSearch": "Filter",
+  "repoPickerAdd": "Add",
+  "repoPickerList": "Repositories",
+  "repoPickerNone": "No repository matches",
+  "repoPickerRecent": "Recent",
+  "repoPickerFavourites": "Favourites",
+  "repoPickerOther": "Other",
+  "repoPickerAhead": "↑{count}",
+  "@repoPickerAhead": {
+    "description": "Commits the branch has to push, beside a repository.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "repoPickerBehind": "↓{count}",
+  "@repoPickerBehind": {
+    "description": "Commits the branch has to pull, beside a repository.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "repoPickerAheadLabel": "{count, plural, one {# commit to push} other {# commits to push}}",
+  "@repoPickerAheadLabel": {
+    "description": "Read aloud for the commits to push.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "repoPickerBehindLabel": "{count, plural, one {# commit to pull} other {# commits to pull}}",
+  "@repoPickerBehindLabel": {
+    "description": "Read aloud for the commits to pull.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@tabsClose": {
     "description": "The button that closes a repository's tab."
   },

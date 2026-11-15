@@ -138,6 +138,7 @@ func (h *harness) closeAll() {
 	}
 	h.app.CloseAll()
 	h.app.writes.Wait()
+	h.app.repoPick.reading.Wait()
 	if k := h.app.keeper; k != nil {
 		k.Wait()
 	}

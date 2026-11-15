@@ -127,6 +127,7 @@ type App struct {
 
 	keymap     *keymap
 	welcome    welcomeState
+	repoPick   repoPick
 	clone      cloneState
 	palette    paletteState
 	settingsUI settingsState
@@ -382,6 +383,7 @@ func (a *App) CloseAll() {
 		t.s.Close()
 	}
 	a.tabs, a.active = nil, -1
+	a.stopBriefs()
 	cs := &a.clone
 	if cs.job != nil {
 		cs.job.Cancel()
