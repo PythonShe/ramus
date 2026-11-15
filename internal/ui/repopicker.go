@@ -25,11 +25,12 @@ type repoPick struct {
 	// hi is the key of the row the arrows and the pointer are on, which
 	// Enter chooses; rows move as briefs come in, the key stays.
 	hi string
-	// hover is the row under the pointer, "" none: the pointer moving
-	// onto a row takes hi there, but resting on one leaves hi to the
-	// arrows.
-	hover string
-	list  ui.ListState
+	// ptr is where the pointer was on the last frame: the pointer moving
+	// onto a row takes hi there, but resting while the rows under it
+	// change, as a query filters them or the picker opens, leaves hi to
+	// the arrows.
+	ptr  pointerAt
+	list ui.ListState
 	// briefs are what was read of each repository, by path; stop ends
 	// the reading under way, and reading waits for it, for a test to
 	// before the repositories' folders go.
@@ -148,7 +149,7 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 				return
 			}
 			hover := ""
-			ui.List(c, &p.list, len(rows), func(i int) {
+			list := ui.List(c, &p.list, len(rows), func(i int) {
 				r := a.repoRowView(c, rows[i], rows[i].heading == "" && rows[i].key == p.hi)
 				if rows[i].heading != "" {
 					return
@@ -175,14 +176,18 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 					hover = rows[i].key
 				}
 			}).Label(locales.RepoPickerList()).FillWidth().Height(float32(min(len(rows), repoPickRows) * rowHeight))
-			if hover != p.hover {
-				p.hover = hover
-				if hover != "" && hover != p.hi {
-					// The rows are drawn: draw them again with the highlight
-					// under the pointer, or it shows a move late.
-					p.hi = hover
-					c.AnimationFrame()
-				}
+			// Where the pointer is in the window, known once the list was
+			// laid out: the list drawn under a pointer at rest is no move.
+			x, y, _ := list.PointerPosition()
+			b := list.Bounds()
+			ptr := pointerAt{x: b.X + x, y: b.Y + y, known: b.W > 0 && b.H > 0}
+			moved := p.ptr.known && ptr.known && ptr != p.ptr
+			p.ptr = ptr
+			if moved && hover != "" && hover != p.hi {
+				// The rows are drawn: draw them again with the highlight
+				// under the pointer, or it shows a move late.
+				p.hi = hover
+				c.AnimationFrame()
 			}
 		})
 	})
@@ -216,11 +221,18 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 	}
 }
 
+// pointerAt is where the pointer is in the window, and whether that is
+// known.
+type pointerAt struct {
+	x, y  float32
+	known bool
+}
+
 // openRepoPicker opens the repository picker, empty of a query, and
 // reads again the briefs gone stale.
 func (a *App) openRepoPicker() {
 	p := &a.repoPick
-	p.open, p.query, p.hi, p.hover = true, "", "", ""
+	p.open, p.query, p.hi, p.ptr = true, "", "", pointerAt{}
 	a.readBriefs()
 }
 
