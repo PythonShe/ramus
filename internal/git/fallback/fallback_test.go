@@ -39,7 +39,7 @@ func check(t *testing.T, g *gittest.Repo, wantFallback string, hashSize int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { r.Close(); <-r.Life().Done() }()
 	if !strings.Contains(strings.Join(r.Caps.Fallbacks(), ","), wantFallback) {
 		t.Errorf("fallbacks %q, want %q", r.Caps.Fallbacks(), wantFallback)
 	}

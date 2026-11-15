@@ -51,7 +51,7 @@ func TestSessionFollowsTheRepository(t *testing.T) {
 	r.Commit("one")
 	m := make(mainThread, 64)
 	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
-	defer s.Close()
+	defer func() { s.Close(); <-s.Done() }()
 	m.until(t, "status", func() bool { return s.State.Status != nil })
 	if s.State.Restricted || s.Queue == nil || s.State.Head.Target != "refs/heads/main" || s.State.Status.Len() != 0 {
 		t.Fatalf("opened %+v", s.State)
@@ -84,7 +84,7 @@ func TestUntrustedOpensRestricted(t *testing.T) {
 	m := make(mainThread, 64)
 	ts := trusted(t)
 	s := Open(testrun.Runner(t), ts, r.Dir, m.update)
-	defer s.Close()
+	defer func() { s.Close(); <-s.Done() }()
 	m.until(t, "status", func() bool { return s.State.Status != nil })
 	if !s.State.Restricted || s.Queue != nil {
 		t.Fatalf("untrusted %+v", s.State)
@@ -135,6 +135,7 @@ func TestOpenErrorAndCloseWhileOpening(t *testing.T) {
 		case fn := <-m:
 			fn()
 		case <-deadline:
+			<-s.Done()
 			return // opened and closed without publishing: fine
 		}
 		if s.Repo != nil {
@@ -148,7 +149,7 @@ func TestLog(t *testing.T) {
 	r.Commit("one")
 	m := make(mainThread, 64)
 	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
-	defer s.Close()
+	defer func() { s.Close(); <-s.Done() }()
 	m.until(t, "status", func() bool { return s.State.Status != nil })
 	if _, err := s.Submit(write.Op{Name: "Bad commit", Cmd: run.Cmd{GitDir: s.Repo.GitDir, WorkTree: r.Dir,
 		Args: []string{"commit", "-q", "-m", "nothing staged"}}}); err != nil {

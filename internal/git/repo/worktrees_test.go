@@ -26,7 +26,7 @@ func TestWorktreesAndSubmodules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rp.Close()
+	defer func() { rp.Close(); <-rp.Life().Done() }()
 	wts, err := rp.Worktrees(context.Background())
 	if err != nil {
 		t.Fatal(err)

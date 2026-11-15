@@ -92,8 +92,13 @@ func TestClose(t *testing.T) {
 			t.Fatal("events open after close")
 		}
 	}
-	time.Sleep(50 * time.Millisecond)
-	if n := runtime.NumGoroutine(); n > before+1 {
-		t.Errorf("%d goroutines, %d before", n, before)
+	// Goroutines end a while after they are done with, longer on a busy
+	// machine.
+	for deadline := time.Now().Add(5 * time.Second); runtime.NumGoroutine() > before+1; {
+		if time.Now().After(deadline) {
+			t.Errorf("%d goroutines, %d before", runtime.NumGoroutine(), before)
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

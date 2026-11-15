@@ -30,9 +30,10 @@ func TestClose(t *testing.T) {
 	release, _ := l.Own(closer{&closes})
 	release()
 	release()
+	hold := make(chan struct{})
 	l.Go(func(ctx context.Context) {
 		<-ctx.Done()
-		time.Sleep(20 * time.Millisecond)
+		<-hold
 		if closes.Load() > 1 {
 			closedBeforeStop.Store(true)
 		}
@@ -44,11 +45,15 @@ func TestClose(t *testing.T) {
 	if err != nil || string(m.Bytes()) != "mapped" {
 		t.Fatal(err)
 	}
-	t0 := time.Now()
-	l.Close()
-	if time.Since(t0) > 5*time.Millisecond {
-		t.Error("Close waited")
+	// Close returns while the work it stopped still runs, held here.
+	returned := make(chan struct{})
+	go func() { l.Close(); close(returned) }()
+	select {
+	case <-returned:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close waited")
 	}
+	close(hold)
 	<-l.Done()
 	if !stopped.Load() || closedBeforeStop.Load() || closes.Load() != 2 {
 		t.Fatalf("stopped %v, closed early %v, closes %d", stopped.Load(), closedBeforeStop.Load(), closes.Load())
@@ -60,9 +65,14 @@ func TestClose(t *testing.T) {
 		t.Error("Map after Close")
 	}
 	l.Close()
-	time.Sleep(10 * time.Millisecond)
-	if n := runtime.NumGoroutine(); n > before {
-		t.Errorf("%d goroutines left, %d before", n, before)
+	// Goroutines end a while after they are done with, longer on a busy
+	// machine.
+	for deadline := time.Now().Add(5 * time.Second); runtime.NumGoroutine() > before; {
+		if time.Now().After(deadline) {
+			t.Errorf("%d goroutines left, %d before", runtime.NumGoroutine(), before)
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

@@ -111,18 +111,22 @@ func TestPushedRewrite(t *testing.T) {
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "status", func() bool { return s.State.Status != nil })
 	head := func() string { return strings.TrimSpace(r.Git("rev-parse", "HEAD")) }
-	check := func(old string) string {
+	// The check answers only a rewrite of commits pushed: wait for the
+	// answer when there is one, however slow the machine, and give one
+	// that never comes the time of its three commands.
+	check := func(old string, answers bool) string {
 		got, done := "", false
 		s.PushedRewrite("refs/heads/main", old, func(up string) { got = up })
-		// The check runs at most three commands; give it their time.
-		go func() { time.Sleep(2 * time.Second); m.update(func() { done = true }) }()
+		if !answers {
+			go func() { time.Sleep(2 * time.Second); m.update(func() { done = true }) }()
+		}
 		m.until(t, "the check", func() bool { return got != "" || done })
 		return got
 	}
 
 	old := head()
 	r.Git("commit", "-q", "--amend", "-m", "base, amended")
-	if up := check(old); up != "origin/main" {
+	if up := check(old, true); up != "origin/main" {
 		t.Fatalf("an amended pushed commit: %q", up)
 	}
 	r.Git("reset", "-q", "--hard", old)
@@ -131,7 +135,7 @@ func TestPushedRewrite(t *testing.T) {
 	r.Commit("local")
 	old = head()
 	r.Git("commit", "-q", "--amend", "-m", "local, amended")
-	if up := check(old); up != "" {
+	if up := check(old, false); up != "" {
 		t.Fatalf("an amended commit never pushed: %q", up)
 	}
 }

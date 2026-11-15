@@ -104,7 +104,7 @@ func TestWatchLinkedWorktree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { r.Close(); <-r.Life().Done() }()
 	ch, err := r.Watch(nil)
 	if err == watch.ErrUnsupported {
 		t.Skip(err)

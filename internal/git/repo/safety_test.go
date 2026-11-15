@@ -61,7 +61,7 @@ func TestRestricted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { r.Close(); <-r.Life().Done() }()
 	if !r.Restricted || !r.Runner.IsHardened() {
 		t.Fatal("not restricted")
 	}

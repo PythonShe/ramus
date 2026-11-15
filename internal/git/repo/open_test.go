@@ -77,7 +77,7 @@ func TestCommitGraphReopens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { r.Close(); <-r.Life().Done() }()
 	if graph, err := r.CommitGraph(); graph != nil || err != nil {
 		t.Fatalf("graph before one was written: %v %v", graph, err)
 	}
@@ -198,7 +198,7 @@ func TestCommitGraphUsableChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { r.Close(); <-r.Life().Done() }()
 	usable := func(want bool, what string) {
 		t.Helper()
 		graph, err := r.CommitGraph()
@@ -260,7 +260,7 @@ func TestReloadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { r.Close(); <-r.Life().Done() }()
 	g.Git("config", "diff.tool", "later")
 	if _, ok := r.Config().Get("diff.tool"); ok {
 		t.Fatal("the config was read again unasked")
