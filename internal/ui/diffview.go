@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/cli"
 	"ramus/internal/git/diff"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
@@ -207,19 +208,24 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	})
 	a.diffBar(c, false, func() {
 		if ui.Button(c, locales.DiffOpenInTool()).Disabled(ro || d.key.src == diff.Untracked).Clicked() {
-			t.s.OpenDiffTool(session.DiffToolRequest{Paths: d.key.paths(), Cached: d.key.src == diff.Staged, Own: a.ownDiffTool()}, a.toolDone)
+			old, new := locales.CompareSideIndex(), locales.CompareSideWorkTree()
+			if d.key.src == diff.Staged {
+				old, new = locales.CompareSideHead(), locales.CompareSideIndex()
+			}
+			t.s.OpenDiffTool(session.DiffToolRequest{Paths: d.key.paths(), Cached: d.key.src == diff.Staged, Own: a.ownDiffTool(old, new)}, a.toolDone)
 		}
 	})
 }
 
 // ownDiffTool is the command git runs for the app's own compare window
-// as its difftool, for a repository whose config names no diff tool; ""
-// when the app does not know its own path.
-func (a *App) ownDiffTool() string {
+// as its difftool, for a repository whose config names no diff tool,
+// with the sides named old and new; "" when the app does not know its
+// own path.
+func (a *App) ownDiffTool(old, new string) string {
 	if a.Program == "" {
 		return ""
 	}
-	return a.globalTool().DiffCmd
+	return cli.LabeledDiffCommand(a.Program, old, new)
 }
 
 // toolDone shows why an external tool did not run.

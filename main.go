@@ -117,9 +117,9 @@ func main() {
 			first.app.Notify(e.Error())
 		}
 	}
-	// handle carries out a request in the window it belongs in, and
-	// returns that window.
-	handle := func(r cli.Request) *window {
+	// handle carries out a request, made in folder wd, in the window it
+	// belongs in, and returns that window.
+	handle := func(r cli.Request, wd string) *window {
 		w := ws.focused
 		if r.Kind == cli.Open {
 			if o := ws.showing(r.Paths[0]); o != nil {
@@ -133,7 +133,7 @@ func main() {
 		case cli.Open:
 			w.app.Open(r.Paths[0])
 		case cli.Diff:
-			w.app.Compare(r.Paths[0], r.Paths[1], nil)
+			w.app.CompareNamed(r.Paths[0], r.Paths[1], r.Name, toolLabels(r, wd), nil)
 		case cli.Log, cli.Blame:
 			w.app.ShowFile(r.Paths[0], r.Kind == cli.Blame)
 		case cli.Merge:
@@ -141,7 +141,7 @@ func main() {
 		}
 		return w
 	}
-	handle(req)
+	handle(req, cwd)
 	mygo.App.OnSecondInstance(func(args []string, wd string) {
 		r, err := cli.Parse(args, wd)
 		if err != nil {
@@ -150,7 +150,7 @@ func main() {
 			ws.raise(w)
 			return
 		}
-		ws.raise(handle(r))
+		ws.raise(handle(r, wd))
 	})
 	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
 		if ws.beforeQuit(e) {
@@ -162,7 +162,7 @@ func main() {
 	})
 	mygo.App.OnQuitCanceled(func() { ws.quitting, ws.quitAnyway = false, false })
 	mygo.App.OnOpenFile(func(p string) {
-		ws.raise(handle(cli.Request{Kind: cli.Open, Paths: []string{p}}))
+		ws.raise(handle(cli.Request{Kind: cli.Open, Paths: []string{p}}, ""))
 	})
 	if probe != "" {
 		probeMark("app")
@@ -290,8 +290,13 @@ func runTool(req cli.Request) {
 	title := "Ramus"
 	switch req.Kind {
 	case cli.Diff:
-		title = locales.WindowCompare(filepath.Base(req.Paths[1]))
-		app.Compare(req.Paths[0], req.Paths[1], func() { mygo.App.Exit(code) })
+		name := filepath.Base(req.Paths[1])
+		if req.Name != "" {
+			name = filepath.Base(req.Name)
+		}
+		title = locales.WindowCompare(name)
+		cwd, _ := os.Getwd()
+		app.CompareNamed(req.Paths[0], req.Paths[1], req.Name, toolLabels(req, cwd), func() { mygo.App.Exit(code) })
 	case cli.Merge:
 		title = locales.WindowMerge(filepath.Base(req.Paths[3]))
 		app.MergeTool(req.Paths[0], req.Paths[1], req.Paths[2], req.Paths[3], func(resolved bool) {
@@ -316,6 +321,26 @@ func runTool(req cli.Request) {
 		log.Fatal(err)
 	}
 	os.Exit(code)
+}
+
+// toolLabels names the sides of a comparison git difftool asked for, in
+// cwd, where it ran: as the request names them, else the work tree's
+// file when a side is it, else the older and the newer.
+func toolLabels(r cli.Request, cwd string) []string {
+	if r.Labels != nil || r.Name == "" {
+		return r.Labels
+	}
+	file := r.Name
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(cwd, file)
+	}
+	labels := []string{locales.CompareSideOld(), locales.CompareSideNew()}
+	for i, p := range r.Paths {
+		if filepath.Clean(p) == filepath.Clean(file) {
+			labels[i] = locales.CompareSideWorkTree()
+		}
+	}
+	return labels
 }
 
 func lookup(env []string, key string) string {

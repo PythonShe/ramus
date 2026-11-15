@@ -535,7 +535,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		})
 		a.diffBar(c, false, func() {
 			if ui.Button(c, locales.DiffOpenInTool()).Disabled(t.s.Queue == nil || len(d.Parents) == 0).Clicked() {
-				t.s.OpenDiffTool(session.DiffToolRequest{Paths: paths, From: d.Parents[0], To: d.OID, Own: a.ownDiffTool()}, a.toolDone)
+				t.s.OpenDiffTool(session.DiffToolRequest{Paths: paths, From: d.Parents[0], To: d.OID, Own: a.ownDiffTool(shortID(d.Parents[0]), shortID(d.OID))}, a.toolDone)
 			}
 		})
 		a.pagerNotice(c, &cv.pager, cv.patch, cv.patchLoading, "", cv.loadPatch)

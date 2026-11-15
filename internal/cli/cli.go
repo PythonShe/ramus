@@ -35,12 +35,18 @@ type Request struct {
 	// difftool and mergetool expect; its exit code says whether a merge
 	// was resolved.
 	Wait bool
+	// Name is what Diff compares, as git difftool names it, relative to
+	// the work tree, when its Paths are git's copies; "" for none.
+	Name string
+	// Labels name Diff's two sides, as "HEAD" and "Working tree", or are
+	// nil.
+	Labels []string
 }
 
 // Usage is printed for a command line that does not parse.
 const Usage = `usage:
   ramus [<repository>]
-  ramus diff [--wait] <old> <new>
+  ramus diff [--wait] [--name <file>] [--label <old> --label <new>] <old> <new>
   ramus log <file>
   ramus blame <file>
   ramus merge [--wait] [<base>] <local> <remote> <merged>`
@@ -84,7 +90,8 @@ func Parse(args []string, cwd string) (Request, error) {
 	}
 	if r.Kind != Open {
 		dashdash := false
-		for _, a := range args[1:] {
+		for i := 1; i < len(args); i++ {
+			a := args[i]
 			switch {
 			case dashdash || !strings.HasPrefix(a, "-") || a == "-":
 				rest = append(rest, a)
@@ -92,9 +99,22 @@ func Parse(args []string, cwd string) (Request, error) {
 				dashdash = true
 			case a == "--wait" && (r.Kind == Diff || r.Kind == Merge):
 				r.Wait = true
+			case (a == "--name" || a == "--label") && r.Kind == Diff:
+				if i+1 == len(args) {
+					return bad("%s takes a value", a)
+				}
+				i++
+				if a == "--name" {
+					r.Name = args[i]
+				} else {
+					r.Labels = append(r.Labels, args[i])
+				}
 			default:
 				return bad("unknown option %s", a)
 			}
+		}
+		if len(r.Labels) != 0 && len(r.Labels) != 2 {
+			return bad("--label is given for both sides or for neither")
 		}
 	} else if len(rest) == 1 && strings.HasPrefix(rest[0], "-") {
 		return bad("unknown option %s", rest[0])
@@ -151,6 +171,12 @@ func (r Request) Args() []string {
 	if r.Wait {
 		a = append(a, "--wait")
 	}
+	if r.Name != "" {
+		a = append(a, "--name", r.Name)
+	}
+	for _, l := range r.Labels {
+		a = append(a, "--label", l)
+	}
 	a = append(a, "--")
 	for i, p := range r.Paths {
 		if r.Kind == Merge && i == 0 && p == "" {
@@ -183,10 +209,18 @@ func Program(exe string, getenv func(string) string) string {
 }
 
 // ToolCommands are the commands git runs for the app as its difftool
-// and its mergetool, the app being program.
+// and its mergetool, the app being program. git difftool names the file
+// compared in $MERGED; its sides are copies, or the work tree's file.
 func ToolCommands(program string) (diff, merge string) {
 	q := quote(program)
-	return q + ` diff --wait "$LOCAL" "$REMOTE"`, q + ` merge --wait "$BASE" "$LOCAL" "$REMOTE" "$MERGED"`
+	return q + ` diff --wait --name "$MERGED" "$LOCAL" "$REMOTE"`, q + ` merge --wait "$BASE" "$LOCAL" "$REMOTE" "$MERGED"`
+}
+
+// LabeledDiffCommand is the command git runs for the app as its difftool
+// when the app asked for the comparison and so knows its sides, named
+// old and new.
+func LabeledDiffCommand(program, old, new string) string {
+	return quote(program) + ` diff --wait --name "$MERGED" --label ` + quote(old) + ` --label ` + quote(new) + ` "$LOCAL" "$REMOTE"`
 }
 
 // quote writes program for git's config and the shell git runs cmd in.

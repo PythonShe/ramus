@@ -24,6 +24,10 @@ const maxCompareSide = 4 << 20
 type compareState struct {
 	open     bool
 	old, new string
+	// name is the file git's copies old and new are of, and labels name
+	// their sides, when git difftool asked; see CompareNamed.
+	name   string
+	labels []string
 	// dir is set once both sides are known to be folders.
 	dir     bool
 	loading bool
@@ -54,8 +58,18 @@ type compareKey struct {
 // Compare shows what differs between old and new, absolute paths to two
 // files or two folders. closed, when set, runs once it is closed.
 func (a *App) Compare(old, new string, closed func()) {
+	a.CompareNamed(old, new, "", nil, closed)
+}
+
+// CompareNamed is Compare of git's copies of the file named name, whose
+// paths say nothing to the user: the file's name and labels, its two
+// sides' names when there are two, are shown in their place.
+func (a *App) CompareNamed(old, new, name string, labels []string, closed func()) {
 	a.stopCompare()
-	a.compareUI = compareState{open: true, old: old, new: new, chosen: -1, split: 320, loading: true, closed: closed}
+	if len(labels) != 2 {
+		labels = nil
+	}
+	a.compareUI = compareState{open: true, old: old, new: new, name: name, labels: labels, chosen: -1, split: 320, loading: true, closed: closed}
 	if a.Runner == nil {
 		a.compareUI.pending = true
 		return
@@ -211,6 +225,13 @@ func (a *App) compareView(c *ui.Context) {
 	a.toolFrame(c, &cs.open, func(box ui.Element) {
 		box.Gap(spaceL).Padding(dialogPad, 0).Children(func() {
 			ui.Column(c).Padding(0, dialogPad).Gap(space2XS).Children(func() {
+				if cs.name != "" {
+					ui.Text(c, redact.Control(cs.name)).Bold().SingleLine().Selectable()
+					if cs.labels != nil {
+						ui.Text(c, locales.CompareSides(redact.Control(cs.labels[0]), redact.Control(cs.labels[1]))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+					}
+					return
+				}
 				ui.Text(c, locales.CompareTitle()).Bold()
 				for _, p := range []string{cs.old, cs.new} {
 					ui.Text(c, redact.Control(p)).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()

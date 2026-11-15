@@ -472,6 +472,24 @@
   "mergeToolNoConflicts": "The sides merge without conflicts",
   "compareNotSameKind": "{old} and {new} are not both files or both folders",
   "compareTitle": "Compare",
+  "compareSides": "{old} → {new}",
+  "@compareSides": {
+    "description": "Under a file's name in a comparison: what its two sides are, as \"HEAD → Index\" or \"Index → Working tree\"."
+  },
+  "compareSideWorkTree": "Working tree",
+  "compareSideIndex": "Index",
+  "compareSideHead": "HEAD",
+  "@compareSideHead": {
+    "description": "git's name for the current commit; not translated."
+  },
+  "compareSideOld": "Old",
+  "@compareSideOld": {
+    "description": "The older side of a comparison whose revision git does not say."
+  },
+  "compareSideNew": "New",
+  "@compareSideNew": {
+    "description": "The newer side of a comparison whose revision git does not say."
+  },
   "@compareTitle": {
     "description": "A heading: the comparison of two files or folders."
   },

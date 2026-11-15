@@ -2615,6 +2615,84 @@ func (msgs Messages) CompareTitle() string {
 	return Catalog.Format(msgs.locale, "compareTitle", nil)
 }
 
+// CompareSides says "{old} → {new}"
+// in the language the app shows.
+//
+// Under a file's name in a comparison: what its two sides are, as "HEAD →
+// Index" or "Index → Working tree".
+func CompareSides(old string, new string) string { return In(i18n.Locale()).CompareSides(old, new) }
+
+// CompareSides says "{old} → {new}"
+// in the language of msgs.
+//
+// Under a file's name in a comparison: what its two sides are, as "HEAD →
+// Index" or "Index → Working tree".
+func (msgs Messages) CompareSides(old string, new string) string {
+	return Catalog.Format(msgs.locale, "compareSides", map[string]any{"old": old, "new": new})
+}
+
+// CompareSideWorkTree says "Working tree"
+// in the language the app shows.
+func CompareSideWorkTree() string { return In(i18n.Locale()).CompareSideWorkTree() }
+
+// CompareSideWorkTree says "Working tree"
+// in the language of msgs.
+func (msgs Messages) CompareSideWorkTree() string {
+	return Catalog.Format(msgs.locale, "compareSideWorkTree", nil)
+}
+
+// CompareSideIndex says "Index"
+// in the language the app shows.
+func CompareSideIndex() string { return In(i18n.Locale()).CompareSideIndex() }
+
+// CompareSideIndex says "Index"
+// in the language of msgs.
+func (msgs Messages) CompareSideIndex() string {
+	return Catalog.Format(msgs.locale, "compareSideIndex", nil)
+}
+
+// CompareSideHead says "HEAD"
+// in the language the app shows.
+//
+// git's name for the current commit; not translated.
+func CompareSideHead() string { return In(i18n.Locale()).CompareSideHead() }
+
+// CompareSideHead says "HEAD"
+// in the language of msgs.
+//
+// git's name for the current commit; not translated.
+func (msgs Messages) CompareSideHead() string {
+	return Catalog.Format(msgs.locale, "compareSideHead", nil)
+}
+
+// CompareSideOld says "Old"
+// in the language the app shows.
+//
+// The older side of a comparison whose revision git does not say.
+func CompareSideOld() string { return In(i18n.Locale()).CompareSideOld() }
+
+// CompareSideOld says "Old"
+// in the language of msgs.
+//
+// The older side of a comparison whose revision git does not say.
+func (msgs Messages) CompareSideOld() string {
+	return Catalog.Format(msgs.locale, "compareSideOld", nil)
+}
+
+// CompareSideNew says "New"
+// in the language the app shows.
+//
+// The newer side of a comparison whose revision git does not say.
+func CompareSideNew() string { return In(i18n.Locale()).CompareSideNew() }
+
+// CompareSideNew says "New"
+// in the language of msgs.
+//
+// The newer side of a comparison whose revision git does not say.
+func (msgs Messages) CompareSideNew() string {
+	return Catalog.Format(msgs.locale, "compareSideNew", nil)
+}
+
 // CompareNoDifferences says "No differences"
 // in the language the app shows.
 func CompareNoDifferences() string { return In(i18n.Locale()).CompareNoDifferences() }

@@ -61,3 +61,22 @@ func TestCompareFolders(t *testing.T) {
 	h.app.Compare(old, filepath.Join(new, "same"), nil)
 	h.until("the mismatch", h.shows("are not both files or both folders"))
 }
+
+// Git's copies of a file compared show as the file's name and the names
+// of its sides, not as their paths.
+func TestCompareNamed(t *testing.T) {
+	h := newHarness(t)
+	dir := t.TempDir()
+	old, new := filepath.Join(dir, "git-blob-x", "a.txt"), filepath.Join(dir, "a.txt")
+	for p, s := range map[string]string{old: "1\n", new: "2\n"} {
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.app.CompareNamed(old, new, "src/a.txt", []string{"HEAD", "Working tree"}, nil)
+	h.until("the patch", func() bool { return h.app.compareUI.pv.d != nil })
+	if !hasExact(h, "src/a.txt") || !h.tt.HasText("HEAD → Working tree") || h.tt.HasText("git-blob-x") {
+		t.Fatalf("header: %q", h.tt.Texts())
+	}
+}

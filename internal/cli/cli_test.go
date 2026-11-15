@@ -28,6 +28,8 @@ func TestParse(t *testing.T) {
 		{[]string{"../other"}, Request{Kind: Open, Paths: []string{at("/work/other")}}},
 		{[]string{"diff", "a.txt", "/tmp/b.txt"}, Request{Kind: Diff, Paths: []string{at("/work/repo/a.txt"), at("/tmp/b.txt")}}},
 		{[]string{"diff", "--wait", "--", "-a", "b"}, Request{Kind: Diff, Wait: true, Paths: []string{at("/work/repo/-a"), at("/work/repo/b")}}},
+		{[]string{"diff", "--wait", "--name", "src/a b.go", "--label", "HEAD", "--label", "Working tree", "/tmp/x", "src/a b.go"},
+			Request{Kind: Diff, Wait: true, Name: "src/a b.go", Labels: []string{"HEAD", "Working tree"}, Paths: []string{at("/tmp/x"), at("/work/repo/src/a b.go")}}},
 		{[]string{"log", "src/x.go"}, Request{Kind: Log, Paths: []string{at("/work/repo/src/x.go")}}},
 		{[]string{"blame", "x.go"}, Request{Kind: Blame, Paths: []string{at("/work/repo/x.go")}}},
 		{[]string{"merge", "--wait", "B", "L", "R", "M"}, Request{Kind: Merge, Wait: true, Paths: []string{at("/work/repo/B"), at("/work/repo/L"), at("/work/repo/R"), at("/work/repo/M")}}},
@@ -45,7 +47,7 @@ func TestParse(t *testing.T) {
 			t.Errorf("round trip of %q: %+v, %v", c.args, back, err)
 		}
 	}
-	for _, bad := range [][]string{{"diff", "a"}, {"log"}, {"merge", "a", "b"}, {"diff", "--nope", "a", "b"}, {"log", "--wait", "x"}, {"a", "b"}, {"--help"}} {
+	for _, bad := range [][]string{{"diff", "a"}, {"log"}, {"merge", "a", "b"}, {"diff", "--nope", "a", "b"}, {"diff", "a", "b", "--name"}, {"diff", "--label", "x", "a", "b"}, {"merge", "--name", "x", "L", "R", "M"}, {"log", "--wait", "x"}, {"a", "b"}, {"--help"}} {
 		if _, err := Parse(bad, cwd); !errors.Is(err, ErrUsage) {
 			t.Errorf("Parse(%q) accepted: %v", bad, err)
 		}
@@ -54,10 +56,13 @@ func TestParse(t *testing.T) {
 
 func TestToolCommands(t *testing.T) {
 	d, m := ToolCommands("/Applications/Ramus.app/Contents/MacOS/ramus")
-	if d != `/Applications/Ramus.app/Contents/MacOS/ramus diff --wait "$LOCAL" "$REMOTE"` || !strings.HasSuffix(m, `merge --wait "$BASE" "$LOCAL" "$REMOTE" "$MERGED"`) {
+	if d != `/Applications/Ramus.app/Contents/MacOS/ramus diff --wait --name "$MERGED" "$LOCAL" "$REMOTE"` || !strings.HasSuffix(m, `merge --wait "$BASE" "$LOCAL" "$REMOTE" "$MERGED"`) {
 		t.Fatal(d, m)
 	}
 	if d, _ := ToolCommands("/opt/My Apps/ramus"); !strings.HasPrefix(d, `'/opt/My Apps/ramus' diff`) {
+		t.Fatal(d)
+	}
+	if d := LabeledDiffCommand("/bin/ramus", "HEAD", "Working tree"); d != `/bin/ramus diff --wait --name "$MERGED" --label HEAD --label 'Working tree' "$LOCAL" "$REMOTE"` {
 		t.Fatal(d)
 	}
 }
