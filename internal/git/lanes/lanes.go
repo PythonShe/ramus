@@ -16,6 +16,11 @@
 // taken by one goroutine reads rows while another appends.
 package lanes
 
+import (
+	"slices"
+	"sort"
+)
+
 // MaxColumns bounds the width of the layout. A commit that would need a
 // column past it shares the last one; nothing that wide is readable anyway.
 const MaxColumns = 1 << 14
@@ -96,7 +101,7 @@ func (l *Layout) Snapshot() *Snapshot {
 	s.edges = append([][]Edge(nil), s.edges...)
 	s.states = append([][]uint16(nil), s.states...)
 	s.checks = s.checks[:len(s.checks):len(s.checks)]
-	return &Snapshot{s: s, at: -1}
+	return &Snapshot{segs: []segment{{s: s}}, n: s.n, width: s.width, colors: int(l.nextColor), at: -1}
 }
 
 func (l *Layout) column() int {
@@ -230,44 +235,87 @@ func (l *Layout) Append(commit uint32, parents []uint32) {
 
 // Snapshot reads the rows of a layout as they were when it was taken. It
 // keeps a cursor so that rows read in order cost one step each; it is not
-// safe for use by several goroutines at once.
+// safe for use by several goroutines at once, but for Len, Width and
+// Commit, which read only what never changes.
+//
+// It may be several layouts one above the other (Above): new rows laid
+// over rows laid out before, which stay as they were.
 type Snapshot struct {
-	s store
-	// state holds the lane colors (plus one) before row at.
+	// segs are the layouts, top first.
+	segs   []segment
+	n      int
+	width  int
+	colors int
+	// cur is the segment the state is in; state holds the lane colors
+	// (plus one) before its row at.
+	cur   int
 	state []uint16
 	at    int
 	ends  []bool
 }
 
+// segment is one layout of a snapshot, from row first on. enter is the
+// color (plus one) of a lane coming from the layout above into the node
+// of its first row, in column 0; 0 for none.
+type segment struct {
+	s     store
+	first int
+	enter uint16
+}
+
+// maxSegments bounds the layouts one snapshot stacks: each costs a step
+// to find a row in, and is laid out anew with the others past it.
+const maxSegments = 256
+
 // Len returns the number of rows.
-func (s *Snapshot) Len() int { return s.s.n }
+func (s *Snapshot) Len() int { return s.n }
 
 // Width returns the number of columns any row uses.
-func (s *Snapshot) Width() int { return s.s.width }
+func (s *Snapshot) Width() int { return s.width }
 
 // Commit returns the commit id that row i was appended with.
-func (s *Snapshot) Commit(i int) uint32 { return s.rec(i).commit }
+func (s *Snapshot) Commit(i int) uint32 {
+	g, k := s.find(i)
+	return s.segs[g].s.rec(k).commit
+}
 
-func (s *Snapshot) rec(i int) rec { return s.s.rows[i/rowChunk][i%rowChunk] }
+// find returns the segment of row i and the row's number in it.
+func (s *Snapshot) find(i int) (int, int) {
+	if len(s.segs) == 1 {
+		return 0, i
+	}
+	g := sort.Search(len(s.segs), func(g int) bool { return s.segs[g].first > i }) - 1
+	return g, i - s.segs[g].first
+}
 
-func (s *Snapshot) events(r rec) []Edge {
-	c := s.s.edges[r.edges>>16]
+func (s *store) rec(i int) rec { return s.rows[i/rowChunk][i%rowChunk] }
+
+func (s *store) events(r rec) []Edge {
+	c := s.edges[r.edges>>16]
 	off := r.edges & 0xffff
 	n := uint32(r.top) + uint32(r.bottom)
 	return c[off : off+n : off+n]
 }
 
-// seek brings the state to the lanes before row i.
-func (s *Snapshot) seek(i int) {
-	if s.at < 0 || i < s.at || i-s.at > checkEvery {
-		cp := s.s.checks[i/checkEvery]
-		s.state = append(s.state[:0], s.s.states[cp.chunk][cp.off:cp.off+cp.n]...)
-		s.at = i / checkEvery * checkEvery
+// seek brings the state to the lanes before row i, and returns its
+// segment and its number there.
+func (s *Snapshot) seek(i int) (*segment, int) {
+	g, k := s.find(i)
+	seg := &s.segs[g]
+	if s.at < 0 || g != s.cur || k < s.at || k-s.at > checkEvery {
+		cp := seg.s.checks[k/checkEvery]
+		s.state = append(s.state[:0], seg.s.states[cp.chunk][cp.off:cp.off+cp.n]...)
+		s.cur, s.at = g, k/checkEvery*checkEvery
+		if s.at == 0 && seg.enter != 0 {
+			s.grow(0)
+			s.state[0] = seg.enter
+		}
 	}
-	for s.at < i {
-		s.step(s.rec(s.at))
+	for s.at < k {
+		s.step(&seg.s, seg.s.rec(s.at))
 		s.at++
 	}
+	return seg, k
 }
 
 func (s *Snapshot) grow(col int) {
@@ -276,8 +324,8 @@ func (s *Snapshot) grow(col int) {
 	}
 }
 
-func (s *Snapshot) step(r rec) {
-	ev := s.events(r)
+func (s *Snapshot) step(st *store, r rec) {
+	ev := st.events(r)
 	s.grow(int(r.node))
 	s.state[r.node] = 0
 	for _, e := range ev[:r.top] {
@@ -287,6 +335,78 @@ func (s *Snapshot) step(r rec) {
 		s.grow(int(e.To))
 		s.state[e.To] = e.Color + 1
 	}
+}
+
+// Above returns the rows of l laid over those of base: l's first, then
+// base's as they are, as if laid out together from the top. That holds
+// when every lane l leaves open ends in base's first row: l is commits
+// added on top of base's newest, and nothing else of base moves. ok is
+// false otherwise, or when base stacks too many layouts already; then the
+// whole needs laying out anew.
+//
+// The lane going down into base takes the color its first row has there,
+// and l's other lanes colors base has not used, so base's rows keep
+// theirs. l is not to be used afterwards.
+func (l *Layout) Above(base *Snapshot) (_ *Snapshot, ok bool) {
+	if base.Len() == 0 {
+		if len(l.lanes) != 0 {
+			return nil, false
+		}
+		return l.Snapshot(), true
+	}
+	if len(l.lanes) != 1 || l.lanes[0] != base.Commit(0) || len(base.segs) >= maxSegments {
+		return nil, false
+	}
+	down := base.segs[0].s.rec(0).color
+	join, offset := l.laneColors[0], uint16(base.colors)
+	color := func(c uint16) uint16 {
+		if c == join {
+			return down
+		}
+		return offset + c
+	}
+	// Exactly as long as it needs: a commit at a time, a layout each.
+	s := &l.s
+	for _, rows := range s.rows {
+		for k := range rows {
+			rows[k].color = color(rows[k].color)
+		}
+	}
+	for _, es := range s.edges {
+		for k := range es {
+			es[k].Color = color(es[k].Color)
+		}
+	}
+	for _, st := range s.states {
+		for k, c := range st {
+			if c != 0 {
+				st[k] = color(c-1) + 1
+			}
+		}
+	}
+	top := segment{s: store{
+		rows: compact(s.rows), edges: compact(s.edges), states: compact(s.states),
+		checks: slices.Clip(s.checks), n: s.n, width: s.width,
+	}}
+	segs := make([]segment, 0, len(base.segs)+1)
+	segs = append(segs, top)
+	for k, g := range base.segs {
+		g.first += s.n
+		if k == 0 {
+			g.enter = down + 1
+		}
+		segs = append(segs, g)
+	}
+	return &Snapshot{segs: segs, n: s.n + base.n, width: max(s.width, base.width), colors: base.colors + int(l.nextColor), at: -1}, true
+}
+
+// compact copies chunks to slices of their length alone.
+func compact[T any](chunks [][]T) [][]T {
+	out := make([][]T, len(chunks))
+	for i, c := range chunks {
+		out[i] = slices.Clone(c)
+	}
+	return out
 }
 
 // Row describes one row for drawing.
@@ -312,9 +432,9 @@ func (s *Snapshot) Row(i, maxCols int, buf []Edge) (Row, []Edge) {
 	if maxCols <= 0 {
 		maxCols = MaxColumns
 	}
-	s.seek(i)
-	r := s.rec(i)
-	ev := s.events(r)
+	seg, k := s.seek(i)
+	r := seg.s.rec(k)
+	ev := seg.s.events(r)
 	buf = buf[:0]
 	hidden := 0
 	if len(s.ends) < len(s.state) {
