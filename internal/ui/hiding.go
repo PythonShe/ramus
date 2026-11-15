@@ -15,11 +15,11 @@ var sidebarParts = []struct {
 	key  string
 	name func() string
 }{
-	{"review", locales.RepoSectionReview}, {"history", locales.RepoSectionHistory}, {"reflog", locales.RepoSectionReflog},
-	{"refs", locales.RepoSectionRefs}, {"stats", locales.RepoSectionStats}, {"log", locales.RepoSectionLog},
-	{"snapshots", locales.RepoSectionSnapshots}, {"branches", locales.RepoSectionBranches}, {"remotes", locales.RepoSectionRemotes},
-	{"tags", locales.RepoSectionTags}, {"stashes", locales.RepoSectionStashes}, {"worktrees", locales.RepoSectionWorktrees},
-	{"submodules", locales.RepoSectionSubmodules},
+	{"history", locales.RepoSectionHistory}, {"review", locales.RepoSectionReview}, {"refs", locales.RepoSectionRefs},
+	{"branches", locales.RepoSectionBranches}, {"remotes", locales.RepoSectionRemotes}, {"tags", locales.RepoSectionTags},
+	{"stashes", locales.RepoSectionStashes}, {"worktrees", locales.RepoSectionWorktrees}, {"submodules", locales.RepoSectionSubmodules},
+	{"snapshots", locales.RepoSectionSnapshots}, {"reflog", locales.RepoSectionReflog}, {"log", locales.RepoSectionLog},
+	{"stats", locales.RepoSectionStats},
 }
 
 func partName(key string) string {

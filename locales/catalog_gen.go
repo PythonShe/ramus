@@ -6377,6 +6377,16 @@ func (msgs Messages) RepoSectionSnapshots() string {
 	return Catalog.Format(msgs.locale, "repoSectionSnapshots", nil)
 }
 
+// RepoSectionTools says "Tools"
+// in the language the app shows.
+func RepoSectionTools() string { return In(i18n.Locale()).RepoSectionTools() }
+
+// RepoSectionTools says "Tools"
+// in the language of msgs.
+func (msgs Messages) RepoSectionTools() string {
+	return Catalog.Format(msgs.locale, "repoSectionTools", nil)
+}
+
 // RepoSectionBranches says "Branches"
 // in the language the app shows.
 func RepoSectionBranches() string { return In(i18n.Locale()).RepoSectionBranches() }

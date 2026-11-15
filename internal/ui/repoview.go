@@ -230,21 +230,21 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 			a.hideMenu(ui.SidebarItem(c, key, nil, label), key)
 		}
 	}
+	// The sidebar runs from what is used all day to what is used now and
+	// then: the views of the work, the refs and what else the repository
+	// holds, then the tools, under a line between each.
 	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, sideChanges, nil, changesLabel(st))
-		item("review", locales.RepoSectionReview())
 		item("history", locales.RepoSectionHistory())
-		item("reflog", locales.RepoSectionReflog())
+		item("review", locales.RepoSectionReview())
 		item("refs", locales.RepoSectionRefs())
-		item("stats", locales.RepoSectionStats())
-		item("log", locales.RepoSectionLog())
-		item("snapshots", locales.RepoSectionSnapshots())
-		section("branches", locales.RepoSectionBranchesCount, heads, "refs/heads/")
-		section("remotes", locales.RepoSectionRemotesCount, remotes, "refs/remotes/")
-		section("tags", locales.RepoSectionTagsCount, tags, "refs/tags/")
 		if t.cmp.to != nil {
 			ui.SidebarItem(c, sideCompare, nil, locales.RepoSectionComparison())
 		}
+		sideDivider(c)
+		section("branches", locales.RepoSectionBranchesCount, heads, "refs/heads/")
+		section("remotes", locales.RepoSectionRemotesCount, remotes, "refs/remotes/")
+		section("tags", locales.RepoSectionTagsCount, tags, "refs/tags/")
 		if st.Status != nil && st.Status.Branch.Stashes > 0 {
 			item("stashes", locales.RepoSectionStashesCount(st.Status.Branch.Stashes))
 		}
@@ -278,11 +278,29 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 			}), "submodules", a.submodulesMenu(t))
 			t.open["submodules"] = open
 		}
+		if slices.ContainsFunc(sideTools, a.shown) {
+			sideDivider(c)
+			// Four items, always open: nothing to fold away.
+			ui.SidebarSection(c, locales.RepoSectionTools(), nil, func() {
+				item("snapshots", locales.RepoSectionSnapshots())
+				item("reflog", locales.RepoSectionReflog())
+				item("log", locales.RepoSectionLog())
+				item("stats", locales.RepoSectionStats())
+			})
+		}
 	}).Label(locales.RepoSections())
 	if side.Changed() {
 		a.chooseSidebar(t)
 	}
 	side.FillHeight()
+}
+
+// sideTools are the keys of the sidebar's tools, at its end.
+var sideTools = []string{"snapshots", "reflog", "log", "stats"}
+
+// sideDivider is the line between the sidebar's groups.
+func sideDivider(c *ui.Context) {
+	ui.Divider(c).Margin(spaceS, 0)
 }
 
 // The ids of sidebar items the sidebar makes itself; the others are the

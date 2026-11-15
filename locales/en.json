@@ -1153,6 +1153,7 @@
   "repoSectionStats": "Statistics",
   "repoSectionLog": "Command Log",
   "repoSectionSnapshots": "Snapshots",
+  "repoSectionTools": "Tools",
   "repoSectionBranches": "Branches",
   "repoSectionBranchesCount": "Branches ({n})",
   "@repoSectionBranchesCount": {
