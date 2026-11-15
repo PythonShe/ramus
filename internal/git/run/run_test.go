@@ -222,6 +222,25 @@ func TestPrompt(t *testing.T) {
 }
 
 // A command that prints nothing for Stall is stopped, one that keeps
+// Cancelling stops what git started too, as a hook's shell and what
+// that runs: one left running would hold the output open until WaitDelay,
+// and on Windows the folder it runs in.
+func TestCancelStopsChildren(t *testing.T) {
+	r := gittest.Init(t)
+	run := runner(t, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := run.Run(ctx, &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir,
+		Config: []string{"alias.s=!sleep 30; echo late"}, Args: []string{"s"}})
+	if err == nil {
+		t.Fatal("ran to the end")
+	}
+	if d := time.Since(start); d >= 2*time.Second {
+		t.Fatalf("returned after %v: the child outlived git", d)
+	}
+}
+
 // printing is not, and a question open to the user does not count.
 func TestStall(t *testing.T) {
 	r := gittest.Init(t)
@@ -241,7 +260,9 @@ func TestStall(t *testing.T) {
 	if d := time.Since(start); d > 4*time.Second {
 		t.Fatalf("stopped after %v", d)
 	}
-	if err := sh("for i in 1 2 3 4 5 6; do echo x; sleep 0.2; done", 600*time.Millisecond); err != nil {
+	// Printing every half second, for longer than the stall: the limit
+	// leaves a slow machine's start of git and its shell room.
+	if err := sh("for i in 1 2 3 4 5 6; do echo x; sleep 0.5; done", 2*time.Second); err != nil {
 		t.Fatalf("printing: %v", err)
 	}
 	mu.Lock()
