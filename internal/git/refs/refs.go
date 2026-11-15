@@ -331,6 +331,11 @@ func (s *Store) walkLoose(dir string, common bool, all map[string]raw, broken *[
 			return nil
 		}
 		r, err := s.readLoose(p, name)
+		if errors.Is(err, fs.ErrNotExist) {
+			// Gone since listed: git deleted it, or packed it, which the
+			// packed-refs read again tells.
+			return nil
+		}
 		if err != nil {
 			// git skips a broken loose ref, and with it the packed value
 			// it overrides.
