@@ -134,7 +134,11 @@ func (a *App) page(c *ui.Context, t *tab) {
 		// is committed without leaving it.
 		ui.Column(c).Fill().Children(func() {
 			ui.Column(c).Grow(1).Children(func() { a.reviewView(c, t) })
-			a.commitBox(c, t)
+			// As wide as under the list, at the bottom right, where the
+			// eye ends reading the review.
+			ui.Row(c).FillWidth().Justify(ui.End).Padding(0, spaceM, spaceM, spaceM).Children(func() {
+				a.commitBox(c, t, reviewCommitWidth)
+			})
 		})
 		return
 	}
@@ -299,6 +303,10 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	}
 	side.FillHeight()
 }
+
+// reviewCommitWidth caps the commit box under the review, which would
+// otherwise run the window's width.
+const reviewCommitWidth = 480
 
 // sideTools are the keys of the sidebar's tools, at its end.
 var sideTools = []string{"snapshots", "reflog", "log", "stats"}

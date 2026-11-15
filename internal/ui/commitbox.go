@@ -56,8 +56,9 @@ func coAuthorList(s string) []string {
 	return out
 }
 
-// commitBox is the message editor under the changes list.
-func (a *App) commitBox(c *ui.Context, t *tab) {
+// commitBox is the message editor under the changes list, as wide as
+// what it is under, or at most maxWidth when that is above 0.
+func (a *App) commitBox(c *ui.Context, t *tab, maxWidth float32) {
 	th := c.Theme()
 	cs := &t.commit
 	if t.s.Queue == nil {
@@ -79,7 +80,11 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	cs.wasAmend = cs.amend
 	a.keepDraft(t)
 	head := t.s.State.Head
-	ui.Column(c).Padding(spaceM).Gap(spaceS).Background(th.Surface).FillWidth().Children(func() {
+	box := ui.Column(c).Padding(spaceM).Gap(spaceS).Background(th.Surface).FillWidth()
+	if maxWidth > 0 {
+		box.MaxWidth(maxWidth).Radius(th.Radius)
+	}
+	box.Children(func() {
 		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &cs.subject).Label(locales.CommitBoxSummary()).Placeholder(locales.CommitBoxSummary()).Grow(1).Disabled(cs.busy)
 			a.coAuthorButton(c, t)
