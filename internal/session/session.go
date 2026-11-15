@@ -250,6 +250,8 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 		}
 	}
 	notices, werr := r.Watch(nil)
+	// Off the main thread: whether history goes to git reads files.
+	fallbacks := r.Capabilities().Fallbacks()
 	s.update(func() {
 		s.mu.Lock()
 		closed := s.closed
@@ -259,7 +261,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 			return
 		}
 		s.Repo, s.Queue = r, q
-		s.State = State{Restricted: r.Restricted, Fallbacks: r.Caps.Fallbacks(), Operation: repo.InProgress(r.GitDir)}
+		s.State = State{Restricted: r.Restricted, Fallbacks: fallbacks, Operation: repo.InProgress(r.GitDir)}
 		s.State.WatchErr = werr
 	})
 	r.Life().Go(func(ctx context.Context) { s.refresher(ctx, r) })
@@ -502,6 +504,10 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		// graphMoved is the commit-graph written again, or git no longer
 		// using it, or using it again.
 		graphMoved bool
+		// fallbacks, once readFallbacks, are what goes to git now: shallow
+		// history, grafts and replace refs come and go.
+		fallbacks     []string
+		readFallbacks bool
 	}
 	var res result
 	fail := func(err error) {
@@ -559,6 +565,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			res.graphMoved = seen.graphRead
 			seen.graph, seen.graphRead = g, true
 		}
+		res.fallbacks, res.readFallbacks = r.Capabilities().Fallbacks(), true
 	}
 	if what&(repo.RefsChanged|repo.ConfigChanged) != 0 {
 		wts, err := r.Worktrees(ctx)
@@ -649,6 +656,9 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		if res.readSub {
 			st.Submodules = res.subs
+		}
+		if res.readFallbacks {
+			st.Fallbacks = res.fallbacks
 		}
 		st.RefreshErr = res.err
 		s.State = st

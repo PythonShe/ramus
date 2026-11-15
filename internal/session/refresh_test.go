@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -269,4 +270,26 @@ func TestReload(t *testing.T) {
 	m.until(t, "the commit again", func() bool { return done })
 	s.LoadHistory()
 	m.until(t, "history again", func() bool { return s.History.Done && s.History.Load != load })
+}
+
+// What goes to git is read as the repository opens and again as it
+// changes: grafts added send history to git, and the status line says so.
+func TestFallbacksFollowTheRepository(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	one := r.Commit("one")
+	r.Write("a", "2")
+	r.Commit("two")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "refs", func() bool { return s.State.Refs != nil })
+	if f := s.State.Fallbacks; len(f) != 0 {
+		t.Fatalf("fallbacks %q", f)
+	}
+	if err := os.WriteFile(filepath.Join(r.GitDir(), "info", "grafts"), []byte(one+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.Refresh(repo.GraphChanged)
+	m.until(t, "grafts", func() bool { return slices.Contains(s.State.Fallbacks, "grafts") })
 }
