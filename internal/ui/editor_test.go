@@ -38,7 +38,7 @@ func TestEditorPerRepository(t *testing.T) {
 		t.Fatalf("default %q", n)
 	}
 
-	h.menu(filepath.Base(r.Dir), "Open Files In", "Beta")
+	h.repoMenu(filepath.Base(r.Dir), "Open Files In", "Beta")
 	if n := name(); n != "Beta" {
 		t.Fatalf("chosen %q", n)
 	}
@@ -53,7 +53,7 @@ func TestEditorPerRepository(t *testing.T) {
 		t.Fatalf("uninstalled %q", n)
 	}
 	h.app.palette.tools = eds
-	h.menu(filepath.Base(r.Dir), "Open Files In", "Default (Alpha)")
+	h.repoMenu(filepath.Base(r.Dir), "Open Files In", "Default (Alpha)")
 	h.app.writes.Wait()
 	if e := h.lib.Editor(r.Dir); e != "" || name() != "Alpha" {
 		t.Fatalf("library %q, editor %q", e, name())

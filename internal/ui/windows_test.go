@@ -39,8 +39,9 @@ func TestNewWindow(t *testing.T) {
 		t.Fatalf("opened %q", opened)
 	}
 
-	// The second tab, from its menu: it leaves this window.
-	h.menu(filepath.Base(two.Dir), "Move to New Window")
+	// The second repository, from its menu in the picker: it leaves this
+	// window.
+	h.repoMenu(filepath.Base(two.Dir), "Move to New Window")
 	if len(opened) != 2 || !slices.Equal(opened[1], []string{library.Clean(two.Dir)}) || len(h.app.tabs) != 1 || h.app.Has(two.Dir) {
 		t.Fatalf("opened %q, %d tabs", opened, len(h.app.tabs))
 	}

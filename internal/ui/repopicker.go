@@ -16,9 +16,9 @@ import (
 	"ramus/locales"
 )
 
-// repoPick is the repository picker: the "+" in the tab bar, and the
-// panel below it that finds a known repository, switches to its tab or
-// opens it, and adds another.
+// repoPick is the repository picker: the button in the bar naming the
+// repository shown, and the panel below it that finds a known one,
+// switches to it when open or opens it, and adds another.
 type repoPick struct {
 	open  bool
 	query string
@@ -62,14 +62,28 @@ const (
 	maxBriefs    = 200
 )
 
-// openMore is the "+" of the tab bar: it opens the repository picker.
-func (a *App) openMore(c *ui.Context) {
-	label := locales.TabsOpenMore()
+// repoButton names the repository shown and opens the picker.
+func (a *App) repoButton(c *ui.Context, t *tab) {
+	th := c.Theme()
 	p := &a.repoPick
+	name, icon := "", repoIcons().repo
+	if t != nil {
+		name = a.title(t)
+		if p.briefs[t.s.Path].Fork {
+			icon = repoIcons().fork
+		}
+	}
+	label := locales.RepoPickerLabel(name)
 	var b ui.Element
 	ui.Toolbar(c, func() {
-		b = ui.Button(c, "").Label(label).Tooltip(label)
-		b.Children(func() { ui.Icon(c, navIcons().plus).FontSize(16) })
+		b = ui.Button(c, "").Label(label).Tooltip(locales.RepoPickerTooltip())
+		b.Children(func() {
+			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, icon).FontSize(14).TextColor(th.TextMuted)
+				ui.Text(c, name).Bold().SingleLine().TruncateMiddle().MaxWidth(220)
+				ui.Icon(c, pickIcons().chevron).FontSize(10).TextColor(th.TextMuted)
+			})
+		})
 		if b.Clicked() {
 			if p.open {
 				p.open = false
@@ -82,8 +96,9 @@ func (a *App) openMore(c *ui.Context) {
 		a.stopBriefs()
 		return
 	}
-	th := c.Theme()
 	open, add := "", ""
+	closing, moving := -1, -1
+	var act func()
 	ui.Popover(c, b, &p.open, func() {
 		ui.Column(c).Width(repoPickWidth).Gap(spaceS).Children(func() {
 			var f ui.Element
@@ -138,6 +153,21 @@ func (a *App) openMore(c *ui.Context) {
 				if rows[i].heading != "" {
 					return
 				}
+				// An open repository closes, and moves to a window of its
+				// own, from its menu, as a tab did.
+				if at := slices.IndexFunc(a.tabs, func(t *tab) bool { return t.s.Path == rows[i].path }); at >= 0 {
+					ot := a.tabs[at]
+					r.ContextMenu(func(m *ui.Menu) {
+						if a.NewWindow != nil && m.Item(locales.TabsMoveToNewWindow()).Disabled(len(a.tabs) < 2 || busyWrite(ot) != nil).Chosen() {
+							moving = at
+						}
+						a.editorMenu(m, ot, &act)
+						m.Separator()
+						if m.Item(locales.RepoPickerClose()).Chosen() {
+							closing = at
+						}
+					})
+				}
 				if r.Clicked() {
 					open = rows[i].path
 				}
@@ -156,7 +186,15 @@ func (a *App) openMore(c *ui.Context) {
 			}
 		})
 	})
+	if act != nil {
+		act()
+	}
 	switch {
+	case closing >= 0:
+		a.closeTab(closing)
+	case moving >= 0:
+		p.open = false
+		a.moveToNewWindow(moving)
 	case open != "":
 		p.open = false
 		a.Open(open)
@@ -288,6 +326,13 @@ func (a *App) repoRows() []repoRow {
 		current = t.s.Path
 	}
 	all := a.Library.Recent(maxBriefs)
+	// A repository open is always there to switch to, even before the
+	// library has it written.
+	for _, t := range a.tabs {
+		if !slices.ContainsFunc(all, func(r library.Repo) bool { return r.Path == t.s.Path }) {
+			all = append(all, library.Repo{Path: t.s.Path, Name: a.title(t)})
+		}
+	}
 	var recent []library.Repo
 	for _, r := range all {
 		if len(recent) == repoPickRecent {
@@ -348,7 +393,7 @@ func (a *App) repoRows() []repoRow {
 }
 
 // repoRowView builds a row of the picker: a heading, or a repository
-// with a check by the one shown, its icon, and the commits its branch
+// with a check by the one shown and a dot by the others open, its icon, and the commits its branch
 // has to push and to pull.
 func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 	th := c.Theme()
@@ -364,7 +409,11 @@ func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 		fg, muted = th.AccentText, th.AccentText
 	}
 	row.Children(func() {
+		// A check by the repository shown, a dot by the others open.
 		check := ""
+		if a.Has(r.path) {
+			check = "•"
+		}
 		if t := a.current(); t != nil && t.s.Path == r.path {
 			check = "✓"
 		}

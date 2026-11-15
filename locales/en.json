@@ -2267,10 +2267,10 @@
   "askpassConnect": "Connect",
   "askpassHide": "Hide",
   "tabsMoveToNewWindow": "Move to New Window",
-  "tabsCloseTab": "Close Tab",
-  "tabsClose": "Close {name}",
-  "tabsOpenMore": "Open Another Repository",
   "repoPickerSearch": "Filter",
+  "repoPickerLabel": "Repository {name}",
+  "repoPickerTooltip": "Switch Repository",
+  "repoPickerClose": "Close",
   "repoPickerAdd": "Add",
   "repoPickerList": "Repositories",
   "repoPickerNone": "No repository matches",
@@ -2312,9 +2312,6 @@
         "type": "int"
       }
     }
-  },
-  "@tabsClose": {
-    "description": "The button that closes a repository's tab."
   },
   "gitLogRowLabel": "{command}, {status}",
   "@gitLogRowLabel": {

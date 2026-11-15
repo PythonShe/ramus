@@ -30,7 +30,7 @@ func TestRepoPicker(t *testing.T) {
 	h.app.Open(shown.Dir)
 	h.until("the repository", h.shows("No changes"))
 
-	h.click("Open Another Repository")
+	h.click("Repository " + filepath.Base(shown.Dir))
 	h.until("the owners", func() bool {
 		return h.tt.HasText("alice") && h.tt.HasText("bob") && h.tt.HasText("Other")
 	})

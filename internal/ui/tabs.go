@@ -6,79 +6,29 @@ import (
 	"ramus/locales"
 )
 
-type tabDrag struct{ id int }
-
-// tabBar shows the open repositories as tabs the user reorders by
-// dragging and closes with their button.
+// tabBar is the bar over a repository: the sidebar and the way back and
+// forward, the repository shown, which opens the picker of the others,
+// its branch and worktrees, what it is doing, and the app's button. The
+// repositories open stay open behind the one shown, as tabs would.
 func (a *App) tabBar(c *ui.Context) {
 	th := c.Theme()
-	from, to, closing, moving := -1, -1, -1, -1
-	var act func()
-	// The tabs sit on the bar's line, with its buttons, as Safari's do.
 	ui.Row(c).Gap(spaceM).Padding(spaceXS, insetX).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-		if t := a.current(); t != nil {
+		t := a.current()
+		if t != nil {
 			a.navBar(c, t)
 		}
-		parts := ui.TabsBase(c, &a.active, len(a.tabs))
-		parts.List.Row().Gap(space2XS).AlignItems(ui.Center).Shrink(1).Children(func() {
-			for i, t := range a.tabs {
-				c.Key(t.id)
-				tb := parts.Tab(i).Drag(tabDrag{t.id}).Padding(0, spaceS, 0, spaceL).MinHeight(controlHeight).Radius(6).Gap(spaceS).AlignItems(ui.Center)
-				switch {
-				case i == a.active:
-					tb.Background(th.SurfacePressed)
-				case tb.Hovered():
-					tb.Background(th.SurfaceHover)
-				}
-				if _, over := ui.DragOver[tabDrag](tb); over {
-					tb.Border(1, th.Accent)
-				}
-				if d, ok := ui.Drop[tabDrag](tb); ok {
-					from, to = a.indexOf(d.id), i
-				}
-				if tb.Dragging() {
-					tb.Opacity(0.5)
-				}
-				name := a.title(t)
-				tb.ContextMenu(func(m *ui.Menu) {
-					if a.NewWindow != nil && m.Item(locales.TabsMoveToNewWindow()).Disabled(len(a.tabs) < 2 || busyWrite(t) != nil).Chosen() {
-						moving = i
-					}
-					a.editorMenu(m, t, &act)
-					m.Separator()
-					if m.Item(locales.TabsCloseTab()).Chosen() {
-						closing = i
-					}
-				})
-				tb.Label(name).Children(func() {
-					ui.Text(c, name).SingleLine().MaxWidth(200)
-					if closeButton(c, locales.TabsClose(name)).Clicked() {
-						closing = i
-					}
-				})
-			}
-		})
-		a.openMore(c)
-		ui.Spacer(c)
-		if t := a.current(); t != nil && !t.s.State.Opening && t.s.State.Err == nil {
-			a.activity(c, t)
-			a.worktreeButton(c, t)
+		a.repoButton(c, t)
+		ready := t != nil && !t.s.State.Opening && t.s.State.Err == nil
+		if ready {
 			a.branchButton(c, t)
+			a.worktreeButton(c, t)
+		}
+		ui.Spacer(c)
+		if ready {
+			a.activity(c, t)
 		}
 		a.appButton(c)
 	})
-	if act != nil {
-		act()
-	}
-	if from >= 0 {
-		a.Move(from, to)
-	}
-	switch {
-	case closing >= 0:
-		a.closeTab(closing)
-	case moving >= 0:
-		a.moveToNewWindow(moving)
-	}
 }
 
 func (a *App) indexOf(id int) int {

@@ -216,6 +216,8 @@ func TestTrustBanner(t *testing.T) {
 	}
 }
 
+// Repositories open stay open behind the one shown: the picker switches
+// between them, marks them, and closes one; Cmd+W closes the one shown.
 func TestTabs(t *testing.T) {
 	h := newHarness(t)
 	a, b := h.repoWith(), h.repoWith()
@@ -225,16 +227,35 @@ func TestTabs(t *testing.T) {
 	if len(h.app.tabs) != 2 || h.app.active != 0 {
 		t.Fatalf("tabs %d active %d", len(h.app.tabs), h.app.active)
 	}
-	h.until("both tabs", h.shows(filepath.Base(b.Dir)))
-	h.app.Move(0, 1)
-	if h.app.tabs[1].s.Path != library.Clean(a.Dir) || h.app.active != 1 {
-		t.Fatal("move")
+	nameA, nameB := filepath.Base(a.Dir), filepath.Base(b.Dir)
+	h.until("the repository shown", h.shows("Repository "+nameA))
+	if h.tt.HasText("Repository " + nameB) {
+		t.Fatal("the repository behind shows in the bar")
 	}
+
+	// The picker marks the one shown and the one behind it.
+	h.click("Repository " + nameA)
+	h.until("both rows", func() bool {
+		_, okA := h.tt.AccessByRole(ui.RoleButton, nameA)
+		_, okB := h.tt.AccessByRole(ui.RoleButton, nameB)
+		return okA && okB
+	})
+	if !h.tt.HasText("✓") || !h.tt.HasText("•") {
+		t.Fatalf("marks: %q", h.tt.Texts())
+	}
+	row, _ := h.tt.AccessByRole(ui.RoleButton, nameB)
+	h.tt.ClickAt(row.Bounds.X+row.Bounds.W/2, row.Bounds.Y+row.Bounds.H/2)
 	h.tt.Frame()
-	h.click("Close " + filepath.Base(a.Dir))
+	if len(h.app.tabs) != 2 || h.app.current().s.Path != library.Clean(b.Dir) {
+		t.Fatalf("tabs %d, current %s", len(h.app.tabs), h.app.current().s.Path)
+	}
+
+	h.repoMenu(nameA, "Close")
 	if len(h.app.tabs) != 1 || h.app.current().s.Path != library.Clean(b.Dir) {
 		t.Fatal("close")
 	}
+	h.app.repoPick.open = false
+	h.tt.Frame()
 	h.tt.Key(ui.Cmd, ui.KeyW)
 	h.tt.Frame()
 	if len(h.app.tabs) != 0 || !h.tt.HasText("Open Repository…") {

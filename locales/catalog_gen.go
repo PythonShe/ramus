@@ -11407,40 +11407,6 @@ func (msgs Messages) TabsMoveToNewWindow() string {
 	return Catalog.Format(msgs.locale, "tabsMoveToNewWindow", nil)
 }
 
-// TabsCloseTab says "Close Tab"
-// in the language the app shows.
-func TabsCloseTab() string { return In(i18n.Locale()).TabsCloseTab() }
-
-// TabsCloseTab says "Close Tab"
-// in the language of msgs.
-func (msgs Messages) TabsCloseTab() string {
-	return Catalog.Format(msgs.locale, "tabsCloseTab", nil)
-}
-
-// TabsClose says "Close {name}"
-// in the language the app shows.
-//
-// The button that closes a repository's tab.
-func TabsClose(name string) string { return In(i18n.Locale()).TabsClose(name) }
-
-// TabsClose says "Close {name}"
-// in the language of msgs.
-//
-// The button that closes a repository's tab.
-func (msgs Messages) TabsClose(name string) string {
-	return Catalog.Format(msgs.locale, "tabsClose", map[string]any{"name": name})
-}
-
-// TabsOpenMore says "Open Another Repository"
-// in the language the app shows.
-func TabsOpenMore() string { return In(i18n.Locale()).TabsOpenMore() }
-
-// TabsOpenMore says "Open Another Repository"
-// in the language of msgs.
-func (msgs Messages) TabsOpenMore() string {
-	return Catalog.Format(msgs.locale, "tabsOpenMore", nil)
-}
-
 // RepoPickerSearch says "Filter"
 // in the language the app shows.
 func RepoPickerSearch() string { return In(i18n.Locale()).RepoPickerSearch() }
@@ -11449,6 +11415,36 @@ func RepoPickerSearch() string { return In(i18n.Locale()).RepoPickerSearch() }
 // in the language of msgs.
 func (msgs Messages) RepoPickerSearch() string {
 	return Catalog.Format(msgs.locale, "repoPickerSearch", nil)
+}
+
+// RepoPickerLabel says "Repository {name}"
+// in the language the app shows.
+func RepoPickerLabel(name string) string { return In(i18n.Locale()).RepoPickerLabel(name) }
+
+// RepoPickerLabel says "Repository {name}"
+// in the language of msgs.
+func (msgs Messages) RepoPickerLabel(name string) string {
+	return Catalog.Format(msgs.locale, "repoPickerLabel", map[string]any{"name": name})
+}
+
+// RepoPickerTooltip says "Switch Repository"
+// in the language the app shows.
+func RepoPickerTooltip() string { return In(i18n.Locale()).RepoPickerTooltip() }
+
+// RepoPickerTooltip says "Switch Repository"
+// in the language of msgs.
+func (msgs Messages) RepoPickerTooltip() string {
+	return Catalog.Format(msgs.locale, "repoPickerTooltip", nil)
+}
+
+// RepoPickerClose says "Close"
+// in the language the app shows.
+func RepoPickerClose() string { return In(i18n.Locale()).RepoPickerClose() }
+
+// RepoPickerClose says "Close"
+// in the language of msgs.
+func (msgs Messages) RepoPickerClose() string {
+	return Catalog.Format(msgs.locale, "repoPickerClose", nil)
 }
 
 // RepoPickerAdd says "Add"

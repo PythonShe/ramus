@@ -7,8 +7,31 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui"
+
 	"ramus/internal/git/run"
 )
+
+// repoMenu opens the repository picker and chooses path from the menu
+// of the repository named name.
+func (h *harness) repoMenu(name string, path ...string) {
+	h.t.Helper()
+	if !h.app.repoPick.open {
+		h.app.openRepoPicker()
+	}
+	var row ui.AccessInfo
+	h.until("the picker's row "+name, func() bool {
+		var ok bool
+		row, ok = h.tt.AccessByRole(ui.RoleButton, name)
+		return ok
+	})
+	h.tt.RightClickAt(row.Bounds.X+row.Bounds.W/2, row.Bounds.Y+row.Bounds.H/2)
+	h.tt.Frame()
+	if err := h.tt.ChooseMenuItem(path...); err != nil {
+		h.t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.tt.Frame()
+}
 
 func (h *harness) menu(row string, path ...string) {
 	h.t.Helper()
