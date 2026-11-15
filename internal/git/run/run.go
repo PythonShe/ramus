@@ -177,6 +177,9 @@ type Cmd struct {
 	// answering; 0 never. Time a question to the user is open does not
 	// count (see SetPrompt).
 	Stall time.Duration
+	// Background runs git at a low priority, for work no one waits on
+	// that takes a while, as a commit-graph the app writes on its own.
+	Background bool
 }
 
 // Line returns the command as a user would type it, for the command log
@@ -368,7 +371,13 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	cmd.WaitDelay = 2 * time.Second
 	t0 := time.Now()
 	r.running.Add(1)
-	err := cmd.Run()
+	err := cmd.Start()
+	if err == nil {
+		if c.Background {
+			lower(cmd)
+		}
+		err = cmd.Wait()
+	}
 	r.running.Add(-1)
 	res := Result{Stdout: stdout.buf, Stderr: stderr.String(), Duration: time.Since(t0)}
 	if err != nil {
