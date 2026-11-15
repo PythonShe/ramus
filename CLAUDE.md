@@ -15,6 +15,9 @@ go tool mygo build    # package the app into build/
 scripts/check.sh      # the full gate: gofmt, vet, engine import boundary, no network of ours, tests
 go run ./scripts/coldstart <binary>  # time to first frame; CI runs it, it opens AppKit
 gh workflow run ci.yml   # CI and soak.yml run only when started by hand
+git push origin vX.Y.Z   # release.yml: a draft release of mygo.json's version, which you publish
+gh workflow run release.yml               # a dry run: builds and notarizes, uploads nothing
+gh workflow run release-notes.yml -f ref=main  # preview the notes Claude writes
 RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json  # the benchmarks
 ```
 
@@ -31,6 +34,14 @@ RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json 
   PythonShe/ramus, signed with the key whose public half is in
   `mygo.json`; the secret half is the `MYGO_UPDATER_PRIVATE_KEY` secret
   of the repository and never goes in it.
+- `.github/workflows/release.yml`: on a `vX.Y.Z` tag, runs CI, has
+  `release-notes.yml` write the notes (a `## X.Y.Z` section of
+  `CHANGELOG.md` written by hand wins), and builds the macOS app,
+  signed with the Developer ID of `APPLE_CERTIFICATE` and notarized
+  with the App Store Connect key of `APPLE_API_KEY`, and the Linux and
+  Windows packages, unsigned, into a draft release. It names the
+  notary profile in the runner's `mygo.json` only, so local builds stay
+  ad hoc.
 - `internal/ui/`: app state and views. Views are tested without a window
   through `ui.NewTester`.
 - `internal/git/`: the engine. It imports nothing from mygo; `check.sh` fails

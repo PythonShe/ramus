@@ -1,0 +1,334 @@
+name: Release
+
+# Builds Ramus for every platform and uploads it with its updates to a
+# draft GitHub release, which you publish; installed apps then update to it.
+#
+#   prepare ── ci (ci.yml) ─┐
+#          └── notes (release-notes.yml) ── draft ── build (macOS | Linux and Windows) ── checksums
+#
+# A pushed vX.Y.Z tag releases it; mygo.json's version must match.
+# Dispatched by hand without a tag, it is a dry run of the branch:
+# everything up to notarization, nothing uploaded, the apps kept as
+# artifacts of the run. Only the macOS app is signed and notarized; the
+# Windows and Linux builds are not signed.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (vX.Y.Z); empty for a dry run of this branch"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-26.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      # A tag that is not the configuration's version would publish the
+      # build under another version, as mygo uploads to v<version>.
+      - name: Check the version
+        id: version
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          VERSION=$(jq -r .version mygo.json)
+          TAG="$INPUT_TAG"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then TAG="$GITHUB_REF_NAME"; fi
+          if [ -n "$TAG" ] && [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::The tag $TAG is not the version v$VERSION in mygo.json."
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "sha=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing ${TAG:-a dry run of $VERSION} from $(git rev-parse --short HEAD)"
+
+  ci:
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+
+  notes:
+    needs: prepare
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  # The draft exists before the builds start, so each uploads to it rather
+  # than creating one of its own.
+  draft:
+    needs: [prepare, ci, notes]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download notes
+        if: needs.prepare.outputs.tag != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/notes
+
+      - name: Create or update the draft release
+        if: needs.prepare.outputs.tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          NOTES="$RUNNER_TEMP/notes/notes.md"
+          if DRAFT=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null); then
+            # Running again replaces the draft's files; a published
+            # release is never rebuilt under the same version.
+            if [ "$DRAFT" != true ]; then
+              echo "::error::$TAG is already published."
+              exit 1
+            fi
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$NOTES"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "$TAG" --notes-file "$NOTES"
+          fi
+
+  build:
+    needs: [prepare, draft]
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-26, platform: "darwin/universal" }
+          # mygo needs no cgo, so one Ubuntu runner makes both. One build
+          # of both also writes one SHA256SUMS, with no other job's upload
+          # to race against but the Mac's.
+          - { name: Linux and Windows, os: ubuntu-26.04, platform: "linux/amd64,linux/arm64,windows/amd64,windows/arm64" }
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Download notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/notes
+
+      # The update manifests carry the version's section of CHANGELOG.md,
+      # which the update window shows. The section exists in this runner
+      # only, unless one was written by hand.
+      - name: Put the notes in the changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f CHANGELOG.md ] && grep -Eq "^## \[?v?$VERSION([] ]|$)" CHANGELOG.md; then
+            exit 0
+          fi
+          { printf '## %s\n\n' "$VERSION"; cat "$RUNNER_TEMP/notes/notes.md"; echo; [ ! -f CHANGELOG.md ] || cat CHANGELOG.md; } > "$RUNNER_TEMP/CHANGELOG.md"
+          mv "$RUNNER_TEMP/CHANGELOG.md" CHANGELOG.md
+
+      - name: Import the signing certificate
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
+          trap 'rm -f "$CERTIFICATE_PATH"' EXIT
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          # Sign by the certificate's hash: the identity's name, which holds
+          # the developer's name, stays out of the repository and the logs.
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | awk '/"Developer ID Application: / { print $2; exit }')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::secrets.APPLE_CERTIFICATE holds no Developer ID Application identity."
+            exit 1
+          fi
+          {
+            echo "KEYCHAIN_PATH=$KEYCHAIN_PATH"
+            echo "SIGNING_IDENTITY=$IDENTITY"
+          } >> "$GITHUB_ENV"
+
+      # mygo notarizes with a notarytool profile: store one in the job's
+      # keychain from the App Store Connect API key, and name it in this
+      # runner's mygo.json only, so builds on a Mac stay unnotarized.
+      - name: Store the notary credentials
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APPLE_API_KEY_B64:-}" ]; then
+            echo "::error::secrets.APPLE_API_KEY is unset (base64 of the App Store Connect .p8)."
+            exit 1
+          fi
+          umask 077
+          KEY_PATH="$RUNNER_TEMP/apple_api_key.p8"
+          trap 'rm -f "$KEY_PATH"' EXIT
+          echo "$APPLE_API_KEY_B64" | base64 --decode > "$KEY_PATH"
+          xcrun notarytool store-credentials ramus-notary --keychain "$KEYCHAIN_PATH" \
+            --key "$KEY_PATH" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER"
+          jq --arg keychain "$KEYCHAIN_PATH" \
+            '.macos.notarize = {keychainProfile: "ramus-notary", keychain: $keychain}' \
+            mygo.json > "$RUNNER_TEMP/mygo.json"
+          mv "$RUNNER_TEMP/mygo.json" mygo.json
+
+      - name: Install NSIS, for the Windows installers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nsis
+
+      # mygo signs the app with the hardened runtime and signs the disk
+      # image, then notarizes the image and staples the ticket to both.
+      - name: Build${{ needs.prepare.outputs.tag != '' && ' and upload' || '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          args=(-platform "$PLATFORM")
+          if [ -n "${SIGNING_IDENTITY:-}" ]; then args+=(-sign "$SIGNING_IDENTITY"); fi
+          if [ -n "$TAG" ]; then args+=(-upload); fi
+          go tool mygo build "${args[@]}"
+
+      - name: The app and the disk image are signed, notarized and stapled
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # spctl's origin line names the certificate's owner; the run's
+          # log is public.
+          assess() { spctl --assess --verbose=2 "$@" 2>&1 | sed '/^origin=/d'; }
+          APP=$(find build/darwin-universal -maxdepth 1 -name '*.app' -type d | head -1)
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          assess --type execute "$APP"
+          xcrun stapler validate "$APP"
+          for DMG in build/darwin-universal/*.dmg; do
+            codesign --verify --verbose=2 "$DMG"
+            assess --type open --context context:primary-signature "$DMG"
+            xcrun stapler validate "$DMG"
+          done
+
+      - name: AppImage
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          scripts/appimage.sh build/linux-amd64 build
+          if [ -n "$TAG" ]; then
+            gh release upload "$TAG" build/Ramus-*-x86_64.AppImage --repo "$GITHUB_REPOSITORY" --clobber
+          fi
+
+      - name: Keep the apps of a dry run
+        if: needs.prepare.outputs.tag == ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            build/*/*.dmg
+            build/*/*-setup-*.exe
+            build/*/*.deb
+            build/*/*.rpm
+            build/*/*.tar.gz
+            build/*.AppImage
+          if-no-files-found: error
+
+      - name: Remove the keychain
+        if: always() && runner.os == 'macOS'
+        run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
+
+  # Each build merged its files into the release's SHA256SUMS; check that
+  # every file is there and matches, and add the AppImage, which mygo does
+  # not make.
+  checksums:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.tag != ''
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check and complete SHA256SUMS
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir assets && cd assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY"
+          ls -l
+          listed=$(awk '{ n = $2; sub(/^\*/, "", n); print n }' SHA256SUMS)
+          missing=0
+          for f in *.dmg *-setup-*.exe *.deb *.rpm *.tar.gz *.delta; do
+            [ -e "$f" ] || continue
+            if ! grep -qxF "$f" <<<"$listed"; then
+              echo "::error::SHA256SUMS does not list $f; re-run the build that made it."
+              missing=1
+            fi
+          done
+          [ "$missing" = 0 ]
+          sha256sum -c SHA256SUMS
+          for f in *.AppImage; do
+            grep -qxF "$f" <<<"$listed" || sha256sum "$f" >> SHA256SUMS
+          done
+          sort -k 2 -o SHA256SUMS SHA256SUMS
+          gh release upload "$TAG" SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+          echo "Every file is in SHA256SUMS. Publish the draft $TAG when it reads right."

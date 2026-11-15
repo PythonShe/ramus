@@ -2,6 +2,14 @@ name: CI
 
 on:
   workflow_dispatch:
+  # release.yml runs it on the commit it releases.
+  workflow_call:
+    inputs:
+      ref:
+        description: "Commit to check"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -11,6 +19,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -38,6 +48,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -61,6 +73,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -99,6 +113,8 @@ jobs:
       # The tree is LF; converting it on checkout would fail gofmt.
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
