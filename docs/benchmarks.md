@@ -128,8 +128,9 @@ workflow runs it for two hours when started.
 ### Cold start
 
 `scripts/coldstart` starts the built app and times it to its first frame;
-CI runs it ten times on GitHub's macOS runner and fails when the median
-is over 300 ms. The last run: first start 2.22 s, median 255 ms.
+CI runs it ten times on GitHub's macOS runner and fails when the fastest
+run is over 300 ms: a busy runner slows runs at random, never speeds one
+up. The last run: first start 655 ms, median 171 ms, fastest 153 ms.
 
 ## Not measured yet
 
