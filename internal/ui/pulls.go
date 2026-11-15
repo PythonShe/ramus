@@ -205,10 +205,7 @@ func (a *App) pullItems(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) {
 		return
 	}
 	m.Separator()
-	kind := "github"
-	if repo.Kind == forge.GitLab {
-		kind = "gitlab"
-	}
+	kind := kindName(repo.Kind)
 	if p, ok := t.pulls.by[b.Name]; ok && m.Item(locales.PullsOpen(kind, p.Ref(repo.Kind))).Chosen() {
 		a.openURL = p.URL
 	}

@@ -293,11 +293,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		a.loadCommitPull(t, cv, d)
 		if p := cv.pull.Pull; a.Settings.PullRequests && cv.pull.Found {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				kind := "github"
-				if p.Repo.Kind == forge.GitLab {
-					kind = "gitlab"
-				}
-				ui.Text(c, locales.CommitPullRequest(kind)).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitPullRequest(kindName(p.Repo.Kind))).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
 					ui.Link(c, p.Ref(p.Repo.Kind), p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
 					pullState(c, plainInk(th), p.Pull)

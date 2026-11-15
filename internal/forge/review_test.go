@@ -110,7 +110,7 @@ func TestSubmitReview(t *testing.T) {
 	r := Repo{GitHub, "github.com", "o/r"}
 	head := strings.Repeat("ab", 20)
 	drafts := []Draft{{Path: "a.go", Side: Right, Line: 12, Body: "one line"}, {Path: "b.go", Side: Left, Line: 5, StartLine: 3, Body: "lines"}}
-	if err := c.SubmitReview(context.Background(), r, 7, head, VerdictRequestChanges, "Please", drafts); err != nil {
+	if err := c.SubmitReview(context.Background(), r, 7, Revs{Head: head}, VerdictRequestChanges, "Please", drafts); err != nil {
 		t.Fatal(err)
 	}
 	if got := args(); !strings.Contains(got, "POST\nrepos/o/r/pulls/7/reviews\n--input\n-\n") {
@@ -134,11 +134,11 @@ func TestSubmitReview(t *testing.T) {
 	if c1 := sent.Comments[1]; c1["side"] != "LEFT" || c1["start_line"] != 3.0 || c1["start_side"] != "LEFT" {
 		t.Errorf("several lines %v", c1)
 	}
-	if err := c.SubmitReview(context.Background(), r, 7, "HEAD", VerdictComment, "", nil); err == nil {
+	if err := c.SubmitReview(context.Background(), r, 7, Revs{Head: "HEAD"}, VerdictComment, "", nil); err == nil {
 		t.Error("a revision taken for a commit id")
 	}
 
-	if err := c.Reply(context.Background(), r, 7, 42, "Because"); err != nil {
+	if err := c.Reply(context.Background(), r, 7, Thread{Comments: []Comment{{DatabaseID: 42}}}, "Because"); err != nil {
 		t.Fatal(err)
 	}
 	if got := args(); !strings.Contains(got, "repos/o/r/pulls/7/comments/42/replies\n") || stdin() != `{"body":"Because"}` {
@@ -150,7 +150,7 @@ func TestSubmitReview(t *testing.T) {
 	if got := args(); !strings.Contains(got, "repos/o/r/issues/7/comments\n") {
 		t.Errorf("comment %q", got)
 	}
-	if err := c.Resolve(context.Background(), r, "T1", true); err != nil {
+	if err := c.Resolve(context.Background(), r, 7, Thread{ID: "T1"}, true); err != nil {
 		t.Fatal(err)
 	}
 	if got := args(); !strings.Contains(got, "resolveReviewThread") || !strings.Contains(got, "id=T1\n") {

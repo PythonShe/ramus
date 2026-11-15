@@ -93,10 +93,15 @@ type prReview struct {
 
 // prCompose is a comment being written on lines of a file.
 type prCompose struct {
-	path        string
-	side        forge.Side
-	start, line int
-	body        string
+	path, oldPath string
+	side          forge.Side
+	start, line   int
+	across        int // see forge.Draft
+	body          string
+}
+
+func (cp *prCompose) draft(body string) forge.Draft {
+	return forge.Draft{Path: cp.path, OldPath: cp.oldPath, Side: cp.side, Line: cp.line, StartLine: cp.start, Across: cp.across, Body: body}
 }
 
 // prSubmit is the dialog that submits the review.
@@ -115,6 +120,8 @@ func errForge(err error) string {
 		return locales.PullsNoCLI()
 	case errors.Is(err, forge.ErrNoReview):
 		return locales.PrsNoReview()
+	case errors.Is(err, forge.ErrHeadMoved):
+		return locales.PrsHeadMoved()
 	}
 	return errText(err)
 }
@@ -124,8 +131,16 @@ func (a *App) hasPulls(t *tab) bool {
 	if !a.Settings.PullRequests || a.Runner == nil && a.forgeFind == nil {
 		return false
 	}
-	r, ok := t.s.ReviewRepo()
-	return ok && r.Kind == forge.GitHub
+	_, ok := t.s.ReviewRepo()
+	return ok
+}
+
+// kindName is how a message selects on a host's kind.
+func kindName(k forge.Kind) string {
+	if k == forge.GitLab {
+		return "gitlab"
+	}
+	return "github"
 }
 
 func (a *App) pullsView(c *ui.Context, t *tab) {
@@ -157,7 +172,7 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 	th := c.Theme()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.RepoSectionPulls()).Bold()
+			ui.Text(c, locales.PrsSection(kindName(ps.repo.Kind))).Bold()
 			ui.Text(c, ps.repo.Path).TextColor(th.TextMuted).Grow(1).SingleLine()
 			if ui.Button(c, locales.MenuRefresh()).Disabled(ps.listing).Clicked() {
 				ps.listAt = time.Time{}
@@ -172,15 +187,15 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 			loading(c, "")
 			return
 		case len(list) == 0:
-			emptyState(c, locales.PrsNone())
+			emptyState(c, locales.PrsNone(kindName(ps.repo.Kind)))
 			return
 		}
 		if ps.more {
-			ui.Text(c, locales.PrsMore(len(list))).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX, spaceS, insetX)
+			ui.Text(c, locales.PrsMore(kindName(ps.repo.Kind), len(list))).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX, spaceS, insetX)
 		}
 		ps.table.Selected = &ps.chosen
 		ps.table.Label = func(i int) string {
-			return locales.PrsRow(list[i].Number, redact.Control(list[i].Title), list[i].Author)
+			return locales.PrsRow(list[i].Ref(ps.repo.Kind), redact.Control(list[i].Title), list[i].Author)
 		}
 		var act func()
 		ps.table.CellMenu = func(m *ui.Menu, i, _ int) {
@@ -203,7 +218,7 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 			k := ps.table.ink(c, i)
 			switch col {
 			case 0:
-				mutedCell(c, k, p.Ref(forge.GitHub))
+				mutedCell(c, k, p.Ref(ps.repo.Kind))
 			case 1:
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, redact.Control(p.Title)).SingleLine()
@@ -220,7 +235,7 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 			case 5:
 				mutedCell(c, k, ago(now, p.Updated))
 			}
-		}).Label(locales.PrsList()).Grow(1)
+		}).Label(locales.PrsList(kindName(ps.repo.Kind))).Grow(1)
 		if act != nil {
 			act()
 		}
@@ -369,10 +384,10 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 	r := &rv.r
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX, 0, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			if ui.Button(c, "‹ "+locales.RepoSectionPulls()).Clicked() || c.Shortcut(0, ui.KeyEscape) {
+			if ui.Button(c, "‹ "+locales.PrsSection(kindName(rv.repo.Kind))).Clicked() || c.Shortcut(0, ui.KeyEscape) {
 				a.closeReview(t)
 			}
-			title := locales.PrsTitle(rv.n, redact.Control(r.Title))
+			title := locales.PrsTitle(r.Ref(rv.repo.Kind), redact.Control(r.Title))
 			ui.Text(c, title).Bold().SingleLine().Grow(1).Selectable()
 			if ui.Button(c, locales.MenuRefresh()).Disabled(rv.loading).Clicked() {
 				rv.reread()
@@ -394,7 +409,7 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			errorMessage(c, rv.err)
 			return
 		case !have:
-			loading(c, locales.PrsReading())
+			loading(c, locales.PrsReading(kindName(rv.repo.Kind)))
 			return
 		case rv.err != "":
 			ui.Text(c, rv.err).FontSize(textSmall).TextColor(th.Danger).Padding(0, insetX).Selectable()
@@ -409,7 +424,7 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			}
 		})
 		if r.More {
-			ui.Text(c, locales.PrsMoreOnHost()).FontSize(textSmall).TextColor(th.Warning).Padding(0, insetX)
+			ui.Text(c, locales.PrsMoreOnHost(kindName(rv.repo.Kind))).FontSize(textSmall).TextColor(th.Warning).Padding(0, insetX)
 		}
 		nFiles := 0
 		if rv.detail != nil && rv.detail.Files != nil {
@@ -436,7 +451,7 @@ func (a *App) prFiles(c *ui.Context, t *tab, rv *prReview) {
 		errorMessage(c, rv.fetchErr)
 		return
 	case rv.detail == nil || rv.detail.Files == nil:
-		loading(c, locales.PrsFetching())
+		loading(c, locales.PrsFetching(kindName(rv.repo.Kind)))
 		return
 	}
 	f := rv.detail.Files
@@ -520,7 +535,7 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 		})
 		a.diffBar(c, false, nil)
 		a.pagerNotice(c, &rv.pager, rv.patch, rv.patchLoading, "", rv.loadPatch)
-		el := a.patchBodyWith(c, t, &rv.pv, rv.patch, nil, func(dv *editor.DiffState) { a.decorateReview(c, t, rv, path, dv) })
+		el := a.patchBodyWith(c, t, &rv.pv, rv.patch, nil, func(dv *editor.DiffState) { a.decorateReview(c, t, rv, paths[0], path, dv) })
 		if w := el.Bounds().W; w > 0 && w != rv.diffW {
 			rv.diffW = w
 			c.AnimationFrame() // the comments, measured anew
@@ -553,7 +568,7 @@ func forgeSide(s editor.DiffSide) forge.Side {
 // decorateReview puts the review's threads, its drafts and the comment
 // being written under their lines of path's patch, and the gutter's +
 // to start a comment.
-func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, path string, d *editor.DiffState) {
+func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, oldPath, path string, d *editor.DiffState) {
 	pv := &rv.pv
 	notes := map[any]prNote{}
 	add := func(side editor.DiffSide, line int, key any, n prNote, h float32) {
@@ -583,13 +598,13 @@ func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, path string, d
 	d.OnGutterButton = func(r editor.DiffLineRange) {
 		start, line := pv.fileLine(r.Side, r.Start), pv.fileLine(r.Side, r.End)
 		if line == 0 || !pv.inHunk(r.Side, line) || start > 0 && !pv.inHunk(r.Side, start) {
-			a.tell(t, locales.PrsNotInDiff())
+			a.tell(t, locales.PrsNotInDiff(kindName(rv.repo.Kind)))
 			return
 		}
 		if start == line {
 			start = 0
 		}
-		rv.compose = &prCompose{path: path, side: forgeSide(r.Side), start: start, line: line}
+		rv.compose = &prCompose{path: path, oldPath: oldPath, side: forgeSide(r.Side), start: start, line: line, across: pv.across(r.Side, line)}
 	}
 	d.RenderAnnotation = func(c *ui.Context, an editor.DiffAnnotation) {
 		n, ok := notes[an.Key]
@@ -703,19 +718,19 @@ func (a *App) threadNote(c *ui.Context, t *tab, rv *prReview, th *forge.Thread) 
 		in := ui.TextInput(c, reply).Label(locales.PrsReplyPlaceholder()).Placeholder(locales.PrsReplyPlaceholder()).Grow(1).Disabled(!th.CanReply || rv.sending)
 		body := strings.TrimSpace(*reply)
 		if (ui.Button(c, locales.PrsReply()).Disabled(!th.CanReply || body == "" || rv.sending).Clicked() || in.Submitted() && body != "") && len(th.Comments) > 0 {
-			first := th.Comments[0].DatabaseID
-			a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Reply(ctx, rv.repo, rv.n, first, body) }, func() { *reply = "" })
+			thr := *th
+			a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Reply(ctx, rv.repo, rv.n, thr, body) }, func() { *reply = "" })
 		}
 		switch {
 		case th.Resolved && th.CanUnresolve:
 			if ui.Button(c, locales.PrsUnresolve()).Disabled(rv.sending).Clicked() {
-				id := th.ID
-				a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Resolve(ctx, rv.repo, id, false) }, nil)
+				thr := *th
+				a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Resolve(ctx, rv.repo, rv.n, thr, false) }, nil)
 			}
 		case !th.Resolved && th.CanResolve:
 			if ui.Button(c, locales.PrsResolve()).Disabled(rv.sending).Clicked() {
-				id := th.ID
-				a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Resolve(ctx, rv.repo, id, true) }, nil)
+				thr := *th
+				a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Resolve(ctx, rv.repo, rv.n, thr, true) }, nil)
 			}
 		}
 		if th.Resolved && ui.Button(c, locales.PrsHide()).Clicked() {
@@ -751,26 +766,26 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 			rv.compose = nil
 		}
 		if ui.Button(c, locales.PrsCommentNow()).Disabled(body == "" || rv.sending).Clicked() {
-			dr := forge.Draft{Path: cp.path, Side: cp.side, Line: cp.line, StartLine: cp.start, Body: body}
-			head := rv.fetchedHead()
+			dr, at := cp.draft(body), rv.revs()
 			a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error {
-				return cl.SubmitReview(ctx, rv.repo, rv.n, head, forge.VerdictComment, "", []forge.Draft{dr})
+				return cl.SubmitReview(ctx, rv.repo, rv.n, at, forge.VerdictComment, "", []forge.Draft{dr})
 			}, func() { rv.compose = nil })
 		}
 		if ui.PrimaryButton(c, locales.PrsAddToReview()).Disabled(body == "").Clicked() {
-			rv.drafts = append(rv.drafts, forge.Draft{Path: cp.path, Side: cp.side, Line: cp.line, StartLine: cp.start, Body: body})
+			rv.drafts = append(rv.drafts, cp.draft(body))
 			rv.compose = nil
 		}
 	})
 }
 
-// fetchedHead is the head commit the patch shown is of, which comments
-// are placed on.
-func (rv *prReview) fetchedHead() string {
+// revs are the commits comments are placed on: the head the patch shown
+// is of, and what the host diffs it against.
+func (rv *prReview) revs() forge.Revs {
+	at := forge.Revs{Base: rv.r.BaseOID, Start: rv.r.StartOID, Head: rv.r.HeadOID}
 	if len(rv.rng.Head) > 0 {
-		return fmt.Sprintf("%x", rv.rng.Head)
+		at.Head = fmt.Sprintf("%x", rv.rng.Head)
 	}
-	return rv.r.HeadOID
+	return at
 }
 
 // prSend runs a write to the host, then reads the pull request again;
@@ -906,7 +921,7 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 	own := rv.r.Viewer != "" && strings.EqualFold(rv.r.Viewer, rv.r.Author)
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
-			ui.Text(c, locales.PrsSubmitTitle(rv.n)).Bold()
+			ui.Text(c, locales.PrsSubmitTitle(rv.r.Ref(rv.repo.Kind))).Bold()
 			ui.TextArea(c, &d.body).Label(locales.PrsSummary()).Placeholder(locales.PrsSummary()).Lines(3, 8).FillWidth().AutoFocus()
 			if own {
 				// The host takes no verdict from a pull request's author.
@@ -928,10 +943,10 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 					d.open = false
 				}
 				if ui.PrimaryButton(c, locales.PullsSubmit()).Disabled(empty || rv.sending).Clicked() {
-					drafts, head, v := slices.Clone(rv.drafts), rv.fetchedHead(), forge.Verdict(d.verdict)
+					drafts, at, v := slices.Clone(rv.drafts), rv.revs(), forge.Verdict(d.verdict)
 					rv.sending, d.err = true, ""
 					t.s.ForgeDo(a.findForge(), rv.repo, func(ctx context.Context, cl *forge.CLI) error {
-						return cl.SubmitReview(ctx, rv.repo, rv.n, head, v, body, drafts)
+						return cl.SubmitReview(ctx, rv.repo, rv.n, at, v, body, drafts)
 					}, func(err error) {
 						rv.sending = false
 						if err != nil {
@@ -947,4 +962,11 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 			})
 		})
 	})
+}
+
+// pullsSection is the sidebar's name of the pull requests page, as the
+// repository's host names them.
+func (a *App) pullsSection(t *tab) string {
+	r, _ := t.s.ReviewRepo()
+	return locales.PrsSection(kindName(r.Kind))
 }

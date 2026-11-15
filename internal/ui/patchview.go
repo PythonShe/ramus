@@ -502,6 +502,28 @@ func (pv *patchView) fileLine(side editor.DiffSide, i int) int {
 	return int(l.New)
 }
 
+// across is the line of the other side that line n of the file, from
+// 1, on side faces when it is unchanged in the patch; 0 for a line added
+// or removed, or none of the patch's.
+func (pv *patchView) across(side editor.DiffSide, n int) int {
+	if pv.p == nil || n <= 0 {
+		return 0
+	}
+	for _, l := range pv.p.Lines {
+		at, other := l.New, l.Old
+		if side == editor.DiffOld {
+			at, other = l.Old, l.New
+		}
+		if int(at) == n {
+			if l.Kind != ' ' {
+				return 0
+			}
+			return int(other)
+		}
+	}
+	return 0
+}
+
 // viewLine is the line of the viewer's side that shows line n of the
 // file, from 1; -1 when it shows none.
 func (pv *patchView) viewLine(side editor.DiffSide, n int) int {

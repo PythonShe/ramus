@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// What a pull request's review reads and writes. GitHub only for now:
-// another host's repository answers ErrNoReview.
+// What a pull request's review reads and writes, on GitHub and GitLab
+// (gitlabreview.go). Another host's repository answers ErrNoReview.
 
 // ErrNoReview is a host whose pull requests cannot be reviewed in the app.
 var ErrNoReview = errors.New("forge: reviewing on this host is not supported")
@@ -74,6 +74,18 @@ func (c *CLI) OpenPulls(ctx context.Context, r Repo) (list []Listed, more bool, 
 	if err := c.reviewable(r); err != nil {
 		return nil, false, err
 	}
+	if r.Kind == GitLab {
+		list, more, err = c.gitlabOpenPulls(ctx, r)
+	} else {
+		list, more, err = c.githubOpenPulls(ctx, r)
+	}
+	for i := range list {
+		list[i].URL = r.PullURL(list[i].URL, list[i].Number)
+	}
+	return list, more, err
+}
+
+func (c *CLI) githubOpenPulls(ctx context.Context, r Repo) ([]Listed, bool, error) {
 	owner, name, _ := strings.Cut(r.Path, "/")
 	q := "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:" + strconv.Itoa(MaxListed) +
 		",orderBy:{field:UPDATED_AT,direction:DESC}){totalCount nodes{number title url isDraft state author{login} headRefName baseRefName updatedAt reviewDecision headRepositoryOwner{login} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}}"
@@ -81,11 +93,7 @@ func (c *CLI) OpenPulls(ctx context.Context, r Repo) (list []Listed, more bool, 
 	if err != nil {
 		return nil, false, err
 	}
-	list, more, err = parseOpenPulls(out)
-	for i := range list {
-		list[i].URL = r.PullURL(list[i].URL, list[i].Number)
-	}
-	return list, more, err
+	return parseOpenPulls(out)
 }
 
 type ghAuthor struct {
@@ -202,11 +210,12 @@ type Thread struct {
 // Review is a pull request as its review shows it.
 type Review struct {
 	Pull
-	Author  string
-	Body    string
-	Base    string
-	BaseOID string
-	HeadOID string
+	Author string
+	Body   string
+	Base   string
+	// BaseOID, StartOID and HeadOID are the commits the host diffs: the
+	// merge base, the base branch's tip (GitLab only) and the head.
+	BaseOID, StartOID, HeadOID string
 	// Decision is what the reviews add up to.
 	Decision ReviewState
 	Created  time.Time
@@ -226,6 +235,24 @@ func (c *CLI) PullReview(ctx context.Context, r Repo, n int) (Review, error) {
 	if err := c.reviewable(r); err != nil {
 		return Review{}, err
 	}
+	var rv Review
+	var err error
+	if r.Kind == GitLab {
+		rv, err = c.gitlabPullReview(ctx, r, n)
+	} else {
+		rv, err = c.githubPullReview(ctx, r, n)
+	}
+	if err != nil {
+		return Review{}, err
+	}
+	if rv.Number != n {
+		return Review{}, ErrNotFound
+	}
+	rv.URL = r.PullURL(rv.URL, rv.Number)
+	return rv, nil
+}
+
+func (c *CLI) githubPullReview(ctx context.Context, r Repo, n int) (Review, error) {
 	owner, name, _ := strings.Cut(r.Path, "/")
 	page := func(n int) string { return "(first:" + strconv.Itoa(n) + ")" }
 	q := "query($owner:String!,$name:String!,$n:Int!){viewer{login} repository(owner:$owner,name:$name){pullRequest(number:$n){" +
@@ -240,15 +267,7 @@ func (c *CLI) PullReview(ctx context.Context, r Repo, n int) (Review, error) {
 	if err != nil {
 		return Review{}, err
 	}
-	rv, err := parseReview(out)
-	if err != nil {
-		return Review{}, err
-	}
-	if rv.Number != n {
-		return Review{}, ErrNotFound
-	}
-	rv.URL = r.PullURL(rv.URL, rv.Number)
-	return rv, nil
+	return parseReview(out)
 }
 
 type ghComment struct {
@@ -372,21 +391,37 @@ const (
 // Draft is a comment on lines of a file, sent with a review.
 type Draft struct {
 	Path string
-	Side Side
+	// OldPath is the file's path on the old side, when it was renamed.
+	OldPath string
+	Side    Side
 	// Line is the last line, from 1; StartLine the first of several, 0
 	// for one line.
 	Line, StartLine int
-	Body            string
+	// Across is the line on the other side that Line faces, for an
+	// unchanged line; 0 for one added or removed.
+	Across int
+	Body   string
 }
 
-// SubmitReview submits a review of r's pull request n, of its head
-// commit head (the one the drafts' lines are of), with body and drafts.
-func (c *CLI) SubmitReview(ctx context.Context, r Repo, n int, head string, v Verdict, body string, drafts []Draft) error {
+// Revs are the commits a review's comments are placed on: the head
+// reviewed, and on GitLab the merge base and base branch tip it was
+// diffed against (Review.BaseOID and StartOID).
+type Revs struct {
+	Base, Start, Head string
+}
+
+// SubmitReview submits a review of r's pull request n, of the commits
+// at (those the drafts' lines are of), with body and drafts.
+func (c *CLI) SubmitReview(ctx context.Context, r Repo, n int, at Revs, v Verdict, body string, drafts []Draft) error {
 	if err := c.reviewable(r); err != nil {
 		return err
 	}
+	head := at.Head
 	if !hexID(head) {
 		return fmt.Errorf("forge: %q is not a commit id", head)
+	}
+	if r.Kind == GitLab {
+		return c.gitlabSubmit(ctx, r, n, at, v, body, drafts)
 	}
 	type comment struct {
 		Path      string `json:"path"`
@@ -412,13 +447,22 @@ func (c *CLI) SubmitReview(ctx context.Context, r Repo, n int, head string, v Ve
 	return c.post(ctx, r, "repos/"+r.Path+"/pulls/"+strconv.Itoa(n)+"/reviews", req)
 }
 
-// Reply adds body to the review thread whose first comment is first, on
-// r's pull request n.
-func (c *CLI) Reply(ctx context.Context, r Repo, n int, first int64, body string) error {
+// Reply adds body to the review thread th of r's pull request n.
+func (c *CLI) Reply(ctx context.Context, r Repo, n int, th Thread, body string) error {
 	if err := c.reviewable(r); err != nil {
 		return err
 	}
-	return c.post(ctx, r, "repos/"+r.Path+"/pulls/"+strconv.Itoa(n)+"/comments/"+strconv.FormatInt(first, 10)+"/replies",
+	if r.Kind == GitLab {
+		id, err := gitlabDiscussion(th.ID)
+		if err != nil {
+			return err
+		}
+		return c.gitlabSend(ctx, r, "POST", mrPath(r, n)+"/discussions/"+id+"/notes", map[string]string{"body": body}, nil)
+	}
+	if len(th.Comments) == 0 {
+		return ErrNotFound
+	}
+	return c.post(ctx, r, "repos/"+r.Path+"/pulls/"+strconv.Itoa(n)+"/comments/"+strconv.FormatInt(th.Comments[0].DatabaseID, 10)+"/replies",
 		map[string]string{"body": body})
 }
 
@@ -427,14 +471,26 @@ func (c *CLI) AddComment(ctx context.Context, r Repo, n int, body string) error 
 	if err := c.reviewable(r); err != nil {
 		return err
 	}
+	if r.Kind == GitLab {
+		return c.gitlabSend(ctx, r, "POST", mrPath(r, n)+"/notes", map[string]string{"body": body}, nil)
+	}
 	return c.post(ctx, r, "repos/"+r.Path+"/issues/"+strconv.Itoa(n)+"/comments", map[string]string{"body": body})
 }
 
-// Resolve marks the review thread id resolved, or not.
-func (c *CLI) Resolve(ctx context.Context, r Repo, id string, resolved bool) error {
+// Resolve marks the review thread th of r's pull request n resolved, or
+// not.
+func (c *CLI) Resolve(ctx context.Context, r Repo, n int, th Thread, resolved bool) error {
 	if err := c.reviewable(r); err != nil {
 		return err
 	}
+	if r.Kind == GitLab {
+		id, err := gitlabDiscussion(th.ID)
+		if err != nil {
+			return err
+		}
+		return c.gitlabSend(ctx, r, "PUT", mrPath(r, n)+"/discussions/"+id, map[string]bool{"resolved": resolved}, nil)
+	}
+	id := th.ID
 	m := "unresolveReviewThread"
 	if resolved {
 		m = "resolveReviewThread"
@@ -466,7 +522,7 @@ func (c *CLI) reviewable(r Repo) error {
 	if r.Kind != c.Kind {
 		return ErrNoCLI
 	}
-	if r.Kind != GitHub {
+	if r.Kind != GitHub && r.Kind != GitLab {
 		return ErrNoReview
 	}
 	if !c.Knows(r.Host) {

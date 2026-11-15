@@ -13,25 +13,26 @@ import (
 	"ramus/internal/git/gittest"
 )
 
-// reviewGH is a gh that answers the list and the pull request from
-// files, logs each write with its input, and answers {} to the rest.
-func reviewGH(t *testing.T, list, review string) (env []string, log func() string) {
+// reviewTool is a gh or glab, named prog, that answers the list and
+// the pull request from files, as the queries holding listQ and reviewQ,
+// logs each write with its input, and answers {"id":1} to the rest.
+func reviewTool(t *testing.T, prog, listQ, reviewQ, list, review string) (env []string, log func() string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
-		t.Skip("the fake gh is a shell script")
+		t.Skip("the fake tool is a shell script")
 	}
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "list.json"), []byte(list), 0o644)
 	os.WriteFile(filepath.Join(dir, "review.json"), []byte(review), 0o644)
 	script := `#!/bin/sh
 case "$*" in
-*"pullRequests(states"*) cat '` + dir + `/list.json' ;;
-*"pullRequest(number"*) cat '` + dir + `/review.json' ;;
-*POST*|*ReviewThread*) printf '%s\n' "$*" >> '` + dir + `/log'; cat >> '` + dir + `/log'; echo >> '` + dir + `/log'; echo '{}' ;;
+*"` + listQ + `"*) cat '` + dir + `/list.json' ;;
+*"` + reviewQ + `"*) cat '` + dir + `/review.json' ;;
+*POST*|*PUT*|*ReviewThread*) printf '%s\n' "$*" >> '` + dir + `/log'; cat >> '` + dir + `/log'; echo >> '` + dir + `/log'; echo '{"id":1}' ;;
 *) echo '{}' ;;
 esac
 `
-	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, prog), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return []string{"PATH=" + dir + ":/usr/bin:/bin"}, func() string {
@@ -75,7 +76,7 @@ func TestPullRequestReview(t *testing.T) {
  {"id":"T2","isResolved":false,"isOutdated":true,"path":"b.go","line":null,"startLine":null,"originalLine":3,"diffSide":"RIGHT",
   "viewerCanResolve":true,"viewerCanUnresolve":false,"viewerCanReply":true,
   "comments":{"totalCount":1,"nodes":[{"id":"C2","databaseId":43,"author":{"login":"bob"},"body":"Old remark","createdAt":"2026-11-11T11:00:00Z"}]}}]}}}}}`
-	env, log := reviewGH(t, list, review)
+	env, log := reviewTool(t, "gh", "pullRequests(states", "pullRequest(number", list, review)
 	tools := &forgeTools{env: env}
 	h.app.forgeFind = tools.find
 	h.app.Settings.PullRequests = true
@@ -153,5 +154,91 @@ func TestPullRequestReview(t *testing.T) {
 	h.until("the description, its template comment hidden", h.shows("Why it matters"))
 	if !h.tt.HasText("Old remark") || h.tt.HasText("template") {
 		t.Fatalf("texts %q", h.tt.Texts())
+	}
+}
+
+// A merge request is reviewed as a pull request is: its threads under
+// their lines, and a comment on an unchanged line placed by both its
+// numbers on the commits GitLab diffs.
+func TestMergeRequestReview(t *testing.T) {
+	host := gittest.Init(t)
+	host.Write("a.txt", "1\n2\n3\n")
+	base := host.Commit("base")
+	host.Git("checkout", "-q", "-b", "thing")
+	host.Write("a.txt", "1\nTWO\n3\n")
+	head := host.Commit("head")
+	host.Git("update-ref", "refs/merge-requests/12/head", head)
+	host.Git("checkout", "-q", "main")
+
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "https://gitlab.com/g/p")
+	r.Git("config", "url."+host.Dir+".insteadOf", "https://gitlab.com/g/p")
+
+	list := `{"data":{"project":{"mergeRequests":{"count":1,"nodes":[{"iid":"12","title":"Add a thing",
+"webUrl":"https://gitlab.com/g/p/-/merge_requests/12","draft":false,"state":"opened","author":{"username":"ann"},
+"sourceBranch":"thing","targetBranch":"main","updatedAt":"2026-11-13T16:04:48Z","approved":false,"detailedMergeStatus":"NOT_APPROVED"}]}}}}`
+	review := `{"data":{"currentUser":{"username":"me"},"project":{"mergeRequest":{"iid":"12","title":"Add a thing",
+"webUrl":"https://gitlab.com/g/p/-/merge_requests/12","description":"Why it matters","state":"opened","draft":false,"author":{"username":"ann"},
+"sourceBranch":"thing","targetBranch":"main","createdAt":"2026-11-10T09:00:00Z","approved":false,"detailedMergeStatus":"NOT_APPROVED",
+"diffRefs":{"baseSha":"` + base + `","startSha":"` + base + `","headSha":"` + head + `"},"userPermissions":{"createNote":true},
+"approvedBy":{"nodes":[]},"notes":{"pageInfo":{"hasNextPage":false},"nodes":[
+ {"id":"gid://gitlab/Note/2","author":{"username":"bob"},"body":"Why spell it out?","createdAt":"2026-11-11T10:00:00Z","system":false,
+  "discussion":{"id":"gid://gitlab/Discussion/bb","resolvable":true,"resolved":false,"userPermissions":{"resolveNote":true}},
+  "position":{"positionType":"text","filePath":"a.txt","oldPath":"a.txt","newPath":"a.txt","oldLine":null,"newLine":2,"diffRefs":{"headSha":"` + head + `"}}}]}}}}}`
+	env, log := reviewTool(t, "glab", "mergeRequests(state", "mergeRequest(iid", list, review)
+	tools := &forgeTools{env: env}
+	h.app.forgeFind = tools.find
+	h.app.Settings.PullRequests = true
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the merge requests in the sidebar", h.shows("Merge Requests"))
+	h.click("Merge Requests")
+	h.until("the list", h.shows("!12"))
+	h.click("Add a thing")
+	h.until("the merge request", h.shows("!12 Add a thing"))
+	h.until("its files, fetched", h.shows("a.txt"))
+	if got := strings.TrimSpace(r.Git("rev-parse", "refs/ramus/pulls/12/head")); got != head {
+		t.Fatalf("fetched %s, want %s", got, head)
+	}
+	rv := h.app.current().pr.rv
+	answered := func(what string) func() bool {
+		return func() bool { return strings.Contains(log(), what) && !rv.sending }
+	}
+	h.click("a.txt")
+	h.until("the thread under its line", h.shows("Why spell it out?"))
+	h.click("Resolve")
+	h.until("the thread resolved", answered("--method PUT projects/g%2Fp/merge_requests/12/discussions/bb"))
+
+	// Line 1 is unchanged: GitLab takes it by both its numbers.
+	rv.pv.d.OnGutterButton(editor.DiffLineRange{Side: editor.DiffNew, Start: 0, End: 0})
+	h.tt.Frame()
+	h.until("the comment being written", h.shows("Comment on line 1"))
+	h.tt.Type("Nice")
+	h.tt.Frame()
+	h.click("Add to Review")
+	h.click("Submit Review (1)…")
+	h.until("the dialog", h.shows("Submit your review of !12"))
+	h.click("Request Changes")
+	h.click("Submit")
+	h.until("the review published", answered("draft_notes/bulk_publish"))
+	l := log()
+	i := strings.Index(l, "merge_requests/12/draft_notes --input -")
+	if i < 0 {
+		t.Fatalf("log %q", l)
+	}
+	var dn struct {
+		Note     string
+		Position map[string]any
+	}
+	if err := json.Unmarshal([]byte(strings.SplitN(l[i:], "\n", 3)[1]), &dn); err != nil {
+		t.Fatal(err)
+	}
+	if p := dn.Position; dn.Note != "Nice" || p["new_line"] != 1.0 || p["old_line"] != 1.0 || p["new_path"] != "a.txt" ||
+		p["base_sha"] != base || p["start_sha"] != base || p["head_sha"] != head {
+		t.Fatalf("draft %+v", dn)
+	}
+	if !strings.Contains(l, "bulk_publish --input -\n{\"reviewer_state\":\"requested_changes\"}") {
+		t.Fatalf("publish %q", l)
 	}
 }

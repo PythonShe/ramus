@@ -12953,16 +12953,48 @@ func (msgs Messages) PatchNotFetched() string {
 // in the language the app shows.
 //
 // Sidebar item and page title: the repository's open pull requests on
-// GitHub.
+// GitHub or merge requests on GitLab.
 func RepoSectionPulls() string { return In(i18n.Locale()).RepoSectionPulls() }
 
 // RepoSectionPulls says "Pull Requests"
 // in the language of msgs.
 //
 // Sidebar item and page title: the repository's open pull requests on
-// GitHub.
+// GitHub or merge requests on GitLab.
 func (msgs Messages) RepoSectionPulls() string {
 	return Catalog.Format(msgs.locale, "repoSectionPulls", nil)
+}
+
+// PrsSection says "{kind, select, gitlab {Merge Requests} other {Pull Requests}}"
+// in the language the app shows.
+//
+// Sidebar item and page title of the repository's open pull requests, named
+// as its host names them.
+func PrsSection(kind string) string { return In(i18n.Locale()).PrsSection(kind) }
+
+// PrsSection says "{kind, select, gitlab {Merge Requests} other {Pull Requests}}"
+// in the language of msgs.
+//
+// Sidebar item and page title of the repository's open pull requests, named
+// as its host names them.
+func (msgs Messages) PrsSection(kind string) string {
+	return Catalog.Format(msgs.locale, "prsSection", map[string]any{"kind": kind})
+}
+
+// PrsHeadMoved says "The merge request has new commits since it was read. Refresh it and review them before approving."
+// in the language the app shows.
+//
+// Shown when GitLab refuses an approval because the merge request's head
+// changed.
+func PrsHeadMoved() string { return In(i18n.Locale()).PrsHeadMoved() }
+
+// PrsHeadMoved says "The merge request has new commits since it was read. Refresh it and review them before approving."
+// in the language of msgs.
+//
+// Shown when GitLab refuses an approval because the merge request's head
+// changed.
+func (msgs Messages) PrsHeadMoved() string {
+	return Catalog.Format(msgs.locale, "prsHeadMoved", nil)
 }
 
 // KeysShowPulls says "Show Pull Requests"
@@ -13035,44 +13067,44 @@ func (msgs Messages) ColumnUpdated() string {
 	return Catalog.Format(msgs.locale, "columnUpdated", nil)
 }
 
-// PrsNone says "No open pull requests."
+// PrsNone says "{kind, select, gitlab {No open merge requests.} other {No open pull requests.}}"
 // in the language the app shows.
 //
 // Shown when the repository has no open pull requests.
-func PrsNone() string { return In(i18n.Locale()).PrsNone() }
+func PrsNone(kind string) string { return In(i18n.Locale()).PrsNone(kind) }
 
-// PrsNone says "No open pull requests."
+// PrsNone says "{kind, select, gitlab {No open merge requests.} other {No open pull requests.}}"
 // in the language of msgs.
 //
 // Shown when the repository has no open pull requests.
-func (msgs Messages) PrsNone() string {
-	return Catalog.Format(msgs.locale, "prsNone", nil)
+func (msgs Messages) PrsNone(kind string) string {
+	return Catalog.Format(msgs.locale, "prsNone", map[string]any{"kind": kind})
 }
 
-// PrsMore says "{count, plural, one {Only the most recently updated pull request is listed.} other {Only the # most recently updated …"
+// PrsMore says "{kind, select, gitlab {{count, plural, one {Only the most recently updated merge request is listed.} other {Only the …"
 // in the language the app shows.
 //
 // Shown above the list when the host has more open pull requests than were
 // read.
-func PrsMore(count int) string { return In(i18n.Locale()).PrsMore(count) }
+func PrsMore(kind string, count int) string { return In(i18n.Locale()).PrsMore(kind, count) }
 
-// PrsMore says "{count, plural, one {Only the most recently updated pull request is listed.} other {Only the # most recently updated …"
+// PrsMore says "{kind, select, gitlab {{count, plural, one {Only the most recently updated merge request is listed.} other {Only the …"
 // in the language of msgs.
 //
 // Shown above the list when the host has more open pull requests than were
 // read.
-func (msgs Messages) PrsMore(count int) string {
-	return Catalog.Format(msgs.locale, "prsMore", map[string]any{"count": count})
+func (msgs Messages) PrsMore(kind string, count int) string {
+	return Catalog.Format(msgs.locale, "prsMore", map[string]any{"kind": kind, "count": count})
 }
 
-// PrsNoReview says "Pull requests can be reviewed in the app on GitHub only so far."
+// PrsNoReview says "Pull requests can be reviewed in the app on GitHub and GitLab only."
 // in the language the app shows.
 //
 // Shown when the repository's pull requests are on a host the app cannot
 // review on.
 func PrsNoReview() string { return In(i18n.Locale()).PrsNoReview() }
 
-// PrsNoReview says "Pull requests can be reviewed in the app on GitHub only so far."
+// PrsNoReview says "Pull requests can be reviewed in the app on GitHub and GitLab only."
 // in the language of msgs.
 //
 // Shown when the repository's pull requests are on a host the app cannot
@@ -13081,34 +13113,34 @@ func (msgs Messages) PrsNoReview() string {
 	return Catalog.Format(msgs.locale, "prsNoReview", nil)
 }
 
-// PrsList says "Open pull requests"
+// PrsList says "{kind, select, gitlab {Open merge requests} other {Open pull requests}}"
 // in the language the app shows.
 //
 // Accessibility label of the table of pull requests.
-func PrsList() string { return In(i18n.Locale()).PrsList() }
+func PrsList(kind string) string { return In(i18n.Locale()).PrsList(kind) }
 
-// PrsList says "Open pull requests"
+// PrsList says "{kind, select, gitlab {Open merge requests} other {Open pull requests}}"
 // in the language of msgs.
 //
 // Accessibility label of the table of pull requests.
-func (msgs Messages) PrsList() string {
-	return Catalog.Format(msgs.locale, "prsList", nil)
+func (msgs Messages) PrsList(kind string) string {
+	return Catalog.Format(msgs.locale, "prsList", map[string]any{"kind": kind})
 }
 
-// PrsRow says "#{number, number, ::group-off} {title}, by {author}"
+// PrsRow says "{ref} {title}, by {author}"
 // in the language the app shows.
 //
 // Accessibility label of a pull request's row.
-func PrsRow(number int, title string, author string) string {
-	return In(i18n.Locale()).PrsRow(number, title, author)
+func PrsRow(ref string, title string, author string) string {
+	return In(i18n.Locale()).PrsRow(ref, title, author)
 }
 
-// PrsRow says "#{number, number, ::group-off} {title}, by {author}"
+// PrsRow says "{ref} {title}, by {author}"
 // in the language of msgs.
 //
 // Accessibility label of a pull request's row.
-func (msgs Messages) PrsRow(number int, title string, author string) string {
-	return Catalog.Format(msgs.locale, "prsRow", map[string]any{"number": number, "title": title, "author": author})
+func (msgs Messages) PrsRow(ref string, title string, author string) string {
+	return Catalog.Format(msgs.locale, "prsRow", map[string]any{"ref": ref, "title": title, "author": author})
 }
 
 // PrsOpenInBrowser says "Open in Browser"
@@ -13125,18 +13157,18 @@ func (msgs Messages) PrsOpenInBrowser() string {
 	return Catalog.Format(msgs.locale, "prsOpenInBrowser", nil)
 }
 
-// PrsTitle says "#{number, number, ::group-off} {title}"
+// PrsTitle says "{ref} {title}"
 // in the language the app shows.
 //
 // Title of the pull request under review.
-func PrsTitle(number int, title string) string { return In(i18n.Locale()).PrsTitle(number, title) }
+func PrsTitle(ref string, title string) string { return In(i18n.Locale()).PrsTitle(ref, title) }
 
-// PrsTitle says "#{number, number, ::group-off} {title}"
+// PrsTitle says "{ref} {title}"
 // in the language of msgs.
 //
 // Title of the pull request under review.
-func (msgs Messages) PrsTitle(number int, title string) string {
-	return Catalog.Format(msgs.locale, "prsTitle", map[string]any{"number": number, "title": title})
+func (msgs Messages) PrsTitle(ref string, title string) string {
+	return Catalog.Format(msgs.locale, "prsTitle", map[string]any{"ref": ref, "title": title})
 }
 
 // PrsMeta says "{author} wants to merge {head} into {base}"
@@ -13169,20 +13201,20 @@ func (msgs Messages) PrsDecision(decision string) string {
 	return Catalog.Format(msgs.locale, "prsDecision", map[string]any{"decision": decision})
 }
 
-// PrsMoreOnHost says "More comments are on the pull request's page than are shown here."
+// PrsMoreOnHost says "{kind, select, gitlab {More comments are on the merge request's page than are shown here.} other {More comments are o…"
 // in the language the app shows.
 //
 // Shown when the host holds more comments, reviews or threads than were
 // read.
-func PrsMoreOnHost() string { return In(i18n.Locale()).PrsMoreOnHost() }
+func PrsMoreOnHost(kind string) string { return In(i18n.Locale()).PrsMoreOnHost(kind) }
 
-// PrsMoreOnHost says "More comments are on the pull request's page than are shown here."
+// PrsMoreOnHost says "{kind, select, gitlab {More comments are on the merge request's page than are shown here.} other {More comments are o…"
 // in the language of msgs.
 //
 // Shown when the host holds more comments, reviews or threads than were
 // read.
-func (msgs Messages) PrsMoreOnHost() string {
-	return Catalog.Format(msgs.locale, "prsMoreOnHost", nil)
+func (msgs Messages) PrsMoreOnHost(kind string) string {
+	return Catalog.Format(msgs.locale, "prsMoreOnHost", map[string]any{"kind": kind})
 }
 
 // PrsFiles says "{count, plural, one {Files (#)} other {Files (#)}}"
@@ -13227,42 +13259,42 @@ func (msgs Messages) PrsConversationLabel() string {
 	return Catalog.Format(msgs.locale, "prsConversationLabel", nil)
 }
 
-// PrsReading says "Reading the pull request…"
+// PrsReading says "{kind, select, gitlab {Reading the merge request…} other {Reading the pull request…}}"
 // in the language the app shows.
 //
 // Shown while the pull request is read from the host.
-func PrsReading() string { return In(i18n.Locale()).PrsReading() }
+func PrsReading(kind string) string { return In(i18n.Locale()).PrsReading(kind) }
 
-// PrsReading says "Reading the pull request…"
+// PrsReading says "{kind, select, gitlab {Reading the merge request…} other {Reading the pull request…}}"
 // in the language of msgs.
 //
 // Shown while the pull request is read from the host.
-func (msgs Messages) PrsReading() string {
-	return Catalog.Format(msgs.locale, "prsReading", nil)
+func (msgs Messages) PrsReading(kind string) string {
+	return Catalog.Format(msgs.locale, "prsReading", map[string]any{"kind": kind})
 }
 
-// PrsFetching says "Fetching the pull request’s commits…"
+// PrsFetching says "{kind, select, gitlab {Fetching the merge request’s commits…} other {Fetching the pull request’s commits…}}"
 // in the language the app shows.
 //
 // Shown while the pull request's commits are fetched and compared.
-func PrsFetching() string { return In(i18n.Locale()).PrsFetching() }
+func PrsFetching(kind string) string { return In(i18n.Locale()).PrsFetching(kind) }
 
-// PrsFetching says "Fetching the pull request’s commits…"
+// PrsFetching says "{kind, select, gitlab {Fetching the merge request’s commits…} other {Fetching the pull request’s commits…}}"
 // in the language of msgs.
 //
 // Shown while the pull request's commits are fetched and compared.
-func (msgs Messages) PrsFetching() string {
-	return Catalog.Format(msgs.locale, "prsFetching", nil)
+func (msgs Messages) PrsFetching(kind string) string {
+	return Catalog.Format(msgs.locale, "prsFetching", map[string]any{"kind": kind})
 }
 
-// PrsSubmitReview says "{count, plural, =0 {Submit Review…} other {Submit Review (#)…}}"
+// PrsSubmitReview says "{count, plural, =0 {Submit Review…} one {Submit Review (#)…} other {Submit Review (#)…}}"
 // in the language the app shows.
 //
 // Button that opens the dialog submitting the review; count is the comments
 // pending.
 func PrsSubmitReview(count int) string { return In(i18n.Locale()).PrsSubmitReview(count) }
 
-// PrsSubmitReview says "{count, plural, =0 {Submit Review…} other {Submit Review (#)…}}"
+// PrsSubmitReview says "{count, plural, =0 {Submit Review…} one {Submit Review (#)…} other {Submit Review (#)…}}"
 // in the language of msgs.
 //
 // Button that opens the dialog submitting the review; count is the comments
@@ -13271,18 +13303,18 @@ func (msgs Messages) PrsSubmitReview(count int) string {
 	return Catalog.Format(msgs.locale, "prsSubmitReview", map[string]any{"count": count})
 }
 
-// PrsSubmitTitle says "Submit your review of #{number, number, ::group-off}"
+// PrsSubmitTitle says "Submit your review of {ref}"
 // in the language the app shows.
 //
 // Title of the dialog that submits a review.
-func PrsSubmitTitle(number int) string { return In(i18n.Locale()).PrsSubmitTitle(number) }
+func PrsSubmitTitle(ref string) string { return In(i18n.Locale()).PrsSubmitTitle(ref) }
 
-// PrsSubmitTitle says "Submit your review of #{number, number, ::group-off}"
+// PrsSubmitTitle says "Submit your review of {ref}"
 // in the language of msgs.
 //
 // Title of the dialog that submits a review.
-func (msgs Messages) PrsSubmitTitle(number int) string {
-	return Catalog.Format(msgs.locale, "prsSubmitTitle", map[string]any{"number": number})
+func (msgs Messages) PrsSubmitTitle(ref string) string {
+	return Catalog.Format(msgs.locale, "prsSubmitTitle", map[string]any{"ref": ref})
 }
 
 // PrsSummary says "Summary"
@@ -13553,18 +13585,18 @@ func (msgs Messages) PrsAddToReview() string {
 	return Catalog.Format(msgs.locale, "prsAddToReview", nil)
 }
 
-// PrsNotInDiff says "GitHub takes comments only on changed lines and the lines around them."
+// PrsNotInDiff says "{kind, select, gitlab {GitLab takes comments only on changed lines and the lines around them.} other {GitHub takes co…"
 // in the language the app shows.
 //
 // Shown when the user starts a comment on a line outside the diff's hunks.
-func PrsNotInDiff() string { return In(i18n.Locale()).PrsNotInDiff() }
+func PrsNotInDiff(kind string) string { return In(i18n.Locale()).PrsNotInDiff(kind) }
 
-// PrsNotInDiff says "GitHub takes comments only on changed lines and the lines around them."
+// PrsNotInDiff says "{kind, select, gitlab {GitLab takes comments only on changed lines and the lines around them.} other {GitHub takes co…"
 // in the language of msgs.
 //
 // Shown when the user starts a comment on a line outside the diff's hunks.
-func (msgs Messages) PrsNotInDiff() string {
-	return Catalog.Format(msgs.locale, "prsNotInDiff", nil)
+func (msgs Messages) PrsNotInDiff(kind string) string {
+	return Catalog.Format(msgs.locale, "prsNotInDiff", map[string]any{"kind": kind})
 }
 
 // PrsOpened says "opened this"

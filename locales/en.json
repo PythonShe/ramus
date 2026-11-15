@@ -2642,7 +2642,15 @@
   },
   "repoSectionPulls": "Pull Requests",
   "@repoSectionPulls": {
-    "description": "Sidebar item and page title: the repository's open pull requests on GitHub."
+    "description": "Sidebar item and page title: the repository's open pull requests on GitHub or merge requests on GitLab."
+  },
+  "prsSection": "{kind, select, gitlab {Merge Requests} other {Pull Requests}}",
+  "@prsSection": {
+    "description": "Sidebar item and page title of the repository's open pull requests, named as its host names them."
+  },
+  "prsHeadMoved": "The merge request has new commits since it was read. Refresh it and review them before approving.",
+  "@prsHeadMoved": {
+    "description": "Shown when GitLab refuses an approval because the merge request's head changed."
   },
   "keysShowPulls": "Show Pull Requests",
   "@keysShowPulls": {
@@ -2664,23 +2672,23 @@
   "@columnUpdated": {
     "description": "Column of when a pull request last changed."
   },
-  "prsNone": "No open pull requests.",
+  "prsNone": "{kind, select, gitlab {No open merge requests.} other {No open pull requests.}}",
   "@prsNone": {
     "description": "Shown when the repository has no open pull requests."
   },
-  "prsMore": "{count, plural, one {Only the most recently updated pull request is listed.} other {Only the # most recently updated are listed.}}",
+  "prsMore": "{kind, select, gitlab {{count, plural, one {Only the most recently updated merge request is listed.} other {Only the # most recently updated are listed.}}} other {{count, plural, one {Only the most recently updated pull request is listed.} other {Only the # most recently updated are listed.}}}}",
   "@prsMore": {
     "description": "Shown above the list when the host has more open pull requests than were read."
   },
-  "prsNoReview": "Pull requests can be reviewed in the app on GitHub only so far.",
+  "prsNoReview": "Pull requests can be reviewed in the app on GitHub and GitLab only.",
   "@prsNoReview": {
     "description": "Shown when the repository's pull requests are on a host the app cannot review on."
   },
-  "prsList": "Open pull requests",
+  "prsList": "{kind, select, gitlab {Open merge requests} other {Open pull requests}}",
   "@prsList": {
     "description": "Accessibility label of the table of pull requests."
   },
-  "prsRow": "#{number, number, ::group-off} {title}, by {author}",
+  "prsRow": "{ref} {title}, by {author}",
   "@prsRow": {
     "description": "Accessibility label of a pull request's row."
   },
@@ -2688,7 +2696,7 @@
   "@prsOpenInBrowser": {
     "description": "Opens the pull request's page on the host."
   },
-  "prsTitle": "#{number, number, ::group-off} {title}",
+  "prsTitle": "{ref} {title}",
   "@prsTitle": {
     "description": "Title of the pull request under review."
   },
@@ -2700,7 +2708,7 @@
   "@prsDecision": {
     "description": "What a pull request's reviews add up to."
   },
-  "prsMoreOnHost": "More comments are on the pull request's page than are shown here.",
+  "prsMoreOnHost": "{kind, select, gitlab {More comments are on the merge request's page than are shown here.} other {More comments are on the pull request's page than are shown here.}}",
   "@prsMoreOnHost": {
     "description": "Shown when the host holds more comments, reviews or threads than were read."
   },
@@ -2716,19 +2724,19 @@
   "@prsConversationLabel": {
     "description": "Accessibility label of the list of a pull request's comments and reviews."
   },
-  "prsReading": "Reading the pull request…",
+  "prsReading": "{kind, select, gitlab {Reading the merge request…} other {Reading the pull request…}}",
   "@prsReading": {
     "description": "Shown while the pull request is read from the host."
   },
-  "prsFetching": "Fetching the pull request’s commits…",
+  "prsFetching": "{kind, select, gitlab {Fetching the merge request’s commits…} other {Fetching the pull request’s commits…}}",
   "@prsFetching": {
     "description": "Shown while the pull request's commits are fetched and compared."
   },
-  "prsSubmitReview": "{count, plural, =0 {Submit Review…} other {Submit Review (#)…}}",
+  "prsSubmitReview": "{count, plural, =0 {Submit Review…} one {Submit Review (#)…} other {Submit Review (#)…}}",
   "@prsSubmitReview": {
     "description": "Button that opens the dialog submitting the review; count is the comments pending."
   },
-  "prsSubmitTitle": "Submit your review of #{number, number, ::group-off}",
+  "prsSubmitTitle": "Submit your review of {ref}",
   "@prsSubmitTitle": {
     "description": "Title of the dialog that submits a review."
   },
@@ -2808,7 +2816,7 @@
   "@prsAddToReview": {
     "description": "Keeps a comment on lines to send with the review."
   },
-  "prsNotInDiff": "GitHub takes comments only on changed lines and the lines around them.",
+  "prsNotInDiff": "{kind, select, gitlab {GitLab takes comments only on changed lines and the lines around them.} other {GitHub takes comments only on changed lines and the lines around them.}}",
   "@prsNotInDiff": {
     "description": "Shown when the user starts a comment on a line outside the diff's hunks."
   },

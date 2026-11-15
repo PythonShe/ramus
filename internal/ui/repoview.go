@@ -250,7 +250,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		item("history", locales.RepoSectionHistory())
 		item("refs", locales.RepoSectionRefs())
 		if a.hasPulls(t) {
-			item(sidePulls, locales.RepoSectionPulls())
+			item(sidePulls, a.pullsSection(t))
 		}
 		if t.cmp.to != nil {
 			ui.SidebarItem(c, sideCompare, nil, locales.RepoSectionComparison())
