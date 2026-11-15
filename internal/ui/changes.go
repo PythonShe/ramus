@@ -503,7 +503,7 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 	w := t.s.Where()
 	head := t.s.State.Head
 	update := a.Update
-	go func() {
+	a.goWork(t, func() {
 		// One expectation each: the discard changes the tracked files,
 		// which the delete, queued after it, must not find changed.
 		trackedFiles, err := write.Observe(w.WorkTree, tracked)
@@ -557,7 +557,7 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 				},
 			}
 		})
-	}()
+	})
 }
 
 // nameList names up to five paths, and how many more.
