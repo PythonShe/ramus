@@ -10,9 +10,14 @@ import (
 	"strings"
 )
 
-// IsHelper reports whether this process was started by git or ssh as the
-// app's askpass helper.
-func IsHelper() bool { return os.Getenv(envSocket) != "" && os.Getenv(envToken) != "" }
+// IsHelper reports whether this process, run with args (without the
+// program name), was started by git or ssh as the app's askpass helper.
+// Both pass the prompt alone; what git runs for the app as its difftool
+// or mergetool, under a command of the app's that set the helper up,
+// passes more and is no question.
+func IsHelper(args []string) bool {
+	return len(args) == 1 && os.Getenv(envSocket) != "" && os.Getenv(envToken) != ""
+}
 
 // Helper asks the app the question in args, prints the answer for git
 // or ssh to read and returns the exit code: 0 answered, 1 declined or

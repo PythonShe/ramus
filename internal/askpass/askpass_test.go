@@ -13,7 +13,7 @@ import (
 
 // The test binary is the helper when git starts it as one.
 func TestMain(m *testing.M) {
-	if IsHelper() {
+	if IsHelper(os.Args[1:]) {
 		os.Exit(Helper(os.Args[1:], os.Stdout))
 	}
 	os.Exit(m.Run())
@@ -142,5 +142,24 @@ func TestHelperChecks(t *testing.T) {
 	s.mu.Unlock()
 	if open != 0 {
 		t.Fatalf("%d open", open)
+	}
+}
+
+// Under a command that set the helper up, git runs the app as its
+// difftool or mergetool with more than a prompt: that is no question.
+func TestIsHelper(t *testing.T) {
+	t.Setenv(envSocket, "/tmp/sock")
+	t.Setenv(envToken, "token")
+	if !IsHelper([]string{"Password for 'https://github.com': "}) {
+		t.Error("a prompt not taken for a question")
+	}
+	for _, args := range [][]string{nil, {"diff", "--wait", "/tmp/a", "b"}, {"merge", "--wait", "b", "l", "r", "m"}} {
+		if IsHelper(args) {
+			t.Errorf("%q taken for a question", args)
+		}
+	}
+	t.Setenv(envToken, "")
+	if IsHelper([]string{"Password: "}) {
+		t.Error("a helper without the token")
 	}
 }

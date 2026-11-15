@@ -36,7 +36,7 @@ const maxProcesses = 8
 
 func main() {
 	mainStart = time.Now()
-	if askpass.IsHelper() {
+	if askpass.IsHelper(os.Args[1:]) {
 		// git or ssh asks the running app a question through this process.
 		os.Exit(askpass.Helper(os.Args[1:], os.Stdout))
 	}
