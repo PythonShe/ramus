@@ -170,6 +170,11 @@ func (a *App) writeCommands(t *tab) []command {
 			op, err := write.Fetch(w, "", t.refs.prune)
 			a.submit(t, op, err)
 		}),
+		cmd("write-commit-graph", func() {
+			if err := t.s.WriteCommitGraph(); err != nil {
+				a.notice = errText(err)
+			}
+		}),
 	}
 	if a.PickFile != nil {
 		cmds = append(cmds, cmd("apply-patch", func() { a.applyPatchFile(t) }))

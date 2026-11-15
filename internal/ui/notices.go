@@ -66,7 +66,7 @@ func (a *App) tabNotice(t *tab) string {
 	if o.tab == t {
 		log := t.s.Log
 		for i := len(log) - 1; i >= 0 && log[i] != o.after; i-- {
-			if e := log[i]; !e.Running && e.Err == nil {
+			if e := log[i]; !e.Running && e.Err == nil && !e.Quiet {
 				a.dropNotice()
 				return ""
 			}
@@ -77,13 +77,14 @@ func (a *App) tabNotice(t *tab) string {
 
 // failedWrite is the write or action of tab t that ended last, when it
 // failed and the user has not dismissed it: one ending well after it
-// clears it, and one the user stopped is no failure to tell of.
+// clears it, and one the user stopped is no failure to tell of. A write
+// the app made on its own is neither: it is tried again quietly.
 func failedWrite(t *tab) *session.LogEntry {
 	log := t.s.Log
 	for i := len(log) - 1; i >= 0; i-- {
 		e := log[i]
 		switch {
-		case e.Running:
+		case e.Running, e.Quiet:
 			continue
 		case e.Err == nil || errors.Is(e.Err, context.Canceled) || e == t.failSeen:
 			return nil

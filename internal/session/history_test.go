@@ -215,6 +215,7 @@ func TestHistoryGrowsOnTop(t *testing.T) {
 			}
 			m := make(mainThread, 64)
 			s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+			s.setGraphEvery(-1, 0) // the graph as the test writes it
 			t.Cleanup(func() { s.Close(); <-s.Done() })
 			m.until(t, "refs", func() bool { return s.State.Refs != nil })
 			s.LoadHistory()
@@ -288,6 +289,7 @@ func TestHistoryRewritten(t *testing.T) {
 	r.Git("commit-graph", "write", "--reachable", "--split")
 	m := make(mainThread, 64)
 	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	s.setGraphEvery(-1, 0) // the graph as the test writes it
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "refs", func() bool { return s.State.Refs != nil })
 	s.LoadHistory()
@@ -337,6 +339,7 @@ func TestHistoryTakesANewGraph(t *testing.T) {
 	r.Commit("two")
 	m := make(mainThread, 64)
 	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	s.setGraphEvery(-1, 0) // the graph as the test writes it
 	t.Cleanup(func() { s.Close(); <-s.Done() })
 	m.until(t, "refs", func() bool { return s.State.Refs != nil })
 	s.LoadHistory()

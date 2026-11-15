@@ -9,10 +9,11 @@ import (
 
 // busyWrite is the write or action running in tab t, or the first of
 // those queued, nil none: closing the tab kills git part way through it,
-// which can leave index.lock or a rebase half done.
+// which can leave index.lock or a rebase half done. A write the app made
+// on its own is not asked about: it stops cleanly, and is made again.
 func busyWrite(t *tab) *session.LogEntry {
 	for _, e := range t.s.Log {
-		if e.Running {
+		if e.Running && !e.Quiet {
 			return e
 		}
 	}

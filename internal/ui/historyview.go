@@ -59,8 +59,6 @@ type historyState struct {
 	// chosen before history reloaded, or one jumped to.
 	want    []byte
 	wantFor *lanes.Snapshot
-	// writing is set once a commit-graph write was asked for here.
-	writing bool
 	jump    string
 	jumpErr string
 	// jumpN numbers the go-to requests; only the latest is answered.
@@ -207,18 +205,6 @@ func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 		a.filterButton(c, t)
 	})
 	a.filterBar(c, t)
-	if h.Advice != nil && h.Done {
-		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-			ui.Text(c, h.Advice.Reason).FontSize(textSmall).Grow(1)
-			if ui.Button(c, locales.HistoryWriteCommitGraph()).Disabled(hv.writing).Clicked() {
-				if err := t.s.WriteCommitGraph(*h.Advice); err != nil {
-					a.notice = errText(err)
-				} else {
-					hv.writing = true
-				}
-			}
-		})
-	}
 }
 
 // followHistory keeps the place and the choice on their commits as

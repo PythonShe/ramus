@@ -24,7 +24,6 @@ import (
 	"ramus/internal/git/run"
 	"ramus/internal/git/signature"
 	"ramus/internal/git/textenc"
-	"ramus/internal/git/write"
 	"ramus/locales"
 )
 
@@ -293,6 +292,9 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 					h.First = s.History.First
 				}
 				s.History = h
+				if h.Done && h.Err == nil {
+					s.writeGraphQuietly(h.Advice)
+				}
 			}
 		})
 	}
@@ -979,29 +981,4 @@ func (s *Session) FormatPatch(oid []byte, done func(string, error)) {
 		}
 		update(func() { done(text, err) })
 	})
-}
-
-// WriteCommitGraph writes the commit-graph h.Advice offers, then loads
-// history again from it; the rows shown stay until the new ones come.
-func (s *Session) WriteCommitGraph(a history.Advice) error {
-	j, err := s.Submit(write.Op{Name: locales.SessionWriteCommitGraph(), Cmd: a.Cmd})
-	if err != nil {
-		return err
-	}
-	r, update := s.Repo, s.update
-	r.Life().Go(func(ctx context.Context) {
-		select {
-		case <-j.Done():
-		case <-ctx.Done():
-			return
-		}
-		update(func() {
-			if s.Repo != r {
-				return
-			}
-			s.historyLoadN++
-			s.LoadHistory()
-		})
-	})
-	return nil
 }

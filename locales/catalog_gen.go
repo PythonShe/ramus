@@ -6631,16 +6631,6 @@ func (msgs Messages) HistoryGoTo() string {
 	return Catalog.Format(msgs.locale, "historyGoTo", nil)
 }
 
-// HistoryWriteCommitGraph says "Write Commit-Graph"
-// in the language the app shows.
-func HistoryWriteCommitGraph() string { return In(i18n.Locale()).HistoryWriteCommitGraph() }
-
-// HistoryWriteCommitGraph says "Write Commit-Graph"
-// in the language of msgs.
-func (msgs Messages) HistoryWriteCommitGraph() string {
-	return Catalog.Format(msgs.locale, "historyWriteCommitGraph", nil)
-}
-
 // HistorySearching says "Searching, {n} found"
 // in the language the app shows.
 func HistorySearching(n int) string { return In(i18n.Locale()).HistorySearching(n) }
@@ -10347,6 +10337,16 @@ func KeysFetch() string { return In(i18n.Locale()).KeysFetch() }
 // in the language of msgs.
 func (msgs Messages) KeysFetch() string {
 	return Catalog.Format(msgs.locale, "keysFetch", nil)
+}
+
+// KeysWriteCommitGraph says "Write Commit-Graph"
+// in the language the app shows.
+func KeysWriteCommitGraph() string { return In(i18n.Locale()).KeysWriteCommitGraph() }
+
+// KeysWriteCommitGraph says "Write Commit-Graph"
+// in the language of msgs.
+func (msgs Messages) KeysWriteCommitGraph() string {
+	return Catalog.Format(msgs.locale, "keysWriteCommitGraph", nil)
 }
 
 // KeysPullMerge says "Pull, Merging"

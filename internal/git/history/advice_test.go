@@ -35,22 +35,22 @@ func TestGraphAdvice(t *testing.T) {
 		t.Error("advice where git would not use a graph")
 	}
 	a, ok := advice()
-	if !ok || a.Cmd.Line() != "git --git-dir="+r.GitDir()+" commit-graph write --reachable --split --changed-paths" {
+	if !ok || a.Replace || a.Cmd.Line() != "git --git-dir="+r.GitDir()+" commit-graph write --reachable --split --changed-paths" {
 		t.Fatalf("no graph: %v %q", ok, a.Cmd.Line())
 	}
 	r.Git("commit-graph", "write", "--reachable")
-	if a, ok = advice(); !ok || a.Reason == "" {
-		t.Fatal("no advice for a graph without filters")
+	if a, ok = advice(); !ok || !a.Replace || !strings.HasSuffix(a.Cmd.Line(), " --split=replace --changed-paths") {
+		t.Fatalf("a graph without filters: %v %q", ok, a.Cmd.Line())
 	}
 	if _, err := testrun.Runner(t).Run(context.Background(), &a.Cmd); err != nil {
 		t.Fatal(err)
 	}
 	if a, ok = advice(); ok {
-		t.Fatalf("advice after writing: %s", a.Reason)
+		t.Fatalf("advice after writing: %q", a.Cmd.Line())
 	}
 	r.Commit("b")
-	if _, ok = advice(); !ok {
-		t.Error("no advice for a stale graph")
+	if a, ok = advice(); !ok || a.Replace {
+		t.Errorf("a stale graph: %v %q", ok, a.Cmd.Line())
 	}
 
 	// A graph without generation numbers covers nothing, and its advice
@@ -60,13 +60,13 @@ func TestGraphAdvice(t *testing.T) {
 	if _, covered := Covered(g, refTips(t, r)); covered || g.HasGenerations() {
 		t.Fatal("a graph without generation numbers covers history")
 	}
-	if a, ok = advice(); !ok || !strings.HasSuffix(a.Cmd.Line(), " --split=replace --changed-paths") {
+	if a, ok = advice(); !ok || !a.Replace || !strings.HasSuffix(a.Cmd.Line(), " --split=replace --changed-paths") {
 		t.Fatalf("no generations: %v %q", ok, a.Cmd.Line())
 	}
 	if _, err := testrun.Runner(t).Run(context.Background(), &a.Cmd); err != nil {
 		t.Fatal(err)
 	}
 	if a, ok = advice(); ok {
-		t.Fatalf("advice after replacing: %s", a.Reason)
+		t.Fatalf("advice after replacing: %q", a.Cmd.Line())
 	}
 }

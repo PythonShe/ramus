@@ -193,6 +193,7 @@ var bindable = append([]bindableCommand{
 	{"stage-all", locales.KeysStageAll},
 	{"unstage-all", locales.KeysUnstageAll},
 	{"fetch", locales.KeysFetch},
+	{"write-commit-graph", locales.KeysWriteCommitGraph},
 	{"pull-merge", locales.KeysPullMerge},
 	{"pull-rebase", locales.KeysPullRebase},
 	{"pull-ff", locales.KeysPullFF},

@@ -128,6 +128,9 @@ type Session struct {
 	blame       blames
 	view        viewScope
 	fetch       backgroundFetch
+	graph       autoGraph
+	// graphEvery and graphRetry, when set, replace the constants.
+	graphEvery, graphRetry time.Duration
 	// gitDir is the repository's, once open, for the crash log.
 	gitDir atomic.Pointer[string]
 	// monitorAnswered is set once the user turned the monitor on or said
@@ -671,6 +674,16 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 
 // Submit queues a write and refreshes everything once it ends.
 func (s *Session) Submit(op write.Op) (*write.Job, error) {
+	what := repo.Rescan
+	if op.RefsOnly {
+		what = repo.RefsChanged
+	}
+	return s.submit(op, what, false)
+}
+
+// submit is Submit reading again what once the write ends; quiet marks
+// it as one the app makes on its own (LogEntry.Quiet).
+func (s *Session) submit(op write.Op, what repo.Change, quiet bool) (*write.Job, error) {
 	if s.Queue == nil {
 		return nil, errReadOnly
 	}
@@ -682,11 +695,9 @@ func (s *Session) Submit(op write.Op) (*write.Job, error) {
 	for _, c := range op.More {
 		line += "\n" + c.Line()
 	}
-	what := repo.Rescan
-	if op.RefsOnly {
-		what = repo.RefsChanged
-	}
-	s.followThen(s.addLog(op.Name, line), j, what)
+	e := s.addLog(op.Name, line)
+	e.Quiet = quiet
+	s.followThen(e, j, what)
 	return j, nil
 }
 

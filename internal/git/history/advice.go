@@ -5,12 +5,12 @@ import (
 	"ramus/internal/git/run"
 )
 
-// Advice is an offer to write the commit-graph. The app shows Cmd's exact
-// line and runs it only when the user says so: it writes in the
-// repository, and on a large one it takes a while.
+// Advice is a commit-graph write that would make history faster.
 type Advice struct {
-	Reason string
-	Cmd    run.Cmd
+	// Replace is set for a write that rewrites the whole chain, as
+	// GraphWrite's replace: on a large repository it takes a while.
+	Replace bool
+	Cmd     run.Cmd
 }
 
 // GraphAdvice says whether writing the commit-graph would make history
@@ -19,30 +19,40 @@ type Advice struct {
 // would not help. g is the open graph or nil; covered is what Covered
 // reported for it.
 func GraphAdvice(gitDir string, usable bool, g *commitgraph.Graph, covered bool) (Advice, bool) {
-	var reason string
-	split := "--split"
+	replace := false
 	switch {
 	case !usable:
 		return Advice{}, false
 	case g == nil:
-		reason = "This repository has no commit-graph, so git reads every commit to order history."
+		// git reads every commit to order history.
 	case !g.HasGenerations():
-		reason = "The commit-graph was written without generation numbers, so git reads every commit to order history."
-		// The layers without them must go, not only gain one on top.
-		split = "--split=replace"
+		// git reads every commit to order history, and the layers
+		// without generation numbers must go, not only gain one on top.
+		replace = true
 	case !covered:
-		reason = "The commit-graph is missing recent commits, so history is ordered by git instead."
+		// The commits made since are read from their objects.
 	case g.Bloom().Version == 0:
-		reason = "The commit-graph has no changed-path filters, so the history of a file is slow."
-		// A plain split write adds a layer only for new commits; filters
+		// The history of a file is slow without changed-path filters. A
+		// plain split write adds a layer only for new commits; filters
 		// for the old ones need the chain rewritten.
-		split = "--split=replace"
+		replace = true
 	default:
 		return Advice{}, false
 	}
-	return Advice{Reason: reason, Cmd: run.Cmd{
+	return Advice{Replace: replace, Cmd: GraphWrite(gitDir, replace)}, true
+}
+
+// GraphWrite is the command that writes the commit-graph for every commit
+// reachable from a ref, with changed-path filters: a layer on top of the
+// chain for the commits it lacks, or, with replace, the chain anew.
+func GraphWrite(gitDir string, replace bool) run.Cmd {
+	split := "--split"
+	if replace {
+		split = "--split=replace"
+	}
+	return run.Cmd{
 		GitDir:  gitDir,
 		Args:    []string{"commit-graph", "write", "--reachable", split, "--changed-paths"},
 		Timeout: RevListTimeout,
-	}}, true
+	}
 }
