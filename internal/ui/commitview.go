@@ -284,7 +284,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				ui.Text(c, locales.CommitPullRequest()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
 					ui.Link(c, p.Ref(p.Repo.Kind), p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
-					pullState(c, p.Pull)
+					pullState(c, plainInk(th), p.Pull)
 				})
 			})
 		}
@@ -395,11 +395,11 @@ func commitSigText(c *ui.Context, cv *commitView, d *session.CommitDetail, restr
 	case restricted:
 		ui.Text(c, locales.CommitSigNotTrusted()).FontSize(textSmall).TextColor(c.Theme().TextMuted)
 	case d.Sig.Code == 0 && d.SigErr == nil:
-		sigText(c, nil)
+		sigText(c, plainInk(c.Theme()), nil)
 	default:
 		r := &cv.sig
 		r.st, r.err = d.Sig, d.SigErr
-		sigText(c, r)
+		sigText(c, plainInk(c.Theme()), r)
 	}
 }
 
@@ -530,19 +530,18 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 // sigText shows a verdict on a signature, colored by what it means: one
 // that checks from a key git trusts, one that checks from another key,
 // and one that does not check.
-func sigText(c *ui.Context, r *sigResult) {
-	th := c.Theme()
+func sigText(c *ui.Context, k ink, r *sigResult) {
 	if r == nil {
-		ui.Text(c, locales.CommitSigCheckingVerdict()).FontSize(textSmall).TextColor(th.TextMuted)
+		ui.Text(c, locales.CommitSigCheckingVerdict()).FontSize(textSmall).TextColor(k.Muted)
 		return
 	}
 	// Why it was not checked is git's own word, often long: a popover
 	// holds it.
 	why := func(short, reason string) {
 		ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, short).FontSize(textSmall).TextColor(th.TextMuted)
+			ui.Text(c, short).FontSize(textSmall).TextColor(k.Muted)
 			if reason != "" {
-				infoButton(c, &r.info, locales.CommitSigWhy(), reason, th.Warning)
+				infoButton(c, &r.info, locales.CommitSigWhy(), reason, k.Warning)
 			}
 		})
 	}
@@ -555,14 +554,14 @@ func sigText(c *ui.Context, r *sigResult) {
 		return
 	}
 	st := r.st
-	color := th.Warning
+	color := k.Warning
 	switch st.Code {
 	case signature.Good:
-		color = th.Success
+		color = k.Success
 	case signature.Bad, signature.Revoked:
-		color = th.Danger
+		color = k.Danger
 	case signature.None:
-		color = th.TextMuted
+		color = k.Muted
 	}
 	ui.Text(c, verdictText(st)).FontSize(textSmall).TextColor(color).Selectable()
 }

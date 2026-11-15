@@ -151,20 +151,24 @@ func (a *App) forgeNotice(err error) {
 
 // pullBadge shows a branch's pull request in its row: its number, which
 // opens it, its state, and an open one's checks.
-func pullBadge(c *ui.Context, p session.PullInfo) {
+func pullBadge(c *ui.Context, k ink, p session.PullInfo) {
 	th := c.Theme()
 	ref := p.Ref(p.Repo.Kind)
-	ui.Link(c, ref, p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
-	pullState(c, p.Pull)
+	link := ui.Link(c, ref, p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
+	if k != plainInk(th) {
+		// The link colour is the accent, which the chosen row is.
+		link.TextColor(k.Accent)
+	}
+	pullState(c, k, p.Pull)
 	if p.State != forge.PullOpen {
 		return
 	}
-	mark, color, says := "", th.TextMuted, ""
+	mark, color, says := "", k.Muted, ""
 	switch p.Checks {
 	case forge.ChecksPassing:
-		mark, color, says = "✓", th.Success, locales.PullsChecksPassed()
+		mark, color, says = "✓", k.Success, locales.PullsChecksPassed()
 	case forge.ChecksFailing:
-		mark, color, says = "✗", th.Danger, locales.PullsChecksFailed()
+		mark, color, says = "✗", k.Danger, locales.PullsChecksFailed()
 	case forge.ChecksPending:
 		mark, says = "●", locales.PullsChecksRunning()
 	}
@@ -176,16 +180,15 @@ func pullBadge(c *ui.Context, p session.PullInfo) {
 // pullState names a pull request's state in the colors the hosts give
 // it: open in green, merged in the accent, closed muted, and an open
 // draft as a draft.
-func pullState(c *ui.Context, p forge.Pull) {
-	th := c.Theme()
-	text, color := locales.PullsStateOpen(), th.Success
+func pullState(c *ui.Context, k ink, p forge.Pull) {
+	text, color := locales.PullsStateOpen(), k.Success
 	switch {
 	case p.State == forge.PullMerged:
-		text, color = locales.PullsStateMerged(), th.Accent
+		text, color = locales.PullsStateMerged(), k.Accent
 	case p.State == forge.PullClosed:
-		text, color = locales.PullsStateClosed(), th.TextMuted
+		text, color = locales.PullsStateClosed(), k.Muted
 	case p.Draft:
-		text, color = locales.PullsDraft(), th.TextMuted
+		text, color = locales.PullsDraft(), k.Muted
 	}
 	ui.Text(c, text).FontSize(textSmall).TextColor(color).SingleLine()
 }
@@ -246,8 +249,7 @@ func (a *App) findStackTool() {
 
 // stackBadge shows where a branch is in the GitHub stack gh stack keeps,
 // and its pull request there when the host was not asked.
-func (a *App) stackBadge(c *ui.Context, t *tab, info *session.RefInfo, b session.BranchInfo) {
-	th := c.Theme()
+func (a *App) stackBadge(c *ui.Context, k ink, t *tab, info *session.RefInfo, b session.BranchInfo) {
 	short := strings.TrimPrefix(b.Name, "refs/heads/")
 	st, i, ok := forge.StackOf(info.GitHubStacks, short)
 	if !ok {
@@ -257,7 +259,7 @@ func (a *App) stackBadge(c *ui.Context, t *tab, info *session.RefInfo, b session
 	if st.Number > 0 {
 		what = locales.PullsStackBranchNumber(i+1, len(st.Branches), st.Number)
 	}
-	ui.Text(c, locales.PullsStackPosition(i+1, len(st.Branches))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Label(what).Tooltip(what)
+	ui.Text(c, locales.PullsStackPosition(i+1, len(st.Branches))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Label(what).Tooltip(what)
 	if _, asked := t.pulls.by[b.Name]; !asked || !a.Settings.PullRequests {
 		// The file is in the git directory, which a repository handed over
 		// as a folder brings along: its link goes to the remote's host only.

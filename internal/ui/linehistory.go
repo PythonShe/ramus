@@ -143,7 +143,7 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 				a.commitActions(m, t, fc.OID)
 			}
 			a.savedTable(c, "lineHistory", &lh.list, commitColumns(), len(cs), func(i, col int) {
-				fileCommitCell(c, cs[i], fs.path, now, col)
+				fileCommitCell(c, lh.list.ink(c, i), cs[i], fs.path, now, col)
 			}).Label(locales.FileHistoryLineCommits()).Grow(1)
 		})
 	}, func() {

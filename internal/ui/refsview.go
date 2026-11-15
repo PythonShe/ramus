@@ -311,19 +311,20 @@ func (a *App) refList(c *ui.Context, t *tab) {
 	}
 	tbl := a.savedTable(c, table, &rs.list, cols, len(rows), func(i, col int) {
 		r := rows[i]
+		k := rs.list.ink(c, i)
 		if r.idx < 0 {
 			if col != 0 {
 				return
 			}
 			ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Width(float32(r.depth) * 16)
-				k := prefix + r.folder
+				fk := prefix + r.folder
 				arrow := "▾"
-				if rs.closed[k] && rs.filter == "" {
+				if rs.closed[fk] && rs.filter == "" {
 					arrow = "▸"
 				}
-				if ui.Text(c, arrow).Width(12).TextColor(th.TextMuted).RowClicked() {
-					act = func() { rs.closed[k] = !rs.closed[k]; rs.closedGen++ }
+				if ui.Text(c, arrow).Width(12).TextColor(k.Muted).RowClicked() {
+					act = func() { rs.closed[fk] = !rs.closed[fk]; rs.closedGen++ }
 				}
 				ui.Text(c, redact.Control(r.label)+"/").SingleLine().Grow(1)
 			})
@@ -343,16 +344,16 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					name.Bold()
 				}
 				if b.Worktree != "" {
-					ui.Text(c, locales.RefsInWorktree(filepath.Base(b.Worktree))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Description(locales.RefsCheckedOutIn(b.Worktree))
+					ui.Text(c, locales.RefsInWorktree(filepath.Base(b.Worktree))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(locales.RefsCheckedOutIn(b.Worktree))
 				}
 				if on := stackedOn(info, b.Name); on != "" {
-					ui.Text(c, locales.RefsOnBranch(redact.Control(on))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Description(locales.RefsStackedOn(redact.Control(on)))
+					ui.Text(c, locales.RefsOnBranch(redact.Control(on))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(locales.RefsStackedOn(redact.Control(on)))
 				}
 				if p, ok := t.pulls.by[b.Name]; ok && a.Settings.PullRequests {
-					pullBadge(c, p)
+					pullBadge(c, k, p)
 				}
 				if rs.kind == refsBranches {
-					a.stackBadge(c, t, info, b)
+					a.stackBadge(c, k, t, info, b)
 				}
 			})
 			return
@@ -363,12 +364,12 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			case 1:
 				tr := ui.Text(c, tracking(b)).FontSize(textSmall).SingleLine()
 				if b.Gone {
-					tr.TextColor(th.Warning)
+					tr.TextColor(k.Warning)
 				} else {
-					tr.TextColor(th.TextMuted)
+					tr.TextColor(k.Muted)
 				}
 			case 2:
-				ui.Text(c, redact.Control(b.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+				ui.Text(c, redact.Control(b.Subject)).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 			case 3:
 				// The branch chosen offers to switch to it where its time
 				// is, so that the row keeps its width and its height;
@@ -381,7 +382,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					}
 					return
 				}
-				ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+				ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 			}
 			return
 		}
@@ -395,15 +396,15 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			case tg.Annotated:
 				kind = locales.RefsTagKindAnnotated()
 			}
-			ui.Text(c, kind).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, kind).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 		case 2:
 			if v, ok := rs.sigs[tg.Object]; ok {
-				sigText(c, v)
+				sigText(c, k, v)
 			} else {
-				ui.Text(c, redact.Control(tg.Subject)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+				ui.Text(c, redact.Control(tg.Subject)).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 			}
 		case 3:
-			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 		}
 	}).Label(locales.RefsListLabel()).Grow(1)
 	// A double click or Enter checks a branch out, as its menu's first

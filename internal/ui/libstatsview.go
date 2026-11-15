@@ -362,7 +362,6 @@ func calendarStats(c *ui.Context, cal activity.Calendar) {
 
 // compareTable is the repositories side by side.
 func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
-	th := c.Theme()
 	s := &a.libStats
 	rows := slices.Clone(sum.Rows)
 	if s.sort.Column == "" {
@@ -409,6 +408,7 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 	now := a.Now().Unix()
 	a.savedTable(c, "libraryStats", &s.table, cols, len(rows), func(i, col int) {
 		r := rows[i]
+		k := s.table.ink(c, i)
 		pending := r.Loading || r.Err != nil
 		switch col {
 		case 0:
@@ -416,9 +416,9 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 				ui.Text(c, r.Name).SingleLine()
 				switch {
 				case r.Err != nil:
-					ui.Text(c, errText(r.Err)).FontSize(textCaption).TextColor(th.Danger).SingleLine().Tooltip(errText(r.Err))
+					ui.Text(c, errText(r.Err)).FontSize(textCaption).TextColor(k.Danger).SingleLine().Tooltip(errText(r.Err))
 				case r.Loading && r.Total > 0:
-					ui.Text(c, locales.StatsReadingCommitsOf(r.Read, r.Total)).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, locales.StatsReadingCommitsOf(r.Read, r.Total)).FontSize(textCaption).TextColor(k.Muted).SingleLine()
 				}
 			})
 		case 1:

@@ -171,13 +171,14 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			}
 			a.savedTable(c, "stashes", &ss.list, cols, len(entries), func(i, col int) {
 				e := entries[i]
+				k := ss.list.ink(c, i)
 				switch col {
 				case 0:
-					mutedCell(c, stashName(i)).Font("monospace")
+					mutedCell(c, k, stashName(i)).Font("monospace")
 				case 1:
 					ui.Text(c, redact.Control(e.Message)).SingleLine()
 				case 2:
-					mutedCell(c, ago(now, e.Time))
+					mutedCell(c, k, ago(now, e.Time))
 				}
 			}).Label(locales.StashEntriesLabel()).Grow(1)
 			if act != nil {

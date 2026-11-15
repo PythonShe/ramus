@@ -48,7 +48,6 @@ func (d *dashState) read(t *tab) {
 func (d *dashState) reload() { d.sums = nil }
 
 func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
-	th := c.Theme()
 	d := &t.dash
 	d.read(t)
 	wts := t.s.State.Worktrees
@@ -87,6 +86,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 		tbl := a.savedTable(c, "worktrees", &d.table, cols, len(wts), func(i, col int) {
 			w := wts[i]
 			sum, read := d.sums[w.Path]
+			k := d.table.ink(c, i)
 			switch col {
 			case 0:
 				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
@@ -96,23 +96,23 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 						if w.Current {
 							name.Bold()
 						}
-						sub := ui.Text(c, w.Path).FontSize(textCaption).TextColor(th.TextMuted).SingleLine()
+						sub := ui.Text(c, w.Path).FontSize(textCaption).TextColor(k.Muted).SingleLine()
 						switch {
 						case w.Prunable:
-							sub.TextColor(th.Warning)
+							sub.TextColor(k.Warning)
 						case read && sum.Err != nil:
-							ui.Text(c, errText(sum.Err)).FontSize(textCaption).TextColor(th.Danger).SingleLine().Tooltip(errText(sum.Err))
+							ui.Text(c, errText(sum.Err)).FontSize(textCaption).TextColor(k.Danger).SingleLine().Tooltip(errText(sum.Err))
 						}
 					})
 				})
 			case 1:
 				switch {
 				case w.Prunable:
-					ui.Text(c, locales.WorktreeFolderMissing()).TextColor(th.Warning)
+					ui.Text(c, locales.WorktreeFolderMissing()).TextColor(k.Warning)
 				case w.Branch != "":
 					ui.Text(c, redact.Control(strings.TrimPrefix(w.Branch, "refs/heads/"))).SingleLine()
 				case w.Head != "":
-					ui.Text(c, locales.WorktreeDetachedAt(w.Head[:min(10, len(w.Head))])).TextColor(th.TextMuted).SingleLine()
+					ui.Text(c, locales.WorktreeDetachedAt(w.Head[:min(10, len(w.Head))])).TextColor(k.Muted).SingleLine()
 				}
 			case 2:
 				switch {
@@ -132,7 +132,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 					active = time.Unix(b.Time, 0)
 				}
 				if !active.IsZero() {
-					ui.Text(c, ago(now, active)).TextColor(th.TextMuted)
+					ui.Text(c, ago(now, active)).TextColor(k.Muted)
 				}
 			case 5:
 				if !w.Current && ui.Button(c, locales.WorktreeOpen()).Label(locales.WorktreeOpenLabel(filepath.Base(w.Path))).Padding(0, spaceM).Clicked() {

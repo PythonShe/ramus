@@ -21,6 +21,35 @@ type tableState struct {
 	from settings.TableLayout
 }
 
+// chosen reports whether row is chosen: mygo paints it in the accent
+// colour with AccentText, which a cell's own colours must not fight.
+func (s *tableState) chosen(row int) bool {
+	return s.Selected != nil && *s.Selected == row
+}
+
+// ink is the colours a table cell takes for its text: the theme's, or on
+// a chosen row AccentText, as the muted grey, the warning amber and the
+// success green are all hard to read on the accent.
+type ink struct {
+	Muted, Warning, Success, Danger, Accent ui.Color
+}
+
+// plainInk is the theme's colours, for a cell outside a chosen row.
+func plainInk(th *ui.Theme) ink {
+	return ink{th.TextMuted, th.Warning, th.Success, th.Danger, th.Accent}
+}
+
+// ink returns the colours for the cells of row.
+func (s *tableState) ink(c *ui.Context, row int) ink {
+	th := c.Theme()
+	if !s.chosen(row) {
+		return plainInk(th)
+	}
+	// Secondary text keeps a little of its quiet, and stays well above
+	// the contrast of the muted grey on the accent.
+	return ink{th.AccentText.Alpha(0.85), th.AccentText, th.AccentText, th.AccentText, th.AccentText}
+}
+
 // savedTable is a ui.Table whose columns keep the order and the widths
 // the user gives them, in the settings under key. Columns are known by
 // their IDs, which must not change with the language. It returns the
@@ -94,11 +123,11 @@ func commitColumns() []ui.TableColumn {
 
 // mutedCell is the text of a column that says less than the row's
 // first: smaller, muted, on one line.
-func mutedCell(c *ui.Context, s string) ui.Element {
-	return ui.Text(c, s).FontSize(textSmall).TextColor(c.Theme().TextMuted).SingleLine()
+func mutedCell(c *ui.Context, k ink, s string) ui.Element {
+	return ui.Text(c, s).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 }
 
 // hashCell is a commit's abbreviated hash.
-func hashCell(c *ui.Context, oid []byte) ui.Element {
-	return mutedCell(c, hex.EncodeToString(oid)[:min(8, 2*len(oid))]).Font("monospace")
+func hashCell(c *ui.Context, k ink, oid []byte) ui.Element {
+	return mutedCell(c, k, hex.EncodeToString(oid)[:min(8, 2*len(oid))]).Font("monospace")
 }

@@ -324,7 +324,6 @@ func barChart(c *ui.Context, title string, bars []bar, height float32) {
 }
 
 func (a *App) authorTable(c *ui.Context, t *tab, st stats.Stats) {
-	th := c.Theme()
 	ss := &t.stats
 	authors := st.Authors
 	ss.authors.Label = func(i int) string {
@@ -345,9 +344,9 @@ func (a *App) authorTable(c *ui.Context, t *tab, st stats.Stats) {
 		case 1:
 			ui.Text(c, strconv.Itoa(au.Commits))
 		case 2:
-			ui.Text(c, fmt.Sprintf("%.1f%%", 100*float64(au.Commits)/float64(st.Commits))).TextColor(th.TextMuted)
+			ui.Text(c, fmt.Sprintf("%.1f%%", 100*float64(au.Commits)/float64(st.Commits))).TextColor(ss.authors.ink(c, i).Muted)
 		case 3:
-			mutedCell(c, locales.StatsRange(time.Unix(au.First, 0).Format("2006-01-02"), time.Unix(au.Last, 0).Format("2006-01-02")))
+			mutedCell(c, ss.authors.ink(c, i), locales.StatsRange(time.Unix(au.First, 0).Format("2006-01-02"), time.Unix(au.Last, 0).Format("2006-01-02")))
 		}
 	}).Label(locales.StatsAuthors()).Grow(1).MinHeight(160)
 }

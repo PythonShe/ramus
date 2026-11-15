@@ -227,7 +227,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 				a.commitActions(m, t, fc.OID)
 			}
 			a.savedTable(c, "fileHistory", &fs.list, commitColumns(), len(cs), func(i, col int) {
-				fileCommitCell(c, cs[i], fs.path, now, col)
+				fileCommitCell(c, fs.list.ink(c, i), cs[i], fs.path, now, col)
 			}).Label(locales.FileHistoryFileCommits()).Grow(1)
 		})
 	}, func() {
@@ -245,22 +245,22 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 // fileCommitCell builds column col (commitColumns) of a commit in the
 // history of the file at path, which says where the file was when the
 // commit had it at another path.
-func fileCommitCell(c *ui.Context, fc session.FileCommit, path string, now time.Time, col int) {
+func fileCommitCell(c *ui.Context, k ink, fc session.FileCommit, path string, now time.Time, col int) {
 	switch col {
 	case 0:
 		ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, redact.Control(fc.Subject)).SingleLine().Grow(1)
 			if fc.Path != "" && fc.Path != path {
 				shown, _ := showPath(fc.Path)
-				mutedCell(c, locales.FileHistoryAsPath(shown)).MaxWidth(200)
+				mutedCell(c, k, locales.FileHistoryAsPath(shown)).MaxWidth(200)
 			}
 		})
 	case 1:
-		mutedCell(c, redact.Control(fc.Author))
+		mutedCell(c, k, redact.Control(fc.Author))
 	case 2:
-		mutedCell(c, ago(now, fc.Time))
+		mutedCell(c, k, ago(now, fc.Time))
 	case 3:
-		hashCell(c, fc.OID)
+		hashCell(c, k, fc.OID)
 	}
 }
 

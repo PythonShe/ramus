@@ -147,15 +147,16 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 	now := a.Now()
 	a.savedTable(c, "reflog", &rs.list, cols, len(entries), func(i, col int) {
 		e := entries[i]
+		k := rs.list.ink(c, i)
 		switch col {
 		case 0:
-			mutedCell(c, e.Selector).Font("monospace")
+			mutedCell(c, k, e.Selector).Font("monospace")
 		case 1:
 			ui.Text(c, redact.Control(e.Message)).SingleLine()
 		case 2:
-			mutedCell(c, ago(now, e.Time))
+			mutedCell(c, k, ago(now, e.Time))
 		case 3:
-			hashCell(c, e.OID)
+			hashCell(c, k, e.OID)
 		}
 	}).Label(locales.ReflogEntries()).Grow(1)
 	if rs.chosen >= 0 && rs.chosen < len(entries) {
@@ -197,15 +198,16 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	now := a.Now()
 	a.savedTable(c, "lostCommits", &rs.lostList, commitColumns(), len(lost), func(i, col int) {
 		l := lost[i]
+		k := rs.lostList.ink(c, i)
 		switch col {
 		case 0:
 			ui.Text(c, redact.Control(l.Subject)).SingleLine()
 		case 1:
-			mutedCell(c, redact.Control(l.Author))
+			mutedCell(c, k, redact.Control(l.Author))
 		case 2:
-			mutedCell(c, ago(now, l.Time))
+			mutedCell(c, k, ago(now, l.Time))
 		case 3:
-			hashCell(c, l.OID)
+			hashCell(c, k, l.OID)
 		}
 	}).Label(locales.ReflogLostList()).Grow(1)
 }
