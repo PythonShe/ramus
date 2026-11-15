@@ -548,7 +548,9 @@ func TestChangesStageAndDiscard(t *testing.T) {
 	h.click("Discard 1 Line…")
 	h.until("the question", h.shows("Discard 1 changed line?"))
 	h.click("Discard")
-	h.until("the line discarded", func() bool { return !strings.Contains(read("a.txt"), "twelve") })
+	// Read while git writes it, as a slow machine may, the file is empty
+	// or not there: wait for it written.
+	h.until("the line discarded", func() bool { s := read("a.txt"); return s != "" && !strings.Contains(s, "twelve") })
 	if !strings.HasPrefix(read("a.txt"), "one\n") {
 		t.Fatalf("discard took more than the line: %q", read("a.txt"))
 	}
