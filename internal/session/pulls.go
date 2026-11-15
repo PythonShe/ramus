@@ -204,7 +204,8 @@ func commitPullKey(oid []byte) string { return "p\x00" + string(oid) }
 // gives (called off the main thread too), for the pull request that
 // brought commit oid in, whose subject is subject, and hands the answer
 // to done on it: from the repository named upstream when there is one,
-// for a fork's commits came in there, else from origin. A repository
+// for a fork's commits came in there, then from origin, where a fork's
+// branch's commits are until merged. A repository
 // not on GitHub, on a host gh does not know, or not trusted, is not
 // asked. The answer is kept per commit for CommitPullMaxAge. cancel stops
 // the asking and drops its answer.
@@ -248,25 +249,38 @@ func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid 
 
 func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(forge.Kind) (*forge.CLI, error), sha string, hint int) CommitPullResult {
 	up, origin := RemoteURLs(r)
-	gh, ok := forge.Parse(up)
-	if !ok || gh.Kind != forge.GitHub {
-		gh, ok = forge.Parse(origin)
+	var asks []forge.Repo
+	for _, u := range []string{up, origin} {
+		if gh, ok := forge.Parse(u); ok && gh.Kind == forge.GitHub && (len(asks) == 0 || gh != asks[0]) {
+			asks = append(asks, gh)
+		}
 	}
-	if !ok || gh.Kind != forge.GitHub {
+	if len(asks) == 0 {
 		return CommitPullResult{}
 	}
 	c, err := find(forge.GitHub)
 	if err != nil {
 		return CommitPullResult{Err: err}
 	}
-	p, found, err := c.CommitPull(ctx, gh, sha, hint)
-	if errors.Is(err, forge.ErrUnknownHost) {
-		return CommitPullResult{}
+	for i, gh := range asks {
+		// GitHub names a pull request of a fork's branch, until it is
+		// merged, only in the fork, where its commits are; the number the
+		// subject ends with is one of the upstream's.
+		if i > 0 {
+			hint = 0
+		}
+		p, found, err := c.CommitPull(ctx, gh, sha, hint)
+		if errors.Is(err, forge.ErrUnknownHost) {
+			continue
+		}
+		if err != nil {
+			return CommitPullResult{Err: err}
+		}
+		if found {
+			return CommitPullResult{Pull: PullInfo{Pull: p, Repo: gh}, Found: true}
+		}
 	}
-	if err != nil {
-		return CommitPullResult{Err: err}
-	}
-	return CommitPullResult{Pull: PullInfo{Pull: p, Repo: gh}, Found: found}
+	return CommitPullResult{}
 }
 
 // GitHubStack runs gh stack with args in the work tree, as a write that

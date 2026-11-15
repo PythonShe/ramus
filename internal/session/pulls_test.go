@@ -1,9 +1,11 @@
 package session
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"ramus/internal/forge"
@@ -89,5 +91,47 @@ func TestPullsAskOnlyKnownHosts(t *testing.T) {
 				t.Fatalf("looked for gh %d times for an untrusted repository", found)
 			}
 		})
+	}
+}
+
+// A commit of a fork's branch, whose pull request is open on the
+// upstream, is named by GitHub only in the fork: it is asked there when
+// the upstream names none, without the subject's number, which is one of
+// the upstream's.
+func TestCommitPullOfAFork(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake gh is a shell script")
+	}
+	dir := t.TempDir()
+	sha := strings.Repeat("ab", 20)
+	script := "#!/bin/sh\necho \"$2\" >> '" + filepath.Join(dir, "asked") + "'\ncase \"$2\" in\n" +
+		"repos/me/r/commits/" + sha + "/pulls) echo '[{\"number\":7,\"title\":\"T\",\"html_url\":\"https://github.com/up/r/pull/7\",\"state\":\"open\"}]' ;;\n" +
+		"repos/*/commits/*) echo '[]' ;;\n*) echo '{\"number\":0}' ;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"PATH=" + dir + ":/usr/bin:/bin", "GH_CONFIG_DIR=" + t.TempDir()}
+	find := func(k forge.Kind) (*forge.CLI, error) { return forge.Find(env, k) }
+
+	r := gittest.Init(t)
+	r.Commit("one")
+	r.Git("remote", "add", "origin", "https://github.com/me/r.git")
+	r.Git("remote", "add", ParentRemote, "https://github.com/up/r.git")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+
+	oid, _ := hex.DecodeString(sha)
+	var cp *CommitPullResult
+	s.LoadCommitPull(find, oid, "Subject (#3)", func(got CommitPullResult) { cp = &got })
+	m.until(t, "the commit's pull request", func() bool { return cp != nil })
+	if cp.Err != nil || !cp.Found || cp.Pull.Number != 7 || cp.Pull.URL != "https://github.com/up/r/pull/7" {
+		t.Fatalf("commit pull: %+v", cp)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "asked"))
+	want := "repos/up/r/commits/" + sha + "/pulls\nrepos/up/r/pulls/3\nrepos/me/r/commits/" + sha + "/pulls\n"
+	if string(b) != want {
+		t.Errorf("asked\n%s\nwant\n%s", b, want)
 	}
 }
