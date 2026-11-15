@@ -11,8 +11,8 @@ name: Release
 # manifests, whose signatures cover the archives and not the notes.
 # Dispatched by hand without a tag, it is a dry run of the branch:
 # everything up to notarization, nothing uploaded, the apps kept as
-# artifacts of the run. Only the macOS app is signed and notarized; the
-# Windows and Linux builds are not signed.
+# artifacts of the run. Only the macOS apps, one for each CPU, are signed
+# and notarized; the Windows and Linux builds are not.
 
 on:
   push:
@@ -113,7 +113,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macOS, os: macos-26, platform: "darwin/universal" }
+          # An app for each CPU rather than one universal app: each
+          # download is half the size. Xcode 27 is the newest image.
+          - { name: macOS, os: xcode-27, platform: "darwin/arm64,darwin/amd64" }
           # mygo needs no cgo, so one Ubuntu runner makes both. One build
           # of both also writes one SHA256SUMS, with no other job's upload
           # to race against but the Mac's.
@@ -130,6 +132,12 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+
+      # The image's default is an older Xcode; its actool compiles the
+      # app's icon.
+      - name: Select Xcode 27.2
+        if: runner.os == 'macOS'
+        run: sudo xcode-select -s /Applications/Xcode_27.2.app
 
       - name: Import the signing certificate
         if: runner.os == 'macOS'
@@ -220,14 +228,17 @@ jobs:
           # spctl's origin line names the certificate's owner; the run's
           # log is public.
           assess() { spctl --assess --verbose=2 "$@" 2>&1 | sed '/^origin=/d'; }
-          APP=$(find build/darwin-universal -maxdepth 1 -name '*.app' -type d | head -1)
-          codesign --verify --deep --strict --verbose=2 "$APP"
-          assess --type execute "$APP"
-          xcrun stapler validate "$APP"
-          for DMG in build/darwin-universal/*.dmg; do
-            codesign --verify --verbose=2 "$DMG"
-            assess --type open --context context:primary-signature "$DMG"
-            xcrun stapler validate "$DMG"
+          for DIR in build/darwin-arm64 build/darwin-amd64; do
+            APP=$(find "$DIR" -maxdepth 1 -name '*.app' -type d | head -1)
+            codesign --verify --deep --strict --verbose=2 "$APP"
+            assess --type execute "$APP"
+            xcrun stapler validate "$APP"
+            lipo -archs "$APP/Contents/MacOS/"*
+            for DMG in "$DIR"/*.dmg; do
+              codesign --verify --verbose=2 "$DMG"
+              assess --type open --context context:primary-signature "$DMG"
+              xcrun stapler validate "$DMG"
+            done
           done
 
       - name: AppImage
