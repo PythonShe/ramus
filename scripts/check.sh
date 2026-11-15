@@ -24,9 +24,15 @@ fi
 # About window (about.go, through mygo's updater): no package of ours
 # opens a connection, and nothing else reaches mygo's updater, network,
 # protocol or cookie modules. The askpass helper talks to the app over a
-# Unix socket, so it may import net, for "unix" sockets only.
+# Unix socket, so it may import net, for "unix" sockets only. The
+# fixtures under internal/git/gittest serve tests alone, a Git LFS server
+# on the loopback among them, and the app must not link them.
+if go list -deps . | grep '^ramus/internal/git/gittest'; then
+	echo "the app links test fixtures" >&2
+	exit 1
+fi
 if go list -f '{{.ImportPath}} {{join .Imports " "}}' . ./internal/... |
-	awk '{for (i = 2; i <= NF; i++) if ($i ~ /^(net|net\/http|net\/rpc|net\/smtp|crypto\/tls)$/ && !($1 == "ramus/internal/askpass" && $i == "net")) print $1 " imports " $i}' | grep .; then
+	awk '$1 !~ /^ramus\/internal\/git\/gittest(\/|$)/ {for (i = 2; i <= NF; i++) if ($i ~ /^(net|net\/http|net\/rpc|net\/smtp|crypto\/tls)$/ && !($1 == "ramus/internal/askpass" && $i == "net")) print $1 " imports " $i}' | grep .; then
 	echo "a package of ours uses the network" >&2
 	exit 1
 fi
