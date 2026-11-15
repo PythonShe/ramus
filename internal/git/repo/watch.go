@@ -135,10 +135,22 @@ func (r *Repository) Watch(skipDir func(rel string) bool) (<-chan Notice, error)
 			x.commonRel = rel
 		}
 		skip := func(rel string) bool {
-			// Objects churn and hold hundreds of directories; their changes
-			// that matter (the commit-graph) are rare, and rescans catch them.
+			// Objects churn and hold hundreds of directories, and their
+			// changes do not matter but for the commit-graph: watch
+			// objects/info, which holds it, and none of the others, where
+			// watches are per directory.
 			for _, d := range []string{x.gitRel, x.commonRel} {
-				if d != "" && (rel == d+"/objects" || (d == "." && rel == "objects") || rel == d+"/logs" || (d == "." && rel == "logs")) {
+				if d == "" {
+					continue
+				}
+				in := d + "/"
+				if d == "." {
+					in = ""
+				}
+				if rel == in+"logs" {
+					return true
+				}
+				if sub, ok := strings.CutPrefix(rel, in+"objects/"); ok && sub != "info" && !strings.HasPrefix(sub, "info/") {
 					return true
 				}
 			}
