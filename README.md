@@ -1,15 +1,47 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/app-icon/monogram/png/icon-dark-1024.png">
+  <img src="assets/app-icon/monogram/png/icon-light-1024.png" alt="Ramus app icon" width="128" height="128">
+</picture>
+
 # Ramus
 
-A git client built to stay light and fast on large repositories. Written
-in Go, with a native interface drawn on the GPU by
-[mygo](https://github.com/egoist/mygo): no webview, no cgo.
+A fast git client for macOS, Windows and Linux that stays light on large
+repositories and runs your own git.
 
-Not released yet; build it from source.
+[Download](https://github.com/PythonShe/ramus/releases/latest) ·
+[Benchmarks](docs/benchmarks.md) ·
+[Contributing](CONTRIBUTING.md)
 
-## How fast
+</div>
 
-On Apple silicon with 18 cores, macOS 27.2.1, git 2.56.1, at background
-priority on a machine in use (p50 of 3 runs):
+## What it does
+
+- **History**: the commit graph of the whole repository, with filters,
+  a file's or a line's history, and blame.
+- **Changes**: stage, unstage or discard a file, a change or single lines,
+  and commit with co-authors.
+- **Edit history**: reorder, reword, squash, fix up or drop commits by
+  dragging them.
+- **Conflicts**: a merge editor that takes a side or both, previews the
+  result, and continues, skips or aborts the merge, rebase or cherry-pick.
+- **Branches, tags and remotes**: fetch, pull and push, rebase a branch onto
+  another, and clean up branches that are gone.
+- **Pull requests**: each branch's pull or merge request and the one each
+  commit came in by, from GitHub through `gh` or GitLab through `glab`,
+  including GitHub stacks.
+- **Worktrees**: every worktree's branch, changes, and how far ahead or
+  behind it is.
+- **Snapshots**: uncommitted work is kept before anything that would drop
+  it, and can be restored or taken by hand at any time.
+- **Statistics**: commits by person, a calendar, heat map and treemaps.
+- **Diff and merge tool**: Ramus can be git's `difftool` and `mergetool`.
+
+## Fast on large repositories
+
+On Apple silicon (p50 of 3 runs, at background priority on a machine in
+use):
 
 | | |
 |---|---|
@@ -18,40 +50,62 @@ priority on a machine in use (p50 of 3 runs):
 | Scrolling the kernel's whole graph, slowest frame of 600 | 2.5 ms |
 | 390,000-file repository, open to a populated status panel | 3.65 s |
 | One file saved, to the status showing it (20,000 files) | 171 ms |
-| 5,000 files saved at once, to the status showing them | 876 ms, 1 git process |
 | 50 MB text diff, read and shown | 1.3 s |
 | Ten repositories open and idle | 0.10% CPU, 48 MiB |
-| Cold start to first frame, CI macOS runner, median | 255 ms |
+| Cold start to first frame | 255 ms |
 
-How each was taken, what is not measured yet, and how to rerun them:
-[docs/benchmarks.md](docs/benchmarks.md).
+Ramus reads git's files on disk itself and draws its interface natively on
+the GPU, with no web view. Everything that writes runs your `git`, so hooks,
+commit signing and credentials behave as they do in the terminal. How the
+numbers were taken: [docs/benchmarks.md](docs/benchmarks.md).
 
-## How
+## Install
 
-- Reads go through Ramus's own readers of git's files on disk: the index,
-  packs, the commit-graph, refs in both the files and the reftable format.
-  Everything that writes runs your `git`, so hooks, signing and
-  credentials behave as they do in the terminal.
-- What the readers do not support (SHA-256 objects, partial clones, sparse
-  or split indexes) is handed to `git` rather than guessed at.
-- Each reader is tested against `git`'s own output on real repositories.
-- Nothing waits on disk or on git while drawing. Long lists are virtual,
-  and large data sits in flat buffers the garbage collector does not walk.
-- Every cache has a byte budget, and everything a repository holds ends
-  when it closes.
+Ramus needs git 2.36 or later. Pull requests need
+[`gh`](https://cli.github.com) or [`glab`](https://gitlab.com/gitlab-org/cli),
+logged in.
 
-## Building
-
-You need [Go](https://go.dev) (the version in `go.mod`) and git 2.36 or
-later.
+**macOS** (signed and notarized), 12 or later:
 
 ```sh
-go tool mygo dev      # run with live reload
-go tool mygo build    # package the app into build/
-scripts/check.sh      # formatting, vet and the tests
+curl -fsSL https://github.com/PythonShe/ramus/releases/latest/download/install.sh | sh
 ```
 
-It builds for macOS, Windows and Linux; CI runs the tests on all three.
+or the `.dmg` from the [latest release](https://github.com/PythonShe/ramus/releases/latest).
+
+**Windows**: the setup `.exe` from the
+[latest release](https://github.com/PythonShe/ramus/releases/latest), or in
+PowerShell:
+
+```powershell
+irm https://github.com/PythonShe/ramus/releases/latest/download/install.ps1 | iex
+```
+
+The Windows build is not signed yet, so SmartScreen asks before it runs.
+
+**Linux**: the `.deb`, `.rpm` or AppImage from the
+[latest release](https://github.com/PythonShe/ramus/releases/latest), or,
+for your user alone, without root:
+
+```sh
+curl -fsSL https://github.com/PythonShe/ramus/releases/latest/download/install.sh | sh
+```
+
+Installs from the install scripts, the `.dmg` and the Windows setup update
+themselves: **Check for Updates** is in the menu. A `.deb` or `.rpm` updates
+with a newer package, and an AppImage by downloading the new one.
+
+## From the command line
+
+```sh
+ramus .              # open the repository here
+ramus log <file>     # a file's history
+ramus blame <file>   # who changed each line
+ramus diff <a> <b>   # compare two files
+```
+
+**Settings > Tools > Use Ramus for git difftool and mergetool** sets Ramus
+up as both in your git config.
 
 ## License
 
