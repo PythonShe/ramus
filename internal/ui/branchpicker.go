@@ -132,8 +132,11 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 				}).Label(locales.BranchPickerList()).FillWidth().Height(float32(min(len(rows), pickRows) * rowHeight))
 				if hover != p.hover {
 					p.hover = hover
-					if hover >= 0 {
+					if hover >= 0 && hover != p.hi {
+						// The rows are drawn: draw them again with the
+						// highlight under the pointer, or it shows a move late.
 						p.hi = hover
+						c.AnimationFrame()
 					}
 				}
 			}

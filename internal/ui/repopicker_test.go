@@ -42,6 +42,20 @@ func TestRepoPicker(t *testing.T) {
 		t.Fatalf("no recent: %q", h.tt.Texts())
 	}
 
+	// The highlight follows the pointer on the frame it moves: the row
+	// under it is drawn in the accent color, blue on the default theme.
+	for _, name := range []string{filepath.Base(local.Dir), filepath.Base(fork.Dir)} {
+		box, ok := h.tt.Find(name) // the row, by its label
+		if !ok {
+			t.Fatalf("no row %s", name)
+		}
+		h.tt.Move(box.X+box.W/2, box.Y+box.H/2) // draws the frame
+		px := h.tt.Image().RGBAAt(int(box.X)+4, int(box.Y+box.H/2))
+		if int(px.B) < int(px.R)+60 {
+			t.Fatalf("pointer on %s, row drawn %v", name, px)
+		}
+	}
+
 	// Enter opens the first repository listed: the one opened last but
 	// the current.
 	h.tt.Key(0, ui.KeyEnter)

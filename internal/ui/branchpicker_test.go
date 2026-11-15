@@ -41,6 +41,16 @@ func TestBranchPicker(t *testing.T) {
 	if len(tb.pick.rows) != 7 { // 3 local, the heading, 3 remote
 		t.Fatalf("rows %v", tb.pick.rows)
 	}
+	// The highlight follows the pointer on the frame it moves: the row
+	// under it is drawn in the accent color, blue on the default theme.
+	search, _ := h.tt.Find("Search Branches")
+	for _, i := range []int{1, 0} {
+		x, y := search.X+40, search.Y+search.H+spaceS+float32(i*rowHeight)+rowHeight/2
+		h.tt.Move(x, y) // draws the frame
+		if px := h.tt.Image().RGBAAt(int(search.X)+4, int(y)); int(px.B) < int(px.R)+60 {
+			t.Fatalf("pointer on row %d, row drawn %v", i, px)
+		}
+	}
 	h.tt.Type("bet")
 	h.until("the filter", shown("refs/heads/feature/beta"))
 	h.tt.Key(0, ui.KeyEnter)

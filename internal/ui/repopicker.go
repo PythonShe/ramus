@@ -147,8 +147,11 @@ func (a *App) openMore(c *ui.Context) {
 			}).Label(locales.RepoPickerList()).FillWidth().Height(float32(min(len(rows), repoPickRows) * rowHeight))
 			if hover != p.hover {
 				p.hover = hover
-				if hover != "" {
+				if hover != "" && hover != p.hi {
+					// The rows are drawn: draw them again with the highlight
+					// under the pointer, or it shows a move late.
 					p.hi = hover
+					c.AnimationFrame()
 				}
 			}
 		})
