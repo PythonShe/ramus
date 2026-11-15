@@ -131,6 +131,8 @@ type Session struct {
 	graph       autoGraph
 	// graphEvery and graphRetry, when set, replace the constants.
 	graphEvery, graphRetry time.Duration
+	// worktreeEvery, when set, replaces the constant.
+	worktreeEvery time.Duration
 	// gitDir is the repository's, once open, for the crash log.
 	gitDir atomic.Pointer[string]
 	// monitorAnswered is set once the user turned the monitor on or said
