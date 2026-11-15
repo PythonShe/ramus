@@ -62,6 +62,32 @@ func next(t *testing.T, ch <-chan Notice, want Change) Notice {
 	}
 }
 
+// ready makes a change until the watch reports what, so the watch has
+// surely started however long the system takes to start it, then drains
+// notices until none came for a while.
+func ready(t *testing.T, ch <-chan Notice, what Change, change func()) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for got := false; !got; {
+		change()
+		select {
+		case n := <-ch:
+			got = n.What&(what|Rescan) != 0
+		case <-time.After(200 * time.Millisecond):
+		}
+		if !got && time.Now().After(deadline) {
+			t.Fatal("the watch never started")
+		}
+	}
+	for {
+		select {
+		case <-ch:
+		case <-time.After(300 * time.Millisecond):
+			return
+		}
+	}
+}
+
 func TestWatch(t *testing.T) {
 	g := gittest.Init(t)
 	g.Commit("one")
@@ -76,7 +102,7 @@ func TestWatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(150 * time.Millisecond)
+	ready(t, ch, WorkTreeChanged, func() { g.Write(".ready", time.Now().String()) })
 	g.Write("file.txt", "x")
 	if n := next(t, ch, WorkTreeChanged); n.What&Rescan == 0 && len(n.Paths) == 0 {
 		t.Error("work tree change without its path")
@@ -112,7 +138,15 @@ func TestWatchLinkedWorktree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(150 * time.Millisecond)
+	ready(t, ch, WorkTreeChanged, func() { os.WriteFile(filepath.Join(wt, ".ready"), []byte(time.Now().String()), 0o644) })
+	// The main repository's git directory, watched apart: its config
+	// written again as it is.
+	config := filepath.Join(g.GitDir(), "config")
+	b, err := os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready(t, ch, ConfigChanged, func() { os.WriteFile(config, b, 0o644) })
 	w := gittest.Open(t, wt)
 	w.Commit("on side")
 	next(t, ch, RefsChanged)

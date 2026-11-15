@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -49,6 +50,10 @@ func (e *LockedError) Error() string {
 	return fmt.Sprintf("write: %s exists, %v old, %s", e.Path, e.Age.Round(time.Second), who)
 }
 
+// lockHeld is called each time waitLock finds the lock held, for a test
+// to know a write waits on it rather than has not come to it yet.
+var lockHeld atomic.Pointer[func()]
+
 // waitLock waits for gitDir/index.lock to go, up to wait.
 func waitLock(ctx context.Context, gitDir string, wait time.Duration) error {
 	path := filepath.Join(gitDir, "index.lock")
@@ -56,6 +61,9 @@ func waitLock(ctx context.Context, gitDir string, wait time.Duration) error {
 	for {
 		if _, err := os.Lstat(path); err != nil {
 			return nil
+		}
+		if f := lockHeld.Load(); f != nil {
+			(*f)()
 		}
 		if time.Now().After(deadline) {
 			return describeLock(ctx, path)

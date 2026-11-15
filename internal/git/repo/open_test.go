@@ -138,6 +138,17 @@ func TestCommitGraphReleased(t *testing.T) {
 				}
 			}
 		}
+		// mapped waits for want graphs mapped: the cleanups that unmap the
+		// rest run when the collector and their goroutine get to them,
+		// later on a busy machine.
+		mapped := func(want int) int {
+			deadline := time.Now().Add(5 * time.Second)
+			for r.openGraphs() != want && time.Now().Before(deadline) {
+				settle()
+				time.Sleep(10 * time.Millisecond)
+			}
+			return r.openGraphs()
+		}
 		for i := 0; i < 8; i++ {
 			g.Commit("more")
 			write()
@@ -146,7 +157,7 @@ func TestCommitGraphReleased(t *testing.T) {
 			}
 			settle()
 		}
-		if n := r.openGraphs(); n != 2 {
+		if n := mapped(2); n != 2 {
 			t.Errorf("split %v: %d graphs mapped, want the walked one and the current one", split, n)
 		}
 		n := 1
@@ -160,8 +171,7 @@ func TestCommitGraphReleased(t *testing.T) {
 			t.Fatalf("split %v: the old graph walked %d commits, %v", split, n, walk.Err())
 		}
 		walk, first = nil, nil
-		settle()
-		if n := r.openGraphs(); n != 1 {
+		if n := mapped(1); n != 1 {
 			t.Errorf("split %v: %d graphs mapped once the walk let go", split, n)
 		}
 		if g, _ := r.CommitGraph(); g == nil || g.Len() != 28 {

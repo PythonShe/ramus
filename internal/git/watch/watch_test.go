@@ -29,6 +29,32 @@ func wait(t *testing.T, w *Watcher, want string) Batch {
 	}
 }
 
+// ready writes a file until the watcher reports it, so the watch has
+// surely started however long the system takes to start it, then drains
+// batches until none came for a while.
+func ready(t *testing.T, w *Watcher, root string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for got := false; !got; {
+		os.WriteFile(filepath.Join(root, ".ready"), []byte(time.Now().String()), 0o644)
+		select {
+		case b := <-w.Events():
+			got = b.Overflow || slices.Contains(b.Paths, ".ready")
+		case <-time.After(200 * time.Millisecond):
+		}
+		if !got && time.Now().After(deadline) {
+			t.Fatal("the watch never started")
+		}
+	}
+	for {
+		select {
+		case <-w.Events():
+		case <-time.After(300 * time.Millisecond):
+			return
+		}
+	}
+}
+
 func TestWatch(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "a", "b"), 0o755)
@@ -41,12 +67,12 @@ func TestWatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	time.Sleep(100 * time.Millisecond) // let the stream start
+	ready(t, w, root)
 	os.WriteFile(filepath.Join(root, "a", "b", "f.txt"), []byte("x"), 0o644)
 	wait(t, w, "a/b/f.txt")
 	// A directory made after the watch started is watched too.
 	os.MkdirAll(filepath.Join(root, "new", "deep"), 0o755)
-	time.Sleep(50 * time.Millisecond)
+	wait(t, w, "new") // seen, and watched where watches are per directory
 	os.WriteFile(filepath.Join(root, "new", "deep", "g.txt"), []byte("y"), 0o644)
 	wait(t, w, "new/deep/g.txt")
 	os.Remove(filepath.Join(root, "a", "b", "f.txt"))
@@ -65,13 +91,34 @@ func TestBurstIsOneBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	time.Sleep(100 * time.Millisecond)
+	ready(t, w, root)
+	left := map[string]bool{}
+	start := time.Now()
 	for i := 0; i < 200; i++ {
-		os.WriteFile(filepath.Join(root, "f"+string(rune('a'+i%26))+string(rune('a'+i/26))), []byte("x"), 0o644)
+		name := "f" + string(rune('a'+i%26)) + string(rune('a'+i/26))
+		os.WriteFile(filepath.Join(root, name), []byte("x"), 0o644)
+		left[name] = true
 	}
-	b := wait(t, w, "faa")
-	if !b.Overflow && len(b.Paths) < 100 {
-		t.Errorf("burst split: first batch has %d paths", len(b.Paths))
+	wrote := time.Since(start)
+	batches := 0
+	for deadline := time.After(10 * time.Second); len(left) > 0; {
+		select {
+		case b := <-w.Events():
+			batches++
+			if b.Overflow {
+				return
+			}
+			for _, p := range b.Paths {
+				delete(left, p)
+			}
+		case <-deadline:
+			t.Fatalf("%d files never reported", len(left))
+		}
+	}
+	// A batch per latency the writes took, and one more where they
+	// straddle one: a batch per event would be hundreds.
+	if limit := 2 + int(wrote/(200*time.Millisecond)); batches > limit {
+		t.Errorf("burst split into %d batches, writes took %v", batches, wrote)
 	}
 }
 

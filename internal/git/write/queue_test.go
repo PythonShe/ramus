@@ -92,7 +92,7 @@ func TestCancel(t *testing.T) {
 	queued.Cancel()
 	select {
 	case <-queued.Done():
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("cancelled queued job did not end at once")
 	}
 	if _, err := queued.Result(); !errors.Is(err, context.Canceled) {

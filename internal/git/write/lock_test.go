@@ -15,12 +15,25 @@ func TestLockWaitsForAnotherWriter(t *testing.T) {
 	if err := os.WriteFile(lock, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	held := make(chan struct{}, 1)
+	signal := func() {
+		select {
+		case held <- struct{}{}:
+		default:
+		}
+	}
+	lockHeld.Store(&signal)
+	t.Cleanup(func() { lockHeld.Store(nil) })
 	j := q.Submit(commitOp(r, "after lock"))
-	time.Sleep(200 * time.Millisecond)
-	select {
-	case <-j.Done():
-		t.Fatal("ran while index.lock existed")
-	default:
+	// Waiting on the lock, twice: it found it held and looked again.
+	for range 2 {
+		select {
+		case <-held:
+		case <-j.Done():
+			t.Fatal("ran while index.lock existed")
+		case <-time.After(20 * time.Second):
+			t.Fatal("the write never came to the lock")
+		}
 	}
 	os.Remove(lock)
 	if _, err := wait(t, j); err != nil {

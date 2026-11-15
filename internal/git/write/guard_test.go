@@ -123,8 +123,8 @@ func TestSnapshotBeforeDiscard(t *testing.T) {
 	}
 
 	// A snapshot that cannot be taken stops the write.
-	if runtime.GOOS == "windows" {
-		return // a folder's mode does not stop writes there
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		return // a folder's mode does not stop writes there, nor root's
 	}
 	r.Write("a", "more work")
 	op.Snapshot = &snapshot.Options{Reason: "x", Paths: []string{"a"}}
