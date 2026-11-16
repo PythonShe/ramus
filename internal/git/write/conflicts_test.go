@@ -94,6 +94,92 @@ func TestAbortSkipAndMergeTool(t *testing.T) {
 
 }
 
+// Continuing a rebase, a cherry-pick, a revert or a merge stopped on a
+// conflict keeps the lines of the message that start with #, and leaves
+// out the conflicts git listed in it, whatever the comment character and
+// commit.cleanup.
+func TestContinueKeepsTheMessage(t *testing.T) {
+	const msg = "side subject\n\n# kept hash line\n; kept semicolon line\nbody\n"
+	for _, c := range []struct{ operation, config string }{
+		{"cherry-pick", ""}, {"rebase", ""}, {"revert", ""}, {"merge", ""},
+		{"cherry-pick", "core.commentChar=;"}, {"rebase", "commit.cleanup=scissors"},
+	} {
+		t.Run(c.operation+" "+c.config, func(t *testing.T) {
+			h := newHarness(t)
+			if c.config != "" {
+				k, v, _ := strings.Cut(c.config, "=")
+				h.r.Git("config", k, v)
+			}
+			h.r.Write("f", "1\n")
+			h.r.Commit("base")
+			h.r.Git("switch", "-q", "-c", "side")
+			h.r.Write("f", "side\n")
+			h.r.Git("commit", "-q", "-a", "--cleanup=verbatim", "-m", msg)
+			h.r.Git("switch", "-q", "main")
+			h.r.Write("f", "main\n")
+			h.r.Commit("main")
+			want := msg
+			var stop []string
+			switch c.operation {
+			case "cherry-pick":
+				stop = []string{"cherry-pick", "side"}
+			case "rebase":
+				h.r.Git("switch", "-q", "side")
+				stop = []string{"rebase", "main"}
+			case "revert":
+				h.r.Git("reset", "-q", "--hard", "side")
+				h.r.Write("f", "after\n")
+				h.r.Commit("after")
+				stop = []string{"revert", "--no-edit", "side"}
+				want = ""
+			case "merge":
+				h.r.Git("config", "merge.log", "false")
+				stop = []string{"merge", "--no-edit", "side"}
+				want = ""
+			}
+			if out, err := h.r.Run(nil, stop...); err == nil {
+				t.Fatalf("no conflict: %s", out)
+			}
+			if want == "" {
+				// The message git prepared, its conflicts left out, with a
+				// line of the user's that starts with #.
+				b, err := os.ReadFile(filepath.Join(h.r.GitDir(), "MERGE_MSG"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				want = dropConflicts(string(b)) + "\n# a line of mine\n"
+				if err := os.WriteFile(filepath.Join(h.r.GitDir(), "MERGE_MSG"), []byte(want+"\n# Conflicts:\n#\tf\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(want, "Conflicts") {
+					t.Fatalf("conflicts left in %q", want)
+				}
+			}
+			h.r.Write("f", "resolved\n")
+			h.r.Git("add", "f")
+			op, err := Sequence(h.w, c.operation, Continue)
+			h.do(op, err, true)
+			if got := h.r.Git("log", "-1", "--format=%B", "HEAD"); strings.TrimRight(got, "\n") != strings.TrimRight(want, "\n") {
+				t.Fatalf("message %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestDropConflicts(t *testing.T) {
+	for in, want := range map[string]string{
+		"s\n\n# x\nb\n\n# Conflicts:\n#\tf\n#\tg h\n": "s\n\n# x\nb\n",
+		"s\n\n; Conflicts:\n;\tf\n":                   "s\n",
+		"s\n\n# ------------------------ >8 ------------------------\n# Do not modify or remove the line above.\n# Everything below it will be ignored.\n#\n# Conflicts:\n#\tf\n": "s\n",
+		"s\n\n# Conflicts:\nnot a path\n": "s\n\n# Conflicts:\nnot a path\n",
+		"s\n\nbody\n":                     "s\n\nbody\n",
+	} {
+		if got := dropConflicts(in); got != want {
+			t.Errorf("%q: got %q, want %q", in, got, want)
+		}
+	}
+}
+
 // The merge tool from the config writes the result and git marks it
 // resolved.
 func TestMergeTool(t *testing.T) {

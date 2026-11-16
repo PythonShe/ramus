@@ -1,10 +1,13 @@
 package write
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"ramus/internal/git/pathsafe"
@@ -120,8 +123,9 @@ const (
 
 // Sequence continues, skips or aborts the operation in progress: "merge",
 // "rebase", "cherry-pick", "revert" or "am". Continuing takes the commit
-// message git prepared. Skipping and aborting drop work, which is kept in
-// a snapshot first.
+// message git prepared, every line of it kept but the conflicts git
+// listed in it. Skipping and aborting drop work, which is kept in a
+// snapshot first.
 func Sequence(w Where, operation string, action SequenceAction) (Op, error) {
 	switch operation {
 	case "merge", "rebase", "cherry-pick", "revert", "am":
@@ -140,7 +144,82 @@ func Sequence(w Where, operation string, action SequenceAction) (Op, error) {
 	if action != Continue {
 		op.Snapshot = &snapshot.Options{Reason: name}
 	}
+	if action == Continue && operation != "am" {
+		op.do = func(ctx context.Context, j *Job) (run.Result, error) {
+			cmd := j.Op.Cmd
+			cc, err := keepMessage(w.GitDir)
+			if err != nil {
+				return run.Result{}, err
+			}
+			if cc != "" {
+				cmd.Config = append(cmd.Config, "core.commentChar="+cc)
+			}
+			return execute(ctx, j.q.r, j, cmd, nil)
+		}
+	}
 	return op, nil
+}
+
+// keepMessage readies the message git prepared for the commit a continue
+// makes (MERGE_MSG, and a rebase's own copy) to keep every line: the
+// conflicts git listed in it, as comments, are taken out, and the comment
+// character returned is one no line left starts with, as git's editor,
+// even one that changes nothing, strips comments. "" leaves the message
+// to git: in a squash, git's own comments join the messages.
+func keepMessage(gitDir string) (string, error) {
+	if b, err := os.ReadFile(filepath.Join(gitDir, "rebase-merge", "current-fixups")); err == nil && len(bytes.TrimSpace(b)) > 0 {
+		return "", nil
+	}
+	var all strings.Builder
+	for _, name := range []string{"MERGE_MSG", filepath.Join("rebase-merge", "message")} {
+		p := filepath.Join(gitDir, name)
+		b, err := os.ReadFile(p)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		msg := dropConflicts(string(b))
+		if msg != string(b) {
+			if err := os.WriteFile(p, []byte(msg), 0o644); err != nil {
+				return "", err
+			}
+		}
+		all.WriteString(msg)
+	}
+	if all.Len() == 0 {
+		return "", nil
+	}
+	return commentChar(all.String())
+}
+
+// dropConflicts takes the list of conflicted paths git ends a message
+// with off it: "<c> Conflicts:" and a line "<c>\t<path>" for each, after
+// the scissors line when commit.cleanup is scissors.
+func dropConflicts(msg string) string {
+	lines := strings.SplitAfter(msg, "\n")
+	i := len(lines) - 1
+	for i >= 0 && !strings.HasSuffix(strings.TrimRight(lines[i], "\n"), " Conflicts:") {
+		i--
+	}
+	if i < 0 {
+		return msg
+	}
+	c := strings.TrimSuffix(strings.TrimRight(lines[i], "\n"), " Conflicts:")
+	if c == "" || strings.ContainsAny(c, " \t") {
+		return msg
+	}
+	for _, l := range lines[i+1:] {
+		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, c+"\t") {
+			return msg
+		}
+	}
+	kept := strings.Join(lines[:i], "")
+	if cut := strings.LastIndex(kept, c+" ------------------------ >8 ------------------------\n"); cut >= 0 && (cut == 0 || kept[cut-1] == '\n') {
+		kept = kept[:cut]
+	}
+	return strings.TrimRight(kept, "\n") + "\n"
 }
 
 // MergeToolTime bounds how long an external merge tool stays open.
