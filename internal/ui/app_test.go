@@ -324,6 +324,8 @@ func TestSettings(t *testing.T) {
 	h.app.Languages = []string{"en"}
 	h.app.ChosenLocale = func() string { return chosen }
 	h.app.SetLocale = func(tag string) { chosen = tag }
+	var told []settings.Settings
+	h.app.SettingsChanged = func(s settings.Settings) { told = append(told, s) }
 	h.tt.Frame()
 	h.tt.Key(ui.Cmd, ui.KeyComma)
 	h.until("the settings", h.shows("Appearance"))
@@ -341,6 +343,10 @@ func TestSettings(t *testing.T) {
 	h.tt.Frame()
 	if theme != "dark" || h.app.Settings.Theme != "dark" || chosen != "en" || h.app.settingsChanged() {
 		t.Fatalf("not in force: theme %q %q, language %q", theme, h.app.Settings.Theme, chosen)
+	}
+	// And told the other windows, or one would write back what it had.
+	if len(told) == 0 || told[len(told)-1].Theme != "dark" {
+		t.Fatalf("the other windows told %+v", told)
 	}
 	// The editor is chosen, never typed: a program that cannot be one is
 	// refused, one that can is kept.

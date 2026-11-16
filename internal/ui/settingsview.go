@@ -346,6 +346,11 @@ func (a *App) applySettings() {
 		a.ApplyTheme(next.Theme)
 	}
 	a.Settings = next.WithDefaults()
+	if a.SettingsChanged != nil {
+		// The other windows too: one of them keeping what it had would
+		// write it back over this the next time it keeps its settings.
+		a.SettingsChanged(a.Settings)
+	}
 	a.findTools()
 	if tag, changed := a.formLanguage(); changed {
 		a.SetLocale(tag)
