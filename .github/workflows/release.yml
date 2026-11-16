@@ -239,6 +239,16 @@ jobs:
               codesign --verify --verbose=2 "$DMG"
               assess --type open --context context:primary-signature "$DMG"
               xcrun stapler validate "$DMG"
+              # The app users drag out of the image carries its own
+              # ticket, for Gatekeeper offline.
+              MNT=$(mktemp -d)
+              hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG" >/dev/null
+              trap 'hdiutil detach -quiet "$MNT" || true' EXIT
+              INNER=$(find "$MNT" -maxdepth 1 -name '*.app' -type d | head -1)
+              codesign --verify --deep --strict --verbose=2 "$INNER"
+              xcrun stapler validate "$INNER"
+              hdiutil detach -quiet "$MNT"
+              trap - EXIT
             done
           done
 
