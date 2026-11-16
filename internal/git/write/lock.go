@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -16,8 +17,8 @@ import (
 )
 
 // LockedError is a write that could not start, or that git refused,
-// because index.lock exists: another git command is writing the index, or
-// one crashed and left its lock. The app says so and shows Holders; it
+// because a lock exists (index.lock, or that of a ref): another git
+// command is writing, or one crashed and left its lock. The app says so and shows Holders; it
 // never deletes the lock unless the user asks, after seeing this.
 type LockedError struct {
 	Path string
@@ -76,20 +77,63 @@ func waitLock(ctx context.Context, gitDir string, wait time.Duration) error {
 	}
 }
 
-// lockError recognizes a write git refused over the lock: its message
-// names index.lock (the rest is translated) and the lock is still there,
-// since git removes its own on exit.
+// lockError recognizes a write git refused over a lock it could not
+// take: index.lock, or that of a ref, packed-refs or config. Its message
+// names the lock in quotes (the rest is translated), and the lock is
+// still there, since git removes its own on exit.
 func lockError(gitDir, stderr string) error {
-	if !strings.Contains(stderr, "index.lock") {
-		return nil
+	for _, m := range quotedLock.FindAllStringSubmatch(stderr, -1) {
+		path := m[1]
+		if !inRepository(gitDir, path) {
+			continue
+		}
+		if _, err := os.Lstat(path); err != nil {
+			continue // gone since
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return describeLock(ctx, path)
 	}
-	path := filepath.Join(gitDir, "index.lock")
-	if _, err := os.Lstat(path); err != nil {
-		return nil // gone since
+	return nil
+}
+
+// quotedLock is a lock file git names in a message, as in "Unable to
+// create '/r/.git/refs/heads/main.lock': File exists."
+var quotedLock = regexp.MustCompile(`'([^'\n]+\.lock)'`)
+
+// inRepository reports a lock file in gitDir or in the common directory
+// a linked worktree's gitDir points to, the only places a lock the app
+// may remove can be.
+func inRepository(gitDir, path string) bool {
+	if !filepath.IsAbs(path) || !strings.HasSuffix(path, ".lock") {
+		return false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return describeLock(ctx, path)
+	dirs := []string{gitDir}
+	if b, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+		common := strings.TrimSpace(string(b))
+		if !filepath.IsAbs(common) {
+			common = filepath.Join(gitDir, common)
+		}
+		dirs = append(dirs, common)
+	}
+	for _, d := range dirs {
+		if within(d, path) {
+			return true
+		}
+		// git may print the path through a symlink the app resolved, or
+		// the other way round (/var and /private/var on macOS).
+		rd, err1 := filepath.EvalSymlinks(d)
+		rp, err2 := filepath.EvalSymlinks(filepath.Dir(path))
+		if err1 == nil && err2 == nil && within(rd, filepath.Join(rp, filepath.Base(path))) {
+			return true
+		}
+	}
+	return false
+}
+
+func within(dir, path string) bool {
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(path))
+	return err == nil && rel != "." && !filepath.IsAbs(rel) && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func describeLock(ctx context.Context, path string) error {
@@ -140,11 +184,14 @@ func holders(ctx context.Context, path string) ([]Holder, error) {
 	return hs, nil
 }
 
-// RemoveLock deletes index.lock, for when the user has seen a LockedError
-// with no holders and chooses to. It refuses while a process holds it.
-// It refuses too when it cannot tell who holds it.
-func RemoveLock(ctx context.Context, gitDir string) error {
-	path := filepath.Join(gitDir, "index.lock")
+// RemoveLock deletes the lock at path, which a LockedError named, for
+// when the user has seen it with no holders and chooses to. It refuses
+// a path that is not a lock in the repository at gitDir, and refuses
+// while a process holds the lock, or when it cannot tell who does.
+func RemoveLock(ctx context.Context, gitDir, path string) error {
+	if !inRepository(gitDir, path) {
+		return fmt.Errorf("write: %s is not a lock of this repository", path)
+	}
 	if hs, err := holders(ctx, path); len(hs) > 0 || err != nil {
 		return &LockedError{Path: path, Holders: hs, Unknown: err}
 	}

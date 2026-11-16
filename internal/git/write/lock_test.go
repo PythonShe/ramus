@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"ramus/internal/git/run"
 )
 
 func TestLockWaitsForAnotherWriter(t *testing.T) {
@@ -69,11 +71,11 @@ func TestLockedError(t *testing.T) {
 	if len(le.Holders) != 1 || le.Holders[0].PID != os.Getpid() {
 		t.Fatalf("holders %+v, want this process", le.Holders)
 	}
-	if err := RemoveLock(context.Background(), r.GitDir()); !errors.As(err, &le) {
+	if err := RemoveLock(context.Background(), r.GitDir(), lock); !errors.As(err, &le) {
 		t.Fatalf("removed a held lock: %v", err)
 	}
 	f.Close()
-	if err := RemoveLock(context.Background(), r.GitDir()); err != nil {
+	if err := RemoveLock(context.Background(), r.GitDir(), lock); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := wait(t, q.Submit(commitOp(r, "free"))); err != nil {
@@ -95,6 +97,25 @@ func TestLockErrorFromGit(t *testing.T) {
 	if lockError(dir, "fatal: something else\n") != nil {
 		t.Fatal("unrelated failure reported as locked")
 	}
+
+	ref := filepath.Join(dir, "refs", "heads", "main.lock")
+	os.MkdirAll(filepath.Dir(ref), 0o755)
+	os.WriteFile(ref, nil, 0o644)
+	msg = "error: cannot lock ref 'refs/heads/main': Unable to create '" + ref + "': File exists.\n"
+	if !errors.As(lockError(dir, msg), &le) || le.Path != ref {
+		t.Fatalf("ref lock not recognized: %+v", le)
+	}
+	outside := filepath.Join(t.TempDir(), "x.lock")
+	os.WriteFile(outside, nil, 0o644)
+	if lockError(dir, "fatal: Unable to create '"+outside+"': File exists.\n") != nil {
+		t.Fatal("a lock outside the repository reported")
+	}
+	if err := RemoveLock(context.Background(), dir, outside); err == nil {
+		t.Fatal("removed a file outside the repository")
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func lsofMissing() bool {
@@ -104,4 +125,21 @@ func lsofMissing() bool {
 		}
 	}
 	return true
+}
+
+func TestFetchDoesNotWaitOnIndexLock(t *testing.T) {
+	r, q, _ := newQueue(t)
+	r.Commit("one")
+	q.LockWait = 100 * time.Millisecond
+	if err := os.WriteFile(filepath.Join(r.GitDir(), "index.lock"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	refsOnly := Op{Name: "Fetch", NoIndex: true, Cmd: run.Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Args: []string{"update-ref", "refs/remotes/o/main", "HEAD"}}}
+	if _, err := wait(t, q.Submit(refsOnly)); err != nil {
+		t.Fatalf("a write that never takes index.lock waited on it: %v", err)
+	}
+	var le *LockedError
+	if _, err := wait(t, q.Submit(commitOp(r, "blocked"))); !errors.As(err, &le) {
+		t.Fatalf("a commit ran past index.lock: %v", err)
+	}
 }
