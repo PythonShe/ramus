@@ -8,6 +8,7 @@ package watch
 import (
 	"errors"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,10 @@ type Options struct {
 	// be reported where the system watches whole trees.
 	SkipDir func(rel string) bool
 }
+
+// PerDirectory is whether watches cost one per directory here
+// (inotify), where SkipDir spares them.
+const PerDirectory = runtime.GOOS == "linux"
 
 // DefaultLatency collects a burst, such as a checkout writing thousands
 // of files, into one batch.
@@ -97,6 +102,18 @@ func New(root string, opt Options) (*Watcher, error) {
 
 // Root returns the watched directory, symlinks resolved.
 func (w *Watcher) Root() string { return w.root }
+
+// Rewatch walks the directory rel (slash-separated, relative to the
+// root) again where watches are per directory, watching what under it
+// SkipDir named when it was walked and no longer names. Off the main
+// thread.
+func (w *Watcher) Rewatch(rel string) {
+	if t, ok := w.plat.(interface{ addTree(string) error }); ok {
+		if err := t.addTree(filepath.FromSlash(rel)); err != nil {
+			w.fail(err)
+		}
+	}
+}
 
 // Events delivers batches until Close.
 func (w *Watcher) Events() <-chan Batch { return w.out }

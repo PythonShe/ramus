@@ -18,6 +18,7 @@ import (
 	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
 	"ramus/internal/git/trust"
+	"ramus/internal/git/watch"
 )
 
 // Repository is an open repository: where it is, what it is configured
@@ -48,8 +49,10 @@ type Repository struct {
 	// that died is waited for when replaced, not when the repository
 	// closes.
 	releaseCat func() error
-	graph      *commitgraph.Graph
-	tried      bool // the graph was looked for
+	// workWatch is the work tree's watcher, once Watch started it.
+	workWatch *watch.Watcher
+	graph     *commitgraph.Graph
+	tried     bool // the graph was looked for
 	// broken is set when the graph looked for could not be read.
 	broken bool
 	// graphAt is the commit-graph files as they were when graph was

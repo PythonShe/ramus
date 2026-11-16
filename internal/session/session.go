@@ -135,6 +135,9 @@ type Session struct {
 	// changeLines cancels a count of the changes' lines that a newer one
 	// replaced.
 	changeLines PatchSlot
+	// ignored is the open repository's ignored directories, which its
+	// watcher skips; nil where watches are not per directory.
+	ignored atomic.Pointer[ignoredDirs]
 	// answerCache holds what views read, on the main thread; see answers.
 	answerCache *cache.Cache[string, answer]
 	stats       statsLoad
@@ -277,7 +280,15 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 			q.Refs = r.Refs()
 		}
 	}
-	notices, werr := r.Watch(nil)
+	var ignored *ignoredDirs
+	var skip func(string) bool
+	if perDirectory {
+		ignored = &ignoredDirs{}
+		ignored.read(r.Life().Context(), r)
+		skip = ignored.skip
+	}
+	s.ignored.Store(ignored)
+	notices, werr := r.Watch(skip)
 	// Off the main thread: whether history goes to git reads files.
 	fallbacks := r.Capabilities().Fallbacks()
 	usesLFS := !r.Restricted && lfs.Uses(r.CommonDir, r.WorkTree)
@@ -317,6 +328,9 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 						})
 					}
 					s.refreshPaths(what, n.Paths)
+					if ignored != nil && changesIgnores(n) {
+						ignored.reread(r)
+					}
 				case <-ctx.Done():
 					return
 				}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -33,6 +34,31 @@ func TestLimitAtStart(t *testing.T) {
 		}
 		t.Fatalf("got %v, want ErrLimit", err)
 	}
+}
+
+// A directory SkipDir named has no watch until Rewatch, once SkipDir no
+// longer names it.
+func TestRewatch(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "out", "deep"), 0o755)
+	var skipping atomic.Bool
+	skipping.Store(true)
+	w, err := New(root, Options{Latency: 20 * time.Millisecond, SkipDir: func(rel string) bool { return skipping.Load() && rel == "out" }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	ready(t, w, root)
+	os.WriteFile(filepath.Join(root, "out", "deep", "skipped"), []byte("x"), 0o644)
+	select {
+	case b := <-w.Events():
+		t.Fatalf("a change in a skipped directory: %+v", b)
+	case <-time.After(300 * time.Millisecond):
+	}
+	skipping.Store(false)
+	w.Rewatch("out")
+	os.WriteFile(filepath.Join(root, "out", "deep", "seen"), []byte("x"), 0o644)
+	wait(t, w, "out/deep/seen")
 }
 
 func TestLimitLater(t *testing.T) {

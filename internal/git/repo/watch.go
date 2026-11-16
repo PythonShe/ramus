@@ -165,6 +165,11 @@ func (r *Repository) Watch(skipDir func(rel string) bool) (<-chan Notice, error)
 		}
 		x.w = w
 		ws = append(ws, x)
+		if workTree {
+			r.mu.Lock()
+			r.workWatch = w
+			r.mu.Unlock()
+		}
 		return nil
 	}
 	covered := func(p string) bool {
@@ -249,4 +254,20 @@ func (r *Repository) Watch(skipDir func(rel string) bool) (<-chan Notice, error)
 		}
 	})
 	return out, nil
+}
+
+// Rewatch watches the work-tree directories dirs again, and what is
+// under them, which Watch's skipDir named and no longer names. Call it
+// from a goroutine of the repository's lifetime, which the watcher
+// outlives.
+func (r *Repository) Rewatch(dirs []string) {
+	r.mu.Lock()
+	w := r.workWatch
+	r.mu.Unlock()
+	if w == nil {
+		return
+	}
+	for _, d := range dirs {
+		w.Rewatch(d)
+	}
 }
