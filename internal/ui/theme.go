@@ -14,7 +14,7 @@ func ivoryTheme() *ui.Theme {
 	t.SurfacePressed = ui.Hex("#e3d9bc")
 	t.Border = ui.Hex("#ddd2b2")
 	t.Text = ui.Hex("#2a2416")
-	t.TextMuted = ui.Hex("#7a6f53")
+	t.TextMuted = ui.Hex("#6b6046")
 	t.Accent = ui.Hex("#9a6a00")
 	t.AccentHover = ui.Hex("#855b00")
 	t.AccentPressed = ui.Hex("#704c00")
