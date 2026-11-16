@@ -242,6 +242,14 @@ var defaultKeys = map[string][]string{
 	"undo":              {"CmdOrCtrl+Z"},
 	"redo":              {"CmdOrCtrl+Shift+Z"},
 	"commit":            {"CmdOrCtrl+Enter"},
+	// The day's work, each a chord away: menus and the system take none
+	// of these.
+	"show-changes":  {"CmdOrCtrl+Shift+C"},
+	"show-history":  {"CmdOrCtrl+Shift+H"},
+	"switch-branch": {"CmdOrCtrl+Shift+B"},
+	"new-branch":    {"CmdOrCtrl+Alt+N"},
+	"fetch":         {"CmdOrCtrl+Shift+F"},
+	"push":          {"CmdOrCtrl+P"},
 	// The system's own: Control-Command-S on macOS, as in Finder and
 	// Xcode.
 	"toggle-sidebar": {sidebarKey},

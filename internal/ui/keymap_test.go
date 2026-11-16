@@ -124,43 +124,43 @@ func TestKeysDialog(t *testing.T) {
 	h := newHarness(t)
 	h.app.openKeys()
 	h.tt.Frame()
-	h.tt.Type("show history")
+	h.tt.Type("show reflog")
 	h.tt.Frame()
 	ks := &h.app.keysUI
-	// Record a shortcut for Show History.
+	// Record a shortcut for Show Reflog.
 	h.click("None")
-	if ks.recording != "show-history" {
+	if ks.recording != "show-reflog" {
 		t.Fatalf("recording %q", ks.recording)
 	}
 	h.tt.Frame()
-	h.tt.Key(ui.Cmd|ui.Shift, ui.KeyH)
+	h.tt.Key(ui.Cmd|ui.Shift, ui.KeyL)
 	h.tt.Frame()
-	if got := h.app.Settings.Keys["show-history"]; !slices.Equal(got, []string{"CmdOrCtrl+Shift+H"}) || ks.recording != "" {
+	if got := h.app.Settings.Keys["show-reflog"]; !slices.Equal(got, []string{"CmdOrCtrl+Shift+L"}) || ks.recording != "" {
 		t.Fatalf("keys %v, recording %q", h.app.Settings.Keys, ks.recording)
 	}
-	label := chord{ui.Cmd | ui.Shift, ui.KeyH}.label()
+	label := chord{ui.Cmd | ui.Shift, ui.KeyL}.label()
 	h.until("the new shortcut", h.shows(label))
 	// Escape gives up, and the dialog stays.
 	h.click(label)
 	h.tt.Frame()
 	h.tt.Key(0, ui.KeyEscape)
 	h.tt.Frame()
-	if !ks.open || ks.recording != "" || !slices.Equal(h.app.Settings.Keys["show-history"], []string{"CmdOrCtrl+Shift+H"}) {
+	if !ks.open || ks.recording != "" || !slices.Equal(h.app.Settings.Keys["show-reflog"], []string{"CmdOrCtrl+Shift+L"}) {
 		t.Fatalf("escape: open %v, recording %q, keys %v", ks.open, ks.recording, h.app.Settings.Keys)
 	}
-	// Refresh's chord moves to Show History, and Refresh is told.
+	// Refresh's chord moves to Show Reflog, and Refresh is told.
 	h.click(label)
 	h.tt.Frame()
 	h.tt.Key(ui.Cmd, ui.KeyR)
 	h.tt.Frame()
-	if k := h.app.keys(); k.owner(chord{ui.Cmd, ui.KeyR}) != "show-history" || len(k.byID["refresh"]) != 0 {
+	if k := h.app.keys(); k.owner(chord{ui.Cmd, ui.KeyR}) != "show-reflog" || len(k.byID["refresh"]) != 0 {
 		t.Fatalf("Cmd+R runs %q; refresh %v", k.owner(chord{ui.Cmd, ui.KeyR}), k.byID["refresh"])
 	}
 	h.until("the note", h.shows(chord{ui.Cmd, ui.KeyR}.label()+" no longer runs Refresh"))
 	// Reset brings back the default, and nothing else changed is kept.
 	h.click("Reset")
 	h.tt.Frame()
-	if _, ok := h.app.Settings.Keys["show-history"]; ok {
+	if _, ok := h.app.Settings.Keys["show-reflog"]; ok {
 		t.Fatalf("keys %v", h.app.Settings.Keys)
 	}
 	ks.filter = "refresh"
