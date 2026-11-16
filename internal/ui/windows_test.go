@@ -9,6 +9,7 @@ import (
 
 	"ramus/internal/library"
 	"ramus/internal/settings"
+	"ramus/locales"
 )
 
 // A tab moves to a window of its own, a worktree opens in one, and a
@@ -57,6 +58,11 @@ func TestNewWindow(t *testing.T) {
 	// A setting changed here is told; one changed elsewhere is used.
 	h.app.setSidebar(false)
 	if len(told) != 1 || !told[0].NoSidebar {
+		t.Fatalf("told %+v", told)
+	}
+	// The diff's layout too.
+	h.app.keepSettingsOr(locales.DiffSettingsNotSaved)
+	if len(told) != 2 {
 		t.Fatalf("told %+v", told)
 	}
 	s := h.app.Settings

@@ -10,7 +10,11 @@ import (
 // UseSettings takes settings another window changed; they take effect
 // from the next frame, as when changed here.
 func (a *App) UseSettings(s settings.Settings) {
+	tools := !slices.Equal(s.Editor, a.Settings.Editor) || !slices.Equal(s.Terminal, a.Settings.Terminal)
 	a.Settings = s
+	if tools {
+		a.findTools()
+	}
 	if a.settingsUI.open {
 		a.loadSettingsForm()
 	}

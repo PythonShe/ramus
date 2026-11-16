@@ -88,12 +88,16 @@ func (a *App) hidingCommands() []command {
 	return cmds
 }
 
-// keepSettings saves the settings off the main thread.
-func (a *App) keepSettings() {
+// keepSettings saves the settings off the main thread, and tells the
+// other windows, which would write back what they have otherwise.
+func (a *App) keepSettings() { a.keepSettingsOr(locales.HidingSettingsNotSaved) }
+
+// keepSettingsOr is keepSettings, notice saying why they were not saved.
+func (a *App) keepSettingsOr(notice func(err string) string) {
 	if a.SettingsChanged != nil {
 		a.SettingsChanged(a.Settings)
 	}
-	a.writeSettings(a.Settings, locales.HidingSettingsNotSaved)
+	a.writeSettings(a.Settings, notice)
 }
 
 // writeSettings has s written to the settings file; notice says why it

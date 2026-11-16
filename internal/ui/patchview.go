@@ -77,7 +77,7 @@ func (a *App) diffBar(c *ui.Context, review bool, more func()) {
 		}
 		if wrap.Changed() || layout.Changed() {
 			a.Settings.DiffSplit, a.Settings.ReviewUnified, a.Settings.DiffNoWrap = o.split == 1, o.reviewSplit == 0, o.noWrap
-			a.writeSettings(a.Settings, locales.DiffSettingsNotSaved)
+			a.keepSettingsOr(locales.DiffSettingsNotSaved)
 		}
 	}).Label(locales.DiffOptions()).Padding(0, insetX, spaceS, insetX)
 }
