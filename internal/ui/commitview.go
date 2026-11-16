@@ -33,8 +33,11 @@ type commitView struct {
 	// infoW is the width of the commit beside its patch, and listW the
 	// list's beside them, while a patch is open; both are kept from commit
 	// to commit. wasOpen is whether one was open in the last frame.
-	infoW, listW float32
-	wasOpen      bool
+	// infoRoom and listRoom are the room of the commit's split and of the
+	// list's as last laid out.
+	infoW, listW       float32
+	infoRoom, listRoom float32
+	wasOpen            bool
 	// msgSet is the message's height set in the last frame: one found at
 	// another height was dragged since.
 	msgSet float32
@@ -86,7 +89,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			cv.cancel()
 		}
 		cv.stopPull()
-		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want, noPull: cv.noPull}
+		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, infoRoom: cv.infoRoom, listRoom: cv.listRoom, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want, noPull: cv.noPull}
 		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {
 				cv.loading, cv.d = !d.Done, &d
@@ -153,7 +156,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		if cv.infoW == 0 {
 			cv.infoW = commitInfoW
 		}
-		ui.Split(c, &cv.infoW, top, func() { a.commitPatch(c, t, cv, d) }).SplitReset(commitInfoW).Fill()
+		keptSplit(c, &cv.infoW, &cv.infoRoom, leastInfoW, leastPatchW, top, func() { a.commitPatch(c, t, cv, d) }).SplitReset(commitInfoW).Fill()
 	})
 }
 
@@ -171,15 +174,25 @@ func (cv *commitView) patchOpen() bool {
 }
 
 // listPane is the width listBesideCommit gives the list: *w, or the
-// list's own while the commit's patch is open.
+// list's own while the commit's patch is open, given way for the commit
+// to keep its least.
 func listPane(w float32, cv *commitView) float32 {
-	if !cv.patchOpen() {
-		return w
+	if cv.patchOpen() {
+		w = cv.listW
+		if w == 0 {
+			w = commitListW
+		}
 	}
-	if cv.listW == 0 {
-		return commitListW
+	return fitPane(w, cv.listRoom, leastListW, commitKeep(cv))
+}
+
+// commitKeep is the least the commit keeps beside the list: with its
+// patch open, room for both.
+func commitKeep(cv *commitView) float32 {
+	if cv.patchOpen() {
+		return leastInfoW + 1 + leastPatchW
 	}
-	return cv.listW
+	return leastPatchW
 }
 
 // listBesideCommit splits a list of commits from the commit chosen in it.
@@ -193,7 +206,7 @@ func listBesideCommit(c *ui.Context, w *float32, reset float32, cv *commitView, 
 		}
 		w, reset = &cv.listW, commitListW
 	}
-	return ui.Split(c, w, list, detail).SplitReset(reset)
+	return keptSplit(c, w, &cv.listRoom, leastListW, commitKeep(cv), list, detail).SplitReset(reset)
 }
 
 // fitSplit keeps a split's size at fit until the user drags it. A drag,

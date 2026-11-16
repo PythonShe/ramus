@@ -41,7 +41,8 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 		a.countStats(t)
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		// It wraps rather than cut the modes off in a narrow window.
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).Wrap().AlignItems(ui.Center).Children(func() {
 			a.statsBranchMenu(c, t)
 			from := ui.TextInput(c, &ss.from).Placeholder(locales.StatsFromPlaceholder()).Label(locales.StatsFrom()).Width(150)
 			to := ui.TextInput(c, &ss.to).Placeholder(locales.StatsToPlaceholder()).Label(locales.StatsTo()).Width(150)

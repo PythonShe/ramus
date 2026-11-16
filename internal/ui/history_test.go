@@ -891,7 +891,9 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	}
 
 	// The hash given way, the message's divider makes too little room
-	// for it: let go, the message takes the room back.
+	// for it: let go, the message takes the room back. The window is as
+	// wide as the lists below need beside the commit's least.
+	h.tt.SetSize(1600, 800)
 	h.app.Settings.HistoryColumns, h.app.Settings.HistoryMessage = nil, 0
 	hv.detailW = 800
 	settle()

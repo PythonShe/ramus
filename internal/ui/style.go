@@ -61,6 +61,45 @@ const (
 	dialogWide   = 640
 )
 
+// The least widths of the panes a split shares a view between, which the
+// first pane gives way to as the window narrows: a list beside what it
+// shows of the row chosen, a commit beside its patch, and that patch.
+const (
+	leastListW  = 240
+	leastInfoW  = 200
+	leastPatchW = 300
+)
+
+// fitPane is the width the first pane of a split takes of room, the
+// split's width as last laid out: size, as the user set it, cut for the
+// second pane to keep keep, but never under least. Before the split was
+// laid out, room is 0 and size is taken as it is.
+func fitPane(size, room, least, keep float32) float32 {
+	if room <= 0 {
+		return size
+	}
+	// The divider between them is a point wide.
+	return max(least, min(size, room-1-keep))
+}
+
+// keptSplit is ui.Split with its first pane given way, as the room
+// narrows, for the second to keep keep: *size stays as the user set it,
+// for when there is room again, and a drag sets it. *room keeps the
+// split's width as last laid out.
+func keptSplit(c *ui.Context, size, room *float32, least, keep float32, first, second func()) ui.Element {
+	v := fitPane(*size, *room, least, keep)
+	sp := ui.Split(c, &v, first, second)
+	if sp.Changed() {
+		*size = v
+	}
+	if w := sp.LayoutBounds().W; w != *room {
+		// The panes take the new room in the next frame.
+		*room = w
+		c.AnimationFrame()
+	}
+	return sp
+}
+
 // dialogBox is the frame inside every dialog; the caller sets its width
 // and builds its children.
 func dialogBox(c *ui.Context) ui.Element {

@@ -228,8 +228,10 @@ type tab struct {
 	// sideOut is the width of the hidden sidebar's pane, 0 until its
 	// divider is dragged out.
 	sideOut float32
-	listW   float32
-	nav     tabNav
+	// listW is the width of a page's list beside what it shows of its
+	// row chosen, and listRoom the room the two had when last laid out.
+	listW, listRoom float32
+	nav             tabNav
 	// failSeen is the failed write whose error the user dismissed.
 	failSeen *session.LogEntry
 	// note is the tab's notice, see claimNotice.

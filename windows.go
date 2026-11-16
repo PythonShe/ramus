@@ -161,6 +161,13 @@ func (ws *windows) add() *window {
 	return w
 }
 
+// The least size of a window: room for the sidebar beside a list, a
+// commit and its patch, each at the least width the views give it.
+const (
+	minWindowW = 960
+	minWindowH = 600
+)
+
 // show opens w's window: the first one where it was last, the others
 // where the system puts them.
 func (ws *windows) show(w *window) {
@@ -168,8 +175,8 @@ func (ws *windows) show(w *window) {
 		Title:     "Ramus",
 		Width:     1200,
 		Height:    800,
-		MinWidth:  720,
-		MinHeight: 480,
+		MinWidth:  minWindowW,
+		MinHeight: minWindowH,
 		Content:   mygoui.View(w.app.View),
 	}
 	if w == ws.list[0] {

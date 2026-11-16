@@ -162,7 +162,7 @@ func (a *App) page(c *ui.Context, t *tab) {
 		})
 		return
 	}
-	ui.Split(c, &t.listW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
+	keptSplit(c, &t.listW, &t.listRoom, leastListW, leastPatchW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
 }
 
 func (a *App) trustBanner(c *ui.Context, t *tab) {
