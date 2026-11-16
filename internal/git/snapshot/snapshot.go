@@ -460,6 +460,9 @@ func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 		return Snapshot{}, fmt.Errorf("snapshot: keeping the current state first: %w", err)
 	}
 	git := func(spec []string, args ...string) error {
+		// Out of submodules whatever submodule.recurse says: a snapshot
+		// holds a submodule's commit, not the files inside it.
+		args = append(args, "--no-recurse-submodules")
 		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: []string{"GIT_LITERAL_PATHSPECS=1"}}
 		if spec == nil {
 			c.Args = append(args, "--", ":/")

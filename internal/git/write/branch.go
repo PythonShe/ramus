@@ -84,7 +84,7 @@ func Reset(w Where, commit string, mode ResetMode, seen Seen) (Op, error) {
 		return Op{}, errors.New("write: there is no commit to reset from")
 	}
 	op := Op{Name: "Reset to " + short(commit), Undo: MovesHead, Expect: seen.expect(),
-		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"reset", "-q", "--" + string(mode), commit, "--"}}}
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"reset", "-q", "--" + string(mode), noRecurse, commit, "--"}}}
 	if seen.Branch != "" {
 		op.Backup = []string{seen.Branch}
 	}

@@ -58,11 +58,16 @@ func Unstage(w Where, paths []string, unborn bool) Op {
 	return Op{Name: "Unstage " + count(len(paths), paths[0]), Cmd: w.cmd(args...), Input: pathspecs(paths)}
 }
 
+// noRecurse keeps a command that puts files back out of submodules,
+// whatever submodule.recurse says: the snapshot taken first holds a
+// submodule's commit, not the files inside it.
+const noRecurse = "--no-recurse-submodules"
+
 // Discard puts tracked paths in the work tree back as they are in the
 // index, after keeping them in a snapshot; it is undoable.
 func Discard(w Where, paths []string) Op {
 	name := "Discard changes to " + count(len(paths), paths[0])
-	return Op{Name: name, Cmd: w.cmd(fromStdin("restore", "--worktree")...), Input: pathspecs(paths),
+	return Op{Name: name, Cmd: w.cmd(fromStdin("restore", "--worktree", noRecurse)...), Input: pathspecs(paths),
 		Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Undo: FilesOnly}
 }
 
@@ -79,7 +84,7 @@ func RestoreFrom(w Where, path, commit string) (Op, error) {
 		return Op{}, fmt.Errorf("write: %q is not a commit id", commit)
 	}
 	name := "Restore " + path + " as of " + short(commit)
-	return Op{Name: name, Cmd: w.cmd(fromStdin("restore", "--source="+commit, "--worktree", "--no-overlay")...),
+	return Op{Name: name, Cmd: w.cmd(fromStdin("restore", "--source="+commit, "--worktree", "--no-overlay", noRecurse)...),
 		Input: pathspecs([]string{path}), Snapshot: &snapshot.Options{Reason: name, Paths: []string{path}}, Undo: FilesOnly}, nil
 }
 
