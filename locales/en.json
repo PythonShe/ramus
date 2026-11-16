@@ -664,6 +664,10 @@
   "stashChangesEllipsis": "Stash Changes…",
   "stashNone": "No stashes",
   "stashEntriesLabel": "Stash entries",
+  "stashEntryLabel": "{stash}, {message}",
+  "@stashEntryLabel": {
+    "description": "Read aloud for a stash entry: its name, such as stash@{0}, and its message."
+  },
   "stashApply": "Apply",
   "stashApplyStaged": "Apply with Staged Changes",
   "stashPop": "Pop",
@@ -720,6 +724,33 @@
   "changesSectionChanges": "Changes",
   "@changesSectionChanges": {
     "description": "Title of the section of changes not staged."
+  },
+  "changesSectionConflictsCount": "Conflicts ({n})",
+  "@changesSectionConflictsCount": {
+    "description": "Header of the section of files with merge conflicts, with how many there are.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "changesSectionStagedCount": "Staged ({n})",
+  "@changesSectionStagedCount": {
+    "description": "Header of the section of changes staged for the next commit, with how many files there are.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "changesSectionChangesCount": "Changes ({n})",
+  "@changesSectionChangesCount": {
+    "description": "Header of the section of changes not staged, with how many files there are.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   },
   "changesSectionLabel": "{section}, {count, plural, one {# file} other {# files}}",
   "@changesSectionLabel": {
@@ -974,13 +1005,19 @@
   "diffOpenInTool": "Open in Diff Tool",
   "diffDiscardLinesTitle": "Discard {count, plural, one {# changed line} other {# changed lines}}?",
   "diffDiscardLinesMessage": "This takes {count, plural, one {# changed line} other {# changed lines}} in {path} back to what is staged.\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
-  "diffAllWhiteSpace": "All White Space",
+  "diffAllWhiteSpace": "Show All Whitespace",
   "@diffAllWhiteSpace": {
     "description": "Patches show every change of white space."
   },
-  "diffIgnoreSpaceChanges": "Ignore Space Changes",
-  "diffIgnoreAllSpace": "Ignore All Space",
-  "diffNoWrap": "No Wrap",
+  "diffIgnoreSpaceChanges": "Ignore Whitespace Changes",
+  "@diffIgnoreSpaceChanges": {
+    "description": "Patches leave out changes in the amount of white space, as git's --ignore-space-change."
+  },
+  "diffIgnoreAllSpace": "Ignore All Whitespace",
+  "@diffIgnoreAllSpace": {
+    "description": "Patches leave out white space when comparing lines, as git's --ignore-all-space."
+  },
+  "diffNoWrap": "No wrap",
   "@diffNoWrap": {
     "description": "A checkbox, off by default: each line of a patch stays on one line, scrolled sideways, instead of wrapping."
   },
@@ -1629,8 +1666,8 @@
   },
   "fileHistoryShowInHistory": "Show in History",
   "fileHistoryLineCommits": "Commits that changed the lines",
-  "fileHistoryFollowRenames": "Follow Renames",
-  "fileHistoryHideMerges": "Hide Merges",
+  "fileHistoryFollowRenames": "Follow renames",
+  "fileHistoryHideMerges": "Hide merges",
   "fileHistoryBlame": "Blame",
   "@fileHistoryBlame": {
     "description": "Noun: the file view's mode showing the commit each line comes from."
@@ -1662,7 +1699,7 @@
   "fileHistoryRestore": "Restore",
   "reviewToReview": "{count, plural, one {# file to review} other {# files to review}}",
   "reviewChangedSinceSeenCount": "{count, plural, one {# file changed since seen} other {# files changed since seen}}",
-  "reviewChangedSinceSeen": "Changed Since Seen",
+  "reviewChangedSinceSeen": "Changed since seen",
   "reviewMarkAllSeen": "Mark All Seen",
   "reviewNothingSinceSeen": "Nothing changed since you marked it seen",
   "reviewNothing": "Nothing to review",
@@ -1990,7 +2027,7 @@
   },
   "statsAuthors": "Authors",
   "statsLibraryTitle": "Library Statistics",
-  "statsOnlyMine": "Only My Commits",
+  "statsOnlyMine": "Only my commits",
   "statsReadRepositories": "Read {read} of {total, plural, one {# repository} other {# repositories}}",
   "@statsReadRepositories": {
     "placeholders": {
@@ -2804,6 +2841,10 @@
     "description": "Sidebar item and page title: the repository's open pull requests on GitHub or merge requests on GitLab."
   },
   "prsSection": "{kind, select, gitlab {Merge Requests} other {Pull Requests}}",
+  "prsBackToList": "{kind, select, gitlab {‹ Merge Requests} other {‹ Pull Requests}}",
+  "@prsBackToList": {
+    "description": "Button above a pull request under review that goes back to the list of them, named as its host names them."
+  },
   "@prsSection": {
     "description": "Sidebar item and page title of the repository's open pull requests, named as its host names them."
   },

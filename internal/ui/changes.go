@@ -2,7 +2,6 @@ package ui
 
 import (
 	"encoding/hex"
-	"fmt"
 	"path"
 	"slices"
 	"strconv"
@@ -359,7 +358,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 	ro := t.s.Queue == nil
 	if r.kind == rowHeader {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Background(th.Surface).Children(func() {
-			ui.Text(c, fmt.Sprintf("%s (%d)", r.sec.title(), len(m.files[r.sec]))).Bold().Grow(1)
+			ui.Text(c, r.sec.header(len(m.files[r.sec]))).Bold().Grow(1)
 			tot := cv.sectionLines(m, r.sec)
 			lineCounts(c, int(tot.Added), int(tot.Deleted))
 			var label string

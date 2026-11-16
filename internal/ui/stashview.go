@@ -160,7 +160,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			}
 			entries := ss.entries
 			ss.list.Selected = &ss.chosen
-			ss.list.Label = func(i int) string { return stashName(i) + ", " + redact.Control(entries[i].Message) }
+			ss.list.Label = func(i int) string { return locales.StashEntryLabel(stashName(i), redact.Control(entries[i].Message)) }
 			now := a.Now()
 			var act func()
 			ss.list.CellMenu = func(m *ui.Menu, i, _ int) { a.stashMenu(m, t, i, entries[i], &act) }

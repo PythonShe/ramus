@@ -3557,6 +3557,24 @@ func (msgs Messages) StashEntriesLabel() string {
 	return Catalog.Format(msgs.locale, "stashEntriesLabel", nil)
 }
 
+// StashEntryLabel says "{stash}, {message}"
+// in the language the app shows.
+//
+// Read aloud for a stash entry: its name, such as stash@{0}, and its
+// message.
+func StashEntryLabel(stash string, message string) string {
+	return In(i18n.Locale()).StashEntryLabel(stash, message)
+}
+
+// StashEntryLabel says "{stash}, {message}"
+// in the language of msgs.
+//
+// Read aloud for a stash entry: its name, such as stash@{0}, and its
+// message.
+func (msgs Messages) StashEntryLabel(stash string, message string) string {
+	return Catalog.Format(msgs.locale, "stashEntryLabel", map[string]any{"stash": stash, "message": message})
+}
+
 // StashApply says "Apply"
 // in the language the app shows.
 func StashApply() string { return In(i18n.Locale()).StashApply() }
@@ -3843,6 +3861,56 @@ func ChangesSectionChanges() string { return In(i18n.Locale()).ChangesSectionCha
 // Title of the section of changes not staged.
 func (msgs Messages) ChangesSectionChanges() string {
 	return Catalog.Format(msgs.locale, "changesSectionChanges", nil)
+}
+
+// ChangesSectionConflictsCount says "Conflicts ({n})"
+// in the language the app shows.
+//
+// Header of the section of files with merge conflicts, with how many there
+// are.
+func ChangesSectionConflictsCount(n int) string {
+	return In(i18n.Locale()).ChangesSectionConflictsCount(n)
+}
+
+// ChangesSectionConflictsCount says "Conflicts ({n})"
+// in the language of msgs.
+//
+// Header of the section of files with merge conflicts, with how many there
+// are.
+func (msgs Messages) ChangesSectionConflictsCount(n int) string {
+	return Catalog.Format(msgs.locale, "changesSectionConflictsCount", map[string]any{"n": n})
+}
+
+// ChangesSectionStagedCount says "Staged ({n})"
+// in the language the app shows.
+//
+// Header of the section of changes staged for the next commit, with how
+// many files there are.
+func ChangesSectionStagedCount(n int) string { return In(i18n.Locale()).ChangesSectionStagedCount(n) }
+
+// ChangesSectionStagedCount says "Staged ({n})"
+// in the language of msgs.
+//
+// Header of the section of changes staged for the next commit, with how
+// many files there are.
+func (msgs Messages) ChangesSectionStagedCount(n int) string {
+	return Catalog.Format(msgs.locale, "changesSectionStagedCount", map[string]any{"n": n})
+}
+
+// ChangesSectionChangesCount says "Changes ({n})"
+// in the language the app shows.
+//
+// Header of the section of changes not staged, with how many files there
+// are.
+func ChangesSectionChangesCount(n int) string { return In(i18n.Locale()).ChangesSectionChangesCount(n) }
+
+// ChangesSectionChangesCount says "Changes ({n})"
+// in the language of msgs.
+//
+// Header of the section of changes not staged, with how many files there
+// are.
+func (msgs Messages) ChangesSectionChangesCount(n int) string {
+	return Catalog.Format(msgs.locale, "changesSectionChangesCount", map[string]any{"n": n})
 }
 
 // ChangesSectionLabel says "{section}, {count, plural, one {# file} other {# files}}"
@@ -5295,13 +5363,13 @@ func (msgs Messages) DiffDiscardLinesMessage(count int, path string) string {
 	return Catalog.Format(msgs.locale, "diffDiscardLinesMessage", map[string]any{"count": count, "path": path})
 }
 
-// DiffAllWhiteSpace says "All White Space"
+// DiffAllWhiteSpace says "Show All Whitespace"
 // in the language the app shows.
 //
 // Patches show every change of white space.
 func DiffAllWhiteSpace() string { return In(i18n.Locale()).DiffAllWhiteSpace() }
 
-// DiffAllWhiteSpace says "All White Space"
+// DiffAllWhiteSpace says "Show All Whitespace"
 // in the language of msgs.
 //
 // Patches show every change of white space.
@@ -5309,34 +5377,46 @@ func (msgs Messages) DiffAllWhiteSpace() string {
 	return Catalog.Format(msgs.locale, "diffAllWhiteSpace", nil)
 }
 
-// DiffIgnoreSpaceChanges says "Ignore Space Changes"
+// DiffIgnoreSpaceChanges says "Ignore Whitespace Changes"
 // in the language the app shows.
+//
+// Patches leave out changes in the amount of white space, as git's
+// --ignore-space-change.
 func DiffIgnoreSpaceChanges() string { return In(i18n.Locale()).DiffIgnoreSpaceChanges() }
 
-// DiffIgnoreSpaceChanges says "Ignore Space Changes"
+// DiffIgnoreSpaceChanges says "Ignore Whitespace Changes"
 // in the language of msgs.
+//
+// Patches leave out changes in the amount of white space, as git's
+// --ignore-space-change.
 func (msgs Messages) DiffIgnoreSpaceChanges() string {
 	return Catalog.Format(msgs.locale, "diffIgnoreSpaceChanges", nil)
 }
 
-// DiffIgnoreAllSpace says "Ignore All Space"
+// DiffIgnoreAllSpace says "Ignore All Whitespace"
 // in the language the app shows.
+//
+// Patches leave out white space when comparing lines, as git's
+// --ignore-all-space.
 func DiffIgnoreAllSpace() string { return In(i18n.Locale()).DiffIgnoreAllSpace() }
 
-// DiffIgnoreAllSpace says "Ignore All Space"
+// DiffIgnoreAllSpace says "Ignore All Whitespace"
 // in the language of msgs.
+//
+// Patches leave out white space when comparing lines, as git's
+// --ignore-all-space.
 func (msgs Messages) DiffIgnoreAllSpace() string {
 	return Catalog.Format(msgs.locale, "diffIgnoreAllSpace", nil)
 }
 
-// DiffNoWrap says "No Wrap"
+// DiffNoWrap says "No wrap"
 // in the language the app shows.
 //
 // A checkbox, off by default: each line of a patch stays on one line,
 // scrolled sideways, instead of wrapping.
 func DiffNoWrap() string { return In(i18n.Locale()).DiffNoWrap() }
 
-// DiffNoWrap says "No Wrap"
+// DiffNoWrap says "No wrap"
 // in the language of msgs.
 //
 // A checkbox, off by default: each line of a patch stays on one line,
@@ -8337,21 +8417,21 @@ func (msgs Messages) FileHistoryLineCommits() string {
 	return Catalog.Format(msgs.locale, "fileHistoryLineCommits", nil)
 }
 
-// FileHistoryFollowRenames says "Follow Renames"
+// FileHistoryFollowRenames says "Follow renames"
 // in the language the app shows.
 func FileHistoryFollowRenames() string { return In(i18n.Locale()).FileHistoryFollowRenames() }
 
-// FileHistoryFollowRenames says "Follow Renames"
+// FileHistoryFollowRenames says "Follow renames"
 // in the language of msgs.
 func (msgs Messages) FileHistoryFollowRenames() string {
 	return Catalog.Format(msgs.locale, "fileHistoryFollowRenames", nil)
 }
 
-// FileHistoryHideMerges says "Hide Merges"
+// FileHistoryHideMerges says "Hide merges"
 // in the language the app shows.
 func FileHistoryHideMerges() string { return In(i18n.Locale()).FileHistoryHideMerges() }
 
-// FileHistoryHideMerges says "Hide Merges"
+// FileHistoryHideMerges says "Hide merges"
 // in the language of msgs.
 func (msgs Messages) FileHistoryHideMerges() string {
 	return Catalog.Format(msgs.locale, "fileHistoryHideMerges", nil)
@@ -8553,11 +8633,11 @@ func (msgs Messages) ReviewChangedSinceSeenCount(count int) string {
 	return Catalog.Format(msgs.locale, "reviewChangedSinceSeenCount", map[string]any{"count": count})
 }
 
-// ReviewChangedSinceSeen says "Changed Since Seen"
+// ReviewChangedSinceSeen says "Changed since seen"
 // in the language the app shows.
 func ReviewChangedSinceSeen() string { return In(i18n.Locale()).ReviewChangedSinceSeen() }
 
-// ReviewChangedSinceSeen says "Changed Since Seen"
+// ReviewChangedSinceSeen says "Changed since seen"
 // in the language of msgs.
 func (msgs Messages) ReviewChangedSinceSeen() string {
 	return Catalog.Format(msgs.locale, "reviewChangedSinceSeen", nil)
@@ -9991,11 +10071,11 @@ func (msgs Messages) StatsLibraryTitle() string {
 	return Catalog.Format(msgs.locale, "statsLibraryTitle", nil)
 }
 
-// StatsOnlyMine says "Only My Commits"
+// StatsOnlyMine says "Only my commits"
 // in the language the app shows.
 func StatsOnlyMine() string { return In(i18n.Locale()).StatsOnlyMine() }
 
-// StatsOnlyMine says "Only My Commits"
+// StatsOnlyMine says "Only my commits"
 // in the language of msgs.
 func (msgs Messages) StatsOnlyMine() string {
 	return Catalog.Format(msgs.locale, "statsOnlyMine", nil)
@@ -13585,6 +13665,22 @@ func PrsSection(kind string) string { return In(i18n.Locale()).PrsSection(kind) 
 // as its host names them.
 func (msgs Messages) PrsSection(kind string) string {
 	return Catalog.Format(msgs.locale, "prsSection", map[string]any{"kind": kind})
+}
+
+// PrsBackToList says "{kind, select, gitlab {‹ Merge Requests} other {‹ Pull Requests}}"
+// in the language the app shows.
+//
+// Button above a pull request under review that goes back to the list of
+// them, named as its host names them.
+func PrsBackToList(kind string) string { return In(i18n.Locale()).PrsBackToList(kind) }
+
+// PrsBackToList says "{kind, select, gitlab {‹ Merge Requests} other {‹ Pull Requests}}"
+// in the language of msgs.
+//
+// Button above a pull request under review that goes back to the list of
+// them, named as its host names them.
+func (msgs Messages) PrsBackToList(kind string) string {
+	return Catalog.Format(msgs.locale, "prsBackToList", map[string]any{"kind": kind})
 }
 
 // PrsHeadMoved says "The merge request has new commits since it was read. Refresh it and review them before approving."

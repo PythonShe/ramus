@@ -73,7 +73,7 @@ func TestReviewAll(t *testing.T) {
 	// Mark what is left seen; it shows again once it changes.
 	h.until("the files read", func() bool { return rv.stampedFor == tb.s.State.Status && rv.stamps != nil })
 	h.click("Mark All Seen")
-	h.click("Changed Since Seen")
+	h.click("Changed since seen")
 	h.until("nothing new", h.shows("Nothing changed since you marked it seen"))
 	r.Write("a.txt", "one\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\ntwelve\nthirteen\n")
 	h.until("the change since", h.shows("1 file changed since seen"))

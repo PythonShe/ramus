@@ -42,7 +42,7 @@ func TestLibraryStatsView(t *testing.T) {
 		}
 	}
 
-	h.click("Only My Commits")
+	h.click("Only my commits")
 	h.until("my commits", func() bool { return !s.summing && s.sum.Commits == 5 })
 	h.app.Settings.Emails = []string{"SOMEONE@example.com"}
 	h.app.summarize()

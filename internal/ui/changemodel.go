@@ -31,6 +31,17 @@ func (s section) title() string {
 	return locales.ChangesSectionChanges()
 }
 
+// header heads the section, with the n files in it.
+func (s section) header(n int) string {
+	switch s {
+	case secConflicts:
+		return locales.ChangesSectionConflictsCount(n)
+	case secStaged:
+		return locales.ChangesSectionStagedCount(n)
+	}
+	return locales.ChangesSectionChangesCount(n)
+}
+
 type rowKind uint8
 
 const (

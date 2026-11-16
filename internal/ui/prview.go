@@ -583,7 +583,7 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX, 0, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			// Esc leaves a comment being written to its text area.
-			if ui.Button(c, "‹ "+locales.PrsSection(kindName(rv.repo.Kind))).Clicked() || rv.compose == nil && c.Shortcut(0, ui.KeyEscape) {
+			if ui.Button(c, locales.PrsBackToList(kindName(rv.repo.Kind))).Clicked() || rv.compose == nil && c.Shortcut(0, ui.KeyEscape) {
 				a.leaveReview(t, rv)
 			}
 			title := locales.PrsTitle(r.Ref(rv.repo.Kind), redact.Control(r.Title))
