@@ -1202,14 +1202,16 @@ func TestHistoryShowsCommitsLandingOnTop(t *testing.T) {
 			r.Commit("second on top")
 		}, 2, true},
 	} {
-		head := oid(0)
 		step.change()
+		// HEAD as the step leaves it: a step of two commits may land as
+		// one, then the other.
+		head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
 		h.until(step.what, func() bool {
 			steady(step.what)
 			if top() > step.row {
 				t.Fatalf("%s: the top went to row %d", step.what, top())
 			}
-			return tb.s.History.For == tb.s.State.Refs && oid(0) != head
+			return tb.s.History.For == tb.s.State.Refs && oid(0) == head
 		})
 		// Refresh by refresh: the top comes up to the first row, never
 		// back down.
@@ -1233,12 +1235,11 @@ func TestHistoryShowsCommitsLandingOnTop(t *testing.T) {
 	// A commit landing as the list slides to the last one slides on to
 	// the top.
 	for _, subject := range []string{"landed sliding", "landed slid"} {
-		head := oid(0)
 		r.Write("g.txt", subject+"\n")
-		r.Commit(subject)
+		head := r.Commit(subject)
 		h.until(subject, func() bool {
 			steady(subject)
-			return tb.s.History.For == tb.s.State.Refs && oid(0) != head
+			return tb.s.History.For == tb.s.State.Refs && oid(0) == head
 		})
 	}
 	h.tt.Advance(time.Second)
