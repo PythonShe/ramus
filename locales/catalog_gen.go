@@ -11287,6 +11287,56 @@ func (msgs Messages) BranchPickerTooltip() string {
 	return Catalog.Format(msgs.locale, "branchPickerTooltip", nil)
 }
 
+// SyncFetch says "Fetch"
+// in the language the app shows.
+func SyncFetch() string { return In(i18n.Locale()).SyncFetch() }
+
+// SyncFetch says "Fetch"
+// in the language of msgs.
+func (msgs Messages) SyncFetch() string {
+	return Catalog.Format(msgs.locale, "syncFetch", nil)
+}
+
+// SyncPull says "Pull ↓{behind}"
+// in the language the app shows.
+func SyncPull(behind int) string { return In(i18n.Locale()).SyncPull(behind) }
+
+// SyncPull says "Pull ↓{behind}"
+// in the language of msgs.
+func (msgs Messages) SyncPull(behind int) string {
+	return Catalog.Format(msgs.locale, "syncPull", map[string]any{"behind": behind})
+}
+
+// SyncPush says "Push ↑{ahead}"
+// in the language the app shows.
+func SyncPush(ahead int) string { return In(i18n.Locale()).SyncPush(ahead) }
+
+// SyncPush says "Push ↑{ahead}"
+// in the language of msgs.
+func (msgs Messages) SyncPush(ahead int) string {
+	return Catalog.Format(msgs.locale, "syncPush", map[string]any{"ahead": ahead})
+}
+
+// SyncPublish says "Publish Branch"
+// in the language the app shows.
+func SyncPublish() string { return In(i18n.Locale()).SyncPublish() }
+
+// SyncPublish says "Publish Branch"
+// in the language of msgs.
+func (msgs Messages) SyncPublish() string {
+	return Catalog.Format(msgs.locale, "syncPublish", nil)
+}
+
+// SyncPublishTo says "Push the branch to {remote} and track it there"
+// in the language the app shows.
+func SyncPublishTo(remote string) string { return In(i18n.Locale()).SyncPublishTo(remote) }
+
+// SyncPublishTo says "Push the branch to {remote} and track it there"
+// in the language of msgs.
+func (msgs Messages) SyncPublishTo(remote string) string {
+	return Catalog.Format(msgs.locale, "syncPublishTo", map[string]any{"remote": remote})
+}
+
 // BranchPickerDetached says "Detached HEAD"
 // in the language the app shows.
 //

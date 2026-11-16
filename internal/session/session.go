@@ -140,6 +140,7 @@ type Session struct {
 	stats       statsLoad
 	tools       diffTools
 	refInfo     refLoad
+	track       refLoad
 	authors     authorsLoad
 	blame       blames
 	view        viewScope

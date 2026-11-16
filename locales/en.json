@@ -2268,6 +2268,25 @@
     "description": "What assistive technology calls the tab bar's button naming the branch checked out, which opens the branch picker."
   },
   "branchPickerTooltip": "Switch Branch",
+  "syncFetch": "Fetch",
+  "syncPull": "Pull ↓{behind}",
+  "@syncPull": {
+    "placeholders": {
+      "behind": {
+        "type": "int"
+      }
+    }
+  },
+  "syncPush": "Push ↑{ahead}",
+  "@syncPush": {
+    "placeholders": {
+      "ahead": {
+        "type": "int"
+      }
+    }
+  },
+  "syncPublish": "Publish Branch",
+  "syncPublishTo": "Push the branch to {remote} and track it there",
   "branchPickerDetached": "Detached HEAD",
   "@branchPickerDetached": {
     "description": "The branch button, in place of a branch name when HEAD is detached."

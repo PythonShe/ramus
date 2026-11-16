@@ -220,6 +220,7 @@ type tab struct {
 	prefs     refPrefs
 	sideRefs  sideRefs
 	pick      branchPick
+	sync      syncState
 	wtp       wtPanel
 	// expired is set once old snapshots were cleared on open.
 	expired bool

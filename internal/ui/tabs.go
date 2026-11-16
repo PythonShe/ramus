@@ -21,6 +21,7 @@ func (a *App) tabBar(c *ui.Context) {
 		ready := t != nil && !t.s.State.Opening && t.s.State.Err == nil
 		if ready {
 			a.branchButton(c, t)
+			a.syncButton(c, t)
 			a.worktreeButton(c, t)
 		}
 		ui.Spacer(c)
