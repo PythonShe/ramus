@@ -39,7 +39,7 @@ func Push(w Where, opt PushOptions) Op {
 		args = append(args, "--set-upstream", "--", opt.Remote, "HEAD")
 		name += " to " + opt.Remote
 	}
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}
+	return Op{Name: name, NoIndex: true, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}
 }
 
 // Fetch fetches from remote, or every remote when it is empty, pruning
@@ -59,7 +59,7 @@ func Fetch(w Where, remote string, prune bool) (Op, error) {
 		args = append(args, "--end-of-options", remote)
 		name = "Fetch " + remote
 	}
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}, RefsOnly: true}, nil
+	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}, RefsOnly: true, NoIndex: true}, nil
 }
 
 // PullMode is how a pull takes in the upstream's commits.
@@ -142,7 +142,7 @@ func PushTag(w Where, remote, name string) (Op, error) {
 		return Op{}, err
 	}
 	name = strings.TrimPrefix(name, "refs/tags/")
-	return Op{Name: "Push tag " + name + " to " + remote,
+	return Op{Name: "Push tag " + name + " to " + remote, NoIndex: true,
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"push", "--progress", "--", remote, "refs/tags/" + name}, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }
 
@@ -229,5 +229,5 @@ func PushStack(w Where, remote string, branches []StackBranch) (Op, error) {
 		args = append(args, b.Local+":"+b.Remote)
 	}
 	name := fmt.Sprintf("Push stack of %d branches to %s", len(branches), remote)
-	return Op{Name: name, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}, nil
+	return Op{Name: name, NoIndex: true, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }

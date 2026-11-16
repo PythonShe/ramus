@@ -162,3 +162,24 @@ func TestLines(t *testing.T) {
 		t.Fatalf("dropped %d", full.dropped)
 	}
 }
+
+func TestQueueGoesOnAfterAJobPanics(t *testing.T) {
+	r, q, life := newQueue(t)
+	heard := make(chan lifetime.Panic, 1)
+	life.OnPanic(func(p lifetime.Panic) { heard <- p })
+	bad := Op{Name: "Bad", do: func(context.Context, *Job) (run.Result, error) { panic("boom") }}
+	if _, err := wait(t, q.Submit(bad)); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("a job that panicked ended with %v", err)
+	}
+	select {
+	case p := <-heard:
+		if p.Value != "boom" {
+			t.Fatalf("heard %q", p.Value)
+		}
+	default:
+		t.Fatal("the panic was not reported")
+	}
+	if _, err := wait(t, q.Submit(commitOp(r, "after"))); err != nil {
+		t.Fatalf("the queue stopped after a panic: %v", err)
+	}
+}

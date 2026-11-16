@@ -39,6 +39,6 @@ func FetchPull(w Where, from string, n int, hostRef, base string, deepen int) (O
 	}
 	args = append(args, "--end-of-options", from,
 		"+"+hostRef+":"+PullHead(n), "+refs/heads/"+base+":"+PullBase(n))
-	return Op{Name: "Fetch pull request #" + strconv.Itoa(n), RefsOnly: true,
+	return Op{Name: "Fetch pull request #" + strconv.Itoa(n), RefsOnly: true, NoIndex: true,
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }

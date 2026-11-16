@@ -14,7 +14,7 @@ func LFSLock(w Where, path string) (Op, error) {
 	if err := lfsPath(path); err != nil {
 		return Op{}, err
 	}
-	return Op{Name: "Lock " + path, RefsOnly: true,
+	return Op{Name: "Lock " + path, RefsOnly: true, NoIndex: true,
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"lfs", "lock", "--", path},
 			Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }
@@ -32,7 +32,7 @@ func LFSUnlock(w Where, path, id string, force bool) (Op, error) {
 		args = append(args, "--force")
 		name = "Force unlock " + path
 	}
-	return Op{Name: name, RefsOnly: true,
+	return Op{Name: name, RefsOnly: true, NoIndex: true,
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }
 

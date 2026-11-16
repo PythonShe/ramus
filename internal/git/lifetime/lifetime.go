@@ -93,6 +93,20 @@ func (l *Lifetime) Recover() {
 	fn(Panic{Value: fmt.Sprint(v), Stack: string(debug.Stack())})
 }
 
+// Report hands v, a panic recovered by the caller that carries on, to
+// OnPanic's function, as Recover would; without one it panics again.
+// Call it from the deferred function that recovered, so the stack is the
+// panic's.
+func (l *Lifetime) Report(v any) {
+	l.mu.Lock()
+	fn := l.onPanic
+	l.mu.Unlock()
+	if fn == nil {
+		panic(v)
+	}
+	fn(Panic{Value: fmt.Sprint(v), Stack: string(debug.Stack())})
+}
+
 // Own closes c when the lifetime ends, after every goroutine has
 // returned. The returned release closes c early and forgets it; it is safe
 // to call more than once.

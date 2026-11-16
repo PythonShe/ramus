@@ -63,6 +63,9 @@ type Op struct {
 	// tag). Undo moves only these, so a ref moved meanwhile by something
 	// else is left alone.
 	Refs []string
+	// NoIndex marks a write that never takes index.lock, as a fetch or a
+	// push: it does not wait for another command's lock to go.
+	NoIndex bool
 	// RefsOnly marks a write that moves refs and nothing else, as a fetch
 	// does: the work tree, the index and HEAD stay as they were, so what
 	// follows it need not read status.
@@ -159,6 +162,7 @@ func (j *Job) Kept() (snapshot.Snapshot, string) {
 // Queue runs one repository's writes in order, one at a time.
 type Queue struct {
 	r      *run.Runner
+	life   *lifetime.Lifetime
 	gitDir string
 	// LockWait is how long a write waits for another process's index.lock
 	// to go before failing with a LockedError.
@@ -182,7 +186,7 @@ const DefaultLockWait = 5 * time.Second
 // NewQueue starts the queue of a repository, which ends with its
 // lifetime; jobs still queued then are cancelled.
 func NewQueue(life *lifetime.Lifetime, r *run.Runner, gitDir string) (*Queue, error) {
-	q := &Queue{r: r, gitDir: gitDir, LockWait: DefaultLockWait, wake: make(chan struct{}, 1)}
+	q := &Queue{r: r, life: life, gitDir: gitDir, LockWait: DefaultLockWait, wake: make(chan struct{}, 1)}
 	if err := life.Go(q.loop); err != nil {
 		return nil, err
 	}
@@ -242,7 +246,7 @@ func (q *Queue) loop(ctx context.Context) {
 			}
 			continue
 		}
-		res, err := q.run(ctx, j)
+		res, err := q.runSafe(ctx, j)
 		// Out of the queue before Done, so Pending never counts a job
 		// that has ended.
 		q.mu.Lock()
@@ -273,6 +277,18 @@ func (j *Job) finish(res run.Result, err error) {
 	close(j.done)
 }
 
+// runSafe runs j, ending it with an error if it panics: the loop goes on
+// to the jobs after it, and whoever waits on it hears it ended.
+func (q *Queue) runSafe(ctx context.Context, j *Job) (res run.Result, err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			res, err = run.Result{}, fmt.Errorf("write: %s stopped on an internal error: %v", j.Op.Name, v)
+			q.life.Report(v)
+		}
+	}()
+	return q.run(ctx, j)
+}
+
 func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	ctx, stop := context.WithCancel(qctx)
 	defer stop()
@@ -286,8 +302,10 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	if err := j.ctx.Err(); err != nil {
 		return run.Result{}, err
 	}
-	if err := waitLock(ctx, q.gitDir, q.LockWait); err != nil {
-		return run.Result{}, err
+	if !j.Op.NoIndex {
+		if err := waitLock(ctx, q.gitDir, q.LockWait); err != nil {
+			return run.Result{}, err
+		}
 	}
 	if h := j.Op.Hold; h != nil {
 		h.Lock()
@@ -318,14 +336,24 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 		if j.Op.PreStashes {
 			stashed = q.beforeStash(ctx, j.Op.Cmd.WorkTree)
 		}
-		if res, err := execute(ctx, q.r, j, *j.Op.Pre, nil); err != nil {
-			return res, err
-		}
+		res, preErr := execute(ctx, q.r, j, *j.Op.Pre, nil)
 		if stashed != nil {
-			var err error
-			if stashed.made, err = q.topStash(ctx, j.Op.Cmd.WorkTree); err != nil {
+			// Read though the job was cancelled meanwhile: a stash made
+			// and not known of would keep the changes from the user.
+			sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), unstashTimeout)
+			made, err := q.topStash(sctx, j.Op.Cmd.WorkTree)
+			cancel()
+			if err != nil {
 				stashed = nil
+			} else {
+				stashed.made = made
 			}
+		}
+		if preErr != nil {
+			if stashed != nil {
+				preErr = q.unstash(ctx, j, stashed, preErr)
+			}
+			return res, preErr
 		}
 	}
 	res, err := execute(ctx, q.r, j, j.Op.Cmd, j.Op.Input)
