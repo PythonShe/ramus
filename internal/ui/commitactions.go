@@ -91,7 +91,11 @@ func (a *App) branchView(c *ui.Context) {
 	th := c.Theme()
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
-			ui.Text(c, locales.CommitCreateBranchAt(d.commit[:10])).Bold()
+			title := locales.CommitCreateBranchAt(d.commit[:10])
+			if h := d.t.s.State.Head; !h.Detached && h.Target != "" && hex.EncodeToString(h.OID) == d.commit {
+				title = locales.CommitCreateBranchFrom(strings.TrimPrefix(h.Target, "refs/heads/"))
+			}
+			ui.Text(c, title).Bold()
 			in := ui.TextInput(c, &d.name).Placeholder(locales.CommonBranchName()).Label(locales.CommonBranchName()).AutoFocus()
 			ui.Checkbox(c, &d.checkout, locales.CommitSwitchToBranch())
 			if d.err != "" {
@@ -102,7 +106,8 @@ func (a *App) branchView(c *ui.Context) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, locales.CommonCreate()).Disabled(strings.TrimSpace(d.name) == "").Clicked() || in.Submitted() {
+				empty := strings.TrimSpace(d.name) == ""
+				if (ui.PrimaryButton(c, locales.CommonCreate()).Disabled(empty).Clicked() || in.Submitted()) && !empty {
 					t := d.t
 					op, err := write.CreateBranch(t.s.Where(), strings.TrimSpace(d.name), d.commit, d.checkout, t.s.Seen())
 					if err == nil {

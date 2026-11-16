@@ -111,8 +111,13 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 			case f.Shortcut(0, ui.KeyUp):
 				move(-1)
 			}
-			if f.Submitted() && p.hi >= 0 && p.hi < len(rows) {
+			canCreate := !t.s.State.Head.Unborn && len(t.s.State.Head.OID) > 0
+			switch {
+			case f.Submitted() && p.hi >= 0 && p.hi < len(rows):
 				chosen = &rows[p.hi]
+			case f.Submitted() && len(rows) == 0 && strings.TrimSpace(p.query) != "" && canCreate:
+				// A name no branch has: make it, as New Branch would.
+				newBranch = true
 			}
 			if len(rows) == 0 {
 				ui.Text(c, locales.BranchPickerNone()).FontSize(textSmall).TextColor(th.TextMuted).Padding(spaceM, spaceS)
@@ -143,7 +148,7 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 			if p.fetchErr != "" {
 				ui.Text(c, p.fetchErr).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, spaceS)
 			}
-			if !t.s.State.Head.Unborn && len(t.s.State.Head.OID) > 0 {
+			if canCreate {
 				ui.Divider(c)
 				// Its text starts where the branches' names do, past the check.
 				nb := ui.ButtonBase(c).Padding(rowPadY, spaceS, rowPadY, spaceS+12+spaceS).Radius(6).FillWidth().Justify(ui.Start)

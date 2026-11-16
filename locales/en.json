@@ -954,6 +954,10 @@
     "description": "A button that resets the branch, as a verb."
   },
   "commitCreateBranchAt": "Create Branch at {commit}",
+  "commitCreateBranchFrom": "New Branch from {branch}",
+  "@commitCreateBranchFrom": {
+    "description": "The title of the dialog that makes a branch where the branch checked out is; branch is its name."
+  },
   "commitSwitchToBranch": "Switch to it",
   "@commitSwitchToBranch": {
     "description": "A checkbox: check out the branch once it is made."

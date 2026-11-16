@@ -5163,6 +5163,24 @@ func (msgs Messages) CommitCreateBranchAt(commit string) string {
 	return Catalog.Format(msgs.locale, "commitCreateBranchAt", map[string]any{"commit": commit})
 }
 
+// CommitCreateBranchFrom says "New Branch from {branch}"
+// in the language the app shows.
+//
+// The title of the dialog that makes a branch where the branch checked out
+// is; branch is its name.
+func CommitCreateBranchFrom(branch string) string {
+	return In(i18n.Locale()).CommitCreateBranchFrom(branch)
+}
+
+// CommitCreateBranchFrom says "New Branch from {branch}"
+// in the language of msgs.
+//
+// The title of the dialog that makes a branch where the branch checked out
+// is; branch is its name.
+func (msgs Messages) CommitCreateBranchFrom(branch string) string {
+	return Catalog.Format(msgs.locale, "commitCreateBranchFrom", map[string]any{"branch": branch})
+}
+
 // CommitSwitchToBranch says "Switch to it"
 // in the language the app shows.
 //
