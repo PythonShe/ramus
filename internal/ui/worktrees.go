@@ -258,14 +258,24 @@ func (a *App) worktreeRemoveView(c *ui.Context) {
 	})
 }
 
-// removeWorktree removes the worktree, then its branch when asked; the
-// branch delete is backed up and undone on its own, and fails while the
-// worktree is still there.
+// removeWorktree removes the worktree, then, once it is gone, its branch
+// when asked; the branch delete is backed up and undone on its own.
 func (a *App) removeWorktree(d *worktreeRemoval) {
 	t, w := d.t, d.t.s.Where()
-	a.submit(t, write.RemoveWorktree(w, d.wt.Path, d.force), nil)
+	j, err := t.s.Submit(write.RemoveWorktree(w, d.wt.Path, d.force))
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
 	if d.withBranch && d.wt.Branch != "" {
-		a.submit(t, write.DeleteBranch(w, d.wt.Branch, d.wt.Head, true, "", t.s.Seen()), nil)
+		branch, head := d.wt.Branch, d.wt.Head
+		// Once the worktree went: before, the delete fails too, and its
+		// error hides the one that says why.
+		t.s.Then(j, func(err error) {
+			if err == nil {
+				a.submit(t, write.DeleteBranch(w, branch, head, true, "", t.s.Seen()), nil)
+			}
+		})
 	}
 }
 

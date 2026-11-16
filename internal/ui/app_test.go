@@ -686,6 +686,19 @@ func TestCommitBox(t *testing.T) {
 	}
 	h.until("recent loaded", func() bool { return cs.setup != nil && len(cs.setup.Recent) >= 3 })
 
+	// With nowhere to push, the commit is made all the same: its message
+	// goes, and the box says it was not pushed.
+	r.Write("lf.txt", "not pushed\n")
+	r.Git("add", "lf.txt")
+	h.until("staged", h.shows("Staged (1)"))
+	cs.subject, cs.body = "Not pushed", ""
+	h.click("Commit and Push")
+	h.until("the commit", func() bool { return !cs.busy && cs.err != "" })
+	if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); got != "Not pushed" || cs.subject != "" ||
+		!strings.HasPrefix(cs.err, "Committed, but not pushed") {
+		t.Fatalf("HEAD %q, subject %q, error %q", got, cs.subject, cs.err)
+	}
+
 	// Commit and push sets the upstream on the one remote.
 	remote := gittest.Init(t, "--bare")
 	r.Git("remote", "add", "origin", remote.Dir)

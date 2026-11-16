@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 
@@ -273,7 +274,8 @@ func (a *App) commit(t *tab, push bool) {
 	seen := t.s.Seen()
 	err := t.s.Commit(opt, push, func(err error) {
 		cs.busy = false
-		if err != nil {
+		var notPushed *session.NotPushedError
+		if err != nil && !errors.As(err, &notPushed) {
 			cs.err = errText(err)
 			return
 		}
@@ -281,6 +283,15 @@ func (a *App) commit(t *tab, push bool) {
 			a.checkPushed(t, seen)
 		}
 		cs.subject, cs.body, cs.coAuthors, cs.amend, cs.err = "", "", "", false, ""
+		if notPushed != nil {
+			// The commit is made: its message goes, or a second click
+			// would commit or amend it again.
+			reason := errText(notPushed.Err)
+			if errors.Is(notPushed.Err, session.ErrNoRemote) {
+				reason = locales.CommitBoxNoRemote()
+			}
+			cs.err = locales.CommitBoxNotPushed(reason)
+		}
 		// Recent messages and HEAD's message changed.
 		cs.setup = nil
 	})

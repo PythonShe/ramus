@@ -239,14 +239,21 @@ func (a *App) stashMenu(m *ui.Menu, t *tab, n int, e session.ReflogEntry, act *f
 				message: locales.StashDropMessage(redact.Control(e.Message)), button: locales.StashDrop(),
 				run: func() {
 					op, err := write.StashDrop(w, entry)
+					var j *write.Job
 					if err == nil {
-						_, err = t.s.Submit(op)
+						j, err = t.s.Submit(op)
 					}
 					if err != nil {
 						a.notice = errText(err)
 						return
 					}
-					ss.dropped = &e
+					// Restore is offered for a stash dropped, not one
+					// asked to be.
+					t.s.Then(j, func(err error) {
+						if err == nil {
+							ss.dropped = &e
+						}
+					})
 				}}
 		}
 	}

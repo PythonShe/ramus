@@ -416,6 +416,10 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 	if op == repo.CherryPick {
 		opKey = "cherryPick"
 	}
+	if t.seq.status != nil && t.seq.status != t.s.State.Status {
+		t.seq.status = nil
+	}
+	ro = ro || t.seq.running || t.seq.status != nil
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		what := locales.MergeStopped(opKey)
 		if conflicts > 0 {
@@ -424,12 +428,12 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 		ui.Text(c, what).Bold().SingleLine().Grow(1)
 		if ui.Button(c, locales.MergeContinue()).Disabled(ro || conflicts > 0).Clicked() {
 			o, err := write.Sequence(w, name, write.Continue)
-			a.submit(t, o, err)
+			a.submitSequence(t, o, err)
 		}
 		if op != repo.Merge {
 			if ui.Button(c, locales.MergeSkip()).Disabled(ro).Clicked() {
 				o, err := write.Sequence(w, name, write.Skip)
-				a.submit(t, o, err)
+				a.submitSequence(t, o, err)
 			}
 		}
 		if ui.Button(c, locales.MergeAbortEllipsis()).Disabled(ro).Clicked() {
@@ -440,7 +444,27 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 			}
 			a.confirm = confirmState{open: true, title: locales.MergeAbortTitle(opKey),
 				message: locales.MergeAbortMessage(),
-				button:  locales.MergeAbort(), run: func() { a.submit(t, o, nil) }}
+				button:  locales.MergeAbort(), run: func() { a.submitSequence(t, o, nil) }}
+		}
+	})
+}
+
+// submitSequence submits a continue, skip or abort, one at a time.
+func (a *App) submitSequence(t *tab, op write.Op, err error) {
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
+	j, err := t.s.Submit(op)
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
+	t.seq.running = true
+	t.s.Then(j, func(err error) {
+		t.seq.running = false
+		if err == nil {
+			t.seq.status = t.s.State.Status
 		}
 	})
 }

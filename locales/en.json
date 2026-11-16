@@ -850,6 +850,8 @@
   },
   "commitBoxAmendLast": "Amend Last Commit",
   "commitBoxCommitAndPush": "Commit and Push",
+  "commitBoxNotPushed": "Committed, but not pushed: {reason}",
+  "commitBoxNoRemote": "this branch has no upstream, and no single remote or origin to push it to",
   "commitBoxLineEndsNotChecked": "Line endings not checked: {reason}",
   "commitBoxLineEndsTitle": "Line endings change in {count, plural, one {# file} other {# files}}",
   "commitBoxCommitAnyway": "Commit Anyway",

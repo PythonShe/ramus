@@ -171,6 +171,7 @@ func (s *Session) Commit(opt write.CommitOptions, push bool, done func(error)) e
 	r.Life().Go(func(ctx context.Context) {
 		<-j.Done()
 		_, err := j.Result()
+		committed := err == nil
 		var pushOpt write.PushOptions
 		if err == nil && push && !upstream {
 			pushOpt, err = pushTarget(ctx, r.Runner, r.GitDir)
@@ -179,6 +180,9 @@ func (s *Session) Commit(opt write.CommitOptions, push bool, done func(error)) e
 			if err == nil && push {
 				_, err = s.Submit(write.Push(s.Where(), pushOpt))
 			}
+			if committed && err != nil {
+				err = &NotPushedError{Err: err}
+			}
 			if done != nil {
 				done(err)
 			}
@@ -186,6 +190,12 @@ func (s *Session) Commit(opt write.CommitOptions, push bool, done func(error)) e
 	})
 	return nil
 }
+
+// NotPushedError is a commit made whose push could not start.
+type NotPushedError struct{ Err error }
+
+func (e *NotPushedError) Error() string { return "session: committed, not pushed: " + e.Err.Error() }
+func (e *NotPushedError) Unwrap() error { return e.Err }
 
 // ErrNoRemote is a push from a branch with no upstream in a repository
 // with no remote, or several and none named origin.

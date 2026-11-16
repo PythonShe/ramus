@@ -631,14 +631,10 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 				message: message,
 				button:  locales.ChangesDiscard(),
 				run: func() {
-					if len(tracked) > 0 {
-						op := write.Discard(w, tracked)
-						op.Expect = expect(trackedFiles)
-						if _, err := t.s.Submit(op); err != nil {
-							a.notice = errText(err)
+					del := func() {
+						if len(untracked) == 0 {
+							return
 						}
-					}
-					if len(untracked) > 0 {
 						op, err := write.Delete(w, untracked)
 						if err == nil {
 							op.Expect = expect(untrackedFiles)
@@ -648,6 +644,24 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 							a.notice = errText(err)
 						}
 					}
+					if len(tracked) == 0 {
+						del()
+						return
+					}
+					op := write.Discard(w, tracked)
+					op.Expect = expect(trackedFiles)
+					j, err := t.s.Submit(op)
+					if err != nil {
+						a.notice = errText(err)
+						return
+					}
+					// Only once the discard went well: a delete ending
+					// well after it would clear its error from view.
+					t.s.Then(j, func(err error) {
+						if err == nil {
+							del()
+						}
+					})
 				},
 			}
 		})

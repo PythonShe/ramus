@@ -4459,6 +4459,26 @@ func (msgs Messages) CommitBoxCommitAndPush() string {
 	return Catalog.Format(msgs.locale, "commitBoxCommitAndPush", nil)
 }
 
+// CommitBoxNotPushed says "Committed, but not pushed: {reason}"
+// in the language the app shows.
+func CommitBoxNotPushed(reason string) string { return In(i18n.Locale()).CommitBoxNotPushed(reason) }
+
+// CommitBoxNotPushed says "Committed, but not pushed: {reason}"
+// in the language of msgs.
+func (msgs Messages) CommitBoxNotPushed(reason string) string {
+	return Catalog.Format(msgs.locale, "commitBoxNotPushed", map[string]any{"reason": reason})
+}
+
+// CommitBoxNoRemote says "this branch has no upstream, and no single remote or origin to push it to"
+// in the language the app shows.
+func CommitBoxNoRemote() string { return In(i18n.Locale()).CommitBoxNoRemote() }
+
+// CommitBoxNoRemote says "this branch has no upstream, and no single remote or origin to push it to"
+// in the language of msgs.
+func (msgs Messages) CommitBoxNoRemote() string {
+	return Catalog.Format(msgs.locale, "commitBoxNoRemote", nil)
+}
+
 // CommitBoxLineEndsNotChecked says "Line endings not checked: {reason}"
 // in the language the app shows.
 func CommitBoxLineEndsNotChecked(reason string) string {
