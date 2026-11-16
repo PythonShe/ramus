@@ -62,6 +62,10 @@ func TestWorktreePanel(t *testing.T) {
 
 	h.click("Show the files changed in agent")
 	h.until("its files", func() bool { return hasExact(h, "new.txt") })
+	// Its state is told by a letter and in words, not by a colour alone.
+	if _, ok := h.tt.AccessByRole(ui.RoleButton, "added new.txt, 3 lines added, 0 deleted"); !ok || !hasExact(h, "A") {
+		t.Fatalf("the file's state is not told; texts %q", h.tt.Texts())
+	}
 	h.click("new.txt")
 	h.until("the patch", patchHas(&tb.wtp.pv, "c", ""))
 	write("new.txt", "a\nb\nc\nlive\n")

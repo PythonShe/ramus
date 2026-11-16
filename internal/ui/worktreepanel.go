@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/diff"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
 	"ramus/internal/session"
@@ -283,11 +284,6 @@ func wtWorktreeRow(c *ui.Context, w repo.Worktree, sum session.WorktreeSummary, 
 func wtFileRow(c *ui.Context, f session.WorktreeFile) ui.Element {
 	th := c.Theme()
 	shown, _ := showPath(f.Path)
-	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS, 0, spaceS+12+spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(6).
-		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(shown)
-	if row.Hovered() {
-		row.Background(th.SurfaceHover)
-	}
 	st := byte('M')
 	switch {
 	case f.Untracked:
@@ -295,15 +291,17 @@ func wtFileRow(c *ui.Context, f session.WorktreeFile) ui.Element {
 	case f.Deleted:
 		st = 'D'
 	}
+	lines := diff.Lines{Added: uint32(f.Added), Deleted: uint32(f.Removed), Binary: f.Binary, Known: true}
+	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS, 0, spaceS+12+spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(6).
+		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(fileLabel(fileStatusWord(st), shown, lines))
+	if row.Hovered() {
+		row.Background(th.SurfaceHover)
+	}
 	row.Children(func() {
-		ui.Column(c).Width(6).Height(6).Radius(3).Background(fileStatusColor(plainInk(th), st)).Tooltip(fileStatusWord(st))
+		ui.Text(c, string(st)).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(plainInk(th), st))
 		pathLabel(c, shown).Shrink(1)
 		ui.Spacer(c)
-		if f.Binary {
-			ui.Text(c, locales.PatchBinary()).FontSize(textSmall).TextColor(th.TextMuted)
-		} else {
-			lineCounts(c, f.Added, f.Removed)
-		}
+		fileLines(c, lines)
 	})
 	return row
 }
