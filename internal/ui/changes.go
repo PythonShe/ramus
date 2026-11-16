@@ -530,7 +530,9 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 	}
 	if r.kind == rowFile {
 		menu.Separator()
-		a.fileLockMenu(menu, t, string(m.st.Path(int(r.idx))), act)
+		if !untrackedFolder(m.st, int(r.idx)) {
+			a.fileLockMenu(menu, t, string(m.st.Path(int(r.idx))), act)
+		}
 		a.fileMenu(menu, t, string(m.st.Path(int(r.idx))), act)
 	}
 }

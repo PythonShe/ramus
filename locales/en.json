@@ -12,7 +12,6 @@
   "commonRemove": "Remove",
   "commonCreate": "Create",
   "commonRename": "Rename",
-  "commonCopy": "Copy",
   "commonCopyHash": "Copy Hash",
   "commonChoose": "Choose…",
   "@commonChoose": {
@@ -792,7 +791,7 @@
   "@changesDiscard": {
     "description": "A button that discards changes, as a verb."
   },
-  "changesFileCount": "{count, plural, one {# file} other {# files}}",
+  "changesUntrackedFolder": "{path} is a new folder git does not track. Stage it to see the files in it.",
   "changesAndMore": "and {n} more",
   "@changesAndMore": {
     "description": "Ends a list of paths cut short.",
@@ -2642,6 +2641,7 @@
   "@locksForceButton": {
     "description": "Button that forces a Git LFS lock off."
   },
+  "locksReading": "Reading Locks…",
   "locksLockFile": "Lock File",
   "@locksLockFile": {
     "description": "Menu item of a changed file that locks it on the Git LFS server."

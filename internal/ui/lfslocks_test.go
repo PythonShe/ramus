@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os/exec"
+	"strings"
 	"testing"
 
 	"ramus/internal/git/gittest/lfsserver"
@@ -76,4 +77,25 @@ func TestLFSLocksView(t *testing.T) {
 		ls := srv.Locks()
 		return len(ls) == 1 && ls[0].Path == "art.psd"
 	})
+
+	// The locks are read for the menu when the page was never shown:
+	// one locked by another is not offered to lock.
+	srv.Add("bobs.psd", "bob")
+	r.Write("bobs.psd", "pixels")
+	h.until("the second change", h.shows("bobs.psd"))
+	tb := h.app.current()
+	tb.locks = newLockState()
+	if err := h.tt.RightClick("bobs.psd"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	h.tt.CloseMenu()
+	h.until("the locks read", func() bool { return tb.locks.read })
+	if err := h.tt.RightClick("bobs.psd"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if m := strings.Join(h.tt.Menu(), "|"); !strings.Contains(m, "Locked by bob") || strings.Contains(m, "Lock File") {
+		t.Fatalf("menu %q", m)
+	}
 }

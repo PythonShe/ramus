@@ -18,10 +18,12 @@ type lockState struct {
 	// for never: a lock or unlock is a write, so it reads them again.
 	listed  int
 	loading bool
-	locks   lfs.Locks
-	err     string
-	list    tableState
-	chosen  int
+	// read is set once the locks were read at all, if not lately.
+	read   bool
+	locks  lfs.Locks
+	err    string
+	list   tableState
+	chosen int
 	// path is the file the next lock is taken on.
 	path string
 	ask  confirmState
@@ -42,7 +44,7 @@ func (a *App) loadLocks(t *tab) {
 	ls.loading = true
 	at := t.s.Writes
 	t.s.LFSLocks(func(l lfs.Locks, err error) {
-		ls.loading, ls.listed = false, at
+		ls.loading, ls.listed, ls.read = false, at, true
 		ls.err = ""
 		switch {
 		case errors.Is(err, lfs.ErrNoLFS):
@@ -171,6 +173,14 @@ func (a *App) unlock(t *tab, l lfs.Lock, force bool) {
 // user's, or who holds it.
 func (a *App) fileLockMenu(m *ui.Menu, t *tab, path string, act *func()) {
 	if !t.s.State.LFS {
+		return
+	}
+	// Read here too: the locks page may never have been shown, and a
+	// lock offered on a file already locked only fails at the server.
+	a.loadLocks(t)
+	if !t.locks.read {
+		m.Item(locales.LocksReading()).Disabled(true)
+		m.Separator()
 		return
 	}
 	ro := t.s.Queue == nil

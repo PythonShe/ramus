@@ -59,6 +59,12 @@ func (a *App) detail(c *ui.Context, t *tab) {
 		a.mergeEditor(c, t, string(m.st.Path(i)))
 		return
 	}
+	if untrackedFolder(m.st, i) {
+		// git diffs no folder: a patch of it would say there is no
+		// difference.
+		emptyState(c, locales.ChangesUntrackedFolder(string(m.st.Path(i))))
+		return
+	}
 	key := diffKey{path: string(m.st.Path(i)), src: diff.Unstaged, st: m.st, ws: diff.Whitespace(a.diffOpts().ws)}
 	switch {
 	case r.sec == secStaged:

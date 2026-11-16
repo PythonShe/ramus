@@ -39,6 +39,9 @@ func TestChangeStates(t *testing.T) {
 	if h.tt.HasText("?") || !h.tt.HasText("U") || !h.tt.HasText("R") || !h.tt.HasText("D") {
 		t.Errorf("letters %q", h.tt.Texts())
 	}
+	// A new folder shows as one, not as a patch of no differences.
+	h.click("newdir/")
+	h.until("the folder", h.shows("newdir/ is a new folder git does not track. Stage it to see the files in it."))
 }
 
 // Each change shows the lines it adds and deletes, staged and not, a

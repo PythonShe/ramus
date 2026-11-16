@@ -127,16 +127,6 @@ func (msgs Messages) CommonRename() string {
 	return Catalog.Format(msgs.locale, "commonRename", nil)
 }
 
-// CommonCopy says "Copy"
-// in the language the app shows.
-func CommonCopy() string { return In(i18n.Locale()).CommonCopy() }
-
-// CommonCopy says "Copy"
-// in the language of msgs.
-func (msgs Messages) CommonCopy() string {
-	return Catalog.Format(msgs.locale, "commonCopy", nil)
-}
-
 // CommonCopyHash says "Copy Hash"
 // in the language the app shows.
 func CommonCopyHash() string { return In(i18n.Locale()).CommonCopyHash() }
@@ -4207,14 +4197,16 @@ func (msgs Messages) ChangesDiscard() string {
 	return Catalog.Format(msgs.locale, "changesDiscard", nil)
 }
 
-// ChangesFileCount says "{count, plural, one {# file} other {# files}}"
+// ChangesUntrackedFolder says "{path} is a new folder git does not track. Stage it to see the files in it."
 // in the language the app shows.
-func ChangesFileCount(count int) string { return In(i18n.Locale()).ChangesFileCount(count) }
+func ChangesUntrackedFolder(path string) string {
+	return In(i18n.Locale()).ChangesUntrackedFolder(path)
+}
 
-// ChangesFileCount says "{count, plural, one {# file} other {# files}}"
+// ChangesUntrackedFolder says "{path} is a new folder git does not track. Stage it to see the files in it."
 // in the language of msgs.
-func (msgs Messages) ChangesFileCount(count int) string {
-	return Catalog.Format(msgs.locale, "changesFileCount", map[string]any{"count": count})
+func (msgs Messages) ChangesUntrackedFolder(path string) string {
+	return Catalog.Format(msgs.locale, "changesUntrackedFolder", map[string]any{"path": path})
 }
 
 // ChangesAndMore says "and {n} more"
@@ -12915,6 +12907,16 @@ func LocksForceButton() string { return In(i18n.Locale()).LocksForceButton() }
 // Button that forces a Git LFS lock off.
 func (msgs Messages) LocksForceButton() string {
 	return Catalog.Format(msgs.locale, "locksForceButton", nil)
+}
+
+// LocksReading says "Reading Locks…"
+// in the language the app shows.
+func LocksReading() string { return In(i18n.Locale()).LocksReading() }
+
+// LocksReading says "Reading Locks…"
+// in the language of msgs.
+func (msgs Messages) LocksReading() string {
+	return Catalog.Format(msgs.locale, "locksReading", nil)
 }
 
 // LocksLockFile says "Lock File"
