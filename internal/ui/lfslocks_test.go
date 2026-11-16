@@ -93,10 +93,13 @@ func TestLFSLocksView(t *testing.T) {
 	// The view left before they come stops the read, which is asked
 	// again, not waited for.
 	if tb.locks.loading {
-		h.app.leaveView(tb, tb.shown)
+		h.click("History")
+		h.tt.Frame()
 		if tb.locks.loading {
 			t.Fatal("the locks left reading")
 		}
+		tb.sel = "changes"
+		h.until("the changes again", h.shows("bobs.psd"))
 		if err := h.tt.RightClick("bobs.psd"); err != nil {
 			t.Fatal(err)
 		}
