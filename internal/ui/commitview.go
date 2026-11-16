@@ -264,7 +264,7 @@ func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.Co
 			// The body scrolls in its own box: text past an element's
 			// height still draws, over the rows below.
 			ui.Scroll(c).Key("message").Grow(1).FillWidth().Children(func() {
-				b := linkedText(c, redact.Control(string(body)), links).FillWidth()
+				b := linkedText(c, redact.Control(reflowBody(string(body))), links).FillWidth()
 				cv.bodyH = max(b.LayoutBounds().H, 1)
 			})
 		}

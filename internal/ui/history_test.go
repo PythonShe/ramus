@@ -431,7 +431,8 @@ func TestCommitMessageDragsTaller(t *testing.T) {
 	r := h.repoWith()
 	var lines []string
 	for i := range 30 {
-		lines = append(lines, fmt.Sprintf("body line %d", i+1))
+		// Items of a list, which keep their lines as shown.
+		lines = append(lines, fmt.Sprintf("- body line %d", i+1))
 	}
 	r.Write("a.txt", "alpha\n")
 	r.Commit("short\n\njust one line")
