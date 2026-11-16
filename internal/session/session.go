@@ -640,6 +640,14 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			end := time.Now()
 			seen.pause.ran(end, end.Sub(full))
 		}
+		if err == nil && st != nil && seen.status != nil && !seen.statusFailed && what&repo.WorkTreeChanged == 0 && st.Equal(seen.status) {
+			// Nothing in the work tree changed, so neither did what is
+			// read of the files listed: the status shown stays, and
+			// with it the work keyed on it (counts, the model, patches).
+			// An edit to a file listed lists it the same, so a status
+			// read for one is always published anew.
+			st = seen.status
+		}
 		if rechecked || wait == 0 {
 			fail(err)
 			res.st = st
@@ -675,7 +683,9 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			st.Refs = res.list
 		}
 		if res.st != nil {
-			st.Status, st.Refreshed = res.st, res.readAt
+			if res.st != st.Status {
+				st.Status, st.Refreshed = res.st, res.readAt
+			}
 			if st.Monitor == nil && !s.monitorAnswered.Load() {
 				// Offered once status was slow, kept while status is fast
 				// from a warm cache.

@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"ramus/internal/git/run"
@@ -57,6 +58,13 @@ type Status struct {
 	paths    []byte
 	oids     []byte
 	unmerged int
+}
+
+// Equal reports whether s and t say the same: the same branch line and
+// the same entries, in the same order.
+func (s *Status) Equal(t *Status) bool {
+	return s.Branch == t.Branch && s.hashSize == t.hashSize && slices.Equal(s.entries, t.entries) &&
+		bytes.Equal(s.paths, t.paths) && bytes.Equal(s.oids, t.oids)
 }
 
 // Len returns the number of entries.

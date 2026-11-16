@@ -75,6 +75,28 @@ func TestReplace(t *testing.T) {
 		r.Write("c", "c4\n")
 	}, "c")
 
+	// A write to an ignored file, or a clean one touched, leaves the
+	// status itself.
+	if err := os.WriteFile(filepath.Join(r.GitDir(), "info", "exclude"), []byte("build/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := full()
+	if !full().Equal(before) {
+		t.Fatal("two reads of the same status differ")
+	}
+	r.Write("build/out.o", "x")
+	r.Write("a", "a\n")
+	if got, ok := recheck(before, "build/out.o", "a"); !ok || got != before {
+		t.Fatalf("a recheck of nothing listed: %v, a new status %v", ok, got != before)
+	}
+	if !full().Equal(before) {
+		t.Fatal("the status changed")
+	}
+	r.Write("a", "a6\n")
+	if full().Equal(before) {
+		t.Fatal("a status with a file newly changed is equal")
+	}
+
 	refused := func(name string, change func(), paths ...string) {
 		t.Helper()
 		before := full()

@@ -96,6 +96,49 @@ func (m mainThread) pump(d time.Duration) {
 	}
 }
 
+// Writes to an ignored file, as a build makes, leave the status shown as
+// it was, and so the work keyed on it; an edit to a file it lists shows.
+func TestIgnoredWritesKeepTheStatus(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write(".gitignore", "build/\n")
+	r.Write("a", "1")
+	r.Commit("one")
+	r.Write("a", "2")
+	if err := os.MkdirAll(filepath.Join(r.Dir, "build"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "status", func() bool { return s.State.Status != nil && s.State.Status.Len() == 1 })
+	m.settle(t, s)
+	shown, read := s.State.Status, s.State.Refreshed
+	for i := range 10 {
+		if err := os.WriteFile(filepath.Join(r.Dir, "build", "out.o"), []byte(strings.Repeat("x", i+1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		s.refreshPaths(repo.WorkTreeChanged, []string{"build/out.o"})
+		m.settle(t, s)
+		if s.State.Status != shown || !s.State.Refreshed.Equal(read) {
+			t.Fatalf("write %d to an ignored file published a status", i)
+		}
+	}
+	// The index written anew, as it was.
+	r.Git("add", "a")
+	r.Git("reset", "-q", "--", "a")
+	s.Refresh(repo.IndexChanged)
+	m.settle(t, s)
+	if s.State.Status != shown {
+		t.Fatal("an index written as it was published a status")
+	}
+	r.Write("a", "3")
+	s.refreshPaths(repo.WorkTreeChanged, []string{"a"})
+	m.until(t, "a status for the edit", func() bool { return s.State.Status != shown })
+	if s.State.Status.Len() != 1 {
+		t.Fatalf("%d entries", s.State.Status.Len())
+	}
+}
+
 // A notice that the index changed runs status only when the index's
 // content key did, and refs read with the same values keep the list
 // history and labels were built from.

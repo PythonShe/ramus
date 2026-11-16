@@ -48,7 +48,9 @@ func ReadPaths(ctx context.Context, r *run.Runner, gitDir, workTree string, hash
 // read for those paths alone. ok is false when part says what only a full
 // status places right, and the caller runs one: a path s does not hold
 // now untracked (a create), a rename, an entry for a path not asked
-// about (a folder), or a path under a folder s lists as untracked.
+// about (a folder), or a path under a folder s lists as untracked. When
+// neither s nor part holds any of paths, as for writes to ignored files,
+// it returns s itself: what is keyed on the status has nothing to redo.
 func (s *Status) Replace(paths []string, part *Status) (out *Status, ok bool) {
 	asked := make(map[string]bool, len(paths))
 	for _, p := range paths {
@@ -70,6 +72,9 @@ func (s *Status) Replace(paths []string, part *Status) (out *Status, ok bool) {
 			}
 			was[string(p)] = e.kind
 		}
+	}
+	if len(was) == 0 && len(part.entries) == 0 {
+		return s, true
 	}
 	for i, e := range part.entries {
 		p := string(part.Path(i))
