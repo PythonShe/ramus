@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -45,6 +46,8 @@ type Repository struct {
 	cat   *catfile.Process
 	graph *commitgraph.Graph
 	tried bool // the graph was looked for
+	// broken is set when the graph looked for could not be read.
+	broken bool
 	// graphAt is the commit-graph files as they were when graph was
 	// opened; git writes a new graph, or a new chain, by renaming.
 	graphAt [2]fileStamp
@@ -221,7 +224,7 @@ func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	}
 	if !r.Capabilities().CommitGraphUsable() || r.Caps.HashSize != 20 {
 		// Opened again once git would use it again.
-		r.graph, r.tried, r.graphAt = nil, false, [2]fileStamp{}
+		r.graph, r.tried, r.broken, r.graphAt = nil, false, false, [2]fileStamp{}
 		return nil, nil
 	}
 	info := filepath.Join(r.CommonDir, "objects", "info")
@@ -230,8 +233,12 @@ func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 		return r.graph, nil
 	}
 	g, err := commitgraph.OpenReusing(filepath.Join(r.CommonDir, "objects"), r.graph)
-	if errors.Is(err, commitgraph.ErrNotFound) {
-		r.graph, r.tried, r.graphAt = nil, true, at
+	var bad *commitgraph.FormatError
+	if errors.Is(err, commitgraph.ErrNotFound) || errors.As(err, &bad) || errors.Is(err, fs.ErrNotExist) {
+		// git warns of a graph it cannot read, or a chain missing a
+		// layer, and reads the commits themselves: so does history,
+		// rather than fail until the graph is written again.
+		r.graph, r.tried, r.broken, r.graphAt = nil, true, err != nil && !errors.Is(err, commitgraph.ErrNotFound), at
 		return nil, nil
 	}
 	if err != nil {
@@ -247,8 +254,17 @@ func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	}
 	r.graphs[m] = forget
 	runtime.AddCleanup(g, r.gone.add, m)
-	r.graph, r.tried, r.graphAt = g, true, at
+	r.graph, r.tried, r.broken, r.graphAt = g, true, false, at
 	return g, nil
+}
+
+// CommitGraphBroken reports whether the commit-graph CommitGraph last
+// looked for is there but could not be read, so CommitGraph returned
+// none: writing it anew repairs it.
+func (r *Repository) CommitGraphBroken() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.broken
 }
 
 // openGraphs returns how many graphs hold mappings.

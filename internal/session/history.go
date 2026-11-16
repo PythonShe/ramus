@@ -471,6 +471,11 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 // graphAdvice is the commit-graph write that would make history of r
 // faster, nil when none would or r is not trusted to write.
 func graphAdvice(r *repo.Repository, g *commitgraph.Graph, covered bool) *history.Advice {
+	if g == nil && !r.Restricted && r.CommitGraphUsable() && r.CommitGraphBroken() {
+		// A layer added on top of a graph that cannot be read, or of a
+		// chain missing one, would not be read either.
+		return &history.Advice{Replace: true, Cmd: history.GraphWrite(r.GitDir, true)}
+	}
 	if a, ok := history.GraphAdvice(r.GitDir, r.CommitGraphUsable(), g, covered); ok && !r.Restricted {
 		return &a
 	}

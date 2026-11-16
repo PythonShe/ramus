@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -127,5 +128,85 @@ func TestGraphWriteGivesWay(t *testing.T) {
 	})
 	if w := graphWrites(s); len(w) != 1 || !w[0].Quiet || w[0].Err != nil {
 		t.Fatalf("writes %d", len(w))
+	}
+}
+
+// A commit-graph that cannot be read, or a chain missing a layer, does
+// not stop history, which git orders as it would without one, and is
+// written anew quietly.
+func TestHistoryRepairsABrokenGraph(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		write   []string
+		breakIt func(t *testing.T, objects string)
+	}{
+		{"bad signature", []string{"--reachable"}, func(t *testing.T, objects string) {
+			p := filepath.Join(objects, "info", "commit-graph")
+			if err := os.Chmod(p, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			f, err := os.OpenFile(p, os.O_WRONLY, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			if _, err := f.WriteAt([]byte("XXXX"), 0); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"missing layer", []string{"--reachable", "--split=no-merge"}, func(t *testing.T, objects string) {
+			dir := filepath.Join(objects, "info", "commit-graphs")
+			chain, err := os.ReadFile(filepath.Join(dir, "commit-graph-chain"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first, _, _ := strings.Cut(string(chain), "\n")
+			if err := os.Remove(filepath.Join(dir, "graph-"+first+".graph")); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := gittest.Init(t)
+			for _, c := range []string{"a", "b", "c"} {
+				r.Write("f", c)
+				r.Commit(c)
+				r.Git(append([]string{"commit-graph", "write"}, tc.write...)...)
+			}
+			objects := filepath.Join(r.GitDir(), "objects")
+			tc.breakIt(t, objects)
+			if _, err := commitgraph.Open(objects); err == nil {
+				t.Fatal("the graph still reads")
+			}
+			m := make(mainThread, 64)
+			s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+			t.Cleanup(func() { s.Close(); <-s.Done() })
+			s.setGraphEvery(time.Hour, 50*time.Millisecond)
+			m.until(t, "refs", func() bool { return s.State.Refs != nil })
+			s.LoadHistory()
+			m.until(t, "history", func() bool { return s.History.Done })
+			if s.History.Err != nil || s.History.Snap.Len() != 3 {
+				t.Fatalf("history: err %v, %d rows", s.History.Err, s.History.Snap.Len())
+			}
+			if a := s.History.Advice; a == nil || !a.Replace {
+				t.Fatalf("advice %+v, want the graph written anew", a)
+			}
+			m.until(t, "history from the graph written anew", func() bool {
+				s.LoadHistory()
+				return s.History.Done && s.History.Native
+			})
+			if w := graphWrites(s); len(w) != 1 || w[0].Err != nil {
+				t.Fatalf("writes %d", len(w))
+			}
+			g, err := commitgraph.Open(objects)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer g.Close()
+			if g.Len() != 3 {
+				t.Fatalf("the graph holds %d commits", g.Len())
+			}
+			r.Git("commit-graph", "verify")
+		})
 	}
 }
