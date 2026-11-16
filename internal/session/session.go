@@ -701,12 +701,6 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 
 // Submit queues a write and refreshes everything once it ends.
 func (s *Session) Submit(op write.Op) (*write.Job, error) {
-	if j := s.fetch.job; j != nil && s.Queue != nil {
-		// The queue runs one write at a time: a background fetch stuck
-		// on a remote that does not answer would hold this one for
-		// minutes. It stops, and the next comes on its schedule.
-		j.Cancel()
-	}
 	what := repo.Rescan
 	if op.RefsOnly {
 		what = repo.RefsChanged
