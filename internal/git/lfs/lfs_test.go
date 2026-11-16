@@ -2,6 +2,7 @@ package lfs
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,5 +82,23 @@ func TestMissing(t *testing.T) {
 	}
 	if missing(run.Result{}, &run.Error{ExitCode: 2, Stderr: "Locking support not enabled"}) {
 		t.Error("another failure taken for no lfs")
+	}
+}
+
+// A server not reached, or not logged in to, is not asked again for the
+// plain list, which would wait or fail as long.
+func TestUnreachable(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want bool
+	}{
+		{fmt.Errorf("%w after 2m0s", run.ErrTimeout), true},
+		{&run.Error{Stderr: "batch request: Authentication required: Authorization error"}, true},
+		{&run.Error{Stderr: "dial tcp 127.0.0.1:1: connect: connection refused"}, true},
+		{&run.Error{Stderr: "Locking support not found on remote"}, false},
+	} {
+		if got := unreachable(run.Result{}, c.err); got != c.want {
+			t.Errorf("%v: %v", c.err, got)
+		}
 	}
 }

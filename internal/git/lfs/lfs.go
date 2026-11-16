@@ -103,7 +103,9 @@ func List(ctx context.Context, r *run.Runner, gitDir, workTree string) (Locks, e
 			sortLocks(ls.List)
 			return ls, nil
 		}
-	} else if ctx.Err() != nil {
+	} else if ctx.Err() != nil || unreachable(res, err) {
+		// The plain list asks the same server, as the same user: it
+		// would wait as long, or fail the same way.
 		return Locks{}, err
 	}
 	res, err2 := r.Run(ctx, cmd(gitDir, workTree))
@@ -142,6 +144,26 @@ func missing(res run.Result, err error) bool {
 		stderr = e.Stderr
 	}
 	return strings.Contains(stderr, "'lfs' is not a git command")
+}
+
+// unreachable reports a failure to reach the server at all, or to log
+// in to it, as against a server that does not verify locks.
+func unreachable(res run.Result, err error) bool {
+	if errors.Is(err, run.ErrTimeout) {
+		return true
+	}
+	stderr := res.Stderr
+	if e, ok := errors.AsType[*run.Error](err); ok {
+		stderr = e.Stderr
+	}
+	stderr = strings.ToLower(stderr)
+	for _, s := range []string{"authentication", "authorization", "credentials", "could not resolve host",
+		"connection refused", "timed out", "timeout", "no route to host", "network is unreachable"} {
+		if strings.Contains(stderr, s) {
+			return true
+		}
+	}
+	return false
 }
 
 func sortLocks(ls []Lock) {
