@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // Each change reads as what it is: a folder git does not track as one,
@@ -82,4 +84,50 @@ func TestChangeLines(t *testing.T) {
 			t.Errorf("no %s in %q", s, h.tt.Texts())
 		}
 	}
+}
+
+// Staging the file chosen chooses the one now in its place, so Enter
+// stages one after the other; the last of a section is followed to
+// where it went. Delete asks to discard the file chosen.
+func TestStagingKeepsThePlace(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith("a.txt", "b.txt", "c.txt")
+	r.Commit("files")
+	for _, f := range []string{"a.txt", "b.txt", "c.txt"} {
+		r.Write(f, "changed\n")
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the changes", h.shows("c.txt"))
+	tb := h.app.current()
+	cv := &tb.cv
+	chosen := func() string {
+		m := cv.model
+		if m == nil || cv.chosen < 0 || cv.chosen >= len(m.rows) || m.rows[cv.chosen].kind != rowFile {
+			return ""
+		}
+		r := m.rows[cv.chosen]
+		return r.sec.title() + " " + string(m.st.Path(int(r.idx)))
+	}
+	h.click("b.txt")
+	h.until("b chosen", func() bool { return chosen() == secUnstaged.title()+" b.txt" })
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("c in b's place", func() bool { return chosen() == secUnstaged.title()+" c.txt" })
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("a, the last left", func() bool { return chosen() == secUnstaged.title()+" a.txt" })
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("a followed into Staged", func() bool { return chosen() == secStaged.title()+" a.txt" })
+
+	r.Write("a.txt", "again\n")
+	h.until("a changed again", func() bool {
+		return cv.model != nil && len(cv.model.files[secUnstaged]) == 1
+	})
+	for i, r := range cv.model.rows {
+		if r.kind == rowFile && r.sec == secUnstaged {
+			cv.list.Choose(i)
+		}
+	}
+	h.until("a chosen", func() bool { return chosen() == secUnstaged.title()+" a.txt" })
+	h.tt.Key(0, ui.KeyDelete)
+	h.until("asked to discard", func() bool { return cv.confirm.open })
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,7 +36,11 @@ type changesState struct {
 	chosen      int
 	// want is the path of a file to choose once the list is built: one
 	// chosen when the app last ran.
-	want    string
+	want string
+	// keep is the place of the file chosen when it was staged, unstaged
+	// or resolved: once it has left its section, the file now in its
+	// place there is chosen, so the next can be staged in turn.
+	keep    keptPlace
 	picked  ui.Selection[rowKey]
 	confirm confirmState
 	diff    diffState
@@ -135,10 +140,91 @@ func (a *App) rebuildChanges(t *tab) {
 		m := buildChanges(st, filter, tree, open)
 		update(func() {
 			cv.building = false
+			old := cv.model
 			cv.model, cv.builtFor, cv.builtFilter, cv.builtTree, cv.builtOpen = m, st, filter, tree, gen
 			cv.findWanted()
+			cv.placeKept(old)
 		})
 	})
+}
+
+// keptPlace is where a file chosen was in its section, the nth file
+// row there, as it left it.
+type keptPlace struct {
+	key rowKey
+	at  int
+	set bool
+}
+
+// keepPlace remembers the place of the row chosen in m when it is among
+// rows, which a write is about to move out of their section.
+func (cv *changesState) keepPlace(m *changeModel, rows []changeRow) {
+	cv.keep = keptPlace{}
+	if cv.chosen < 0 || cv.chosen >= len(m.rows) {
+		return
+	}
+	r := m.rows[cv.chosen]
+	if r.kind != rowFile || !slices.ContainsFunc(rows, func(o changeRow) bool { return m.key(o) == m.key(r) }) {
+		return
+	}
+	at := 0
+	for _, o := range m.rows[:cv.chosen] {
+		if o.kind == rowFile && o.sec == r.sec {
+			at++
+		}
+	}
+	cv.keep = keptPlace{key: m.key(r), at: at, set: true}
+}
+
+// keepChosen remembers the place of the row chosen, which a write on it
+// alone is about to move out of its section.
+func (cv *changesState) keepChosen() {
+	if m := cv.model; m != nil && cv.chosen >= 0 && cv.chosen < len(m.rows) {
+		cv.keepPlace(m, m.rows[cv.chosen:cv.chosen+1])
+	}
+}
+
+// placeKept chooses, in the model just built, the file now where the
+// kept one was in its section, or, with the section empty, the kept
+// file where it went. old is the model before, whose choice says
+// whether the user chose something else meanwhile.
+func (cv *changesState) placeKept(old *changeModel) {
+	k := &cv.keep
+	m := cv.model
+	if !k.set || m == nil {
+		return
+	}
+	if old == nil || cv.chosen < 0 || cv.chosen >= len(old.rows) || old.key(old.rows[cv.chosen]) != k.key {
+		*k = keptPlace{}
+		return
+	}
+	var in []int
+	for i, r := range m.rows {
+		if r.kind != rowFile || r.sec != k.key.sec {
+			continue
+		}
+		if m.key(r) == k.key {
+			return // not moved yet: the write is still on its way
+		}
+		in = append(in, i)
+	}
+	choose := -1
+	if len(in) > 0 {
+		choose = in[min(k.at, len(in)-1)]
+	} else {
+		for i, r := range m.rows {
+			if r.kind == rowFile && string(m.st.Path(int(r.idx))) == k.key.path {
+				choose = i
+				break
+			}
+		}
+	}
+	*k = keptPlace{}
+	if choose >= 0 {
+		cv.chosen = choose
+		cv.list.Choose(choose)
+		cv.list.ScrollIntoView(choose)
+	}
 }
 
 // findWanted chooses the wanted file in a model just built, if it is
@@ -206,6 +292,14 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		if l.Submitted() && cv.chosen >= 0 && cv.chosen < len(rows) {
 			r := rows[cv.chosen]
 			act = func() { a.toggleStage(t, m, []changeRow{r}) }
+		}
+		// Delete asks to discard what is chosen, as the menu's Discard
+		// does, with its snapshot to undo it.
+		if (cv.list.Shortcut(c, 0, ui.KeyDelete) || cv.list.Shortcut(c, 0, ui.KeyBackspace)) && cv.chosen >= 0 && cv.chosen < len(rows) && t.s.Queue != nil {
+			if r := rows[cv.chosen]; r.kind != rowHeader && r.sec == secUnstaged {
+				es := m.entries(cv.chosenRows(m, r))
+				act = func() { a.askDiscard(t, m, es) }
+			}
 		}
 		if act != nil {
 			act()
@@ -546,6 +640,7 @@ func (a *App) toggleStage(t *tab, m *changeModel, rows []changeRow) {
 	if sec == secConflicts {
 		sec = secUnstaged
 	}
+	t.cv.keepPlace(m, rows)
 	a.stageEntries(t, m, sec, m.entries(rows))
 }
 

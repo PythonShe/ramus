@@ -320,6 +320,7 @@ func (a *App) saveMerge(t *tab) {
 		var op write.Op
 		op, err = write.Resolve(t.s.Where(), ms.path, data, ms.cf.Seen)
 		if err == nil {
+			t.cv.keepChosen()
 			_, err = t.s.Submit(op)
 		}
 	}
@@ -358,6 +359,7 @@ func (a *App) sidesOnly(c *ui.Context, t *tab, cf session.ConflictFile) {
 					label = locales.MergeDeleteIt()
 				}
 				if ui.Button(c, label).Disabled(ro).Clicked() {
+					t.cv.keepChosen()
 					if s.exists {
 						op, err := write.TakeSide(w, paths, s.side)
 						a.submit(t, op, err)
