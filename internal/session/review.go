@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"ramus/internal/forge"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 )
@@ -168,9 +169,9 @@ type PullRange struct {
 	MergeBase, Head []byte
 }
 
-// NoMergeBaseError is a fetched pull request whose head shares no commit
-// with its base branch here: in a shallow clone (Shallow), the history
-// fetched may not go down to it.
+// NoMergeBaseError is two commits, as a pull request's head and its base
+// branch, that share none here: in a shallow clone (Shallow), the
+// history fetched may not go down to it.
 type NoMergeBaseError struct {
 	Shallow bool
 }
@@ -179,7 +180,48 @@ func (e *NoMergeBaseError) Error() string {
 	if e.Shallow {
 		return "session: no merge base in the shallow history fetched"
 	}
-	return "session: the pull request shares no history with its base"
+	return "session: the commits share no history"
+}
+
+// mergeBase is the commit git diff a...b diffs from: git merge-base a b,
+// which picks the same one of several. None is a NoMergeBaseError.
+func mergeBase(ctx context.Context, r *repo.Repository, a, b string) ([]byte, error) {
+	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Untranslated: true,
+		Args: []string{"merge-base", "--end-of-options", a, b}})
+	var e *run.Error
+	if errors.As(err, &e) && e.ExitCode == 1 {
+		// git says none with 1 and nothing printed.
+		_, statErr := os.Stat(filepath.Join(r.CommonDir, "shallow"))
+		return nil, &NoMergeBaseError{Shallow: statErr == nil}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return hex.DecodeString(strings.TrimSpace(string(res.Stdout)))
+}
+
+// MergeBase reads the commit a branch at b split off from one at a, what
+// git diff a...b diffs from, off the main thread, and hands it to done
+// on it; NoMergeBaseError for none.
+func (s *Session) MergeBase(a, b []byte, done func([]byte, error)) {
+	r := s.Repo
+	if r == nil {
+		done(nil, errors.New("session: the repository is not open"))
+		return
+	}
+	ctx := s.viewContext(r)
+	update := s.update
+	r.Life().Go(func(context.Context) {
+		mb, err := mergeBase(ctx, r, hex.EncodeToString(a), hex.EncodeToString(b))
+		if ctx.Err() != nil {
+			return
+		}
+		update(func() {
+			if ctx.Err() == nil {
+				done(mb, err)
+			}
+		})
+	})
 }
 
 // LoadPullRange reads the commits of pull request n, once fetched, off
@@ -203,13 +245,7 @@ func (s *Session) LoadPullRange(n int, done func(PullRange, error)) {
 		if err == nil {
 			pr.Head = head
 			// The head read, not the ref, which a fetch may have moved since.
-			pr.MergeBase, err = out("merge-base", "--end-of-options", write.PullBase(n), hex.EncodeToString(head))
-			// git merge-base says none with 1 and nothing printed.
-			var e *run.Error
-			if errors.As(err, &e) && e.ExitCode == 1 {
-				_, statErr := os.Stat(filepath.Join(r.CommonDir, "shallow"))
-				err = &NoMergeBaseError{Shallow: statErr == nil}
-			}
+			pr.MergeBase, err = mergeBase(ctx, r, write.PullBase(n), hex.EncodeToString(head))
 		}
 		update(func() { done(pr, err) })
 	})

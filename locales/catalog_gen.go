@@ -2761,6 +2761,68 @@ func (msgs Messages) CompareSwap() string {
 	return Catalog.Format(msgs.locale, "compareSwap", nil)
 }
 
+// CompareSinceSplit says "Since Branching Off"
+// in the language the app shows.
+//
+// Compares what a branch changes since it split off from the other, as a
+// pull request does.
+func CompareSinceSplit() string { return In(i18n.Locale()).CompareSinceSplit() }
+
+// CompareSinceSplit says "Since Branching Off"
+// in the language of msgs.
+//
+// Compares what a branch changes since it split off from the other, as a
+// pull request does.
+func (msgs Messages) CompareSinceSplit() string {
+	return Catalog.Format(msgs.locale, "compareSinceSplit", nil)
+}
+
+// CompareTipToTip says "Tip to Tip"
+// in the language the app shows.
+//
+// Compares two branches as they are now, the other's changes since they
+// split shown reversed.
+func CompareTipToTip() string { return In(i18n.Locale()).CompareTipToTip() }
+
+// CompareTipToTip says "Tip to Tip"
+// in the language of msgs.
+//
+// Compares two branches as they are now, the other's changes since they
+// split shown reversed.
+func (msgs Messages) CompareTipToTip() string {
+	return Catalog.Format(msgs.locale, "compareTipToTip", nil)
+}
+
+// CompareNoBase says "{old} and {new} share no history, so their tips are compared."
+// in the language the app shows.
+func CompareNoBase(old string, new string) string { return In(i18n.Locale()).CompareNoBase(old, new) }
+
+// CompareNoBase says "{old} and {new} share no history, so their tips are compared."
+// in the language of msgs.
+func (msgs Messages) CompareNoBase(old string, new string) string {
+	return Catalog.Format(msgs.locale, "compareNoBase", map[string]any{"old": old, "new": new})
+}
+
+// CompareShallowBase says "Where {new} branched off is not in this shallow clone, so the tips are compared."
+// in the language the app shows.
+func CompareShallowBase(new string) string { return In(i18n.Locale()).CompareShallowBase(new) }
+
+// CompareShallowBase says "Where {new} branched off is not in this shallow clone, so the tips are compared."
+// in the language of msgs.
+func (msgs Messages) CompareShallowBase(new string) string {
+	return Catalog.Format(msgs.locale, "compareShallowBase", map[string]any{"new": new})
+}
+
+// CompareBaseFailed says "Where the branches split could not be read, so their tips are compared: {reason}"
+// in the language the app shows.
+func CompareBaseFailed(reason string) string { return In(i18n.Locale()).CompareBaseFailed(reason) }
+
+// CompareBaseFailed says "Where the branches split could not be read, so their tips are compared: {reason}"
+// in the language of msgs.
+func (msgs Messages) CompareBaseFailed(reason string) string {
+	return Catalog.Format(msgs.locale, "compareBaseFailed", map[string]any{"reason": reason})
+}
+
 // WorktreeNewTitle says "New Worktree for {branch}"
 // in the language the app shows.
 func WorktreeNewTitle(branch string) string { return In(i18n.Locale()).WorktreeNewTitle(branch) }

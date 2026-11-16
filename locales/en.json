@@ -504,6 +504,17 @@
   },
   "compareDifferingFiles": "Differing files",
   "compareSwap": "Swap",
+  "compareSinceSplit": "Since Branching Off",
+  "@compareSinceSplit": {
+    "description": "Compares what a branch changes since it split off from the other, as a pull request does."
+  },
+  "compareTipToTip": "Tip to Tip",
+  "@compareTipToTip": {
+    "description": "Compares two branches as they are now, the other's changes since they split shown reversed."
+  },
+  "compareNoBase": "{old} and {new} share no history, so their tips are compared.",
+  "compareShallowBase": "Where {new} branched off is not in this shallow clone, so the tips are compared.",
+  "compareBaseFailed": "Where the branches split could not be read, so their tips are compared: {reason}",
   "@compareSwap": {
     "description": "Swaps the two commits compared."
   },

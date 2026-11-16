@@ -572,7 +572,7 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	if m.Item(locales.RefsCompareWith(redact.Control(into))).Disabled(current || len(head.OID) == 0).Chosen() {
 		*act = func() {
 			if id, err := hex.DecodeString(b.Commit); err == nil {
-				a.compareCommits(t, head.OID, id, into, short)
+				a.compareBranches(t, head.OID, id, into, short, 0)
 			}
 		}
 	}

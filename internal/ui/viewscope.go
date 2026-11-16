@@ -87,6 +87,8 @@ func (a *App) leaveView(t *tab, name string) {
 		t.locks.loading, t.locks.listed = false, -1
 	case "compare":
 		cc := &t.cmp
+		// The merge base read stops with the view: asked again when shown.
+		cc.basing = false
 		if cc.loading {
 			cc.cancel()
 			cc.loading = false
