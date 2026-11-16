@@ -2729,6 +2729,31 @@
   "@prsUnsentLost": {
     "description": "Asked before closing a tab or window, or quitting, with comments of a pull request review not sent; repo is the tab's name."
   },
+  "prsRejected": "The host refused it: {reason}",
+  "@prsRejected": {
+    "description": "The host understood a request and refused it; reason is the host's own words."
+  },
+  "prsMaybeSent": "{kind, select, gitlab {GitLab did not answer in time, and may have taken it. The merge request is read again: look for it there before sending it again.} other {GitHub did not answer in time, and may have taken it. The pull request is read again: look for it there before sending it again.}}",
+  "@prsMaybeSent": {
+    "description": "A comment, reply or review timed out: it may have reached the host, so sending is held until the pull request is read again."
+  },
+  "prsUpdating": "Comments show on the lines once the new commits are read.",
+  "prsHeadDiffers": "{kind, select, gitlab {The merge request's latest commit is not the one fetched, so its comments are not shown on these lines. Refresh to read it again.} other {The pull request's latest commit is not the one fetched, so its comments are not shown on these lines. Refresh to read it again.}}",
+  "prsStaleCompose": "Written on older commits: it goes on the lines it was written on.",
+  "@prsStaleCompose": {
+    "description": "Above a comment being written when the pull request got new commits since: it is sent on the older ones."
+  },
+  "prsUnplaced": "{count, plural, one {# comment on this file cannot be shown on its line:} other {# comments on this file cannot be shown on their lines:}}",
+  "@prsUnplaced": {
+    "description": "Above a file's patch: review threads on lines the patch shown does not hold, as in a file too large to show whole."
+  },
+  "prsCommentOn": "on {path}, line {line, number, ::group-off}",
+  "@prsCommentOn": {
+    "description": "In the conversation: a review thread on a file the pull request's files do not list."
+  },
+  "prsShallow": "{kind, select, gitlab {This clone is shallow, and lacks the commit the merge request branched off from, even fetched deeper. Run git fetch --unshallow in a terminal to review it here.} other {This clone is shallow, and lacks the commit the pull request branched off from, even fetched deeper. Run git fetch --unshallow in a terminal to review it here.}}",
+  "prsNoMergeBase": "{kind, select, gitlab {The merge request's commits share no history with {base}.} other {The pull request's commits share no history with {base}.}}",
+  "prsRenamesSkipped": "{needed, plural, =0 {Too many files changed for git to look for renames: renamed files show as deleted and added.} one {Too many files changed for git to look for renames: renamed files show as deleted and added. Setting diff.renameLimit to # finds them.} other {Too many files changed for git to look for renames: renamed files show as deleted and added. Setting diff.renameLimit to {needed, number, ::group-off} finds them.}}",
   "appDiscardAndClose": "Discard and Close",
   "appDiscardAndQuit": "Discard and Quit",
   "prsDraftsLeft": "{count, plural, one {The review was not published, and # comment is left pending on the merge request; GitLab publishes it with your next review. {reason}} other {The review was not published, and # comments are left pending on the merge request; GitLab publishes them with your next review. {reason}}}",

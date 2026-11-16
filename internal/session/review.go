@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -147,12 +149,13 @@ func (s *Session) pullRemote(repo forge.Repo) string {
 }
 
 // FetchPull fetches pull request n of repo, whose base branch is base,
-// into write.PullHead and write.PullBase, as a write in the queue.
-func (s *Session) FetchPull(repo forge.Repo, n int, base string) (*write.Job, error) {
+// into write.PullHead and write.PullBase, as a write in the queue;
+// deepen, above 0, that many commits deeper in a shallow clone.
+func (s *Session) FetchPull(repo forge.Repo, n int, base string, deepen int) (*write.Job, error) {
 	if s.Repo == nil || s.Queue == nil {
 		return nil, s.noWrites()
 	}
-	op, err := write.FetchPull(s.Where(), s.pullRemote(repo), n, hostPullRef(repo, n), base, 0)
+	op, err := write.FetchPull(s.Where(), s.pullRemote(repo), n, hostPullRef(repo, n), base, deepen)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +166,20 @@ func (s *Session) FetchPull(repo forge.Repo, n int, base string) (*write.Job, er
 // base of its head and base branch to its head, as the host diffs it.
 type PullRange struct {
 	MergeBase, Head []byte
+}
+
+// NoMergeBaseError is a fetched pull request whose head shares no commit
+// with its base branch here: in a shallow clone (Shallow), the history
+// fetched may not go down to it.
+type NoMergeBaseError struct {
+	Shallow bool
+}
+
+func (e *NoMergeBaseError) Error() string {
+	if e.Shallow {
+		return "session: no merge base in the shallow history fetched"
+	}
+	return "session: the pull request shares no history with its base"
 }
 
 // LoadPullRange reads the commits of pull request n, once fetched, off
@@ -187,6 +204,12 @@ func (s *Session) LoadPullRange(n int, done func(PullRange, error)) {
 			pr.Head = head
 			// The head read, not the ref, which a fetch may have moved since.
 			pr.MergeBase, err = out("merge-base", "--end-of-options", write.PullBase(n), hex.EncodeToString(head))
+			// git merge-base says none with 1 and nothing printed.
+			var e *run.Error
+			if errors.As(err, &e) && e.ExitCode == 1 {
+				_, statErr := os.Stat(filepath.Join(r.CommonDir, "shallow"))
+				err = &NoMergeBaseError{Shallow: statErr == nil}
+			}
 		}
 		update(func() { done(pr, err) })
 	})

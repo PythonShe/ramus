@@ -53,8 +53,19 @@ type prReview struct {
 
 	loading bool
 	read    bool
-	r       forge.Review
-	err     string
+	// readN numbers the reads asked for (reread): one answering an older
+	// ask leaves the review to be read again.
+	readN int
+	r     forge.Review
+	err   string
+	// verify holds sending while the review is read again after a write
+	// that timed out, which the host may have taken.
+	verify bool
+	// events is the conversation (prTimeline), made again as the review
+	// or its files are read; threadsOn counts the threads on the lines of
+	// each file, by path.
+	events    []prEvent
+	threadsOn map[string]int
 
 	// fetchedFor is the head and base branch the commits were fetched
 	// for (fetchKey); a review read with others fetches again.
@@ -65,8 +76,11 @@ type prReview struct {
 	fetching   bool
 	// fetchN numbers the fetches: one left behind as the page was left
 	// goes on to nothing.
-	fetchN    int
-	fetchErr  string
+	fetchN   int
+	fetchErr string
+	// deepened counts the fetches made deeper for a shallow clone that
+	// lacked the merge base.
+	deepened  int
 	rng       session.PullRange
 	detail    *session.CommitDetail
 	cancelCmp func()
@@ -74,7 +88,9 @@ type prReview struct {
 	page  int // 0 files, 1 conversation
 	files ui.ListState
 	file  int
-	listW float32
+	// filePath is the file chosen, chosen again in a list read anew.
+	filePath string
+	listW    float32
 
 	patchFor     string
 	patch        session.PatchResult
@@ -85,6 +101,9 @@ type prReview struct {
 	// diffW is the viewer's width in the last frame, which the comments
 	// under its lines are measured at.
 	diffW float32
+	// unplaced are the threads on the file shown that its patch has no
+	// line for, as of the last frame.
+	unplaced []*forge.Thread
 
 	drafts []forge.Draft
 	// draftsAt are the commits the drafts' lines are of: a head read
@@ -100,7 +119,10 @@ type prReview struct {
 
 	conv    ui.ListState
 	comment string
-	submit  prSubmit
+	// staleList lists the drafts on an older head in the submit dialog,
+	// unplacedList the threads the patch shown has no line for.
+	staleList, unplacedList ui.ListState
+	submit                  prSubmit
 }
 
 // prCompose is a comment being written on lines of a file.
@@ -110,8 +132,10 @@ type prCompose struct {
 	start, line   int
 	across        int // see forge.Draft
 	body          string
-	// oid is the commit compared, whose lines these are.
+	// oid is the commit compared, whose lines these are, and at the
+	// commits the comment goes on.
 	oid string
+	at  forge.Revs
 }
 
 func (cp *prCompose) draft(body string) forge.Draft {
@@ -148,6 +172,10 @@ func errForge(err error) string {
 	var login *forge.LoginError
 	if errors.As(err, &login) {
 		return locales.PrsNotLoggedIn(login.Program, login.Host)
+	}
+	var rej *forge.RejectedError
+	if errors.As(err, &rej) {
+		return locales.PrsRejected(rej.Msg)
 	}
 	return errText(err)
 }
@@ -380,16 +408,28 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 		return
 	}
 	rv.loading = true
+	n := rv.readN
 	t.s.PullReview(a.findForge(), rv.repo, rv.n, func(r forge.Review, err error) {
 		if t.pr.rv != rv {
 			return
 		}
-		rv.loading, rv.read, rv.err = false, true, ""
+		// Asked again while this read ran, as after a write: read again.
+		rv.loading, rv.read, rv.err = false, rv.readN == n, ""
 		if err != nil {
+			// A write that timed out stays unknown: Refresh reads again.
 			rv.err = errForge(err)
 			return
 		}
-		rv.r = r
+		if rv.read {
+			rv.verify = false
+		}
+		rv.r, rv.events = r, nil
+		rv.threadsOn = map[string]int{}
+		for _, th := range r.Threads {
+			if !th.Outdated && th.Line > 0 {
+				rv.threadsOn[th.Path]++
+			}
+		}
 		if fetchKey(r) != rv.fetchedFor {
 			a.fetchReview(t, rv)
 		}
@@ -398,9 +438,14 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 
 // fetchReview fetches the pull request's commits and reads what they
 // change.
-// fetchKey is what the commits fetched for r depend on: its head, and
-// the base branch it is diffed against.
-func fetchKey(r forge.Review) string { return r.HeadOID + "\x00" + r.Base }
+// fetchKey is what the commits fetched for r depend on: its head, the
+// base branch it is diffed against, and where that branch is, which
+// moves the merge base as a pull request below it is merged.
+func fetchKey(r forge.Review) string { return r.HeadOID + "\x00" + r.BaseOID + "\x00" + r.Base }
+
+// prDeepen is how much deeper each fetch again goes, in a shallow clone
+// lacking the merge base.
+var prDeepen = [...]int{0, 200, 2000}
 
 func (a *App) fetchReview(t *tab, rv *prReview) {
 	rv.fetching, rv.fetchErr, rv.fetchedFor = true, "", fetchKey(rv.r)
@@ -408,7 +453,7 @@ func (a *App) fetchReview(t *tab, rv *prReview) {
 	n := rv.fetchN
 	// A fetch that failed is tried again when the review is read again.
 	failed := func(err error) { rv.fetching, rv.fetchErr, rv.fetchedFor = false, errForge(err), "" }
-	j, err := t.s.FetchPull(rv.repo, rv.n, rv.r.Base)
+	j, err := t.s.FetchPull(rv.repo, rv.n, rv.r.Base, prDeepen[rv.deepened])
 	if err != nil {
 		failed(err)
 		return
@@ -429,7 +474,19 @@ func (a *App) fetchReview(t *tab, rv *prReview) {
 				if t.pr.rv != rv || rv.fetchN != n {
 					return
 				}
-				if err != nil {
+				var none *session.NoMergeBaseError
+				switch {
+				case errors.As(err, &none) && none.Shallow && rv.deepened < len(prDeepen)-1:
+					rv.deepened++
+					a.fetchReview(t, rv)
+					return
+				case errors.As(err, &none) && none.Shallow:
+					failed(errors.New(locales.PrsShallow(kindName(rv.repo.Kind))))
+					return
+				case errors.As(err, &none):
+					failed(errors.New(locales.PrsNoMergeBase(kindName(rv.repo.Kind), rv.r.Base)))
+					return
+				case err != nil:
 					failed(err)
 					return
 				}
@@ -468,16 +525,50 @@ func (a *App) compareReview(t *tab, rv *prReview) {
 			rv.cancelCmp = nil
 		}
 		if d.Err != nil {
-			rv.fetchErr = errText(d.Err)
+			// Compared again as the review is read again.
+			rv.fetchErr, rv.fetchedFor = errText(d.Err), ""
 		}
 		if listed {
-			rv.patchFor = ""
+			rv.patchFor, rv.events = "", nil
+			// The file chosen stays chosen where the list puts it.
+			rv.file = -1
+			if f := d.Files; f != nil && rv.filePath != "" {
+				for i := range f.Len() {
+					if string(f.Path(i)) == rv.filePath {
+						rv.file = i
+						break
+					}
+				}
+			}
 		}
 	})
 }
 
 // reread reads the pull request again after a write to it.
-func (rv *prReview) reread() { rv.read = false }
+func (rv *prReview) reread() { rv.read, rv.readN = false, rv.readN+1 }
+
+// busy reports a write to the host on its way, or one that timed out
+// whose outcome is not read yet: nothing more is sent meanwhile.
+func (rv *prReview) busy() bool { return rv.sending || rv.verify }
+
+// timeline is the conversation, made once per review and files read.
+func (rv *prReview) timeline() []prEvent {
+	if rv.events == nil {
+		var files *diff.Raw
+		if rv.detail != nil {
+			files = rv.detail.Files
+		}
+		rv.events = prTimeline(&rv.r, files)
+	}
+	return rv.events
+}
+
+// onHead reports whether the patch shown is of the head the review was
+// read at, which its threads' lines are of.
+func (rv *prReview) onHead() bool {
+	return rv.detail != nil && len(rv.rng.Head) > 0 && string(rv.detail.OID) == string(rv.rng.Head) &&
+		fmt.Sprintf("%x", rv.rng.Head) == rv.r.HeadOID
+}
 
 func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 	if i := rv.dropDraft - 1; i >= 0 {
@@ -540,7 +631,7 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			nFiles = rv.detail.Files.Len()
 		}
 		ui.Row(c).Padding(spaceS, insetX).Children(func() {
-			ui.Segmented(c, &rv.page, locales.PrsFiles(nFiles), locales.PrsConversation(len(prTimeline(r))))
+			ui.Segmented(c, &rv.page, locales.PrsFiles(nFiles), locales.PrsConversation(len(rv.timeline())))
 		})
 		if rv.page == 1 {
 			a.prConversation(c, t, rv)
@@ -568,12 +659,15 @@ func (a *App) prFiles(c *ui.Context, t *tab, rv *prReview) {
 		emptyState(c, locales.CommitNoFiles())
 		return
 	}
-	threads := map[string]int{}
-	for _, th := range rv.r.Threads {
-		threads[th.Path]++
+	var drafts map[string]int
+	if !rv.draftsStale() {
+		drafts = map[string]int{}
+		for _, d := range rv.drafts {
+			drafts[d.Path]++
+		}
 	}
-	for _, d := range rv.drafts {
-		threads[d.Path]++
+	if lim := rv.detail.Renames; lim.Skipped {
+		ui.Text(c, locales.PrsRenamesSkipped(lim.Needed)).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX, spaceS, insetX)
 	}
 	ui.Split(c, &rv.listW, func() {
 		rv.files.Selected = &rv.file
@@ -586,23 +680,43 @@ func (a *App) prFiles(c *ui.Context, t *tab, rv *prReview) {
 				fileIcon(c, string(f.Path(i)))
 				shown, _ := showPath(commitFileName(f, i))
 				pathLabel(c, shown).Grow(1)
-				if n := threads[string(f.Path(i))]; n > 0 {
+				if n := rv.threadsOn[string(f.Path(i))] + drafts[string(f.Path(i))]; n > 0 {
 					ui.Text(c, fmt.Sprint(n)).FontSize(textSmall).TextColor(th.Accent).Tooltip(locales.PrsCommentCount(n))
 				}
 				fileLines(c, lineAt(rv.detail.Lines, i))
 			})
 		}).Label(locales.CommitFilesLabel()).Fill()
-	}, func() { a.prPatch(c, t, rv) }).SplitReset(300).Fill()
+	}, func() {
+		ui.Column(c).Fill().Children(func() {
+			if cp := rv.compose; cp != nil && cp.oid != string(rv.detail.OID) {
+				a.staleCompose(c, t, rv)
+			}
+			a.prPatch(c, t, rv)
+		})
+	}).SplitReset(300).Fill()
+}
+
+// staleCompose is the comment being written on lines of a head the
+// review no longer shows: kept with its text, and sent to those lines.
+func (a *App) staleCompose(c *ui.Context, t *tab, rv *prReview) {
+	ui.Column(c).FillWidth().Padding(spaceXS, insetX).Children(func() {
+		ui.Column(c).FillWidth().Gap(spaceS).Padding(spaceM).Background(c.Theme().Surface).Radius(6).Children(func() {
+			ui.Text(c, locales.PrsStaleCompose()).FontSize(textSmall).TextColor(c.Theme().Warning)
+			a.composeNote(c, t, rv)
+		})
+	})
 }
 
 func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 	d := rv.detail
 	f := d.Files
 	if rv.file < 0 || rv.file >= f.Len() {
+		rv.filePath = ""
 		emptyPane(c)
 		return
 	}
 	path := string(f.Path(rv.file))
+	rv.filePath = path
 	paths := []string{path}
 	if st := f.Status(rv.file); st == 'R' || st == 'C' {
 		paths = []string{string(f.OldPath(rv.file)), path}
@@ -611,11 +725,12 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 	// kept; a patch leaving some out would number them otherwise.
 	key := fmt.Sprintf("%x\x00%s\x00%s", d.OID, paths[0], path)
 	if rv.patchFor != key {
-		if cp := rv.compose; cp != nil && cp.oid != string(d.OID) {
-			// Its lines are of the head shown before.
+		if cp := rv.compose; cp != nil && cp.oid != string(d.OID) && strings.TrimSpace(cp.body) == "" {
+			// Its lines are of the head shown before; one with text in it
+			// stays, sent to those (staleCompose).
 			rv.compose = nil
 		}
-		rv.patchFor, rv.patch, rv.pager = key, session.PatchResult{}, patchPager{}
+		rv.patchFor, rv.patch, rv.pager, rv.unplaced = key, session.PatchResult{}, patchPager{}, nil
 		_, oldID := f.Old(rv.file)
 		_, newID := f.New(rv.file)
 		detail := *d
@@ -623,7 +738,7 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 		load = func() {
 			rv.patchLoading = true
 			sides := session.Sides{Old: oldID, New: newID, Max: rv.pager.sides()}
-			t.s.CommitPatch(detail, paths, rv.pager.max(), diff.Whitespace(0), sides, func(res session.PatchResult) {
+			t.s.HostPatch(detail, paths, rv.pager.max(), sides, func(res session.PatchResult) {
 				if rv.patchFor != key {
 					return
 				}
@@ -650,6 +765,16 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 		})
 		a.diffBar(c, false, nil)
 		a.pagerNotice(c, &rv.pager, rv.patch, rv.patchLoading, "", rv.loadPatch)
+		switch {
+		case rv.onHead():
+			if len(rv.unplaced) > 0 && !rv.patchLoading {
+				a.unplacedThreads(c, rv)
+			}
+		case rv.fetching:
+			ui.Text(c, locales.PrsUpdating()).FontSize(textSmall).TextColor(c.Theme().TextMuted).Padding(0, insetX, spaceS, insetX)
+		default:
+			ui.Text(c, locales.PrsHeadDiffers(kindName(rv.repo.Kind))).FontSize(textSmall).TextColor(c.Theme().Warning).Padding(0, insetX, spaceS, insetX)
+		}
 		el := a.patchBodyWith(c, t, &rv.pv, rv.patch, nil, func(dv *editor.DiffState) { a.decorateReview(c, t, rv, paths[0], path, dv) })
 		if w := el.Bounds().W; w > 0 && w != rv.diffW {
 			rv.diffW = w
@@ -693,13 +818,23 @@ func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, oldPath, path 
 		}
 	}
 	w := rv.noteWidth(d)
+	onHead := rv.onHead()
+	var unplaced []*forge.Thread
 	for i := range rv.r.Threads {
 		th := &rv.r.Threads[i]
-		if th.Path != path || th.Outdated || th.Line <= 0 {
+		if !onHead || th.Path != path || th.Outdated || th.Line <= 0 {
+			continue
+		}
+		if pv.viewLine(editorSide(th.Side), th.Line) < 0 {
+			unplaced = append(unplaced, th)
 			continue
 		}
 		add(editorSide(th.Side), th.Line, "t:"+th.ID, prNote{thread: th, draft: -1}, rv.threadHeight(c, th, w))
 	}
+	if len(unplaced) != len(rv.unplaced) {
+		c.AnimationFrame() // shown above the patch
+	}
+	rv.unplaced = unplaced
 	stale := rv.draftsStale()
 	for i, dr := range rv.drafts {
 		if dr.Path != path || stale {
@@ -707,12 +842,17 @@ func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, oldPath, path 
 		}
 		add(editorSide(dr.Side), dr.Line, fmt.Sprintf("d:%d", i), prNote{draft: i}, rv.draftHeight(c, dr.Body, w))
 	}
-	if cp := rv.compose; cp != nil && cp.path == path {
+	if cp := rv.compose; cp != nil && cp.path == path && rv.detail != nil && cp.oid == string(rv.detail.OID) {
 		add(editorSide(cp.side), cp.line, "compose", prNote{draft: -1, compose: true}, composeHeight)
 	}
 	d.LineSelection = true
 	d.OnGutterButton = func(r editor.DiffLineRange) {
 		start, line := pv.fileLine(r.Side, r.Start), pv.fileLine(r.Side, r.End)
+		if !rv.onHead() {
+			// Its lines would be of a head the host no longer shows.
+			a.tell(t, locales.PrsUpdating())
+			return
+		}
 		if line == 0 || !pv.inHunk(r.Side, line) || start > 0 && !pv.inHunk(r.Side, start) {
 			a.tell(t, locales.PrsNotInDiff(kindName(rv.repo.Kind)))
 			return
@@ -725,10 +865,8 @@ func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, oldPath, path 
 			a.tell(t, locales.PrsFinishComment())
 			return
 		}
-		rv.compose = &prCompose{path: path, oldPath: oldPath, side: forgeSide(r.Side), start: start, line: line, across: pv.across(r.Side, line)}
-		if rv.detail != nil {
-			rv.compose.oid = string(rv.detail.OID)
-		}
+		rv.compose = &prCompose{path: path, oldPath: oldPath, side: forgeSide(r.Side), start: start, line: line, across: pv.across(r.Side, line),
+			oid: string(rv.detail.OID), at: rv.revs()}
 	}
 	d.RenderAnnotation = func(c *ui.Context, an editor.DiffAnnotation) {
 		n, ok := notes[an.Key]
@@ -839,20 +977,20 @@ func (a *App) threadNote(c *ui.Context, t *tab, rv *prReview, th *forge.Thread) 
 		rv.replies[th.ID] = reply
 	}
 	ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-		in := ui.TextInput(c, reply).Label(locales.PrsReplyPlaceholder()).Placeholder(locales.PrsReplyPlaceholder()).Grow(1).Disabled(!th.CanReply || rv.sending)
+		in := ui.TextInput(c, reply).Label(locales.PrsReplyPlaceholder()).Placeholder(locales.PrsReplyPlaceholder()).Grow(1).Disabled(!th.CanReply || rv.busy())
 		body := strings.TrimSpace(*reply)
-		if (ui.Button(c, locales.PrsReply()).Disabled(!th.CanReply || body == "" || rv.sending).Clicked() || in.Submitted() && body != "") && len(th.Comments) > 0 {
+		if (ui.Button(c, locales.PrsReply()).Disabled(!th.CanReply || body == "" || rv.busy()).Clicked() || in.Submitted() && body != "") && len(th.Comments) > 0 {
 			thr := *th
 			a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Reply(ctx, rv.repo, rv.n, thr, body) }, func() { *reply = "" })
 		}
 		switch {
 		case th.Resolved && th.CanUnresolve:
-			if ui.Button(c, locales.PrsUnresolve()).Disabled(rv.sending).Clicked() {
+			if ui.Button(c, locales.PrsUnresolve()).Disabled(rv.busy()).Clicked() {
 				thr := *th
 				a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Resolve(ctx, rv.repo, rv.n, thr, false) }, nil)
 			}
 		case !th.Resolved && th.CanResolve:
-			if ui.Button(c, locales.PrsResolve()).Disabled(rv.sending).Clicked() {
+			if ui.Button(c, locales.PrsResolve()).Disabled(rv.busy()).Clicked() {
 				thr := *th
 				a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.Resolve(ctx, rv.repo, rv.n, thr, true) }, nil)
 			}
@@ -883,7 +1021,9 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 	}
 	ui.Text(c, label).Bold().FontSize(textSmall)
 	ui.TextArea(c, &cp.body).Label(label).Placeholder(locales.PrsCommentPlaceholder()).Lines(3, 5).FillWidth().AutoFocus()
-	if rv.draftsStale() {
+	// Drafts go with one review, on one head.
+	apart := len(rv.drafts) > 0 && rv.draftsAt.Head != cp.at.Head
+	if apart {
 		ui.Text(c, locales.PrsDraftsStale(len(rv.drafts))).FontSize(textSmall).TextColor(c.Theme().TextMuted)
 	}
 	body := strings.TrimSpace(cp.body)
@@ -892,8 +1032,8 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 		if ui.Button(c, locales.CommonCancel()).Clicked() {
 			rv.compose = nil
 		}
-		if ui.Button(c, locales.PrsCommentNow()).Disabled(body == "" || rv.sending).Clicked() {
-			dr, at := cp.draft(body), rv.revs()
+		if ui.Button(c, locales.PrsCommentNow()).Disabled(body == "" || rv.busy()).Clicked() {
+			dr, at := cp.draft(body), cp.at
 			a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error {
 				return cl.SubmitReview(ctx, rv.repo, rv.n, at, forge.VerdictComment, "", []forge.Draft{dr})
 			}, func() {
@@ -904,9 +1044,9 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 		}
 		// A review being sent takes the drafts it was given away when it
 		// is through.
-		if ui.PrimaryButton(c, locales.PrsAddToReview()).Disabled(body == "" || rv.sending || rv.draftsStale()).Clicked() {
+		if ui.PrimaryButton(c, locales.PrsAddToReview()).Disabled(body == "" || rv.busy() || apart).Clicked() {
 			if len(rv.drafts) == 0 {
-				rv.draftsAt = rv.revs()
+				rv.draftsAt = cp.at
 			}
 			rv.drafts = append(rv.drafts, cp.draft(body))
 			rv.compose = nil
@@ -937,6 +1077,11 @@ func (a *App) prSend(t *tab, rv *prReview, fn func(ctx context.Context, c *forge
 	rv.sending = true
 	t.s.ForgeDo(a.findForge(), rv.repo, fn, func(err error) {
 		rv.sending = false
+		if errors.Is(err, forge.ErrTimeout) {
+			a.tell(t, locales.PrsMaybeSent(kindName(rv.repo.Kind)))
+			rv.maybeSent(t)
+			return
+		}
 		if err != nil {
 			a.tell(t, errForge(err))
 			return
@@ -948,6 +1093,16 @@ func (a *App) prSend(t *tab, rv *prReview, fn func(ctx context.Context, c *forge
 			rv.reread()
 		}
 	})
+}
+
+// maybeSent holds sending until the review is read again, after a write
+// that timed out and may have reached the host: sent again, it would
+// show twice.
+func (rv *prReview) maybeSent(t *tab) {
+	if t.pr.rv == rv {
+		rv.verify = true
+		rv.reread()
+	}
 }
 
 // prEvent is one entry of a pull request's conversation.
@@ -964,8 +1119,8 @@ type prEvent struct {
 
 // prTimeline is the conversation: the description, the comments, the
 // reviews with something to say and the threads whose lines are gone
-// from the patch, oldest first.
-func prTimeline(r *forge.Review) []prEvent {
+// from the patch, or on files not among files (once read), oldest first.
+func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 	if r.Number == 0 {
 		return nil
 	}
@@ -979,13 +1134,26 @@ func prTimeline(r *forge.Review) []prEvent {
 		}
 		ev = append(ev, prEvent{author: s.Author, at: s.At, body: s.Body, what: reviewedText(s.State), state: s.State})
 	}
+	var listed map[string]bool
+	if files != nil {
+		listed = make(map[string]bool, files.Len())
+		for i := range files.Len() {
+			listed[string(files.Path(i))] = true
+		}
+	}
 	for i := range r.Threads {
 		th := &r.Threads[i]
-		if !th.Outdated && th.Line > 0 || len(th.Comments) == 0 {
+		if len(th.Comments) == 0 {
 			continue
 		}
-		ev = append(ev, prEvent{author: th.Comments[0].Author, at: th.Comments[0].At, thread: th,
-			what: locales.PrsOutdatedOn(th.Path, th.OriginalLine)})
+		what := locales.PrsOutdatedOn(th.Path, th.OriginalLine)
+		if !th.Outdated && th.Line > 0 {
+			if listed == nil || listed[th.Path] {
+				continue
+			}
+			what = locales.PrsCommentOn(th.Path, th.Line)
+		}
+		ev = append(ev, prEvent{author: th.Comments[0].Author, at: th.Comments[0].At, thread: th, what: what})
 	}
 	slices.SortStableFunc(ev[1:], func(x, y prEvent) int { return x.at.Compare(y.at) })
 	return ev
@@ -1005,7 +1173,7 @@ func reviewedText(s forge.ReviewState) string {
 
 func (a *App) prConversation(c *ui.Context, t *tab, rv *prReview) {
 	th := c.Theme()
-	ev := prTimeline(&rv.r)
+	ev := rv.timeline()
 	now := a.Now()
 	ui.Column(c).Fill().Children(func() {
 		rv.conv.Label = func(i int) string { return ev[i].author + ", " + ev[i].what }
@@ -1046,7 +1214,7 @@ func (a *App) prConversation(c *ui.Context, t *tab, rv *prReview) {
 			body := strings.TrimSpace(rv.comment)
 			ui.Row(c).Children(func() {
 				ui.Spacer(c)
-				if ui.Button(c, locales.PrsAddComment()).Disabled(body == "" || rv.sending).Clicked() {
+				if ui.Button(c, locales.PrsAddComment()).Disabled(body == "" || rv.busy()).Clicked() {
 					a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.AddComment(ctx, rv.repo, rv.n, body) },
 						func() { rv.comment = "" })
 				}
@@ -1075,10 +1243,11 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 			if n := len(rv.drafts); n > 0 {
 				ui.Text(c, locales.PrsPendingCount(n)).FontSize(textSmall).TextColor(th.TextMuted)
 				if rv.draftsStale() {
-					// Not shown under the lines of the head shown, where
-					// each has its Delete.
+					// Not shown under the lines of the head shown: listed
+					// here, each with its Delete.
 					ui.Text(c, locales.PrsDraftsStaleSent()).FontSize(textSmall).TextColor(th.TextMuted)
-					if ui.Button(c, locales.PrsDiscardDrafts(n)).Disabled(rv.sending).Clicked() {
+					a.staleDrafts(c, rv)
+					if ui.Button(c, locales.PrsDiscardDrafts(n)).Disabled(rv.busy()).Clicked() {
 						rv.drafts = nil
 					}
 				}
@@ -1093,7 +1262,7 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, locales.PullsSubmit()).Disabled(empty || rv.sending).Clicked() {
+				if ui.PrimaryButton(c, locales.PullsSubmit()).Disabled(empty || rv.busy()).Clicked() {
 					drafts, at, v := slices.Clone(rv.drafts), rv.revs(), forge.Verdict(d.verdict)
 					if len(drafts) > 0 {
 						at = rv.draftsAt
@@ -1123,6 +1292,11 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 							d.err = locales.PrsDraftsLeft(left.Left, errForge(left.Err))
 							return
 						}
+						if errors.Is(err, forge.ErrTimeout) {
+							d.err = locales.PrsMaybeSent(kindName(rv.repo.Kind))
+							rv.maybeSent(t)
+							return
+						}
 						if err != nil {
 							d.err = errForge(err)
 							return
@@ -1134,6 +1308,52 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 					})
 				}
 			})
+		})
+	})
+}
+
+// staleDrafts lists the drafts written on a head the review no longer
+// shows, with their text and a Delete each.
+func (a *App) staleDrafts(c *ui.Context, rv *prReview) {
+	th := c.Theme()
+	drop := -1
+	ui.Column(c).FillWidth().Height(min(float32(len(rv.drafts))*(controlHeight+spaceXS), 200)).Children(func() {
+		ui.List(c, &rv.staleList, len(rv.drafts), func(i int) {
+			dr := rv.drafts[i]
+			ui.Row(c).FillWidth().Gap(spaceM).AlignItems(ui.Center).Padding(space2XS, 0).Children(func() {
+				ui.Text(c, fmt.Sprintf("%s:%d", dr.Path, dr.Line)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+				ui.Text(c, shownBody(dr.Body)).FontSize(textSmall).SingleLine().Grow(1)
+				if ui.Button(c, locales.CommonDelete()).Disabled(rv.busy()).Clicked() {
+					drop = i
+				}
+			})
+		}).Label(locales.PrsPendingCount(len(rv.drafts))).Fill()
+	})
+	if drop >= 0 && drop < len(rv.drafts) {
+		rv.drafts = slices.Delete(rv.drafts, drop, drop+1)
+	}
+}
+
+// unplacedThreads lists the threads on the file shown that its patch has
+// no line for, as in one too large to show whole.
+func (a *App) unplacedThreads(c *ui.Context, rv *prReview) {
+	th := c.Theme()
+	now := a.Now()
+	ui.Column(c).FillWidth().Padding(0, insetX, spaceS, insetX).Gap(spaceXS).Children(func() {
+		ui.Text(c, locales.PrsUnplaced(len(rv.unplaced))).FontSize(textSmall).TextColor(th.TextMuted)
+		ui.Column(c).FillWidth().Height(min(float32(len(rv.unplaced))*72, 220)).Children(func() {
+			ui.List(c, &rv.unplacedList, len(rv.unplaced), func(i int) {
+				t := rv.unplaced[i]
+				ui.Column(c).FillWidth().Padding(spaceXS, 0).Gap(space2XS).Children(func() {
+					ui.Text(c, locales.PrsCommentLine(t.Line)).Bold().FontSize(textSmall)
+					for _, cm := range t.Comments {
+						ui.Column(c).Key(cm.ID).Padding(0, 0, 0, spaceL).Gap(space2XS).Children(func() {
+							commentHead(c, cm.Author, cm.At, now)
+							ui.Text(c, shownBody(cm.Body)).FontSize(noteBodySize).Selectable()
+						})
+					}
+				})
+			}).Label(locales.PrsUnplaced(len(rv.unplaced))).Fill()
 		})
 	})
 }

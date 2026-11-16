@@ -32,7 +32,7 @@ func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func
 	r.Life().Go(func(context.Context) {
 		defer stop()
 		d := CommitDetail{OID: to, Parents: [][]byte{from}}
-		d.Files, _, d.Err = diff.Renames(ctx, r.Runner, r.GitDir, r.Caps.HashSize, from, to)
+		d.Files, d.Renames, d.Err = diff.Renames(ctx, r.Runner, r.GitDir, r.Caps.HashSize, from, to)
 		if ctx.Err() != nil {
 			return
 		}

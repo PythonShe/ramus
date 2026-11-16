@@ -13339,6 +13339,138 @@ func (msgs Messages) PrsUnsentLost(count int, repo string) string {
 	return Catalog.Format(msgs.locale, "prsUnsentLost", map[string]any{"count": count, "repo": repo})
 }
 
+// PrsRejected says "The host refused it: {reason}"
+// in the language the app shows.
+//
+// The host understood a request and refused it; reason is the host's own
+// words.
+func PrsRejected(reason string) string { return In(i18n.Locale()).PrsRejected(reason) }
+
+// PrsRejected says "The host refused it: {reason}"
+// in the language of msgs.
+//
+// The host understood a request and refused it; reason is the host's own
+// words.
+func (msgs Messages) PrsRejected(reason string) string {
+	return Catalog.Format(msgs.locale, "prsRejected", map[string]any{"reason": reason})
+}
+
+// PrsMaybeSent says "{kind, select, gitlab {GitLab did not answer in time, and may have taken it. The merge request is read again: look fo…"
+// in the language the app shows.
+//
+// A comment, reply or review timed out: it may have reached the host, so
+// sending is held until the pull request is read again.
+func PrsMaybeSent(kind string) string { return In(i18n.Locale()).PrsMaybeSent(kind) }
+
+// PrsMaybeSent says "{kind, select, gitlab {GitLab did not answer in time, and may have taken it. The merge request is read again: look fo…"
+// in the language of msgs.
+//
+// A comment, reply or review timed out: it may have reached the host, so
+// sending is held until the pull request is read again.
+func (msgs Messages) PrsMaybeSent(kind string) string {
+	return Catalog.Format(msgs.locale, "prsMaybeSent", map[string]any{"kind": kind})
+}
+
+// PrsUpdating says "Comments show on the lines once the new commits are read."
+// in the language the app shows.
+func PrsUpdating() string { return In(i18n.Locale()).PrsUpdating() }
+
+// PrsUpdating says "Comments show on the lines once the new commits are read."
+// in the language of msgs.
+func (msgs Messages) PrsUpdating() string {
+	return Catalog.Format(msgs.locale, "prsUpdating", nil)
+}
+
+// PrsHeadDiffers says "{kind, select, gitlab {The merge request's latest commit is not the one fetched, so its comments are not shown on the…"
+// in the language the app shows.
+func PrsHeadDiffers(kind string) string { return In(i18n.Locale()).PrsHeadDiffers(kind) }
+
+// PrsHeadDiffers says "{kind, select, gitlab {The merge request's latest commit is not the one fetched, so its comments are not shown on the…"
+// in the language of msgs.
+func (msgs Messages) PrsHeadDiffers(kind string) string {
+	return Catalog.Format(msgs.locale, "prsHeadDiffers", map[string]any{"kind": kind})
+}
+
+// PrsStaleCompose says "Written on older commits: it goes on the lines it was written on."
+// in the language the app shows.
+//
+// Above a comment being written when the pull request got new commits
+// since: it is sent on the older ones.
+func PrsStaleCompose() string { return In(i18n.Locale()).PrsStaleCompose() }
+
+// PrsStaleCompose says "Written on older commits: it goes on the lines it was written on."
+// in the language of msgs.
+//
+// Above a comment being written when the pull request got new commits
+// since: it is sent on the older ones.
+func (msgs Messages) PrsStaleCompose() string {
+	return Catalog.Format(msgs.locale, "prsStaleCompose", nil)
+}
+
+// PrsUnplaced says "{count, plural, one {# comment on this file cannot be shown on its line:} other {# comments on this file cannot be sh…"
+// in the language the app shows.
+//
+// Above a file's patch: review threads on lines the patch shown does not
+// hold, as in a file too large to show whole.
+func PrsUnplaced(count int) string { return In(i18n.Locale()).PrsUnplaced(count) }
+
+// PrsUnplaced says "{count, plural, one {# comment on this file cannot be shown on its line:} other {# comments on this file cannot be sh…"
+// in the language of msgs.
+//
+// Above a file's patch: review threads on lines the patch shown does not
+// hold, as in a file too large to show whole.
+func (msgs Messages) PrsUnplaced(count int) string {
+	return Catalog.Format(msgs.locale, "prsUnplaced", map[string]any{"count": count})
+}
+
+// PrsCommentOn says "on {path}, line {line, number, ::group-off}"
+// in the language the app shows.
+//
+// In the conversation: a review thread on a file the pull request's files
+// do not list.
+func PrsCommentOn(path string, line int) string { return In(i18n.Locale()).PrsCommentOn(path, line) }
+
+// PrsCommentOn says "on {path}, line {line, number, ::group-off}"
+// in the language of msgs.
+//
+// In the conversation: a review thread on a file the pull request's files
+// do not list.
+func (msgs Messages) PrsCommentOn(path string, line int) string {
+	return Catalog.Format(msgs.locale, "prsCommentOn", map[string]any{"path": path, "line": line})
+}
+
+// PrsShallow says "{kind, select, gitlab {This clone is shallow, and lacks the commit the merge request branched off from, even fetched …"
+// in the language the app shows.
+func PrsShallow(kind string) string { return In(i18n.Locale()).PrsShallow(kind) }
+
+// PrsShallow says "{kind, select, gitlab {This clone is shallow, and lacks the commit the merge request branched off from, even fetched …"
+// in the language of msgs.
+func (msgs Messages) PrsShallow(kind string) string {
+	return Catalog.Format(msgs.locale, "prsShallow", map[string]any{"kind": kind})
+}
+
+// PrsNoMergeBase says "{kind, select, gitlab {The merge request's commits share no history with {base}.} other {The pull request's commits s…"
+// in the language the app shows.
+func PrsNoMergeBase(kind string, base string) string {
+	return In(i18n.Locale()).PrsNoMergeBase(kind, base)
+}
+
+// PrsNoMergeBase says "{kind, select, gitlab {The merge request's commits share no history with {base}.} other {The pull request's commits s…"
+// in the language of msgs.
+func (msgs Messages) PrsNoMergeBase(kind string, base string) string {
+	return Catalog.Format(msgs.locale, "prsNoMergeBase", map[string]any{"kind": kind, "base": base})
+}
+
+// PrsRenamesSkipped says "{needed, plural, =0 {Too many files changed for git to look for renames: renamed files show as deleted and added.} on…"
+// in the language the app shows.
+func PrsRenamesSkipped(needed int) string { return In(i18n.Locale()).PrsRenamesSkipped(needed) }
+
+// PrsRenamesSkipped says "{needed, plural, =0 {Too many files changed for git to look for renames: renamed files show as deleted and added.} on…"
+// in the language of msgs.
+func (msgs Messages) PrsRenamesSkipped(needed int) string {
+	return Catalog.Format(msgs.locale, "prsRenamesSkipped", map[string]any{"needed": needed})
+}
+
 // AppDiscardAndClose says "Discard and Close"
 // in the language the app shows.
 func AppDiscardAndClose() string { return In(i18n.Locale()).AppDiscardAndClose() }

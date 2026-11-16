@@ -807,6 +807,9 @@ type CommitDetail struct {
 	Odd bool
 	// Checking is set while git checks the signature.
 	Checking bool
+	// Renames is git leaving renames unfound, too many files changed:
+	// they show deleted and added. Compare sets it.
+	Renames diff.RenameLimit
 	// Done is set on the last of the details handed over.
 	Done bool
 	Err  error
@@ -955,6 +958,16 @@ func emptyTree(hashSize int) []byte {
 // cancels a read still running, whose done is not called. A patch read
 // before is handed over at once.
 func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws diff.Whitespace, sides Sides, done func(PatchResult)) {
+	s.commitPatchOf(d, paths, maxBytes, ws, sides, false, done)
+}
+
+// HostPatch is CommitPatch with the patch as a pull request's host makes
+// it (diff.HostPatch), all white space kept: the lines a comment goes on.
+func (s *Session) HostPatch(d CommitDetail, paths []string, maxBytes int, sides Sides, done func(PatchResult)) {
+	s.commitPatchOf(d, paths, maxBytes, 0, sides, true, done)
+}
+
+func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws diff.Whitespace, sides Sides, host bool, done func(PatchResult)) {
 	r := s.Repo
 	if r == nil {
 		done(PatchResult{Err: errors.New("session: the repository is not open")})
@@ -973,13 +986,22 @@ func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws d
 	s.commitPatch.cancel = cancel
 	s.commitPatch.mu.Unlock()
 	key := commitPatchKey(parent, d.OID, paths, maxBytes, ws, sides)
+	if host {
+		key = "h" + key
+	}
 	if a, ok := s.answers().Get(key); ok {
 		cancel()
 		done(*a.patch)
 		return
 	}
 	r.Life().Go(func(context.Context) {
-		pt, err := diff.CommitPatch(ctx, r.Runner, r.GitDir, parent, d.OID, paths, -1, maxBytes, ws)
+		var pt diff.Patch
+		var err error
+		if host {
+			pt, err = diff.HostPatch(ctx, r.Runner, r.GitDir, parent, d.OID, paths, maxBytes)
+		} else {
+			pt, err = diff.CommitPatch(ctx, r.Runner, r.GitDir, parent, d.OID, paths, -1, maxBytes, ws)
+		}
 		var res PatchResult
 		if err == nil {
 			res.Truncated = pt.Truncated
