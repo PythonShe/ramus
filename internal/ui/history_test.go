@@ -1007,6 +1007,10 @@ func TestHistoryStaysAsCommitsLand(t *testing.T) {
 			// Rows are newest first, under the first commit's: commit 297
 			// is row 302.
 			h.until("chosen", func() bool { return hv.chosen == 302 })
+			// The first load whole: a commit landing as it still reads is
+			// another case, a load that starts the rows anew.
+			h.until("history read", func() bool { hs := tb.s.History; return hs.Done && hs.For == tb.s.State.Refs })
+			h.settle()
 			topID, chosenID := oid(top()), oid(302)
 
 			// steady checks the frame just drawn.
