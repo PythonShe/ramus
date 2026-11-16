@@ -228,7 +228,8 @@ func (a *App) writeCommands(t *tab) []command {
 			cmds = append(cmds, cmd("unstage-all", func() { a.stageEntries(t, m, secStaged, es) }))
 		}
 	}
-	if !head.Detached && !head.Unborn {
+	upstream := t.s.State.Status != nil && t.s.State.Status.Branch.Upstream != ""
+	if !head.Detached && !head.Unborn && upstream {
 		for _, p := range []struct {
 			id   string
 			mode write.PullMode
@@ -238,7 +239,9 @@ func (a *App) writeCommands(t *tab) []command {
 				a.submit(t, op, err)
 			}))
 		}
-		cmds = append(cmds, cmd("push", func() { a.submit(t, write.Push(w, write.PushOptions{}), nil) }))
+	}
+	if opt, ok := pushOptions(t); ok && !head.Detached && !head.Unborn {
+		cmds = append(cmds, cmd("push", func() { a.submit(t, write.Push(w, opt), nil) }))
 	}
 	if len(head.OID) > 0 {
 		cmds = append(cmds,
