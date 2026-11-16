@@ -1,0 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=block');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1600px; height: 1000px; overflow: hidden; }
+body { font-family: Inter, sans-serif; font-optical-sizing: auto; -webkit-font-smoothing: antialiased; position: relative; }
+.win { position: absolute; width: calc(1440px * var(--k)); border-radius: calc(13px * var(--k)); overflow: hidden; }
+.win img { display: block; width: 100%; }
+.win .bar { height: calc(32px * var(--k)); display: flex; align-items: center; padding-left: calc(13px * var(--k)); gap: calc(8px * var(--k)); }
+.win .bar i { width: calc(12px * var(--k)); height: calc(12px * var(--k)); border-radius: 50%; }
+.win .bar i:nth-child(1) { background: #ff5f57; }
+.win .bar i:nth-child(2) { background: #febc2e; }
+.win .bar i:nth-child(3) { background: #28c840; }
+.win .bar b { font-size: calc(13px * var(--k)); font-weight: 700; margin-left: calc(10px * var(--k)); }
+.win.dark { box-shadow: 0 0 0 1px rgba(255,255,255,.16), 0 50px 140px rgba(0,0,0,.7); }
+.win.dark .bar { background: #27292a; border-bottom: 1px solid #1c1c1e; }
+.win.dark .bar b { color: #98989d; }
+.win.light { box-shadow: 0 0 0 1px rgba(70,50,0,.18), 0 40px 110px rgba(80,55,0,.28); }
+.win.light .bar { background: #f5efdc; border-bottom: 1px solid #e6dcc0; }
+.win.light .bar b { color: #8a7f63; }
