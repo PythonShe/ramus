@@ -188,7 +188,15 @@ func (s *Session) followThen(e *LogEntry, j *write.Job, what repo.Change) {
 		}
 		_, err := j.Result()
 		b.finish(err, s.timeNow())
-		s.update(func() { s.Writes++ })
+		fetched := err == nil && !e.Quiet && len(j.Op.Cmd.Args) > 0 && j.Op.Cmd.Args[0] == "fetch"
+		s.update(func() {
+			s.Writes++
+			if fetched {
+				// The remote answered the user: the background fetch
+				// that stopped for want of them may go on.
+				s.ResumeFetch()
+			}
+		})
 		s.refreshNow(what)
 	}()
 }

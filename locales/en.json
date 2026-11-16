@@ -1303,6 +1303,14 @@
   "@cloneFailed": {
     "description": "A notice of the window, for a clone whose dialog was closed while it ran: folder is where it cloned to; error what git said."
   },
+  "repoFetchStopped": "Background fetch stopped: {error}",
+  "@repoFetchStopped": {
+    "description": "The warning bar: the background fetch stopped for want of the user (a login, a password, a host key); error is git's or ssh's reason."
+  },
+  "repoResumeFetch": "Resume",
+  "@repoResumeFetch": {
+    "description": "A button in the warning bar: lets the background fetch that stopped run again, as after logging in."
+  },
   "repoNotOwned": "This repository belongs to another user. git works in it once it is marked safe, which this command does in your git config:",
   "@repoNotOwned": {
     "description": "The screen of a repository that cannot open because of git's dubious ownership check; the safe.directory command follows it."
@@ -1552,7 +1560,6 @@
   "historyFilterFirstParent": "First parent only",
   "historyFilterNoMerges": "Hide merges",
   "historyFilterClear": "Clear",
-  "historyFetchStopped": "Background fetch stopped for {repo}: {error}",
   "reflogLostCommits": "Lost Commits",
   "reflogNoEntries": "No reflog entries",
   "reflogEntry": "{selector}, {message}",

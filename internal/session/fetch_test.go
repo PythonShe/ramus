@@ -88,6 +88,17 @@ func TestBackgroundFetch(t *testing.T) {
 	if fetches(s) != n || len(failed) != 1 {
 		t.Fatalf("fetched %d more times after failing, told %d times", fetches(s)-n, len(failed))
 	}
+	if s.FetchFresh(0, func(error) {}) {
+		t.Fatal("the branch picker's fetch ran while the user is needed")
+	}
+	// Once the user says the host is fixed, it fetches again.
+	r.Git("remote", "set-url", "origin", origin.Dir)
+	want = origin.Commit("four")
+	m.update(func() { s.ResumeFetch() })
+	m.until(t, "the fetch resumed", fetched(want))
+	if s.FetchStopped() != nil {
+		t.Fatal("still stopped")
+	}
 
 	u, mu := openFor(t, r)
 	if !u.Repo.Restricted {

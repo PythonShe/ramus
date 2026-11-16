@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -309,10 +308,8 @@ func (a *App) keepFetching(t *tab) {
 	if !t.prefs.loaded || t.prefs.fetchOff {
 		every = 0
 	}
-	path := t.s.Path
-	t.s.SetBackgroundFetch(every, func(err error) {
-		a.tell(t, locales.HistoryFetchStopped(filepath.Base(path), errText(err)))
-	})
+	// Why it stopped stays in the warning bar, with a way to resume.
+	t.s.SetBackgroundFetch(every, nil)
 }
 
 // setEditor has the files of the repository at path open in the editor

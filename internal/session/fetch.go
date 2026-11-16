@@ -138,6 +138,20 @@ func (s *Session) FetchEvery() time.Duration { return s.fetch.every }
 // FetchStopped is why the background fetch stopped, nil while it has not.
 func (s *Session) FetchStopped() error { return s.fetch.stopped }
 
+// ResumeFetch has the background fetch that stopped for want of the user
+// run again, once the user says they logged in or a fetch of theirs went
+// through. Main thread only.
+func (s *Session) ResumeFetch() {
+	bf := &s.fetch
+	if bf.stopped == nil {
+		return
+	}
+	bf.stopped = nil
+	every := bf.every
+	bf.every = 0 // so SetBackgroundFetch starts the timer again
+	s.SetBackgroundFetch(every, bf.onFailed)
+}
+
 // fetchNow starts a background fetch, unless one is running, and hands
 // next the wait before the one after, once this one has ended.
 func (s *Session) fetchNow(next func(time.Duration)) {
@@ -209,6 +223,11 @@ func needsUser(err error) bool {
 // told how it ended, on the main thread; it is not called when there is
 // no fetch to run, nor once the repository was opened again since.
 func (s *Session) FetchFresh(fresh time.Duration, done func(error)) bool {
+	// A fetch that stopped for want of the user would fail again, and
+	// count towards locking the account, until the user acts.
+	if s.fetch.stopped != nil {
+		return false
+	}
 	if !s.fetch.started.IsZero() && time.Since(s.fetch.started) < fresh {
 		return false
 	}

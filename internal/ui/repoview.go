@@ -388,7 +388,8 @@ func (a *App) warningBar(c *ui.Context, t *tab) {
 	th := c.Theme()
 	st := t.s.State
 	op := st.Operation == repo.Bisect
-	if !op && a.gitWarning == "" && st.WatchErr == nil && st.RefreshErr == nil {
+	fetch := t.s.FetchStopped()
+	if !op && a.gitWarning == "" && st.WatchErr == nil && st.RefreshErr == nil && fetch == nil {
 		return
 	}
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceXL).Background(th.Surface).Children(func() {
@@ -413,6 +414,15 @@ func (a *App) warningBar(c *ui.Context, t *tab) {
 				// it again reads it whole.
 				if ui.Button(c, locales.RepoReopen()).Clicked() {
 					a.reopen(t)
+				}
+			})
+		}
+		if fetch != nil {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Shrink(1).Children(func() {
+				why := failure(fetch)
+				ui.Text(c, locales.RepoFetchStopped(oneLine(why))).FontSize(textSmall).TextColor(th.Warning).SingleLine().Shrink(1).MaxWidth(560).Tooltip(why)
+				if ui.Button(c, locales.RepoResumeFetch()).Clicked() {
+					t.s.ResumeFetch()
 				}
 			})
 		}

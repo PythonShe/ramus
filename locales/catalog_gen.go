@@ -6893,6 +6893,38 @@ func (msgs Messages) CloneFailed(folder string, error string) string {
 	return Catalog.Format(msgs.locale, "cloneFailed", map[string]any{"folder": folder, "error": error})
 }
 
+// RepoFetchStopped says "Background fetch stopped: {error}"
+// in the language the app shows.
+//
+// The warning bar: the background fetch stopped for want of the user (a
+// login, a password, a host key); error is git's or ssh's reason.
+func RepoFetchStopped(error string) string { return In(i18n.Locale()).RepoFetchStopped(error) }
+
+// RepoFetchStopped says "Background fetch stopped: {error}"
+// in the language of msgs.
+//
+// The warning bar: the background fetch stopped for want of the user (a
+// login, a password, a host key); error is git's or ssh's reason.
+func (msgs Messages) RepoFetchStopped(error string) string {
+	return Catalog.Format(msgs.locale, "repoFetchStopped", map[string]any{"error": error})
+}
+
+// RepoResumeFetch says "Resume"
+// in the language the app shows.
+//
+// A button in the warning bar: lets the background fetch that stopped run
+// again, as after logging in.
+func RepoResumeFetch() string { return In(i18n.Locale()).RepoResumeFetch() }
+
+// RepoResumeFetch says "Resume"
+// in the language of msgs.
+//
+// A button in the warning bar: lets the background fetch that stopped run
+// again, as after logging in.
+func (msgs Messages) RepoResumeFetch() string {
+	return Catalog.Format(msgs.locale, "repoResumeFetch", nil)
+}
+
 // RepoNotOwned says "This repository belongs to another user. git works in it once it is marked safe, which this command does in your git …"
 // in the language the app shows.
 //
@@ -8009,18 +8041,6 @@ func HistoryFilterClear() string { return In(i18n.Locale()).HistoryFilterClear()
 // in the language of msgs.
 func (msgs Messages) HistoryFilterClear() string {
 	return Catalog.Format(msgs.locale, "historyFilterClear", nil)
-}
-
-// HistoryFetchStopped says "Background fetch stopped for {repo}: {error}"
-// in the language the app shows.
-func HistoryFetchStopped(repo string, error string) string {
-	return In(i18n.Locale()).HistoryFetchStopped(repo, error)
-}
-
-// HistoryFetchStopped says "Background fetch stopped for {repo}: {error}"
-// in the language of msgs.
-func (msgs Messages) HistoryFetchStopped(repo string, error string) string {
-	return Catalog.Format(msgs.locale, "historyFetchStopped", map[string]any{"repo": repo, "error": error})
 }
 
 // ReflogLostCommits says "Lost Commits"
