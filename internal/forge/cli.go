@@ -182,8 +182,8 @@ func (c *CLI) failure(err error, host, stderr string) error {
 		msg = msg[:i]
 	}
 	// gh api ends a REST failure with its status: 422 is GitHub's answer
-	// for a commit it has never seen.
-	if strings.Contains(low, "(http 404)") || strings.Contains(low, "(http 422)") {
+	// for a commit it has never seen. glab may only say the status.
+	if strings.Contains(low, "(http 404)") || strings.Contains(low, "(http 422)") || strings.Contains(low, "404 not found") {
 		return fmt.Errorf("%w: %s", ErrNotFound, msg)
 	}
 	if msg == "" {

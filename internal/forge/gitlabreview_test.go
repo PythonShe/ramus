@@ -86,9 +86,14 @@ func TestParseGitLabReview(t *testing.T) {
 
 // glabLog is a glab that logs each call's arguments and input, answers
 // a draft note made with its number, and fails the call whose arguments
-// or input hold fail.
+// or input hold fail, with 409 Conflict or, for fail as "pattern=>message",
+// with that message.
 func glabLog(t *testing.T, fail string) (env []string, log func() string) {
 	t.Helper()
+	msg := "glab: 409 Conflict"
+	if p, m, ok := strings.Cut(fail, "=>"); ok {
+		fail, msg = p, m
+	}
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake tool is a shell script")
 	}
@@ -97,7 +102,7 @@ func glabLog(t *testing.T, fail string) (env []string, log func() string) {
 in=$(cat)
 printf '%s\n%s\n' "$*" "$in" >> '` + dir + `/log'
 case "$* $in" in
-*'` + fail + `'*) echo 'glab: 409 Conflict' >&2; exit 1 ;;
+*'` + fail + `'*) echo '` + msg + `' >&2; exit 1 ;;
 *"POST projects/g%2Fp/merge_requests/12/draft_notes "*) n=$(grep -c 'draft_notes ' '` + dir + `/log'); echo "{\"id\":$n}" ;;
 *) echo '{}' ;;
 esac
@@ -204,6 +209,13 @@ func TestGitLabSubmit(t *testing.T) {
 	}
 	if got := log(); !strings.Contains(got, "draft_notes/1\n") || !strings.Contains(got, "draft_notes/2\n") {
 		t.Errorf("failed publish left drafts: %q", got)
+	}
+	// A publish whose answer was lost, its drafts gone as published, is
+	// not sent again.
+	env, _ = glabLog(t, "draft_notes/=>glab: 404 Not Found")
+	c, _ = Find(env, GitLab)
+	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictComment, "", drafts); !errors.As(err, &sent) {
+		t.Errorf("publish answer lost: %v", err)
 	}
 	// Drafts it could not take back are told of.
 	var left *LeftError
