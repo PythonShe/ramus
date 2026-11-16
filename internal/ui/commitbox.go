@@ -36,8 +36,11 @@ type commitState struct {
 	busy         bool
 	err          string
 	// wasAmend is amend as of the last frame, to load HEAD's message
-	// when amend is turned on over an empty editor.
+	// when amend is turned on over an empty editor; amendMsg is the
+	// message so loaded, which turning amend off takes away again while
+	// it is not edited.
 	wasAmend bool
+	amendMsg string
 	confirm  confirmState
 	// draftRead is set once the draft kept from the last run was read,
 	// draftLoading meanwhile; kept is the draft last handed to the store.
@@ -74,8 +77,22 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		})
 	}
 	a.loadDraft(t)
-	if cs.amend && !cs.wasAmend && cs.subject == "" && cs.body == "" && cs.setup != nil {
-		cs.subject, cs.body = message.Split(cs.setup.Last)
+	switch {
+	case cs.amend && !cs.wasAmend && cs.subject == "" && cs.body == "":
+		// HEAD as it is now: a commit made in a terminal or a switch
+		// since the setup was read moved it.
+		t.s.HeadMessage(func(msg string, err error) {
+			if err != nil || !cs.amend || cs.subject != "" || cs.body != "" {
+				return
+			}
+			cs.subject, cs.body = message.Split(msg)
+			cs.amendMsg = msg
+		})
+	case !cs.amend && cs.wasAmend && cs.amendMsg != "":
+		if s, b := message.Split(cs.amendMsg); s == cs.subject && b == cs.body {
+			cs.subject, cs.body = "", ""
+		}
+		cs.amendMsg = ""
 	}
 	cs.wasAmend = cs.amend
 	a.keepDraft(t)

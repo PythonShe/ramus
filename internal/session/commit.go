@@ -69,6 +69,22 @@ func (s *Session) LoadCommitSetup(done func(CommitSetup)) {
 	})
 }
 
+// HeadMessage reads the message of the commit HEAD is on now, off the
+// main thread, for an amend, and hands it to done on it.
+func (s *Session) HeadMessage(done func(msg string, err error)) {
+	r := s.Repo
+	if r == nil {
+		done("", context.Canceled)
+		return
+	}
+	w := message.Where{GitDir: r.GitDir, WorkTree: r.WorkTree}
+	update := s.update
+	r.Life().Go(func(ctx context.Context) {
+		msg, err := message.Last(ctx, r.Runner, w)
+		update(func() { done(msg, err) })
+	})
+}
+
 // LineEnds is the line-ending check of what is staged.
 type LineEnds struct {
 	Findings []lineend.Finding

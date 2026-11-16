@@ -712,6 +712,22 @@ func TestCommitBox(t *testing.T) {
 	}
 	h.until("recent loaded", func() bool { return cs.setup != nil && len(cs.setup.Recent) >= 3 })
 
+	// Amend takes HEAD as it is when ticked, though a terminal moved it;
+	// unticked, the message it brought goes again.
+	h.until("the amend ended", func() bool { return !cs.busy && !cs.amend && cs.setup != nil })
+	r.Git("commit", "-q", "--allow-empty", "-m", "from a terminal")
+	cs.amend = false
+	h.tt.Frame()
+	cs.subject, cs.body = "", ""
+	cs.amend = true
+	h.tt.Frame()
+	h.until("the terminal's message", func() bool { return cs.subject == "from a terminal" })
+	cs.amend = false
+	h.tt.Frame()
+	if cs.subject != "" {
+		t.Fatalf("unticked, the editor keeps %q", cs.subject)
+	}
+
 	// With nowhere to push, the commit is made all the same: its message
 	// goes, and the box says it was not pushed.
 	r.Write("lf.txt", "not pushed\n")
