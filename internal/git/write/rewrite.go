@@ -62,9 +62,11 @@ func (rw Rewrite) op(name string, seen Seen, cmd run.Cmd) Op {
 }
 
 // rebase is the fallback through git rebase: from the commit's parent
-// (or the root), merges kept, local changes stashed around it, and the
-// branches pointing into the range moved where git can. editTodo is a
-// sed expression for the todo, whose ids are written in full.
+// (or the root), local changes stashed around it, and the branches
+// pointing into the range moved where git can. editTodo is a sed
+// expression for the todo, whose ids are written in full. The op made of
+// it sets Expect.Replay, which refuses a commit HEAD does not have and a
+// range with a merge in it.
 func (rw Rewrite) rebase(w Where, editTodo string, extra ...string) run.Cmd {
 	args := []string{"rebase", "--interactive", "--autostash", "--rebase-merges"}
 	if rw.Git.Has(gitexe.UpdateRefs) {
@@ -108,10 +110,11 @@ func Reword(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 		return Op{}, errors.New("write: a commit message cannot be empty")
 	}
 	var c run.Cmd
-	if rw.Git.Has(gitexe.History) {
-		c = w.cmd("history", "reword", "--update-refs=branches", "--end-of-options", rw.Commit)
-	} else {
+	fallback := !rw.Git.Has(gitexe.History)
+	if fallback {
 		c = rw.rebase(w, "s/^pick "+rw.Commit+" /reword "+rw.Commit+" /")
+	} else {
+		c = w.cmd("history", "reword", "--update-refs=branches", "--end-of-options", rw.Commit)
 	}
 	c, in, err := withMessage(c, msg)
 	if err != nil {
@@ -119,6 +122,9 @@ func Reword(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 	}
 	op := rw.op("Reword", seen, c)
 	op.Input = in
+	if fallback {
+		op.Expect.Replay = &rw
+	}
 	return op, nil
 }
 
@@ -129,13 +135,12 @@ func DropCommit(w Where, rw Rewrite, seen Seen) (Op, error) {
 	if err := rw.check(); err != nil {
 		return Op{}, err
 	}
-	var c run.Cmd
-	if rw.Git.Has(gitexe.HistoryDrop) {
-		c = w.cmd("history", "drop", "--update-refs=branches", "--end-of-options", rw.Commit)
-	} else {
-		c = rw.rebase(w, "s/^pick "+rw.Commit+" /drop "+rw.Commit+" /")
+	if !rw.Git.Has(gitexe.HistoryDrop) {
+		op := rw.op("Drop", seen, rw.rebase(w, "s/^pick "+rw.Commit+" /drop "+rw.Commit+" /"))
+		op.Expect.Replay = &rw
+		return op, nil
 	}
-	return rw.op("Drop", seen, c), nil
+	return rw.op("Drop", seen, w.cmd("history", "drop", "--update-refs=branches", "--end-of-options", rw.Commit)), nil
 }
 
 // FixupInto folds what is staged into rw.Commit. With msg set, the
@@ -151,6 +156,7 @@ func FixupInto(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 			return Op{}, ErrNeedsNewerGit
 		}
 		op := rw.op("Fix up", seen, rw.rebase(w, "", "--autosquash"))
+		op.Expect.Replay = &rw
 		pre := w.cmd("commit", "--fixup="+rw.Commit)
 		pre.Timeout = HookTimeout
 		op.Pre = &pre
@@ -288,13 +294,20 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 				word = "fixup"
 			}
 		}
+		if msg != "" {
+			// HEAD before the step, for the amend to tell the step's
+			// commit made from one skipped, which left HEAD on the commit
+			// before: that one keeps its message.
+			b.WriteString("exec git rev-parse -q --verify HEAD >\"$(git rev-parse --git-path " + stepHead + ")\" || :\n")
+		}
 		fmt.Fprintf(&b, "%s %s\n", word, s.Commit)
 		if msg != "" {
 			cc, err := commentChar(msg)
 			if err != nil {
 				return "", err
 			}
-			fmt.Fprintf(&b, "exec printf '%%b' '%s' | git -c core.commentChar='%s' commit --amend --only -q --allow-empty -F -\n", printfArg(msg), cc)
+			fmt.Fprintf(&b, "exec test \"$(git rev-parse -q --verify HEAD)\" = \"$(cat \"$(git rev-parse --git-path %s)\")\" || "+
+				"printf '%%b' '%s' | git -c core.commentChar='%s' commit --amend --only -q --allow-empty -F -\n", stepHead, printfArg(msg), cc)
 		}
 		kept = kept || s.Action != DoDrop
 		if !refs {
@@ -309,6 +322,10 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 	}
 	return b.String(), nil
 }
+
+// stepHead is where a todo keeps HEAD as it was before a step: in the
+// rebase's own folder, which goes with it.
+const stepHead = "rebase-merge/ramus-step-head"
 
 // printfArg is s as printf %b reads it inside single quotes, on one line.
 func printfArg(s string) string {

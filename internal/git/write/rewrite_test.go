@@ -2,6 +2,7 @@ package write
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -174,5 +175,127 @@ func TestEditHistory(t *testing.T) {
 		if _, err := EditHistory(h.w, rw, bad, h.seen()); err == nil {
 			t.Errorf("%+v taken", bad)
 		}
+	}
+}
+
+// oldGit is a git before git history, whose rewrites go through a
+// rebase.
+var oldGit = gitexe.Version{Major: 2, Minor: 50, Raw: "2.50.0"}
+
+func localGit(t *testing.T) gitexe.Version {
+	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	return g.Version
+}
+
+// A reworded step whose pick stops on a conflict and is skipped leaves
+// the commit before it as it was: the message was for the commit skipped.
+func TestEditHistorySkipKeepsTheCommitBefore(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("f", "1\n")
+	h.r.Commit("base")
+	h.r.Write("g", "g\n")
+	h.r.Commit("prev commit")
+	h.r.Write("f", "2\n")
+	h.r.Commit("two")
+	h.r.Write("f", "3\n")
+	h.r.Commit("three")
+	base, prev, two, three := h.rev("main~3"), h.rev("main~2"), h.rev("main~1"), h.rev("main")
+	// three before two stops on f.
+	op, err := EditHistory(h.w, Rewrite{Commit: prev, Parent: base, Git: localGit(t)}, []Step{
+		{Action: DoPick, Commit: prev},
+		{Action: DoReword, Commit: three, Message: "THREE reworded"},
+		{Action: DoPick, Commit: two},
+	}, h.seen())
+	h.do(op, err, false)
+	skip, err := Sequence(h.w, "rebase", Skip)
+	h.do(skip, err, true)
+	if log := strings.TrimSpace(h.r.Git("log", "--format=%s", "HEAD")); log != "two\nprev commit\nbase" {
+		t.Fatalf("log:\n%s", log)
+	}
+}
+
+// The rebase a rewrite falls back to refuses a commit HEAD's branch does
+// not have, which it would replay the branch onto the parent of, and
+// leaves every branch where it was.
+func TestRewriteFallbackRefusesACommitOffTheBranch(t *testing.T) {
+	for _, what := range []string{"reword", "drop", "fixup"} {
+		t.Run(what, func(t *testing.T) {
+			h := newHarness(t)
+			h.r.Write("f", "1\n")
+			h.r.Commit("base")
+			h.r.Git("checkout", "-q", "-b", "other")
+			h.r.Write("o1", "o1\n")
+			h.r.Commit("other one")
+			h.r.Write("o2", "o2\n")
+			h.r.Commit("other two")
+			h.r.Git("checkout", "-q", "main")
+			h.r.Write("m", "m\n")
+			h.r.Commit("main work")
+			main, other := h.rev("main"), h.rev("other")
+			rw := Rewrite{Commit: other, Parent: h.rev("other~1"), Git: oldGit, Branches: []string{"refs/heads/main", "refs/heads/other"}}
+			var op Op
+			var err error
+			switch what {
+			case "reword":
+				op, err = Reword(h.w, rw, "new message", h.seen())
+			case "drop":
+				op, err = DropCommit(h.w, rw, h.seen())
+			default:
+				h.r.Write("m", "m fixed\n")
+				h.r.Git("add", "m")
+				op, err = FixupInto(h.w, rw, "", h.seen())
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := wait(t, h.q.Submit(op)); !errors.Is(err, ErrNotInHistory) {
+				t.Fatalf("err %v", err)
+			}
+			if h.rev("main") != main || h.rev("other") != other {
+				t.Fatal("a branch moved")
+			}
+		})
+	}
+}
+
+// The rebase a rewrite falls back to refuses a range with a merge in it:
+// replayed, a merge whose conflicts were resolved asks for them again.
+func TestRewriteFallbackRefusesAMergeAfter(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("f", "1\n")
+	h.r.Commit("base")
+	h.r.Write("a", "a\n")
+	h.r.Commit("A")
+	h.r.Git("checkout", "-q", "-b", "side")
+	h.r.Write("f", "side\n")
+	h.r.Commit("side")
+	h.r.Git("checkout", "-q", "main")
+	h.r.Write("f", "main\n")
+	h.r.Commit("main")
+	h.r.Run(nil, "merge", "side")
+	h.r.Write("f", "resolved\n")
+	h.r.Git("add", "f")
+	h.r.Git("commit", "-q", "--no-edit")
+	head, a := h.rev("main"), h.rev("main~1~1")
+	op, err := Reword(h.w, Rewrite{Commit: a, Parent: h.rev(a + "~1"), Git: oldGit}, "A reworded", h.seen())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wait(t, h.q.Submit(op)); !errors.Is(err, ErrNeedsNewerGit) {
+		t.Fatalf("err %v", err)
+	}
+	if h.rev("main") != head || h.status() != "" {
+		t.Fatalf("main moved or files changed: %q", h.status())
+	}
+	// The merge itself too: the todo has no pick of it to reword.
+	op, err = Reword(h.w, Rewrite{Commit: head, Parent: h.rev("main~1"), Git: oldGit}, "merge reworded", h.seen())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wait(t, h.q.Submit(op)); !errors.Is(err, ErrNeedsNewerGit) {
+		t.Fatalf("rewording the merge itself: %v", err)
 	}
 }

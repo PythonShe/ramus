@@ -32,6 +32,39 @@ type Expect struct {
 	// AnyHead leaves Branch and Head unchecked, for an action that does
 	// not depend on where HEAD is, as a tag of a commit chosen in history.
 	AnyHead bool
+	// Replay, when set, is a rewrite of a commit through a rebase of
+	// HEAD's branch from the commit's parent. The action refuses unless
+	// the commit is in HEAD's history, as the rebase would otherwise
+	// replay the branch onto that parent, and when a merge is among the
+	// commits replayed, as replaying it asks for its conflicts again.
+	Replay *Rewrite
+}
+
+// ErrNotInHistory is a rewrite of a commit the current branch does not
+// have.
+var ErrNotInHistory = errors.New("write: the commit is not in the current branch's history; switch to a branch that has it first")
+
+func checkReplay(ctx context.Context, r *run.Runner, gitDir string, rw *Rewrite) error {
+	_, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: []string{"merge-base", "--is-ancestor", rw.Commit, "HEAD"}})
+	var e *run.Error
+	if errors.As(err, &e) && e.ExitCode == 1 {
+		return ErrNotInHistory
+	}
+	if err != nil {
+		return err
+	}
+	args := []string{"rev-list", "--merges", "-n1", "HEAD"}
+	if rw.Parent != "" {
+		args = append(args, "^"+rw.Parent)
+	}
+	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: append(args, "--")})
+	if err != nil {
+		return err
+	}
+	if merge := strings.TrimSpace(string(res.Stdout)); merge != "" {
+		return fmt.Errorf("%w: merge %s comes after %s, and replaying it would ask for its conflicts again", ErrNeedsNewerGit, short(merge), short(rw.Commit))
+	}
+	return nil
 }
 
 func checkHead(ctx context.Context, r *run.Runner, gitDir string, x *Expect) error {
@@ -127,6 +160,11 @@ func (e *StaleError) Error() string {
 func check(ctx context.Context, r *run.Runner, gitDir, workTree string, x *Expect) error {
 	if !x.AnyHead {
 		if err := checkHead(ctx, r, gitDir, x); err != nil {
+			return err
+		}
+	}
+	if x.Replay != nil {
+		if err := checkReplay(ctx, r, gitDir, x.Replay); err != nil {
 			return err
 		}
 	}
