@@ -26,9 +26,13 @@ func (a *App) moveToNewWindow(i int) {
 	if a.NewWindow == nil || i < 0 || i >= len(a.tabs) {
 		return
 	}
-	path := a.tabs[i].s.Path
-	a.Close(i)
-	a.NewWindow([]string{path})
+	t := a.tabs[i]
+	a.askToDrop(t, func() {
+		if i := slices.Index(a.tabs, t); i >= 0 {
+			a.Close(i)
+			a.NewWindow([]string{t.s.Path})
+		}
+	})
 }
 
 // Has reports whether the repository at path is open in a tab here.

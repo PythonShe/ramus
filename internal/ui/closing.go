@@ -47,41 +47,85 @@ func (a *App) closeTab(i int) {
 		return
 	}
 	t := a.tabs[i]
-	if busyWrite(t) == nil {
-		a.Close(i)
+	a.askToDrop(t, func() {
+		// Tabs may have moved while it asked.
+		if i := slices.Index(a.tabs, t); i >= 0 {
+			a.Close(i)
+		}
+	})
+}
+
+// askToDrop runs close, which ends tab t, once the user agrees to stop
+// the write running there and to lose the comments written in its pull
+// request review and not sent; at once when there are neither.
+func (a *App) askToDrop(t *tab, close func()) {
+	n := t.unsentPR()
+	if busyWrite(t) == nil && n == 0 {
+		close()
 		return
 	}
-	a.confirm = confirmState{open: true, title: locales.AppCloseTabTitle(a.title(t)), message: a.stillRunning(t),
-		button: locales.AppStopAndClose(), run: func() {
-			// Tabs may have moved while it asked.
-			if i := slices.Index(a.tabs, t); i >= 0 {
-				a.Close(i)
-			}
-		}}
+	message, button := a.closingLoses(t), locales.AppStopAndClose()
+	if busyWrite(t) == nil {
+		button = locales.AppDiscardAndClose()
+	}
+	a.confirm = confirmState{open: true, title: locales.AppCloseTabTitle(a.title(t)), message: message, button: button, run: close}
+}
+
+// closingLoses says what closing tab t loses: the write it stops, and the
+// comments of its review not sent.
+func (a *App) closingLoses(t *tab) string {
+	var parts []string
+	if busyWrite(t) != nil {
+		parts = append(parts, a.stillRunning(t))
+	}
+	if n := t.unsentPR(); n > 0 {
+		parts = append(parts, locales.PrsUnsentLost(n, a.title(t)))
+	}
+	return strings.Join(parts, " ")
 }
 
 // AskToClose asks, while a write runs in one of the tabs or a clone
-// runs, whether to stop it and close the window, or quit the app with quit set; yes calls done
-// on the main thread. It reports whether it asked: with nothing running
-// it does not, and done is not called.
+// runs, or a tab's pull request review holds comments not sent, whether
+// to stop it, or lose them, and close the window, or quit the app with
+// quit set; yes calls done on the main thread. It reports whether it
+// asked: with nothing to lose it does not, and done is not called.
 func (a *App) AskToClose(quit bool, done func()) bool {
-	t := a.busyTab()
 	cloning := a.clone.job != nil || a.clone.starting
-	if t == nil && !cloning {
+	// Every tab closes: each says what it loses. The one shown is the
+	// first with a write running, else the first with comments.
+	var parts []string
+	shown, stops := a.busyTab(), cloning
+	for _, t := range a.tabs {
+		if busyWrite(t) == nil && t.unsentPR() == 0 {
+			continue
+		}
+		if shown == nil {
+			shown = t
+		}
+		stops = stops || busyWrite(t) != nil
+		parts = append(parts, a.closingLoses(t))
+	}
+	if cloning {
+		parts = append(parts, locales.AppCloneRunning(strings.TrimSpace(a.clone.url)))
+	}
+	if len(parts) == 0 {
 		return false
 	}
-	var message string
-	if t != nil {
-		a.active = slices.Index(a.tabs, t)
-		message = a.stillRunning(t)
-	} else {
-		message = locales.AppCloneRunning(strings.TrimSpace(a.clone.url))
+	if shown != nil {
+		a.active = slices.Index(a.tabs, shown)
 	}
 	title, button := locales.AppCloseWindowTitle(), locales.AppStopAndClose()
 	if quit {
 		title, button = locales.AppQuitTitle(), locales.AppStopAndQuit()
 	}
-	a.confirm = confirmState{open: true, title: title, message: message, button: button, run: done}
+	if !stops {
+		// Nothing to stop: only the comments are lost.
+		button = locales.AppDiscardAndClose()
+		if quit {
+			button = locales.AppDiscardAndQuit()
+		}
+	}
+	a.confirm = confirmState{open: true, title: title, message: strings.Join(parts, " "), button: button, run: done}
 	return true
 }
 

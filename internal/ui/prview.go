@@ -322,18 +322,7 @@ func (a *App) openReview(t *tab, repo forge.Repo, n int) {
 // leaveReview goes back to the list, once the user agrees to drop the
 // comments not sent.
 func (a *App) leaveReview(t *tab, rv *prReview) {
-	n := len(rv.drafts)
-	if cp := rv.compose; cp != nil && strings.TrimSpace(cp.body) != "" {
-		n++
-	}
-	if strings.TrimSpace(rv.comment) != "" {
-		n++
-	}
-	for _, r := range rv.replies {
-		if r != nil && strings.TrimSpace(*r) != "" {
-			n++
-		}
-	}
+	n := rv.unsent()
 	if n == 0 {
 		a.closeReview(t)
 		return
@@ -346,6 +335,33 @@ func (a *App) leaveReview(t *tab, rv *prReview) {
 				a.closeReview(t)
 			}
 		}}
+}
+
+// unsent counts the comments written in the review and not sent: its
+// drafts, the comment on lines being written, the conversation's and
+// the replies.
+func (rv *prReview) unsent() int {
+	n := len(rv.drafts)
+	if cp := rv.compose; cp != nil && strings.TrimSpace(cp.body) != "" {
+		n++
+	}
+	if strings.TrimSpace(rv.comment) != "" {
+		n++
+	}
+	for _, r := range rv.replies {
+		if r != nil && strings.TrimSpace(*r) != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// unsentPR counts the comments not sent in the tab's pull request review.
+func (t *tab) unsentPR() int {
+	if t.pr.rv == nil {
+		return 0
+	}
+	return t.pr.rv.unsent()
 }
 
 // closeReview goes back to the list, dropping what was being read.

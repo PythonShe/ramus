@@ -2725,6 +2725,12 @@
   "prsDropDraftsTitle": "{count, plural, one {Discard # unsent comment?} other {Discard # unsent comments?}}",
   "prsDropDraftsMessage": "They are not on the host yet, and are lost once you leave the review.",
   "prsDropDrafts": "Discard",
+  "prsUnsentLost": "{count, plural, one {A comment written in the pull request review in {repo} is not sent yet, and is lost on closing.} other {# comments written in the pull request review in {repo} are not sent yet, and are lost on closing.}}",
+  "@prsUnsentLost": {
+    "description": "Asked before closing a tab or window, or quitting, with comments of a pull request review not sent; repo is the tab's name."
+  },
+  "appDiscardAndClose": "Discard and Close",
+  "appDiscardAndQuit": "Discard and Quit",
   "prsDraftsLeft": "{count, plural, one {The review was not published, and # comment is left pending on the merge request; GitLab publishes it with your next review. {reason}} other {The review was not published, and # comments are left pending on the merge request; GitLab publishes them with your next review. {reason}}}",
   "prsSentNotApproved": "Your comments were sent, but the approval was not: {reason}",
   "prsNoReview": "Pull requests can be reviewed in the app on GitHub and GitLab only.",

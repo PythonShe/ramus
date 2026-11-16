@@ -13321,6 +13321,44 @@ func (msgs Messages) PrsDropDrafts() string {
 	return Catalog.Format(msgs.locale, "prsDropDrafts", nil)
 }
 
+// PrsUnsentLost says "{count, plural, one {A comment written in the pull request review in {repo} is not sent yet, and is lost on closing.}…"
+// in the language the app shows.
+//
+// Asked before closing a tab or window, or quitting, with comments of a
+// pull request review not sent; repo is the tab's name.
+func PrsUnsentLost(count int, repo string) string {
+	return In(i18n.Locale()).PrsUnsentLost(count, repo)
+}
+
+// PrsUnsentLost says "{count, plural, one {A comment written in the pull request review in {repo} is not sent yet, and is lost on closing.}…"
+// in the language of msgs.
+//
+// Asked before closing a tab or window, or quitting, with comments of a
+// pull request review not sent; repo is the tab's name.
+func (msgs Messages) PrsUnsentLost(count int, repo string) string {
+	return Catalog.Format(msgs.locale, "prsUnsentLost", map[string]any{"count": count, "repo": repo})
+}
+
+// AppDiscardAndClose says "Discard and Close"
+// in the language the app shows.
+func AppDiscardAndClose() string { return In(i18n.Locale()).AppDiscardAndClose() }
+
+// AppDiscardAndClose says "Discard and Close"
+// in the language of msgs.
+func (msgs Messages) AppDiscardAndClose() string {
+	return Catalog.Format(msgs.locale, "appDiscardAndClose", nil)
+}
+
+// AppDiscardAndQuit says "Discard and Quit"
+// in the language the app shows.
+func AppDiscardAndQuit() string { return In(i18n.Locale()).AppDiscardAndQuit() }
+
+// AppDiscardAndQuit says "Discard and Quit"
+// in the language of msgs.
+func (msgs Messages) AppDiscardAndQuit() string {
+	return Catalog.Format(msgs.locale, "appDiscardAndQuit", nil)
+}
+
 // PrsDraftsLeft says "{count, plural, one {The review was not published, and # comment is left pending on the merge request; GitLab publish…"
 // in the language the app shows.
 func PrsDraftsLeft(count int, reason string) string {
