@@ -22,7 +22,9 @@ func (s *Session) LFSLocks(done func(lfs.Locks, error)) {
 	}
 	update := s.update
 	s.goView(r, func(ctx context.Context) {
+		s.lfsMu.Lock()
 		ls, err := lfs.List(ctx, r.Runner, r.GitDir, r.WorkTree)
+		s.lfsMu.Unlock()
 		if ctx.Err() != nil {
 			return
 		}
@@ -36,6 +38,7 @@ func (s *Session) LFSLock(path string) (*write.Job, error) {
 	if err != nil {
 		return nil, err
 	}
+	op.Hold = &s.lfsMu
 	return s.Submit(op)
 }
 
@@ -45,5 +48,6 @@ func (s *Session) LFSUnlock(l lfs.Lock, force bool) (*write.Job, error) {
 	if err != nil {
 		return nil, err
 	}
+	op.Hold = &s.lfsMu
 	return s.Submit(op)
 }

@@ -80,6 +80,9 @@ type Session struct {
 	update func(func())
 	// people maps the names shown; any goroutine.
 	people people
+	// lfsMu keeps git-lfs's lock commands one at a time, reads and writes:
+	// two at once can read its lock cache half written.
+	lfsMu sync.Mutex
 
 	// Main thread only.
 	State State

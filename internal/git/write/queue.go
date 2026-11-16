@@ -54,6 +54,10 @@ type Op struct {
 	// File, when set, is written into the work tree after the checks and
 	// snapshot and before Pre: a merged result the user resolved.
 	File *FileWrite
+	// Hold, when set, is held while the write runs: a write that must not
+	// run beside a read the caller holds it for, as git-lfs, whose lock
+	// cache two of its commands at once can read half written.
+	Hold sync.Locker
 	// Refs are the refs the write may move besides the branch HEAD names
 	// before and after it (a branch it creates, deletes or renames, a
 	// tag). Undo moves only these, so a ref moved meanwhile by something
@@ -284,6 +288,10 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	}
 	if err := waitLock(ctx, q.gitDir, q.LockWait); err != nil {
 		return run.Result{}, err
+	}
+	if h := j.Op.Hold; h != nil {
+		h.Lock()
+		defer h.Unlock()
 	}
 	if j.Op.do != nil {
 		res, err := j.Op.do(ctx, j)
