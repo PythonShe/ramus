@@ -277,19 +277,22 @@ func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro b
 		fileLines(c, t.cv.entryLines(st, e, secUnstaged))
 		lt := lineTarget{p: it.res.Parsed, path: path, pv: &it.pv}
 		if picked, n := it.pv.selectedLines(); partialOK(it.res, it.key) && n > 0 {
-			if ui.Button(c, locales.ReviewDiscardLines(n)).Disabled(ro).Clicked() {
+			if linesOK(it.res, true) && ui.Button(c, locales.ReviewDiscardLines(n)).Disabled(ro).Clicked() {
 				*act = func() { a.askDiscardLinesOf(t, lt, &rv.confirm, picked) }
 			}
-			if ui.Button(c, locales.ReviewKeepLines(n)).Disabled(ro).Clicked() {
+			if linesOK(it.res, false) && ui.Button(c, locales.ReviewKeepLines(n)).Disabled(ro).Clicked() {
 				*act = func() { a.applyLinesOf(t, lt, picked, true, false) }
 			}
 		}
 		if ui.Button(c, locales.ReviewDiscardFile()).Label(locales.ReviewDiscardPath(shown)).Disabled(ro).Clicked() {
 			*act = func() {
-				if st.Kind(e) == status.Untracked {
-					a.askDiscardPaths(t, &rv.confirm, nil, []string{path})
-				} else {
-					a.askDiscardPaths(t, &rv.confirm, []string{path}, nil)
+				switch {
+				case st.Kind(e) == status.Untracked:
+					a.askDiscardPaths(t, &rv.confirm, nil, []string{path}, nil)
+				case intentToAdd(st, e):
+					a.askDiscardPaths(t, &rv.confirm, nil, nil, []string{path})
+				default:
+					a.askDiscardPaths(t, &rv.confirm, []string{path}, nil, nil)
 				}
 			}
 		}

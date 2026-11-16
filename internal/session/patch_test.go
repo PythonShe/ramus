@@ -59,6 +59,40 @@ func TestPatchSides(t *testing.T) {
 	}
 }
 
+// With diff.context set to 0, the patch still has lines around each
+// change, which git apply needs to take a line back.
+func TestPatchKeepsContextForApply(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\ntwo\nthree\n")
+	r.Commit("a")
+	r.Git("config", "diff.context", "0")
+	r.Write("a.txt", "one\nTWO\nthree\n")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	var got *PatchResult
+	s.Patch(diff.PatchRequest{Paths: []string{"a.txt"}, Context: -1}, Sides{}, func(res PatchResult) { got = &res })
+	m.until(t, "the patch", func() bool { return got != nil })
+	if got.Err != nil {
+		t.Fatal(got.Err)
+	}
+	p := got.Parsed
+	sel, err := p.Select(0, true, func(int) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(sel), "\n one\n") {
+		t.Fatalf("no context:\n%s", sel)
+	}
+	if _, err := r.Run(sel, "apply", "-R", "-"); err != nil {
+		t.Fatalf("%v\n%s", err, sel)
+	}
+	if b, _ := os.ReadFile(filepath.Join(r.Dir, "a.txt")); string(b) != "one\ntwo\nthree\n" {
+		t.Fatalf("a.txt %q", b)
+	}
+}
+
 // A file in Git LFS shows its content, read from the local LFS store, in
 // place of the pointer git keeps, and says which sides were never
 // downloaded.

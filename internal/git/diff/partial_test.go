@@ -195,6 +195,12 @@ func expect(p *Parsed, old, nu string, reverse bool, chosen func(int) bool) stri
 				keep = chosen(int(li)) != reverse
 			}
 			if keep {
+				// Only the last line of a file goes without a newline:
+				// one that ended a side and has a line after it now has
+				// one.
+				if s := out.String(); s != "" && !strings.HasSuffix(s, "\n") {
+					out.WriteString("\n")
+				}
 				out.WriteString(string(p.Bytes(l.Text)) + eol)
 			}
 		}
@@ -204,6 +210,186 @@ func expect(p *Parsed, old, nu string, reverse bool, chosen func(int) bool) stri
 		out.WriteString(base[cursor])
 	}
 	return out.String()
+}
+
+// TestSelectPastNoNewline tries every choice of lines of edits next to a
+// last line with no newline, both ways, through git apply: a line that
+// ended a side and has a chosen line after it gains a newline instead of
+// joining it.
+func TestSelectPastNoNewline(t *testing.T) {
+	r := gittest.Init(t)
+	rn := testrun.Runner(t)
+	apply := func(patch []byte, args ...string) error {
+		cmd := exec.Command(rn.Git().Path, append([]string{"apply", "--whitespace=nowarn"}, args...)...)
+		cmd.Dir, cmd.Env, cmd.Stdin = r.Dir, gittest.Env(), bytes.NewReader(patch)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return errors.New(string(out))
+		}
+		return nil
+	}
+	for _, c := range []struct{ old, nu string }{
+		{"a\nb", "a\nb\nc\nd\n"},
+		{"a\nb", "a\nc"},
+		{"a\nb\n", "a\nc"},
+		{"a\nb", "a\nb\n"},
+		{"x", "y\nz"},
+		{"a\nb\nc", "a\nc"},
+		{"a\nb\nc\n", "a\nX\nc\nd"},
+	} {
+		r.Write("f", c.old)
+		r.Git("add", "f")
+		r.Write("f", c.nu)
+		pt, err := WorkTreePatch(context.Background(), rn, r.GitDir(), r.Dir, PatchRequest{Source: Unstaged, Context: 3, ForApply: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := Parse(pt.Text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var changed []int
+		for i, l := range p.Lines {
+			if l.Kind == '+' || l.Kind == '-' {
+				changed = append(changed, i)
+			}
+		}
+		for set := 1; set < 1<<len(changed); set++ {
+			pick := map[int]bool{}
+			for b, i := range changed {
+				pick[i] = set&(1<<b) != 0
+			}
+			chosen := func(i int) bool { return pick[i] }
+			for _, reverse := range []bool{false, true} {
+				sel, err := p.Select(0, reverse, chosen)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var got string
+				if reverse {
+					if err := apply(sel, "-R"); err != nil {
+						t.Fatalf("%q -> %q, choice %b, discard: %s\n%s", c.old, c.nu, set, err, sel)
+					}
+					b, _ := os.ReadFile(filepath.Join(r.Dir, "f"))
+					got = string(b)
+					r.Write("f", c.nu)
+				} else {
+					if err := apply(sel, "--cached"); err != nil {
+						t.Fatalf("%q -> %q, choice %b, stage: %s\n%s", c.old, c.nu, set, err, sel)
+					}
+					got = r.Git("show", ":f")
+					r.Write("f", c.old)
+					r.Git("add", "f")
+					r.Write("f", c.nu)
+				}
+				if want := expect(p, c.old, c.nu, reverse, chosen); got != want {
+					t.Fatalf("%q -> %q, choice %b, reverse %v: got %q, want %q\n%s", c.old, c.nu, set, reverse, got, want, sel)
+				}
+			}
+		}
+	}
+}
+
+// Lines staged or discarded leave the file's mode as it is on the side
+// they go to.
+func TestSelectLeavesTheModeAlone(t *testing.T) {
+	r := gittest.Init(t)
+	rn := testrun.Runner(t)
+	r.Write("f", "a\nb\n")
+	r.Commit("one")
+	path := filepath.Join(r.Dir, "f")
+	r.Write("f", "a\nB\nc\n")
+	if err := os.Chmod(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pt, err := WorkTreePatch(context.Background(), rn, r.GitDir(), r.Dir, PatchRequest{Source: Unstaged, Context: 3, ForApply: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := Parse(pt.Text)
+	if err != nil || !bytes.Contains(pt.Text, []byte("new mode 100755")) {
+		t.Fatalf("%v\n%s", err, pt.Text)
+	}
+	last := len(p.Lines) - 1 // +c
+	only := func(i int) bool { return i == last }
+	apply := func(patch []byte, args ...string) {
+		t.Helper()
+		cmd := exec.Command(rn.Git().Path, append([]string{"apply"}, args...)...)
+		cmd.Dir, cmd.Env, cmd.Stdin = r.Dir, gittest.Env(), bytes.NewReader(patch)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s\n%s", out, patch)
+		}
+	}
+	sel, err := p.Select(0, false, only)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(sel, "--cached")
+	if got := r.Git("ls-files", "-s", "f"); !strings.HasPrefix(got, "100644 ") || r.Git("show", ":f") != "a\nb\nc\n" {
+		t.Fatalf("staging a line: %q %q", got, r.Git("show", ":f"))
+	}
+	r.Git("reset", "-q")
+	sel, err = p.Select(0, true, only)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(sel, "-R")
+	st, err := os.Stat(path)
+	if err != nil || st.Mode().Perm()&0o100 == 0 {
+		t.Fatalf("discarding a line took the mode back: %v %v", st.Mode(), err)
+	}
+	if b, _ := os.ReadFile(path); string(b) != "a\nB\n" {
+		t.Fatalf("discarding a line: %q", b)
+	}
+}
+
+// Lines of a new file cannot be taken back one by one, nor lines of a
+// deleted one taken: git applies those patches only whole.
+func TestSelectNewAndDeletedFiles(t *testing.T) {
+	r := gittest.Init(t)
+	rn := testrun.Runner(t)
+	r.Write("gone", "x\ny\n")
+	r.Commit("one")
+	r.Write("new", "a\nb\n")
+	r.Git("add", "new")
+	os.Remove(filepath.Join(r.Dir, "gone"))
+	read := func(src Source, path string) *Parsed {
+		t.Helper()
+		pt, err := WorkTreePatch(context.Background(), rn, r.GitDir(), r.Dir, PatchRequest{Source: src, Paths: []string{path}, Context: 3, ForApply: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := Parse(pt.Text)
+		if err != nil || len(p.Files) != 1 {
+			t.Fatalf("%v\n%s", err, pt.Text)
+		}
+		return p
+	}
+	first := func(p *Parsed) func(int) bool {
+		for i, l := range p.Lines {
+			if l.Kind == '+' || l.Kind == '-' {
+				return func(j int) bool { return j == i }
+			}
+		}
+		return nil
+	}
+	every := func(int) bool { return true }
+	added := read(Staged, "new")
+	if added.Partial(0, true) != ErrNotPartial || added.Partial(0, false) != nil {
+		t.Fatal("a new file's lines are offered to unstage one by one")
+	}
+	if _, err := added.Select(0, true, first(added)); err != ErrNotPartial {
+		t.Fatalf("some lines of a new file to unstage: %v", err)
+	}
+	if _, err := added.Select(0, true, every); err != nil {
+		t.Fatalf("all lines of a new file to unstage: %v", err)
+	}
+	deleted := read(Unstaged, "gone")
+	if deleted.Partial(0, false) != ErrNotPartial || deleted.Partial(0, true) != nil {
+		t.Fatal("a deleted file's lines are offered to stage one by one")
+	}
+	if _, err := deleted.Select(0, false, first(deleted)); err != ErrNotPartial {
+		t.Fatalf("some lines of a deleted file to stage: %v", err)
+	}
 }
 
 func splitLines(s string) []string {

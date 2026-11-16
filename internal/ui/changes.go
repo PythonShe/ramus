@@ -694,21 +694,34 @@ func (a *App) ignore(t *tab, pattern string) {
 // expects to find: HEAD and the files as they are now, read off the main
 // thread.
 func (a *App) askDiscard(t *tab, m *changeModel, es []int32) {
-	var tracked, untracked []string
+	var tracked, untracked, intent []string
 	for _, e := range es {
 		p := string(m.st.Path(int(e)))
-		if m.st.Kind(int(e)) == status.Untracked {
+		switch {
+		case m.st.Kind(int(e)) == status.Untracked:
 			untracked = append(untracked, p)
-		} else {
+		case intentToAdd(m.st, int(e)):
+			intent = append(intent, p)
+		default:
 			tracked = append(tracked, p)
 		}
 	}
-	a.askDiscardPaths(t, &t.cv.confirm, tracked, untracked)
+	a.askDiscardPaths(t, &t.cv.confirm, tracked, untracked, intent)
 }
 
-// askDiscardPaths is askDiscard of paths, asking in confirm.
-func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked []string) {
-	n := len(tracked) + len(untracked)
+// intentToAdd reports whether entry i is a file added with intent to add
+// (git add -N): the index holds none of its content, so putting it back
+// as it is in the index would empty it.
+func intentToAdd(st *status.Status, i int) bool {
+	x, y := st.XY(i)
+	return st.Kind(i) == status.Changed && x == '.' && y == 'A'
+}
+
+// askDiscardPaths is askDiscard of paths, asking in confirm. intent are
+// files added with intent to add, whose whole content is their change:
+// the intent is taken back and the file left as it is, untracked.
+func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked, intent []string) {
+	n := len(tracked) + len(untracked) + len(intent)
 	w := t.s.Where()
 	head := t.s.State.Head
 	update := a.Update
@@ -732,12 +745,13 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 				}
 				return x
 			}
-			names := nameList(append(tracked, untracked...))
-			message := locales.ChangesDiscardBoth(len(tracked), len(untracked), names)
+			names := nameList(slices.Concat(tracked, intent, untracked))
+			changed := len(tracked) + len(intent)
+			message := locales.ChangesDiscardBoth(changed, len(untracked), names)
 			switch {
 			case len(untracked) == 0:
-				message = locales.ChangesDiscardTracked(len(tracked), names)
-			case len(tracked) == 0:
+				message = locales.ChangesDiscardTracked(changed, names)
+			case changed == 0:
 				message = locales.ChangesDiscardUntracked(len(untracked), names)
 			}
 			*confirm = confirmState{
@@ -746,40 +760,61 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 				message: message,
 				button:  locales.ChangesDiscard(),
 				run: func() {
-					del := func() {
-						if len(untracked) == 0 {
-							return
-						}
-						op, err := write.Delete(w, untracked)
-						if err == nil {
-							op.Expect = expect(untrackedFiles)
-							_, err = t.s.Submit(op)
-						}
-						if err != nil {
-							a.notice = errText(err)
-						}
-					}
-					if len(tracked) == 0 {
-						del()
+					discard := func() { a.discardPaths(t, w, tracked, untracked, expect(trackedFiles), expect(untrackedFiles)) }
+					if len(intent) == 0 {
+						discard()
 						return
 					}
-					op := write.Discard(w, tracked)
-					op.Expect = expect(trackedFiles)
-					j, err := t.s.Submit(op)
+					j, err := t.s.Submit(write.Unstage(w, intent, len(head.OID) == 0))
 					if err != nil {
 						a.notice = errText(err)
 						return
 					}
-					// Only once the discard went well: a delete ending
-					// well after it would clear its error from view.
 					t.s.Then(j, func(err error) {
 						if err == nil {
-							del()
+							discard()
 						}
 					})
 				},
 			}
 		})
+	})
+}
+
+// discardPaths discards the changes to tracked paths and then deletes
+// untracked ones, each write refusing unless it finds what its
+// expectation says.
+func (a *App) discardPaths(t *tab, w write.Where, tracked, untracked []string, trackedX, untrackedX *write.Expect) {
+	del := func() {
+		if len(untracked) == 0 {
+			return
+		}
+		op, err := write.Delete(w, untracked)
+		if err == nil {
+			op.Expect = untrackedX
+			_, err = t.s.Submit(op)
+		}
+		if err != nil {
+			a.notice = errText(err)
+		}
+	}
+	if len(tracked) == 0 {
+		del()
+		return
+	}
+	op := write.Discard(w, tracked)
+	op.Expect = trackedX
+	j, err := t.s.Submit(op)
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
+	// Only once the discard went well: a delete ending well after it
+	// would clear its error from view.
+	t.s.Then(j, func(err error) {
+		if err == nil {
+			del()
+		}
 	})
 }
 

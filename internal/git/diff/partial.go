@@ -1,6 +1,7 @@
 package diff
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 )
@@ -9,8 +10,47 @@ import (
 var ErrNothingChosen = errors.New("diff: no changed line chosen")
 
 // ErrNotPartial is a file that cannot be taken apart by line: binary, or
-// with a quoted path.
+// with a quoted path; or, in one direction, a file the patch adds or
+// deletes (see Partial).
 var ErrNotPartial = errors.New("diff: this file can only be taken whole")
+
+// Partial reports whether lines of file f can be chosen one by one in
+// the direction Select is given, ErrNotPartial when not. git applies a
+// patch that adds or deletes a file only whole: lines of a new file
+// cannot be taken back one by one, nor lines of a deleted one taken; all
+// of them at once can.
+func (p *Parsed) Partial(f int, reverse bool) error {
+	fl := p.Files[f]
+	if fl.Binary || fl.Quoted || onlyWhole(p.Bytes(fl.Header), reverse) {
+		return ErrNotPartial
+	}
+	return nil
+}
+
+func onlyWhole(header []byte, reverse bool) bool {
+	mark := []byte("deleted file mode ")
+	if reverse {
+		mark = []byte("new file mode ")
+	}
+	for line := range bytes.Lines(header) {
+		if bytes.HasPrefix(line, mark) {
+			return true
+		}
+	}
+	return false
+}
+
+// lineHeader is a file's header for a patch of some of its lines: a
+// change of mode is left out, as it is not one of the lines chosen.
+func lineHeader(h []byte) []byte {
+	var out []byte
+	for line := range bytes.Lines(h) {
+		if !bytes.HasPrefix(line, []byte("old mode ")) && !bytes.HasPrefix(line, []byte("new mode ")) {
+			out = append(out, line...)
+		}
+	}
+	return out
+}
 
 // Select returns a patch of file f holding only the chosen changed lines,
 // for git apply. chosen is given indexes into Lines.
@@ -23,61 +63,91 @@ var ErrNotPartial = errors.New("diff: this file can only be taken whole")
 // unstaging lines of a staged patch, or discarding lines of an unstaged
 // one. Lines not chosen stay as on the new side: an added one becomes
 // context, a removed one is left out.
+//
+// A change of the file's mode is never part of it.
 func (p *Parsed) Select(f int, reverse bool, chosen func(line int) bool) ([]byte, error) {
 	fl := p.Files[f]
 	if fl.Binary || fl.Quoted {
 		return nil, ErrNotPartial
 	}
-	out := append([]byte(nil), p.Bytes(fl.Header)...)
+	out := lineHeader(p.Bytes(fl.Header))
+	// The side kept whole: old for forward, new for reverse. The other is
+	// rebuilt from the lines chosen.
+	keptKind, builtKind := byte('-'), byte('+')
+	if reverse {
+		keptKind, builtKind = '+', '-'
+	}
+	// emit is the kind line li goes into the patch as, false for none.
+	emit := func(li uint32) (byte, bool) {
+		l := p.Lines[li]
+		switch {
+		case l.Kind != '+' && l.Kind != '-', chosen(int(li)):
+			return l.Kind, true
+		case l.Kind == keptKind:
+			return ' ', true
+		}
+		return 0, false
+	}
 	// delta is how far the side being rebuilt has moved from the kept
 	// side, through the hunks written so far.
 	var delta int32
-	any := false
+	any, all := false, true
 	for hi := fl.Hunks.Start; hi < fl.Hunks.End; hi++ {
 		h := p.Hunks[hi]
+		// builtAfter reports whether a line from li on goes on the
+		// rebuilt side.
+		builtAfter := func(li uint32) bool {
+			for ; li < h.Lines.End; li++ {
+				if k, ok := emit(li); ok && k != '\\' && k != keptKind {
+					return true
+				}
+			}
+			return false
+		}
 		var body []byte
 		var kept, built int32 // line counts of the kept and rebuilt sides
 		changed := false
-		// dropped is set when the last line was left out, so the "\ No
-		// newline" after it goes too.
-		dropped := false
 		for li := h.Lines.Start; li < h.Lines.End; li++ {
 			l := p.Lines[li]
-			kind := l.Kind
-			switch kind {
-			case '\\':
-				if !dropped {
-					body = appendLine(body, '\\', p.Bytes(l.Text))
-				}
-				continue
-			case ' ':
-				kept++
-				built++
-			case '+', '-':
-				// The side kept whole: old for forward, new for reverse.
-				keptKind := byte('-')
-				if reverse {
-					keptKind = '+'
-				}
-				switch {
-				case chosen(int(li)):
+			if l.Kind == '\\' {
+				continue // written with the line before it
+			}
+			if l.Kind == '+' || l.Kind == '-' {
+				if chosen(int(li)) {
 					changed = true
-					if kind == keptKind {
-						kept++
-					} else {
-						built++
-					}
-				case kind == keptKind:
-					kind = ' '
-					kept++
-					built++
-				default:
-					dropped = true
-					continue
+				} else {
+					all = false
 				}
 			}
-			dropped = false
-			body = appendLine(body, kind, p.Bytes(l.Text))
+			kind, ok := emit(li)
+			if !ok {
+				continue
+			}
+			if kind != builtKind {
+				kept++
+			}
+			if kind != keptKind {
+				built++
+			}
+			text := p.Bytes(l.Text)
+			if li+1 >= h.Lines.End || p.Lines[li+1].Kind != '\\' {
+				body = appendLine(body, kind, text)
+				continue
+			}
+			marker := p.Bytes(p.Lines[li+1].Text)
+			if kind == keptKind || !builtAfter(li+2) {
+				body = appendLine(appendLine(body, kind, text), '\\', marker)
+				continue
+			}
+			// The line ends its side with no newline, but the rebuilt
+			// side goes on past it: there it needs one, or it would join
+			// the line after it. As context, it is taken off the kept
+			// side as it is and put on the rebuilt one with a newline.
+			if kind == ' ' {
+				body = appendLine(appendLine(body, keptKind, text), '\\', marker)
+				kind = builtKind
+			}
+			body = appendLine(body, kind, text)
 		}
 		if !changed {
 			continue
@@ -118,6 +188,9 @@ func (p *Parsed) Select(f int, reverse bool, chosen func(line int) bool) ([]byte
 	}
 	if !any {
 		return nil, ErrNothingChosen
+	}
+	if !all && onlyWhole(p.Bytes(fl.Header), reverse) {
+		return nil, ErrNotPartial
 	}
 	return out, nil
 }

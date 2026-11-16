@@ -162,6 +162,11 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 		return
 	}
 	req.ForApply = true
+	// git apply takes back no change without lines around it: with a
+	// diff.context of 0, every line staged or discarded would fail.
+	if cfg := r.Config(); req.Context < 0 && cfg != nil && cfg.Int("diff.context", 3) < 1 {
+		req.Context = 3
+	}
 	req.NoRefresh = s.holding
 	update := s.update
 	slot.mu.Lock()

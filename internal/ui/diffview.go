@@ -189,6 +189,13 @@ func partialOK(res session.PatchResult, key diffKey) bool {
 		key.orig == ""
 }
 
+// linesOK reports whether lines chosen of a patch partialOK allows can be
+// taken in the direction reverse says: not those of a new file to take
+// back, nor of a deleted one to take, which git applies only whole.
+func linesOK(res session.PatchResult, reverse bool) bool {
+	return res.Parsed.Partial(0, reverse) == nil
+}
+
 func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	th := c.Theme()
 	d := &t.cv.diff
@@ -200,14 +207,14 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 		fileLines(c, t.cv.entryLines(m.st, int(r.idx), r.sec))
 		if picked, n := d.pv.selectedLines(); d.partialOK() && n > 0 {
 			if r.sec == secStaged {
-				if ui.Button(c, locales.DiffUnstageLines(n)).Disabled(ro).Clicked() {
+				if linesOK(d.res, true) && ui.Button(c, locales.DiffUnstageLines(n)).Disabled(ro).Clicked() {
 					a.applyLines(t, picked, true, true)
 				}
 			} else {
-				if ui.Button(c, locales.DiffDiscardLines(n)).Disabled(ro).Clicked() {
+				if linesOK(d.res, true) && ui.Button(c, locales.DiffDiscardLines(n)).Disabled(ro).Clicked() {
 					a.askDiscardLines(t, picked)
 				}
-				if ui.Button(c, locales.DiffStageLines(n)).Disabled(ro).Clicked() {
+				if linesOK(d.res, false) && ui.Button(c, locales.DiffStageLines(n)).Disabled(ro).Clicked() {
 					a.applyLines(t, picked, true, false)
 				}
 			}
