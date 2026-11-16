@@ -42,6 +42,16 @@ func (a *App) stillRunning(t *tab) string {
 
 // closeTab closes the tab at i as the user asked, first asking whether
 // to stop the write running there.
+// CloseTab closes the tab shown, asking first as its close button does;
+// false when there is none, for the window to close instead.
+func (a *App) CloseTab() bool {
+	if len(a.tabs) == 0 {
+		return false
+	}
+	a.closeTab(a.active)
+	return true
+}
+
 func (a *App) closeTab(i int) {
 	if i < 0 || i >= len(a.tabs) {
 		return

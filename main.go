@@ -402,7 +402,28 @@ func menu(ws *windows) *mygo.Menu {
 			{Label: locales.MenuCommandPalette(), Accelerator: key("palette"), Click: act((*ui.App).ShowPalette)},
 			{Label: locales.MenuRefresh(), Accelerator: key("refresh"), Click: act((*ui.App).Reload)},
 			mygo.Separator(),
-			{Role: mygo.RoleClose},
+			// Not RoleClose, whose Cmd+W would close the window and every
+			// tab in it: the menu takes keys before the window does.
+			{Label: locales.MenuCloseTab(), Accelerator: key("close-tab"), Click: func(_ *mygo.MenuItem, win *mygo.Window) {
+				w := ws.of(win)
+				if w == nil {
+					w = ws.target()
+				}
+				if w == nil {
+					return
+				}
+				if !w.app.CloseTab() && w.win != nil {
+					w.win.Close()
+				}
+				if w.win != nil {
+					w.win.Invalidate()
+				}
+			}},
+			{Label: locales.MenuCloseWindow(), Accelerator: "CmdOrCtrl+Shift+W", Click: func(_ *mygo.MenuItem, win *mygo.Window) {
+				if w := ws.of(win); w != nil && w.win != nil {
+					w.win.Close()
+				}
+			}},
 		}},
 		{Role: mygo.RoleEditMenu},
 		{Role: mygo.RoleViewMenu},

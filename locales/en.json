@@ -2592,6 +2592,14 @@
   "menuSettings": "Settings…",
   "menuCommandPalette": "Command Palette",
   "menuRefresh": "Refresh",
+  "menuCloseTab": "Close Tab",
+  "@menuCloseTab": {
+    "description": "The File menu: closes the repository tab shown, or the window when it has none."
+  },
+  "menuCloseWindow": "Close Window",
+  "@menuCloseWindow": {
+    "description": "The File menu: closes the window and every tab in it."
+  },
   "@menuRefresh": {
     "description": "A menu item: reads the repository again."
   },

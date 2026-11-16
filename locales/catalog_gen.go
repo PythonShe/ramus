@@ -12771,6 +12771,36 @@ func (msgs Messages) MenuRefresh() string {
 	return Catalog.Format(msgs.locale, "menuRefresh", nil)
 }
 
+// MenuCloseTab says "Close Tab"
+// in the language the app shows.
+//
+// The File menu: closes the repository tab shown, or the window when it has
+// none.
+func MenuCloseTab() string { return In(i18n.Locale()).MenuCloseTab() }
+
+// MenuCloseTab says "Close Tab"
+// in the language of msgs.
+//
+// The File menu: closes the repository tab shown, or the window when it has
+// none.
+func (msgs Messages) MenuCloseTab() string {
+	return Catalog.Format(msgs.locale, "menuCloseTab", nil)
+}
+
+// MenuCloseWindow says "Close Window"
+// in the language the app shows.
+//
+// The File menu: closes the window and every tab in it.
+func MenuCloseWindow() string { return In(i18n.Locale()).MenuCloseWindow() }
+
+// MenuCloseWindow says "Close Window"
+// in the language of msgs.
+//
+// The File menu: closes the window and every tab in it.
+func (msgs Messages) MenuCloseWindow() string {
+	return Catalog.Format(msgs.locale, "menuCloseWindow", nil)
+}
+
 // WindowCompare says "Compare {file}"
 // in the language the app shows.
 //
