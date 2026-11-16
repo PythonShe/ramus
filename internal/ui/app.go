@@ -108,6 +108,9 @@ type App struct {
 	// to: a tab, or the window.
 	notice   string
 	noticeBy noticeOwner
+	// windowNotes are what Notify said, for every tab and the welcome,
+	// each until dismissed.
+	windowNotes []string
 	// pending are repositories asked for before git was found.
 	pending []string
 	// restoring are the tabs Restore opens, by path, to set up when each
@@ -228,6 +231,8 @@ type tab struct {
 	nav     tabNav
 	// failSeen is the failed write whose error the user dismissed.
 	failSeen *session.LogEntry
+	// note is the tab's notice, see claimNotice.
+	note tabNote
 }
 
 // NewApp returns the app with nothing open.
@@ -589,8 +594,12 @@ func (a *App) title(t *tab) string {
 
 // Notify shows a message that belongs to no repository.
 func (a *App) Notify(msg string) {
-	a.notice = redact.Shown(msg)
-	a.noticeBy = noticeOwner{seen: a.notice}
+	msg = redact.Shown(msg)
+	if !slices.Contains(a.windowNotes, msg) {
+		a.windowNotes = append(a.windowNotes, msg)
+	}
+	a.notice = msg
+	a.noticeBy = noticeOwner{seen: msg}
 }
 
 // errText is an error as the app shows it: git's message without escape

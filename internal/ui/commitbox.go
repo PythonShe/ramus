@@ -156,7 +156,7 @@ func (a *App) loadDraft(t *tab) {
 		update(func() {
 			cs.draftLoading, cs.draftRead = false, true
 			if err != nil {
-				a.notice = errText(err)
+				a.tell(t, errText(err))
 			}
 			if cs.subject == "" && cs.body == "" && cs.coAuthors == "" {
 				cs.subject, cs.body, cs.coAuthors = d.Subject, d.Body, d.CoAuthors
@@ -206,7 +206,7 @@ func (a *App) startCommit(t *tab, push bool) {
 	t.s.CheckLineEnds(func(le session.LineEnds) {
 		if le.Err != nil {
 			// A check that fails does not stop a commit, but says so.
-			a.notice = locales.CommitBoxLineEndsNotChecked(errText(le.Err))
+			a.tell(t, locales.CommitBoxLineEndsNotChecked(errText(le.Err)))
 		}
 		if le.Err != nil || len(le.Findings) == 0 {
 			a.commit(t, push)
@@ -276,7 +276,7 @@ func (a *App) commit(t *tab, push bool) {
 		cs.busy = false
 		var notPushed *session.NotPushedError
 		if err != nil && !errors.As(err, &notPushed) {
-			cs.err = errText(err)
+			cs.err = failure(err)
 			return
 		}
 		if opt.Amend {
@@ -286,7 +286,7 @@ func (a *App) commit(t *tab, push bool) {
 		if notPushed != nil {
 			// The commit is made: its message goes, or a second click
 			// would commit or amend it again.
-			reason := errText(notPushed.Err)
+			reason := failure(notPushed.Err)
 			if errors.Is(notPushed.Err, session.ErrNoRemote) {
 				reason = locales.CommitBoxNoRemote()
 			}
@@ -296,6 +296,6 @@ func (a *App) commit(t *tab, push bool) {
 		cs.setup = nil
 	})
 	if err != nil {
-		cs.busy, cs.err = false, errText(err)
+		cs.busy, cs.err = false, failure(err)
 	}
 }

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/egoist/mygo/ui"
+	"slices"
 
 	"ramus/internal/library"
 	"ramus/locales"
@@ -43,13 +44,21 @@ func (a *App) welcomeBody(c *ui.Context) {
 					a.initAndOpen()
 				}
 			})
-			if a.notice != "" {
+			note := func(msg string, dismiss func()) {
 				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, a.notice).TextColor(th.Danger).Shrink(1)
+					ui.Text(c, msg).TextColor(th.Danger).Shrink(1)
 					if closeButton(c, locales.RepoDismiss()).Clicked() {
-						a.dropNotice()
+						dismiss()
 					}
 				})
+			}
+			for i, n := range a.windowNotes {
+				c.Key(windowKey(i))
+				note(n, func() { a.dropWindowNote(n) })
+			}
+			if a.notice != "" && a.noticeBy.tab == nil && !slices.Contains(a.windowNotes, a.notice) {
+				c.Key("notice")
+				note(a.notice, a.dropNotice)
 			}
 			if a.gitWarning != "" {
 				ui.Text(c, a.gitWarning).TextColor(th.Warning)

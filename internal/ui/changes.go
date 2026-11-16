@@ -609,7 +609,7 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked 
 		}
 		update(func() {
 			if err != nil {
-				a.notice = errText(err)
+				a.tell(t, errText(err))
 				return
 			}
 			expect := func(files []write.FileState) *write.Expect {

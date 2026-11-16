@@ -6875,6 +6875,294 @@ func (msgs Messages) RepoDismiss() string {
 	return Catalog.Format(msgs.locale, "repoDismiss", nil)
 }
 
+// CloneFailed says "Cloning into {folder} failed: {error}"
+// in the language the app shows.
+//
+// A notice of the window, for a clone whose dialog was closed while it ran:
+// folder is where it cloned to; error what git said.
+func CloneFailed(folder string, error string) string {
+	return In(i18n.Locale()).CloneFailed(folder, error)
+}
+
+// CloneFailed says "Cloning into {folder} failed: {error}"
+// in the language of msgs.
+//
+// A notice of the window, for a clone whose dialog was closed while it ran:
+// folder is where it cloned to; error what git said.
+func (msgs Messages) CloneFailed(folder string, error string) string {
+	return Catalog.Format(msgs.locale, "cloneFailed", map[string]any{"folder": folder, "error": error})
+}
+
+// RepoNotOwned says "This repository belongs to another user. git works in it once it is marked safe, which this command does in your git …"
+// in the language the app shows.
+//
+// The screen of a repository that cannot open because of git's dubious
+// ownership check; the safe.directory command follows it.
+func RepoNotOwned() string { return In(i18n.Locale()).RepoNotOwned() }
+
+// RepoNotOwned says "This repository belongs to another user. git works in it once it is marked safe, which this command does in your git …"
+// in the language of msgs.
+//
+// The screen of a repository that cannot open because of git's dubious
+// ownership check; the safe.directory command follows it.
+func (msgs Messages) RepoNotOwned() string {
+	return Catalog.Format(msgs.locale, "repoNotOwned", nil)
+}
+
+// RepoCopyCommand says "Copy Command"
+// in the language the app shows.
+//
+// A button: copies the command shown beside it.
+func RepoCopyCommand() string { return In(i18n.Locale()).RepoCopyCommand() }
+
+// RepoCopyCommand says "Copy Command"
+// in the language of msgs.
+//
+// A button: copies the command shown beside it.
+func (msgs Messages) RepoCopyCommand() string {
+	return Catalog.Format(msgs.locale, "repoCopyCommand", nil)
+}
+
+// RepoTryAgain says "Try Again"
+// in the language the app shows.
+//
+// A button in the error bar: runs the write that failed once more, as it
+// was.
+func RepoTryAgain() string { return In(i18n.Locale()).RepoTryAgain() }
+
+// RepoTryAgain says "Try Again"
+// in the language of msgs.
+//
+// A button in the error bar: runs the write that failed once more, as it
+// was.
+func (msgs Messages) RepoTryAgain() string {
+	return Catalog.Format(msgs.locale, "repoTryAgain", nil)
+}
+
+// RepoStoppedConflicts says "{name} stopped with {count, plural, one {# conflicted file} other {# conflicted files}}"
+// in the language the app shows.
+//
+// The error bar, for a write that left conflicts and no operation to
+// continue, as a stash pop: name is the write, as Pop stash.
+func RepoStoppedConflicts(name string, count int) string {
+	return In(i18n.Locale()).RepoStoppedConflicts(name, count)
+}
+
+// RepoStoppedConflicts says "{name} stopped with {count, plural, one {# conflicted file} other {# conflicted files}}"
+// in the language of msgs.
+//
+// The error bar, for a write that left conflicts and no operation to
+// continue, as a stash pop: name is the write, as Pop stash.
+func (msgs Messages) RepoStoppedConflicts(name string, count int) string {
+	return Catalog.Format(msgs.locale, "repoStoppedConflicts", map[string]any{"name": name, "count": count})
+}
+
+// RepoShowConflicts says "Show Conflicts"
+// in the language the app shows.
+//
+// A button in the error bar: shows the changes, where the conflicted files
+// are.
+func RepoShowConflicts() string { return In(i18n.Locale()).RepoShowConflicts() }
+
+// RepoShowConflicts says "Show Conflicts"
+// in the language of msgs.
+//
+// A button in the error bar: shows the changes, where the conflicted files
+// are.
+func (msgs Messages) RepoShowConflicts() string {
+	return Catalog.Format(msgs.locale, "repoShowConflicts", nil)
+}
+
+// RepoLockHeld says "{name} failed: {lock} is held by {holders}"
+// in the language the app shows.
+//
+// The error bar: another program's git holds a lock in the repository. lock
+// is the lock file's path in the git directory, as index.lock; holders the
+// programs holding it.
+func RepoLockHeld(name string, lock string, holders string) string {
+	return In(i18n.Locale()).RepoLockHeld(name, lock, holders)
+}
+
+// RepoLockHeld says "{name} failed: {lock} is held by {holders}"
+// in the language of msgs.
+//
+// The error bar: another program's git holds a lock in the repository. lock
+// is the lock file's path in the git directory, as index.lock; holders the
+// programs holding it.
+func (msgs Messages) RepoLockHeld(name string, lock string, holders string) string {
+	return Catalog.Format(msgs.locale, "repoLockHeld", map[string]any{"name": name, "lock": lock, "holders": holders})
+}
+
+// RepoLockLeft says "{name} failed: a git command that ended left {lock} behind"
+// in the language the app shows.
+//
+// The error bar: a lock file that no process holds, most likely left by git
+// crashing. lock is its path in the git directory, as index.lock.
+func RepoLockLeft(name string, lock string) string { return In(i18n.Locale()).RepoLockLeft(name, lock) }
+
+// RepoLockLeft says "{name} failed: a git command that ended left {lock} behind"
+// in the language of msgs.
+//
+// The error bar: a lock file that no process holds, most likely left by git
+// crashing. lock is its path in the git directory, as index.lock.
+func (msgs Messages) RepoLockLeft(name string, lock string) string {
+	return Catalog.Format(msgs.locale, "repoLockLeft", map[string]any{"name": name, "lock": lock})
+}
+
+// RepoRemoveLock says "Remove Lock"
+// in the language the app shows.
+//
+// A button in the error bar: deletes the lock file no process holds.
+func RepoRemoveLock() string { return In(i18n.Locale()).RepoRemoveLock() }
+
+// RepoRemoveLock says "Remove Lock"
+// in the language of msgs.
+//
+// A button in the error bar: deletes the lock file no process holds.
+func (msgs Messages) RepoRemoveLock() string {
+	return Catalog.Format(msgs.locale, "repoRemoveLock", nil)
+}
+
+// RepoRemoveLockTryAgain says "Remove Lock and Try Again"
+// in the language the app shows.
+//
+// A button in the error bar: deletes the lock file no process holds, then
+// runs the write that failed once more.
+func RepoRemoveLockTryAgain() string { return In(i18n.Locale()).RepoRemoveLockTryAgain() }
+
+// RepoRemoveLockTryAgain says "Remove Lock and Try Again"
+// in the language of msgs.
+//
+// A button in the error bar: deletes the lock file no process holds, then
+// runs the write that failed once more.
+func (msgs Messages) RepoRemoveLockTryAgain() string {
+	return Catalog.Format(msgs.locale, "repoRemoveLockTryAgain", nil)
+}
+
+// RepoTimedOut says "{name} took too long and was stopped"
+// in the language the app shows.
+//
+// The error bar: the write ran past its time limit.
+func RepoTimedOut(name string) string { return In(i18n.Locale()).RepoTimedOut(name) }
+
+// RepoTimedOut says "{name} took too long and was stopped"
+// in the language of msgs.
+//
+// The error bar: the write ran past its time limit.
+func (msgs Messages) RepoTimedOut(name string) string {
+	return Catalog.Format(msgs.locale, "repoTimedOut", map[string]any{"name": name})
+}
+
+// RepoStalled says "{name} was stopped: the server stopped answering"
+// in the language the app shows.
+//
+// The error bar: a fetch, pull or push heard nothing from the server for
+// minutes.
+func RepoStalled(name string) string { return In(i18n.Locale()).RepoStalled(name) }
+
+// RepoStalled says "{name} was stopped: the server stopped answering"
+// in the language of msgs.
+//
+// The error bar: a fetch, pull or push heard nothing from the server for
+// minutes.
+func (msgs Messages) RepoStalled(name string) string {
+	return Catalog.Format(msgs.locale, "repoStalled", map[string]any{"name": name})
+}
+
+// RepoPushBehind says "Push failed: the remote branch has commits this branch does not have"
+// in the language the app shows.
+//
+// The error bar: the remote refused the push because the branch is behind
+// it.
+func RepoPushBehind() string { return In(i18n.Locale()).RepoPushBehind() }
+
+// RepoPushBehind says "Push failed: the remote branch has commits this branch does not have"
+// in the language of msgs.
+//
+// The error bar: the remote refused the push because the branch is behind
+// it.
+func (msgs Messages) RepoPushBehind() string {
+	return Catalog.Format(msgs.locale, "repoPushBehind", nil)
+}
+
+// RepoPullAndPush says "Pull and Push"
+// in the language the app shows.
+//
+// A button in the error bar: pulls the upstream's commits, as git's config
+// says, then pushes again.
+func RepoPullAndPush() string { return In(i18n.Locale()).RepoPullAndPush() }
+
+// RepoPullAndPush says "Pull and Push"
+// in the language of msgs.
+//
+// A button in the error bar: pulls the upstream's commits, as git's config
+// says, then pushes again.
+func (msgs Messages) RepoPullAndPush() string {
+	return Catalog.Format(msgs.locale, "repoPullAndPush", nil)
+}
+
+// RepoWouldOverwrite says "{name} failed: it would overwrite your uncommitted changes"
+// in the language the app shows.
+//
+// The error bar: git refused a switch, checkout or pull because local
+// changes would be lost.
+func RepoWouldOverwrite(name string) string { return In(i18n.Locale()).RepoWouldOverwrite(name) }
+
+// RepoWouldOverwrite says "{name} failed: it would overwrite your uncommitted changes"
+// in the language of msgs.
+//
+// The error bar: git refused a switch, checkout or pull because local
+// changes would be lost.
+func (msgs Messages) RepoWouldOverwrite(name string) string {
+	return Catalog.Format(msgs.locale, "repoWouldOverwrite", map[string]any{"name": name})
+}
+
+// RepoStashTryAgain says "Stash and Try Again"
+// in the language the app shows.
+//
+// A button in the error bar: stashes the uncommitted changes, then runs the
+// switch or pull again; a pull takes them back after.
+func RepoStashTryAgain() string { return In(i18n.Locale()).RepoStashTryAgain() }
+
+// RepoStashTryAgain says "Stash and Try Again"
+// in the language of msgs.
+//
+// A button in the error bar: stashes the uncommitted changes, then runs the
+// switch or pull again; a pull takes them back after.
+func (msgs Messages) RepoStashTryAgain() string {
+	return Catalog.Format(msgs.locale, "repoStashTryAgain", nil)
+}
+
+// RepoHostKey says "{name} failed: the server's host key is not known, or changed"
+// in the language the app shows.
+//
+// The error bar: ssh refused the server, whose key is not in known_hosts or
+// differs from the one there.
+func RepoHostKey(name string) string { return In(i18n.Locale()).RepoHostKey(name) }
+
+// RepoHostKey says "{name} failed: the server's host key is not known, or changed"
+// in the language of msgs.
+//
+// The error bar: ssh refused the server, whose key is not in known_hosts or
+// differs from the one there.
+func (msgs Messages) RepoHostKey(name string) string {
+	return Catalog.Format(msgs.locale, "repoHostKey", map[string]any{"name": name})
+}
+
+// RepoLoginRefused says "{name} failed: the server refused the login"
+// in the language the app shows.
+//
+// The error bar: the remote refused the credentials or the ssh key.
+func RepoLoginRefused(name string) string { return In(i18n.Locale()).RepoLoginRefused(name) }
+
+// RepoLoginRefused says "{name} failed: the server refused the login"
+// in the language of msgs.
+//
+// The error bar: the remote refused the credentials or the ssh key.
+func (msgs Messages) RepoLoginRefused(name string) string {
+	return Catalog.Format(msgs.locale, "repoLoginRefused", map[string]any{"name": name})
+}
+
 // RepoPathFlagged says "This path {reasons}"
 // in the language the app shows.
 //

@@ -32,12 +32,30 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		})
 		return
 	case st.Err != nil:
+		var own *repo.OwnershipError
 		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 			ui.Text(c, locales.RepoCannotOpen(t.s.Path)).Bold()
-			ui.Text(c, errText(st.Err)).TextColor(th.TextMuted).MaxWidth(560)
-			if ui.Button(c, locales.CommonClose()).Clicked() {
-				a.Close(a.active)
+			if errors.As(st.Err, &own) && own.Fix != "" {
+				ui.Text(c, locales.RepoNotOwned()).TextColor(th.TextMuted).MaxWidth(560)
+				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, own.Fix).Font("monospace").FontSize(textSmall).Selectable().MaxWidth(560)
+					if ui.Button(c, locales.RepoCopyCommand()).Clicked() {
+						a.clip = own.Fix
+					}
+				})
+			} else {
+				ui.Text(c, errText(st.Err)).TextColor(th.TextMuted).MaxWidth(560).Selectable()
 			}
+			ui.Row(c).Gap(spaceM).Children(func() {
+				// A drive mounted again, a folder put back, a command run
+				// in a terminal: the same repository may open now.
+				if ui.PrimaryButton(c, locales.RepoTryAgain()).Clicked() {
+					a.reopen(t)
+				}
+				if ui.Button(c, locales.CommonClose()).Clicked() {
+					a.Close(a.active)
+				}
+			})
 		})
 		return
 	}
@@ -388,7 +406,15 @@ func (a *App) warningBar(c *ui.Context, t *tab) {
 			ui.Text(c, what).FontSize(textSmall).TextColor(th.Warning).SingleLine().MaxWidth(560)
 		}
 		if st.RefreshErr != nil {
-			ui.Text(c, locales.RepoRefreshFailed(errText(st.RefreshErr))).FontSize(textSmall).TextColor(th.Danger).SingleLine().MaxWidth(480)
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Shrink(1).Children(func() {
+				why := errText(st.RefreshErr)
+				ui.Text(c, locales.RepoRefreshFailed(oneLine(why))).FontSize(textSmall).TextColor(th.Danger).SingleLine().Shrink(1).MaxWidth(480).Tooltip(why)
+				// The folder moved, deleted or unmounted and back: opening
+				// it again reads it whole.
+				if ui.Button(c, locales.RepoReopen()).Clicked() {
+					a.reopen(t)
+				}
+			})
 		}
 	})
 }

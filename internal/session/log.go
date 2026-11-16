@@ -45,6 +45,15 @@ func (e *LogEntry) Cancel() {
 	}
 }
 
+// Op is the write e logged, for submitting it again; false for an
+// action, or a write the engine makes of several commands.
+func (e *LogEntry) Op() (write.Op, bool) {
+	if e.job == nil || !e.job.Op.Repeatable() {
+		return write.Op{}, false
+	}
+	return e.job.Op, true
+}
+
 // Cancellable reports a write that Cancel stops.
 func (e *LogEntry) Cancellable() bool { return e.Running && e.job != nil }
 

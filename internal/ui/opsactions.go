@@ -113,11 +113,11 @@ func (a *App) savePatch(t *tab, req session.PatchSave, name string) {
 		update(func() {
 			switch {
 			case err != nil:
-				a.notice = errText(err)
+				a.tell(t, errText(err))
 			case file != "":
 				t.s.SavePatch(req, file, func(err error) {
 					if err != nil {
-						a.notice = errText(err)
+						a.tell(t, errText(err))
 					}
 				})
 			}
@@ -137,11 +137,11 @@ func (a *App) applyPatchFile(t *tab) {
 		update(func() {
 			switch {
 			case err != nil:
-				a.notice = errText(err)
+				a.tell(t, errText(err))
 			case file != "":
 				t.s.ReadPatchFile(file, func(pf session.PatchFile, err error) {
 					if err != nil {
-						a.notice = errText(err)
+						a.tell(t, errText(err))
 						return
 					}
 					a.askApply(t, pf)
@@ -189,7 +189,7 @@ func (a *App) loadBisect(t *tab) {
 	t.s.LoadBisect(func(s session.BisectState, err error) {
 		bs.loading, bs.state = false, s
 		if err != nil {
-			a.notice = errText(err)
+			a.tell(t, errText(err))
 		}
 	})
 }

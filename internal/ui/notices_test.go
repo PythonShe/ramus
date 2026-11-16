@@ -28,7 +28,7 @@ func TestErrorBarShowsFailedWrite(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	const failed = "Switch to topic failed: Your local changes to the following files would be overwritten by checkout:"
+	const failed = "Switch to topic failed: it would overwrite your uncommitted changes"
 	switchTopic()
 	h.until("the failure", h.shows(failed))
 	h.click("Show in Log")

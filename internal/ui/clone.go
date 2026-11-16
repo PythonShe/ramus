@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -134,7 +136,7 @@ func (a *App) startClone() {
 			}
 			cs.starting = false
 			if err != nil {
-				cs.err = errText(err)
+				cs.err = failure(err)
 				return
 			}
 			cs.job = j
@@ -164,8 +166,16 @@ func (a *App) followClone(j *write.Job, dir string, update func(func()), ts *tru
 			return
 		}
 		cs.job = nil
-		if err != nil {
-			cs.err = errText(err)
+		switch {
+		case errors.Is(err, context.Canceled):
+			return // the user stopped it
+		case err != nil && !cs.open:
+			// The dialog was closed while git cloned: nothing shows
+			// cs.err, so the window says it.
+			a.Notify(locales.CloneFailed(dir, oneLine(failure(err))))
+			return
+		case err != nil:
+			cs.err = failure(err)
 			return
 		}
 		cs.open, cs.url, cs.dir, cs.submodules = false, "", "", false

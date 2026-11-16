@@ -1299,6 +1299,78 @@
   "@repoDismiss": {
     "description": "The error bar's close button: takes the error away."
   },
+  "cloneFailed": "Cloning into {folder} failed: {error}",
+  "@cloneFailed": {
+    "description": "A notice of the window, for a clone whose dialog was closed while it ran: folder is where it cloned to; error what git said."
+  },
+  "repoNotOwned": "This repository belongs to another user. git works in it once it is marked safe, which this command does in your git config:",
+  "@repoNotOwned": {
+    "description": "The screen of a repository that cannot open because of git's dubious ownership check; the safe.directory command follows it."
+  },
+  "repoCopyCommand": "Copy Command",
+  "@repoCopyCommand": {
+    "description": "A button: copies the command shown beside it."
+  },
+  "repoTryAgain": "Try Again",
+  "@repoTryAgain": {
+    "description": "A button in the error bar: runs the write that failed once more, as it was."
+  },
+  "repoStoppedConflicts": "{name} stopped with {count, plural, one {# conflicted file} other {# conflicted files}}",
+  "@repoStoppedConflicts": {
+    "description": "The error bar, for a write that left conflicts and no operation to continue, as a stash pop: name is the write, as Pop stash."
+  },
+  "repoShowConflicts": "Show Conflicts",
+  "@repoShowConflicts": {
+    "description": "A button in the error bar: shows the changes, where the conflicted files are."
+  },
+  "repoLockHeld": "{name} failed: {lock} is held by {holders}",
+  "@repoLockHeld": {
+    "description": "The error bar: another program's git holds a lock in the repository. lock is the lock file's path in the git directory, as index.lock; holders the programs holding it."
+  },
+  "repoLockLeft": "{name} failed: a git command that ended left {lock} behind",
+  "@repoLockLeft": {
+    "description": "The error bar: a lock file that no process holds, most likely left by git crashing. lock is its path in the git directory, as index.lock."
+  },
+  "repoRemoveLock": "Remove Lock",
+  "@repoRemoveLock": {
+    "description": "A button in the error bar: deletes the lock file no process holds."
+  },
+  "repoRemoveLockTryAgain": "Remove Lock and Try Again",
+  "@repoRemoveLockTryAgain": {
+    "description": "A button in the error bar: deletes the lock file no process holds, then runs the write that failed once more."
+  },
+  "repoTimedOut": "{name} took too long and was stopped",
+  "@repoTimedOut": {
+    "description": "The error bar: the write ran past its time limit."
+  },
+  "repoStalled": "{name} was stopped: the server stopped answering",
+  "@repoStalled": {
+    "description": "The error bar: a fetch, pull or push heard nothing from the server for minutes."
+  },
+  "repoPushBehind": "Push failed: the remote branch has commits this branch does not have",
+  "@repoPushBehind": {
+    "description": "The error bar: the remote refused the push because the branch is behind it."
+  },
+  "repoPullAndPush": "Pull and Push",
+  "@repoPullAndPush": {
+    "description": "A button in the error bar: pulls the upstream's commits, as git's config says, then pushes again."
+  },
+  "repoWouldOverwrite": "{name} failed: it would overwrite your uncommitted changes",
+  "@repoWouldOverwrite": {
+    "description": "The error bar: git refused a switch, checkout or pull because local changes would be lost."
+  },
+  "repoStashTryAgain": "Stash and Try Again",
+  "@repoStashTryAgain": {
+    "description": "A button in the error bar: stashes the uncommitted changes, then runs the switch or pull again; a pull takes them back after."
+  },
+  "repoHostKey": "{name} failed: the server's host key is not known, or changed",
+  "@repoHostKey": {
+    "description": "The error bar: ssh refused the server, whose key is not in known_hosts or differs from the one there."
+  },
+  "repoLoginRefused": "{name} failed: the server refused the login",
+  "@repoLoginRefused": {
+    "description": "The error bar: the remote refused the credentials or the ssh key."
+  },
   "repoPathFlagged": "This path {reasons}",
   "@repoPathFlagged": {
     "description": "Why a path is flagged; reasons are one or more of the repoPath* reasons, joined by commas."

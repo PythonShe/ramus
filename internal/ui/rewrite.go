@@ -63,7 +63,7 @@ func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 		a.withCommit(t, id, func(d session.CommitDetail) {
 			op, err := write.DropCommit(t.s.Where(), t.s.Rewrite(d), t.s.Seen())
 			if err != nil {
-				a.notice = errText(err)
+				a.tell(t, errText(err))
 				return
 			}
 			subject, _, _ := bytes.Cut(d.Commit.Message, []byte("\n"))

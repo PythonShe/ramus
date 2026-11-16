@@ -178,7 +178,7 @@ func (a *App) openPicker(t *tab) {
 	if !t.prefs.fetchOff {
 		t.s.FetchFresh(pickFresh, func(err error) {
 			if err != nil && !errors.Is(err, context.Canceled) {
-				p.fetchErr = locales.BranchPickerFetchFailed(errText(err))
+				p.fetchErr = locales.BranchPickerFetchFailed(oneLine(failure(err)))
 			}
 		})
 	}

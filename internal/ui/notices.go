@@ -14,15 +14,21 @@ import (
 	"ramus/locales"
 )
 
-// noticeOwner is whom the notice belongs to. Most of the app raises a
+// noticeOwner is whom App.notice belongs to. Most of the app raises a
 // notice by setting App.notice where the user acted, in the tab shown;
-// claimNotice gives it to that tab on the next frame. Work that ends
-// later says its tab with tell, and Notify says the window.
+// claimNotice gives it to that tab on the next frame, which keeps it as
+// its own, so a notice of one tab never takes another's place. Work that
+// ends later says its tab with tell, and Notify says the window.
 type noticeOwner struct {
-	// seen is the notice tab was found for; tab is nil for the window,
-	// whose notice every tab shows.
+	// seen is the notice a tab was found for; tab is nil for none, the
+	// welcome's.
 	seen string
 	tab  *tab
+}
+
+// tabNote is the notice of a tab.
+type tabNote struct {
+	text string
 	// after is the last entry of the tab's log when the notice came: a
 	// write logged after it that ends well clears the notice.
 	after *session.LogEntry
@@ -34,19 +40,41 @@ func (a *App) claimNotice() {
 		return
 	}
 	t := a.current()
-	a.noticeBy = noticeOwner{seen: a.notice, tab: t, after: lastEntry(t)}
+	a.noticeBy = noticeOwner{seen: a.notice, tab: t}
+	if t != nil && a.notice != "" {
+		t.note = tabNote{text: a.notice, after: lastEntry(t)}
+	}
 }
 
 // tell raises msg as a notice of tab t, which no other tab shows.
 func (a *App) tell(t *tab, msg string) {
 	a.notice = msg
-	a.noticeBy = noticeOwner{seen: msg, tab: t, after: lastEntry(t)}
+	a.noticeBy = noticeOwner{seen: msg, tab: t}
+	if t != nil {
+		t.note = tabNote{text: msg, after: lastEntry(t)}
+	}
 }
 
-// dropNotice clears the notice.
+// dropNotice clears the notice no tab took, the welcome's.
 func (a *App) dropNotice() {
 	a.notice = ""
 	a.noticeBy = noticeOwner{}
+}
+
+// dropTabNotice clears the notice of tab t.
+func (a *App) dropTabNotice(t *tab) {
+	if a.noticeBy.tab == t && a.notice == t.note.text {
+		a.dropNotice()
+	}
+	t.note = tabNote{}
+}
+
+// dropWindowNote clears one of the window's notices.
+func (a *App) dropWindowNote(msg string) {
+	a.windowNotes = slices.DeleteFunc(a.windowNotes, func(n string) bool { return n == msg })
+	if a.notice == msg && a.noticeBy.tab == nil {
+		a.dropNotice()
+	}
 }
 
 func lastEntry(t *tab) *session.LogEntry {
@@ -59,20 +87,17 @@ func lastEntry(t *tab) *session.LogEntry {
 // tabNotice is the notice tab t shows, "" none. One a write ending well
 // has made old since is dropped.
 func (a *App) tabNotice(t *tab) string {
-	o := a.noticeBy
-	if a.notice == "" || o.tab != nil && o.tab != t {
+	if t.note.text == "" {
 		return ""
 	}
-	if o.tab == t {
-		log := t.s.Log
-		for i := len(log) - 1; i >= 0 && log[i] != o.after; i-- {
-			if e := log[i]; !e.Running && e.Err == nil && !e.Quiet {
-				a.dropNotice()
-				return ""
-			}
+	log := t.s.Log
+	for i := len(log) - 1; i >= 0 && log[i] != t.note.after; i-- {
+		if e := log[i]; !e.Running && e.Err == nil && !e.Quiet {
+			a.dropTabNotice(t)
+			return ""
 		}
 	}
-	return a.notice
+	return t.note.text
 }
 
 // failedWrite is the write or action of tab t that ended last, when it
@@ -94,18 +119,31 @@ func failedWrite(t *tab) *session.LogEntry {
 	return nil
 }
 
-// errorBar says what went wrong last in tab t: the notice raised for it
-// and the write that failed, each until dismissed or a write ends well.
-// It is not there while all is well.
+// errorBar says what went wrong last in tab t: the window's notices, the
+// tab's own and the write that failed, each until dismissed or a write
+// ends well, with what can be done about it where the app knows. It is
+// not there while all is well.
 func (a *App) errorBar(c *ui.Context, t *tab) {
 	notice, failed := a.tabNotice(t), failedWrite(t)
-	if notice == "" && failed == nil {
+	var d diagnosis
+	if failed != nil {
+		d = a.diagnose(t, failed)
+		if d.covered {
+			failed = nil
+		}
+	}
+	if notice == "" && failed == nil && len(a.windowNotes) == 0 {
 		return
 	}
 	th := c.Theme()
-	row := func(text, full string, open bool, dismiss func()) {
+	row := func(text, full string, fixes []remedy, open bool, dismiss func()) {
 		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 			ui.Text(c, text).FontSize(textSmall).TextColor(th.Danger).SingleLine().Shrink(1).Grow(1).Tooltip(full)
+			for _, f := range fixes {
+				if ui.Button(c, f.label).Clicked() {
+					f.run()
+				}
+			}
 			if open && ui.Button(c, locales.RepoShowInLog()).Clicked() {
 				a.showLogEntry(t, failed)
 			}
@@ -114,14 +152,17 @@ func (a *App) errorBar(c *ui.Context, t *tab) {
 			}
 		})
 	}
+	for i, n := range a.windowNotes {
+		c.Key(windowKey(i))
+		row(oneLine(n), n, nil, false, func() { a.dropWindowNote(n) })
+	}
 	if notice != "" {
 		c.Key("notice")
-		row(oneLine(notice), notice, false, a.dropNotice)
+		row(oneLine(notice), notice, nil, false, func() { a.dropTabNotice(t) })
 	}
 	if failed != nil {
-		why := failure(failed.Err)
 		c.Key("failed")
-		row(locales.RepoWriteFailed(failed.Name, oneLine(why)), why, true, func() { t.failSeen = failed })
+		row(d.text, d.full, d.fixes, true, func() { t.failSeen = failed })
 	}
 }
 
@@ -135,7 +176,7 @@ func (a *App) showLogEntry(t *tab, e *session.LogEntry) {
 	t.logChosen = len(t.s.Log) - 1 - i // newest first
 }
 
-// failure is why a write failed, as git said it without the command
+// failure is why a write failed, as git said it, without the command
 // line the log already shows.
 func failure(err error) string {
 	var re *run.Error
@@ -143,6 +184,7 @@ func failure(err error) string {
 		if s := strings.TrimSpace(re.Stderr); s != "" {
 			return redact.Shown(s)
 		}
+		return errText(re.Err)
 	}
 	return errText(err)
 }
@@ -151,6 +193,20 @@ func failure(err error) string {
 // one line high: its first error, else its first line.
 func oneLine(msg string) string {
 	lines := strings.Split(msg, "\n")
+	// git ends a failed push or fetch with a line that says nothing of
+	// why ("failed to push some refs", "Could not read from remote
+	// repository"); the cause is in the lines before it.
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		for _, m := range causeMarks {
+			if strings.Contains(l, m) {
+				for _, p := range []string{"remote: ", "fatal: ", "error: ", "! "} {
+					l = strings.TrimPrefix(l, p)
+				}
+				return strings.Join(strings.Fields(l), " ")
+			}
+		}
+	}
 	for _, l := range lines {
 		for _, p := range []string{"fatal: ", "error: "} {
 			if rest, ok := strings.CutPrefix(strings.TrimSpace(l), p); ok {
@@ -164,4 +220,21 @@ func oneLine(msg string) string {
 		}
 	}
 	return ""
+}
+
+// windowKey keys the window's notice i among a bar's rows.
+type windowKey int
+
+// causeMarks are what a line naming a failure's cause holds: the refs a
+// remote rejected, and ssh's and the server's words, which git does not
+// translate.
+var causeMarks = []string{
+	"[rejected]",
+	"[remote rejected]",
+	"Host key verification failed",
+	"REMOTE HOST IDENTIFICATION HAS CHANGED",
+	"Permission denied (",
+	"Authentication failed",
+	"Invalid username or password",
+	"hook declined",
 }

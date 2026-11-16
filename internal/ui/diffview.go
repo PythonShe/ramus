@@ -307,7 +307,7 @@ func (a *App) askDiscardLinesOf(t *tab, lt lineTarget, confirm *confirmState, ch
 		files, err := write.Observe(w.WorkTree, []string{path})
 		update(func() {
 			if err != nil {
-				a.notice = errText(err)
+				a.tell(t, errText(err))
 				return
 			}
 			op.Expect = &write.Expect{Head: hex.EncodeToString(head.OID), Files: files}
