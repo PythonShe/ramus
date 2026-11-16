@@ -15,6 +15,7 @@ import (
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/lifetime"
 	"ramus/internal/git/mailmap"
 	"ramus/internal/git/stats"
 )
@@ -130,4 +131,25 @@ func TestSummarize(t *testing.T) {
 	if c := Summarize(Days{}, 5); c != (Calendar{}) {
 		t.Fatalf("empty %+v", c)
 	}
+}
+
+type panicky struct{}
+
+func (panicky) Read([][]byte, func(int, catfile.Object) error) error { panic("boom") }
+
+// A panic reading commits is raised again by Read, in its caller's
+// goroutine, where the caller's recover reaches it, and does not hang it.
+func TestReadRaisesAPanic(t *testing.T) {
+	ids := make([][]byte, 5*batch)
+	for i := range ids {
+		ids[i] = make([]byte, 20)
+	}
+	defer func() {
+		c, ok := recover().(*lifetime.Carried)
+		if !ok || c.Value != "boom" || !strings.Contains(c.Stack, "panicky") {
+			t.Fatalf("recovered %v", c)
+		}
+	}()
+	Read(context.Background(), []stats.Reader{panicky{}, panicky{}}, ids, nil, nil)
+	t.Fatal("no panic")
 }

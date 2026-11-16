@@ -1,9 +1,6 @@
 package session
 
 import (
-	"fmt"
-	"runtime/debug"
-
 	"ramus/internal/git/lifetime"
 	"ramus/internal/git/redact"
 )
@@ -39,7 +36,7 @@ func (s *Session) panicked(p lifetime.Panic) {
 // started, reports a panic in it.
 func (s *Session) recoverWork() {
 	if v := recover(); v != nil {
-		s.panicked(lifetime.Panic{Value: fmt.Sprint(v), Stack: string(debug.Stack())})
+		s.panicked(lifetime.PanicOf(v))
 	}
 }
 
@@ -49,7 +46,7 @@ func (s *Session) recoverWork() {
 // recoverWork.
 func (s *Session) Recover() {
 	if v := recover(); v != nil {
-		s.panicked(lifetime.Panic{Value: fmt.Sprint(v), Stack: string(debug.Stack())})
+		s.panicked(lifetime.PanicOf(v))
 	}
 }
 
@@ -57,7 +54,8 @@ func (s *Session) Recover() {
 // a panic in it there.
 func (s *Session) recoverMain() {
 	if v := recover(); v != nil {
-		p := lifetime.Panic{Value: redact.Shown(fmt.Sprint(v)), Stack: string(debug.Stack())}
+		p := lifetime.PanicOf(v)
+		p.Value = redact.Shown(p.Value)
 		s.heard(p)
 		if s.Panic == nil {
 			s.Panic = &p

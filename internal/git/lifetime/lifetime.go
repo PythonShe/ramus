@@ -8,9 +8,7 @@ package lifetime
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
-	"runtime/debug"
 	"sync"
 
 	"ramus/internal/git/mmap"
@@ -90,7 +88,7 @@ func (l *Lifetime) Recover() {
 	if fn == nil {
 		panic(v)
 	}
-	fn(Panic{Value: fmt.Sprint(v), Stack: string(debug.Stack())})
+	fn(PanicOf(v))
 }
 
 // Report hands v, a panic recovered by the caller that carries on, to
@@ -104,7 +102,7 @@ func (l *Lifetime) Report(v any) {
 	if fn == nil {
 		panic(v)
 	}
-	fn(Panic{Value: fmt.Sprint(v), Stack: string(debug.Stack())})
+	fn(PanicOf(v))
 }
 
 // Own closes c when the lifetime ends, after every goroutine has

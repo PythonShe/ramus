@@ -129,11 +129,17 @@ func summarizeAll(ctx context.Context, r *repo.Repository, wts []repo.Worktree, 
 		go func() {
 			defer func() { ended <- struct{}{} }()
 			for wt := range jobs {
-				sum := summarize(ctx, r.Runner, r.Caps.HashSize, wt, time.Now())
-				if ctx.Err() != nil {
-					continue
-				}
-				emit(sum)
+				// A panic summarizing one is reported, and the worker
+				// goes on, so the loop handing out the rest is not
+				// left waiting.
+				func() {
+					defer r.Life().Recover()
+					sum := summarize(ctx, r.Runner, r.Caps.HashSize, wt, time.Now())
+					if ctx.Err() != nil {
+						return
+					}
+					emit(sum)
+				}()
 			}
 		}()
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ramus/internal/git/catfile"
+	"ramus/internal/git/lifetime"
 	"ramus/internal/git/mailmap"
 	"ramus/internal/git/object"
 )
@@ -186,8 +187,16 @@ func Collect(ctx context.Context, readers []Reader, ids [][]byte, mm *mailmap.Ma
 	}
 	results := make(chan result)
 	var wg sync.WaitGroup
+	var carry lifetime.Carrier
 	for _, rd := range readers {
 		wg.Go(func() {
+			// A reader that panicked reads no more, but takes the rest
+			// of the work so that what hands it out is not left waiting.
+			defer func() {
+				for range work {
+				}
+			}()
+			defer carry.Carry()
 			for ids := range work {
 				c := NewCounter(mm)
 				err := rd.Read(ids, func(_ int, o catfile.Object) error {
@@ -229,6 +238,7 @@ func Collect(ctx context.Context, readers []Reader, ids [][]byte, mm *mailmap.Ma
 			progress(read, total.Stats())
 		}
 	}
+	carry.Raise()
 	if first == nil {
 		first = ctx.Err()
 	}

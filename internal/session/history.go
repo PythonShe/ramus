@@ -928,6 +928,7 @@ func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitD
 	}
 	go func() {
 		defer close(counted)
+		defer s.recoverWork()
 		ns, err := diff.CommitLines(ctx, r.Runner, r.GitDir, from, d.OID)
 		if err != nil || ctx.Err() != nil {
 			return
