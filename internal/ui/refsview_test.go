@@ -53,7 +53,7 @@ func TestRefsView(t *testing.T) {
 	if err := h.tt.RightClick("alpha"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.tt.ChooseMenuItem("Check Out"); err != nil {
+	if err := h.tt.ChooseMenuItem("Switch"); err != nil {
 		t.Fatalf("%v: %q", err, h.tt.Menu())
 	}
 	h.until("the question", h.shows("Stash Them"))

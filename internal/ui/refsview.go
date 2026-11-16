@@ -553,7 +553,7 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 	current := !head.Detached && head.Target == b.Name
 	short := strings.TrimPrefix(b.Name, "refs/heads/")
 	w, seen := t.s.Where(), t.s.Seen()
-	if m.Item(locales.RefsCheckOut()).Disabled(ro || current).Chosen() {
+	if m.Item(locales.RefsSwitch()).Disabled(ro || current).Chosen() {
 		*act = func() { a.checkOut(t, b) }
 	}
 	if m.Item(locales.RefsNewWorktree()).Disabled(ro || current || b.Worktree != "").Chosen() {
