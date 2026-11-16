@@ -271,6 +271,10 @@ func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.Co
 	})
 }
 
+// metaLabelW is the width of the labels before what commitMeta shows, so
+// that what they label lines up.
+const metaLabelW = 76
+
 // commitMeta shows who made the commit, its id, signature and parents.
 func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
@@ -282,7 +286,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		// them, where a narrow panel would break it over lines.
 		person := func(role string, p object.Signature) {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
-				ui.Text(c, role).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, role).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).Children(func() {
 					ui.Text(c, fmt.Sprintf("%s <%s>", redact.Control(string(p.Name)), redact.Control(string(p.Email)))).FontSize(textSmall).Selectable()
 					ui.Text(c, signatureTime(p).Format("2006-01-02 15:04:05 -0700")).FontSize(textSmall).TextColor(th.TextMuted)
@@ -293,8 +297,8 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		if !samePerson(cm.Author, cm.Committer) {
 			person(locales.CommitCommitter(), cm.Committer)
 		}
-		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.CommitHashLabel()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+		ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+			ui.Text(c, locales.CommitHashLabel()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 			id := hex.EncodeToString(d.OID)
 			// A hash is one word: it breaks anywhere to fit a narrow panel,
 			// rather than run past its edge.
@@ -308,7 +312,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		a.loadCommitPull(t, cv, d)
 		if p := cv.pull.Pull; a.Settings.PullRequests && cv.pull.Found {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.CommitPullRequest(kindName(p.Repo.Kind))).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitPullRequest(kindName(p.Repo.Kind))).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
 					ui.Link(c, p.Ref(p.Repo.Kind), p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
 					pullState(c, plainInk(th), p.Pull)
@@ -319,7 +323,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		// that made it, then what git made of it.
 		if cm.Signed {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
 					if k := sigKindName(cm.SigKind); k != "" {
 						ui.Badge(c, k).FontSize(textCaption)
@@ -330,7 +334,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		}
 		if enc := string(cm.Encoding); !textenc.IsUTF8(enc) || d.Odd {
 			ui.Row(c).Gap(spaceM).Children(func() {
-				ui.Text(c, locales.CommitEncoding()).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitEncoding()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				name := redact.Control(enc)
 				if textenc.IsUTF8(enc) {
 					name = "UTF-8"
@@ -344,7 +348,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		}
 		if len(d.Parents) > 0 {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
-				ui.Text(c, locales.CommitParents(len(d.Parents))).FontSize(textSmall).TextColor(th.TextMuted).Width(76)
+				ui.Text(c, locales.CommitParents(len(d.Parents))).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					for _, p := range d.Parents {
 						if clickable(ui.Text(c, hex.EncodeToString(p)).Font("monospace").FontSize(textSmall).FillWidth().MinWidth(0)).Tooltip(locales.CommitGoToParent()).Clicked() {
