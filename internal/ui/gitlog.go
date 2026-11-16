@@ -60,14 +60,14 @@ func (a *App) gitLogView(c *ui.Context, t *tab) {
 	gl.list.Selected = &gl.chosen
 	gl.list.Label = func(i int) string { r := &recs[n-1-i]; return locales.GitLogRowLabel(r.Short, recordStatus(r)) }
 	ui.Split(c, &t.listW, func() {
-		ui.List(c, &gl.list, n, func(i int) {
-			r := &recs[n-1-i]
+		ui.List(c, &gl.list, n).Rows(func(row ui.ListRow) {
+			r, k := &recs[n-1-row.Index], rowInk(row)
 			ui.Column(c).Padding(rowTallPadY, insetX).Children(func() {
 				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.Text(c, r.Short).Font("monospace").FontSize(textSmall).SingleLine().Grow(1)
-					ui.Text(c, recordStatus(r)).FontSize(textSmall).TextColor(recordColor(th, r))
+					ui.Text(c, recordStatus(r)).FontSize(textSmall).TextColor(recordColor(k, r))
 				})
-				ui.Text(c, r.Started.Format(time.TimeOnly)).FontSize(textSmall).TextColor(th.TextMuted)
+				ui.Text(c, r.Started.Format(time.TimeOnly)).FontSize(textSmall).TextColor(k.Muted)
 			})
 		}).Label(locales.GitLogCommandsRun()).Fill()
 	}, func() {
@@ -86,7 +86,7 @@ func (a *App) gitLogView(c *ui.Context, t *tab) {
 		ui.Column(c).Fill().Padding(spaceL).Gap(spaceM).Children(func() {
 			ui.Text(c, r.Line).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 			if r.Err != "" {
-				ui.Text(c, r.Err).TextColor(recordColor(th, r)).Selectable()
+				ui.Text(c, r.Err).TextColor(recordColor(plainInk(th), r)).Selectable()
 			}
 			if r.Stderr != "" {
 				ui.Text(c, strings.TrimSpace(r.Stderr)).Font("monospace").FontSize(textSmall).Selectable()
@@ -116,13 +116,13 @@ func recordStatus(r *run.Record) string {
 	return r.Duration.Round(time.Millisecond).String()
 }
 
-func recordColor(th *ui.Theme, r *run.Record) ui.Color {
+func recordColor(k ink, r *run.Record) ui.Color {
 	// Exit 1 is how config --get, merge-base --is-ancestor and diff
 	// --quiet answer no, which the engine asks all the time.
 	if r.Err != "" && !r.Stopped && r.Exit != 1 {
-		return th.Danger
+		return k.Danger
 	}
-	return th.TextMuted
+	return k.Muted
 }
 
 func sameRecord(a, b *run.Record) bool { return a.Started.Equal(b.Started) && a.Line == b.Line }

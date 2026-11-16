@@ -288,7 +288,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		cv.list.Header = func(i int) bool { return rows[i].kind == rowHeader }
 		cv.list.Label = func(i int) string { return rowLabel(cv, m, rows[i]) }
 		var act func()
-		l := ui.List(c, &cv.list, len(rows), func(i int) { a.changeRow(c, t, m, rows[i], &act) }).Label(locales.ChangesListLabel()).Grow(1)
+		l := ui.List(c, &cv.list, len(rows)).Rows(func(r ui.ListRow) { a.changeRow(c, t, m, rows[r.Index], rowInk(r), &act) }).Label(locales.ChangesListLabel()).Grow(1)
 		if l.Submitted() && cv.chosen >= 0 && cv.chosen < len(rows) {
 			r := rows[cv.chosen]
 			act = func() { a.toggleStage(t, m, []changeRow{r}) }
@@ -342,7 +342,7 @@ func rowLabel(cv *changesState, m *changeModel, r changeRow) string {
 	return fileLabel(entryWords(m.st, i, r.sec), string(m.st.Path(i)), cv.entryLines(m.st, i, r.sec))
 }
 
-func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act *func()) {
+func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k ink, act *func()) {
 	th := c.Theme()
 	cv := &t.cv
 	ro := t.s.Queue == nil
@@ -369,22 +369,22 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 	row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceS).AlignItems(ui.Center).FillWidth().Children(func() {
 		ui.Box(c).Width(indent)
 		if r.kind == rowDir {
-			k := openKey{r.sec, m.dir(r.sec, r.idx)}
+			key := openKey{r.sec, m.dir(r.sec, r.idx)}
 			arrow := "▸"
-			if cv.open[k] {
+			if cv.open[key] {
 				arrow = "▾"
 			}
-			if ui.Text(c, arrow).Width(12).TextColor(th.TextMuted).RowClicked() {
-				*act = func() { cv.open[k] = !cv.open[k]; cv.openGen++ }
+			if ui.Text(c, arrow).Width(12).TextColor(k.Muted).RowClicked() {
+				*act = func() { cv.open[key] = !cv.open[key]; cv.openGen++ }
 			}
 			ui.Text(c, m.name(r)+"/").SingleLine().Grow(1)
 			return
 		}
 		i := int(r.idx)
 		letter := entryLetter(m.st, i, r.sec)
-		ui.Text(c, letter).Font("monospace").TextColor(entryColor(th, m.st, i, letter)).Width(16).Description(entryWords(m.st, i, r.sec))
+		ui.Text(c, letter).Font("monospace").TextColor(entryColor(k, m.st, i, letter)).Width(16).Description(entryWords(m.st, i, r.sec))
 		if untrackedFolder(m.st, i) {
-			ui.Icon(c, changeIcons().folder).FontSize(16).Width(16).TextColor(th.TextMuted)
+			ui.Icon(c, changeIcons().folder).FontSize(16).Width(16).TextColor(k.Muted)
 		} else {
 			fileIcon(c, string(m.st.Path(i)))
 		}
@@ -394,12 +394,12 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, act 
 		}
 		name := pathLabel(c, shown).Grow(1)
 		if flagged != "" {
-			name.TextColor(th.Warning).Description(flagged)
+			name.TextColor(k.Warning).Description(flagged)
 		}
 		if note := entryNote(m.st, i, r.sec); note != "" {
-			ui.Text(c, note).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, note).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 		}
-		fileLines(c, cv.entryLines(m.st, i, r.sec))
+		inkFileLines(c, k, cv.entryLines(m.st, i, r.sec))
 	})
 	if row.RowDoubleClicked() {
 		*act = func() { a.toggleStage(t, m, []changeRow{r}) }
@@ -803,14 +803,14 @@ func untrackedFolder(st *status.Status, i int) bool {
 
 // entryColor is the colour of entry i's letter: the commit lists' for
 // git's letters, new for what git does not track, danger for a conflict.
-func entryColor(th *ui.Theme, st *status.Status, i int, letter string) ui.Color {
+func entryColor(k ink, st *status.Status, i int, letter string) ui.Color {
 	switch st.Kind(i) {
 	case status.Untracked:
-		return th.Success
+		return k.Success
 	case status.Unmerged:
-		return th.Danger
+		return k.Danger
 	}
-	return fileStatusColor(th, letter[0])
+	return fileStatusColor(k, letter[0])
 }
 
 // changeIcons are the change list's own icons, parsed once.

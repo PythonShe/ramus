@@ -450,16 +450,17 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 	cv.files.Label = func(i int) string {
 		return fileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i), lineAt(d.Lines, i))
 	}
-	ui.List(c, &cv.files, f.Len(), func(i int) {
+	ui.List(c, &cv.files, f.Len()).Rows(func(r ui.ListRow) {
+		i, k := r.Index, rowInk(r)
 		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, f.Status(i)))
+			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(k, f.Status(i)))
 			fileIcon(c, string(f.Path(i)))
 			shown, why := showPath(commitFileName(f, i))
 			txt := pathLabel(c, shown).Grow(1)
 			if why != "" {
-				txt.TextColor(th.Warning).Tooltip(why)
+				txt.TextColor(k.Warning).Tooltip(why)
 			}
-			fileLines(c, lineAt(d.Lines, i))
+			inkFileLines(c, k, lineAt(d.Lines, i))
 		})
 	}).Label(locales.CommitFilesLabel()).Grow(1)
 }
@@ -480,16 +481,16 @@ func fileStatusWord(st byte) string {
 	return locales.ChangesState("M")
 }
 
-func fileStatusColor(th *ui.Theme, st byte) ui.Color {
+func fileStatusColor(k ink, st byte) ui.Color {
 	switch st {
 	case 'A':
-		return th.Success
+		return k.Success
 	case 'D':
-		return th.Danger
+		return k.Danger
 	case 'R', 'C':
-		return th.Accent
+		return k.Accent
 	}
-	return th.Warning
+	return k.Warning
 }
 
 func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {

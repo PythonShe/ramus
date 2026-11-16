@@ -674,16 +674,17 @@ func (a *App) prFiles(c *ui.Context, t *tab, rv *prReview) {
 		rv.files.Label = func(i int) string {
 			return fileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i), lineAt(rv.detail.Lines, i))
 		}
-		ui.List(c, &rv.files, f.Len(), func(i int) {
+		ui.List(c, &rv.files, f.Len()).Rows(func(r ui.ListRow) {
+			i, k := r.Index, rowInk(r)
 			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, f.Status(i)))
+				ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(k, f.Status(i)))
 				fileIcon(c, string(f.Path(i)))
 				shown, _ := showPath(commitFileName(f, i))
 				pathLabel(c, shown).Grow(1)
 				if n := rv.threadsOn[string(f.Path(i))] + drafts[string(f.Path(i))]; n > 0 {
-					ui.Text(c, fmt.Sprint(n)).FontSize(textSmall).TextColor(th.Accent).Tooltip(locales.PrsCommentCount(n))
+					ui.Text(c, fmt.Sprint(n)).FontSize(textSmall).TextColor(k.Accent).Tooltip(locales.PrsCommentCount(n))
 				}
-				fileLines(c, lineAt(rv.detail.Lines, i))
+				inkFileLines(c, k, lineAt(rv.detail.Lines, i))
 			})
 		}).Label(locales.CommitFilesLabel()).Fill()
 	}, func() {

@@ -31,12 +31,17 @@ func inkLineCounts(c *ui.Context, k ink, added, deleted int) {
 // fileLines shows what git counted of a file's change: its lines, or
 // that it is binary; nothing while it is not counted.
 func fileLines(c *ui.Context, l diff.Lines) {
+	inkFileLines(c, plainInk(c.Theme()), l)
+}
+
+// inkFileLines is fileLines in k, as on a row chosen.
+func inkFileLines(c *ui.Context, k ink, l diff.Lines) {
 	switch {
 	case !l.Known:
 	case l.Binary:
-		ui.Text(c, locales.PatchBinary()).FontSize(textSmall).TextColor(c.Theme().TextMuted).SingleLine()
+		ui.Text(c, locales.PatchBinary()).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 	default:
-		lineCounts(c, int(l.Added), int(l.Deleted))
+		inkLineCounts(c, k, int(l.Added), int(l.Deleted))
 	}
 }
 

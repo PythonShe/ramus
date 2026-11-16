@@ -280,9 +280,10 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 		}
 		cs.rows.Selected = &cs.chosen
 		cs.rows.Label = func(i int) string { return locales.CompareFileLabel(fileStatusWord(l.Status(i)), name(i)) }
-		ui.List(c, &cs.rows, l.Len(), func(i int) {
+		ui.List(c, &cs.rows, l.Len()).Rows(func(r ui.ListRow) {
+			i, k := r.Index, rowInk(r)
 			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(th, l.Status(i)))
+				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(k, l.Status(i)))
 				p := l.New(i)
 				if p == "" {
 					p = l.Old(i)
@@ -291,7 +292,7 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 				shown, why := showPath(name(i))
 				txt := pathLabel(c, shown).Grow(1)
 				if why != "" {
-					txt.TextColor(th.Warning).Tooltip(why)
+					txt.TextColor(k.Warning).Tooltip(why)
 				}
 			})
 		}).Label(locales.CompareDifferingFiles()).Grow(1)

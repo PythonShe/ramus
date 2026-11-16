@@ -76,11 +76,11 @@ func (a *App) welcomeBody(c *ui.Context) {
 			a.welcome.list.Label = func(i int) string { return repos[i].Name }
 			a.welcome.list.Selected = &a.welcome.chosen
 			open := ""
-			l := ui.List(c, &a.welcome.list, len(repos), func(i int) {
-				r := repos[i]
+			l := ui.List(c, &a.welcome.list, len(repos)).Rows(func(row ui.ListRow) {
+				r := repos[row.Index]
 				if ui.Column(c).Padding(rowTallPadY, insetX).FillWidth().Children(func() {
 					ui.Text(c, r.Name).SingleLine()
-					ui.Text(c, r.Path).SingleLine().FontSize(textSmall).TextColor(th.TextMuted)
+					ui.Text(c, r.Path).SingleLine().FontSize(textSmall).TextColor(rowInk(row).Muted)
 				}).RowClicked() {
 					open = r.Path
 				}

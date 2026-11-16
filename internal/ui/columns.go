@@ -39,15 +39,28 @@ func plainInk(th *ui.Theme) ink {
 	return ink{th.TextMuted, th.Warning, th.Success, th.Danger, th.Accent}
 }
 
-// ink returns the colours for the cells of row.
-func (s *tableState) ink(c *ui.Context, row int) ink {
-	th := c.Theme()
-	if !s.chosen(row) {
-		return plainInk(th)
-	}
+// chosenInk is the colours for the text of a chosen row.
+func chosenInk(th *ui.Theme) ink {
 	// Secondary text keeps a little of its quiet, and stays well above
 	// the contrast of the muted grey on the accent.
 	return ink{th.AccentText.Alpha(0.85), th.AccentText, th.AccentText, th.AccentText, th.AccentText}
+}
+
+// ink returns the colours for the cells of row.
+func (s *tableState) ink(c *ui.Context, row int) ink {
+	if !s.chosen(row) {
+		return plainInk(c.Theme())
+	}
+	return chosenInk(c.Theme())
+}
+
+// rowInk returns the colours for the text of a list's row r, which mygo
+// paints in the accent while it is chosen, alone or among others.
+func rowInk(r ui.ListRow) ink {
+	if r.Selected() {
+		return chosenInk(r.Context.Theme())
+	}
+	return plainInk(r.Context.Theme())
 }
 
 // savedTable is a ui.Table whose columns keep the order and the widths

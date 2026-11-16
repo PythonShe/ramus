@@ -231,14 +231,14 @@ func (a *App) actionLogView(c *ui.Context, t *tab) {
 	t.logList.Selected = &t.logChosen
 	t.logList.Label = func(i int) string { return log[len(log)-1-i].Name }
 	ui.Split(c, &t.listW, func() {
-		ui.List(c, &t.logList, len(log), func(i int) {
-			e := log[len(log)-1-i]
+		ui.List(c, &t.logList, len(log)).Rows(func(r ui.ListRow) {
+			e, k := log[len(log)-1-r.Index], rowInk(r)
 			ui.Column(c).Padding(rowTallPadY, insetX).Children(func() {
 				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.Text(c, e.Name).SingleLine().Grow(1)
-					ui.Text(c, entryStatus(e)).FontSize(textSmall).TextColor(statusColor(th, e))
+					ui.Text(c, entryStatus(e)).FontSize(textSmall).TextColor(statusColor(k, e))
 				})
-				ui.Text(c, e.Started.Format(time.TimeOnly)).FontSize(textSmall).TextColor(th.TextMuted)
+				ui.Text(c, e.Started.Format(time.TimeOnly)).FontSize(textSmall).TextColor(k.Muted)
 			})
 		}).Label(locales.ActionsCommandsRun()).Fill()
 	}, func() {
@@ -272,12 +272,12 @@ func entryStatus(e *session.LogEntry) string {
 	return locales.ActionsDoneIn(e.Ended.Sub(e.Started).Round(time.Millisecond).String())
 }
 
-func statusColor(th *ui.Theme, e *session.LogEntry) ui.Color {
+func statusColor(k ink, e *session.LogEntry) ui.Color {
 	switch {
 	case e.Running:
-		return th.Accent
+		return k.Accent
 	case e.Err != nil:
-		return th.Danger
+		return k.Danger
 	}
-	return th.TextMuted
+	return k.Muted
 }

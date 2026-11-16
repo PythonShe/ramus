@@ -95,11 +95,11 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 		ss.snapList.Key = func(i int) any { return list[i].Ref }
 		ss.snapList.Label = func(i int) string { return list[i].Reason }
 		ui.Split(c, &t.listW, func() {
-			ui.List(c, &ss.snapList, len(list), func(i int) {
-				s := list[i]
+			ui.List(c, &ss.snapList, len(list)).Rows(func(r ui.ListRow) {
+				s := list[r.Index]
 				ui.Column(c).Padding(rowTallPadY, insetX).Children(func() {
 					ui.Text(c, s.Reason).SingleLine()
-					ui.Text(c, s.Time.Format(time.DateTime)).FontSize(textSmall).TextColor(th.TextMuted)
+					ui.Text(c, s.Time.Format(time.DateTime)).FontSize(textSmall).TextColor(rowInk(r).Muted)
 				})
 			}).Label(locales.SnapshotsSaved()).Fill()
 		}, func() {

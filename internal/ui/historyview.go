@@ -645,7 +645,7 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		return out
 	}
 	a.historyHeader(c, hv, snap)
-	l := ui.List(c, &hv.list, snap.Len(), func(i int) { a.historyRowView(c, t, h, i) }).Label(locales.HistoryCommits()).Grow(1)
+	l := ui.List(c, &hv.list, snap.Len()).Rows(func(r ui.ListRow) { a.historyRowView(c, t, h, r.Index, rowInk(r)) }).Label(locales.HistoryCommits()).Grow(1)
 	if hv.scroll.Scrolling() {
 		l.TrackScroll(&hv.scroll)
 	}
@@ -703,7 +703,7 @@ func (a *App) keepInView(t *tab, h session.HistoryState) {
 	t.s.ShowsTop(last < first || hv.atTop(first))
 }
 
-func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int) {
+func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int, k ink) {
 	th := c.Theme()
 	hv := &t.hist
 	snap := h.Snap
@@ -747,31 +747,31 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 			labels := hv.labels[string(id)]
 			for j, l := range labels {
 				if j == rowRefs {
-					ui.Text(c, "+"+strconv.Itoa(len(labels)-rowRefs)).FontSize(textCaption).TextColor(th.TextMuted)
+					ui.Text(c, "+"+strconv.Itoa(len(labels)-rowRefs)).FontSize(textCaption).TextColor(k.Muted)
 					break
 				}
 				refChip(c, l)
 			}
 			if !ok {
-				ui.Text(c, "…").TextColor(th.TextMuted).Grow(1)
+				ui.Text(c, "…").TextColor(k.Muted).Grow(1)
 				return
 			}
 			hv.wantMessage(c, subject, labels)
 			subj := ui.Text(c, subject).SingleLine().Grow(1)
-			if ch, k := hv.loaded(h, i); ch != nil && ch.Odd(k) {
-				subj.TextColor(th.Warning).Description(locales.HistoryBadEncoding())
+			if ch, j := hv.loaded(h, i); ch != nil && ch.Odd(j) {
+				subj.TextColor(k.Warning).Description(locales.HistoryBadEncoding())
 			}
 		})
 		if !ok {
 			return
 		}
-		for k := colAuthor; k < histColumns; k++ {
-			if !lay.shown[k] {
-				gap(k, ui.Element{})
+		for col := colAuthor; col < histColumns; col++ {
+			if !lay.shown[col] {
+				gap(col, ui.Element{})
 				continue
 			}
 			var e ui.Element
-			switch k {
+			switch col {
 			case colAuthor:
 				e = ui.Text(c, author)
 			case colDate:
@@ -779,8 +779,8 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 			default:
 				e = ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall)
 			}
-			e.SingleLine().Width(lay.w[k]).Opacity(lay.fade(k)).TextColor(th.TextMuted)
-			gap(k, e)
+			e.SingleLine().Width(lay.w[col]).Opacity(lay.fade(col)).TextColor(k.Muted)
+			gap(col, e)
 		}
 	})
 	row.ContextMenu(func(m *ui.Menu) {

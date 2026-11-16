@@ -296,7 +296,7 @@ func wtFileRow(c *ui.Context, f session.WorktreeFile) ui.Element {
 		st = 'D'
 	}
 	row.Children(func() {
-		ui.Column(c).Width(6).Height(6).Radius(3).Background(fileStatusColor(th, st)).Tooltip(fileStatusWord(st))
+		ui.Column(c).Width(6).Height(6).Radius(3).Background(fileStatusColor(plainInk(th), st)).Tooltip(fileStatusWord(st))
 		pathLabel(c, shown).Shrink(1)
 		ui.Spacer(c)
 		if f.Binary {
