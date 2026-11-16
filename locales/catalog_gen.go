@@ -3861,18 +3861,22 @@ func (msgs Messages) ChangesSectionLabel(section string, count int) string {
 	return Catalog.Format(msgs.locale, "changesSectionLabel", map[string]any{"section": section, "count": count})
 }
 
-// ChangesFolderLabel says "Folder {name}"
+// ChangesFolderLabel says "{state, select, open {Folder {name}, open} other {Folder {name}, closed}}"
 // in the language the app shows.
 //
-// Read aloud for a folder in the changes tree.
-func ChangesFolderLabel(name string) string { return In(i18n.Locale()).ChangesFolderLabel(name) }
+// Read aloud for a folder in the changes tree, and whether it shows what is
+// in it; state is open or closed.
+func ChangesFolderLabel(state string, name string) string {
+	return In(i18n.Locale()).ChangesFolderLabel(state, name)
+}
 
-// ChangesFolderLabel says "Folder {name}"
+// ChangesFolderLabel says "{state, select, open {Folder {name}, open} other {Folder {name}, closed}}"
 // in the language of msgs.
 //
-// Read aloud for a folder in the changes tree.
-func (msgs Messages) ChangesFolderLabel(name string) string {
-	return Catalog.Format(msgs.locale, "changesFolderLabel", map[string]any{"name": name})
+// Read aloud for a folder in the changes tree, and whether it shows what is
+// in it; state is open or closed.
+func (msgs Messages) ChangesFolderLabel(state string, name string) string {
+	return Catalog.Format(msgs.locale, "changesFolderLabel", map[string]any{"state": state, "name": name})
 }
 
 // ChangesFileLabel says "{state} {path}"
@@ -6491,6 +6495,24 @@ func RepoMore(n int) string { return In(i18n.Locale()).RepoMore(n) }
 // a treemap's smallest tiles.
 func (msgs Messages) RepoMore(n int) string {
 	return Catalog.Format(msgs.locale, "repoMore", map[string]any{"n": n})
+}
+
+// RefsFolderLabel says "{state, select, open {Folder {name}, open} other {Folder {name}, closed}}"
+// in the language the app shows.
+//
+// Read aloud for a folder of branches or tags sharing the prefix name, and
+// whether it shows them; state is open or closed.
+func RefsFolderLabel(state string, name string) string {
+	return In(i18n.Locale()).RefsFolderLabel(state, name)
+}
+
+// RefsFolderLabel says "{state, select, open {Folder {name}, open} other {Folder {name}, closed}}"
+// in the language of msgs.
+//
+// Read aloud for a folder of branches or tags sharing the prefix name, and
+// whether it shows them; state is open or closed.
+func (msgs Messages) RefsFolderLabel(state string, name string) string {
+	return Catalog.Format(msgs.locale, "refsFolderLabel", map[string]any{"state": state, "name": name})
 }
 
 // RepoHiddenInHistory says "Hidden in history"

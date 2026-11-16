@@ -44,7 +44,8 @@ type refsState struct {
 	// byName indexes the branches and tags of byNameFor by full name.
 	byName    map[string]int
 	byNameFor *session.RefInfo
-	// chosenName keeps the row chosen as rows come and go.
+	// chosenName keeps the row chosen as rows come and go: a ref's full
+	// name, or a folder's key in closed.
 	chosenName string
 	reveal     bool
 
@@ -243,7 +244,11 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				rs.rows, rs.rowsFor = rows, key
 				rs.chosen = -1
 				for i, r := range rows {
-					if r.idx >= 0 && fullRef(key.info, key.kind, r.idx) == rs.chosenName {
+					name := closedPrefix(key.kind) + r.folder
+					if r.idx >= 0 {
+						name = fullRef(key.info, key.kind, r.idx)
+					}
+					if name == rs.chosenName {
 						rs.chosen = i
 						if rs.reveal {
 							rs.list.ScrollTo(i, ui.Center)
@@ -283,7 +288,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 	rs.list.Selected = &rs.chosen
 	rs.list.Label = func(i int) string {
 		if rows[i].idx < 0 {
-			return rows[i].folder + "/"
+			return locales.RefsFolderLabel(openState(!rs.closed[prefix+rows[i].folder] || rs.filter != ""), redact.Control(rows[i].folder))
 		}
 		return redact.Control(rows[i].label)
 	}
@@ -416,6 +421,13 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 		}
 	}).Label(locales.RefsListLabel()).Grow(1)
+	// Right and Left open and close a folder, as a tree's.
+	if rs.chosen >= 0 && rs.chosen < len(rows) && rows[rs.chosen].idx < 0 && rs.filter == "" {
+		k := prefix + rows[rs.chosen].folder
+		if shut := rs.closed[k]; shut && tbl.Shortcut(0, ui.KeyRight) || !shut && tbl.Shortcut(0, ui.KeyLeft) {
+			act = func() { rs.closed[k] = !shut; rs.closedGen++ }
+		}
+	}
 	// A double click or Enter checks a branch out, as its menu's first
 	// item does, and opens or closes a folder.
 	if tbl.Submitted() && rs.chosen >= 0 && rs.chosen < len(rows) {
@@ -428,8 +440,13 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			act = func() { a.checkOut(t, b) }
 		}
 	}
-	if rs.chosen >= 0 && rs.chosen < len(rows) && rows[rs.chosen].idx >= 0 {
-		rs.chosenName = fullRef(info, rs.kind, rows[rs.chosen].idx)
+	if rs.chosen >= 0 && rs.chosen < len(rows) {
+		if r := rows[rs.chosen]; r.idx >= 0 {
+			rs.chosenName = fullRef(info, rs.kind, r.idx)
+		} else {
+			// A folder opened or closed stays chosen, for the keys.
+			rs.chosenName = prefix + r.folder
+		}
 	}
 	if act != nil {
 		act()

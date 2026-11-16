@@ -289,9 +289,20 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		cv.list.Label = func(i int) string { return rowLabel(cv, m, rows[i]) }
 		var act func()
 		l := ui.List(c, &cv.list, len(rows)).Rows(func(r ui.ListRow) { a.changeRow(c, t, m, rows[r.Index], rowInk(r), &act) }).Label(locales.ChangesListLabel()).Grow(1)
-		if l.Submitted() && cv.chosen >= 0 && cv.chosen < len(rows) {
+		if cv.chosen >= 0 && cv.chosen < len(rows) {
 			r := rows[cv.chosen]
-			act = func() { a.toggleStage(t, m, []changeRow{r}) }
+			// A folder opens and closes as a tree's does: by Right and
+			// Left, and by Enter or a double click, which stage a file.
+			// Its menu stages it.
+			if r.kind == rowDir {
+				key := openKey{r.sec, m.dir(r.sec, r.idx)}
+				open := cv.open[key]
+				if !open && l.Shortcut(0, ui.KeyRight) || open && l.Shortcut(0, ui.KeyLeft) || l.Submitted() {
+					act = func() { cv.open[key] = !open; cv.openGen++ }
+				}
+			} else if l.Submitted() {
+				act = func() { a.toggleStage(t, m, []changeRow{r}) }
+			}
 		}
 		// Delete asks to discard what is chosen, as the menu's Discard
 		// does, with its snapshot to undo it.
@@ -336,7 +347,7 @@ func rowLabel(cv *changesState, m *changeModel, r changeRow) string {
 	case rowHeader:
 		return locales.ChangesSectionLabel(r.sec.title(), len(m.files[r.sec]))
 	case rowDir:
-		return locales.ChangesFolderLabel(m.name(r))
+		return locales.ChangesFolderLabel(openState(cv.open[openKey{r.sec, m.dir(r.sec, r.idx)}]), m.name(r))
 	}
 	i := int(r.idx)
 	return fileLabel(entryWords(m.st, i, r.sec), string(m.st.Path(i)), cv.entryLines(m.st, i, r.sec))
@@ -401,10 +412,18 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 		}
 		inkFileLines(c, k, cv.entryLines(m.st, i, r.sec))
 	})
-	if row.RowDoubleClicked() {
+	if r.kind == rowFile && row.RowDoubleClicked() {
 		*act = func() { a.toggleStage(t, m, []changeRow{r}) }
 	}
 	row.ContextMenu(func(menu *ui.Menu) { a.changeMenu(menu, t, m, r, act) })
+}
+
+// openState is how a folder's label names whether it is open.
+func openState(open bool) string {
+	if open {
+		return "open"
+	}
+	return "closed"
 }
 
 // entryLetter is the status letter shown for entry i in sec: git's

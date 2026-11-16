@@ -725,9 +725,9 @@
   "@changesSectionLabel": {
     "description": "Read aloud for a section's header; section is its title."
   },
-  "changesFolderLabel": "Folder {name}",
+  "changesFolderLabel": "{state, select, open {Folder {name}, open} other {Folder {name}, closed}}",
   "@changesFolderLabel": {
-    "description": "Read aloud for a folder in the changes tree."
+    "description": "Read aloud for a folder in the changes tree, and whether it shows what is in it; state is open or closed."
   },
   "changesFileLabel": "{state} {path}",
   "@changesFileLabel": {
@@ -1191,6 +1191,10 @@
         "type": "int"
       }
     }
+  },
+  "refsFolderLabel": "{state, select, open {Folder {name}, open} other {Folder {name}, closed}}",
+  "@refsFolderLabel": {
+    "description": "Read aloud for a folder of branches or tags sharing the prefix name, and whether it shows them; state is open or closed."
   },
   "repoHiddenInHistory": "Hidden in history",
   "repoHiddenRef": "{name}, hidden in history",
