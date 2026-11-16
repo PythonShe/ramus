@@ -12929,6 +12929,16 @@ func (msgs Messages) LocksReading() string {
 	return Catalog.Format(msgs.locale, "locksReading", nil)
 }
 
+// LocksNotRead says "Locks Could Not Be Read"
+// in the language the app shows.
+func LocksNotRead() string { return In(i18n.Locale()).LocksNotRead() }
+
+// LocksNotRead says "Locks Could Not Be Read"
+// in the language of msgs.
+func (msgs Messages) LocksNotRead() string {
+	return Catalog.Format(msgs.locale, "locksNotRead", nil)
+}
+
 // LocksLockFile says "Lock File"
 // in the language the app shows.
 //

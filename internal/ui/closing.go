@@ -97,6 +97,12 @@ func (a *App) StopWrites() {
 	if j := a.clone.job; j != nil {
 		j.Cancel()
 	}
+	if a.clone.starting {
+		// Its folder is still being checked: the job, once made, is
+		// cancelled as one stopped.
+		a.clone.starting = false
+		a.clone.gen++
+	}
 }
 
 // Writing reports a write or a clone still running.

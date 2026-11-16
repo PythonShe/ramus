@@ -2643,6 +2643,7 @@
     "description": "Button that forces a Git LFS lock off."
   },
   "locksReading": "Reading Locks…",
+  "locksNotRead": "Locks Could Not Be Read",
   "locksLockFile": "Lock File",
   "@locksLockFile": {
     "description": "Menu item of a changed file that locks it on the Git LFS server."

@@ -183,6 +183,12 @@ func (a *App) fileLockMenu(m *ui.Menu, t *tab, path string, act *func()) {
 		m.Separator()
 		return
 	}
+	if t.locks.err != "" {
+		// Not offered blind: a lock taken may be another's.
+		m.Item(locales.LocksNotRead()).Disabled(true)
+		m.Separator()
+		return
+	}
 	ro := t.s.Queue == nil
 	for _, l := range t.locks.locks.List {
 		if l.Path != path {
