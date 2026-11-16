@@ -1076,7 +1076,7 @@
   "@rewriteRowLabel": {
     "description": "Read aloud for a commit in the history editor: what is done with it, and its message's first line."
   },
-  "rewriteCommitsLabel": "Commits, oldest first",
+  "rewriteCommitsLabel": "Commits, newest first",
   "rewriteSquashPlaceholder": "The messages, one after another",
   "rewriteCommits": "{count, plural, one {Rewrite # Commit} other {Rewrite # Commits}}",
   "rewriteNotOnFirstParents": "the commits are not all on HEAD's line of first parents",

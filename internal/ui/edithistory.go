@@ -16,7 +16,9 @@ import (
 )
 
 // historyEdit is the editor of a run of history: its commits, oldest
-// first as git replays them, each with what to do with it.
+// first as git replays them, each with what to do with it. The list
+// shows them newest first, as History does, so a row is where the user
+// just saw it; chosen and the list's indexes count in that order.
 type historyEdit struct {
 	open   bool
 	t      *tab
@@ -25,6 +27,19 @@ type historyEdit struct {
 	list   ui.ListState
 	chosen int
 	err    string
+}
+
+// row is the index in rows of the commit the list shows at i.
+func (he *historyEdit) row(i int) int { return len(he.rows) - 1 - i }
+
+// reorder moves the rows the list shows at shown before the one it
+// shows at to, as the list's Reorder asks: in git's order, after it.
+func (he *historyEdit) reorder(shown []int, to int) {
+	rows := make([]int, len(shown))
+	for k, i := range shown {
+		rows[k] = he.row(i)
+	}
+	he.move(rows, len(he.rows)-to)
 }
 
 type editRow struct {
@@ -137,18 +152,20 @@ func (a *App) historyEditView(c *ui.Context) {
 			ui.Text(c, locales.RewriteEditHistoryFrom(he.rw.Commit[:min(10, len(he.rw.Commit))])).Bold()
 			rows := he.rows
 			he.list.Selected = &he.chosen
-			he.list.Key = func(i int) any { return string(rows[i].OID) }
+			he.list.Key = func(i int) any { return string(rows[he.row(i)].OID) }
 			he.list.Label = func(i int) string {
-				return locales.RewriteRowLabel(actionLabel(rows[i].action), redact.Control(rows[i].Subject))
+				r := rows[he.row(i)]
+				return locales.RewriteRowLabel(actionLabel(r.action), redact.Control(r.Subject))
 			}
-			he.list.Reorder = he.move
+			he.list.Reorder = he.reorder
 			ui.List(c, &he.list, len(rows), func(i int) {
-				r := &rows[i]
+				r := &rows[he.row(i)]
 				ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 					ui.PopoverMenuButton(c, actionLabel(r.action), func(m *ui.Menu) {
 						for _, act := range editActions {
 							if m.Item(actionLabel(act)).Checked(r.action == act).Chosen() {
-								a.setAction(he, i, act)
+								a.setAction(he, he.row(i), act)
+								he.chosen = i
 							}
 						}
 					}).Width(96)
@@ -163,7 +180,7 @@ func (a *App) historyEditView(c *ui.Context) {
 				})
 			}).Label(locales.RewriteCommitsLabel()).Height(min(float32(len(rows))*30+8, 360))
 			if i := he.chosen; i >= 0 && i < len(rows) {
-				switch r := &rows[i]; r.action {
+				switch r := &rows[he.row(i)]; r.action {
 				case write.DoReword:
 					ui.TextArea(c, &r.message).Label(locales.CommonMessage()).Lines(3, 10).FillWidth()
 				case write.DoSquash:
@@ -197,7 +214,7 @@ func (a *App) historyEditView(c *ui.Context) {
 // own message.
 func (a *App) setAction(he *historyEdit, i int, act write.Action) {
 	r := &he.rows[i]
-	r.action, he.err, he.chosen = act, "", i
+	r.action, he.err = act, ""
 	if act != write.DoReword || r.loaded {
 		return
 	}
@@ -290,16 +307,21 @@ func (a *App) dropOnCommit(t *tab, h session.HistoryState, into string, dragged 
 	if len(dragged) == 0 || len(dragged) == 1 && dragged[0] == into {
 		return
 	}
-	// The rows are newest first: the oldest of them is the last found.
-	all := append(slices.Clone([]string(dragged)), into)
-	oldest := ""
-	for r := 0; r < h.Snap.Len(); r++ {
-		if id := hex.EncodeToString(h.OID(h.Snap.Commit(r))); slices.Contains(all, id) {
-			oldest = id
+	// The rows are newest first: the oldest of them is the last found,
+	// and the walk ends there, not at the root of a long history.
+	want := map[string]bool{}
+	for _, id := range append(slices.Clone([]string(dragged)), into) {
+		if b, err := hex.DecodeString(id); err == nil {
+			want[string(b)] = true
 		}
 	}
-	from, err := hex.DecodeString(oldest)
-	if err != nil || oldest == "" {
+	var from []byte
+	for r, found := 0, 0; r < h.Snap.Len() && found < len(want); r++ {
+		if id := h.OID(h.Snap.Commit(r)); want[string(id)] {
+			from, found = slices.Clone(id), found+1
+		}
+	}
+	if from == nil {
 		return
 	}
 	a.editHistory(t, from, squashPlan(into, dragged))

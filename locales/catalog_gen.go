@@ -5823,11 +5823,11 @@ func (msgs Messages) RewriteRowLabel(action string, subject string) string {
 	return Catalog.Format(msgs.locale, "rewriteRowLabel", map[string]any{"action": action, "subject": subject})
 }
 
-// RewriteCommitsLabel says "Commits, oldest first"
+// RewriteCommitsLabel says "Commits, newest first"
 // in the language the app shows.
 func RewriteCommitsLabel() string { return In(i18n.Locale()).RewriteCommitsLabel() }
 
-// RewriteCommitsLabel says "Commits, oldest first"
+// RewriteCommitsLabel says "Commits, newest first"
 // in the language of msgs.
 func (msgs Messages) RewriteCommitsLabel() string {
 	return Catalog.Format(msgs.locale, "rewriteCommitsLabel", nil)

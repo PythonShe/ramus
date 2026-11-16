@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/hex"
+	"slices"
 	"strings"
 	"testing"
 
@@ -133,24 +134,31 @@ func TestEditHistoryDialog(t *testing.T) {
 	if !hasExact(h, "side") || he.rows[0].Subject != "add b" {
 		t.Fatalf("rows: %q", h.tt.Texts())
 	}
+	// Shown newest first, as History shows them: add d is the first row.
+	if texts := h.tt.Texts(); slices.Index(texts, "Pick, add d") > slices.Index(texts, "Pick, add b") {
+		t.Fatalf("not newest first: %q", texts)
+	}
 	h.click("Pick")
 	if err := h.tt.ChooseMenuItem("Reword"); err != nil {
 		t.Fatalf("%v: %q", err, h.tt.Menu())
 	}
-	h.until("the message", func() bool { return he.rows[0].message == "add b" })
-	he.rows[0].message = "add b, reworded"
-	he.move([]int{2}, 1) // d before c
+	h.until("the message", func() bool { return he.rows[2].message == "add d" })
+	he.rows[2].message = "add d, reworded"
+	he.reorder([]int{0}, 2) // d, shown first, dragged below c: before it, in git's order
+	if he.rows[1].Subject != "add d" {
+		t.Fatalf("moved to %q", he.rows[1].Subject)
+	}
 	he.rows[2].action = write.DoFixup
 	h.click("Rewrite 3 Commits")
 	h.until("the rewrite", func() bool {
 		if l := tb.s.Log; len(l) > 0 && l[len(l)-1].Err != nil {
 			t.Fatalf("%s: %v", l[len(l)-1].Name, l[len(l)-1].Err)
 		}
-		return strings.TrimSpace(r.Git("log", "--format=%s", "main")) == "add d\nadd b, reworded\nadd a\none"
+		return strings.TrimSpace(r.Git("log", "--format=%s", "main")) == "add d, reworded\nadd b\nadd a\none"
 	})
 	h.idle(tb, "the rewrite done")
-	if r.Git("show", "HEAD:c.txt") != "c\n" || strings.TrimSpace(r.Git("log", "-1", "--format=%s", "side")) != "add b, reworded" {
-		t.Fatal("c is not folded into d, or side did not move")
+	if r.Git("show", "HEAD:c.txt") != "c\n" || strings.TrimSpace(r.Git("log", "-1", "--format=%s", "side")) != "add b" {
+		t.Fatal("c is not folded into d, or side moved")
 	}
 	if he.open {
 		t.Fatal("the editor is still open")
