@@ -33,6 +33,19 @@ func CommitPatch(ctx context.Context, r *run.Runner, gitDir string, a, b []byte,
 	return runPatch(ctx, r, gitDir, "", append(args, paths...), nil, maxBytes, false)
 }
 
+// HostPatch is CommitPatch as GitHub and GitLab diff a pull request,
+// whatever the user's config says: three lines of context, hunks kept
+// apart, git's default algorithm and no textconv, so the lines of its
+// hunks are the ones the host takes comments on; and the headers the
+// parser reads, whatever diff.noprefix or diff.relative say.
+func HostPatch(ctx context.Context, r *run.Runner, gitDir string, a, b []byte, paths []string, maxBytes int) (Patch, error) {
+	args := []string{"diff", "--no-color", "--no-ext-diff", "--no-textconv", "--submodule=short", "-M",
+		"-U3", "--inter-hunk-context=0", "--diff-algorithm=default", "--indent-heuristic",
+		"--src-prefix=a/", "--dst-prefix=b/", "--no-relative", "--no-color-moved",
+		hex.EncodeToString(a), hex.EncodeToString(b), "--"}
+	return runPatch(ctx, r, gitDir, "", append(args, paths...), []string{"diff.suppressBlankEmpty=false"}, maxBytes, false)
+}
+
 // BlobPair reads a changed file's two sides natively, in one batch. A nil
 // or zero object id is a side that does not exist, read as empty. A blob
 // over catfile.MaxObject is an error: the view shows its patch alone.

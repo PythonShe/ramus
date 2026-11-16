@@ -23,7 +23,7 @@ func TestFetchPull(t *testing.T) {
 	host.Git("checkout", "-q", "main")
 	h.r.Git("remote", "add", "origin", host.Dir)
 
-	op, err := FetchPull(h.w, "origin", 3, "refs/pull/3/head", "main")
+	op, err := FetchPull(h.w, "origin", 3, "refs/pull/3/head", "main", 0)
 	h.do(op, err, true)
 	if got := h.rev(PullHead(3)); got != head {
 		t.Errorf("head %s, want %s", got, head)
@@ -37,7 +37,7 @@ func TestFetchPull(t *testing.T) {
 
 	for _, bad := range [][3]string{{"-x", "refs/pull/3/head", "main"}, {"origin", "pull/3/head", "main"},
 		{"origin", "refs/pull/3/head:refs/heads/main", "main"}, {"origin", "refs/pull/3/head", "--upload-pack=x"}, {"origin", "refs/pull/3/head", "a:b"}} {
-		if _, err := FetchPull(h.w, bad[0], 3, bad[1], bad[2]); err == nil {
+		if _, err := FetchPull(h.w, bad[0], 3, bad[1], bad[2], 0); err == nil {
 			t.Errorf("fetched %q", bad)
 		}
 	}

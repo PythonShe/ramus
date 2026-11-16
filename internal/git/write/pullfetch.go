@@ -21,8 +21,9 @@ func PullBase(n int) string { return PullPrefix + strconv.Itoa(n) + "/base" }
 // FetchPull fetches pull request n's head, as the host publishes it at
 // hostRef (refs/pull/N/head on GitHub), and its base branch from from, a
 // remote's name or a URL, into PullHead and PullBase. Nothing else
-// moves: no remote branch, no tag, not FETCH_HEAD.
-func FetchPull(w Where, from string, n int, hostRef, base string) (Op, error) {
+// moves: no remote branch, no tag, not FETCH_HEAD. deepen, above 0,
+// fetches a shallow clone's history that many commits deeper.
+func FetchPull(w Where, from string, n int, hostRef, base string, deepen int) (Op, error) {
 	if err := checkName("remote", from); err != nil {
 		return Op{}, err
 	}
@@ -32,8 +33,12 @@ func FetchPull(w Where, from string, n int, hostRef, base string) (Op, error) {
 	if err := checkName("branch", base); err != nil || strings.ContainsAny(base, ": ") {
 		return Op{}, errors.New("write: the pull request has no base branch")
 	}
-	args := []string{"fetch", "--progress", "--no-tags", "--no-write-fetch-head", "--refmap=", "--end-of-options", from,
-		"+" + hostRef + ":" + PullHead(n), "+refs/heads/" + base + ":" + PullBase(n)}
+	args := []string{"fetch", "--progress", "--no-tags", "--no-write-fetch-head", "--refmap="}
+	if deepen > 0 {
+		args = append(args, "--deepen="+strconv.Itoa(deepen))
+	}
+	args = append(args, "--end-of-options", from,
+		"+"+hostRef+":"+PullHead(n), "+refs/heads/"+base+":"+PullBase(n))
 	return Op{Name: "Fetch pull request #" + strconv.Itoa(n), RefsOnly: true,
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }

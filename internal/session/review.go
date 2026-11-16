@@ -150,7 +150,7 @@ func (s *Session) FetchPull(repo forge.Repo, n int, base string) (*write.Job, er
 	if s.Repo == nil || s.Queue == nil {
 		return nil, s.noWrites()
 	}
-	op, err := write.FetchPull(s.Where(), s.pullRemote(repo), n, hostPullRef(repo, n), base)
+	op, err := write.FetchPull(s.Where(), s.pullRemote(repo), n, hostPullRef(repo, n), base, 0)
 	if err != nil {
 		return nil, err
 	}
