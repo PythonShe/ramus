@@ -39,6 +39,11 @@ func (a *App) leaveView(t *tab, name string) {
 	if name == "refs" || strings.HasPrefix(name, "refs/") {
 		t.pulls.loading = false
 	}
+	if t.locks.loading {
+		// The read of the locks runs as the view does, which the file
+		// menus of any view start: it stops, and is read again.
+		t.locks.loading, t.locks.listed = false, -1
+	}
 	switch name {
 	case "":
 	case "history":

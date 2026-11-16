@@ -12,7 +12,12 @@ import (
 // read, and done is not called.
 func (s *Session) LFSLocks(done func(lfs.Locks, error)) {
 	r := s.Repo
-	if r == nil || r.Restricted {
+	if r == nil {
+		return
+	}
+	if r.Restricted {
+		// git-lfs runs the repository's config: not before it is trusted.
+		done(lfs.Locks{}, ErrReadOnly)
 		return
 	}
 	update := s.update

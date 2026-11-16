@@ -2642,6 +2642,7 @@
   "@locksForceButton": {
     "description": "Button that forces a Git LFS lock off."
   },
+  "locksReadOnly": "Locks are read once you trust this repository.",
   "locksReading": "Reading Locks…",
   "locksNotRead": "Locks Could Not Be Read",
   "locksLockFile": "Lock File",

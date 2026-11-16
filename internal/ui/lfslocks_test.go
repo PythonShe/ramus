@@ -90,6 +90,19 @@ func TestLFSLocksView(t *testing.T) {
 	}
 	h.tt.Frame()
 	h.tt.CloseMenu()
+	// The view left before they come stops the read, which is asked
+	// again, not waited for.
+	if tb.locks.loading {
+		h.app.leaveView(tb, tb.shown)
+		if tb.locks.loading {
+			t.Fatal("the locks left reading")
+		}
+		if err := h.tt.RightClick("bobs.psd"); err != nil {
+			t.Fatal(err)
+		}
+		h.tt.Frame()
+		h.tt.CloseMenu()
+	}
 	h.until("the locks read", func() bool { return tb.locks.read })
 	if err := h.tt.RightClick("bobs.psd"); err != nil {
 		t.Fatal(err)

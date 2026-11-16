@@ -12919,6 +12919,16 @@ func (msgs Messages) LocksForceButton() string {
 	return Catalog.Format(msgs.locale, "locksForceButton", nil)
 }
 
+// LocksReadOnly says "Locks are read once you trust this repository."
+// in the language the app shows.
+func LocksReadOnly() string { return In(i18n.Locale()).LocksReadOnly() }
+
+// LocksReadOnly says "Locks are read once you trust this repository."
+// in the language of msgs.
+func (msgs Messages) LocksReadOnly() string {
+	return Catalog.Format(msgs.locale, "locksReadOnly", nil)
+}
+
 // LocksReading says "Reading Locks…"
 // in the language the app shows.
 func LocksReading() string { return In(i18n.Locale()).LocksReading() }

@@ -8,6 +8,7 @@ import (
 
 	"ramus/internal/git/lfs"
 	"ramus/internal/git/redact"
+	"ramus/internal/session"
 	"ramus/locales"
 )
 
@@ -49,6 +50,8 @@ func (a *App) loadLocks(t *tab) {
 		switch {
 		case errors.Is(err, lfs.ErrNoLFS):
 			ls.err = locales.LocksNoLFS()
+		case errors.Is(err, session.ErrReadOnly):
+			ls.err = locales.LocksReadOnly()
 		case err != nil:
 			ls.err = errText(err)
 		}
