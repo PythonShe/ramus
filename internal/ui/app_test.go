@@ -112,10 +112,20 @@ func patchHas(pv *patchView, added, removed string) func() bool {
 func (h *harness) click(s string) {
 	h.t.Helper()
 	h.note()
+	h.inPlace(s)
 	if err := h.tt.Click(s); err != nil {
 		h.t.Fatalf("click %q: %v; texts %q", s, err, h.tt.Texts())
 	}
 	h.tt.Frame()
+}
+
+// inPlace lets what shows s, found but with no area, as a row opening its
+// place in a list with a MoveAnimation, get there: the Tester's clock
+// stands still until advanced.
+func (h *harness) inPlace(s string) {
+	if r, ok := h.tt.Find(s); ok && (r.W == 0 || r.H == 0) {
+		h.tt.Advance(time.Second)
+	}
 }
 
 // repoWith makes a repository the harness closes, and waits for, before

@@ -33,7 +33,7 @@ const (
 )
 
 // historySlide is how the list slides down to the commits that land on
-// its top.
+// its top, and how its rows glide to their places as rows go.
 var historySlide = ui.Animation{Duration: 200 * time.Millisecond}
 
 // historyState is a tab's history list and the commit chosen in it.
@@ -605,6 +605,9 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	// Keyed by object id, for the place and the choice to follow their
 	// commits from one load to the next.
 	hv.list.Key = func(i int) any { return string(h.OID(snap.Commit(i))) }
+	// Rows glide to their places as commits come or go, as a reset or a
+	// forced update takes them, rather than jump there.
+	hv.list.MoveAnimation = &historySlide
 	hv.list.DragRows = nil
 	if t.s.Queue != nil {
 		hv.list.DragRows = func(rows []int) any {

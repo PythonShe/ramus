@@ -100,6 +100,8 @@ func TestHistoryView(t *testing.T) {
 	r.Commit("add beta")
 	h.until("the new commit", h.shows("add beta"))
 	h.until("the choice kept", func() bool { return tab.hist.chosen == 3 })
+	// The row opens its place over the frames that follow.
+	h.tt.Advance(time.Second)
 
 	if err := h.tt.RightClick("add beta"); err != nil {
 		t.Fatal(err)
