@@ -195,7 +195,7 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	ro := t.s.Queue == nil
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 		shown, _ := showPath(string(m.st.Path(int(r.idx))))
-		ui.Text(c, shown).Bold().SingleLine().Grow(1)
+		pathLabel(c, shown).Bold().Grow(1)
 		ui.Text(c, entryWords(m.st, int(r.idx), r.sec)).FontSize(textSmall).TextColor(th.TextMuted)
 		fileLines(c, t.cv.entryLines(m.st, int(r.idx), r.sec))
 		if picked, n := d.pv.selectedLines(); d.partialOK() && n > 0 {

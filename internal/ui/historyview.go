@@ -858,7 +858,8 @@ func refChip(c *ui.Context, l refLabel) {
 	case labelBisectSkip:
 		col = th.TextMuted
 	}
-	chip := ui.Text(c, l.name()).FontSize(textCaption).SingleLine().MaxWidth(160).Padding(1, spaceS).Radius(4).Description(l.kind.word())
+	chip := ui.Text(c, l.name()).FontSize(textCaption).SingleLine().TruncateMiddle().MaxWidth(160).Padding(1, spaceS).Radius(4).
+		Description(l.kind.word()).Tooltip(l.name())
 	switch l.kind {
 	case labelTag:
 		// Outlined, so a tag is told from a branch of the same name by

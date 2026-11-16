@@ -546,7 +546,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, cv.file))
-			ui.Text(c, shown).Bold().SingleLine().Grow(1)
+			pathLabel(c, shown).Bold().Grow(1)
 			fileLines(c, lineAt(d.Lines, cv.file))
 			if closeButton(c, locales.CommitClosePatch()).Clicked() {
 				cv.file = -1

@@ -1193,6 +1193,10 @@
     }
   },
   "repoHiddenInHistory": "Hidden in history",
+  "repoHiddenRef": "{name}, hidden in history",
+  "@repoHiddenRef": {
+    "description": "Tooltip of a branch or tag in the sidebar that the history leaves out: its whole name and why it is dimmed."
+  },
   "repoSectionChanges": "Changes",
   "@repoSectionChanges": {
     "description": "Noun: the sidebar item listing the work tree's changes."

@@ -243,12 +243,14 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 					break
 				}
 				label := strings.TrimPrefix(r, prefix)
-				it := ui.SidebarItem(c, r, nil, label)
+				// The item cuts a long name at its end: the pointer
+				// resting on it shows it whole.
+				it := ui.SidebarItem(c, r, nil, label).Tooltip(label)
 				if r == st.Head.Target {
 					it.Bold()
 				}
 				if sr.hidden[r] {
-					it.TextColor(th.TextMuted).Tooltip(locales.RepoHiddenInHistory())
+					it.TextColor(th.TextMuted).Tooltip(locales.RepoHiddenRef(label))
 				}
 				a.sidebarRefMenu(it, t, r)
 			}

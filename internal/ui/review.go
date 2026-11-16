@@ -272,7 +272,7 @@ func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro b
 	it := rv.item(path)
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		shown, _ := showPath(path)
-		ui.Text(c, shown).Bold().SingleLine().Grow(1)
+		pathLabel(c, shown).Bold().Grow(1)
 		ui.Text(c, entryWords(st, e, secUnstaged)).FontSize(textSmall).TextColor(th.TextMuted)
 		fileLines(c, t.cv.entryLines(st, e, secUnstaged))
 		lt := lineTarget{p: it.res.Parsed, path: path, pv: &it.pv}

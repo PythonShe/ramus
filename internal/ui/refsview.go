@@ -337,12 +337,16 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			// Indented as deep as the ref is, in a column as wide at
 			// every depth, so the columns after it line up.
 			var b session.BranchInfo
+			full := ""
 			if rs.kind == refsBranches {
 				b = info.Branches[r.idx]
+				full = strings.TrimPrefix(b.Name, "refs/heads/")
+			} else {
+				full = strings.TrimPrefix(info.Tags[r.idx].Name, "refs/tags/")
 			}
 			ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Width(float32(r.depth)*16 + 20)
-				name := ui.Text(c, redact.Control(r.label)).SingleLine().Grow(1)
+				name := ui.Text(c, redact.Control(r.label)).SingleLine().TruncateMiddle().Grow(1).Tooltip(redact.Control(full))
 				if rs.kind == refsBranches && !head.Detached && b.Name == head.Target {
 					name.Bold()
 				}

@@ -146,7 +146,7 @@ func (a *App) fileView(c *ui.Context, t *tab) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(fs.path)
-			ui.Text(c, shown).Bold().SingleLine().Grow(1)
+			pathLabel(c, shown).Bold().Grow(1)
 			if fs.blame == 0 {
 				if !strings.HasSuffix(fs.path, "/") {
 					ui.Checkbox(c, &fs.follow, locales.FileHistoryFollowRenames())

@@ -758,7 +758,7 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, rv.file))
-			ui.Text(c, shown).Bold().SingleLine().Grow(1)
+			pathLabel(c, shown).Bold().Grow(1)
 			fileLines(c, lineAt(d.Lines, rv.file))
 			if closeButton(c, locales.CommitClosePatch()).Clicked() {
 				rv.file = -1

@@ -6503,6 +6503,22 @@ func (msgs Messages) RepoHiddenInHistory() string {
 	return Catalog.Format(msgs.locale, "repoHiddenInHistory", nil)
 }
 
+// RepoHiddenRef says "{name}, hidden in history"
+// in the language the app shows.
+//
+// Tooltip of a branch or tag in the sidebar that the history leaves out:
+// its whole name and why it is dimmed.
+func RepoHiddenRef(name string) string { return In(i18n.Locale()).RepoHiddenRef(name) }
+
+// RepoHiddenRef says "{name}, hidden in history"
+// in the language of msgs.
+//
+// Tooltip of a branch or tag in the sidebar that the history leaves out:
+// its whole name and why it is dimmed.
+func (msgs Messages) RepoHiddenRef(name string) string {
+	return Catalog.Format(msgs.locale, "repoHiddenRef", map[string]any{"name": name})
+}
+
 // RepoSectionChanges says "Changes"
 // in the language the app shows.
 //
