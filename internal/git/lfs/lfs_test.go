@@ -63,7 +63,7 @@ func TestList(t *testing.T) {
 		t.Errorf("b.psd: %+v", b)
 	}
 
-	srv.NoVerify = true
+	srv.NoVerify.Store(true)
 	ls, err = List(context.Background(), runner, r.GitDir(), r.Dir)
 	if err != nil {
 		t.Fatal(err)

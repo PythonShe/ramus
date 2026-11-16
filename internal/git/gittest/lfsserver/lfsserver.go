@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -20,7 +21,8 @@ type Server struct {
 	URL string
 	Me  string
 	// NoVerify makes the server answer as one without lock verification.
-	NoVerify bool
+	// Atomic: a test sets it while the server runs.
+	NoVerify atomic.Bool
 
 	mu    sync.Mutex
 	locks []Lock
@@ -101,7 +103,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(http.StatusCreated, map[string]any{"lock": s.add(req.Path, s.Me)})
 	case path == "/locks/verify" && r.Method == http.MethodPost:
-		if s.NoVerify {
+		if s.NoVerify.Load() {
 			reply(http.StatusNotFound, map[string]any{"message": "not found"})
 			return
 		}

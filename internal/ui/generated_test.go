@@ -11,7 +11,9 @@ import (
 // frameTime is the median of n frames, the best of a few rounds a little
 // apart until one is within budget: a slow machine busy with background
 // work, the race detector's or the app's, slows every frame of a round,
-// while a frame that costs too much is slow in all of them.
+// while a frame that costs too much is slow in all of them. Under the
+// race detector it is taken as the frame would be without it, as the
+// budget is the app's.
 func (h *harness) frameTime(n int, budget time.Duration) time.Duration {
 	best := time.Duration(1<<63 - 1)
 	for round := range 5 {
@@ -25,7 +27,7 @@ func (h *harness) frameTime(n int, budget time.Duration) time.Duration {
 			ds = append(ds, time.Since(s))
 		}
 		slices.Sort(ds)
-		best = min(best, ds[n/2])
+		best = min(best, ds[n/2]/raceSlowdown)
 		if best <= budget {
 			break
 		}
