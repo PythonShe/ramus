@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ramus/internal/git/catfile"
@@ -133,6 +134,10 @@ type hist struct {
 	last *grown
 	// keep are the commits the view keeps in place (KeepInView).
 	keep [][]byte
+	// below is set while the view shows rows below the top of history
+	// (ShowsTop): a load then leaves the top's text to be read as it
+	// shows, as the view may never show it.
+	below atomic.Bool
 	// walks counts the loads that ordered the whole history.
 	walks int
 }
@@ -187,7 +192,20 @@ func (s *Session) HistoryView() HistoryView { return s.historyView }
 func (s *Session) KeepInView(ids ...[]byte) {
 	s.hist.mu.Lock()
 	defer s.hist.mu.Unlock()
-	if slices.EqualFunc(ids, s.hist.keep, bytes.Equal) {
+	// Compared as kept, without the nil ids, or a view with nothing
+	// chosen would copy them all again in each frame.
+	same, k := true, 0
+	for _, id := range ids {
+		if id == nil {
+			continue
+		}
+		if k >= len(s.hist.keep) || !bytes.Equal(id, s.hist.keep[k]) {
+			same = false
+			break
+		}
+		k++
+	}
+	if same && k == len(s.hist.keep) {
 		return
 	}
 	s.hist.keep = s.hist.keep[:0]
@@ -197,6 +215,10 @@ func (s *Session) KeepInView(ids ...[]byte) {
 		}
 	}
 }
+
+// ShowsTop tells whether the view shows the top of history, or a slide
+// to it. Main thread only.
+func (s *Session) ShowsTop(top bool) { s.hist.below.Store(!top) }
 
 func (h *hist) current(gen int) bool {
 	h.mu.Lock()
@@ -289,7 +311,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		if whole && h.Base == nil {
 			h.Found = s.findKept(ctx, h)
 		}
-		if (whole || h.Base != nil) && h.Done && h.Err == nil {
+		if (whole || h.Base != nil) && h.Done && h.Err == nil && !s.hist.below.Load() {
 			h.Text, h.Names = s.topText(ctx, r, h)
 		}
 		// The load's context ends when it returns, before the main thread

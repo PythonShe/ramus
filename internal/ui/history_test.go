@@ -1230,6 +1230,22 @@ func TestHistoryShowsCommitsLandingOnTop(t *testing.T) {
 		}
 	}
 
+	// A commit landing as the list slides to the last one slides on to
+	// the top.
+	for _, subject := range []string{"landed sliding", "landed slid"} {
+		head := oid(0)
+		r.Write("g.txt", subject+"\n")
+		r.Commit(subject)
+		h.until(subject, func() bool {
+			steady(subject)
+			return tb.s.History.For == tb.s.State.Refs && oid(0) != head
+		})
+	}
+	h.tt.Advance(time.Second)
+	if top() != 0 || !h.tt.HasText("landed slid") || hv.chosen != 4 {
+		t.Errorf("landed sliding: the top is row %d, chosen row %d", top(), hv.chosen)
+	}
+
 	// Scrolled down, commits above the one at the top of the view go.
 	hv.list.ScrollTo(50, ui.Start)
 	h.until("scrolled", func() bool { return top() == 50 })

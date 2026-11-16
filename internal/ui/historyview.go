@@ -267,7 +267,9 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 		a.gotText(t, hv.text.gen, nil, h.Text, h.Names, nil)
 	}
 	first, last := hv.list.Visible()
-	atTop := last >= first && first == 0
+	// A list on its way to its top, rows that came above it sliding in,
+	// shows its top.
+	atTop := last >= first && hv.atTop(first)
 	shown := last - first + 1
 	if hv.scroll.Scrolling() || hv.slideFrom != 0 {
 		// A slide on its way stops: the rows moved under it. The next
@@ -284,7 +286,8 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 		}
 		switch {
 		case atTop:
-			hv.slideDown(h.Added, h.Added, shown)
+			// From where the rows shown went, mid-slide or not.
+			hv.slideDown(first+h.Added, first+h.Added, shown)
 		case h.Added > historyFollow && last >= first:
 			hv.list.ScrollTo(first+h.Added, ui.Start)
 		}
@@ -309,6 +312,12 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 			hv.want, hv.wantFor = hv.chosenID, nil
 		}
 	}
+}
+
+// atTop reports whether the list, first row first, shows its top or
+// slides to it.
+func (hv *historyState) atTop(first int) bool {
+	return first == 0 || hv.scroll.Scrolling() || hv.slideFrom != 0
 }
 
 // slideDown shows the top of the list, which n rows came above: from
@@ -688,6 +697,7 @@ func (a *App) keepInView(t *tab, h session.HistoryState) {
 	}
 	hv.keep = append(append(hv.keep[:0], hv.chosenID), hv.inView...)
 	t.s.KeepInView(hv.keep...)
+	t.s.ShowsTop(last < first || hv.atTop(first))
 }
 
 func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int) {
