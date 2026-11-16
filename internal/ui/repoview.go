@@ -465,10 +465,10 @@ func runningWrite(log []*session.LogEntry) *session.LogEntry {
 // not read.
 func fileIcon(c *ui.Context, path string) {
 	if s := fileicon.For(path); s != nil {
-		ui.Image(c, s).Width(16).Height(16).Role(ui.RoleNone)
+		ui.Image(c, s).Width(iconLarge).Height(iconLarge).Role(ui.RoleNone)
 		return
 	}
-	ui.Box(c).Width(16)
+	ui.Box(c).Width(iconLarge)
 }
 
 // pathLabel shows path shown, from showPath, in a list's row on one line.

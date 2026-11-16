@@ -150,7 +150,7 @@ func (a *App) worktreeButton(c *ui.Context, t *tab) {
 	var b ui.Element
 	ui.Toolbar(c, func() {
 		b = ui.Button(c, "").Label(label).Tooltip(label)
-		b.Children(func() { ui.Icon(c, wtIcons().stack).FontSize(16) })
+		b.Children(func() { ui.Icon(c, wtIcons().stack).FontSize(iconLarge) })
 		if b.Clicked() {
 			p.open = !p.open
 		}
@@ -225,7 +225,7 @@ func (a *App) wtList(c *ui.Context, t *tab, p *wtPanel) (act func()) {
 func wtWorktreeRow(c *ui.Context, w repo.Worktree, sum session.WorktreeSummary, read, expanded bool, now time.Time) (row ui.Element, open bool) {
 	th := c.Theme()
 	name := filepath.Base(w.Path)
-	row = ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(6).
+	row = ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(locales.WorktreePanelShowFiles(name))
 	if row.Hovered() {
 		row.Background(th.SurfaceHover)
@@ -235,7 +235,7 @@ func wtWorktreeRow(c *ui.Context, w repo.Worktree, sum session.WorktreeSummary, 
 		if expanded {
 			chevron = pickIcons().chevron
 		}
-		ui.Icon(c, chevron).FontSize(10).TextColor(th.TextMuted).Width(12)
+		ui.Icon(c, chevron).FontSize(iconSmall).TextColor(th.TextMuted).Width(12)
 		n := ui.Text(c, name).SingleLine().TruncateMiddle().Shrink(1)
 		if w.Current {
 			n.Bold()
@@ -272,7 +272,7 @@ func wtWorktreeRow(c *ui.Context, w repo.Worktree, sum session.WorktreeSummary, 
 			// In a toolbar: no face until the pointer is on it.
 			ui.Toolbar(c, func() {
 				b := ui.Button(c, "").Label(locales.WorktreePanelOpenLabel(name)).Tooltip(locales.WorktreePanelOpenInTab()).Padding(0, spaceXS)
-				b.Children(func() { ui.Icon(c, wtIcons().open).FontSize(13).TextColor(th.TextMuted) })
+				b.Children(func() { ui.Icon(c, wtIcons().open).FontSize(iconMedium).TextColor(th.TextMuted) })
 				open = b.Clicked()
 			}).Label(locales.WorktreePanelOpenLabel(name))
 		}
@@ -292,7 +292,7 @@ func wtFileRow(c *ui.Context, f session.WorktreeFile) ui.Element {
 		st = 'D'
 	}
 	lines := diff.Lines{Added: uint32(f.Added), Deleted: uint32(f.Removed), Binary: f.Binary, Known: true}
-	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS, 0, spaceS+12+spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(6).
+	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS, 0, spaceS+12+spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(fileLabel(fileStatusWord(st), shown, lines))
 	if row.Hovered() {
 		row.Background(th.SurfaceHover)
@@ -315,7 +315,7 @@ func (a *App) wtPatchView(c *ui.Context, p *wtPanel) {
 		back := false
 		ui.Toolbar(c, func() {
 			b := ui.Button(c, "").Label(locales.WorktreePanelBack()).Tooltip(locales.WorktreePanelBack()).Padding(0, spaceXS)
-			b.Children(func() { ui.Icon(c, wtIcons().left).FontSize(12).TextColor(th.TextMuted) })
+			b.Children(func() { ui.Icon(c, wtIcons().left).FontSize(iconMedium).TextColor(th.TextMuted) })
 			back = b.Clicked()
 		}).Label(locales.WorktreePanelBack())
 		if back {

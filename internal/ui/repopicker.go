@@ -80,9 +80,9 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 		b = ui.Button(c, "").Label(label).Tooltip(locales.RepoPickerTooltip())
 		b.Children(func() {
 			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, icon).FontSize(14).TextColor(th.TextMuted)
+				ui.Icon(c, icon).FontSize(iconMedium).TextColor(th.TextMuted)
 				ui.Text(c, name).Bold().SingleLine().TruncateMiddle().MaxWidth(220)
-				ui.Icon(c, pickIcons().chevron).FontSize(10).TextColor(th.TextMuted)
+				ui.Icon(c, pickIcons().chevron).FontSize(iconSmall).TextColor(th.TextMuted)
 			})
 		})
 		if b.Clicked() {
@@ -413,7 +413,7 @@ func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 		return ui.Text(c, r.heading).FontSize(textCaption).Bold().TextColor(th.TextMuted).SingleLine().Height(rowHeight).Padding(spaceS+2, spaceS, 0, spaceS)
 	}
 	b := a.repoPick.briefs[r.path]
-	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(6).
+	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(r.name).Tooltip(r.path)
 	fg, muted := th.Text, th.TextMuted
 	if hi {
@@ -434,7 +434,7 @@ func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 		if b.Fork {
 			icon = repoIcons().fork
 		}
-		ui.Icon(c, icon).FontSize(14).TextColor(muted)
+		ui.Icon(c, icon).FontSize(iconMedium).TextColor(muted)
 		ui.Text(c, r.name).SingleLine().TruncateMiddle().Shrink(1).Grow(1).TextColor(fg)
 		if b.Ahead > 0 {
 			ui.Text(c, locales.RepoPickerAhead(b.Ahead)).FontSize(textSmall).TextColor(muted).Description(locales.RepoPickerAheadLabel(b.Ahead))

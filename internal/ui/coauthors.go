@@ -52,7 +52,7 @@ func (a *App) coAuthorButton(c *ui.Context, t *tab) {
 	p := &cs.pick
 	label := locales.CommitBoxAddCoAuthor()
 	b := ui.Button(c, "").Label(label).Tooltip(label).Disabled(cs.busy)
-	b.Children(func() { ui.Icon(c, coAuthorIcons().add).FontSize(15).TextColor(th.TextMuted) })
+	b.Children(func() { ui.Icon(c, coAuthorIcons().add).FontSize(iconMedium).TextColor(th.TextMuted) })
 	if b.Clicked() {
 		if p.open {
 			p.open = false
@@ -124,7 +124,7 @@ func coAuthorRowView(c *ui.Context, r coAuthorRow, hi bool) ui.Element {
 	if r.typed {
 		label = locales.CommitBoxAddPerson(r.person())
 	}
-	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(6).
+	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(label)
 	fg, muted := th.Text, th.TextMuted
 	if hi {

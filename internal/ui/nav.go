@@ -139,7 +139,7 @@ func (a *App) navBar(c *ui.Context, t *tab) {
 			label = locales.HidingShowSidebar()
 		}
 		b := ui.Button(c, "").Label(label).Tooltip(label)
-		b.Children(func() { ui.Icon(c, navIcons().sidebar).FontSize(16) })
+		b.Children(func() { ui.Icon(c, navIcons().sidebar).FontSize(iconLarge) })
 		if b.Clicked() {
 			a.setSidebar(a.Settings.NoSidebar)
 		}

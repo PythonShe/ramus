@@ -701,7 +701,7 @@ func (a *App) prFiles(c *ui.Context, t *tab, rv *prReview) {
 // review no longer shows: kept with its text, and sent to those lines.
 func (a *App) staleCompose(c *ui.Context, t *tab, rv *prReview) {
 	ui.Column(c).FillWidth().Padding(spaceXS, insetX).Children(func() {
-		ui.Column(c).FillWidth().Gap(spaceS).Padding(spaceM).Background(c.Theme().Surface).Radius(6).Children(func() {
+		ui.Column(c).FillWidth().Gap(spaceS).Padding(spaceM).Background(c.Theme().Surface).Radius(c.Theme().Radius).Children(func() {
 			ui.Text(c, locales.PrsStaleCompose()).FontSize(textSmall).TextColor(c.Theme().Warning)
 			a.composeNote(c, t, rv)
 		})
@@ -875,7 +875,7 @@ func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, oldPath, path 
 			return
 		}
 		ui.Column(c).Height(an.Height).FillWidth().Padding(spaceXS, spaceM).Children(func() {
-			box := ui.Column(c).Fill().Gap(spaceS).Padding(spaceM).Background(c.Theme().Surface).Radius(6).Clip()
+			box := ui.Column(c).Fill().Gap(spaceS).Padding(spaceM).Background(c.Theme().Surface).Radius(c.Theme().Radius).Clip()
 			box.Children(func() {
 				switch {
 				case n.compose:

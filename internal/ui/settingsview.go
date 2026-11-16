@@ -102,7 +102,7 @@ func (a *App) settingsView(c *ui.Context) {
 	// above the buttons runs from edge to edge.
 	ui.DialogBase(c, &s.open, func(back, panel ui.Element) {
 		back.Background(ui.RGBA(0, 0, 0, 0.4))
-		panel.Width(min(dialogMedium+40, ww-2*space2XL)).MaxHeight(max(wh-2*space2XL, 240)).Radius(10).Background(th.Background).
+		panel.Width(min(dialogMedium+40, ww-2*space2XL)).MaxHeight(max(wh-2*space2XL, 240)).Radius(radiusLarge).Background(th.Background).
 			Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
 		// The title and the buttons stay; what is between them scrolls
 		// when the window is too short for it.
@@ -313,7 +313,7 @@ func settingsGroup(c *ui.Context, heading string, fn func(row settingsRow)) {
 	th := c.Theme()
 	ui.Column(c).Gap(spaceS).FillWidth().Children(func() {
 		ui.Text(c, heading).FontSize(textSmall).Bold().TextColor(th.TextMuted).Padding(0, spaceXS)
-		ui.Column(c).FillWidth().Radius(th.Radius+4).Border(1, th.Border).Children(func() {
+		ui.Column(c).FillWidth().Radius(radiusLarge).Border(1, th.Border).Children(func() {
 			first := true
 			fn(func(label string, control func() ui.Element) {
 				if !first {

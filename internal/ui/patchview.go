@@ -380,7 +380,7 @@ func pictures(c *ui.Context, pv *patchView) {
 					ui.Text(c, title).FontSize(textSmall).Bold()
 					ui.Text(c, pv.about[k]).FontSize(textSmall).TextColor(th.TextMuted)
 				})
-				ui.Column(c).Grow(1).FillWidth().Center().Background(th.Surface).Radius(6).Padding(spaceM).Children(func() {
+				ui.Column(c).Grow(1).FillWidth().Center().Background(th.Surface).Radius(th.Radius).Padding(spaceM).Children(func() {
 					if img := pv.images[k]; img != nil {
 						w, h := ui.ImageSize(img)
 						ui.Image(c, img).MaxWidth(w).MaxHeight(h).FillWidth().Label(title)

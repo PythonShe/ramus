@@ -53,6 +53,21 @@ const (
 	textDisplay = 28
 )
 
+// Icon sizes: a chevron after a title, an icon beside text in a row or
+// a button, and a toolbar's icons and a file's.
+const (
+	iconSmall  = 10
+	iconMedium = 14
+	iconLarge  = 16
+)
+
+// Corner radii beside the theme's Radius, which controls and rows take:
+// a small label's, as a ref's, and a panel's that holds controls.
+const (
+	radiusSmall = 4
+	radiusLarge = 10
+)
+
 // Dialog widths. A dialog whose content sets its size, a chart or a
 // table, gives its own.
 const (
@@ -155,7 +170,7 @@ func infoButton(c *ui.Context, open *bool, label, text string, color ui.Color) {
 	if b.Hovered() {
 		b.Background(th.SurfaceHover)
 	}
-	b.Children(func() { ui.Icon(c, styleIcons().info).FontSize(textSmall + 2).TextColor(color) })
+	b.Children(func() { ui.Icon(c, styleIcons().info).FontSize(iconMedium).TextColor(color) })
 	if b.Clicked() {
 		*open = !*open
 	}
@@ -175,7 +190,7 @@ var styleIcons = sync.OnceValue(func() (icons struct{ info *ui.SVG }) {
 // box in what it sits on.
 func closeButton(c *ui.Context, label string) ui.Element {
 	th := c.Theme()
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(4).Padding(0, spaceXS)
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(radiusSmall).Padding(0, spaceXS)
 	if b.Hovered() {
 		// A wash of the text's color shows on whatever it sits on: a tab
 		// hovered or chosen, or a pane's header.

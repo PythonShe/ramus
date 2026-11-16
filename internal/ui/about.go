@@ -171,7 +171,7 @@ func (ab *About) View(c *ui.Context) {
 				}
 				ui.Image(c, icon).Width(96).Height(96).Role(ui.RoleNone).Margin(0, 0, spaceM, 0)
 			}
-			ui.Text(c, locales.AboutName()).FontSize(22).Bold()
+			ui.Text(c, locales.AboutName()).FontSize(textDisplay).Bold()
 			ui.Text(c, locales.AboutVersion(ab.Version)).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
 			ui.Text(c, locales.AboutCopyright()).FontSize(textCaption).TextColor(th.TextMuted)
 			ab.updates(c)
@@ -252,7 +252,7 @@ func (ab *About) licensesView(c *ui.Context) {
 	ab.list.Label = func(i int) string { return ab.notices[i].Name }
 	ui.List(c, &ab.list, len(ab.notices), func(i int) {
 		n := ab.notices[i]
-		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Radius(6).
+		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Radius(th.Radius).
 			Role(ui.RoleButton).Focusable().Cursor(ui.CursorPointer)
 		if row.Hovered() {
 			row.Background(th.SurfaceHover)

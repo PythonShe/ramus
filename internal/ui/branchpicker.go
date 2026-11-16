@@ -68,9 +68,9 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 		b = ui.Button(c, "").Label(label).Tooltip(locales.BranchPickerTooltip())
 		b.Children(func() {
 			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, pickIcons().branch).FontSize(14).TextColor(th.TextMuted)
+				ui.Icon(c, pickIcons().branch).FontSize(iconMedium).TextColor(th.TextMuted)
 				ui.Text(c, name).SingleLine().TruncateMiddle().MaxWidth(220)
-				ui.Icon(c, pickIcons().chevron).FontSize(10).TextColor(th.TextMuted)
+				ui.Icon(c, pickIcons().chevron).FontSize(iconSmall).TextColor(th.TextMuted)
 			})
 		})
 		if b.Clicked() {
@@ -151,7 +151,7 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 			if canCreate {
 				ui.Divider(c)
 				// Its text starts where the branches' names do, past the check.
-				nb := ui.ButtonBase(c).Padding(rowPadY, spaceS, rowPadY, spaceS+12+spaceS).Radius(6).FillWidth().Justify(ui.Start)
+				nb := ui.ButtonBase(c).Padding(rowPadY, spaceS, rowPadY, spaceS+12+spaceS).Radius(th.Radius).FillWidth().Justify(ui.Start)
 				if nb.Hovered() {
 					nb.Background(th.SurfaceHover)
 				}
@@ -196,7 +196,7 @@ func pickRowView(c *ui.Context, t *tab, r pickRow, hi bool) ui.Element {
 	if r.heading != "" {
 		return ui.Text(c, r.heading).FontSize(textCaption).TextColor(th.TextMuted).Height(rowHeight).Padding(spaceS+2, spaceS, 0, spaceS)
 	}
-	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(6).
+	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(shortRef(r.ref))
 	fg := th.Text
 	if hi {
