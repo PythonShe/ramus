@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -101,9 +102,14 @@ func TestUntrustedOpensRestricted(t *testing.T) {
 	if s.answers().Len() == 0 {
 		t.Fatal("the commit was not kept")
 	}
+	shown := s.Repo
 	if err := s.Trust(); err != nil {
 		t.Fatal(err)
 	}
+	if s.Repo != shown {
+		t.Fatal("reopened before the trust was recorded")
+	}
+	m.until(t, "the trust recorded", func() bool { return s.Repo != shown })
 	// What the hardened runner read is read again.
 	if s.answers().Len() != 0 {
 		t.Fatal("answers kept across the trust")
@@ -115,6 +121,37 @@ func TestUntrustedOpensRestricted(t *testing.T) {
 	m.until(t, "reopen", func() bool { return s.State.Status != nil && !s.State.Opening })
 	if s.State.Restricted || s.Queue == nil || !ts.Trusted(r.GitDir()) {
 		t.Fatalf("after trust %+v", s.State)
+	}
+}
+
+// A trust that cannot be recorded says so in the log, and leaves the
+// repository as it was.
+func TestTrustNotRecorded(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("folder permissions")
+	}
+	r := gittest.Init(t)
+	r.Commit("one")
+	m := make(mainThread, 64)
+	dir := t.TempDir()
+	ts, err := trust.Load(filepath.Join(dir, "trust.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := Open(testrun.Runner(t), ts, r.Dir, m.update)
+	defer func() { s.Close(); <-s.Done() }()
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+	shown := s.Repo
+	if err := s.Trust(); err != nil {
+		t.Fatal(err)
+	}
+	m.until(t, "the failure", func() bool { return len(s.Log) == 1 && !s.Log[0].Running })
+	if s.Log[0].Err == nil || s.Repo != shown || !s.State.Restricted || s.trusting {
+		t.Fatalf("err %v, reopened %v, restricted %v", s.Log[0].Err, s.Repo != shown, s.State.Restricted)
 	}
 }
 

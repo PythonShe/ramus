@@ -26,6 +26,7 @@ import (
 	"ramus/internal/git/status"
 	"ramus/internal/git/trust"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // sayError is an error a user reads, said in the language the app shows
@@ -135,6 +136,8 @@ type Session struct {
 	// changeLines cancels a count of the changes' lines that a newer one
 	// replaced.
 	changeLines PatchSlot
+	// trusting is set while Trust writes its record; main thread only.
+	trusting bool
 	// ignored is the open repository's ignored directories, which its
 	// watcher skips; nil where watches are not per directory.
 	ignored atomic.Pointer[ignoredDirs]
@@ -292,6 +295,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 	// Off the main thread: whether history goes to git reads files.
 	fallbacks := r.Capabilities().Fallbacks()
 	usesLFS := !r.Restricted && lfs.Uses(r.CommonDir, r.WorkTree)
+	op := repo.InProgress(r.GitDir)
 	s.update(func() {
 		s.mu.Lock()
 		closed := s.closed
@@ -304,7 +308,7 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 			s.held, q = q, nil
 		}
 		s.Repo, s.Queue = r, q
-		s.State = State{Restricted: r.Restricted, Held: s.holding, Fallbacks: fallbacks, LFS: usesLFS, Operation: repo.InProgress(r.GitDir)}
+		s.State = State{Restricted: r.Restricted, Held: s.holding, Fallbacks: fallbacks, LFS: usesLFS, Operation: op}
 		s.State.WatchErr = werr
 	})
 	r.Life().Go(func(ctx context.Context) { s.refresher(ctx, r) })
@@ -788,14 +792,41 @@ func (s *Session) TakeOver() {
 }
 
 // Trust records that the user trusts the repository and opens it again
-// with everything allowed.
+// with everything allowed. The record is written off the main thread (it
+// syncs a file to disk); one that fails shows as a failed action in the
+// log, and the repository stays as it was.
 func (s *Session) Trust() error {
-	if s.Repo == nil || s.trust == nil {
+	r := s.Repo
+	if r == nil || s.trust == nil {
 		return errors.New("session: nothing to trust")
 	}
-	if err := s.trust.Set(s.Repo.CommonDir, true); err != nil {
+	if s.trusting {
+		return nil
+	}
+	ts, update := s.trust, s.update
+	err := r.Life().Go(func(context.Context) {
+		err := ts.Set(r.CommonDir, true)
+		update(func() {
+			s.trusting = false
+			if err != nil {
+				e := s.addLog(locales.SessionTrust(), "")
+				e.Running, e.Err, e.Ended = false, shownError{err}, s.timeNow()
+				return
+			}
+			if s.Repo == r {
+				s.reopenTrusted()
+			}
+		})
+	})
+	if err != nil {
 		return err
 	}
+	s.trusting = true
+	return nil
+}
+
+// reopenTrusted opens the repository again once trusted.
+func (s *Session) reopenTrusted() {
 	old := s.Repo
 	// History goes too: its object ids may point into the closed
 	// repository's commit-graph mapping. The background fetch starts
@@ -808,7 +839,6 @@ func (s *Session) Trust() error {
 	s.DropAnswers()
 	old.Close()
 	s.start()
-	return nil
 }
 
 // Close ends the session; the repository's goroutines and processes stop.

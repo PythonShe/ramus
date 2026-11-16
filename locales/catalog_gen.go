@@ -13069,6 +13069,22 @@ func (msgs Messages) SessionWriteCommitGraph() string {
 	return Catalog.Format(msgs.locale, "sessionWriteCommitGraph", nil)
 }
 
+// SessionTrust says "Trust this repository"
+// in the language the app shows.
+//
+// An entry of the command log, shown when recording that the user trusts
+// the repository failed.
+func SessionTrust() string { return In(i18n.Locale()).SessionTrust() }
+
+// SessionTrust says "Trust this repository"
+// in the language of msgs.
+//
+// An entry of the command log, shown when recording that the user trusts
+// the repository failed.
+func (msgs Messages) SessionTrust() string {
+	return Catalog.Format(msgs.locale, "sessionTrust", nil)
+}
+
 // SessionSnapshotNow says "Snapshot: {name}"
 // in the language the app shows.
 //

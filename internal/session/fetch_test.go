@@ -208,10 +208,11 @@ func TestTrustStartsTheBackgroundFetch(t *testing.T) {
 		t.Fatal("no fetch started")
 	}
 	m.pump(100 * time.Millisecond)
+	shown := s.Repo
 	if err := s.Trust(); err != nil {
 		t.Fatal(err)
 	}
-	m.until(t, "the reopen", func() bool { return s.State.Status != nil })
+	m.until(t, "the reopen", func() bool { return s.Repo != nil && s.Repo != shown && s.State.Status != nil })
 	// The old fetch's end, killed with the repository it ran in, has
 	// come by now, however slowly.
 	m.settle(t, s)

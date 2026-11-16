@@ -2692,6 +2692,10 @@
   "@sessionWriteCommitGraph": {
     "description": "An entry of the command log; commit-graph is git's file."
   },
+  "sessionTrust": "Trust this repository",
+  "@sessionTrust": {
+    "description": "An entry of the command log, shown when recording that the user trusts the repository failed."
+  },
   "sessionSnapshotNow": "Snapshot: {name}",
   "@sessionSnapshotNow": {
     "description": "An entry of the command log; name is the snapshot's."
