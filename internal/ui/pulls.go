@@ -131,12 +131,11 @@ func (a *App) loadPulls(t *tab) {
 // shown: a tool missing, a login missing or expired, or what else went
 // wrong. The views ask again later, and say nothing.
 func (a *App) forgeNotice(err error) {
-	text := errText(err)
+	text := errForge(err)
 	var le *forge.LoginError
 	switch {
 	case errors.As(err, &le):
 	case errors.Is(err, forge.ErrNoCLI):
-		text = locales.PullsNoCLI()
 	default:
 		text = locales.PullsNotRead(text)
 	}

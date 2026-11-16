@@ -13167,6 +13167,138 @@ func (msgs Messages) PrsMore(kind string, count int) string {
 	return Catalog.Format(msgs.locale, "prsMore", map[string]any{"kind": kind, "count": count})
 }
 
+// PrsUnknownHost says "The host's command-line tool is not logged in to this host. Log it in to the host in a terminal."
+// in the language the app shows.
+func PrsUnknownHost() string { return In(i18n.Locale()).PrsUnknownHost() }
+
+// PrsUnknownHost says "The host's command-line tool is not logged in to this host. Log it in to the host in a terminal."
+// in the language of msgs.
+func (msgs Messages) PrsUnknownHost() string {
+	return Catalog.Format(msgs.locale, "prsUnknownHost", nil)
+}
+
+// PrsNotFound says "The host did not find it, or it cannot be seen with the account logged in."
+// in the language the app shows.
+func PrsNotFound() string { return In(i18n.Locale()).PrsNotFound() }
+
+// PrsNotFound says "The host did not find it, or it cannot be seen with the account logged in."
+// in the language of msgs.
+func (msgs Messages) PrsNotFound() string {
+	return Catalog.Format(msgs.locale, "prsNotFound", nil)
+}
+
+// PrsTimeout says "The host did not answer in time. Try again."
+// in the language the app shows.
+func PrsTimeout() string { return In(i18n.Locale()).PrsTimeout() }
+
+// PrsTimeout says "The host did not answer in time. Try again."
+// in the language of msgs.
+func (msgs Messages) PrsTimeout() string {
+	return Catalog.Format(msgs.locale, "prsTimeout", nil)
+}
+
+// PrsReadOnly says "Fetching the commits writes to the repository, which is read-only until you trust it."
+// in the language the app shows.
+func PrsReadOnly() string { return In(i18n.Locale()).PrsReadOnly() }
+
+// PrsReadOnly says "Fetching the commits writes to the repository, which is read-only until you trust it."
+// in the language of msgs.
+func (msgs Messages) PrsReadOnly() string {
+	return Catalog.Format(msgs.locale, "prsReadOnly", nil)
+}
+
+// PrsNotLoggedIn says "{program} is not logged in to {host}. Run {program} auth login in a terminal."
+// in the language the app shows.
+func PrsNotLoggedIn(program string, host string) string {
+	return In(i18n.Locale()).PrsNotLoggedIn(program, host)
+}
+
+// PrsNotLoggedIn says "{program} is not logged in to {host}. Run {program} auth login in a terminal."
+// in the language of msgs.
+func (msgs Messages) PrsNotLoggedIn(program string, host string) string {
+	return Catalog.Format(msgs.locale, "prsNotLoggedIn", map[string]any{"program": program, "host": host})
+}
+
+// PrsDraftsStale says "{count, plural, one {Your pending comment is on older commits: submit the review, or discard it, before adding to it.…"
+// in the language the app shows.
+func PrsDraftsStale(count int) string { return In(i18n.Locale()).PrsDraftsStale(count) }
+
+// PrsDraftsStale says "{count, plural, one {Your pending comment is on older commits: submit the review, or discard it, before adding to it.…"
+// in the language of msgs.
+func (msgs Messages) PrsDraftsStale(count int) string {
+	return Catalog.Format(msgs.locale, "prsDraftsStale", map[string]any{"count": count})
+}
+
+// PrsDraftsStaleSent says "They were written on older commits, and go on the lines they were written on."
+// in the language the app shows.
+func PrsDraftsStaleSent() string { return In(i18n.Locale()).PrsDraftsStaleSent() }
+
+// PrsDraftsStaleSent says "They were written on older commits, and go on the lines they were written on."
+// in the language of msgs.
+func (msgs Messages) PrsDraftsStaleSent() string {
+	return Catalog.Format(msgs.locale, "prsDraftsStaleSent", nil)
+}
+
+// PrsDiscardDrafts says "{count, plural, one {Discard Pending Comment} other {Discard # Pending Comments}}"
+// in the language the app shows.
+func PrsDiscardDrafts(count int) string { return In(i18n.Locale()).PrsDiscardDrafts(count) }
+
+// PrsDiscardDrafts says "{count, plural, one {Discard Pending Comment} other {Discard # Pending Comments}}"
+// in the language of msgs.
+func (msgs Messages) PrsDiscardDrafts(count int) string {
+	return Catalog.Format(msgs.locale, "prsDiscardDrafts", map[string]any{"count": count})
+}
+
+// PrsFinishComment says "Add the comment being written, or cancel it, first."
+// in the language the app shows.
+func PrsFinishComment() string { return In(i18n.Locale()).PrsFinishComment() }
+
+// PrsFinishComment says "Add the comment being written, or cancel it, first."
+// in the language of msgs.
+func (msgs Messages) PrsFinishComment() string {
+	return Catalog.Format(msgs.locale, "prsFinishComment", nil)
+}
+
+// PrsDropDraftsTitle says "{count, plural, one {Discard # unsent comment?} other {Discard # unsent comments?}}"
+// in the language the app shows.
+func PrsDropDraftsTitle(count int) string { return In(i18n.Locale()).PrsDropDraftsTitle(count) }
+
+// PrsDropDraftsTitle says "{count, plural, one {Discard # unsent comment?} other {Discard # unsent comments?}}"
+// in the language of msgs.
+func (msgs Messages) PrsDropDraftsTitle(count int) string {
+	return Catalog.Format(msgs.locale, "prsDropDraftsTitle", map[string]any{"count": count})
+}
+
+// PrsDropDraftsMessage says "They are not on the host yet, and are lost once you leave the review."
+// in the language the app shows.
+func PrsDropDraftsMessage() string { return In(i18n.Locale()).PrsDropDraftsMessage() }
+
+// PrsDropDraftsMessage says "They are not on the host yet, and are lost once you leave the review."
+// in the language of msgs.
+func (msgs Messages) PrsDropDraftsMessage() string {
+	return Catalog.Format(msgs.locale, "prsDropDraftsMessage", nil)
+}
+
+// PrsDropDrafts says "Discard"
+// in the language the app shows.
+func PrsDropDrafts() string { return In(i18n.Locale()).PrsDropDrafts() }
+
+// PrsDropDrafts says "Discard"
+// in the language of msgs.
+func (msgs Messages) PrsDropDrafts() string {
+	return Catalog.Format(msgs.locale, "prsDropDrafts", nil)
+}
+
+// PrsSentNotApproved says "Your comments were sent, but the approval was not: {reason}"
+// in the language the app shows.
+func PrsSentNotApproved(reason string) string { return In(i18n.Locale()).PrsSentNotApproved(reason) }
+
+// PrsSentNotApproved says "Your comments were sent, but the approval was not: {reason}"
+// in the language of msgs.
+func (msgs Messages) PrsSentNotApproved(reason string) string {
+	return Catalog.Format(msgs.locale, "prsSentNotApproved", map[string]any{"reason": reason})
+}
+
 // PrsNoReview says "Pull requests can be reviewed in the app on GitHub and GitLab only."
 // in the language the app shows.
 //

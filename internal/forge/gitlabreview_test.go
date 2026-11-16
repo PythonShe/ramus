@@ -188,6 +188,23 @@ func TestGitLabSubmit(t *testing.T) {
 	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictApprove, "", nil); !errors.Is(err, ErrHeadMoved) {
 		t.Errorf("stale approval: %v", err)
 	}
+	// Comments published before an approval that fails are said to be
+	// sent, not to be sent again.
+	var sent *SentError
+	env, _ = glabLog(t, "/approve")
+	c, _ = Find(env, GitLab)
+	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictApprove, "", drafts); !errors.As(err, &sent) || !errors.Is(err, ErrHeadMoved) {
+		t.Errorf("approval after comments: %v", err)
+	}
+	// A publish that fails takes the drafts back.
+	env, log = glabLog(t, "bulk_publish")
+	c, _ = Find(env, GitLab)
+	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictComment, "", drafts); err == nil || errors.As(err, &sent) {
+		t.Errorf("failed publish: %v", err)
+	}
+	if got := log(); !strings.Contains(got, "draft_notes/1\n") || !strings.Contains(got, "draft_notes/2\n") {
+		t.Errorf("failed publish left drafts: %q", got)
+	}
 
 	env, log = glabLog(t, "never")
 	c, _ = Find(env, GitLab)

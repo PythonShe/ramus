@@ -12,7 +12,8 @@ import (
 	"ramus/locales"
 )
 
-var errReadOnly = errors.New("session: the repository is open read-only until you trust it")
+// ErrReadOnly is a write asked of a repository not trusted.
+var ErrReadOnly = errors.New("session: the repository is open read-only until you trust it")
 
 // noWrites is why the session cannot write: the repository is not
 // trusted, or its writes are held while another program works there.
@@ -20,7 +21,7 @@ func (s *Session) noWrites() error {
 	if s.holding {
 		return errors.New(locales.RepoHeldBanner())
 	}
-	return errReadOnly
+	return ErrReadOnly
 }
 
 // Snapshots reads the work tree's snapshots off the main thread, newest

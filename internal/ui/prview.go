@@ -63,10 +63,13 @@ type prReview struct {
 	// the review was read at, which reread it.
 	mismatched int
 	fetching   bool
-	fetchErr   string
-	rng        session.PullRange
-	detail     *session.CommitDetail
-	cancelCmp  func()
+	// fetchN numbers the fetches: one left behind as the page was left
+	// goes on to nothing.
+	fetchN    int
+	fetchErr  string
+	rng       session.PullRange
+	detail    *session.CommitDetail
+	cancelCmp func()
 
 	page  int // 0 files, 1 conversation
 	files ui.ListState
@@ -107,6 +110,8 @@ type prCompose struct {
 	start, line   int
 	across        int // see forge.Draft
 	body          string
+	// oid is the commit compared, whose lines these are.
+	oid string
 }
 
 func (cp *prCompose) draft(body string) forge.Draft {
@@ -131,6 +136,18 @@ func errForge(err error) string {
 		return locales.PrsNoReview()
 	case errors.Is(err, forge.ErrHeadMoved):
 		return locales.PrsHeadMoved()
+	case errors.Is(err, forge.ErrUnknownHost):
+		return locales.PrsUnknownHost()
+	case errors.Is(err, forge.ErrNotFound):
+		return locales.PrsNotFound()
+	case errors.Is(err, forge.ErrTimeout):
+		return locales.PrsTimeout()
+	case errors.Is(err, session.ErrReadOnly):
+		return locales.PrsReadOnly()
+	}
+	var login *forge.LoginError
+	if errors.As(err, &login) {
+		return locales.PrsNotLoggedIn(login.Program, login.Host)
 	}
 	return errText(err)
 }
@@ -302,6 +319,27 @@ func (a *App) openReview(t *tab, repo forge.Repo, n int) {
 	t.pr.rv = &prReview{n: n, repo: repo, file: -1, listW: 300, replies: map[string]*string{}, opened: map[string]bool{}}
 }
 
+// leaveReview goes back to the list, once the user agrees to drop the
+// comments not sent.
+func (a *App) leaveReview(t *tab, rv *prReview) {
+	n := len(rv.drafts)
+	if cp := rv.compose; cp != nil && strings.TrimSpace(cp.body) != "" {
+		n++
+	}
+	if n == 0 {
+		a.closeReview(t)
+		return
+	}
+	a.confirm = confirmState{open: true, title: locales.PrsDropDraftsTitle(n),
+		message: locales.PrsDropDraftsMessage(),
+		button:  locales.PrsDropDrafts(),
+		run: func() {
+			if t.pr.rv == rv {
+				a.closeReview(t)
+			}
+		}}
+}
+
 // closeReview goes back to the list, dropping what was being read.
 func (a *App) closeReview(t *tab) {
 	if rv := t.pr.rv; rv != nil && rv.cancelCmp != nil {
@@ -342,8 +380,10 @@ func fetchKey(r forge.Review) string { return r.HeadOID + "\x00" + r.Base }
 
 func (a *App) fetchReview(t *tab, rv *prReview) {
 	rv.fetching, rv.fetchErr, rv.fetchedFor = true, "", fetchKey(rv.r)
+	rv.fetchN++
+	n := rv.fetchN
 	// A fetch that failed is tried again when the review is read again.
-	failed := func(err error) { rv.fetching, rv.fetchErr, rv.fetchedFor = false, errText(err), "" }
+	failed := func(err error) { rv.fetching, rv.fetchErr, rv.fetchedFor = false, errForge(err), "" }
 	j, err := t.s.FetchPull(rv.repo, rv.n, rv.r.Base)
 	if err != nil {
 		failed(err)
@@ -354,7 +394,7 @@ func (a *App) fetchReview(t *tab, rv *prReview) {
 		<-j.Done()
 		_, err := j.Result()
 		update(func() {
-			if t.pr.rv != rv {
+			if t.pr.rv != rv || rv.fetchN != n {
 				return
 			}
 			if err != nil {
@@ -362,7 +402,7 @@ func (a *App) fetchReview(t *tab, rv *prReview) {
 				return
 			}
 			t.s.LoadPullRange(rv.n, func(pr session.PullRange, err error) {
-				if t.pr.rv != rv {
+				if t.pr.rv != rv || rv.fetchN != n {
 					return
 				}
 				if err != nil {
@@ -427,8 +467,9 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 	r := &rv.r
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX, 0, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			if ui.Button(c, "‹ "+locales.PrsSection(kindName(rv.repo.Kind))).Clicked() || c.Shortcut(0, ui.KeyEscape) {
-				a.closeReview(t)
+			// Esc leaves a comment being written to its text area.
+			if ui.Button(c, "‹ "+locales.PrsSection(kindName(rv.repo.Kind))).Clicked() || rv.compose == nil && c.Shortcut(0, ui.KeyEscape) {
+				a.leaveReview(t, rv)
 			}
 			title := locales.PrsTitle(r.Ref(rv.repo.Kind), redact.Control(r.Title))
 			ui.Text(c, title).Bold().SingleLine().Grow(1).Selectable()
@@ -546,7 +587,11 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 	// kept; a patch leaving some out would number them otherwise.
 	key := fmt.Sprintf("%x\x00%s\x00%s", d.OID, paths[0], path)
 	if rv.patchFor != key {
-		rv.patchFor, rv.patch, rv.pager, rv.compose = key, session.PatchResult{}, patchPager{}, nil
+		if cp := rv.compose; cp != nil && cp.oid != string(d.OID) {
+			// Its lines are of the head shown before.
+			rv.compose = nil
+		}
+		rv.patchFor, rv.patch, rv.pager = key, session.PatchResult{}, patchPager{}
 		_, oldID := f.Old(rv.file)
 		_, newID := f.New(rv.file)
 		detail := *d
@@ -631,8 +676,9 @@ func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, oldPath, path 
 		}
 		add(editorSide(th.Side), th.Line, "t:"+th.ID, prNote{thread: th, draft: -1}, rv.threadHeight(c, th, w))
 	}
+	stale := rv.draftsStale()
 	for i, dr := range rv.drafts {
-		if dr.Path != path {
+		if dr.Path != path || stale {
 			continue
 		}
 		add(editorSide(dr.Side), dr.Line, fmt.Sprintf("d:%d", i), prNote{draft: i}, rv.draftHeight(c, dr.Body, w))
@@ -650,7 +696,15 @@ func (a *App) decorateReview(c *ui.Context, t *tab, rv *prReview, oldPath, path 
 		if start == line {
 			start = 0
 		}
+		if cp := rv.compose; cp != nil && strings.TrimSpace(cp.body) != "" {
+			// One comment written at a time: its text is not dropped.
+			a.tell(t, locales.PrsFinishComment())
+			return
+		}
 		rv.compose = &prCompose{path: path, oldPath: oldPath, side: forgeSide(r.Side), start: start, line: line, across: pv.across(r.Side, line)}
+		if rv.detail != nil {
+			rv.compose.oid = string(rv.detail.OID)
+		}
 	}
 	d.RenderAnnotation = func(c *ui.Context, an editor.DiffAnnotation) {
 		n, ok := notes[an.Key]
@@ -805,6 +859,9 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 	}
 	ui.Text(c, label).Bold().FontSize(textSmall)
 	ui.TextArea(c, &cp.body).Label(label).Placeholder(locales.PrsCommentPlaceholder()).Lines(3, 5).FillWidth().AutoFocus()
+	if rv.draftsStale() {
+		ui.Text(c, locales.PrsDraftsStale(len(rv.drafts))).FontSize(textSmall).TextColor(c.Theme().TextMuted)
+	}
 	body := strings.TrimSpace(cp.body)
 	ui.Row(c).Gap(spaceM).Children(func() {
 		ui.Spacer(c)
@@ -823,7 +880,7 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 		}
 		// A review being sent takes the drafts it was given away when it
 		// is through.
-		if ui.PrimaryButton(c, locales.PrsAddToReview()).Disabled(body == "" || rv.sending).Clicked() {
+		if ui.PrimaryButton(c, locales.PrsAddToReview()).Disabled(body == "" || rv.sending || rv.draftsStale()).Clicked() {
 			if len(rv.drafts) == 0 {
 				rv.draftsAt = rv.revs()
 			}
@@ -831,6 +888,13 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 			rv.compose = nil
 		}
 	})
+}
+
+// draftsStale reports drafts written on a head the review no longer
+// shows: their lines are of it, so they are not shown on these, and go
+// with a review of that head only.
+func (rv *prReview) draftsStale() bool {
+	return len(rv.drafts) > 0 && rv.draftsAt.Head != rv.revs().Head
 }
 
 // revs are the commits comments are placed on: the head the patch shown
@@ -986,6 +1050,14 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 			}
 			if n := len(rv.drafts); n > 0 {
 				ui.Text(c, locales.PrsPendingCount(n)).FontSize(textSmall).TextColor(th.TextMuted)
+				if rv.draftsStale() {
+					// Not shown under the lines of the head shown, where
+					// each has its Delete.
+					ui.Text(c, locales.PrsDraftsStaleSent()).FontSize(textSmall).TextColor(th.TextMuted)
+					if ui.Button(c, locales.PrsDiscardDrafts(n)).Disabled(rv.sending).Clicked() {
+						rv.drafts = nil
+					}
+				}
 			}
 			if d.err != "" {
 				ui.Text(c, d.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
@@ -1007,6 +1079,17 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 						return cl.SubmitReview(ctx, rv.repo, rv.n, at, v, body, drafts)
 					}, func(err error) {
 						rv.sending = false
+						var sent *forge.SentError
+						if errors.As(err, &sent) {
+							// What was sent is not sent again: what is
+							// left to do is approve.
+							rv.drafts, d.body = nil, ""
+							d.err = locales.PrsSentNotApproved(errForge(sent.Err))
+							if t.pr.rv == rv {
+								rv.reread()
+							}
+							return
+						}
 						if err != nil {
 							d.err = errForge(err)
 							return

@@ -43,6 +43,9 @@ var ErrNoCLI = errors.New("forge: the host's command-line tool is not installed"
 // there, or not to be seen with the login in use.
 var ErrNotFound = errors.New("forge: not found")
 
+// ErrTimeout is the host's tool not answering within Timeout.
+var ErrTimeout = errors.New("forge: the host's command-line tool did not answer in time")
+
 // LoginError is a tool not logged in to the host, or whose login expired.
 type LoginError struct {
 	Program, Host string
@@ -151,7 +154,7 @@ func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte
 	err := cmd.Run()
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
-		return nil, fmt.Errorf("forge: %s did not answer within %v", c.Kind.Program(), Timeout)
+		return nil, fmt.Errorf("%w: %s, within %v", ErrTimeout, c.Kind.Program(), Timeout)
 	case ctx.Err() != nil:
 		return nil, ctx.Err()
 	case out.over:

@@ -2710,6 +2710,19 @@
   "@prsMore": {
     "description": "Shown above the list when the host has more open pull requests than were read."
   },
+  "prsUnknownHost": "The host's command-line tool is not logged in to this host. Log it in to the host in a terminal.",
+  "prsNotFound": "The host did not find it, or it cannot be seen with the account logged in.",
+  "prsTimeout": "The host did not answer in time. Try again.",
+  "prsReadOnly": "Fetching the commits writes to the repository, which is read-only until you trust it.",
+  "prsNotLoggedIn": "{program} is not logged in to {host}. Run {program} auth login in a terminal.",
+  "prsDraftsStale": "{count, plural, one {Your pending comment is on older commits: submit the review, or discard it, before adding to it.} other {Your # pending comments are on older commits: submit the review, or discard them, before adding to it.}}",
+  "prsDraftsStaleSent": "They were written on older commits, and go on the lines they were written on.",
+  "prsDiscardDrafts": "{count, plural, one {Discard Pending Comment} other {Discard # Pending Comments}}",
+  "prsFinishComment": "Add the comment being written, or cancel it, first.",
+  "prsDropDraftsTitle": "{count, plural, one {Discard # unsent comment?} other {Discard # unsent comments?}}",
+  "prsDropDraftsMessage": "They are not on the host yet, and are lost once you leave the review.",
+  "prsDropDrafts": "Discard",
+  "prsSentNotApproved": "Your comments were sent, but the approval was not: {reason}",
   "prsNoReview": "Pull requests can be reviewed in the app on GitHub and GitLab only.",
   "@prsNoReview": {
     "description": "Shown when the repository's pull requests are on a host the app cannot review on."

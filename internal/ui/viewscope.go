@@ -60,9 +60,15 @@ func (a *App) leaveView(t *tab, name string) {
 			if rv.loading {
 				rv.loading, rv.read = false, false
 			}
-			if rv.cancelCmp != nil {
-				// Read again when shown, which fetches and compares again.
-				rv.cancelCmp()
+			if rv.cancelCmp != nil || rv.fetching {
+				// Read again when shown, which fetches and compares again:
+				// a fetch on its way goes on to nothing, or it would
+				// compare under the view shown next, whose leaving stops
+				// it for good.
+				if rv.cancelCmp != nil {
+					rv.cancelCmp()
+				}
+				rv.fetchN++
 				rv.cancelCmp, rv.fetching, rv.fetchedFor = nil, false, ""
 				rv.reread()
 			}

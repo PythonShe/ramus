@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
 	"ramus/internal/git/gittest"
@@ -187,6 +188,32 @@ func TestPullRequestReview(t *testing.T) {
 	if !h.tt.HasText("Old remark") || h.tt.HasText("template") {
 		t.Fatalf("texts %q", h.tt.Texts())
 	}
+
+	// Left as its commits are fetched, it fetches them again when shown
+	// again, not stays fetching.
+	tb := h.app.current()
+	rv.detail, rv.fetchedFor = nil, ""
+	h.app.fetchReview(tb, rv)
+	h.app.leaveView(tb, sidePulls)
+	if rv.fetching || rv.read {
+		t.Fatalf("left fetching %v, read %v", rv.fetching, rv.read)
+	}
+	h.until("fetched again", func() bool { return rv.detail != nil && !rv.fetching })
+
+	// Comments not sent are not dropped without asking.
+	h.click("Files (2)")
+	h.click("a.txt")
+	rv.pv.d.OnGutterButton(editor.DiffLineRange{Side: editor.DiffNew, Start: 1, End: 1})
+	h.tt.Frame()
+	h.until("the comment being written", h.shows("Comment on line 2"))
+	h.tt.Type("Unsent")
+	h.tt.Frame()
+	h.click("Add to Review")
+	h.until("pending", h.shows("Submit Review (1)…"))
+	h.tt.Key(0, ui.KeyEscape)
+	h.until("asked", h.shows("Discard 1 unsent comment?"))
+	h.click("Discard")
+	h.until("the list", func() bool { return tb.pr.rv == nil })
 }
 
 // A merge request is reviewed as a pull request is: its threads under

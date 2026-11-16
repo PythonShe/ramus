@@ -336,6 +336,10 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 			if err := c.gitlabSend(ctx, r, "POST", mr+"/notes", map[string]string{"body": body}, nil); err != nil {
 				return err
 			}
+			if err := c.gitlabApprove(ctx, r, n, at.Head); err != nil {
+				return &SentError{Err: err}
+			}
+			return nil
 		}
 		return c.gitlabApprove(ctx, r, n, at.Head)
 	}
@@ -357,16 +361,19 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 		notes = append(notes, draftNote{Note: d.Body, Position: &p})
 	}
 	var made []int64
+	// Left pending, the drafts made would go out with the next review
+	// published, this one's sent again among them.
+	drop := func(ids []int64) {
+		for _, id := range ids {
+			c.gitlabSend(context.WithoutCancel(ctx), r, "DELETE", mr+"/draft_notes/"+strconv.FormatInt(id, 10), nil, nil)
+		}
+	}
 	for _, dn := range notes {
 		var ans struct {
 			ID int64 `json:"id"`
 		}
 		if err := c.gitlabSend(ctx, r, "POST", mr+"/draft_notes", dn, &ans); err != nil {
-			// Left pending, the drafts made would go out with the next
-			// review published, this one's sent again among them.
-			for _, id := range made {
-				c.gitlabSend(context.WithoutCancel(ctx), r, "DELETE", mr+"/draft_notes/"+strconv.FormatInt(id, 10), nil, nil)
-			}
+			drop(made)
 			return err
 		}
 		made = append(made, ans.ID)
@@ -379,13 +386,25 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 		pub.State = "requested_changes"
 	}
 	if err := c.gitlabSend(ctx, r, "POST", mr+"/draft_notes/bulk_publish", pub, nil); err != nil {
+		drop(made)
 		return err
 	}
 	if v == VerdictApprove {
-		return c.gitlabApprove(ctx, r, n, at.Head)
+		if err := c.gitlabApprove(ctx, r, n, at.Head); err != nil {
+			return &SentError{Err: err}
+		}
 	}
 	return nil
 }
+
+// SentError is a review whose comments went out but whose approval did
+// not: sending it again would post them twice.
+type SentError struct{ Err error }
+
+func (e *SentError) Error() string {
+	return "forge: the comments were sent, the approval was not: " + e.Err.Error()
+}
+func (e *SentError) Unwrap() error { return e.Err }
 
 // ErrHeadMoved is an approval of a head the merge request has moved on
 // from.
