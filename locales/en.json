@@ -2724,6 +2724,7 @@
   "prsDropDraftsTitle": "{count, plural, one {Discard # unsent comment?} other {Discard # unsent comments?}}",
   "prsDropDraftsMessage": "They are not on the host yet, and are lost once you leave the review.",
   "prsDropDrafts": "Discard",
+  "prsDraftsLeft": "{count, plural, one {The review was not published, and # comment is left pending on the merge request; GitLab publishes it with your next review. {reason}} other {The review was not published, and # comments are left pending on the merge request; GitLab publishes them with your next review. {reason}}}",
   "prsSentNotApproved": "Your comments were sent, but the approval was not: {reason}",
   "prsNoReview": "Pull requests can be reviewed in the app on GitHub and GitLab only.",
   "@prsNoReview": {

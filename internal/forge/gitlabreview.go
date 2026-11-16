@@ -363,10 +363,19 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 	var made []int64
 	// Left pending, the drafts made would go out with the next review
 	// published, this one's sent again among them.
-	drop := func(ids []int64) {
+	// It tells how many are gone, as published, and how many it could
+	// not take back.
+	drop := func(ids []int64) (gone, left int) {
 		for _, id := range ids {
-			c.gitlabSend(context.WithoutCancel(ctx), r, "DELETE", mr+"/draft_notes/"+strconv.FormatInt(id, 10), nil, nil)
+			err := c.gitlabSend(context.WithoutCancel(ctx), r, "DELETE", mr+"/draft_notes/"+strconv.FormatInt(id, 10), nil, nil)
+			switch {
+			case errors.Is(err, ErrNotFound):
+				gone++
+			case err != nil:
+				left++
+			}
 		}
+		return gone, left
 	}
 	for _, dn := range notes {
 		var ans struct {
@@ -386,7 +395,13 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 		pub.State = "requested_changes"
 	}
 	if err := c.gitlabSend(ctx, r, "POST", mr+"/draft_notes/bulk_publish", pub, nil); err != nil {
-		drop(made)
+		switch gone, left := drop(made); {
+		case gone > 0:
+			// The publish went through, its answer did not reach us.
+			return &SentError{Err: err}
+		case left > 0:
+			return &LeftError{Err: err, Left: left}
+		}
 		return err
 	}
 	if v == VerdictApprove {
@@ -396,6 +411,18 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 	}
 	return nil
 }
+
+// LeftError is a review not published whose draft notes, some of them,
+// could not be taken back: GitLab publishes them with the next review.
+type LeftError struct {
+	Err  error
+	Left int
+}
+
+func (e *LeftError) Error() string {
+	return fmt.Sprintf("forge: %v; %d draft notes are left pending on the merge request", e.Err, e.Left)
+}
+func (e *LeftError) Unwrap() error { return e.Err }
 
 // SentError is a review whose comments went out but whose approval did
 // not: sending it again would post them twice.

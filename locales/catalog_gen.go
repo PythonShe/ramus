@@ -13311,6 +13311,18 @@ func (msgs Messages) PrsDropDrafts() string {
 	return Catalog.Format(msgs.locale, "prsDropDrafts", nil)
 }
 
+// PrsDraftsLeft says "{count, plural, one {The review was not published, and # comment is left pending on the merge request; GitLab publish…"
+// in the language the app shows.
+func PrsDraftsLeft(count int, reason string) string {
+	return In(i18n.Locale()).PrsDraftsLeft(count, reason)
+}
+
+// PrsDraftsLeft says "{count, plural, one {The review was not published, and # comment is left pending on the merge request; GitLab publish…"
+// in the language of msgs.
+func (msgs Messages) PrsDraftsLeft(count int, reason string) string {
+	return Catalog.Format(msgs.locale, "prsDraftsLeft", map[string]any{"count": count, "reason": reason})
+}
+
 // PrsSentNotApproved says "Your comments were sent, but the approval was not: {reason}"
 // in the language the app shows.
 func PrsSentNotApproved(reason string) string { return In(i18n.Locale()).PrsSentNotApproved(reason) }

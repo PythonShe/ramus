@@ -326,6 +326,14 @@ func (a *App) leaveReview(t *tab, rv *prReview) {
 	if cp := rv.compose; cp != nil && strings.TrimSpace(cp.body) != "" {
 		n++
 	}
+	if strings.TrimSpace(rv.comment) != "" {
+		n++
+	}
+	for _, r := range rv.replies {
+		if r != nil && strings.TrimSpace(*r) != "" {
+			n++
+		}
+	}
 	if n == 0 {
 		a.closeReview(t)
 		return
@@ -1083,11 +1091,20 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 						if errors.As(err, &sent) {
 							// What was sent is not sent again: what is
 							// left to do is approve.
-							rv.drafts, d.body = nil, ""
+							rv.drafts = nil
+							if strings.TrimSpace(d.body) == body {
+								// Not what was typed since it was sent.
+								d.body = ""
+							}
 							d.err = locales.PrsSentNotApproved(errForge(sent.Err))
 							if t.pr.rv == rv {
 								rv.reread()
 							}
+							return
+						}
+						var left *forge.LeftError
+						if errors.As(err, &left) {
+							d.err = locales.PrsDraftsLeft(left.Left, errForge(left.Err))
 							return
 						}
 						if err != nil {

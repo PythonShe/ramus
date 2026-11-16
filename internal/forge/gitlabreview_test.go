@@ -205,6 +205,13 @@ func TestGitLabSubmit(t *testing.T) {
 	if got := log(); !strings.Contains(got, "draft_notes/1\n") || !strings.Contains(got, "draft_notes/2\n") {
 		t.Errorf("failed publish left drafts: %q", got)
 	}
+	// Drafts it could not take back are told of.
+	var left *LeftError
+	env, _ = glabLog(t, "draft_notes/")
+	c, _ = Find(env, GitLab)
+	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictComment, "", drafts); !errors.As(err, &left) || left.Left != 2 {
+		t.Errorf("drafts left: %v", err)
+	}
 
 	env, log = glabLog(t, "never")
 	c, _ = Find(env, GitLab)
