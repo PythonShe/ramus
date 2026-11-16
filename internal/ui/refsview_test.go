@@ -145,3 +145,22 @@ func TestRefsSwitchButton(t *testing.T) {
 	h.click("Switch to other")
 	h.until("on other", func() bool { return tb.s.State.Head.Target == "refs/heads/other" })
 }
+
+// A branch is made from the Branches toolbar, from the branch checked
+// out, and from another branch's menu, from that branch.
+func TestRefsNewBranch(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "other")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	h.click("Branches and Tags")
+	h.app.setSidebar(false)
+	h.until("the branches", func() bool { return hasExact(h, "other") })
+	h.click("New Branch…")
+	h.until("the dialog", h.shows("New Branch from main"))
+	h.app.branchUI.open = false
+	h.menu("other", "Create Branch Here…")
+	h.until("the dialog from other", h.shows("New Branch from other"))
+}

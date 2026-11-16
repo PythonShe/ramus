@@ -6,15 +6,19 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/git/write"
 	"ramus/locales"
 )
 
 // branchDialog asks for the name of a branch to make at a commit.
 type branchDialog struct {
-	open     bool
-	t        *tab
-	commit   string
+	open   bool
+	t      *tab
+	commit string
+	// from is the branch the dialog was opened from, named in its
+	// title, "" for one opened on a commit.
+	from     string
 	name     string
 	checkout bool
 	err      string
@@ -92,8 +96,11 @@ func (a *App) branchView(c *ui.Context) {
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			title := locales.CommitCreateBranchAt(d.commit[:10])
-			if h := d.t.s.State.Head; !h.Detached && h.Target != "" && hex.EncodeToString(h.OID) == d.commit {
-				title = locales.CommitCreateBranchFrom(strings.TrimPrefix(h.Target, "refs/heads/"))
+			if h := d.t.s.State.Head; d.from == "" && !h.Detached && h.Target != "" && hex.EncodeToString(h.OID) == d.commit {
+				d.from = h.Target
+			}
+			if d.from != "" {
+				title = locales.CommitCreateBranchFrom(redact.Control(strings.TrimPrefix(d.from, "refs/heads/")))
 			}
 			ui.Text(c, title).Bold()
 			in := ui.TextInput(c, &d.name).Placeholder(locales.CommonBranchName()).Label(locales.CommonBranchName()).AutoFocus()

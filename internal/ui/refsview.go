@@ -159,6 +159,9 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 				if ui.Button(c, locales.RefsCleanUp()).Disabled(rs.info == nil).Clicked() {
 					a.openCleanup(t)
 				}
+				if ui.Button(c, locales.KeysNewBranch()).Disabled(ro || len(t.s.State.Head.OID) == 0).Clicked() {
+					a.branchUI = branchDialog{open: true, t: t, commit: hex.EncodeToString(t.s.State.Head.OID), checkout: true}
+				}
 			case refsTags:
 				if ui.Button(c, locales.RefsNewTag()).Disabled(ro || len(t.s.State.Head.OID) == 0).Clicked() {
 					a.tagDialog(t, "HEAD")
@@ -588,6 +591,9 @@ func (a *App) branchMenu(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) 
 		}
 	}
 	m.Separator()
+	if m.Item(locales.CommitCreateBranchHere()).Disabled(ro).Chosen() {
+		*act = func() { a.branchUI = branchDialog{open: true, t: t, commit: b.Commit, from: b.Name, checkout: true} }
+	}
 	if m.Item(locales.RefsCreateTagHere()).Disabled(ro).Chosen() {
 		*act = func() { a.tagDialog(t, b.Commit) }
 	}
