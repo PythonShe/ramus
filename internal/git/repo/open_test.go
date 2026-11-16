@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -64,6 +66,42 @@ func TestOpenClose(t *testing.T) {
 		}
 		if _, err := r.CatFile(); err == nil {
 			t.Error("cat-file started after close")
+		}
+	}
+}
+
+// A cat-file process that died is waited for when another replaces it,
+// not left for the repository's close.
+func TestCatFileReplacesTheDead(t *testing.T) {
+	if _, err := exec.LookPath("pkill"); err != nil {
+		t.Skip(err)
+	}
+	g := gittest.Init(t)
+	oid, _ := hex.DecodeString(g.Commit("one"))
+	runner := testrun.Runner(t)
+	r, err := Open(context.Background(), runner, g.Dir, trustAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	for round := 0; round < 3; round++ {
+		cf, err := r.CatFile()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n := runner.Running(); n != 1 {
+			t.Fatalf("round %d: %d processes running", round, n)
+		}
+		kill := exec.Command("pkill", "-f", "--", regexp.QuoteMeta("--git-dir="+r.GitDir+" ")+".*cat-file")
+		if out, err := kill.CombinedOutput(); err != nil {
+			t.Fatalf("pkill: %v %s", err, out)
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for cf.Read([][]byte{oid}, func(int, catfile.Object) error { return nil }) == nil {
+			if time.Now().After(deadline) {
+				t.Fatal("cat-file still reads once killed")
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }

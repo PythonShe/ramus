@@ -42,7 +42,7 @@ type Process struct {
 	in     *bufio.Writer
 	stdin  io.Closer
 	out    *bufio.Reader
-	stderr bytes.Buffer
+	stderr *limitedWriter
 	dead   error
 	cancel context.CancelFunc
 	buf    []byte
@@ -57,8 +57,8 @@ type Process struct {
 func Start(ctx context.Context, r *run.Runner, gitDir string) (*Process, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	cmd := r.Command(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: []string{"cat-file", "--batch-command", "--buffer"}})
-	p := &Process{cmd: cmd, cancel: cancel}
-	cmd.Stderr = &limitedWriter{w: &p.stderr, n: 64 << 10}
+	p := &Process{cmd: cmd, cancel: cancel, stderr: &limitedWriter{n: 64 << 10}}
+	cmd.Stderr = p.stderr
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		cancel()
@@ -192,17 +192,30 @@ func (p *Process) Close() error {
 	return nil
 }
 
+// limitedWriter keeps the first n bytes written to it. exec copies the
+// process's stderr into it from a goroutine of its own while fail may
+// read it, so it is locked.
 type limitedWriter struct {
-	w io.Writer
-	n int
+	mu  sync.Mutex
+	buf bytes.Buffer
+	n   int
 }
 
 func (l *limitedWriter) Write(b []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	n := len(b)
 	if len(b) > l.n {
 		b = b[:l.n]
 	}
 	l.n -= len(b)
-	l.w.Write(b)
+	l.buf.Write(b)
 	return n, nil
+}
+
+// Bytes returns a copy of what was kept.
+func (l *limitedWriter) Bytes() []byte {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return bytes.Clone(l.buf.Bytes())
 }

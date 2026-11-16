@@ -42,10 +42,14 @@ type Repository struct {
 	capsMu   sync.Mutex
 	replaced replaceSeen
 
-	mu    sync.Mutex
-	cat   *catfile.Process
-	graph *commitgraph.Graph
-	tried bool // the graph was looked for
+	mu  sync.Mutex
+	cat *catfile.Process
+	// releaseCat forgets cat from the lifetime, closing it: a process
+	// that died is waited for when replaced, not when the repository
+	// closes.
+	releaseCat func() error
+	graph      *commitgraph.Graph
+	tried      bool // the graph was looked for
 	// broken is set when the graph looked for could not be read.
 	broken bool
 	// graphAt is the commit-graph files as they were when graph was
@@ -193,14 +197,19 @@ func (r *Repository) CatFile() (*catfile.Process, error) {
 	if r.cat != nil && r.cat.Alive() {
 		return r.cat, nil
 	}
+	if r.releaseCat != nil {
+		r.releaseCat()
+		r.cat, r.releaseCat = nil, nil
+	}
 	p, err := catfile.Start(r.life.Context(), r.Runner, r.GitDir)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := r.life.Own(p); err != nil {
+	release, err := r.life.Own(p)
+	if err != nil {
 		return nil, err
 	}
-	r.cat = p
+	r.cat, r.releaseCat = p, release
 	return p, nil
 }
 

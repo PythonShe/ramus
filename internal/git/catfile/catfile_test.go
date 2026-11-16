@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -50,6 +52,36 @@ func TestRead(t *testing.T) {
 	p.Close()
 	if err := p.Read(ids[:1], func(int, Object) error { return nil }); !errors.Is(err, ErrClosed) {
 		t.Fatalf("after Close: %v", err)
+	}
+}
+
+// A process that dies says what it wrote to stderr, which exec copies
+// from a goroutine of its own: run with -race.
+func TestDiedSaysWhy(t *testing.T) {
+	r := gittest.Init(t)
+	c := r.Commit("first")
+	// A loose object git cannot inflate, which it complains of on stderr.
+	bad := strings.Repeat("ab", 20)
+	if err := os.MkdirAll(filepath.Join(r.GitDir(), "objects", bad[:2]), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(r.GitDir(), "objects", bad[:2], bad[2:]), []byte("not zlib"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	p.Read([][]byte{decode(bad)}, func(int, Object) error { return nil })
+	if err := p.cmd.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Read([][]byte{decode(c)}, func(int, Object) error { return nil }); !errors.Is(err, ErrClosed) {
+		t.Fatalf("read once killed: %v", err)
+	}
+	if p.Alive() {
+		t.Fatal("alive once killed")
 	}
 }
 
