@@ -122,6 +122,11 @@ func TestWorktreeSummary(t *testing.T) {
 	if sum := read(); !sum.Busy || !sum.InUse {
 		t.Fatalf("git holds the index, yet %+v", sum)
 	}
+	stale := time.Now().Add(-time.Hour)
+	os.Chtimes(filepath.Join(gitDir, "index.lock"), stale, stale)
+	if sum := read(); sum.Busy {
+		t.Fatalf("a lock left an hour ago keeps the worktree busy: %+v", sum)
+	}
 	os.Remove(filepath.Join(gitDir, "index.lock"))
 	os.WriteFile(filepath.Join(gitDir, "MERGE_HEAD"), []byte(strings.Repeat("0", 40)+"\n"), 0o644)
 	if sum := read(); sum.Busy || !sum.InUse {

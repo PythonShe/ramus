@@ -169,8 +169,11 @@ func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktre
 	if fi, err := os.Stat(filepath.Join(gitDir, "index")); err == nil {
 		sum.Active = fi.ModTime()
 	}
-	_, lockErr := os.Lstat(filepath.Join(gitDir, "index.lock"))
-	locked := lockErr == nil
+	// A lock counts while it is fresh: one a crashed git left stays for
+	// good, and would keep the worktree busy, and the fetch waiting, for
+	// ever.
+	lock, lockErr := os.Lstat(filepath.Join(gitDir, "index.lock"))
+	locked := lockErr == nil && now.Sub(lock.ModTime()) < InUseFor
 	defer func() {
 		sum.Busy = locked || !sum.Active.IsZero() && now.Sub(sum.Active) < InUseFor
 		sum.InUse = sum.Busy || wt.Locked || repo.InProgress(gitDir) != repo.NoOperation
