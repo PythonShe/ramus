@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/hex"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -41,6 +42,33 @@ func cmd(id string, run func()) command {
 	return command{id: id, label: id, run: run}
 }
 
+// paletteTitle names tab t in the palette, which tells its commands by
+// their labels: by its folder's name, with as much of the path before
+// it as tells it from another tab of that name.
+func (a *App) paletteTitle(t *tab) string {
+	title := a.title(t)
+	clash := func(name string, n int) bool {
+		for _, o := range a.tabs {
+			if o != t && a.title(o) == title && tail(o.s.Path, n) == name {
+				return true
+			}
+		}
+		return false
+	}
+	for n := 1; n < 8; n++ {
+		if name := tail(t.s.Path, n); !clash(name, n) {
+			return name
+		}
+	}
+	return t.s.Path
+}
+
+// tail is the last n elements of path.
+func tail(path string, n int) string {
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	return strings.Join(parts[max(0, len(parts)-n):], "/")
+}
+
 func (a *App) commands() []command {
 	cmds := []command{
 		{id: "palette", label: locales.KeysPalette(), run: func() { a.palette.open = true }, hidden: true},
@@ -69,7 +97,7 @@ func (a *App) commands() []command {
 		cmds = append(cmds, a.tabCommands(t)...)
 	}
 	for i, other := range a.tabs {
-		cmds = append(cmds, command{label: locales.PaletteGoTo(a.title(other)), run: func() { a.active = i }})
+		cmds = append(cmds, command{label: locales.PaletteGoTo(a.paletteTitle(other)), run: func() { a.active = i }})
 		if i < 9 {
 			id := "tab-" + strconv.Itoa(i+1)
 			cmds = append(cmds, command{id: id, label: id, run: func() { a.active = i }, hidden: true})
@@ -272,6 +300,7 @@ func (a *App) paletteView(c *ui.Context) {
 			for _, cmd := range cmds {
 				if cmd.label == label && !cmd.hidden {
 					run = cmd.run
+					break
 				}
 			}
 		}

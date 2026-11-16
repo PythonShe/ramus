@@ -2442,6 +2442,7 @@
   "@appQuitTitle": {
     "description": "Asked before quitting while git is still changing a repository."
   },
+  "appCloneRunning": "The clone of {url} is still running, and stops part way.",
   "appStillRunning": "{name} is still running in {repo}. Stopping it part way can leave the repository half changed.",
   "@appStillRunning": {
     "description": "Why closing is asked about: name is the command running, as Push or Commit; repo is the repository's name."

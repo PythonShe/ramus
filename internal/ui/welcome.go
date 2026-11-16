@@ -44,7 +44,12 @@ func (a *App) welcomeBody(c *ui.Context) {
 				}
 			})
 			if a.notice != "" {
-				ui.Text(c, a.notice).TextColor(th.Danger)
+				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, a.notice).TextColor(th.Danger).Shrink(1)
+					if closeButton(c, locales.RepoDismiss()).Clicked() {
+						a.dropNotice()
+					}
+				})
 			}
 			if a.gitWarning != "" {
 				ui.Text(c, a.gitWarning).TextColor(th.Warning)

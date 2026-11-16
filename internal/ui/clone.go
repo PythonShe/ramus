@@ -44,7 +44,7 @@ func (a *App) cloneDialog(c *ui.Context) {
 			})
 			ui.Field(c, locales.CommonFolder(), func() {
 				ui.Row(c).Gap(spaceM).Children(func() {
-					ui.TextInput(c, &cs.dir).Label(locales.CloneFolderLabel()).Placeholder(defaultCloneDir(cs.url)).Grow(1).Disabled(busy)
+					ui.TextInput(c, &cs.dir).Label(locales.CloneFolderLabel()).Placeholder(locales.CloneFolderLabel()).Grow(1).Disabled(busy)
 					if ui.Button(c, locales.CommonChoose()).Disabled(busy).Clicked() {
 						a.pickCloneParent()
 					}
@@ -72,7 +72,7 @@ func (a *App) cloneDialog(c *ui.Context) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					cs.open = false
 				}
-				if ui.PrimaryButton(c, locales.CloneClone()).Disabled(strings.TrimSpace(cs.url) == "").Clicked() {
+				if ui.PrimaryButton(c, locales.CloneClone()).Disabled(strings.TrimSpace(cs.url) == "" || strings.TrimSpace(cs.dir) == "").Clicked() {
 					a.startClone()
 				}
 			})

@@ -72,3 +72,13 @@ func TestQuitWhileWriting(t *testing.T) {
 		t.Fatalf("the write ended with %v", e.Err)
 	}
 }
+
+// Quitting while a clone runs asks first too.
+func TestQuitWhileCloning(t *testing.T) {
+	h := newHarness(t)
+	h.app.clone = cloneState{open: true, url: "https://example.com/o/r.git", starting: true}
+	if !h.app.AskToClose(true, func() {}) {
+		t.Fatal("did not ask")
+	}
+	h.until("the question", h.shows("The clone of https://example.com/o/r.git is still running, and stops part way."))
+}

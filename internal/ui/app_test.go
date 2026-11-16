@@ -718,3 +718,50 @@ func TestCommitBox(t *testing.T) {
 		return err == nil && strings.TrimSpace(out) == "Pushed"
 	})
 }
+
+// Tabs of folders of one name are told apart in the palette, each going
+// to its own.
+func TestPaletteTabsOfOneName(t *testing.T) {
+	h := newHarness(t)
+	src := h.repoWith()
+	tmp, _ := filepath.EvalSymlinks(t.TempDir())
+	t.Cleanup(h.closeAll)
+	var dirs []string
+	for _, p := range []string{"a", "b"} {
+		dir := filepath.Join(tmp, p, "app")
+		src.Git("clone", "-q", src.Dir, dir)
+		h.trust.Set(filepath.Join(dir, ".git"), true)
+		h.app.Open(dir)
+		dirs = append(dirs, dir)
+	}
+	h.until("both tabs", func() bool { return len(h.app.tabs) == 2 })
+	h.app.active = 1
+	h.app.palette.open = true
+	h.tt.Frame()
+	h.tt.Type("go to a/app")
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+	if got := h.app.current().s.Path; got != library.Clean(dirs[0]) {
+		t.Fatalf("went to %s", got)
+	}
+}
+
+// A notice on the welcome screen is dismissed there, and does not follow
+// into the repository opened next.
+func TestWelcomeNotice(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.app.notice = "could not open it"
+	h.until("the notice", h.shows("could not open it"))
+	h.click("Dismiss")
+	h.until("dismissed", func() bool { return !h.tt.HasText("could not open it") })
+	h.app.notice = "could not open it"
+	h.tt.Frame()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	if h.tt.HasText("could not open it") {
+		t.Fatal("the welcome's notice followed into the tab")
+	}
+}

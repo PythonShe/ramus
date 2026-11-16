@@ -2,6 +2,7 @@ package ui
 
 import (
 	"slices"
+	"strings"
 
 	"ramus/internal/session"
 	"ramus/locales"
@@ -59,21 +60,28 @@ func (a *App) closeTab(i int) {
 		}}
 }
 
-// AskToClose asks, while a write runs in one of the tabs, whether to stop
-// it and close the window, or quit the app with quit set; yes calls done
+// AskToClose asks, while a write runs in one of the tabs or a clone
+// runs, whether to stop it and close the window, or quit the app with quit set; yes calls done
 // on the main thread. It reports whether it asked: with nothing running
 // it does not, and done is not called.
 func (a *App) AskToClose(quit bool, done func()) bool {
 	t := a.busyTab()
-	if t == nil {
+	cloning := a.clone.job != nil || a.clone.starting
+	if t == nil && !cloning {
 		return false
 	}
-	a.active = slices.Index(a.tabs, t)
+	var message string
+	if t != nil {
+		a.active = slices.Index(a.tabs, t)
+		message = a.stillRunning(t)
+	} else {
+		message = locales.AppCloneRunning(strings.TrimSpace(a.clone.url))
+	}
 	title, button := locales.AppCloseWindowTitle(), locales.AppStopAndClose()
 	if quit {
 		title, button = locales.AppQuitTitle(), locales.AppStopAndQuit()
 	}
-	a.confirm = confirmState{open: true, title: title, message: a.stillRunning(t), button: button, run: done}
+	a.confirm = confirmState{open: true, title: title, message: message, button: button, run: done}
 	return true
 }
 

@@ -339,6 +339,11 @@ func (a *App) Open(path string) {
 		a.active = i
 		return
 	}
+	if len(a.tabs) == 0 && a.noticeBy.tab == nil {
+		// The welcome's notice, of an open or clone that failed: not of
+		// the repository opened now, whose tab would show it.
+		a.dropNotice()
+	}
 	a.nextID++
 	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), locks: newLockState(), pr: newPRState(), refs: newRefsState(), stash: newStashState(), file: newFileState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}

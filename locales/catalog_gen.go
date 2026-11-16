@@ -12047,6 +12047,16 @@ func (msgs Messages) AppQuitTitle() string {
 	return Catalog.Format(msgs.locale, "appQuitTitle", nil)
 }
 
+// AppCloneRunning says "The clone of {url} is still running, and stops part way."
+// in the language the app shows.
+func AppCloneRunning(url string) string { return In(i18n.Locale()).AppCloneRunning(url) }
+
+// AppCloneRunning says "The clone of {url} is still running, and stops part way."
+// in the language of msgs.
+func (msgs Messages) AppCloneRunning(url string) string {
+	return Catalog.Format(msgs.locale, "appCloneRunning", map[string]any{"url": url})
+}
+
 // AppStillRunning says "{name} is still running in {repo}. Stopping it part way can leave the repository half changed."
 // in the language the app shows.
 //
