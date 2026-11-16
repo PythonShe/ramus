@@ -104,8 +104,7 @@ func List(ctx context.Context, r *run.Runner, gitDir, workTree string) (Locks, e
 			return ls, nil
 		}
 	} else if ctx.Err() != nil || unreachable(res, err) {
-		// The plain list asks the same server, as the same user: it
-		// would wait as long, or fail the same way.
+		// The plain list asks the same server: it would wait as long.
 		return Locks{}, err
 	}
 	res, err2 := r.Run(ctx, cmd(gitDir, workTree))
@@ -146,8 +145,9 @@ func missing(res run.Result, err error) bool {
 	return strings.Contains(stderr, "'lfs' is not a git command")
 }
 
-// unreachable reports a failure to reach the server at all, or to log
-// in to it, as against a server that does not verify locks.
+// unreachable reports a failure to reach the server at all, as against
+// a server that does not verify locks. A refused login is not one: the
+// server may verify for those who can push only, and list to others.
 func unreachable(res run.Result, err error) bool {
 	if errors.Is(err, run.ErrTimeout) {
 		return true
@@ -157,8 +157,8 @@ func unreachable(res run.Result, err error) bool {
 		stderr = e.Stderr
 	}
 	stderr = strings.ToLower(stderr)
-	for _, s := range []string{"authentication", "authorization", "credentials", "could not resolve host",
-		"connection refused", "timed out", "timeout", "no route to host", "network is unreachable"} {
+	for _, s := range []string{"could not resolve host", "no such host", "connection refused", "timed out", "timeout",
+		"no route to host", "network is unreachable"} {
 		if strings.Contains(stderr, s) {
 			return true
 		}

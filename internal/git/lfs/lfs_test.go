@@ -85,15 +85,15 @@ func TestMissing(t *testing.T) {
 	}
 }
 
-// A server not reached, or not logged in to, is not asked again for the
-// plain list, which would wait or fail as long.
+// A server not reached is not asked again for the plain list, which
+// would wait as long; one that refuses to verify for the user is.
 func TestUnreachable(t *testing.T) {
 	for _, c := range []struct {
 		err  error
 		want bool
 	}{
 		{fmt.Errorf("%w after 2m0s", run.ErrTimeout), true},
-		{&run.Error{Stderr: "batch request: Authentication required: Authorization error"}, true},
+		{&run.Error{Stderr: "batch request: Authentication required: Authorization error"}, false},
 		{&run.Error{Stderr: "dial tcp 127.0.0.1:1: connect: connection refused"}, true},
 		{&run.Error{Stderr: "Locking support not found on remote"}, false},
 	} {
