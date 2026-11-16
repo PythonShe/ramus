@@ -115,14 +115,16 @@ func (f *forks) get(r forge.Repo) (forge.Repo, bool) {
 }
 
 // parentOf is the repository head was forked from, asked of its host the
-// first time, else head itself; a failure is asked again next time.
-func (f *forks) parentOf(ctx context.Context, c *forge.CLI, head forge.Repo) forge.Repo {
+// first time, else head itself. A failure is the error, asked again next
+// time: head itself would list the fork's own pull requests, as if its
+// parent had none.
+func (f *forks) parentOf(ctx context.Context, c *forge.CLI, head forge.Repo) (forge.Repo, error) {
 	p, ok := f.get(head)
 	if !ok {
 		var fork bool
 		var err error
 		if p, fork, err = c.Parent(ctx, head); err != nil {
-			return head
+			return head, err
 		}
 		if !fork {
 			p = forge.Repo{}
@@ -135,9 +137,9 @@ func (f *forks) parentOf(ctx context.Context, c *forge.CLI, head forge.Repo) for
 		f.mu.Unlock()
 	}
 	if p == (forge.Repo{}) {
-		return head
+		return head, nil
 	}
-	return p
+	return p, nil
 }
 
 // RemoteURLs are the URLs of a repository's remote named upstream, ""
@@ -219,10 +221,14 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 			}
 			a := asks[w]
 			base := w.base
+			var err error
 			if base == w.head {
-				base = s.forks.parentOf(ctx, c, w.head)
+				base, err = s.forks.parentOf(ctx, c, w.head)
 			}
-			got, err := c.Pulls(ctx, base, w.head, a.remote)
+			var got map[string]forge.Pull
+			if err == nil {
+				got, err = c.Pulls(ctx, base, w.head, a.remote)
+			}
 			if err != nil {
 				if ctx.Err() != nil {
 					return
@@ -331,9 +337,16 @@ func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(
 	if err != nil {
 		return CommitPullResult{Err: err}
 	}
+	var parentErr error
 	if !named {
 		// A fork's clone without the remote: its parent, as the host names it.
-		if p := s.forks.parentOf(ctx, c, asks[0]); p != asks[0] {
+		// Not found, the fork's own are still asked; none found there is
+		// then no answer, but the failure.
+		p, err := s.forks.parentOf(ctx, c, asks[0])
+		switch {
+		case err != nil && !errors.Is(err, forge.ErrUnknownHost):
+			parentErr = err
+		case err == nil && p != asks[0]:
 			asks = []forge.Repo{p, asks[0]}
 		}
 	}
@@ -355,7 +368,7 @@ func (s *Session) commitPull(ctx context.Context, r *repo.Repository, find func(
 			return CommitPullResult{Pull: PullInfo{Pull: p, Repo: fr}, Found: true}
 		}
 	}
-	return CommitPullResult{}
+	return CommitPullResult{Err: parentErr}
 }
 
 // GitHubStack runs gh stack with args in the work tree, as a write that

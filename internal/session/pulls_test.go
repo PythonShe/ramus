@@ -22,7 +22,7 @@ func markingGH(t *testing.T) ([]string, string) {
 	}
 	dir := t.TempDir()
 	mark := filepath.Join(dir, "ran")
-	script := "#!/bin/sh\ntouch '" + mark + "'\ncase \"$2\" in\nrepos/*) echo '[]' ;;\n*) echo '{\"data\":{\"repository\":{}}}' ;;\nesac\n"
+	script := "#!/bin/sh\ntouch '" + mark + "'\ncase \"$2\" in\nrepos/*/*/*) echo '[]' ;;\nrepos/*) echo '{}' ;;\n*) echo '{\"data\":{\"repository\":{}}}' ;;\nesac\n"
 	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -220,5 +220,42 @@ func TestCommitPullOnGitLab(t *testing.T) {
 	m.until(t, "the commit's merge request", func() bool { return cp != nil })
 	if cp.Err != nil || !cp.Found || cp.Pull.Number != 9 || cp.Pull.State != forge.PullMerged || cp.Pull.Repo.Kind != forge.GitLab {
 		t.Fatalf("commit pull: %+v", cp)
+	}
+}
+
+// A clone of a fork whose parent the host cannot be asked about says
+// so, rather than list the fork's own pull requests as its parent's, or
+// find none for a commit.
+func TestOpenPullsParentFailed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake gh is a shell script")
+	}
+	dir := t.TempDir()
+	script := "#!/bin/sh\ncase \"$2\" in\nrepos/*/*/commits/*) echo '[]' ;;\nrepos/*) echo 'gh: Server Error (HTTP 502)' >&2; exit 1 ;;\n*) echo '{\"data\":{\"repository\":{\"pullRequests\":{\"totalCount\":0,\"nodes\":[]}}}}' ;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"PATH=" + dir + ":/usr/bin:/bin", "GH_CONFIG_DIR=" + t.TempDir()}
+	r := gittest.Init(t)
+	r.Commit("one")
+	r.Git("remote", "add", "origin", "https://github.com/me/r.git")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	var res *OpenPullsResult
+	s.OpenPulls(func(k forge.Kind) (*forge.CLI, error) { return forge.Find(env, k) }, func(got OpenPullsResult) { res = &got })
+	m.until(t, "the list", func() bool { return res != nil })
+	if res.Err == nil || !strings.Contains(res.Err.Error(), "Server Error") {
+		t.Fatalf("listed %+v", res)
+	}
+	// Nor is a commit's pull request taken to be none: the fork has
+	// none, its parent was not asked.
+	var cp *CommitPullResult
+	s.LoadCommitPull(func(k forge.Kind) (*forge.CLI, error) { return forge.Find(env, k) }, make([]byte, 20), "Subject (#3)",
+		func(got CommitPullResult) { cp = &got })
+	m.until(t, "the commit's pull request", func() bool { return cp != nil })
+	if cp.Err == nil || cp.Found {
+		t.Fatalf("commit pull %+v", cp)
 	}
 }

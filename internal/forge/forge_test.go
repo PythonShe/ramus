@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestParse(t *testing.T) {
@@ -467,5 +468,23 @@ projects/me%2Fp) echo '{"forked_from_project":{"path_with_namespace":"g/sub/p"}}
 	}
 	if p, ok, err := c.Parent(ctx, Repo{GitLab, "gitlab.com", "me/p"}); err != nil || !ok || p != r {
 		t.Fatalf("parent %+v %v %v", p, ok, err)
+	}
+}
+
+// A refusal keeps what the host said; only 404 is not found.
+func TestFailure(t *testing.T) {
+	c := &CLI{Kind: GitHub}
+	fail := errors.New("exit status 1")
+	err := c.failure(fail, "github.com", "gh: Validation Failed (HTTP 422)\nPull request review thread line must be part of the diff\n")
+	var rej *RejectedError
+	if !errors.As(err, &rej) || errors.Is(err, ErrNotFound) ||
+		rej.Msg != "Validation Failed (HTTP 422) Pull request review thread line must be part of the diff" {
+		t.Fatalf("422: %#v", err)
+	}
+	if err := c.failure(fail, "github.com", "gh: Not Found (HTTP 404)\n"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("404: %v", err)
+	}
+	if err := c.failure(fail, "github.com", "gh: "+strings.Repeat("é", 400)+" (HTTP 422)"); !errors.As(err, &rej) || len(rej.Msg) > 503 || !utf8.ValidString(rej.Msg) {
+		t.Fatalf("long 422: %d bytes", len(rej.Msg))
 	}
 }

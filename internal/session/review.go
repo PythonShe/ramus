@@ -58,9 +58,11 @@ func (s *Session) OpenPulls(find func(forge.Kind) (*forge.CLI, error), done func
 		c, err := find(repo.Kind)
 		if err == nil {
 			if !named {
-				res.Repo = s.forks.parentOf(ctx, c, repo)
+				res.Repo, err = s.forks.parentOf(ctx, c, repo)
 			}
-			res.List, res.More, err = c.OpenPulls(ctx, res.Repo)
+			if err == nil {
+				res.List, res.More, err = c.OpenPulls(ctx, res.Repo)
+			}
 		}
 		res.Err = err
 		if ctx.Err() != nil {

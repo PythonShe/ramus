@@ -20,6 +20,10 @@ import (
 // branches view, shown again, asks again. Nothing asks on a timer.
 const pullsMaxAge = 5 * time.Minute
 
+// pullsRetry is how soon pull requests that could not all be read are
+// asked for again, once the view is shown.
+const pullsRetry = 30 * time.Second
+
 // pullsState is what the hosts said of a tab's branches' pull requests.
 type pullsState struct {
 	by map[string]session.PullInfo
@@ -120,10 +124,24 @@ func (a *App) loadPulls(t *tab) {
 	ps.loading = true
 	t.s.LoadPulls(a.findForge(), info, func(res session.PullsResult) {
 		ps.loading = false
-		ps.key, ps.at, ps.by = key, a.Now(), res.Pulls
+		by, at := res.Pulls, a.Now()
 		if res.Err != nil {
+			// The branches whose host failed keep what they showed, and
+			// are asked again soon.
+			if ps.key == key {
+				for name, p := range ps.by {
+					if _, ok := by[name]; !ok {
+						if by == nil {
+							by = map[string]session.PullInfo{}
+						}
+						by[name] = p
+					}
+				}
+			}
+			at = at.Add(pullsRetry - pullsMaxAge)
 			a.forgeNotice(res.Err)
 		}
+		ps.key, ps.at, ps.by = key, at, by
 	})
 }
 

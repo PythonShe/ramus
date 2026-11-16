@@ -188,9 +188,10 @@ func (c *CLI) commitPull(ctx context.Context, r Repo, sha string, hint int) (p P
 		return c.gitlabCommitPull(ctx, r, sha)
 	}
 	out, err := c.run(ctx, "", r.Host, "api", "repos/"+r.Path+"/commits/"+sha+"/pulls", "--hostname", r.Host)
+	var rej *RejectedError
 	switch {
-	case errors.Is(err, ErrNotFound):
-		// A commit GitHub has not seen, as one not pushed.
+	case errors.Is(err, ErrNotFound) || errors.As(err, &rej):
+		// A commit GitHub has not seen, as one not pushed: 422.
 	case err != nil:
 		return Pull{}, false, err
 	default:

@@ -34,6 +34,8 @@ type CLI struct {
 	slots chan struct{}
 	// known are the hosts the tool's config says it is logged in to.
 	known *knownHosts
+	// Timeout, when set, bounds each call instead of the package's.
+	Timeout time.Duration
 }
 
 // ErrNoCLI is a host whose tool is not installed.
@@ -45,6 +47,15 @@ var ErrNotFound = errors.New("forge: not found")
 
 // ErrTimeout is the host's tool not answering within Timeout.
 var ErrTimeout = errors.New("forge: the host's command-line tool did not answer in time")
+
+// RejectedError is the host refusing a request it understood, as GitHub
+// does with 422 for a review on lines outside the diff, or a second
+// pending review: Msg is what it said.
+type RejectedError struct {
+	Msg string
+}
+
+func (e *RejectedError) Error() string { return e.Msg }
 
 // LoginError is a tool not logged in to the host, or whose login expired.
 type LoginError struct {
@@ -138,7 +149,11 @@ func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte
 		return nil, ctx.Err()
 	}
 	defer func() { <-c.slots }()
-	ctx, cancel := context.WithTimeout(ctx, Timeout)
+	limit := Timeout
+	if c.Timeout > 0 {
+		limit = c.Timeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.Path, args...)
 	cmd.Dir, cmd.Env = dir, c.env
@@ -154,7 +169,7 @@ func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte
 	err := cmd.Run()
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
-		return nil, fmt.Errorf("%w: %s, within %v", ErrTimeout, c.Kind.Program(), Timeout)
+		return nil, fmt.Errorf("%w: %s, within %v", ErrTimeout, c.Kind.Program(), limit)
 	case ctx.Err() != nil:
 		return nil, ctx.Err()
 	case out.over:
@@ -177,19 +192,39 @@ func (c *CLI) failure(err error, host, stderr string) error {
 	if (c.Kind == GitHub && code == 4) || strings.Contains(low, "auth login") || strings.Contains(low, "401 unauthorized") {
 		return &LoginError{Program: c.Kind.Program(), Host: host}
 	}
-	msg := strings.TrimSpace(stderr)
+	all := strings.TrimSpace(stderr)
+	msg := all
 	if i := strings.IndexByte(msg, '\n'); i >= 0 {
 		msg = msg[:i]
 	}
-	// gh api ends a REST failure with its status: 422 is GitHub's answer
-	// for a commit it has never seen. glab may only say the status.
-	if strings.Contains(low, "(http 404)") || strings.Contains(low, "(http 422)") || strings.Contains(low, "404 not found") {
+	// gh api ends a REST failure with its status. glab may only say it.
+	if strings.Contains(low, "(http 404)") || strings.Contains(low, "404 not found") {
 		return fmt.Errorf("%w: %s", ErrNotFound, msg)
+	}
+	if strings.Contains(low, "(http 422)") {
+		// Why comes on the lines after the status.
+		return &RejectedError{Msg: rejected(all)}
 	}
 	if msg == "" {
 		return fmt.Errorf("forge: %s: %w", c.Kind.Program(), err)
 	}
 	return fmt.Errorf("%s: %s", c.Kind.Program(), msg)
+}
+
+// rejected is the message of a refusal gh printed, on one line: without
+// gh's own prefix, the lines joined, at most 500 bytes of it.
+func rejected(stderr string) string {
+	var parts []string
+	for _, l := range strings.Split(stderr, "\n") {
+		if l = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(l), "gh:")); l != "" {
+			parts = append(parts, l)
+		}
+	}
+	s := strings.Join(parts, " ")
+	if len(s) > 500 {
+		s = strings.ToValidUTF8(s[:500], "") + "..."
+	}
+	return s
 }
 
 // capped keeps what is written up to max bytes, and notes more.
