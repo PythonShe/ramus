@@ -60,7 +60,7 @@ use):
 | One file saved, to the status showing it (20,000 files) | 171 ms |
 | 50 MB text diff, read and shown | 1.3 s |
 | Ten repositories open and idle | 0.10% CPU, 48 MiB |
-| Cold start to first frame | 255 ms |
+| Cold start to first frame, on GitHub's macOS runner | 171 ms |
 
 Ramus reads git's files on disk itself and draws its interface natively on
 the GPU, with no web view. Everything that writes runs your `git`, so hooks,
