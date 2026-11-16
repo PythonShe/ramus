@@ -348,6 +348,16 @@ func TestSettings(t *testing.T) {
 	if len(told) == 0 || told[len(told)-1].Theme != "dark" {
 		t.Fatalf("the other windows told %+v", told)
 	}
+	// One changed in another window shows in the form open here, which
+	// does not put back what it said.
+	other := h.app.Settings
+	other.Theme = "light"
+	n := len(told)
+	h.app.UseSettings(other)
+	h.tt.Frame()
+	if h.app.Settings.Theme != "light" || len(told) != n {
+		t.Fatalf("the form put back theme %q, told %+v", h.app.Settings.Theme, told[n:])
+	}
 	// The editor is chosen, never typed: a program that cannot be one is
 	// refused, one that can is kept.
 	exe, _ := os.Executable()
@@ -381,7 +391,7 @@ func TestSettings(t *testing.T) {
 	h.app.settingsUI.open = false
 	h.until("the file", func() bool {
 		s, err := settings.Load(h.app.SettingsPath)
-		return err == nil && s.Theme == "dark"
+		return err == nil && s.Theme == "light"
 	})
 }
 

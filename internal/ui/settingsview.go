@@ -43,6 +43,16 @@ type settingsState struct {
 func (a *App) openSettings() {
 	s := &a.settingsUI
 	s.open, s.err = true, ""
+	a.loadSettingsForm()
+	s.difftool, s.difftoolWas, s.difftoolRead = false, false, false
+	a.readDifftool()
+}
+
+// loadSettingsForm puts the settings in force in the form: as it opens,
+// and as another window changes them, or the form, applied as it is in
+// each frame, would put back what it said.
+func (a *App) loadSettingsForm() {
+	s := &a.settingsUI
 	s.edit = a.Settings.WithDefaults()
 	s.theme = max(0, indexOf(settings.Themes, s.edit.Theme))
 	s.editor, s.terminal = slices.Clone(s.edit.Editor), slices.Clone(s.edit.Terminal)
@@ -51,8 +61,6 @@ func (a *App) openSettings() {
 	s.focusRefresh = !s.edit.NoFocusRefresh
 	s.fetchMinutes = s.edit.FetchEvery()
 	s.pulls = s.edit.PullRequests
-	s.difftool, s.difftoolWas, s.difftoolRead = false, false, false
-	a.readDifftool()
 	if a.ChosenLocale != nil {
 		tags, names := a.languageChoices()
 		s.lang = names[max(0, indexOf(tags, a.ChosenLocale()))]

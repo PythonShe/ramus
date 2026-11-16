@@ -9,7 +9,12 @@ import (
 
 // UseSettings takes settings another window changed; they take effect
 // from the next frame, as when changed here.
-func (a *App) UseSettings(s settings.Settings) { a.Settings = s }
+func (a *App) UseSettings(s settings.Settings) {
+	a.Settings = s
+	if a.settingsUI.open {
+		a.loadSettingsForm()
+	}
+}
 
 // moveToNewWindow closes tab i here and opens its repository in a window
 // of its own.
