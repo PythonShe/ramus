@@ -121,7 +121,8 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 	}
 	busy := t.s.Fetching()
 	kind := syncFetch
-	if e := s.running; e != nil && e.Running {
+	mine := s.running != nil && s.running.Running
+	if mine {
 		busy, kind = true, s.runKind
 	}
 	if busy {
@@ -159,7 +160,10 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 				}
 			})
 		})
-		if b.Clicked() && !busy {
+		// A pull or push asked for during a fetch the app started runs
+		// after it, as the queue has it; a second fetch, or a second of
+		// what the user started, would do nothing more.
+		if b.Clicked() && !mine && !(busy && len(pairs) == 0) {
 			act()
 		}
 		a.syncMenu(c, t, tr)
@@ -217,6 +221,13 @@ func (a *App) syncMenu(c *ui.Context, t *tab, tr session.Track) {
 		}
 		if m.Item(locales.RefsForcePushItem()).Danger().Chosen() {
 			up := strings.TrimPrefix(tr.Upstream, "refs/remotes/")
+			if r := t.s.Repo; r != nil {
+				// A fork's branch goes to its push remote, of its name.
+				branch := strings.TrimPrefix(t.s.State.Head.Target, "refs/heads/")
+				if pr := pushRemote(r.Config(), branch); pr != "" && !strings.HasPrefix(up, pr+"/") {
+					up = pr + "/" + branch
+				}
+			}
 			a.confirm = confirmState{open: true, title: locales.RefsForcePushTitle(redact.Control(up)),
 				message: locales.RefsForcePushMessage(), button: locales.RefsForcePush(),
 				run: func() { a.submit(t, write.Push(w, write.PushOptions{ForceWithLease: true}), nil) }}
@@ -269,7 +280,7 @@ func (a *App) watchSync(t *tab, op write.Op, j *write.Job) {
 	if kind == syncPush && remote == "" {
 		remote = upstream
 		if r := t.s.Repo; r != nil && branch != "" {
-			if v, ok := r.Config().Get("branch." + branch + ".remote"); ok {
+			if v := pushRemote(r.Config(), branch); v != "" {
 				remote = v
 			}
 		}
@@ -301,6 +312,18 @@ func (a *App) watchSync(t *tab, op write.Op, j *write.Job) {
 			say(locales.SyncPushed(redact.Control(branch), redact.Control(remote)))
 		}
 	})
+}
+
+// pushRemote is the remote git pushes branch (a short name) to when no
+// remote is named, as git push picks it: branch.<name>.pushRemote, then
+// remote.pushDefault, then branch.<name>.remote; "" for none.
+func pushRemote(cfg *config.Config, branch string) string {
+	for _, key := range []string{"branch." + branch + ".pushRemote", "remote.pushDefault", "branch." + branch + ".remote"} {
+		if v, ok := cfg.Get(key); ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // syncOf tells a write that fetches remotes, pulls or pushes the branch

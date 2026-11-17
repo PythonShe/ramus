@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"ramus/internal/git/config"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/write"
 )
@@ -145,4 +146,27 @@ func TestSyncOf(t *testing.T) {
 // labeled exactly s.
 func (h *harness) labelled(s string) func() bool {
 	return func() bool { _, ok := h.tt.Find(s); return ok }
+}
+
+// A push goes to the remote git picks: the branch's push remote, then
+// the default one, then the remote it tracks.
+func TestPushRemote(t *testing.T) {
+	// Keys as git config --list prints them, lower case.
+	entry := func(k, v string) string { return "local\x00f\x00" + k + "\n" + v + "\x00" }
+	for _, c := range []struct {
+		cfg, want string
+	}{
+		{entry("branch.topic.remote", "origin"), "origin"},
+		{entry("branch.topic.remote", "origin") + entry("remote.pushdefault", "fork"), "fork"},
+		{entry("branch.topic.remote", "origin") + entry("remote.pushdefault", "fork") + entry("branch.topic.pushremote", "mine"), "mine"},
+		{"", ""},
+	} {
+		cfg, err := config.Parse([]byte(c.cfg))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := pushRemote(cfg, "topic"); got != c.want {
+			t.Errorf("%q: %q, want %q", c.cfg, got, c.want)
+		}
+	}
 }
