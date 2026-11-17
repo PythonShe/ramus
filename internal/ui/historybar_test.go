@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/hex"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -52,7 +53,14 @@ func TestHistoryStartsAtHead(t *testing.T) {
 		return strings.Join(got, " ") == "older aaa v1"
 	})
 
-	// A click on the row chosen gives the list the focus.
+	// A click on the row chosen gives the list the focus. The row's text
+	// is read apart from the detail, which shows the subject too: until
+	// it is there, the click would land on the detail's.
+	h.until("its row", func() bool {
+		return slices.ContainsFunc(h.tt.AccessAll(), func(a ui.AccessInfo) bool {
+			return a.Role == ui.RoleListItem && strings.HasPrefix(a.Name, "add alpha, ")
+		})
+	})
 	h.click("add alpha")
 	h.tt.Key(ui.Cmd, ui.KeyC)
 	h.until("the hash copied", func() bool { return h.tt.Clipboard() == head })
