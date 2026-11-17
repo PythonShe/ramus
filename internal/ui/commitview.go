@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -80,6 +81,14 @@ type commitView struct {
 	parentSubjects []string
 	parentsAsked   bool
 	parentsCancel  func()
+	// rel are the refs that contain the commit and its children, once
+	// read; relAsked is set once they are asked for. childSubjects are
+	// the subjects of the children shown.
+	rel           *session.CommitRelations
+	relAsked      bool
+	relCancel     func()
+	childSubjects []string
+	childCancel   func()
 }
 
 // sigResult is a verdict on a signature, or why there is none.
@@ -100,8 +109,10 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		if cv.cancel != nil {
 			cv.cancel()
 		}
-		if cv.parentsCancel != nil {
-			cv.parentsCancel()
+		for _, cancel := range []func(){cv.parentsCancel, cv.relCancel, cv.childCancel} {
+			if cancel != nil {
+				cancel()
+			}
 		}
 		cv.stopPull()
 		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, infoRoom: cv.infoRoom, listRoom: cv.listRoom, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want, noPull: cv.noPull}
@@ -414,7 +425,87 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				a.commitLinks(c, t, d.Parents, cv.parentSubjects, locales.CommitGoToParent())
 			})
 		}
+		a.loadRelations(t, cv)
+		// Nothing stands in for these while they are read, as for the pull
+		// request: a commit no ref contains has neither row.
+		rel := cv.rel
+		if rel == nil || rel.Err != nil {
+			return
+		}
+		if n := len(rel.Children); n > 0 {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+				label(locales.CommitChildren(n))
+				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+					a.commitLinks(c, t, rel.Children[:min(n, shownChildren)], cv.childSubjects, locales.CommitGoToChild())
+					if n > shownChildren {
+						ui.Text(c, locales.CommitMoreChildren(n-shownChildren)).FontSize(textSmall).TextColor(th.TextMuted)
+					}
+				})
+			})
+		}
+		if len(rel.Refs) > 0 {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+				label(locales.CommitContainedIn())
+				ui.Row(c).Gap(spaceXS).Wrap().AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+					shown := min(len(rel.Refs), shownRefs)
+					for i, name := range rel.Refs[:shown] {
+						c.Key(i)
+						refChip(c, containedLabel(t, name))
+					}
+					if more := len(rel.Refs) - shown + rel.More; more > 0 {
+						ui.Text(c, locales.CommitMoreRefs(more)).FontSize(textCaption).TextColor(th.TextMuted)
+					}
+				})
+			})
+		}
 	})
+}
+
+// shownChildren and shownRefs are the most children and containing refs
+// a commit lists; it counts the rest.
+const (
+	shownChildren = 10
+	shownRefs     = 24
+)
+
+// loadRelations asks once per commit shown for the refs that contain it
+// and its children, then for the subjects of the children it lists.
+func (a *App) loadRelations(t *tab, cv *commitView) {
+	if cv.relAsked {
+		return
+	}
+	cv.relAsked = true
+	id := cv.id
+	cv.relCancel = t.s.LoadCommitRelations(id, func(rel session.CommitRelations) {
+		if !bytes.Equal(cv.id, id) {
+			return
+		}
+		cv.rel = &rel
+		if n := len(rel.Children); n > 0 {
+			cv.childCancel = t.s.LoadSubjects(rel.Children[:min(n, shownChildren)], func(subjects []string) {
+				if bytes.Equal(cv.id, id) {
+					cv.childSubjects = subjects
+				}
+			})
+		}
+	})
+}
+
+// containedLabel is the chip of a ref named in full that contains a
+// commit, as the history labels it.
+func containedLabel(t *tab, name string) refLabel {
+	st := t.s.State
+	switch {
+	case strings.HasPrefix(name, "refs/heads/"):
+		kind := labelBranch
+		if name == st.Head.Target && !st.Head.Detached {
+			kind = labelCurrent
+		}
+		return refLabel{strings.TrimPrefix(name, "refs/heads/"), kind}
+	case strings.HasPrefix(name, "refs/tags/"):
+		return refLabel{strings.TrimPrefix(name, "refs/tags/"), labelTag}
+	}
+	return refLabel{strings.TrimPrefix(name, "refs/remotes/"), labelRemote}
 }
 
 // loadCommitPull asks GitHub or GitLab once per commit shown, when the settings

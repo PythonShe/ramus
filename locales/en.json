@@ -920,6 +920,20 @@
   },
   "timeMonthsAgo": "{count, plural, one {# month ago} other {# months ago}}",
   "timeYearsAgo": "{count, plural, one {# year ago} other {# years ago}}",
+  "commitChildren": "{count, plural, one {Child} other {Children}}",
+  "@commitChildren": {
+    "description": "Labels the commits whose parent a commit is."
+  },
+  "commitGoToChild": "Go to child",
+  "commitMoreChildren": "{count, plural, one {# more child} other {# more children}}",
+  "commitContainedIn": "Contained in",
+  "@commitContainedIn": {
+    "description": "Labels the branches and tags whose history holds a commit."
+  },
+  "commitMoreRefs": "{count, plural, one {# more} other {# more}}",
+  "@commitMoreRefs": {
+    "description": "After the branches and tags listed that contain a commit: how many others do."
+  },
   "commitTimeZone": "{time} UTC{offset}",
   "@commitTimeZone": {
     "description": "When a commit was made, on its author's clock; offset is like +8 or -3:30, empty for UTC itself."

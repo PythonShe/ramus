@@ -20,7 +20,9 @@ repositories and runs your own git.
 
 - **History**: the commit graph of the whole repository, with filters,
   a file's or a line's history, and blame. Each commit's files show the
-  lines they add and delete.
+  lines they add and delete; its people, co-authors among them, show the
+  history of their commits, and it names its children and the branches
+  and tags that contain it.
 - **Changes**: the lines each change adds and deletes, staged and not;
   stage, unstage or discard a file, a change or single lines, and commit
   with co-authors.

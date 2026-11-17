@@ -981,11 +981,14 @@ func TestCommitPeople(t *testing.T) {
 	r := h.repoWith()
 	r.Git("commit", "-q", "--allow-empty", "-m", "by someone else", "--author", "Other Person <other@example.com>")
 	r.Git("commit", "-q", "--allow-empty", "-m", "pair work\n\nWhy it was done.\n\nCo-authored-by: Ann Lee <ann@example.com>\nCo-authored-by: Bo Ray <bo@example.com>")
+	r.Git("tag", "v1")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
 	h.until("open", h.shows("No changes"))
 	h.click("History")
 	h.until("the commits", h.shows("pair work"))
+	// The people named once, in the detail.
+	h.app.setHistoryColumn(colAuthor, settings.Column{Hidden: true})
 	h.click("pair work")
 	h.until("the co-authors", func() bool {
 		return h.tt.HasText("Co-authors") && hasExact(h, "Ann Lee") && hasExact(h, "Bo Ray") && h.tt.HasText("bo@example.com")
@@ -995,15 +998,23 @@ func TestCommitPeople(t *testing.T) {
 	}
 	h.until("the body", h.shows("Why it was done."))
 	h.until("the parent's subject", h.shows("by someone else"))
+	h.until("the refs that contain it", func() bool { return h.tt.HasText("Contained in") && hasExact(h, "v1") })
 
 	tab := h.app.current()
 	h.click("Ann Lee")
 	if got := tab.hist.filter.author; got != "<ann@example.com>" {
 		t.Fatalf("filtered by %q", got)
 	}
+	h.until("no commit of theirs", h.shows("No commits match"))
+
+	// The parent, by someone else: its child is the commit above.
+	h.click("Clear")
+	parent, _ := hex.DecodeString(strings.TrimSpace(r.Git("rev-parse", "HEAD~1")))
+	h.app.chooseCommit(tab, parent)
+	h.until("the parent", func() bool { return h.tt.HasText("other@example.com") && h.tt.HasText("Child") })
 	h.click("Other Person")
 	h.until("their history", func() bool {
-		return h.tt.HasText("by someone else") && !h.tt.HasText("pair work")
+		return tab.hist.filter.author == "<other@example.com>" && h.tt.HasText("1 commit")
 	})
 }
 

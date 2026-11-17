@@ -4783,6 +4783,70 @@ func (msgs Messages) TimeYearsAgo(count int) string {
 	return Catalog.Format(msgs.locale, "timeYearsAgo", map[string]any{"count": count})
 }
 
+// CommitChildren says "{count, plural, one {Child} other {Children}}"
+// in the language the app shows.
+//
+// Labels the commits whose parent a commit is.
+func CommitChildren(count int) string { return In(i18n.Locale()).CommitChildren(count) }
+
+// CommitChildren says "{count, plural, one {Child} other {Children}}"
+// in the language of msgs.
+//
+// Labels the commits whose parent a commit is.
+func (msgs Messages) CommitChildren(count int) string {
+	return Catalog.Format(msgs.locale, "commitChildren", map[string]any{"count": count})
+}
+
+// CommitGoToChild says "Go to child"
+// in the language the app shows.
+func CommitGoToChild() string { return In(i18n.Locale()).CommitGoToChild() }
+
+// CommitGoToChild says "Go to child"
+// in the language of msgs.
+func (msgs Messages) CommitGoToChild() string {
+	return Catalog.Format(msgs.locale, "commitGoToChild", nil)
+}
+
+// CommitMoreChildren says "{count, plural, one {# more child} other {# more children}}"
+// in the language the app shows.
+func CommitMoreChildren(count int) string { return In(i18n.Locale()).CommitMoreChildren(count) }
+
+// CommitMoreChildren says "{count, plural, one {# more child} other {# more children}}"
+// in the language of msgs.
+func (msgs Messages) CommitMoreChildren(count int) string {
+	return Catalog.Format(msgs.locale, "commitMoreChildren", map[string]any{"count": count})
+}
+
+// CommitContainedIn says "Contained in"
+// in the language the app shows.
+//
+// Labels the branches and tags whose history holds a commit.
+func CommitContainedIn() string { return In(i18n.Locale()).CommitContainedIn() }
+
+// CommitContainedIn says "Contained in"
+// in the language of msgs.
+//
+// Labels the branches and tags whose history holds a commit.
+func (msgs Messages) CommitContainedIn() string {
+	return Catalog.Format(msgs.locale, "commitContainedIn", nil)
+}
+
+// CommitMoreRefs says "{count, plural, one {# more} other {# more}}"
+// in the language the app shows.
+//
+// After the branches and tags listed that contain a commit: how many others
+// do.
+func CommitMoreRefs(count int) string { return In(i18n.Locale()).CommitMoreRefs(count) }
+
+// CommitMoreRefs says "{count, plural, one {# more} other {# more}}"
+// in the language of msgs.
+//
+// After the branches and tags listed that contain a commit: how many others
+// do.
+func (msgs Messages) CommitMoreRefs(count int) string {
+	return Catalog.Format(msgs.locale, "commitMoreRefs", map[string]any{"count": count})
+}
+
 // CommitTimeZone says "{time} UTC{offset}"
 // in the language the app shows.
 //
