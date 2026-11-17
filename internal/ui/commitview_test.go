@@ -160,6 +160,38 @@ func TestCopyPickedHashes(t *testing.T) {
 	h.until("the subjects", func() bool { return h.tt.Clipboard() == "add a\nadd b\n" })
 }
 
+// Escape in the history list lets go of the commits picked, the one
+// chosen kept chosen and picked.
+func TestEscapeUnpicks(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	for _, f := range []string{"a", "b"} {
+		r.Write(f+".txt", f+"\n")
+		r.Commit("add " + f)
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("the history", h.shows("add b"))
+	hv := &tb.hist
+	h.until("the top chosen", func() bool { return hv.chosenID != nil })
+	chosen := string(hv.chosenID)
+	hs := tb.s.History
+	for k := range 3 {
+		hv.picked.Add(string(hs.OID(hs.Snap.Commit(k))))
+	}
+	hv.focusList = true
+	h.tt.Frame()
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyEscape)
+	h.tt.Frame()
+	if hv.picked.Len() != 1 || !hv.picked.Has(chosen) || string(hv.chosenID) != chosen {
+		t.Fatalf("%d picked after Escape", hv.picked.Len())
+	}
+}
+
 // Several commits picked, a merge among them, are not cherry-picked nor
 // reverted together: git would stop at the merge, half done.
 func TestPickedWithMergeNotPicked(t *testing.T) {

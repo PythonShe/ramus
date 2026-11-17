@@ -796,6 +796,11 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	hv.list.OnShortcut(c, ui.Cmd, ui.KeyC, func() { a.copyChosen(t, h) })
 	hv.list.OnShortcut(c, ui.Alt, ui.KeyDown, func() { a.chooseRelative(t, false) })
 	hv.list.OnShortcut(c, ui.Alt, ui.KeyUp, func() { a.chooseRelative(t, true) })
+	// Escape lets go of the commits picked with the chosen one; with
+	// none, it is left to what else takes it, as a patch open beside.
+	if hv.picked.Len() > 1 {
+		hv.list.OnShortcut(c, 0, ui.KeyEscape, func() { hv.unpick() })
+	}
 	if hv.focusList && hv.list.Focus(c) {
 		hv.focusList = false
 	}
@@ -810,6 +815,14 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		c.AnimationFrame()
 	}
 	hv.rowW, hv.rowPane = w, hv.lastPane
+}
+
+// unpick lets go of the commits picked, the chosen one kept.
+func (hv *historyState) unpick() {
+	hv.picked.Clear()
+	if hv.chosenID != nil {
+		hv.picked.Add(string(hv.chosenID))
+	}
 }
 
 // copyChosen copies the hash of the commit chosen, or of every commit
