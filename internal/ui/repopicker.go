@@ -121,7 +121,16 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 			rows := a.repoRows()
 			at := slices.IndexFunc(rows, func(r repoRow) bool { return r.heading == "" && r.key == p.hi })
 			if at < 0 {
-				at = slices.IndexFunc(rows, func(r repoRow) bool { return r.heading == "" })
+				// Enter starts on a repository other than the one shown,
+				// where it would do nothing; the shown one, when alone.
+				cur := ""
+				if t := a.current(); t != nil {
+					cur = t.s.Path
+				}
+				at = slices.IndexFunc(rows, func(r repoRow) bool { return r.heading == "" && r.path != cur })
+				if at < 0 {
+					at = slices.IndexFunc(rows, func(r repoRow) bool { return r.heading == "" })
+				}
 				if at >= 0 {
 					p.hi = rows[at].key
 				}
