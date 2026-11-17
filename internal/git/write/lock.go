@@ -120,11 +120,10 @@ func inRepository(gitDir, path string) bool {
 		dirs = append(dirs, common)
 	}
 	for _, d := range dirs {
-		if within(d, path) {
-			return true
-		}
-		// git may print the path through a symlink the app resolved, or
-		// the other way round (/var and /private/var on macOS).
+		// Resolved, both: git may print the path through a symlink the
+		// app resolved, or the other way round (/var and /private/var on
+		// macOS), and a folder in the git directory that is a symlink
+		// must not lead a removal out of it.
 		rd, err1 := filepath.EvalSymlinks(d)
 		rp, err2 := filepath.EvalSymlinks(filepath.Dir(path))
 		if err1 == nil && err2 == nil && within(rd, filepath.Join(rp, filepath.Base(path))) {
