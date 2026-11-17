@@ -10353,6 +10353,46 @@ func (msgs Messages) SettingsGitEmail() string {
 	return Catalog.Format(msgs.locale, "settingsGitEmail", nil)
 }
 
+// SettingsGitFromFile says "Read from and saved to {file}"
+// in the language the app shows.
+//
+// Tooltip of a git setting (name, email, default branch) whose value comes
+// from a file the global git config includes, rather than the global config
+// itself; a change is saved to that file. {file} is its path.
+func SettingsGitFromFile(file string) string { return In(i18n.Locale()).SettingsGitFromFile(file) }
+
+// SettingsGitFromFile says "Read from and saved to {file}"
+// in the language of msgs.
+//
+// Tooltip of a git setting (name, email, default branch) whose value comes
+// from a file the global git config includes, rather than the global config
+// itself; a change is saved to that file. {file} is its path.
+func (msgs Messages) SettingsGitFromFile(file string) string {
+	return Catalog.Format(msgs.locale, "settingsGitFromFile", map[string]any{"file": file})
+}
+
+// SettingsGitRepositoryOwn says "This repository sets its own in {file}; a change goes to your global git config"
+// in the language the app shows.
+//
+// Tooltip of a git setting (name, email, default branch) that the open
+// repository's own config sets, over the global one: the field shows the
+// repository's value, but a change is saved to the global config, which the
+// app writes instead. {file} is the path of the repository's config file.
+func SettingsGitRepositoryOwn(file string) string {
+	return In(i18n.Locale()).SettingsGitRepositoryOwn(file)
+}
+
+// SettingsGitRepositoryOwn says "This repository sets its own in {file}; a change goes to your global git config"
+// in the language of msgs.
+//
+// Tooltip of a git setting (name, email, default branch) that the open
+// repository's own config sets, over the global one: the field shows the
+// repository's value, but a change is saved to the global config, which the
+// app writes instead. {file} is the path of the repository's config file.
+func (msgs Messages) SettingsGitRepositoryOwn(file string) string {
+	return Catalog.Format(msgs.locale, "settingsGitRepositoryOwn", map[string]any{"file": file})
+}
+
 // SettingsDefaultBranch says "Default branch for new repositories"
 // in the language the app shows.
 //

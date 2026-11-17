@@ -11,6 +11,7 @@ import (
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // identityHarness is a harness whose git knows no one: no name or email
@@ -142,5 +143,49 @@ func TestIdentitySavesInTurn(t *testing.T) {
 		if !strings.Contains(string(b), want) {
 			t.Fatalf("no %q in:\n%s", want, b)
 		}
+	}
+}
+
+// With a repository shown, Settings read the identity as git uses it
+// there: an email a file the global config includes for it alone gives
+// is shown, said where it is from, and a change goes to that file; a
+// name the repository's own config sets is shown, said so, and a change
+// goes to the global config.
+func TestIdentityInRepository(t *testing.T) {
+	h, cfg := identityHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	r.Git("config", "user.name", "Only Here")
+	work := filepath.Join(filepath.Dir(cfg), "work")
+	if err := os.WriteFile(work, []byte("[user]\n\temail = work@example.com\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	conf := "[user]\n\tname = Everywhere\n\temail = home@example.com\n[includeIf \"gitdir:" + filepath.ToSlash(r.Dir) + "/\"]\n\tpath = " + filepath.ToSlash(work) + "\n"
+	if err := os.WriteFile(cfg, []byte(conf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	h.app.openSettings()
+	s := &h.app.settingsUI
+	h.until("the identity", func() bool { return s.identRead })
+	if s.ident.Name != "Only Here" || s.ident.Email != "work@example.com" {
+		t.Fatalf("read %+v", s.ident)
+	}
+	h.tt.Frame()
+	h.until("where the email is from", h.describes(locales.SettingsGitFromFile(homeTilde(work))))
+	h.until("the name the repository keeps", h.describes(locales.SettingsGitRepositoryOwn(homeTilde(filepath.Join(r.GitDir(), "config")))))
+	s.ident.Name, s.ident.Email = "Changed", "job@example.com"
+	h.app.saveIdentity()
+	h.app.WaitIdentity()
+	if b, _ := os.ReadFile(work); !strings.Contains(string(b), "email = job@example.com") {
+		t.Fatalf("the included file has:\n%s", b)
+	}
+	b, _ := os.ReadFile(cfg)
+	if !strings.Contains(string(b), "name = Changed") || !strings.Contains(string(b), "email = home@example.com") {
+		t.Fatalf("the global config has:\n%s", b)
+	}
+	if got := strings.TrimSpace(r.Git("config", "--local", "user.name")); got != "Only Here" {
+		t.Fatalf("the repository's config has %q", got)
 	}
 }

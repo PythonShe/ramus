@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -40,10 +41,13 @@ type settingsState struct {
 	// difftool is whether git's global config makes the app its difftool
 	// and mergetool: as read, in difftoolWas, once difftoolRead.
 	difftool, difftoolWas, difftoolRead bool
-	// ident is the identity of git's global config as the form has it,
-	// identWas as read or last written, once identRead. It is written as
-	// the settings close, or as a field of it takes Enter: not as typed.
+	// ident is the identity git uses, in the repository shown if any,
+	// as the form has it, identWas as read or last written, once
+	// identRead; identFrom says where each field is read from and goes.
+	// It is written as the settings close, or as a field of it takes
+	// Enter: not as typed.
 	ident, identWas write.Identity
+	identFrom       write.IdentityFrom
 	identRead       bool
 	identSaver      *identSaver
 	// nameField is the field of the name, which focusName focuses once
@@ -59,7 +63,7 @@ func (a *App) openSettings() {
 	a.loadSettingsForm()
 	s.difftool, s.difftoolWas, s.difftoolRead = false, false, false
 	a.readDifftool()
-	s.ident, s.identWas, s.identRead = write.Identity{}, write.Identity{}, false
+	s.ident, s.identWas, s.identFrom, s.identRead = write.Identity{}, write.Identity{}, write.IdentityFrom{}, false
 	a.readIdentity()
 }
 
@@ -169,22 +173,22 @@ func (a *App) settingsSections(c *ui.Context) {
 	})
 	settingsGroup(c, locales.SettingsGit(), func(row settingsRow) {
 		if a.Runner != nil {
-			field := func(v *string) ui.Element {
+			field := func(v *string, from write.Origin) ui.Element {
 				in := ui.TextInput(c, v).Width(settingsControlW).Disabled(!s.identRead)
 				if in.Submitted() {
 					a.saveIdentity()
 				}
-				return in
+				return identTooltip(in, from)
 			}
 			row(locales.SettingsGitName(), func() ui.Element {
-				in := field(&s.ident.Name).Bind(&s.nameField)
+				in := field(&s.ident.Name, s.identFrom[0]).Bind(&s.nameField)
 				if s.focusName && s.identRead {
 					s.nameField.Focus(c)
 					s.focusName = false
 				}
 				return in
 			})
-			row(locales.SettingsGitEmail(), func() ui.Element { return field(&s.ident.Email) })
+			row(locales.SettingsGitEmail(), func() ui.Element { return field(&s.ident.Email, s.identFrom[1]) })
 		}
 		row(locales.SettingsEmails(), func() ui.Element {
 			return ui.TextInput(c, &s.emails).Placeholder(locales.SettingsEmailsExample()).Width(settingsControlW)
@@ -195,7 +199,7 @@ func (a *App) settingsSections(c *ui.Context) {
 				if in.Submitted() {
 					a.saveIdentity()
 				}
-				return in
+				return identTooltip(in, s.identFrom[2])
 			})
 		}
 	})
@@ -362,16 +366,45 @@ func (a *App) readDifftool() {
 	})
 }
 
-// readIdentity reads the identity of git's global config, for the
+// identTooltip says where a field of the identity is read from and
+// goes when that is not the global config itself; else nothing.
+func identTooltip(in ui.Element, from write.Origin) ui.Element {
+	switch {
+	case from.Kept != "":
+		in.Tooltip(locales.SettingsGitRepositoryOwn(homeTilde(from.Kept)))
+	case from.Included:
+		in.Tooltip(locales.SettingsGitFromFile(homeTilde(from.File)))
+	}
+	return in
+}
+
+// homeTilde is path with the user's home folder at its start written ~.
+func homeTilde(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if rest, ok := strings.CutPrefix(path, home); ok && (rest == "" || rest[0] == filepath.Separator) {
+		return "~" + rest
+	}
+	return path
+}
+
+// readIdentity reads the identity git uses, in the repository shown if
+// there is one, as its own config and includeIf make it there, for the
 // settings' fields.
 func (a *App) readIdentity() {
 	if a.Runner == nil {
 		return
 	}
+	var w write.Where
+	if t := a.current(); t != nil && t.s.Repo != nil {
+		w = t.s.Where()
+	}
 	r, update, s := a.Runner, a.Update, &a.settingsUI
 	a.goWork(nil, func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		id, err := write.ReadIdentity(ctx, r)
+		id, from, err := write.ReadIdentity(ctx, r, w)
 		cancel()
 		update(func() {
 			switch {
@@ -381,26 +414,27 @@ func (a *App) readIdentity() {
 				// not known.
 				s.err = locales.SettingsGitReadFailed(errText(err))
 			default:
-				s.ident, s.identWas, s.identRead = id, id, true
+				s.ident, s.identWas, s.identFrom, s.identRead = id, id, from, true
 			}
 		})
 	})
 }
 
 // saveIdentity writes the identity the form has to git's global config,
-// off the main thread, when it changed. A failure says so, and the
+// or the files it includes where a field comes from, off the main
+// thread, when it changed. A failure says so, and the
 // identity is read again the next time the settings open.
 func (a *App) saveIdentity() {
 	s := &a.settingsUI
 	if !s.identRead || s.ident == s.identWas || a.Runner == nil {
 		return
 	}
-	r, update, was, now := a.Runner, a.Update, s.identWas, s.ident
+	r, update, was, now, from := a.Runner, a.Update, s.identWas, s.ident, s.identFrom
 	s.identWas = now
 	if s.identSaver == nil {
 		s.identSaver = &identSaver{}
 	}
-	s.identSaver.save(a, r, &identWrite{was: was, now: now, failed: func(was write.Identity, err error) {
+	s.identSaver.save(a, r, &identWrite{was: was, now: now, from: from, failed: func(was write.Identity, err error) {
 		msg := errText(err)
 		if errors.Is(err, write.ErrBranchName) {
 			msg = locales.SettingsDefaultBranchInvalid(strings.TrimSpace(now.DefaultBranch))
@@ -441,6 +475,7 @@ type identSaver struct {
 
 type identWrite struct {
 	was, now write.Identity
+	from     write.IdentityFrom
 	failed   func(was write.Identity, err error)
 }
 
@@ -461,7 +496,7 @@ func (is *identSaver) save(a *App, r *run.Runner, w *identWrite) {
 		defer is.done.Done()
 		for w != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			err := write.SetIdentity(ctx, r, w.was, w.now)
+			err := write.SetIdentity(ctx, r, w.was, w.now, w.from)
 			cancel()
 			is.mu.Lock()
 			next := is.next
