@@ -55,6 +55,10 @@ type avatarSource interface {
 // its answers back through update.
 type avatarStore struct {
 	r *repo.Repository
+	// ctx ends with the repository, or once the store is dropped (stop):
+	// what it asks then stops with it.
+	ctx  context.Context
+	stop context.CancelFunc
 	// commits are the commits answered, each with the addresses it
 	// names, lower case.
 	commits *cache.Cache[string, []string]
@@ -84,8 +88,11 @@ type avatarStore struct {
 }
 
 func newAvatarStore(r *repo.Repository) *avatarStore {
+	ctx, stop := context.WithCancel(r.Life().Context())
 	return &avatarStore{
-		r: r,
+		r:    r,
+		ctx:  ctx,
+		stop: stop,
 		commits: cache.New[string, []string](avatarPeopleBudget, func(emails []string) int {
 			n := 64
 			for _, e := range emails {
@@ -112,6 +119,7 @@ func newAvatarStore(r *repo.Repository) *avatarStore {
 func (s *Session) SetForgeFind(find func(forge.Kind) (*forge.CLI, error)) {
 	s.forgeFind = find
 	if find == nil && s.avatars != nil {
+		s.avatars.stop()
 		s.avatars = nil
 		s.avatarsChanged++
 	}
@@ -186,6 +194,7 @@ func (s *Session) avatarStore() *avatarStore {
 	}
 	if s.avatars == nil || s.avatars.r != r {
 		if s.avatars != nil {
+			s.avatars.stop()
 			s.avatarsChanged++
 		}
 		s.avatars = newAvatarStore(r)
@@ -272,7 +281,7 @@ func (s *Session) pumpAvatars(st *avatarStore) {
 		return
 	}
 	r := st.r
-	ctx := r.Life().Context()
+	ctx := st.ctx
 	update := s.update
 	if !st.querying && len(st.queued) > 0 {
 		n := min(len(st.queued), forge.CommitBatch)
