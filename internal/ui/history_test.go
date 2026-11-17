@@ -988,6 +988,7 @@ func TestCommitPeople(t *testing.T) {
 		t.Fatal("the body still shows the trailer of a co-author shown as a person")
 	}
 	h.until("the body", h.shows("Why it was done."))
+	h.until("the parent's subject", h.shows("by someone else"))
 
 	tab := h.app.current()
 	h.click("Ann Lee")

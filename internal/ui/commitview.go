@@ -75,6 +75,11 @@ type commitView struct {
 	msgOf         *session.CommitDetail
 	subject, body []byte
 	coAuthors     []message.Person
+	// parentSubjects are the subjects of the commit's parents once read,
+	// in their order; parentsAsked is set once they are asked for.
+	parentSubjects []string
+	parentsAsked   bool
+	parentsCancel  func()
 }
 
 // sigResult is a verdict on a signature, or why there is none.
@@ -94,6 +99,9 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 	if !bytes.Equal(cv.id, id) {
 		if cv.cancel != nil {
 			cv.cancel()
+		}
+		if cv.parentsCancel != nil {
+			cv.parentsCancel()
 		}
 		cv.stopPull()
 		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, infoRoom: cv.infoRoom, listRoom: cv.listRoom, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want, noPull: cv.noPull}
@@ -391,16 +399,18 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			})
 		}
 		if len(d.Parents) > 0 {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
-				label(locales.CommitParents(len(d.Parents)))
-				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
-					for _, p := range d.Parents {
-						if clickable(ui.Text(c, hex.EncodeToString(p)).Font("monospace").FontSize(textSmall).FillWidth().MinWidth(0)).Tooltip(locales.CommitGoToParent()).Clicked() {
-							t.sel = "history"
-							a.chooseCommit(t, p)
-						}
+			if !cv.parentsAsked {
+				cv.parentsAsked = true
+				id := cv.id
+				cv.parentsCancel = t.s.LoadSubjects(d.Parents, func(subjects []string) {
+					if bytes.Equal(cv.id, id) {
+						cv.parentSubjects = subjects
 					}
 				})
+			}
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+				label(locales.CommitParents(len(d.Parents)))
+				a.commitLinks(c, t, d.Parents, cv.parentSubjects, locales.CommitGoToParent())
 			})
 		}
 	})
@@ -482,6 +492,31 @@ func (a *App) showPersonHistory(t *tab, email string) {
 	hf.open = true
 	t.sel = "history"
 	a.applyHistoryFilter(t)
+}
+
+// commitLinks lists commits by their short ids and subjects, once read;
+// a click goes to one in the history.
+func (a *App) commitLinks(c *ui.Context, t *tab, ids [][]byte, subjects []string, tip string) {
+	th := c.Theme()
+	ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+		for i, id := range ids {
+			c.Key(i)
+			row := ui.Row(c).Gap(spaceS).AlignItems(ui.Center).FillWidth().MinWidth(0).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Tooltip(tip)
+			row.Children(func() {
+				h := ui.Text(c, shortID(id)).Font("monospace").FontSize(textSmall).Shrink(0)
+				if row.Hovered() {
+					h.Underline().UnderlineOffset(3)
+				}
+				if i < len(subjects) && subjects[i] != "" {
+					ui.Text(c, redact.Control(subjects[i])).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1).Shrink(1).MinWidth(0)
+				}
+			})
+			if row.Clicked() {
+				t.sel = "history"
+				a.chooseCommit(t, id)
+			}
+		}
+	})
 }
 
 // since says how long before now t was, as words, for a tooltip beside

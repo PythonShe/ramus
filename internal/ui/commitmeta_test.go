@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// In a narrow commit panel a commit's hash and its parent's break over
-// lines to stay inside it, rather than run past its edge.
+// In a narrow commit panel a commit's hash breaks over lines to stay
+// inside it, rather than run past its edge; its parent shows short.
 func TestCommitHashesWrap(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
@@ -21,14 +21,14 @@ func TestCommitHashesWrap(t *testing.T) {
 	parent := strings.TrimSpace(r.Git("rev-parse", "HEAD^"))
 	h.until("the commit", h.shows(head))
 	label, _ := h.tt.Find("Parent")
-	for _, id := range []string{head, parent} {
-		b, ok := h.tt.Find(id)
-		if !ok {
-			t.Fatalf("no %s in %q", id, h.tt.Texts())
-		}
-		// The harness's window is 1200 wide; the panel keeps an inset.
-		if b.X+b.W >= 1200 || b.H < 1.5*label.H {
-			t.Errorf("%s at %+v, a line %v high", id, b, label.H)
-		}
+	b, ok := h.tt.Find(head)
+	if !ok {
+		t.Fatalf("no %s in %q", head, h.tt.Texts())
 	}
+	// The harness's window is 1200 wide; the panel keeps an inset.
+	if b.X+b.W >= 1200 || b.H < 1.5*label.H {
+		t.Errorf("%s at %+v, a line %v high", head, b, label.H)
+	}
+	// A parent goes by its short id and its subject.
+	h.until("the parent", func() bool { return h.tt.HasText(parent[:10]) && hasExact(h, "one") })
 }
