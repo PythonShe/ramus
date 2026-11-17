@@ -127,7 +127,7 @@ func (a *App) tabsStrip(c *ui.Context) {
 					}
 					switch state {
 					case "running":
-						ui.Spinner(c).FontSize(textSmall).Shrink(0)
+						ui.Spinner(c).FontSize(textSmall).Shrink(0).Label(write)
 					case "changed":
 						ui.Icon(c, glyphs().dot).FontSize(iconMedium).TextColor(th.TextMuted).Shrink(0)
 					}
