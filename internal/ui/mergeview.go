@@ -33,13 +33,23 @@ type mergeState struct {
 	gen   int
 	// index numbers each conflict segment among the conflicts.
 	index []int
+	// opened are the runs of unchanged text shown whole, by segment.
+	opened map[int]bool
+	// results are what each conflict's choice keeps, as shown, made
+	// for resultOf.
+	results  []string
+	resultOf []conflict.Choice
 }
 
 // shownSegment is the text a segment shows: unchanged text shortened, or
 // each side of a conflict cut to maxShownLines.
 type shownSegment struct {
-	text  string
-	sides [3]string // ours, base, theirs
+	// text is a run of unchanged text whole, or, when hidden lines of
+	// it are left out, its first lines, and tail its last.
+	text   string
+	tail   string
+	hidden int
+	sides  [3]string // ours, base, theirs
 	// lines is the longest side's line count, to keep Edit off past
 	// maxEditLines.
 	lines int
@@ -51,6 +61,8 @@ const (
 	maxShownLines = 200
 	// maxEditLines bounds a conflict edited in place.
 	maxEditLines = 5000
+	// maxOpenedLines bounds a run of unchanged text opened whole.
+	maxOpenedLines = 2000
 )
 
 // showSegments builds what each segment shows.
@@ -58,7 +70,7 @@ func showSegments(segs []conflict.Segment) []shownSegment {
 	out := make([]shownSegment, len(segs))
 	for i, s := range segs {
 		if s.Conflict == nil {
-			out[i].text = compact(s.Text)
+			out[i].text, out[i].hidden, out[i].tail = compact(s.Text)
 			continue
 		}
 		cc := s.Conflict
@@ -120,6 +132,7 @@ func (a *App) loadMerge(t *tab, path string) {
 		ms.loading, ms.cf = false, cf
 		n := conflict.Count(cf.Segments)
 		ms.choices, ms.custom = make([]conflict.Choice, n), make([]string, n)
+		ms.results, ms.resultOf, ms.opened = nil, nil, nil
 		a.showConflicts(ms)
 	})
 }
@@ -204,14 +217,22 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 			})
 			return
 		}
-		a.conflictList(c, ms)
+		// git marks our side HEAD: the branch checked out says more.
+		ours := ""
+		if head := t.s.State.Head; !head.Detached && strings.HasPrefix(head.Target, "refs/heads/") {
+			ours = strings.TrimPrefix(head.Target, "refs/heads/")
+		}
+		a.conflictListAs(c, ms, ours)
 	})
 }
 
 // conflictList is the segments of a conflicted file: the text the sides
 // agree on, shortened, and each conflict with its choices.
-func (a *App) conflictList(c *ui.Context, ms *mergeState) {
-	th := c.Theme()
+func (a *App) conflictList(c *ui.Context, ms *mergeState) { a.conflictListAs(c, ms, "") }
+
+// conflictListAs is conflictList with head naming the branch checked
+// out, for our side's label HEAD; "" for none.
+func (a *App) conflictListAs(c *ui.Context, ms *mergeState, head string) {
 	segs := ms.cf.Segments
 	if ms.shown == nil {
 		loading(c, "")
@@ -226,11 +247,53 @@ func (a *App) conflictList(c *ui.Context, ms *mergeState) {
 	ui.List(c, &ms.list, len(segs), func(i int) {
 		s := segs[i]
 		if s.Conflict == nil {
-			ui.Text(c, ms.shown[i].text).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).Padding(rowPadY, insetX).FillWidth()
+			unchanged(c, ms, i, s.Text)
 			return
 		}
-		a.conflictBlock(c, ms, ms.index[i], s.Conflict, ms.shown[i])
+		a.conflictBlock(c, ms, ms.index[i], s.Conflict, ms.shown[i], head)
 	}).Label(locales.MergeConflictsLabel()).Grow(1)
+}
+
+// unchanged shows segment i, a run of text the sides agree on: whole, or
+// by its first and last lines with what it leaves out between, which a
+// click shows.
+func unchanged(c *ui.Context, ms *mergeState, i int, text []byte) {
+	th := c.Theme()
+	sh := ms.shown[i]
+	mono := func(s string) ui.Element {
+		return ui.Text(c, s).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).FillWidth()
+	}
+	if sh.hidden == 0 || ms.opened[i] {
+		whole := sh.text
+		if sh.hidden > 0 {
+			whole, _ = headLines(text, maxOpenedLines)
+		}
+		mono(whole).Padding(rowPadY, insetX)
+		return
+	}
+	ui.Column(c).Padding(rowPadY, insetX).FillWidth().Children(func() {
+		mono(sh.text)
+		if clickable(mono(locales.MergeUnchangedLines(sh.hidden))).Clicked() {
+			if ms.opened == nil {
+				ms.opened = map[int]bool{}
+			}
+			ms.opened[i] = true
+		}
+		mono(sh.tail)
+	})
+}
+
+// result is what conflict k's choice keeps, as shown, made again only
+// as the choice changes.
+func (ms *mergeState) result(k int, cc *conflict.Conflict) string {
+	if len(ms.results) != len(ms.choices) {
+		ms.results, ms.resultOf = make([]string, len(ms.choices)), make([]conflict.Choice, len(ms.choices))
+	}
+	if ch := ms.choices[k]; ms.resultOf[k] != ch || ms.results[k] == "" {
+		ms.resultOf[k] = ch
+		ms.results[k], _ = headLines(resolvedText(cc, ch), maxShownLines)
+	}
+	return ms.results[k]
 }
 
 func fill(cs []conflict.Choice, ch conflict.Choice) {
@@ -239,7 +302,7 @@ func fill(cs []conflict.Choice, ch conflict.Choice) {
 	}
 }
 
-func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.Conflict, shown shownSegment) {
+func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.Conflict, shown shownSegment, head string) {
 	th := c.Theme()
 	ui.Column(c).Padding(spaceM, insetX).Gap(spaceM).FillWidth().Background(th.Surface).Children(func() {
 		ui.Text(c, locales.MergeConflictNumber(k+1)).Bold()
@@ -265,21 +328,31 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 				}
 			}
 		})
-		ui.Row(c).Gap(spaceM).FillWidth().Children(func() {
-			side := func(title string, text string) {
-				ui.Column(c).Grow(1).Gap(spaceXS).Children(func() {
-					ui.Text(c, title).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
-					ui.Text(c, text).Font("monospace").FontSize(textSmall).Selectable()
-				})
+		side := func(title string, text string) {
+			ui.Column(c).Grow(1).Basis(0).Gap(spaceXS).Children(func() {
+				ui.Text(c, title).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+				ui.Text(c, text).Font("monospace").FontSize(textSmall).Selectable()
+			})
+		}
+		switch ms.choices[k] {
+		case conflict.Unresolved:
+			ours := cc.OursLabel
+			if ours == "HEAD" && head != "" {
+				ours = head
 			}
-			side(locales.MergeOursSide(redact.Control(cc.OursLabel)), shown.sides[0])
-			if cc.HasBase {
-				side(locales.MergeBaseSide(redact.Control(cc.BaseLabel)), shown.sides[1])
-			}
-			side(locales.MergeTheirsSide(redact.Control(cc.TheirsLabel)), shown.sides[2])
-		})
-		if ms.choices[k] == conflict.Custom {
-			ui.TextArea(c, &ms.custom[k]).Font("monospace").FontSize(textSmall).Label(locales.MergeResultOfConflict(k + 1)).Height(120)
+			ui.Row(c).Gap(spaceM).FillWidth().Children(func() {
+				side(locales.MergeOursSide(redact.Control(ours)), shown.sides[0])
+				if cc.HasBase {
+					side(locales.MergeBaseSide(redact.Control(cc.BaseLabel)), shown.sides[1])
+				}
+				side(locales.MergeTheirsSide(redact.Control(cc.TheirsLabel)), shown.sides[2])
+			})
+		case conflict.Custom:
+			ui.TextArea(c, &ms.custom[k]).Font("monospace").FontSize(textSmall).Label(locales.MergeResultOfConflict(k+1)).Lines(3, 20)
+		default:
+			// Once chosen, the sides give way to what the choice keeps;
+			// the buttons above still change it.
+			side(locales.MergeResultOfConflict(k+1), ms.result(k, cc))
 		}
 	})
 }
@@ -295,18 +368,18 @@ func resolvedText(cc *conflict.Conflict, ch conflict.Choice) []byte {
 }
 
 // compact shows unchanged text around conflicts: a short run whole, a long
-// one by its first and last lines.
-func compact(text []byte) string {
+// one by its first and last lines, with how many it leaves out between.
+func compact(text []byte) (head string, hidden int, tail string) {
 	lines := bytes.SplitAfter(text, []byte{'\n'})
 	if len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
 		lines = lines[:len(lines)-1]
 	}
 	if len(lines) <= 7 {
-		return strings.TrimSuffix(redact.Control(string(text)), "\n")
+		return strings.TrimSuffix(redact.Control(string(text)), "\n"), 0, ""
 	}
-	head := bytes.Join(lines[:3], nil)
-	tail := bytes.Join(lines[len(lines)-3:], nil)
-	return redact.Control(string(head)) + locales.MergeUnchangedLines(len(lines)-6) + "\n" + strings.TrimSuffix(redact.Control(string(tail)), "\n")
+	first := bytes.Join(lines[:3], nil)
+	last := bytes.Join(lines[len(lines)-3:], nil)
+	return strings.TrimSuffix(redact.Control(string(first)), "\n"), len(lines) - 6, strings.TrimSuffix(redact.Control(string(last)), "\n")
 }
 
 func (a *App) saveMerge(t *tab) {

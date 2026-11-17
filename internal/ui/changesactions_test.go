@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -110,6 +112,37 @@ func TestPictureScale(t *testing.T) {
 			t.Errorf("%v x %v: %v, want %v", c.w, c.h, got, c.want)
 		}
 	}
+}
+
+// A conflict names our side by the branch, not HEAD; once chosen it
+// shows what the choice keeps in place of the sides; the unchanged lines
+// left out around it open on a click.
+func TestConflictBlock(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	var long strings.Builder
+	for i := range 20 {
+		fmt.Fprintf(&long, "line %d\n", i)
+	}
+	r.Write("a.txt", long.String()+"one\n")
+	r.Commit("base")
+	r.Git("switch", "-q", "-c", "topic")
+	r.Write("a.txt", long.String()+"theirs\n")
+	r.Commit("topic")
+	r.Git("switch", "-q", "main")
+	r.Write("a.txt", long.String()+"ours\n")
+	r.Commit("main")
+	r.Run(nil, "merge", "topic")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the conflict", h.shows("Conflict 1"))
+	if !h.tt.HasText("Ours: main") || h.tt.HasText("Ours: HEAD") {
+		t.Fatalf("our side's label %q", h.tt.Texts())
+	}
+	h.click("⋯ 14 lines")
+	h.until("the lines opened", h.shows("line 10"))
+	h.click("Theirs")
+	h.until("the result", func() bool { return h.tt.HasText("Result of conflict 1") && !h.tt.HasText("Ours: main") })
 }
 
 // Enter stages every file picked, as Delete discards them all, not only
