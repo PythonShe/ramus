@@ -260,8 +260,7 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 		}
 	})
 	a.patchBar(c, false, !binaryPatch(d.res), func() {
-		_, editor := a.editor(t)
-		if ui.Button(c, locales.ActionsOpenInEditor()).Disabled(!editor).Clicked() {
+		if ui.Button(c, locales.ActionsOpenInEditor()).Disabled(!a.canOpenInEditor(t)).Clicked() {
 			a.openInEditor(t, d.key.path)
 		}
 		if ui.Button(c, locales.DiffOpenInTool()).Disabled(ro || d.key.src == diff.Untracked).Clicked() {
@@ -298,8 +297,15 @@ func binaryPatch(res session.PatchResult) bool {
 	return p != nil && len(p.Files) > 0 && p.Files[0].Binary
 }
 
+// canOpenInEditor reports whether openInEditor can open a file of t: an
+// editor is chosen and the repository, whose work tree it is in, open.
+func (a *App) canOpenInEditor(t *tab) bool {
+	_, ok := a.editor(t)
+	return ok && t.s.Repo != nil
+}
+
 // openInEditor opens the file at rel, of the work tree, in the editor
-// chosen.
+// chosen; the caller offers it as canOpenInEditor says.
 func (a *App) openInEditor(t *tab, rel string) {
 	ed, ok := a.editor(t)
 	r := t.s.Repo

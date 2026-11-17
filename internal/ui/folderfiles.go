@@ -153,8 +153,7 @@ func (a *App) folderPatch(c *ui.Context, t *tab, m *changeModel, f *folderState)
 	d := &t.cv.diff
 	ui.Column(c).Fill().Children(func() {
 		a.patchBar(c, false, !binaryPatch(d.res), func() {
-			_, editor := a.editor(t)
-			if ui.Button(c, locales.ActionsOpenInEditor()).Disabled(!editor).Clicked() {
+			if ui.Button(c, locales.ActionsOpenInEditor()).Disabled(!a.canOpenInEditor(t)).Clicked() {
 				a.openInEditor(t, p)
 			}
 		})
