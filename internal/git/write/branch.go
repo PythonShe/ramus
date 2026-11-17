@@ -114,7 +114,7 @@ func SwitchWith(w Where, branch string, changes LocalChanges, seen Seen) Op {
 		name := strings.TrimPrefix(branch, "refs/heads/")
 		op.Name += ", stashing changes"
 		op.Pre, op.PreStashes = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
-			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before switching to " + name}}, true
+			Args: []string{"stash", "push", "--include-untracked", "-m", preStashMark + "switching to " + name}}, true
 	}
 	return op
 }
@@ -162,6 +162,29 @@ func (q *Queue) topStash(ctx context.Context, workTree string) (string, error) {
 	}
 	return "", nil
 }
+
+// ownStash is the top stash once a write's Pre stashed, when it is the
+// one Pre made, by its message; else before, the top stash as it was, so
+// nothing is popped: a stash another program pushed meanwhile is not the
+// app's to pop.
+func (q *Queue) ownStash(ctx context.Context, workTree, before string) (string, error) {
+	top, err := q.topStash(ctx, workTree)
+	if err != nil || top == "" || top == before {
+		return top, err
+	}
+	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Read: true,
+		Args: []string{"log", "-1", "--format=%s", top, "--"}})
+	if err != nil {
+		return "", err
+	}
+	if !strings.Contains(string(res.Stdout), preStashMark) {
+		return before, nil
+	}
+	return top, nil
+}
+
+// preStashMark starts the message of each stash a write's Pre makes.
+const preStashMark = "Ramus: before "
 
 // unstashTimeout bounds putting stashed changes back after a failed
 // write: it runs though the write was cancelled, so the changes come
@@ -222,8 +245,11 @@ type StashKeptError struct {
 
 func (e *StashKeptError) Error() string {
 	where := short(e.Commit)
-	if e.Entry != "" {
+	switch {
+	case e.Entry != "":
 		where = e.Entry + " (" + where + ")"
+	case where == "":
+		where = "the stash list"
 	}
 	return fmt.Sprintf("%v; the changes it stashed are kept in %s, as putting them back failed: %v", e.Err, where, e.Pop)
 }
@@ -260,7 +286,7 @@ func CheckoutRemote(w Where, remote, name, local string, force bool, changes Loc
 	if changes == StashChanges {
 		op.Name += ", stashing changes"
 		op.Pre, op.PreStashes = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Timeout: HookTimeout,
-			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before checking out " + short}}, true
+			Args: []string{"stash", "push", "--include-untracked", "-m", preStashMark + "checking out " + short}}, true
 	}
 	return op, nil
 }

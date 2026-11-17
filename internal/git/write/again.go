@@ -28,7 +28,7 @@ func Stashing(op Op) (Op, bool) {
 		op.Cmd.Args = append([]string{"pull", "--autostash"}, op.Cmd.Args[1:]...)
 	case "switch", "checkout":
 		op.Pre = &run.Cmd{GitDir: op.Cmd.GitDir, WorkTree: op.Cmd.WorkTree, Timeout: HookTimeout,
-			Args: []string{"stash", "push", "--include-untracked", "-m", "Ramus: before " + op.Name}}
+			Args: []string{"stash", "push", "--include-untracked", "-m", preStashMark + op.Name}}
 		op.PreStashes = true
 	default:
 		return Op{}, false

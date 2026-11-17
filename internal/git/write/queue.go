@@ -332,6 +332,9 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 		}
 	}
 	var stashed *preStash
+	// unread is why the stash Pre may have made could not be read: a
+	// write failing after it says the changes may be in the stash list.
+	var unread error
 	if j.Op.Pre != nil {
 		if j.Op.PreStashes {
 			stashed = q.beforeStash(ctx, j.Op.Cmd.WorkTree)
@@ -341,10 +344,10 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 			// Read though the job was cancelled meanwhile: a stash made
 			// and not known of would keep the changes from the user.
 			sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), unstashTimeout)
-			made, err := q.topStash(sctx, j.Op.Cmd.WorkTree)
+			made, err := q.ownStash(sctx, j.Op.Cmd.WorkTree, stashed.stash)
 			cancel()
 			if err != nil {
-				stashed = nil
+				stashed, unread = nil, err
 			} else {
 				stashed.made = made
 			}
@@ -367,8 +370,11 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 		if le := lockError(q.gitDir, res.Stderr); le != nil {
 			err = le
 		}
-		if stashed != nil {
+		switch {
+		case stashed != nil:
 			err = q.unstash(ctx, j, stashed, err)
+		case unread != nil:
+			err = &StashKeptError{Err: err, Pop: unread}
 		}
 	}
 	if err == nil && record {

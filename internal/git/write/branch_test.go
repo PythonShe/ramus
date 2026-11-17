@@ -80,6 +80,25 @@ func TestSwitchStashingPutsChangesBackOnFailure(t *testing.T) {
 		t.Fatalf("status %q, want %q", h.status(), want)
 	}
 
+	// A stash on top Pre did not make, one pushed by another program
+	// between the look before and Pre, is not the app's to pop.
+	op := SwitchWith(h.w, "refs/heads/topic", StashChanges, h.seen())
+	pre := *op.Pre
+	pre.Args = []string{"stash", "push", "-q", "--include-untracked", "-m", "someone else's"}
+	op.Pre = &pre
+	op.Cmd.Config = []string{"alias.fail=!sh -c 'exit 1'"}
+	op.Cmd.Args = []string{"fail"}
+	if _, err := wait(t, h.q.Submit(op)); err == nil || errors.As(err, &kept) {
+		t.Fatalf("with another's stash on top: %v", err)
+	}
+	if s := stashes(); !strings.HasPrefix(s, "On main: someone else's\n") {
+		t.Fatalf("another's stash popped: %q", s)
+	}
+	h.r.Git("stash", "pop", "-q", "--index")
+	if h.status() != want {
+		t.Fatalf("status %q, want %q", h.status(), want)
+	}
+
 	err = failing(`git switch -q topic`)
 	if errors.As(err, &kept) || h.seen().Branch != "refs/heads/topic" || h.status() != "" ||
 		!strings.HasPrefix(stashes(), "On main: Ramus: before switching to topic\n") {
