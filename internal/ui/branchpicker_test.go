@@ -191,3 +191,26 @@ func TestBranchPickerAsks(t *testing.T) {
 	h.tt.Frame()
 	h.until("the switch question", h.shows("Switch to other with local changes?"))
 }
+
+// A fetch landing while the picker is open shows in its counts.
+func TestBranchPickerCountsAfterFetch(t *testing.T) {
+	h := newHarness(t)
+	up := h.repoWith()
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", up.Dir)
+	r.Git("fetch", "-q", "origin")
+	r.Git("branch", "-q", "--set-upstream-to", "origin/main")
+	r.Git("reset", "-q", "--hard", "origin/main")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	h.app.setSidebar(false)
+	tb := h.app.current()
+	h.click("Branch main")
+	h.until("main's state", func() bool { _, ok := tb.pick.info["refs/heads/main"]; return ok })
+	h.until("the picker's fetch", func() bool { return !tb.s.Fetching() })
+	up.Write("c", "3")
+	up.Commit("upstream moved")
+	r.Git("fetch", "-q", "origin")
+	h.until("one behind", func() bool { return tb.pick.open && tb.pick.info["refs/heads/main"].Behind == 1 })
+}

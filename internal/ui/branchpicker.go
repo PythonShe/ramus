@@ -101,6 +101,9 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 	if !p.open {
 		return
 	}
+	// The branches' state read again as the refs change, as the fetch
+	// the picker started lands: their counts against their upstreams.
+	a.loadRefs(t)
 	var chosen *pickRow
 	var act func()
 	newBranch := false
