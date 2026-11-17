@@ -300,7 +300,9 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 					act = func() { cv.open[key] = !open; cv.openGen++ }
 				}
 			} else if l.Submitted() {
-				act = func() { a.toggleStage(t, m, []changeRow{r}) }
+				// Enter acts on every row picked, as Delete and the menu do.
+				rows := cv.chosenRows(m, r)
+				act = func() { a.toggleStage(t, m, rows) }
 			}
 		}
 		// Delete asks to discard what is chosen, as the menu's Discard
@@ -412,7 +414,8 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 		inkFileLines(c, k, cv.entryLines(m.st, i, r.sec))
 	})
 	if r.kind == rowFile && row.RowDoubleClicked() {
-		*act = func() { a.toggleStage(t, m, []changeRow{r}) }
+		rows := cv.chosenRows(m, r)
+		*act = func() { a.toggleStage(t, m, rows) }
 	}
 	row.ContextMenu(func(menu *ui.Menu) { a.changeMenu(menu, t, m, r, act) })
 }
