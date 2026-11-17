@@ -367,6 +367,9 @@ func (a *App) reviewBody(c *ui.Context, t *tab, st *status.Status, e int, ro boo
 			}
 		}
 		a.setDiffView(pv.d, true, actions)
+		if wholeFile(p) {
+			pv.d.Layout = editor.DiffUnified
+		}
 		pv.d.FitContent = true
 		editor.DiffView(c, pv.d).FillWidth()
 	}

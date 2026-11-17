@@ -311,6 +311,9 @@ func (a *App) patchBodyWith(c *ui.Context, t *tab, pv *patchView, res session.Pa
 	}
 	d := pv.d
 	a.setDiffView(d, false, actions)
+	if wholeFile(p) {
+		d.Layout = editor.DiffUnified
+	}
 	d.Annotations, d.RenderAnnotation, d.OnGutterButton = nil, nil, nil
 	if decorate != nil {
 		decorate(d)
@@ -364,6 +367,12 @@ func binarySizes(res session.PatchResult) string {
 		return locales.PatchBinarySize(byteSize(int64(old)))
 	}
 	return locales.PatchBinarySizes(byteSize(int64(old)), byteSize(int64(new)))
+}
+
+// wholeFile reports whether p adds or removes a file's every line, which
+// split would show beside an empty half: it is shown unified.
+func wholeFile(p *diff.Parsed) bool {
+	return p != nil && len(p.Hunks) == 1 && (p.Hunks[0].OldCount == 0 || p.Hunks[0].NewCount == 0)
 }
 
 // isPicture reports whether a path names a picture the app can show.
