@@ -177,7 +177,7 @@ func (s *Session) CommitOptions(opt write.CommitOptions) write.CommitOptions {
 
 // Commit commits, logged; with push set, a push with those options
 // follows a commit that succeeded, from a branch with no upstream to
-// the one remote there is. done, when set, gets the result on the main
+// the remote push names, else the one remote there is. done, when set, gets the result on the main
 // thread: a commit that failed where the user's hooks ran is a
 // *HookError.
 func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done func(error)) error {
@@ -202,8 +202,11 @@ func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done 
 		if push != nil {
 			pushOpt = *push
 		}
-		if err == nil && push != nil && !upstream {
-			pushOpt, err = pushTarget(ctx, r.Runner, r.GitDir)
+		if err == nil && push != nil && !upstream && pushOpt.Remote == "" {
+			// The remote alone is chosen: the caller's other options stand.
+			var target write.PushOptions
+			target, err = pushTarget(ctx, r.Runner, r.GitDir)
+			pushOpt.Remote = target.Remote
 		}
 		update(func() {
 			if err == nil && push != nil {
