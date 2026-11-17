@@ -392,7 +392,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 		}
 		i := int(r.idx)
 		letter := entryLetter(m.st, i, r.sec)
-		ui.Text(c, letter).Font("monospace").TextColor(entryColor(k, m.st, i, letter)).Width(16).Description(entryWords(m.st, i, r.sec))
+		ui.Text(c, letter).Font("monospace").TextColor(entryColor(k, m.st, i, letter)).Width(statusLetterW).Description(entryWords(m.st, i, r.sec))
 		if untrackedFolder(m.st, i) {
 			ui.Icon(c, changeIcons().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Muted)
 		} else {

@@ -119,7 +119,7 @@ func sameLayout(x, y settings.TableLayout) bool {
 
 // The columns lists of commits share: when, and which.
 func dateColumn() ui.TableColumn {
-	return ui.TableColumn{Title: locales.ColumnDate(), ID: "date", Width: 100, MinWidth: 60}
+	return ui.TableColumn{Title: locales.ColumnDate(), ID: "date", Width: 120, MinWidth: 90}
 }
 
 func commitColumn() ui.TableColumn {

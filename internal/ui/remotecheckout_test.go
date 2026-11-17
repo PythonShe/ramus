@@ -46,10 +46,10 @@ func TestCheckOutRemote(t *testing.T) {
 		h.until("HEAD on "+b, func() bool { return head() == b && tb.s.State.Head.Target == "refs/heads/"+b })
 	}
 
-	h.menu("origin/fresh", "Check Out")
+	h.menu("origin/fresh", "Switch")
 	on("fresh")
 
-	h.menu("origin/feature", "Check Out")
+	h.menu("origin/feature", "Switch")
 	h.until("the dialog", h.shows("feature is 1 commit behind origin/feature."))
 	h.click("Fast-Forward and Switch")
 	on("feature")
@@ -59,14 +59,14 @@ func TestCheckOutRemote(t *testing.T) {
 
 	// Another name for the same remote branch.
 	h.until("the branches again", func() bool { return tb.refs.info != nil && !tb.refs.loading })
-	h.menu("origin/feature", "Check Out")
+	h.menu("origin/feature", "Switch")
 	h.until("the dialog again", h.shows("feature is at the same commit as origin/feature."))
 	h.app.remoteUI.other = "feature-2"
 	h.tt.Frame()
 	h.click("Check Out as New Branch")
 	on("feature-2")
 
-	h.menu("origin/side", "Check Out")
+	h.menu("origin/side", "Switch")
 	h.until("the explanation", h.shows("Branch side is checked out in another worktree"))
 	h.click("Open side")
 	h.until("its tab", func() bool { return len(h.app.tabs) == 2 })

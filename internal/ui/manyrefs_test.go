@@ -59,6 +59,6 @@ func TestManyRefs(t *testing.T) {
 		t.Fatalf("frames take %v and %v", history, refs)
 	}
 	rows := len(tb.refs.rows)
-	h.click("▾")
+	h.click("Close folder")
 	h.until("the folder closed", func() bool { return len(tb.refs.rows) < rows })
 }

@@ -536,13 +536,15 @@ func (msgs Messages) RefsCheckOut() string {
 // RefsSwitch says "Switch"
 // in the language the app shows.
 //
-// The button on a branch's row, hovered or chosen, that checks it out.
+// A verb: switches to a branch, or to a remote branch as a local one; also
+// the button on a branch's row that does.
 func RefsSwitch() string { return In(i18n.Locale()).RefsSwitch() }
 
 // RefsSwitch says "Switch"
 // in the language of msgs.
 //
-// The button on a branch's row, hovered or chosen, that checks it out.
+// A verb: switches to a branch, or to a remote branch as a local one; also
+// the button on a branch's row that does.
 func (msgs Messages) RefsSwitch() string {
 	return Catalog.Format(msgs.locale, "refsSwitch", nil)
 }
@@ -655,6 +657,44 @@ func RefsDeleteItem() string { return In(i18n.Locale()).RefsDeleteItem() }
 // in the language of msgs.
 func (msgs Messages) RefsDeleteItem() string {
 	return Catalog.Format(msgs.locale, "refsDeleteItem", nil)
+}
+
+// RefsDeleteOnRemote says "Delete on {remote}…"
+// in the language the app shows.
+//
+// Menu item of a remote branch: deletes the branch on the remote it lives
+// on.
+func RefsDeleteOnRemote(remote string) string { return In(i18n.Locale()).RefsDeleteOnRemote(remote) }
+
+// RefsDeleteOnRemote says "Delete on {remote}…"
+// in the language of msgs.
+//
+// Menu item of a remote branch: deletes the branch on the remote it lives
+// on.
+func (msgs Messages) RefsDeleteOnRemote(remote string) string {
+	return Catalog.Format(msgs.locale, "refsDeleteOnRemote", map[string]any{"remote": remote})
+}
+
+// RefsDeleteRemoteBranchTitle says "Delete {branch} on {remote}?"
+// in the language the app shows.
+func RefsDeleteRemoteBranchTitle(branch string, remote string) string {
+	return In(i18n.Locale()).RefsDeleteRemoteBranchTitle(branch, remote)
+}
+
+// RefsDeleteRemoteBranchTitle says "Delete {branch} on {remote}?"
+// in the language of msgs.
+func (msgs Messages) RefsDeleteRemoteBranchTitle(branch string, remote string) string {
+	return Catalog.Format(msgs.locale, "refsDeleteRemoteBranchTitle", map[string]any{"branch": branch, "remote": remote})
+}
+
+// RefsDeleteRemoteBranchMessage says "The branch is removed from the remote for everyone, and Undo cannot bring it back. A local branch of the same name is…"
+// in the language the app shows.
+func RefsDeleteRemoteBranchMessage() string { return In(i18n.Locale()).RefsDeleteRemoteBranchMessage() }
+
+// RefsDeleteRemoteBranchMessage says "The branch is removed from the remote for everyone, and Undo cannot bring it back. A local branch of the same name is…"
+// in the language of msgs.
+func (msgs Messages) RefsDeleteRemoteBranchMessage() string {
+	return Catalog.Format(msgs.locale, "refsDeleteRemoteBranchMessage", nil)
 }
 
 // RefsCopyName says "Copy Name"
@@ -2845,6 +2885,20 @@ func WorktreeNewTitle(branch string) string { return In(i18n.Locale()).WorktreeN
 // in the language of msgs.
 func (msgs Messages) WorktreeNewTitle(branch string) string {
 	return Catalog.Format(msgs.locale, "worktreeNewTitle", map[string]any{"branch": branch})
+}
+
+// WorktreeNewBranchTitle says "New Worktree"
+// in the language the app shows.
+//
+// Title of the dialog making a worktree of a new branch started at HEAD.
+func WorktreeNewBranchTitle() string { return In(i18n.Locale()).WorktreeNewBranchTitle() }
+
+// WorktreeNewBranchTitle says "New Worktree"
+// in the language of msgs.
+//
+// Title of the dialog making a worktree of a new branch started at HEAD.
+func (msgs Messages) WorktreeNewBranchTitle() string {
+	return Catalog.Format(msgs.locale, "worktreeNewBranchTitle", nil)
 }
 
 // WorktreeOpenTab says "Open in a new tab"
@@ -6809,6 +6863,22 @@ func (msgs Messages) RefsFolderLabel(state string, name string) string {
 	return Catalog.Format(msgs.locale, "refsFolderLabel", map[string]any{"state": state, "name": name})
 }
 
+// RefsFolderToggle says "{state, select, open {Close folder} other {Open folder}}"
+// in the language the app shows.
+//
+// Read aloud for the arrow before a folder of branches or tags, which opens
+// or closes it; state is open or closed.
+func RefsFolderToggle(state string) string { return In(i18n.Locale()).RefsFolderToggle(state) }
+
+// RefsFolderToggle says "{state, select, open {Close folder} other {Open folder}}"
+// in the language of msgs.
+//
+// Read aloud for the arrow before a folder of branches or tags, which opens
+// or closes it; state is open or closed.
+func (msgs Messages) RefsFolderToggle(state string) string {
+	return Catalog.Format(msgs.locale, "refsFolderToggle", map[string]any{"state": state})
+}
+
 // RepoHiddenInHistory says "Hidden in history"
 // in the language the app shows.
 func RepoHiddenInHistory() string { return In(i18n.Locale()).RepoHiddenInHistory() }
@@ -6953,21 +7023,39 @@ func (msgs Messages) RepoSectionBranchesCount(n int) string {
 	return Catalog.Format(msgs.locale, "repoSectionBranchesCount", map[string]any{"n": n})
 }
 
-// RepoSectionRemotes says "Remotes"
+// RepoSideBranch says "{name}{ahead, plural, =0 {} one { ↑#} other { ↑#}}{behind, plural, =0 {} one { ↓#} other { ↓#}}"
+// in the language the app shows.
+//
+// A branch in the sidebar with the commits it is ahead of and behind its
+// upstream.
+func RepoSideBranch(name string, ahead int, behind int) string {
+	return In(i18n.Locale()).RepoSideBranch(name, ahead, behind)
+}
+
+// RepoSideBranch says "{name}{ahead, plural, =0 {} one { ↑#} other { ↑#}}{behind, plural, =0 {} one { ↓#} other { ↓#}}"
+// in the language of msgs.
+//
+// A branch in the sidebar with the commits it is ahead of and behind its
+// upstream.
+func (msgs Messages) RepoSideBranch(name string, ahead int, behind int) string {
+	return Catalog.Format(msgs.locale, "repoSideBranch", map[string]any{"name": name, "ahead": ahead, "behind": behind})
+}
+
+// RepoSectionRemotes says "Remote Branches"
 // in the language the app shows.
 func RepoSectionRemotes() string { return In(i18n.Locale()).RepoSectionRemotes() }
 
-// RepoSectionRemotes says "Remotes"
+// RepoSectionRemotes says "Remote Branches"
 // in the language of msgs.
 func (msgs Messages) RepoSectionRemotes() string {
 	return Catalog.Format(msgs.locale, "repoSectionRemotes", nil)
 }
 
-// RepoSectionRemotesCount says "Remotes ({n})"
+// RepoSectionRemotesCount says "Remote Branches ({n})"
 // in the language the app shows.
 func RepoSectionRemotesCount(n int) string { return In(i18n.Locale()).RepoSectionRemotesCount(n) }
 
-// RepoSectionRemotesCount says "Remotes ({n})"
+// RepoSectionRemotesCount says "Remote Branches ({n})"
 // in the language of msgs.
 func (msgs Messages) RepoSectionRemotesCount(n int) string {
 	return Catalog.Format(msgs.locale, "repoSectionRemotesCount", map[string]any{"n": n})
@@ -9097,6 +9185,22 @@ func SnapshotsName() string { return In(i18n.Locale()).SnapshotsName() }
 // The placeholder of the optional name of a snapshot taken by hand.
 func (msgs Messages) SnapshotsName() string {
 	return Catalog.Format(msgs.locale, "snapshotsName", nil)
+}
+
+// SnapshotsNamePlaceholder says "Name (optional)"
+// in the language the app shows.
+//
+// Placeholder of the field naming the next snapshot; blank, the snapshot is
+// named by where it is taken.
+func SnapshotsNamePlaceholder() string { return In(i18n.Locale()).SnapshotsNamePlaceholder() }
+
+// SnapshotsNamePlaceholder says "Name (optional)"
+// in the language of msgs.
+//
+// Placeholder of the field naming the next snapshot; blank, the snapshot is
+// named by where it is taken.
+func (msgs Messages) SnapshotsNamePlaceholder() string {
+	return Catalog.Format(msgs.locale, "snapshotsNamePlaceholder", nil)
 }
 
 // SnapshotsDelete says "Delete"
@@ -11715,13 +11819,13 @@ func (msgs Messages) BranchPickerList() string {
 	return Catalog.Format(msgs.locale, "branchPickerList", nil)
 }
 
-// BranchPickerRemote says "Remote"
+// BranchPickerRemote says "Remote Branches"
 // in the language the app shows.
 //
 // The heading of the remote branches in the branch picker.
 func BranchPickerRemote() string { return In(i18n.Locale()).BranchPickerRemote() }
 
-// BranchPickerRemote says "Remote"
+// BranchPickerRemote says "Remote Branches"
 // in the language of msgs.
 //
 // The heading of the remote branches in the branch picker.
@@ -11737,6 +11841,36 @@ func BranchPickerNone() string { return In(i18n.Locale()).BranchPickerNone() }
 // in the language of msgs.
 func (msgs Messages) BranchPickerNone() string {
 	return Catalog.Format(msgs.locale, "branchPickerNone", nil)
+}
+
+// BranchPickerCreate says "Create Branch {name}…"
+// in the language the app shows.
+//
+// A row of the branch picker when no branch matches what was typed: makes a
+// branch of that name.
+func BranchPickerCreate(name string) string { return In(i18n.Locale()).BranchPickerCreate(name) }
+
+// BranchPickerCreate says "Create Branch {name}…"
+// in the language of msgs.
+//
+// A row of the branch picker when no branch matches what was typed: makes a
+// branch of that name.
+func (msgs Messages) BranchPickerCreate(name string) string {
+	return Catalog.Format(msgs.locale, "branchPickerCreate", map[string]any{"name": name})
+}
+
+// BranchPickerRetry says "Retry"
+// in the language the app shows.
+//
+// Button beside the message of a fetch that failed in the branch picker.
+func BranchPickerRetry() string { return In(i18n.Locale()).BranchPickerRetry() }
+
+// BranchPickerRetry says "Retry"
+// in the language of msgs.
+//
+// Button beside the message of a fetch that failed in the branch picker.
+func (msgs Messages) BranchPickerRetry() string {
+	return Catalog.Format(msgs.locale, "branchPickerRetry", nil)
 }
 
 // BranchPickerFetching says "Fetching"
@@ -11953,6 +12087,62 @@ func PaletteGoTo(repository string) string { return In(i18n.Locale()).PaletteGoT
 // Shows the tab of an open repository.
 func (msgs Messages) PaletteGoTo(repository string) string {
 	return Catalog.Format(msgs.locale, "paletteGoTo", map[string]any{"repository": repository})
+}
+
+// PaletteSwitchTo says "Switch to {name}"
+// in the language the app shows.
+//
+// A palette command: switches to the local branch name.
+func PaletteSwitchTo(name string) string { return In(i18n.Locale()).PaletteSwitchTo(name) }
+
+// PaletteSwitchTo says "Switch to {name}"
+// in the language of msgs.
+//
+// A palette command: switches to the local branch name.
+func (msgs Messages) PaletteSwitchTo(name string) string {
+	return Catalog.Format(msgs.locale, "paletteSwitchTo", map[string]any{"name": name})
+}
+
+// PaletteShowWorktrees says "Show Worktrees"
+// in the language the app shows.
+//
+// A palette command: opens the page listing the worktrees.
+func PaletteShowWorktrees() string { return In(i18n.Locale()).PaletteShowWorktrees() }
+
+// PaletteShowWorktrees says "Show Worktrees"
+// in the language of msgs.
+//
+// A palette command: opens the page listing the worktrees.
+func (msgs Messages) PaletteShowWorktrees() string {
+	return Catalog.Format(msgs.locale, "paletteShowWorktrees", nil)
+}
+
+// PaletteNewWorktree says "New Worktree…"
+// in the language the app shows.
+//
+// A palette command and a sidebar item: makes a worktree of a new branch.
+func PaletteNewWorktree() string { return In(i18n.Locale()).PaletteNewWorktree() }
+
+// PaletteNewWorktree says "New Worktree…"
+// in the language of msgs.
+//
+// A palette command and a sidebar item: makes a worktree of a new branch.
+func (msgs Messages) PaletteNewWorktree() string {
+	return Catalog.Format(msgs.locale, "paletteNewWorktree", nil)
+}
+
+// PaletteStashPop says "Pop Latest Stash"
+// in the language the app shows.
+//
+// A palette command: applies the newest stash and drops it.
+func PaletteStashPop() string { return In(i18n.Locale()).PaletteStashPop() }
+
+// PaletteStashPop says "Pop Latest Stash"
+// in the language of msgs.
+//
+// A palette command: applies the newest stash and drops it.
+func (msgs Messages) PaletteStashPop() string {
+	return Catalog.Format(msgs.locale, "paletteStashPop", nil)
 }
 
 // PaletteOpenGroup says "Open Group {name}"

@@ -90,7 +90,7 @@
   "refsCheckOut": "Check Out",
   "refsSwitch": "Switch",
   "@refsSwitch": {
-    "description": "The button on a branch's row, hovered or chosen, that checks it out."
+    "description": "A verb: switches to a branch, or to a remote branch as a local one; also the button on a branch's row that does."
   },
   "refsSwitchTo": "Switch to {name}",
   "@refsCheckOut": {
@@ -106,6 +106,12 @@
   "refsRenameTitle": "Rename {name}",
   "refsNewName": "New name",
   "refsDeleteItem": "Delete…",
+  "refsDeleteOnRemote": "Delete on {remote}…",
+  "@refsDeleteOnRemote": {
+    "description": "Menu item of a remote branch: deletes the branch on the remote it lives on."
+  },
+  "refsDeleteRemoteBranchTitle": "Delete {branch} on {remote}?",
+  "refsDeleteRemoteBranchMessage": "The branch is removed from the remote for everyone, and Undo cannot bring it back. A local branch of the same name is kept.",
   "refsCopyName": "Copy Name",
   "refsPinToTop": "Pin to Top",
   "refsUnpin": "Unpin",
@@ -523,6 +529,10 @@
     "description": "Swaps the two commits compared."
   },
   "worktreeNewTitle": "New Worktree for {branch}",
+  "worktreeNewBranchTitle": "New Worktree",
+  "@worktreeNewBranchTitle": {
+    "description": "Title of the dialog making a worktree of a new branch started at HEAD."
+  },
   "worktreeOpenTab": "Open in a new tab",
   "worktreePickFolder": "Folder for the Worktree",
   "@worktreePickFolder": {
@@ -1281,6 +1291,10 @@
   "@refsFolderLabel": {
     "description": "Read aloud for a folder of branches or tags sharing the prefix name, and whether it shows them; state is open or closed."
   },
+  "refsFolderToggle": "{state, select, open {Close folder} other {Open folder}}",
+  "@refsFolderToggle": {
+    "description": "Read aloud for the arrow before a folder of branches or tags, which opens or closes it; state is open or closed."
+  },
   "repoHiddenInHistory": "Hidden in history",
   "repoHiddenRef": "{name}, hidden in history",
   "@repoHiddenRef": {
@@ -1317,8 +1331,12 @@
       }
     }
   },
-  "repoSectionRemotes": "Remotes",
-  "repoSectionRemotesCount": "Remotes ({n})",
+  "repoSideBranch": "{name}{ahead, plural, =0 {} one { ↑#} other { ↑#}}{behind, plural, =0 {} one { ↓#} other { ↓#}}",
+  "@repoSideBranch": {
+    "description": "A branch in the sidebar with the commits it is ahead of and behind its upstream."
+  },
+  "repoSectionRemotes": "Remote Branches",
+  "repoSectionRemotesCount": "Remote Branches ({n})",
   "@repoSectionRemotesCount": {
     "placeholders": {
       "n": {
@@ -1782,6 +1800,10 @@
   },
   "snapshotsNow": "Snapshot Now",
   "snapshotsName": "Name",
+  "snapshotsNamePlaceholder": "Name (optional)",
+  "@snapshotsNamePlaceholder": {
+    "description": "Placeholder of the field naming the next snapshot; blank, the snapshot is named by where it is taken."
+  },
   "snapshotsDelete": "Delete",
   "snapshotsDeleteTitle": "Delete snapshot “{name}”?",
   "snapshotsDeleteMessage": "Its files can no longer be restored.",
@@ -2387,11 +2409,19 @@
   },
   "branchPickerSearch": "Search Branches",
   "branchPickerList": "Branches",
-  "branchPickerRemote": "Remote",
+  "branchPickerRemote": "Remote Branches",
   "@branchPickerRemote": {
     "description": "The heading of the remote branches in the branch picker."
   },
   "branchPickerNone": "No matching branches",
+  "branchPickerCreate": "Create Branch {name}…",
+  "@branchPickerCreate": {
+    "description": "A row of the branch picker when no branch matches what was typed: makes a branch of that name."
+  },
+  "branchPickerRetry": "Retry",
+  "@branchPickerRetry": {
+    "description": "Button beside the message of a fetch that failed in the branch picker."
+  },
   "branchPickerFetching": "Fetching",
   "@branchPickerFetching": {
     "description": "What assistive technology calls the spinner in the branch picker while it fetches the remotes."
@@ -2446,6 +2476,22 @@
   "paletteGoTo": "Go to {repository}",
   "@paletteGoTo": {
     "description": "Shows the tab of an open repository."
+  },
+  "paletteSwitchTo": "Switch to {name}",
+  "@paletteSwitchTo": {
+    "description": "A palette command: switches to the local branch name."
+  },
+  "paletteShowWorktrees": "Show Worktrees",
+  "@paletteShowWorktrees": {
+    "description": "A palette command: opens the page listing the worktrees."
+  },
+  "paletteNewWorktree": "New Worktree…",
+  "@paletteNewWorktree": {
+    "description": "A palette command and a sidebar item: makes a worktree of a new branch."
+  },
+  "paletteStashPop": "Pop Latest Stash",
+  "@paletteStashPop": {
+    "description": "A palette command: applies the newest stash and drops it."
   },
   "paletteOpenGroup": "Open Group {name}",
   "paletteOpenRecent": "Open {name} ({path})",

@@ -61,6 +61,12 @@ const (
 	iconLarge  = 16
 )
 
+// statusLetterW is the width of a file's status letter, M or A, in a list.
+const statusLetterW = spaceXL
+
+// treeIndent is the indent of each level of a tree or a list of folders.
+const treeIndent = spaceXL
+
 // Corner radii beside the theme's Radius, which controls and rows take:
 // a small label's, as a ref's, and a panel's that holds controls.
 const (

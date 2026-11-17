@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -36,7 +35,10 @@ type refsState struct {
 	// closedGen counts folders opened and closed, for the rows key.
 	closedGen int
 	rows      []refRow
-	rowsFor   rowsKey
+	// hasFolders says some row of rows is a folder, so that the names
+	// are indented past the arrows.
+	hasFolders bool
+	rowsFor    rowsKey
 	// rowsAsked is the key of rows being grouped off the main thread.
 	rowsAsked rowsKey
 	list      tableState
@@ -242,6 +244,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					return
 				}
 				rs.rows, rs.rowsFor = rows, key
+				rs.hasFolders = slices.ContainsFunc(rows, func(r refRow) bool { return r.idx < 0 })
 				rs.chosen = -1
 				for i, r := range rows {
 					name := closedPrefix(key.kind) + r.folder
@@ -306,8 +309,8 @@ func (a *App) refList(c *ui.Context, t *tab) {
 		{Title: locales.ColumnName(), ID: "name", Width: nameColumn, MinWidth: 120},
 		{Title: locales.ColumnUpstream(), ID: "upstream", Width: 190, MinWidth: 60},
 		{Title: locales.ColumnLastCommit(), ID: "subject", MinWidth: 80},
-		// As wide as the Switch button the chosen branch shows here.
-		{Title: locales.ColumnDate(), ID: "date", Width: 100, MinWidth: 80},
+		// Wide enough for the Switch button, and for "57 minutes ago".
+		dateColumn(),
 	}
 	if rs.kind == refsTags {
 		table, cols = "tags", []ui.TableColumn{
@@ -325,13 +328,13 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				return
 			}
 			ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Width(float32(r.depth) * 16)
+				ui.Box(c).Width(float32(r.depth) * treeIndent)
 				fk := prefix + r.folder
-				arrow := "▾"
+				arrow := pickIcons().chevron
 				if rs.closed[fk] && rs.filter == "" {
-					arrow = "▸"
+					arrow = wtIcons().right
 				}
-				if ui.Text(c, arrow).Width(12).TextColor(k.Muted).RowClicked() {
+				if ui.Icon(c, arrow).FontSize(iconSmall).TextColor(k.Muted).Width(iconMedium).Label(locales.RefsFolderToggle(openState(!rs.closed[fk] || rs.filter != ""))).RowClicked() {
 					act = func() { rs.closed[fk] = !rs.closed[fk]; rs.closedGen++ }
 				}
 				ui.Text(c, redact.Control(r.label)+"/").SingleLine().Grow(1)
@@ -350,7 +353,12 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				full = strings.TrimPrefix(info.Tags[r.idx].Name, "refs/tags/")
 			}
 			ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Width(float32(r.depth)*16 + 20)
+				indent := float32(r.depth) * treeIndent
+				if rs.hasFolders {
+					// Room for the arrow, which the folders' rows have.
+					indent += iconMedium + spaceM
+				}
+				ui.Box(c).Width(indent)
 				name := ui.Text(c, redact.Control(r.label)).SingleLine().TruncateMiddle().Grow(1).Tooltip(redact.Control(full))
 				if rs.kind == refsBranches && !head.Detached && b.Name == head.Target {
 					name.Bold()
@@ -374,12 +382,21 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			b := info.Branches[r.idx]
 			switch col {
 			case 1:
-				tr := ui.Text(c, tracking(b)).FontSize(textSmall).SingleLine()
-				if b.Gone {
-					tr.TextColor(k.Warning)
-				} else {
-					tr.TextColor(k.Muted)
-				}
+				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
+					tr := ui.Text(c, tracking(b)).FontSize(textSmall).SingleLine().TruncateMiddle().Shrink(1)
+					if b.Gone {
+						tr.TextColor(k.Warning)
+					} else {
+						tr.TextColor(k.Muted)
+					}
+					// The counts apart from the name, each in its colour.
+					if b.Ahead > 0 && !b.Gone {
+						ui.Text(c, locales.RepoPickerAhead(b.Ahead)).FontSize(textSmall).TextColor(k.Accent).SingleLine().Description(locales.RepoPickerAheadLabel(b.Ahead))
+					}
+					if b.Behind > 0 && !b.Gone {
+						ui.Text(c, locales.RepoPickerBehind(b.Behind)).FontSize(textSmall).TextColor(k.Warning).SingleLine().Description(locales.RepoPickerBehindLabel(b.Behind))
+					}
+				})
 			case 2:
 				ui.Text(c, redact.Control(b.Subject)).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 			case 3:
@@ -479,14 +496,7 @@ func (a *App) sidebarRefMenu(it ui.Element, t *tab, name string) {
 	if strings.HasPrefix(name, "refs/remotes/") {
 		it.ContextMenu(func(m *ui.Menu) {
 			var act func()
-			ro := t.s.Queue == nil
-			if m.Item(locales.RefsCheckOut()).Disabled(ro || strings.HasSuffix(name, "/HEAD")).Chosen() {
-				act = func() { a.checkOutRemote(t, name) }
-			}
-			if m.Item(locales.RefsNewWorktree()).Disabled(ro).Chosen() {
-				act = func() { a.openAddWorktree(t, name) }
-			}
-			a.historyRefItems(m, t, name, &act)
+			a.remoteBranchMenu(m, t, name, &act)
 			if act != nil {
 				act()
 			}
@@ -496,19 +506,9 @@ func (a *App) sidebarRefMenu(it ui.Element, t *tab, name string) {
 	if !strings.HasPrefix(name, "refs/heads/") && !strings.HasPrefix(name, "refs/tags/") {
 		return
 	}
-	a.loadRefs(t)
 	rs := &t.refs
-	if rs.info == nil {
+	if !a.refIndex(t) {
 		return
-	}
-	if rs.byNameFor != rs.info {
-		rs.byNameFor, rs.byName = rs.info, map[string]int{}
-		for i, b := range rs.info.Branches {
-			rs.byName[b.Name] = i
-		}
-		for i, tg := range rs.info.Tags {
-			rs.byName[tg.Name] = i
-		}
 	}
 	i, ok := rs.byName[name]
 	if !ok {
@@ -526,6 +526,99 @@ func (a *App) sidebarRefMenu(it ui.Element, t *tab, name string) {
 			act()
 		}
 	})
+}
+
+// remoteBranchMenu is what can be done with a remote branch, name a full
+// ref name: as much as a local branch allows, and deleting it where it
+// lives.
+func (a *App) remoteBranchMenu(m *ui.Menu, t *tab, name string, act *func()) {
+	ro := t.s.Queue == nil
+	head := t.s.State.Head
+	short := strings.TrimPrefix(name, "refs/remotes/")
+	remote, branch, _ := strings.Cut(short, "/")
+	var tip []byte
+	if l := t.s.State.Refs; l != nil {
+		for i := range l.Len() {
+			if l.Name(i) == name {
+				tip = l.OID(i)
+				break
+			}
+		}
+	}
+	commit := hex.EncodeToString(tip)
+	isHead := strings.HasSuffix(name, "/HEAD")
+	if m.Item(locales.RefsSwitch()).Disabled(ro || isHead).Chosen() {
+		*act = func() { a.checkOutRemote(t, name) }
+	}
+	if m.Item(locales.RefsNewWorktree()).Disabled(ro).Chosen() {
+		*act = func() { a.openAddWorktree(t, name) }
+	}
+	into := "HEAD"
+	if !head.Detached {
+		into = strings.TrimPrefix(head.Target, "refs/heads/")
+	}
+	if m.Item(locales.RefsMergeInto(redact.Control(into))).Disabled(ro || isHead).Chosen() {
+		*act = func() { a.openMerge(t, name) }
+	}
+	if m.Item(locales.RefsCompareWith(redact.Control(into))).Disabled(len(head.OID) == 0 || len(tip) == 0).Chosen() {
+		*act = func() { a.compareBranches(t, head.OID, tip, into, short, 0) }
+	}
+	m.Separator()
+	if m.Item(locales.CommitCreateBranchHere()).Disabled(ro || len(tip) == 0).Chosen() {
+		*act = func() { a.branchUI = branchDialog{open: true, t: t, commit: commit, from: name, checkout: true} }
+	}
+	if m.Item(locales.RefsCreateTagHere()).Disabled(ro || len(tip) == 0).Chosen() {
+		*act = func() { a.tagDialog(t, commit) }
+	}
+	m.Separator()
+	if m.Item(locales.RefsDeleteOnRemote(redact.Control(remote))).Disabled(ro || isHead || branch == "").Danger().Chosen() {
+		*act = func() {
+			a.confirm = confirmState{open: true, title: locales.RefsDeleteRemoteBranchTitle(redact.Control(branch), redact.Control(remote)),
+				message: locales.RefsDeleteRemoteBranchMessage(), button: locales.CommonDelete(),
+				run: func() {
+					op, err := write.DeleteRemoteBranch(t.s.Where(), remote, branch)
+					a.submit(t, op, err)
+				}}
+		}
+	}
+	if m.Item(locales.RefsCopyName()).Chosen() {
+		a.clip = short
+	}
+	a.historyRefItems(m, t, name, act)
+}
+
+// refIndex reads the refs when they are not and indexes the branches and
+// tags by full name in refsState.byName; it reports whether they are
+// read.
+func (a *App) refIndex(t *tab) bool {
+	a.loadRefs(t)
+	rs := &t.refs
+	if rs.info == nil {
+		return false
+	}
+	if rs.byNameFor != rs.info {
+		rs.byNameFor, rs.byName = rs.info, map[string]int{}
+		for i, b := range rs.info.Branches {
+			rs.byName[b.Name] = i
+		}
+		for i, tg := range rs.info.Tags {
+			rs.byName[tg.Name] = i
+		}
+	}
+	return true
+}
+
+// sidebarSwitch switches to the branch a double click chose in the
+// sidebar, as a double click does in the branches view.
+func (a *App) sidebarSwitch(t *tab, name string) {
+	switch {
+	case strings.HasPrefix(name, "refs/remotes/"):
+		if !strings.HasSuffix(name, "/HEAD") {
+			a.checkOutRemote(t, name)
+		}
+	case strings.HasPrefix(name, "refs/heads/"):
+		a.switchTo(t, name)
+	}
 }
 
 func fullRef(info *session.RefInfo, kind, idx int) string {
@@ -551,20 +644,10 @@ func tracking(b session.BranchInfo) string {
 		return ""
 	}
 	up := strings.TrimPrefix(b.Upstream, "refs/remotes/")
-	switch {
-	case b.Gone:
+	if b.Gone {
 		return locales.RefsUpstreamGone(up)
-	case b.Ahead == 0 && b.Behind == 0:
-		return up
 	}
-	s := up
-	if b.Ahead > 0 {
-		s += " ↑" + strconv.Itoa(b.Ahead)
-	}
-	if b.Behind > 0 {
-		s += " ↓" + strconv.Itoa(b.Behind)
-	}
-	return s
+	return up
 }
 
 // branchMenu is what can be done with a local branch.

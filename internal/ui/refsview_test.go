@@ -24,7 +24,7 @@ func TestRefsView(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("the repository", h.shows("No changes"))
 	h.click("Branches and Tags")
-	h.until("the branches", h.shows("origin/main ↑1"))
+	h.until("the branches", h.shows("ahead of origin"))
 	tb := h.app.current()
 	if !hasExact(h, "alpha") || !hasExact(h, "feature/") {
 		t.Fatalf("not grouped: %q", h.tt.Texts())
