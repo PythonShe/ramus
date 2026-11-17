@@ -23,6 +23,11 @@ func (a *App) avatar(c *ui.Context, t *tab, name, email string, size float32) ui
 	h := fnv.New32a()
 	h.Write([]byte(strings.ToLower(strings.TrimSpace(email))))
 	box.Background(hsl(float64(h.Sum32()%360), 0.45, 0.55)).TextColor(ui.RGB(255, 255, 255))
+	if size < avatarSmall {
+		// Letters this small are a smudge; the color still tells people
+		// apart, and the name sits beside it.
+		return box
+	}
 	return box.Children(func() {
 		// The circle names the person; its letters would say less.
 		ui.Text(c, initials(name)).FontWeight(600).FontSize(size * 0.42).SingleLine().Role(ui.RoleNone)
