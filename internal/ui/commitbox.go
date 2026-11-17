@@ -558,7 +558,9 @@ func (a *App) startCommit(t *tab, r commitRun) {
 			title:   locales.CommitBoxLineEndsTitle(len(le.Findings)),
 			message: lineEndMessage(le),
 			button:  locales.CommitBoxCommitAnyway(),
-			run:     func() { a.commit(t, r) },
+			// Committing loses nothing: no Danger color.
+			safe: true,
+			run:  func() { a.commit(t, r) },
 		}
 		cs.busy = false
 	})
