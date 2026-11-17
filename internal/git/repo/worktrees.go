@@ -58,7 +58,9 @@ func parseWorktrees(out []byte) []Worktree {
 		}
 		key, val, _ := strings.Cut(string(f), " ")
 		if key == "worktree" {
-			wts = append(wts, Worktree{Path: val})
+			// Git for Windows writes the path with slashes; the app
+			// compares it with the paths of its tabs, which are native.
+			wts = append(wts, Worktree{Path: filepath.FromSlash(val)})
 			cur = &wts[len(wts)-1]
 			continue
 		}

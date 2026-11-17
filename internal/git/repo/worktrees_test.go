@@ -35,6 +35,11 @@ func TestWorktreesAndSubmodules(t *testing.T) {
 		!wts[2].Detached || !wts[2].Locked || wts[2].LockReason != "on a stick" || wts[2].Head == "" {
 		t.Fatalf("worktrees %+v", wts)
 	}
+	for _, w := range wts {
+		if w.Path != filepath.FromSlash(w.Path) {
+			t.Errorf("worktree path %q is not native", w.Path)
+		}
+	}
 	subs, err := rp.Submodules(context.Background())
 	if err != nil {
 		t.Fatal(err)
