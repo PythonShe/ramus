@@ -94,6 +94,10 @@ const (
 	// StashStaged is stash push --staged, which stashes what is staged
 	// alone, as hunks picked by staging them. Fallback: not offered.
 	StashStaged
+	// AddSparse is add --sparse, which adds paths outside a sparse
+	// checkout's cone, where git add otherwise refuses. Fallback: a
+	// snapshot of a sparse checkout with files outside it fails.
+	AddSparse
 	numFeatures
 )
 
@@ -113,6 +117,7 @@ var since = [numFeatures]struct {
 	FSMonitorLinux:     {"fsmonitor on Linux", 2, 55, 0},
 	UpdateRefs:         {"rebase --update-refs", 2, 38, 0},
 	StashStaged:        {"stash push --staged", 2, 35, 0},
+	AddSparse:          {"add --sparse", 2, 34, 0},
 }
 
 // Has reports whether git v has feature f.

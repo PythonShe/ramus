@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ramus/internal/git/catfile"
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/refs"
@@ -371,5 +372,26 @@ func TestRacyFile(t *testing.T) {
 func TestListWithoutRefReader(t *testing.T) {
 	if list, err := List(nil, nil); list != nil || err != nil {
 		t.Fatalf("%v %v", list, err)
+	}
+}
+
+// A sparse checkout with files outside its cone, untracked or ignored,
+// is kept all the same: git add refuses them without --sparse.
+func TestSparseCheckout(t *testing.T) {
+	f := setup(t)
+	if g := f.run.Git(); g == nil || !g.Version.Has(gitexe.AddSparse) {
+		t.Skip("git before add --sparse")
+	}
+	f.r.Write(".gitignore", ".idea/workspace.xml\n")
+	f.r.Write("src/a", "a")
+	f.r.Write("docs/b", "b")
+	f.r.Commit("one")
+	f.r.Git("sparse-checkout", "set", "--cone", "src")
+	f.r.Write("other/new", "n")
+	f.r.Write(".idea/workspace.xml", "x")
+	f.take(Options{Reason: "Snapshot now"})
+	s := f.take(Options{Reason: "Snapshot now", Ignored: true})
+	if out := f.r.Git("show", s.Commit+":.idea/workspace.xml"); out != "x" {
+		t.Fatalf("the ignored file: %q", out)
 	}
 }

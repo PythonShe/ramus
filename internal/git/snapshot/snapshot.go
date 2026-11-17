@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"ramus/internal/git/catfile"
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/object"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
@@ -187,6 +188,12 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	add := []string{"add", "-A"}
 	if opts.Ignored {
 		add = append(add, "-f")
+	}
+	if g := r.Git(); g != nil && g.Version.Has(gitexe.AddSparse) {
+		// In a sparse checkout, git add refuses a file outside the cone,
+		// untracked or ignored, which would fail the snapshot and the
+		// write it keeps from.
+		add = append(add, "--sparse")
 	}
 	var spec []byte
 	if !s.All {
