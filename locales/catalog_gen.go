@@ -607,6 +607,22 @@ func (msgs Messages) RefsSwitchTo(name string) string {
 	return Catalog.Format(msgs.locale, "refsSwitchTo", map[string]any{"name": name})
 }
 
+// RefsActionsFor says "Actions for {name}"
+// in the language the app shows.
+//
+// The … button on the chosen branch's or tag's row, or a remote's: opens
+// the menu its right-click opens.
+func RefsActionsFor(name string) string { return In(i18n.Locale()).RefsActionsFor(name) }
+
+// RefsActionsFor says "Actions for {name}"
+// in the language of msgs.
+//
+// The … button on the chosen branch's or tag's row, or a remote's: opens
+// the menu its right-click opens.
+func (msgs Messages) RefsActionsFor(name string) string {
+	return Catalog.Format(msgs.locale, "refsActionsFor", map[string]any{"name": name})
+}
+
 // RefsNewWorktree says "New Worktree…"
 // in the language the app shows.
 func RefsNewWorktree() string { return In(i18n.Locale()).RefsNewWorktree() }

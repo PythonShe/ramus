@@ -105,6 +105,10 @@
     "description": "A verb: switches to a branch, or to a remote branch as a local one; also the button on a branch's row that does."
   },
   "refsSwitchTo": "Switch to {name}",
+  "refsActionsFor": "Actions for {name}",
+  "@refsActionsFor": {
+    "description": "The … button on the chosen branch's or tag's row, or a remote's: opens the menu its right-click opens."
+  },
   "@refsCheckOut": {
     "description": "A verb: checks out a branch, tag or submodule."
   },

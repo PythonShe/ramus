@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -144,6 +145,50 @@ func TestRefsSwitchButton(t *testing.T) {
 	h.click("other")
 	h.click("Switch to other")
 	h.until("on other", func() bool { return tb.s.State.Head.Target == "refs/heads/other" })
+}
+
+// The chosen branch's or tag's row, and every remote's, has a button
+// opening the menu its right-click opens.
+func TestRefsRowMenuButton(t *testing.T) {
+	h := newHarness(t)
+	up := h.repoWith()
+	r := h.repoWith()
+	r.Git("branch", "other")
+	r.Git("tag", "v1")
+	r.Git("remote", "add", "origin", up.Dir)
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	h.click("Branches and Tags")
+	h.app.setSidebar(false)
+	h.until("the branches", func() bool { return hasExact(h, "other") })
+	if _, ok := h.tt.Access("Actions for other"); ok {
+		t.Fatal("a button on a row not chosen")
+	}
+	h.click("other")
+	h.click("Actions for other")
+	if err := h.tt.ChooseMenuItem("Rename…"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the rename dialog", h.shows("Rename other"))
+	h.click("Cancel")
+
+	h.click("Tags")
+	h.until("the tag", func() bool { return hasExact(h, "v1") })
+	h.click("v1")
+	h.click("Actions for v1")
+	if menu := h.tt.Menu(); !slices.Contains(menu, "Copy Name") {
+		t.Fatalf("the tag's menu %q", menu)
+	}
+	h.tt.CloseMenu()
+
+	h.click("Remotes")
+	h.until("the remote", h.shows(up.Dir))
+	h.click("Actions for origin")
+	if err := h.tt.ChooseMenuItem("Remove…"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the question", h.shows("Remove remote origin?"))
 }
 
 // A branch is made from the Branches toolbar, from the branch checked

@@ -399,14 +399,23 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				// small text of the column it is lower than the row's name in
 				// any font, as a font a little taller grows the row. One
 				// checked out in another worktree cannot be switched to.
+				// Beside it, the button of the row's menu.
 				current := !head.Detached && b.Name == head.Target
-				if !current && b.Worktree == "" && t.s.Queue != nil && rs.chosen == i {
-					if ui.Button(c, locales.RefsSwitch()).Label(locales.RefsSwitchTo(redact.Control(r.label))).FontSize(textSmall).Padding(0, spaceM).Clicked() {
-						act = func() { a.checkOut(t, b) }
-					}
+				if rs.chosen != i {
+					ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 					return
 				}
-				ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine()
+				ui.Row(c).Grow(1).Gap(spaceXS).AlignItems(ui.Center).Children(func() {
+					if !current && b.Worktree == "" && t.s.Queue != nil {
+						if ui.Button(c, locales.RefsSwitch()).Label(locales.RefsSwitchTo(redact.Control(r.label))).FontSize(textSmall).Padding(0, spaceM).Clicked() {
+							act = func() { a.checkOut(t, b) }
+						}
+						ui.Spacer(c)
+					} else {
+						ui.Text(c, ago(now, time.Unix(b.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Shrink(1).Grow(1)
+					}
+					rowMenuButton(c, k, locales.RefsActionsFor(redact.Control(r.label)), func(m *ui.Menu) { a.branchMenu(m, t, b, &act) })
+				})
 			}
 			return
 		}
@@ -428,7 +437,14 @@ func (a *App) refList(c *ui.Context, t *tab) {
 				ui.Text(c, redact.Control(tg.Subject)).FontSize(textSmall).TextColor(k.Muted).SingleLine()
 			}
 		case 3:
-			ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine()
+			if rs.chosen != i {
+				ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine()
+				return
+			}
+			ui.Row(c).Grow(1).Gap(spaceXS).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, ago(now, time.Unix(tg.Time, 0))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Shrink(1).Grow(1)
+				rowMenuButton(c, k, locales.RefsActionsFor(redact.Control(r.label)), func(m *ui.Menu) { a.tagMenu(m, t, tg, &act) })
+			})
 		}
 	}).Label(locales.RefsListLabel()).Grow(1)
 	// Right and Left open and close a folder, as a tree's.
@@ -461,6 +477,19 @@ func (a *App) refList(c *ui.Context, t *tab) {
 	if act != nil {
 		act()
 	}
+}
+
+// rowMenuButton is the … at the end of a row that opens the menu its
+// right-click does, named label, in the row's ink k: a menu found only by
+// a right-click is one many never find.
+func rowMenuButton(c *ui.Context, k ink, label string, build func(m *ui.Menu)) {
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(radiusSmall).Padding(0, spaceXS).Shrink(0)
+	if b.Hovered() {
+		// A wash of the ink shows on the row's colour, chosen or not.
+		b.Background(k.Muted.Alpha(0.15))
+	}
+	b.Children(func() { ui.Icon(c, glyphs().more).FontSize(iconMedium).TextColor(k.Muted) })
+	b.Menu(build)
 }
 
 // verifyTag asks git about a tag's signature, shown in its row in place
@@ -1019,16 +1048,7 @@ func (a *App) remoteList(c *ui.Context, t *tab) {
 	ui.Column(c).Grow(1).Children(func() {
 		for _, r := range remotes {
 			row := ui.Row(c.Key(r.Name)).Padding(barPadY, insetX).Gap(spaceL).AlignItems(ui.Center).FillWidth()
-			row.Children(func() {
-				ui.Text(c, redact.Control(r.Name)).Bold().Width(160).SingleLine()
-				ui.Column(c).Grow(1).Children(func() {
-					ui.Text(c, redact.Shown(r.URL)).FontSize(textSmall).SingleLine().Selectable()
-					if r.PushURL != "" && r.PushURL != r.URL {
-						ui.Text(c, locales.RefsPushURL(redact.Shown(r.PushURL))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
-					}
-				})
-			})
-			row.ContextMenu(func(m *ui.Menu) {
+			menu := func(m *ui.Menu) {
 				if m.Item(locales.RefsFetch()).Disabled(ro).Chosen() {
 					act = func() {
 						op, err := write.Fetch(w, r.Name, rs.prune)
@@ -1068,7 +1088,20 @@ func (a *App) remoteList(c *ui.Context, t *tab) {
 							}}
 					}
 				}
+			}
+			row.Children(func() {
+				ui.Text(c, redact.Control(r.Name)).Bold().Width(160).SingleLine()
+				ui.Column(c).Grow(1).Children(func() {
+					ui.Text(c, redact.Shown(r.URL)).FontSize(textSmall).SingleLine().Selectable()
+					if r.PushURL != "" && r.PushURL != r.URL {
+						ui.Text(c, locales.RefsPushURL(redact.Shown(r.PushURL))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Selectable()
+					}
+				})
+				// The menu by a button too: the rows are few, and none is
+				// chosen to show it on.
+				rowMenuButton(c, plainInk(th), locales.RefsActionsFor(redact.Control(r.Name)), menu)
 			})
+			row.ContextMenu(menu)
 		}
 	})
 	if act != nil {
