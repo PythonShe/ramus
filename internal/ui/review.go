@@ -288,11 +288,11 @@ func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro b
 			*act = func() {
 				switch {
 				case st.Kind(e) == status.Untracked:
-					a.askDiscardPaths(t, &rv.confirm, nil, []string{path}, nil)
+					a.askDiscardPaths(t, &rv.confirm, discardSet{untracked: []string{path}})
 				case intentToAdd(st, e):
-					a.askDiscardPaths(t, &rv.confirm, nil, nil, []string{path})
+					a.askDiscardPaths(t, &rv.confirm, discardSet{intent: []string{path}})
 				default:
-					a.askDiscardPaths(t, &rv.confirm, []string{path}, nil, nil)
+					a.askDiscardPaths(t, &rv.confirm, discardSet{tracked: []string{path}})
 				}
 			}
 		}

@@ -299,14 +299,34 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 			changesModes(c, cv)
 			ro := t.s.Queue == nil
 			ui.PopoverMenuButton(c, locales.ChangesMore(), func(m *ui.Menu) {
-				if m.Item(locales.ChangesStashChanges()).Disabled(ro).Chosen() {
+				// What there is to act on, the filter aside.
+				st := t.s.State.Status
+				var staged, unstaged []int32
+				if st != nil {
+					for i := range st.Len() {
+						if inSection(st, i, secStaged) {
+							staged = append(staged, int32(i))
+						}
+						if inSection(st, i, secUnstaged) {
+							unstaged = append(unstaged, int32(i))
+						}
+					}
+				}
+				changed := len(staged) > 0 || len(unstaged) > 0
+				if m.Item(locales.ChangesStashChanges()).Disabled(ro || !changed).Chosen() {
 					a.openStash(t)
 				}
+				// Clean stays: it may delete ignored files, which status
+				// does not list.
 				if m.Item(locales.ChangesCleanUntracked()).Disabled(ro).Chosen() {
 					a.openClean(t)
 				}
 				if m.Item(locales.ChangesApplyPatchFile()).Disabled(ro || a.PickFile == nil).Chosen() {
 					a.applyPatchFile(t)
+				}
+				m.Separator()
+				if m.Item(locales.ChangesDiscardAll()).Disabled(ro || !changed).Danger().Chosen() {
+					a.askDiscard(t, st, unstaged, staged)
 				}
 			})
 		})
@@ -353,9 +373,9 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		// Delete asks to discard what is chosen, as the menu's Discard
 		// does, with its snapshot to undo it.
 		if (cv.list.Shortcut(c, 0, ui.KeyDelete) || cv.list.Shortcut(c, 0, ui.KeyBackspace)) && cv.chosen >= 0 && cv.chosen < len(rows) && t.s.Queue != nil {
-			if r := rows[cv.chosen]; r.kind != rowHeader && r.sec == secUnstaged {
+			if r := rows[cv.chosen]; r.kind != rowHeader && r.sec != secConflicts {
 				es := m.entries(cv.chosenRows(m, r))
-				act = func() { a.askDiscard(t, m, es) }
+				act = func() { a.discardIn(t, m.st, r.sec, es) }
 			}
 		}
 		if act != nil {
@@ -652,12 +672,15 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 		if menu.Item(locales.ChangesUnstageFiles(n)).Disabled(ro || n == 0).Chosen() {
 			*act = func() { a.stageEntries(t, m, r.sec, es) }
 		}
+		if menu.Item(locales.ChangesDiscardFiles(n)).Disabled(ro || n == 0).Danger().Chosen() {
+			*act = func() { a.discardIn(t, m.st, r.sec, es) }
+		}
 	case secUnstaged:
 		if menu.Item(locales.ChangesStageFiles(n)).Disabled(ro || n == 0).Chosen() {
 			*act = func() { a.stageEntries(t, m, r.sec, es) }
 		}
 		if menu.Item(locales.ChangesDiscardFiles(n)).Disabled(ro || n == 0).Danger().Chosen() {
-			*act = func() { a.askDiscard(t, m, es) }
+			*act = func() { a.discardIn(t, m.st, r.sec, es) }
 		}
 	case secConflicts:
 		a.conflictMenu(menu, t, m, es, act)
@@ -746,24 +769,72 @@ func (a *App) ignore(t *tab, pattern string) {
 	}
 }
 
+// discardIn asks before discarding the changes of entries es of st
+// listed in sec.
+func (a *App) discardIn(t *tab, st *status.Status, sec section, es []int32) {
+	if sec == secStaged {
+		a.askDiscard(t, st, nil, es)
+		return
+	}
+	a.askDiscard(t, st, es, nil)
+}
+
 // askDiscard asks before discarding changes to tracked entries and
-// deleting untracked ones. What the user is shown is what the write
-// expects to find: HEAD and the files as they are now, read off the main
-// thread.
-func (a *App) askDiscard(t *tab, m *changeModel, es []int32) {
-	var tracked, untracked, intent []string
-	for _, e := range es {
-		p := string(m.st.Path(int(e)))
+// deleting untracked ones: those of st listed as unstaged, and those
+// staged, which are unstaged first. What the user is shown is what the
+// write expects to find: HEAD and the files as they are now, read off
+// the main thread.
+func (a *App) askDiscard(t *tab, st *status.Status, unstaged, staged []int32) {
+	var d discardSet
+	unborn := len(t.s.State.Head.OID) == 0
+	// A file staged as new is untracked once unstaged, to be deleted,
+	// not put back, whatever its unstaged change.
+	gone := map[string]bool{}
+	for _, e := range staged {
+		p := string(st.Path(int(e)))
+		x, _ := st.XY(int(e))
+		d.unstage = append(d.unstage, p)
 		switch {
-		case m.st.Kind(int(e)) == status.Untracked:
-			untracked = append(untracked, p)
-		case intentToAdd(m.st, int(e)):
-			intent = append(intent, p)
+		case unborn || x == 'A' || x == 'C':
+			d.untracked = append(d.untracked, p)
+			gone[p] = true
+		case x == 'R':
+			orig := string(st.OrigPath(int(e)))
+			d.unstage = append(d.unstage, orig)
+			d.untracked = append(d.untracked, p)
+			d.tracked = append(d.tracked, orig)
+			gone[p] = true
 		default:
-			tracked = append(tracked, p)
+			d.tracked = append(d.tracked, p)
 		}
 	}
-	a.askDiscardPaths(t, &t.cv.confirm, tracked, untracked, intent)
+	seen := map[string]bool{}
+	for _, p := range d.tracked {
+		seen[p] = true
+	}
+	for _, e := range unstaged {
+		p := string(st.Path(int(e)))
+		switch {
+		case gone[p] || seen[p]:
+		case st.Kind(int(e)) == status.Untracked:
+			d.untracked = append(d.untracked, p)
+		case intentToAdd(st, int(e)):
+			d.intent = append(d.intent, p)
+		default:
+			d.tracked = append(d.tracked, p)
+		}
+		seen[p] = true
+	}
+	a.askDiscardPaths(t, &t.cv.confirm, d)
+}
+
+// discardSet is what a discard does: unstage puts paths in the index
+// back as HEAD has them, first; then the changes to tracked are
+// discarded and untracked deleted. intent are files added with intent to
+// add, whose whole content is their change: the intent is taken back
+// and the file left as it is, untracked.
+type discardSet struct {
+	tracked, untracked, intent, unstage []string
 }
 
 // intentToAdd reports whether entry i is a file added with intent to add
@@ -774,11 +845,19 @@ func intentToAdd(st *status.Status, i int) bool {
 	return st.Kind(i) == status.Changed && x == '.' && y == 'A'
 }
 
-// askDiscardPaths is askDiscard of paths, asking in confirm. intent are
-// files added with intent to add, whose whole content is their change:
-// the intent is taken back and the file left as it is, untracked.
-func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked, intent []string) {
+// askDiscardPaths is askDiscard of the paths of d, asking in confirm.
+func (a *App) askDiscardPaths(t *tab, confirm *confirmState, d discardSet) {
+	tracked, untracked, intent := d.tracked, d.untracked, d.intent
+	unstage := slices.Concat(intent, d.unstage)
+	// Files staged as new count as changed in what the user reads: they
+	// are deleted as untracked, but the user knows them as changes.
 	n := len(tracked) + len(untracked) + len(intent)
+	news := 0
+	for _, p := range untracked {
+		if slices.Contains(d.unstage, p) {
+			news++
+		}
+	}
 	w := t.s.Where()
 	head := t.s.State.Head
 	update := a.Update
@@ -803,13 +882,14 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked,
 				return x
 			}
 			names := nameList(slices.Concat(tracked, intent, untracked))
-			changed := len(tracked) + len(intent)
-			message := locales.ChangesDiscardBoth(changed, len(untracked), names)
+			changed := len(tracked) + len(intent) + news
+			others := len(untracked) - news
+			message := locales.ChangesDiscardBoth(changed, others, names)
 			switch {
-			case len(untracked) == 0:
+			case others == 0:
 				message = locales.ChangesDiscardTracked(changed, names)
 			case changed == 0:
-				message = locales.ChangesDiscardUntracked(len(untracked), names)
+				message = locales.ChangesDiscardUntracked(others, names)
 			}
 			*confirm = confirmState{
 				open:    true,
@@ -818,11 +898,11 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, tracked, untracked,
 				button:  locales.ChangesDiscard(),
 				run: func() {
 					discard := func() { a.discardPaths(t, w, tracked, untracked, expect(trackedFiles), expect(untrackedFiles)) }
-					if len(intent) == 0 {
+					if len(unstage) == 0 {
 						discard()
 						return
 					}
-					j, err := t.s.Submit(write.Unstage(w, intent, len(head.OID) == 0))
+					j, err := t.s.Submit(write.Unstage(w, unstage, len(head.OID) == 0))
 					if err != nil {
 						a.notice = errText(err)
 						return

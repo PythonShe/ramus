@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // Discarding a file added with intent to add takes the intent back and
@@ -32,7 +34,7 @@ func TestDiscardIntentToAdd(t *testing.T) {
 		t.Fatal("ita.txt is not seen as added with intent to add")
 	}
 	logged := len(tb.s.Log)
-	h.app.askDiscardPaths(tb, &tb.cv.confirm, nil, nil, []string{"ita.txt"})
+	h.app.askDiscardPaths(tb, &tb.cv.confirm, discardSet{intent: []string{"ita.txt"}})
 	h.until("the question", h.shows("Discard 1 file?"))
 	h.click("Discard")
 	h.until("the write", func() bool { return len(tb.s.Log) > logged && !tb.s.Log[len(tb.s.Log)-1].Running })
@@ -64,7 +66,7 @@ func TestDiscardTrackedAndUntracked(t *testing.T) {
 	tb := h.app.current()
 	logged := len(tb.s.Log)
 
-	h.app.askDiscardPaths(tb, &tb.cv.confirm, []string{"a.txt"}, []string{"new.txt"}, nil)
+	h.app.askDiscardPaths(tb, &tb.cv.confirm, discardSet{tracked: []string{"a.txt"}, untracked: []string{"new.txt"}})
 	h.until("the question", h.shows("Discard 2 files?"))
 	h.click("Discard")
 	h.until("both writes", func() bool {
@@ -88,5 +90,85 @@ func TestDiscardTrackedAndUntracked(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(r.Dir, "new.txt")); !os.IsNotExist(err) {
 		t.Errorf("new.txt is still there: %v", err)
+	}
+}
+
+// Discard All Changes takes the work tree and the index back to HEAD:
+// staged changes are unstaged and discarded, a file staged as new is
+// deleted, though changed again since, and untracked files deleted.
+func TestDiscardAllChanges(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "a\n")
+	r.Write("b.txt", "b\n")
+	r.Commit("a")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	r.Write("a.txt", "staged\n")
+	r.Git("add", "a.txt")
+	r.Write("a.txt", "staged and more\n")
+	r.Write("b.txt", "changed\n")
+	r.Write("added.txt", "new\n")
+	r.Git("add", "added.txt")
+	r.Write("added.txt", "new, changed\n")
+	r.Write("loose.txt", "x\n")
+	h.until("the changes", h.shows("loose.txt"))
+	if err := h.tt.Click("More"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("Discard All Changes…"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the question", h.shows("Discard 4 files?"))
+	h.click("Discard")
+	h.until("nothing changed", func() bool { return r.Git("--no-optional-locks", "status", "--porcelain") == "" })
+	for f, want := range map[string]string{"a.txt": "a\n", "b.txt": "b\n"} {
+		if b, _ := os.ReadFile(filepath.Join(r.Dir, f)); string(b) != want {
+			t.Errorf("%s is %q", f, b)
+		}
+	}
+}
+
+// In a clean tree the More menu offers nothing that needs a change.
+// Clean stays: it may delete ignored files, which status does not list.
+func TestMoreMenuWithNothingChanged(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "a\n")
+	r.Commit("a")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	for _, item := range []string{"Stash Changes…", "Discard All Changes…"} {
+		if err := h.tt.Click("More"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.tt.ChooseMenuItem(item); err == nil || !strings.Contains(err.Error(), "disabled") {
+			t.Errorf("%s: %v", item, err)
+		}
+		h.tt.Key(0, ui.KeyEscape)
+		h.tt.Frame()
+	}
+}
+
+// A staged file's menu discards its change, unstaging it first.
+func TestDiscardStagedFile(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "a\n")
+	r.Commit("a")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	r.Write("a.txt", "staged\n")
+	r.Git("add", "a.txt")
+	h.until("the change", h.shows("Staged (1)"))
+	h.menu("a.txt", "Discard Changes to File…")
+	h.until("the question", h.shows("Discard 1 file?"))
+	h.click("Discard")
+	h.until("nothing changed", func() bool { return r.Git("--no-optional-locks", "status", "--porcelain") == "" })
+	if b, _ := os.ReadFile(filepath.Join(r.Dir, "a.txt")); string(b) != "a\n" {
+		t.Errorf("a.txt is %q", b)
 	}
 }

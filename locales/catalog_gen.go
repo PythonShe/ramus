@@ -3869,6 +3869,20 @@ func (msgs Messages) ChangesApplyPatchFile() string {
 	return Catalog.Format(msgs.locale, "changesApplyPatchFile", nil)
 }
 
+// ChangesDiscardAll says "Discard All Changes…"
+// in the language the app shows.
+//
+// Menu item: discard every change, staged and not, after asking.
+func ChangesDiscardAll() string { return In(i18n.Locale()).ChangesDiscardAll() }
+
+// ChangesDiscardAll says "Discard All Changes…"
+// in the language of msgs.
+//
+// Menu item: discard every change, staged and not, after asking.
+func (msgs Messages) ChangesDiscardAll() string {
+	return Catalog.Format(msgs.locale, "changesDiscardAll", nil)
+}
+
 // ChangesNone says "No changes"
 // in the language the app shows.
 func ChangesNone() string { return In(i18n.Locale()).ChangesNone() }

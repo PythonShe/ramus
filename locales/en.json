@@ -725,6 +725,10 @@
   "changesStashChanges": "Stash Changes…",
   "changesCleanUntracked": "Clean Untracked Files…",
   "changesApplyPatchFile": "Apply Patch File…",
+  "changesDiscardAll": "Discard All Changes…",
+  "@changesDiscardAll": {
+    "description": "Menu item: discard every change, staged and not, after asking."
+  },
   "changesNone": "No changes",
   "changesNoneMatch": "No changed path holds “{filter}”",
   "@changesNoneMatch": {
