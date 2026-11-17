@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"ramus/internal/git/run"
@@ -39,27 +40,44 @@ func commitsName(verb string, commits []string) string {
 // commit. The branch is backed up first; a conflict leaves the
 // cherry-pick in progress.
 func CherryPick(w Where, commits []string, seen Seen) (Op, error) {
-	if err := checkCommits(commits); err != nil {
-		return Op{}, err
-	}
-	op := Op{Name: commitsName("Cherry-pick", commits), Undo: MovesHead, Expect: seen.expect(),
-		Cmd: w.cmd(append([]string{"cherry-pick", "--end-of-options"}, commits...)...)}
-	op.Cmd.Timeout = HookTimeout
-	if seen.Branch != "" {
-		op.Backup = []string{seen.Branch}
-	}
-	return op, nil
+	return pick(w, "Cherry-pick", []string{"cherry-pick"}, commits, 0, seen)
+}
+
+// CherryPickMerge applies merge commit (hex) onto HEAD as one new commit:
+// what it changed against its parent number mainline, 1 for the first.
+// git takes no merge without it.
+func CherryPickMerge(w Where, commit string, mainline int, seen Seen) (Op, error) {
+	return pick(w, "Cherry-pick", []string{"cherry-pick"}, []string{commit}, mainline, seen)
 }
 
 // Revert makes a commit undoing each of commits (hex, newest first), on
 // HEAD. The branch is backed up first; a conflict leaves the revert in
 // progress.
 func Revert(w Where, commits []string, seen Seen) (Op, error) {
+	return pick(w, "Revert", []string{"revert", "--no-edit"}, commits, 0, seen)
+}
+
+// RevertMerge makes a commit undoing merge commit (hex), on HEAD: what
+// it brought in, as against its parent number mainline, the side kept.
+func RevertMerge(w Where, commit string, mainline int, seen Seen) (Op, error) {
+	return pick(w, "Revert", []string{"revert", "--no-edit"}, []string{commit}, mainline, seen)
+}
+
+// pick runs args, git cherry-pick or revert, on commits; mainline, when
+// above 0, is the parent of the one merge commit that its change is
+// taken against.
+func pick(w Where, verb string, args, commits []string, mainline int, seen Seen) (Op, error) {
 	if err := checkCommits(commits); err != nil {
 		return Op{}, err
 	}
-	op := Op{Name: commitsName("Revert", commits), Undo: MovesHead, Expect: seen.expect(),
-		Cmd: w.cmd(append([]string{"revert", "--no-edit", "--end-of-options"}, commits...)...)}
+	if mainline < 0 || mainline > 0 && len(commits) != 1 {
+		return Op{}, fmt.Errorf("write: parent %d of %d commits", mainline, len(commits))
+	}
+	if mainline > 0 {
+		args = append(args, "--mainline", strconv.Itoa(mainline))
+	}
+	op := Op{Name: commitsName(verb, commits), Undo: MovesHead, Expect: seen.expect(),
+		Cmd: w.cmd(append(append(args, "--end-of-options"), commits...)...)}
 	op.Cmd.Timeout = HookTimeout
 	if seen.Branch != "" {
 		op.Backup = []string{seen.Branch}

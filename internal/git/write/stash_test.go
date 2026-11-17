@@ -113,6 +113,33 @@ func TestCherryPickRevertAndClean(t *testing.T) {
 		t.Fatal("not reverted")
 	}
 
+	// A merge reverts and cherry-picks against the parent named: git
+	// takes neither without one.
+	h.r.Git("switch", "-q", "-c", "side")
+	h.r.Write("s", "1")
+	h.r.Commit("s")
+	h.r.Git("switch", "-q", "main")
+	h.r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+	merge := h.rev("HEAD")
+	op, err = Revert(h.w, []string{merge}, h.seen())
+	h.do(op, err, false)
+	op, err = RevertMerge(h.w, merge, 1, h.seen())
+	h.do(op, err, true)
+	if _, err := os.Stat(filepath.Join(h.r.Dir, "s")); !os.IsNotExist(err) {
+		t.Fatal("the merge not reverted")
+	}
+	h.undo()
+	h.r.Git("switch", "-q", "-c", "other", "main~1")
+	op, err = CherryPickMerge(h.w, merge, 1, h.seen())
+	h.do(op, err, true)
+	if _, err := os.Stat(filepath.Join(h.r.Dir, "s")); err != nil {
+		t.Fatal("the merge not cherry-picked")
+	}
+	if _, err := RevertMerge(h.w, merge, -1, h.seen()); err == nil {
+		t.Fatal("a parent below 1 taken")
+	}
+	h.r.Git("switch", "-q", "main")
+
 	h.r.Write(".gitignore", "*.log\n")
 	h.r.Commit("ignore")
 	h.r.Write("junk/x", "1")
