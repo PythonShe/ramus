@@ -416,3 +416,31 @@ func TestRepositoryWithoutCommitLeftOut(t *testing.T) {
 		}
 	}
 }
+
+// A worktree's snapshot leaves its ignored folders out, one whose name
+// starts with a space too, and keeps its ignored files.
+func TestWorktreeLeavesIgnoredFoldersOut(t *testing.T) {
+	f := setup(t)
+	f.r.Write(".gitignore", " out/\n.env\n")
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	wt, _ := filepath.EvalSymlinks(t.TempDir())
+	wt = filepath.Join(wt, "wt")
+	f.r.Git("worktree", "add", "-q", "--detach", wt)
+	for name, body := range map[string]string{" out/x": "x", ".env": "e"} {
+		p := filepath.Join(wt, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := f.take(Options{Reason: "Remove worktree", Ignored: true, Worktree: wt})
+	if out := f.r.Git("show", s.Commit+":.env"); out != "e" {
+		t.Fatalf(".env: %q", out)
+	}
+	if _, err := f.r.Run(nil, "cat-file", "-e", s.Commit+": out/x"); err == nil {
+		t.Fatal("the ignored folder kept")
+	}
+}

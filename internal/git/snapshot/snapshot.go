@@ -168,13 +168,19 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	defer os.Remove(tmp)
 	defer os.Remove(tmp + ".lock")
 	env := []string{"GIT_INDEX_FILE=" + tmp}
-	git := func(stdin []byte, extra []string, args ...string) (string, error) {
+	// raw is git's output as it printed it, for lists of names, which
+	// may start with a space; git trims it, for an object id.
+	raw := func(stdin []byte, extra []string, args ...string) (string, error) {
 		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: append(env, extra...), Args: args, Timeout: filterTimeout, Untranslated: true}
 		if stdin != nil {
 			c.Stdin = bytes.NewReader(stdin)
 		}
 		res, err := r.Run(ctx, c)
-		return strings.TrimSpace(string(res.Stdout)), err
+		return string(res.Stdout), err
+	}
+	git := func(stdin []byte, extra []string, args ...string) (string, error) {
+		out, err := raw(stdin, extra, args...)
+		return strings.TrimSpace(out), err
 	}
 	ident := []string{"GIT_AUTHOR_NAME=Ramus", "GIT_AUTHOR_EMAIL=snapshot@ramus.invalid",
 		"GIT_COMMITTER_NAME=Ramus", "GIT_COMMITTER_EMAIL=snapshot@ramus.invalid"}
@@ -209,7 +215,7 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	var spec []byte
 	addSpec := func(magic, p string) { spec = append(append(append(spec, magic...), p...), 0) }
 	if !s.All {
-		paths, err := present(ctx, git, w.WorkTree, s.Paths)
+		paths, err := present(ctx, raw, w.WorkTree, s.Paths)
 		if err != nil {
 			return Snapshot{}, err
 		}
@@ -226,7 +232,7 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 			// not its ignored folders, node_modules or a build's output:
 			// rebuilt from the rest, and so large that keeping them would
 			// hold up the removal for minutes and fill the object store.
-			dirs, err := ignoredDirs(git)
+			dirs, err := ignoredDirs(raw)
 			if err != nil {
 				return Snapshot{}, err
 			}
