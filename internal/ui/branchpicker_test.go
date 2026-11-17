@@ -7,6 +7,42 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// A remote branch is one row with the local branch of its name only when
+// that tracks it: one named whole in the query shows, and is not offered
+// to create, and another remote's of that name shows too.
+func TestBranchPickerRemoteOfLocalName(t *testing.T) {
+	h := newHarness(t)
+	up := h.repoWith()
+	up.Git("branch", "topic")
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", up.Dir)
+	r.Git("remote", "add", "upstream", up.Dir)
+	r.Git("fetch", "-q", "--all")
+	r.Git("branch", "-q", "--track", "topic", "origin/topic")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("Branch main")
+	h.tt.Type("origin/topic")
+	h.until("the remote branch", func() bool {
+		return slices.ContainsFunc(tb.pick.rows, func(r pickRow) bool { return r.ref == "refs/remotes/origin/topic" })
+	})
+	if h.tt.HasText("Create Branch origin/topic…") {
+		t.Fatal("offered to create a branch named as a remote one")
+	}
+	tb.pick.query = ""
+	h.tt.Frame()
+	h.tt.Type("topic")
+	h.until("the local branch and the other remote's", func() bool {
+		var got []string
+		for _, r := range tb.pick.rows {
+			got = append(got, r.ref)
+		}
+		return slices.Equal(got, []string{"refs/heads/topic", "", "refs/remotes/upstream/topic"})
+	})
+}
+
 // The branch button in the tab bar names the branch; its panel fetches,
 // filters the branches by what is typed, and a click or Enter switches.
 func TestBranchPicker(t *testing.T) {
@@ -16,6 +52,7 @@ func TestBranchPicker(t *testing.T) {
 	r := h.repoWith()
 	r.Git("remote", "add", "origin", up.Dir)
 	r.Git("fetch", "-q", "origin")
+	r.Git("branch", "-q", "--set-upstream-to", "origin/main")
 	r.Git("branch", "feature/alpha")
 	r.Git("branch", "feature/beta")
 	h.trust.Set(r.GitDir(), true)
@@ -38,7 +75,7 @@ func TestBranchPicker(t *testing.T) {
 	h.until("the fetched branch", func() bool {
 		return slices.ContainsFunc(tb.pick.rows, func(r pickRow) bool { return r.ref == "refs/remotes/origin/pushed-since" })
 	})
-	if len(tb.pick.rows) != 6 { // 3 local, the heading, 2 remote: origin/main is main's
+	if len(tb.pick.rows) != 6 { // 3 local, the heading, 2 remote: origin/main is main's upstream
 		t.Fatalf("rows %v", tb.pick.rows)
 	}
 	// The highlight follows the pointer on the frame it moves: the row

@@ -38,6 +38,7 @@ type branchPick struct {
 	rowsFor  *refs.List
 	rowsGen  int
 	rowsWith string
+	rowsInfo *session.RefInfo
 	// info indexes the local branches of infoFor by full name, for the
 	// state each row shows.
 	info    map[string]session.BranchInfo
@@ -140,7 +141,6 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 					ui.Text(c, locales.BranchPickerNone()).FontSize(textSmall).TextColor(th.TextMuted).Padding(spaceM, spaceS)
 				}
 			} else {
-				p.indexInfo(t)
 				hover := -1
 				ui.List(c, &p.list, len(rows), func(i int) {
 					r := pickRowView(c, t, p, rows[i], i == p.hi)
@@ -300,7 +300,8 @@ func pickRowView(c *ui.Context, t *tab, p *branchPick, r pickRow, hi bool) ui.El
 // first, then the remote ones under their heading.
 func (p *branchPick) build(t *tab) []pickRow {
 	sr := t.sideRefs.build(t)
-	if p.rowsFor == sr.refs && p.rowsFor != nil && p.rowsGen == sr.gen && p.rowsWith == p.query {
+	p.indexInfo(t)
+	if p.rowsFor == sr.refs && p.rowsFor != nil && p.rowsGen == sr.gen && p.rowsWith == p.query && p.rowsInfo == p.infoFor {
 		return p.rows
 	}
 	// A fetch landing while the picker is open keeps the arrows on the
@@ -309,7 +310,7 @@ func (p *branchPick) build(t *tab) []pickRow {
 	if p.rowsWith == p.query && p.hi >= 0 && p.hi < len(p.rows) {
 		keep = p.rows[p.hi].ref
 	}
-	p.rowsFor, p.rowsGen, p.rowsWith, p.rows = sr.refs, sr.gen, p.query, nil
+	p.rowsFor, p.rowsGen, p.rowsWith, p.rowsInfo, p.rows = sr.refs, sr.gen, p.query, p.infoFor, nil
 	words := strings.Fields(strings.ToLower(p.query))
 	matches := func(ref string) bool {
 		s := strings.ToLower(shortRef(ref))
@@ -330,10 +331,21 @@ func (p *branchPick) build(t *tab) []pickRow {
 	for _, r := range sr.heads {
 		local[r] = true
 	}
+	// stands reports whether a local branch shown stands for remote
+	// branch r: one of its name that tracks it, or, until the upstreams
+	// are read, one of its name. Its menu and the sidebar still reach r.
+	stands := func(r string) bool {
+		l := "refs/heads/" + localName(r)
+		if !local[l] || !matches(l) {
+			return false
+		}
+		if p.info == nil {
+			return true
+		}
+		return p.info[l].Upstream == r
+	}
 	for _, r := range sr.remotes {
-		// A remote branch a local one of its name stands for is not a
-		// second row; its menu and the sidebar still reach it.
-		if !matches(r) || local["refs/heads/"+localName(r)] {
+		if !matches(r) || stands(r) {
 			continue
 		}
 		if !heading {
