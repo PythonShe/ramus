@@ -5883,20 +5883,20 @@ func (msgs Messages) CommitCopyPath() string {
 	return Catalog.Format(msgs.locale, "commitCopyPath", nil)
 }
 
-// CommitClosePatch says "Close Patch"
+// CommitClosePatch says "Close Patch of {file}"
 // in the language the app shows.
 //
-// The button that closes the patch of the chosen file, for assistive
-// technology.
-func CommitClosePatch() string { return In(i18n.Locale()).CommitClosePatch() }
+// The button that closes the patch of the chosen file, named by its path,
+// for assistive technology.
+func CommitClosePatch(file string) string { return In(i18n.Locale()).CommitClosePatch(file) }
 
-// CommitClosePatch says "Close Patch"
+// CommitClosePatch says "Close Patch of {file}"
 // in the language of msgs.
 //
-// The button that closes the patch of the chosen file, for assistive
-// technology.
-func (msgs Messages) CommitClosePatch() string {
-	return Catalog.Format(msgs.locale, "commitClosePatch", nil)
+// The button that closes the patch of the chosen file, named by its path,
+// for assistive technology.
+func (msgs Messages) CommitClosePatch(file string) string {
+	return Catalog.Format(msgs.locale, "commitClosePatch", map[string]any{"file": file})
 }
 
 // CommitSigCheckingVerdict says "Checking…"

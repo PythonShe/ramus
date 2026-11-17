@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestCompareCommits(t *testing.T) {
 	// Each side shows its subject; the first file's patch stays open,
 	// with nothing to close it to.
 	h.until("the subjects", func() bool { return h.tt.HasText("add a") && h.tt.HasText("add c") })
-	if _, ok := h.tt.Access("Close Patch"); ok {
+	if slices.ContainsFunc(h.tt.AccessAll(), func(a ui.AccessInfo) bool { return strings.HasPrefix(a.Name, "Close Patch") }) {
 		t.Fatal("the patch can be closed onto nothing")
 	}
 	if !strings.HasPrefix(tb.cmp.fromName, strings.TrimSpace(r.Git("rev-parse", "--short=10", "HEAD~2"))) {

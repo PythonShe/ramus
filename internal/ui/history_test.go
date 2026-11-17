@@ -439,7 +439,7 @@ func TestCommitPatchOpensForAChosenFile(t *testing.T) {
 	h.click("a.txt")
 	h.until("the patch", h.shows("Close Patch"))
 	b, _ := h.tt.Find("b.txt")
-	closer, _ := h.tt.Find("Close Patch")
+	closer, _ := h.tt.Find("Close Patch of a.txt")
 	if b.H == 0 || b.X+b.W > closer.X || closer.Y > b.Y {
 		t.Fatalf("the patch at %v is not right of the files at %v", closer, b)
 	}
@@ -452,7 +452,7 @@ func TestCommitPatchOpensForAChosenFile(t *testing.T) {
 	h.until("closed by Escape", func() bool { return !h.tt.HasText("Close Patch") })
 	h.click("a.txt")
 	h.until("the patch again", h.shows("Close Patch"))
-	h.click("Close Patch")
+	h.click("Close Patch of a.txt")
 	h.until("closed by its button", func() bool { return !h.tt.HasText("Close Patch") })
 }
 

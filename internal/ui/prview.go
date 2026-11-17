@@ -760,7 +760,7 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 			shown, _ := showPath(commitFileName(f, rv.file))
 			pathLabel(c, shown).Bold().Grow(1)
 			fileLines(c, lineAt(d.Lines, rv.file))
-			if closeButton(c, locales.CommitClosePatch()).Clicked() {
+			if closeButton(c, locales.CommitClosePatch(shown)).Clicked() {
 				rv.file = -1
 			}
 		})

@@ -1153,9 +1153,9 @@
   "@commitCopyPath": {
     "description": "A menu item of a file a commit changed: copies its path in the repository."
   },
-  "commitClosePatch": "Close Patch",
+  "commitClosePatch": "Close Patch of {file}",
   "@commitClosePatch": {
-    "description": "The button that closes the patch of the chosen file, for assistive technology."
+    "description": "The button that closes the patch of the chosen file, named by its path, for assistive technology."
   },
   "commitSigCheckingVerdict": "Checking…",
   "@commitSigCheckingVerdict": {

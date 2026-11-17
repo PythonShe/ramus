@@ -275,7 +275,7 @@ func (a *App) snapshotPatch(c *ui.Context, t *tab, s snapshot.Snapshot, f snapsh
 		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(f.Path)
 			pathLabel(c, shown).Bold().Grow(1)
-			if closeButton(c, locales.CommitClosePatch()).Clicked() {
+			if closeButton(c, locales.CommitClosePatch(shown)).Clicked() {
 				ss.fileAt = -1
 			}
 		})

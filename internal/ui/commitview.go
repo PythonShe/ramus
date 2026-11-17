@@ -913,7 +913,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 			shown, _ := showPath(commitFileName(f, cv.file))
 			pathLabel(c, shown).Bold().Grow(1)
 			fileLines(c, lineAt(d.Lines, cv.file))
-			if !cv.stay && closeButton(c, locales.CommitClosePatch()).Clicked() {
+			if !cv.stay && closeButton(c, locales.CommitClosePatch(shown)).Clicked() {
 				cv.file = -1
 			}
 		})
