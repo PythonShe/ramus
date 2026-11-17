@@ -75,7 +75,7 @@ func TestRewriteFromHistory(t *testing.T) {
 }
 
 // Rewording a commit already pushed offers a force push with lease, which
-// sends the rewritten branch.
+// asks first, and then sends the rewritten branch.
 func TestForcePushOffer(t *testing.T) {
 	h := newHarness(t)
 	up := h.repoWith()
@@ -99,6 +99,11 @@ func TestForcePushOffer(t *testing.T) {
 	h.click("Reword")
 	h.until("the offer", h.shows("was rewritten after it was pushed to origin/main"))
 	h.click("Force Push with Lease")
+	h.until("the question", h.shows("Overwrite origin/main?"))
+	if out, _ := up.Run(nil, "log", "-1", "--format=%s", "main"); strings.TrimSpace(out) != "add a" {
+		t.Fatalf("pushed before asked: %q", out)
+	}
+	h.click("Force Push")
 	h.until("the push", func() bool {
 		out, _ := up.Run(nil, "log", "-1", "--format=%s", "main")
 		return strings.TrimSpace(out) == "add a, reworded"

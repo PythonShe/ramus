@@ -193,9 +193,15 @@ func (a *App) forcePushOffer(c *ui.Context, t *tab) {
 		if ui.Button(c, locales.RewriteNotNow()).Clicked() {
 			t.forcePush = forcePush{}
 		}
-		if ui.PrimaryButton(c, locales.RewriteForcePush()).Disabled(t.s.Queue == nil).Clicked() {
-			t.forcePush = forcePush{}
-			a.submit(t, write.Push(t.s.Where(), write.PushOptions{ForceWithLease: true}), nil)
+		// It overwrites the upstream, so it asks first, as Force Push
+		// with Lease does from the sync button.
+		if ui.Button(c, locales.RewriteForcePush()).Disabled(t.s.Queue == nil).Clicked() {
+			a.confirm = confirmState{open: true, title: locales.RefsForcePushTitle(redact.Control(fp.upstream)),
+				message: locales.RefsForcePushMessage(), button: locales.RefsForcePush(),
+				run: func() {
+					t.forcePush = forcePush{}
+					a.submit(t, write.Push(t.s.Where(), write.PushOptions{ForceWithLease: true}), nil)
+				}}
 		}
 	})
 }
