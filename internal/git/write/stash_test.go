@@ -119,6 +119,8 @@ func TestCherryPickRevertAndClean(t *testing.T) {
 	h.r.Write("s", "1")
 	h.r.Commit("s")
 	h.r.Git("switch", "-q", "main")
+	h.r.Write("m", "1")
+	h.r.Commit("m")
 	h.r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
 	merge := h.rev("HEAD")
 	op, err = Revert(h.w, []string{merge}, h.seen())
@@ -127,6 +129,17 @@ func TestCherryPickRevertAndClean(t *testing.T) {
 	h.do(op, err, true)
 	if _, err := os.Stat(filepath.Join(h.r.Dir, "s")); !os.IsNotExist(err) {
 		t.Fatal("the merge not reverted")
+	}
+	h.undo()
+	// Keeping parent 2, the side, it undoes what main had that the side
+	// did not: git numbers the first parent 1.
+	op, err = RevertMerge(h.w, merge, 2, h.seen())
+	h.do(op, err, true)
+	if _, err := os.Stat(filepath.Join(h.r.Dir, "m")); !os.IsNotExist(err) {
+		t.Fatal("main's change kept, keeping the side")
+	}
+	if _, err := os.Stat(filepath.Join(h.r.Dir, "s")); err != nil {
+		t.Fatal("the side's change undone, keeping the side")
 	}
 	h.undo()
 	h.r.Git("switch", "-q", "-c", "other", "main~1")
