@@ -119,6 +119,18 @@ func iconButton(c *ui.Context, g *ui.SVG, label string) ui.Element {
 	return b
 }
 
+// smallIconButton is a small muted icon beside text that acts when
+// clicked, as Copy beside a hash, named label, which its tooltip says.
+func smallIconButton(c *ui.Context, g *ui.SVG, label string) ui.Element {
+	th := c.Theme()
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(th.Radius).Padding(space2XS).Shrink(0)
+	if b.Hovered() {
+		b.Background(th.SurfaceHover)
+	}
+	b.Children(func() { ui.Icon(c, g).FontSize(iconMedium).TextColor(th.TextMuted) })
+	return b
+}
+
 // aheadBehind is how a branch stands with its upstream as glyphs and
 // counts: up for the commits to push, down for those to pull, each left
 // out at 0, so a branch even with its upstream shows nothing. Figures are

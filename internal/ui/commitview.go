@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -409,7 +408,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			// Cut in its middle where it does not fit, as a hash is told
 			// by its start and its end; it is copied whole.
 			ui.Text(c, id).Font("monospace").FontSize(textSmall).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(id).Selectable()
-			if iconButton(c, commitIcons().copy, locales.CommonCopyHash()).MarginStart(spaceXS).Clicked() {
+			if smallIconButton(c, glyphs().copy, locales.CommonCopyHash()).MarginStart(spaceXS).Clicked() {
 				a.clip = id
 			}
 		})
@@ -497,24 +496,6 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		}
 	})
 }
-
-// iconButton is a small icon that acts when clicked, named label, which
-// its tooltip says.
-func iconButton(c *ui.Context, icon *ui.SVG, label string) ui.Element {
-	th := c.Theme()
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(th.Radius).Padding(space2XS).Shrink(0)
-	if b.Hovered() {
-		b.Background(th.SurfaceHover)
-	}
-	b.Children(func() { ui.Icon(c, icon).FontSize(iconMedium).TextColor(th.TextMuted) })
-	return b
-}
-
-// commitIcons are the commit view's icons, parsed once.
-var commitIcons = sync.OnceValue(func() (icons struct{ copy *ui.SVG }) {
-	icons.copy = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></svg>`))
-	return icons
-})
 
 // shownChildren and shownRefs are the most children and containing refs
 // a commit lists; it counts the rest.
