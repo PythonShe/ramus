@@ -188,10 +188,9 @@ func keepMessage(gitDir string) (string, error) {
 		}
 		all.WriteString(msg)
 	}
-	if all.Len() == 0 {
-		return "", nil
-	}
-	return commentChar(all.String())
+	// With every character taken, git strips as it always did.
+	cc, _ := commentChar(all.String())
+	return cc, nil
 }
 
 // dropConflicts takes the list of conflicted paths git ends a message
