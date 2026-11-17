@@ -129,7 +129,7 @@ func TestForcePushOfferBranchChanged(t *testing.T) {
 	r.Git("push", "-q", "origin", "main")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("History")
 	h.until("history", h.shows("add a"))

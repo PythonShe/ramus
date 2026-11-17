@@ -102,7 +102,7 @@ func TestFilterClosedAndRetyped(t *testing.T) {
 	r.Commit("alpha work")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	h.click("History")
 	h.until("the commits", h.shows("2 commits"))
 	hf := &h.app.current().hist.filter

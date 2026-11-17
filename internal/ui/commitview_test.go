@@ -58,7 +58,7 @@ func TestReflogMergeParents(t *testing.T) {
 	r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("Reflog")
 	// The strategy git names in the entry depends on its version.
@@ -171,7 +171,7 @@ func TestEscapeUnpicks(t *testing.T) {
 	}
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("History")
 	h.until("the history", h.shows("add b"))
