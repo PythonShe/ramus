@@ -154,6 +154,14 @@ func TestHistoryGoTo(t *testing.T) {
 	if hv.jumpErr != "" {
 		t.Fatalf("words typed say %q", hv.jumpErr)
 	}
+	// A word that could be a short hash, naming no commit, is a word.
+	h.click("Go to hash or ref")
+	h.tt.Type("decade")
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("the word searched", func() bool { return hv.filter.message == "decade" && hv.jump == "" })
+	if hv.jumpErr != "" {
+		t.Fatalf("a hex word says %q", hv.jumpErr)
+	}
 
 	// Nothing matches: the way out is beside the message.
 	hv.filter.message = "nothing like it"

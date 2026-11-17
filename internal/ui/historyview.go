@@ -445,9 +445,11 @@ func (a *App) jumpTo(t *tab, rev string) {
 }
 
 // hexish reports whether s looks like an abbreviated hash, which is
-// looked up by name alone.
+// looked up by name alone. Shorter than git's own abbreviations, it is
+// as likely a word, as "added" or "decade", searched for in the messages
+// once it names no commit.
 func hexish(s string) bool {
-	if len(s) < 4 {
+	if len(s) < 7 {
 		return false
 	}
 	for _, r := range s {
