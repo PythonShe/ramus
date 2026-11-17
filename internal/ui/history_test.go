@@ -40,18 +40,22 @@ func TestHistoryView(t *testing.T) {
 	h.until("the detail", h.shows("1 file changed"))
 	h.click("a.txt")
 	h.until("its patch", patchHas(&h.app.current().hist.detail.pv, "alpha", ""))
-	// The values copy themselves: the hash, the message by its subject,
-	// the patch by the count of its files.
+	// The hash copies by the button beside it, the patch by the count of
+	// its files.
 	hash := strings.TrimSpace(r.Git("rev-parse", "HEAD~1"))
-	h.click(hash)
+	if !h.tt.HasText(hash) {
+		t.Fatalf("no hash %s shown", hash)
+	}
+	h.click("Copy Hash")
 	if h.tt.Clipboard() != hash {
 		t.Fatalf("copied %q, want %s", h.tt.Clipboard(), hash)
 	}
 	h.click("1 file changed")
 	h.until("the patch copied", func() bool { return strings.Contains(h.tt.Clipboard(), "Subject: [PATCH] add alpha") })
-	// The subject is the line above the Author row; the list shows the
-	// same text, so it is found by place, with the patch closed and the
-	// rows each a line.
+	// The subject is text to select, not a hidden button: a click on it
+	// copies nothing. It is the line above the Author row; the list shows
+	// the same text, so it is found by place, with the patch closed and
+	// the rows each a line.
 	// The list's author column is collapsed for Author to name the
 	// detail's row alone.
 	h.tt.Key(0, ui.KeyEscape)
@@ -63,13 +67,13 @@ func TestHistoryView(t *testing.T) {
 	x, y := author.X+spaceXS, author.Y-spaceS-cv.subjectH/2
 	h.tt.Move(x, y)
 	h.tt.Frame()
-	if h.tt.Cursor() != ui.CursorPointer {
-		t.Fatalf("cursor over the subject is %v, want the pointer", h.tt.Cursor())
+	if h.tt.Cursor() == ui.CursorPointer {
+		t.Fatal("the subject takes clicks as a button")
 	}
 	h.tt.ClickAt(x, y)
 	h.tt.Frame()
-	if got := h.tt.Clipboard(); got != "add alpha\n" {
-		t.Fatalf("copied %q, want the message", got)
+	if got := h.tt.Clipboard(); !strings.Contains(got, "Subject: [PATCH]") {
+		t.Fatalf("a click on the subject copied %q", got)
 	}
 
 	// Jumping by ref chooses the commit and shows it.

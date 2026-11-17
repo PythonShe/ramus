@@ -5331,6 +5331,22 @@ func (msgs Messages) CommitFilesLabel() string {
 	return Catalog.Format(msgs.locale, "commitFilesLabel", nil)
 }
 
+// CommitCopyPath says "Copy Path"
+// in the language the app shows.
+//
+// A menu item of a file a commit changed: copies its path in the
+// repository.
+func CommitCopyPath() string { return In(i18n.Locale()).CommitCopyPath() }
+
+// CommitCopyPath says "Copy Path"
+// in the language of msgs.
+//
+// A menu item of a file a commit changed: copies its path in the
+// repository.
+func (msgs Messages) CommitCopyPath() string {
+	return Catalog.Format(msgs.locale, "commitCopyPath", nil)
+}
+
 // CommitClosePatch says "Close Patch"
 // in the language the app shows.
 //

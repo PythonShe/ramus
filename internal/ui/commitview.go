@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -50,8 +51,14 @@ type commitView struct {
 	// laid out.
 	msgH, subjectH, bodyH, msgColH, metaH float32
 	msgSized                              bool
+	// metaW is the width of the rows under the message as last laid out,
+	// kept from commit to commit: narrow, each label goes above its value.
+	metaW float32
 	// want is a file to choose once the commit is read.
 	want string
+	// stay keeps a file chosen, its patch open, where nothing else shows
+	// in its place: no Close, no Escape.
+	stay bool
 
 	patchFor     string
 	patchLoading bool
@@ -115,7 +122,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			}
 		}
 		cv.stopPull()
-		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, infoRoom: cv.infoRoom, listRoom: cv.listRoom, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, want: cv.want, noPull: cv.noPull}
+		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, infoRoom: cv.infoRoom, listRoom: cv.listRoom, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, metaW: cv.metaW, want: cv.want, noPull: cv.noPull}
 		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {
 				cv.loading, cv.d = !d.Done, &d
@@ -145,7 +152,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			if _, body, _ := cv.message(d); len(body) == 0 {
 				a.commitMessage(c, t, cv, d)
 				a.commitMeta(c, t, cv, d)
-				a.commitFiles(c, cv, d, a.patchCopier(t, d))
+				a.commitFiles(c, t, cv, d, a.patchCopier(t, d))
 				return
 			}
 			// The message is as tall as the user drags it.
@@ -154,7 +161,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			ui.SplitVertical(c, &cv.msgH, func() { a.commitMessage(c, t, cv, d) }, func() {
 				ui.Column(c).Fill().Children(func() {
 					a.commitMeta(c, t, cv, d)
-					a.commitFiles(c, cv, d, a.patchCopier(t, d))
+					a.commitFiles(c, t, cv, d, a.patchCopier(t, d))
 				})
 			}).SplitReset(fit).Fill()
 			if fit != cv.fittedMessage() {
@@ -303,11 +310,9 @@ func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.Co
 	col.Children(func() {
 		a.loadLinks(t)
 		links := t.links.set
-		// The subject stands for the message: a click copies it whole.
-		s := clickable(linkedText(c, redact.Control(string(subject)), links).Bold()).Tooltip(locales.CommitCopyMessage())
-		if s.Clicked() {
-			a.clip = copiedMessage(d.Commit.Message)
-		}
+		// Selected and copied as any text; Copy Message in the row's
+		// menu copies the message whole.
+		s := linkedText(c, redact.Control(string(subject)), links).Bold()
 		cv.subjectH = s.LayoutBounds().H
 		cv.bodyH = 0
 		if len(body) > 0 {
@@ -328,31 +333,64 @@ const metaLabelW = 84
 // metaGap parts a label from what it labels.
 const metaGap = spaceL
 
+// metaStackW is the width of the rows under which each label goes above
+// what it labels, which then takes the whole width: beside a label, a
+// date or a hash would break over lines.
+const metaStackW = leastInfoW + metaLabelW + metaGap + 2*insetX
+
 // commitMeta shows who made the commit, its id, signature and parents.
 func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
 	cm := d.Commit
 	meta := ui.Column(c).Padding(spaceM, insetX, spaceL, insetX).Gap(spaceM).FillWidth()
 	cv.metaH = meta.LayoutBounds().H
+	if w := meta.LayoutBounds().W; w != cv.metaW {
+		// The rows take their layout for the new width in the next frame.
+		cv.metaW = w
+		c.AnimationFrame()
+	}
+	stacked := cv.metaW > 0 && cv.metaW < metaStackW
 	meta.Children(func() {
 		label := func(text string) {
-			ui.Text(c, text).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
+			l := ui.Text(c, text).FontSize(textSmall).TextColor(th.TextMuted)
+			if !stacked {
+				l.Width(metaLabelW)
+			}
+		}
+		// row puts a label before what it labels, or above it when narrow.
+		row := func(text string, align ui.Align, value func()) {
+			if stacked {
+				ui.Column(c).Gap(space2XS).FillWidth().Children(func() {
+					label(text)
+					ui.Row(c).AlignItems(align).FillWidth().MinWidth(0).Children(value)
+				})
+				return
+			}
+			ui.Row(c).Gap(metaGap).AlignItems(align).Children(func() {
+				label(text)
+				value()
+			})
 		}
 		// The time goes under the person it is theirs, rather than beside
 		// them, where a narrow panel would break it over lines.
 		person := func(role string, p object.Signature) {
-			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
-				label(role)
+			row(role, ui.Start, func() {
 				a.personLine(c, t, string(p.Name), string(p.Email), avatarMeta, func() {
 					at := signatureTime(p)
-					ui.Text(c, zoneTime(at)).FontSize(textSmall).TextColor(th.TextMuted).Tooltip(since(a.Now(), at))
+					when := zoneTime(at)
+					if stacked {
+						// Narrow, the offset alone says the zone: the places
+						// at it would be cut.
+						_, off := at.Zone()
+						when = locales.CommitTimeZone(at.Format("2006-01-02 15:04:05"), utcOffset(off))
+					}
+					ui.Text(c, when).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Shrink(1).MinWidth(0).Tooltip(since(a.Now(), at))
 				})
 			})
 		}
 		person(locales.CommitAuthor(), cm.Author)
 		if _, _, co := cv.message(d); len(co) > 0 {
-			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
-				label(locales.CommitCoAuthors(len(co)))
+			row(locales.CommitCoAuthors(len(co)), ui.Start, func() {
 				ui.Column(c).Gap(spaceS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					for i, p := range co {
 						c.Key(i)
@@ -366,12 +404,12 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		}
 		// The people apart from what names the commit.
 		ui.Box(c).Height(spaceS)
-		ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
-			ui.Text(c, locales.CommitHashLabel()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
+		row(locales.CommitHashLabel(), ui.Center, func() {
 			id := hex.EncodeToString(d.OID)
-			// A hash is one word: it breaks anywhere to fit a narrow panel,
-			// rather than run past its edge.
-			if clickable(ui.Text(c, id).Font("monospace").FontSize(textSmall).Grow(1).Shrink(1).MinWidth(0)).Tooltip(locales.CommonCopyHash()).Clicked() {
+			// Cut in its middle where it does not fit, as a hash is told
+			// by its start and its end; it is copied whole.
+			ui.Text(c, id).Font("monospace").FontSize(textSmall).SingleLine().TruncateMiddle().Shrink(1).MinWidth(0).Tooltip(id).Selectable()
+			if iconButton(c, commitIcons().copy, locales.CommonCopyHash()).MarginStart(spaceXS).Clicked() {
 				a.clip = id
 			}
 		})
@@ -380,9 +418,8 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		// not.
 		a.loadCommitPull(t, cv, d)
 		if p := cv.pull.Pull; a.Settings.PullRequests && cv.pull.Found {
-			ui.Row(c).Gap(metaGap).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.CommitPullRequest(kindName(p.Repo.Kind))).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
-				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
+			row(locales.CommitPullRequest(kindName(p.Repo.Kind)), ui.Center, func() {
+				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					ui.Link(c, p.Ref(p.Repo.Kind), p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
 					pullState(c, plainInk(th), p.Pull)
 				})
@@ -391,19 +428,17 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		// The commit's own signature, under its hash: the kind of key
 		// that made it, then what git made of it.
 		if cm.Signed {
-			ui.Row(c).Gap(metaGap).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
-				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
+			row(locales.CommitSignature(), ui.Center, func() {
+				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Shrink(1).MinWidth(0).Children(func() {
 					if k := sigKindName(cm.SigKind); k != "" {
-						ui.Badge(c, k).FontSize(textCaption)
+						ui.Badge(c, k).FontSize(textCaption).Shrink(0)
 					}
 					commitSigText(c, cv, d, t.s.State.Restricted)
 				})
 			})
 		}
 		if enc := string(cm.Encoding); !textenc.IsUTF8(enc) || d.Odd {
-			ui.Row(c).Gap(metaGap).Children(func() {
-				ui.Text(c, locales.CommitEncoding()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
+			row(locales.CommitEncoding(), ui.Start, func() {
 				name := redact.Control(enc)
 				if textenc.IsUTF8(enc) {
 					name = "UTF-8"
@@ -412,7 +447,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 					ui.Text(c, name).FontSize(textSmall)
 					return
 				}
-				ui.Text(c, locales.CommitEncodingInvalid(name)).FontSize(textSmall).TextColor(th.Warning)
+				ui.Text(c, locales.CommitEncodingInvalid(name)).FontSize(textSmall).TextColor(th.Warning).Shrink(1).MinWidth(0)
 			})
 		}
 		if len(d.Parents) > 0 {
@@ -425,8 +460,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 					}
 				})
 			}
-			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
-				label(locales.CommitParents(len(d.Parents)))
+			row(locales.CommitParents(len(d.Parents)), ui.Start, func() {
 				a.commitLinks(c, t, d.Parents, cv.parentSubjects, locales.CommitGoToParent())
 			})
 		}
@@ -438,8 +472,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			return
 		}
 		if n := len(rel.Children); n > 0 {
-			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
-				label(locales.CommitChildren(n))
+			row(locales.CommitChildren(n), ui.Start, func() {
 				ui.Column(c).Gap(spaceXS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					a.commitLinks(c, t, rel.Children[:min(n, shownChildren)], cv.childSubjects, locales.CommitGoToChild())
 					if n > shownChildren {
@@ -449,8 +482,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			})
 		}
 		if len(rel.Refs) > 0 {
-			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
-				label(locales.CommitContainedIn())
+			row(locales.CommitContainedIn(), ui.Start, func() {
 				ui.Row(c).Gap(spaceS).Wrap().AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					shown := min(len(rel.Refs), shownRefs)
 					for i, name := range rel.Refs[:shown] {
@@ -465,6 +497,24 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		}
 	})
 }
+
+// iconButton is a small icon that acts when clicked, named label, which
+// its tooltip says.
+func iconButton(c *ui.Context, icon *ui.SVG, label string) ui.Element {
+	th := c.Theme()
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(th.Radius).Padding(space2XS).Shrink(0)
+	if b.Hovered() {
+		b.Background(th.SurfaceHover)
+	}
+	b.Children(func() { ui.Icon(c, icon).FontSize(iconMedium).TextColor(th.TextMuted) })
+	return b
+}
+
+// commitIcons are the commit view's icons, parsed once.
+var commitIcons = sync.OnceValue(func() (icons struct{ copy *ui.SVG }) {
+	icons.copy = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></svg>`))
+	return icons
+})
 
 // shownChildren and shownRefs are the most children and containing refs
 // a commit lists; it counts the rest.
@@ -572,7 +622,7 @@ func (a *App) personLine(c *ui.Context, t *tab, name, email string, size float32
 				if clickable(ui.Text(c, name).FontSize(textSmall).FontWeight(600)).Tooltip(locales.CommitShowPersonHistory(name)).Clicked() {
 					a.showPersonHistory(t, email)
 				}
-				ui.Text(c, email).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
+				ui.Text(c, email).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Shrink(1).MinWidth(0).Selectable()
 			})
 			if more != nil {
 				more()
@@ -677,7 +727,7 @@ func (a *App) patchCopier(t *tab, d *session.CommitDetail) func() {
 
 // commitFiles lists the files d changed under their count; onCopy, when
 // not nil, makes the count copy their patch, which it stands for.
-func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail, onCopy func()) {
+func (a *App) commitFiles(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail, onCopy func()) {
 	th := c.Theme()
 	f := d.Files
 	if f == nil && !d.Done {
@@ -699,9 +749,13 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 	cv.files.Label = func(i int) string {
 		return fileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i), lineAt(d.Lines, i))
 	}
+	// What a file's menu chose runs once the list is built.
+	var act func()
 	ui.List(c, &cv.files, f.Len()).Rows(func(r ui.ListRow) {
 		i, k := r.Index, rowInk(r)
-		ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
+		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
+		row.ContextMenu(func(m *ui.Menu) { a.commitFileMenu(m, t, d, i, &act) })
+		row.Children(func() {
 			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(k, f.Status(i)))
 			fileIcon(c, string(f.Path(i)))
 			shown, why := showPath(commitFileName(f, i))
@@ -712,6 +766,29 @@ func (a *App) commitFiles(c *ui.Context, cv *commitView, d *session.CommitDetail
 			inkFileLines(c, k, lineAt(d.Lines, i))
 		})
 	}).Label(locales.CommitFilesLabel()).Grow(1)
+	if act != nil {
+		act()
+	}
+}
+
+// commitFileMenu is the menu of file i of commit d: copy its path, put
+// it back in the work tree as d has it, and what the work tree's files
+// offer, its history and blame among them.
+func (a *App) commitFileMenu(m *ui.Menu, t *tab, d *session.CommitDetail, i int, act *func()) {
+	f := d.Files
+	if f == nil || i >= f.Len() {
+		return
+	}
+	path := string(f.Path(i))
+	if m.Item(locales.CommitCopyPath()).Chosen() {
+		a.clip = path
+	}
+	// A file the commit deleted has nothing to restore.
+	if f.Status(i) != 'D' {
+		a.restoreFromItem(m, t, path, hex.EncodeToString(d.OID))
+	}
+	m.Separator()
+	a.fileMenu(m, t, path, act)
 }
 
 func commitFileName(f *diff.Raw, i int) string {
@@ -784,7 +861,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 			shown, _ := showPath(commitFileName(f, cv.file))
 			pathLabel(c, shown).Bold().Grow(1)
 			fileLines(c, lineAt(d.Lines, cv.file))
-			if closeButton(c, locales.CommitClosePatch()).Clicked() {
+			if !cv.stay && closeButton(c, locales.CommitClosePatch()).Clicked() {
 				cv.file = -1
 			}
 		})
@@ -809,8 +886,8 @@ func sigText(c *ui.Context, k ink, r *sigResult) {
 	// Why it was not checked is git's own word, often long: a popover
 	// holds it.
 	why := func(short, reason string) {
-		ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, short).FontSize(textSmall).TextColor(k.Muted)
+		ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Shrink(1).MinWidth(0).Children(func() {
+			ui.Text(c, short).FontSize(textSmall).TextColor(k.Muted).SingleLine().Shrink(1).MinWidth(0)
 			if reason != "" {
 				infoButton(c, &r.info, locales.CommitSigWhy(), reason, k.Warning)
 			}

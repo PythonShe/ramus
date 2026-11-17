@@ -1016,6 +1016,10 @@
   "commitNoFiles": "No files changed",
   "commitFilesChanged": "{count, plural, one {# file changed} other {# files changed}}",
   "commitFilesLabel": "Files of the commit",
+  "commitCopyPath": "Copy Path",
+  "@commitCopyPath": {
+    "description": "A menu item of a file a commit changed: copies its path in the repository."
+  },
   "commitClosePatch": "Close Patch",
   "@commitClosePatch": {
     "description": "The button that closes the patch of the chosen file, for assistive technology."
