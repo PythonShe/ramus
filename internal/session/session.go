@@ -814,8 +814,10 @@ func (s *Session) Trust() error {
 	}
 	ts, update := s.trust, s.update
 	err := r.Life().Go(func(context.Context) {
-		err := ts.Set(r.CommonDir, true)
-		update(func() {
+		err := errors.New("session: recording the trust panicked")
+		// Deferred, to run though Set panicked: else Trust would never
+		// write again.
+		defer update(func() {
 			s.trusting = false
 			if err != nil {
 				e := s.addLog(locales.SessionTrust(), "")
@@ -826,6 +828,7 @@ func (s *Session) Trust() error {
 				s.reopenTrusted()
 			}
 		})
+		err = ts.Set(r.CommonDir, true)
 	})
 	if err != nil {
 		return err

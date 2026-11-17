@@ -127,7 +127,7 @@ func TestUntrustedOpensRestricted(t *testing.T) {
 // A trust that cannot be recorded says so in the log, and leaves the
 // repository as it was.
 func TestTrustNotRecorded(t *testing.T) {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("folder permissions")
 	}
 	r := gittest.Init(t)
