@@ -279,6 +279,13 @@ func (s *Snapshot) Commit(i int) uint32 {
 	return s.segs[g].s.rec(k).commit
 }
 
+// Merges returns the number of parents past the first of row i's
+// commit, as Row does, without moving the lanes there.
+func (s *Snapshot) Merges(i int) int {
+	g, k := s.find(i)
+	return int(s.segs[g].s.rec(k).merges)
+}
+
 // find returns the segment of row i and the row's number in it.
 func (s *Snapshot) find(i int) (int, int) {
 	if len(s.segs) == 1 {

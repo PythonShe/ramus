@@ -6839,6 +6839,24 @@ func (msgs Messages) OpsCherryPickAgainst(n int) string {
 	return Catalog.Format(msgs.locale, "opsCherryPickAgainst", map[string]any{"n": n})
 }
 
+// OpsPickedMerge says "A merge is among them: cherry-pick or revert it on its own"
+// in the language the app shows.
+//
+// The tooltip of the disabled Cherry-Pick and Revert items when several
+// commits are picked and one of them is a merge: git needs the parent of
+// each merge named, which only the merge's own menu does.
+func OpsPickedMerge() string { return In(i18n.Locale()).OpsPickedMerge() }
+
+// OpsPickedMerge says "A merge is among them: cherry-pick or revert it on its own"
+// in the language of msgs.
+//
+// The tooltip of the disabled Cherry-Pick and Revert items when several
+// commits are picked and one of them is a merge: git needs the parent of
+// each merge named, which only the merge's own menu does.
+func (msgs Messages) OpsPickedMerge() string {
+	return Catalog.Format(msgs.locale, "opsPickedMerge", nil)
+}
+
 // OpsCherryPicked says "{count, plural, one {Cherry-picked # commit onto {branch}} other {Cherry-picked # commits onto {branch}}}"
 // in the language the app shows.
 //

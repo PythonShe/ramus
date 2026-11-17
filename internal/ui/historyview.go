@@ -1157,7 +1157,7 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, h session.HistoryState, i, merges i
 	if n > 1 {
 		a.copyMany(m, t, ids, n)
 		m.Separator()
-		a.pickOps(m, t, ids, n, 0)
+		a.pickOps(m, t, ids, n, pickedMerges(t, h))
 		a.rewriteMany(m, t, ids, n)
 		m.Separator()
 		a.commitOps(m, t, ids, n)

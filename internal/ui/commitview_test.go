@@ -127,6 +127,41 @@ func TestCopyPickedHashes(t *testing.T) {
 	h.until("the subjects", func() bool { return h.tt.Clipboard() == "add a\nadd b\n" })
 }
 
+// Several commits picked, a merge among them, are not cherry-picked nor
+// reverted together: git would stop at the merge, half done.
+func TestPickedWithMergeNotPicked(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("checkout", "-q", "-b", "side")
+	r.Write("s.txt", "s\n")
+	r.Commit("on side")
+	r.Git("checkout", "-q", "main")
+	r.Write("m.txt", "m\n")
+	r.Commit("on main")
+	r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+	r.Write("after.txt", "a\n")
+	r.Commit("after")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("the history", h.shows("merge side"))
+	hs := tb.s.History
+	for k := 0; k < 2; k++ {
+		tb.hist.picked.Add(string(hs.OID(hs.Snap.Commit(k))))
+	}
+	if err := h.tt.RightClick("after"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	for _, item := range []string{"Cherry-Pick 2 Commits onto main", "Revert 2 Commits"} {
+		if err := h.tt.ChooseMenuItem(item); err == nil || !strings.Contains(err.Error(), "disabled") {
+			t.Fatalf("%s with a merge picked: %v; menu %q", item, err, h.tt.Menu())
+		}
+	}
+}
+
 // Narrow, a commit's labels go above what they label, which keeps the
 // whole width: beside them, the hash and the date would break apart.
 func TestCommitDetailNarrow(t *testing.T) {

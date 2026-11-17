@@ -57,8 +57,8 @@ func check(t *testing.T, l *Layout, parents [][]uint32) {
 		if fromNode != len(parents[i]) {
 			t.Fatalf("row %d: %d edges leave the node, commit has %d parents", i, fromNode, len(parents[i]))
 		}
-		if r.Merges != max(len(parents[i])-1, 0) {
-			t.Fatalf("row %d: merges %d", i, r.Merges)
+		if r.Merges != max(len(parents[i])-1, 0) || s.Merges(i) != r.Merges {
+			t.Fatalf("row %d: merges %d, Merges %d", i, r.Merges, s.Merges(i))
 		}
 		prevBottom = append(prevBottom[:0], r.Bottom...)
 	}

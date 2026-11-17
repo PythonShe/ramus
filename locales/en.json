@@ -1305,6 +1305,10 @@
       }
     }
   },
+  "opsPickedMerge": "A merge is among them: cherry-pick or revert it on its own",
+  "@opsPickedMerge": {
+    "description": "The tooltip of the disabled Cherry-Pick and Revert items when several commits are picked and one of them is a merge: git needs the parent of each merge named, which only the merge's own menu does."
+  },
   "opsCherryPicked": "{count, plural, one {Cherry-picked # commit onto {branch}} other {Cherry-picked # commits onto {branch}}}",
   "@opsCherryPicked": {
     "description": "A toast once commits were cherry-picked; it offers Undo. branch is the current branch, or HEAD."

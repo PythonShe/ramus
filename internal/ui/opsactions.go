@@ -20,7 +20,9 @@ import (
 // pickOps adds what applies commits (hex, newest first) to HEAD to a
 // menu: cherry-pick and revert. One merge, of merges parents past the
 // first, has a submenu for each, of the parents to take its change
-// against: git takes a merge with no parent named for neither.
+// against: git takes a merge with no parent named for neither. Of
+// several, merges counts the merges among them, which turn both off:
+// git would stop at the first merge, the commits before it applied.
 func (a *App) pickOps(m *ui.Menu, t *tab, ids func() []string, n, merges int) {
 	ro := t.s.Queue == nil
 	head := t.s.State.Head
@@ -64,10 +66,14 @@ func (a *App) pickOps(m *ui.Menu, t *tab, ids func() []string, n, merges int) {
 		}).Disabled(off)
 		return
 	}
-	if m.Item(locales.OpsCherryPick(n, onto)).Disabled(off).Chosen() {
+	why := ""
+	if merges > 0 {
+		why = locales.OpsPickedMerge()
+	}
+	if m.Item(locales.OpsCherryPick(n, onto)).Disabled(off || why != "").Tooltip(why).Chosen() {
 		pick(0)
 	}
-	if m.Item(locales.OpsRevert(n)).Disabled(off).Chosen() {
+	if m.Item(locales.OpsRevert(n)).Disabled(off || why != "").Tooltip(why).Chosen() {
 		revert(0)
 	}
 }
@@ -140,6 +146,24 @@ func (a *App) historyIDs(t *tab, h session.HistoryState, i int) (func() []string
 		}
 		return out
 	}, n
+}
+
+// pickedMerges counts the merges among the commits picked in the
+// history, walking its rows until every pick is found, as historyIDs
+// does: once, as the menu opens.
+func pickedMerges(t *tab, h session.HistoryState) int {
+	hv := &t.hist
+	snap := h.Snap
+	n, found, merges := hv.picked.Len(), 0, 0
+	for r := 0; r < snap.Len() && found < n; r++ {
+		if hv.picked.Has(string(h.OID(snap.Commit(r)))) {
+			found++
+			if snap.Merges(r) > 0 {
+				merges++
+			}
+		}
+	}
+	return merges
 }
 
 // savePatch asks where to save a patch, then writes it there.
