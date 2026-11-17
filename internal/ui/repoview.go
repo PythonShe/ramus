@@ -279,6 +279,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 	// The sidebar runs from what is used all day to what is used now and
 	// then: the views of the work, the refs and what else the repository
 	// holds, then the tools, under a line between each.
+	was := t.sel
 	side := ui.Sidebar(c, &t.sel, func() {
 		ui.SidebarItem(c, sideChanges, nil, changesLabel(st))
 		item("history", locales.RepoSectionHistory())
@@ -342,7 +343,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		}
 	}).Label(locales.RepoSections())
 	if side.Changed() {
-		a.chooseSidebar(t)
+		a.chooseSidebar(t, was)
 	}
 	side.FillHeight()
 }
@@ -369,8 +370,9 @@ const (
 )
 
 // chooseSidebar acts on a sidebar item chosen: a worktree or submodule
-// opens in its own tab.
-func (a *App) chooseSidebar(t *tab) {
+// opens in its own tab. was is the page shown before, which New Worktree
+// leaves as it was.
+func (a *App) chooseSidebar(t *tab, was string) {
 	kind, path, ok := strings.Cut(t.sel, ":")
 	if !ok {
 		return
@@ -390,6 +392,10 @@ func (a *App) chooseSidebar(t *tab) {
 		a.chooseSubmodule(t, path)
 	case "newworktree":
 		a.openNewWorktree(t)
+		if !strings.Contains(was, ":") {
+			t.sel = was
+			return
+		}
 	}
 	t.sel = "changes"
 }

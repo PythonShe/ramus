@@ -615,8 +615,12 @@ func (a *App) refIndex(t *tab) bool {
 }
 
 // sidebarSwitch switches to the branch a double click chose in the
-// sidebar, as a double click does in the branches view.
+// sidebar, as a double click does in the branches view. In a repository
+// opened read-only it does nothing, as its menu items are off.
 func (a *App) sidebarSwitch(t *tab, name string) {
+	if t.s.Queue == nil {
+		return
+	}
 	switch {
 	case strings.HasPrefix(name, "refs/remotes/"):
 		if !strings.HasSuffix(name, "/HEAD") {
