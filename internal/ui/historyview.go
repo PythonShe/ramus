@@ -511,8 +511,10 @@ func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author
 		// Stale: shown until read again.
 		a.askText(t, h, i/history.TextChunkRows)
 	}
+	// In the viewer's zone, not each author's, so that the times of rows
+	// compare.
 	s, au, w := ch.Row(k)
-	return s, au, w, true
+	return s, au, w.Local(), true
 }
 
 // askText reads the text of the commits of chunk k of h's rows that is
