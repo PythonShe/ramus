@@ -109,6 +109,9 @@ type Session struct {
 	// write of the app's own has ended, and the user waits on it.
 	now  bool
 	wake chan struct{}
+	// woke, when a test sets it, is called with each change the
+	// refresher is woken for, for the test to tell the bursts it saw.
+	woke atomic.Pointer[func()]
 	// refreshIdle is set while the refresher waits with nothing put off,
 	// for a test to tell a session done with what it was told.
 	refreshIdle atomic.Bool
@@ -412,6 +415,9 @@ func (s *Session) refreshPaths(what repo.Change, paths []string) {
 		s.dirtyPaths = append(s.dirtyPaths, paths...)
 	}
 	s.mu.Unlock()
+	if f := s.woke.Load(); f != nil {
+		(*f)()
+	}
 	select {
 	case s.wake <- struct{}{}:
 	default:

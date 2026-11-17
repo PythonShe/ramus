@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -48,6 +49,17 @@ func TestBulkWrite(t *testing.T) {
 		}
 		return n
 	}
+	// The times the watcher woke the refresher, for the bursts it saw:
+	// a machine busy enough to stall the writer or the watcher past
+	// Debounce splits the one burst into several.
+	var mu sync.Mutex
+	var woke []time.Time
+	note := func() {
+		mu.Lock()
+		woke = append(woke, time.Now())
+		mu.Unlock()
+	}
+	s.woke.Store(&note)
 	before := statusRuns()
 	last := s.State.Status
 	var shown []int
@@ -69,12 +81,31 @@ func TestBulkWrite(t *testing.T) {
 	took := time.Since(start)
 	m.settle(t, s)
 	runs := statusRuns() - before
-	t.Logf("5,000 files written in %v; %d status runs, statuses shown %v, all shown after %v",
-		wrote.Round(time.Millisecond), runs, shown, took.Round(time.Millisecond))
-	// A write slower than MaxDebounce may take two, and a disk slow
-	// enough to pause past Debounce mid-burst (a CI runner's) one more;
-	// a status per batch of events would be dozens.
-	if limit := 2 + int(wrote/MaxDebounce); runs > limit {
-		t.Fatalf("%d status runs for one burst", runs)
+	s.woke.Store(nil)
+	mu.Lock()
+	bursts := debounced(woke)
+	mu.Unlock()
+	t.Logf("5,000 files written in %v; %d status runs for %d bursts, statuses shown %v, all shown after %v",
+		wrote.Round(time.Millisecond), runs, bursts, shown, took.Round(time.Millisecond))
+	// A status per burst the watcher saw, and one more for a change that
+	// came as the refresher was not there to take it; a write slower than
+	// MaxDebounce takes two even unbroken. A status per batch of events
+	// would be dozens.
+	if limit := max(bursts+1, 2+int(wrote/MaxDebounce)); runs > limit {
+		t.Fatalf("%d status runs for %d bursts", runs, bursts)
 	}
+}
+
+// debounced is how many refreshes changes at the times at call for as
+// the refresher debounces them: one for each run of changes none
+// Debounce after the one before, and none MaxDebounce after the first.
+func debounced(at []time.Time) int {
+	n := 0
+	for i := 0; i < len(at); n++ {
+		first, prev := at[i], at[i]
+		for i++; i < len(at) && at[i].Sub(prev) < Debounce && at[i].Sub(first) < MaxDebounce; i++ {
+			prev = at[i]
+		}
+	}
+	return n
 }
