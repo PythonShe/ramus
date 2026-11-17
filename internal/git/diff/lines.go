@@ -175,6 +175,14 @@ func CommitLines(ctx context.Context, r *run.Runner, gitDir string, a, b []byte)
 	return numStat(ctx, r, gitDir, "", args)
 }
 
+// WorkTreeBaseLines counts the lines changed from commit or tree a to
+// the work tree, with renames, as WorkTreeRenames lists them, through
+// the plumbing, which never writes the index.
+func WorkTreeBaseLines(ctx context.Context, r *run.Runner, gitDir, workTree string, a []byte) (*NumStat, error) {
+	args := []string{"diff-index", "--numstat", "-z", "--submodule=short", "-M", hex.EncodeToString(a)}
+	return numStat(ctx, r, gitDir, workTree, args)
+}
+
 // MaxLinePaths bounds the paths WorkTreeLines names to git; past it,
 // counting every change costs about what naming them would.
 const MaxLinePaths = 64 << 10

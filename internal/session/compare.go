@@ -17,13 +17,27 @@ import (
 // the lines are counted. cancel stops the read; done is not called after
 // it. A comparison read before is handed over at once.
 func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func()) {
+	return s.compare(from, to, done)
+}
+
+// CompareWorkTree is Compare from commit from to the work tree, through
+// git, which reads the work tree: a CommitDetail with WorkTree set and
+// no OID, whose files' patches WorkTreeComparePatch reads. The work tree
+// changes, so it is read anew each time.
+func (s *Session) CompareWorkTree(from []byte, done func(CommitDetail)) (cancel func()) {
+	return s.compare(from, nil, done)
+}
+
+// compare is Compare, to nil comparing with the work tree.
+func (s *Session) compare(from, to []byte, done func(CommitDetail)) (cancel func()) {
 	r := s.Repo
+	work := to == nil
 	if r == nil {
-		done(CommitDetail{OID: to, Err: errors.New("session: the repository is not open"), Done: true})
+		done(CommitDetail{OID: to, WorkTree: work, Err: errors.New("session: the repository is not open"), Done: true})
 		return func() {}
 	}
 	key := "x\x00" + string(from) + "\x00" + string(to)
-	if a, ok := s.answers().Get(key); ok {
+	if a, ok := s.answers().Get(key); ok && !work {
 		done(*a.detail)
 		return func() {}
 	}
@@ -31,8 +45,12 @@ func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func
 	dropped := false // main thread only
 	r.Life().Go(func(context.Context) {
 		defer stop()
-		d := CommitDetail{OID: to, Parents: [][]byte{from}}
-		d.Files, d.Renames, d.Err = diff.Renames(ctx, r.Runner, r.GitDir, r.Caps.HashSize, from, to)
+		d := CommitDetail{OID: to, Parents: [][]byte{from}, WorkTree: work}
+		if work {
+			d.Files, d.Renames, d.Err = diff.WorkTreeRenames(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, from)
+		} else {
+			d.Files, d.Renames, d.Err = diff.Renames(ctx, r.Runner, r.GitDir, r.Caps.HashSize, from, to)
+		}
 		if ctx.Err() != nil {
 			return
 		}
@@ -45,7 +63,14 @@ func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func
 					done(listed)
 				}
 			})
-			if ns, err := diff.CommitLines(ctx, r.Runner, r.GitDir, from, to); err == nil {
+			var ns *diff.NumStat
+			var err error
+			if work {
+				ns, err = diff.WorkTreeBaseLines(ctx, r.Runner, r.GitDir, r.WorkTree, from)
+			} else {
+				ns, err = diff.CommitLines(ctx, r.Runner, r.GitDir, from, to)
+			}
+			if err == nil {
 				d.Lines = ns.ForRaw(d.Files)
 				d.Sum = diff.Total(d.Lines)
 			}
@@ -55,7 +80,7 @@ func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func
 		}
 		d.Done = true
 		s.update(func() {
-			if d.Err == nil {
+			if d.Err == nil && !work {
 				s.keep(r, key, answer{detail: &d})
 			}
 			if !dropped {
@@ -64,6 +89,16 @@ func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func
 		})
 	})
 	return func() { dropped = true; stop() }
+}
+
+// WorkTreeComparePatch reads the patch of paths, the last the new path,
+// from commit from to the work tree, whose file is its new side, in
+// slot, as PatchIn reads one.
+func (s *Session) WorkTreeComparePatch(slot *PatchSlot, from []byte, paths []string, maxBytes int, ws diff.Whitespace, sides Sides, done func(PatchResult)) {
+	req := diff.PatchRequest{Source: diff.Head, Base: hex.EncodeToString(from), Paths: paths, Context: -1,
+		MaxBytes: maxBytes, Whitespace: ws, Renames: true}
+	sides.WorkTreePath = paths[len(paths)-1]
+	s.PatchIn(slot, req, sides, done)
 }
 
 // Rewrite describes commit d for a rewrite of HEAD's history: the git at

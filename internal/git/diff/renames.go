@@ -32,7 +32,20 @@ func Renames(ctx context.Context, r *run.Runner, gitDir string, hashSize int, a,
 	} else {
 		args = append(args, hex.EncodeToString(a), hex.EncodeToString(b))
 	}
-	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, Args: args, Read: true, Untranslated: true})
+	return renames(ctx, r, &run.Cmd{GitDir: gitDir, Args: args, Read: true, Untranslated: true}, hashSize)
+}
+
+// WorkTreeRenames lists what changed from commit or tree a to the work
+// tree, with renames, through git diff-index, the plumbing, which never
+// writes the index: as git diff a, files git does not track are left
+// out. A file changed in the work tree has a zero new id.
+func WorkTreeRenames(ctx context.Context, r *run.Runner, gitDir, workTree string, hashSize int, a []byte) (*Raw, RenameLimit, error) {
+	args := []string{"diff-index", "-z", "--raw", "--no-abbrev", "-M", hex.EncodeToString(a)}
+	return renames(ctx, r, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Args: args, Read: true, Untranslated: true}, hashSize)
+}
+
+func renames(ctx context.Context, r *run.Runner, cmd *run.Cmd, hashSize int) (*Raw, RenameLimit, error) {
+	res, err := r.Run(ctx, cmd)
 	if err != nil {
 		return nil, RenameLimit{}, err
 	}

@@ -56,6 +56,9 @@ const DefaultMaxPatch = 256 << 20
 // PatchRequest asks for the patch of some paths.
 type PatchRequest struct {
 	Source Source
+	// Base is the commit or tree Head compares the work tree with, as
+	// hex; "" is HEAD.
+	Base string
 	// Paths limits the patch, matched literally; empty is every path,
 	// except for Untracked, which takes exactly one.
 	Paths []string
@@ -118,7 +121,11 @@ func WorkTreePatch(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 	case Staged:
 		args = append(args, "--cached")
 	case Head:
-		args = append(args, "HEAD")
+		base := "HEAD"
+		if req.Base != "" {
+			base = req.Base
+		}
+		args = append(args, "--end-of-options", base)
 	case Untracked:
 		if len(req.Paths) != 1 {
 			return Patch{}, errors.New("diff: an untracked patch takes one path")

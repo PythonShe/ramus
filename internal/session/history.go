@@ -818,6 +818,9 @@ type CommitDetail struct {
 	// Names is the number of the mailmap that named its people, as
 	// HistoryState's Names: a detail named through a lower one is stale.
 	Names int
+	// WorkTree is set for a comparison with the work tree, from its one
+	// parent, as CompareWorkTree reads it: it has no OID.
+	WorkTree bool
 	// Done is set on the last of the details handed over.
 	Done bool
 	Err  error

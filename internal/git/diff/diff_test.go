@@ -90,6 +90,47 @@ func TestRenames(t *testing.T) {
 	}
 }
 
+// A commit compared with the work tree lists what git diff-index lists,
+// renames staged and changes not, and counts and patches the same files.
+func TestWorkTreeAgainstCommit(t *testing.T) {
+	r := gittest.Init(t)
+	body := strings.Repeat("a line long enough to compare\n", 20)
+	r.Write("moved", body)
+	r.Write("a", "1\n")
+	r.Commit("one")
+	r.Write("a", "1\n2\n")
+	r.Commit("two")
+	r.Git("mv", "moved", "here")
+	r.Write("a", "1\n2\n3\n")
+	r.Write("untracked", "u\n")
+
+	ctx := context.Background()
+	run := testrun.Runner(t)
+	base := oid(t, r, "HEAD~")
+	raw, _, err := WorkTreeRenames(ctx, run, r.GitDir(), r.Dir, 20, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := r.Git("diff-index", "-z", "--raw", "--no-abbrev", "-M", "HEAD~")
+	if got := format(raw); got != want || raw.Len() != 2 {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+	ns, err := WorkTreeBaseLines(ctx, run, r.GitDir(), r.Dir, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := ns.Find([]byte("a"), []byte("a")); l != (Lines{Added: 2, Known: true}) {
+		t.Errorf("a %+v", l)
+	}
+	if l := ns.Find([]byte("moved"), []byte("here")); l != (Lines{Known: true}) {
+		t.Errorf("rename %+v", l)
+	}
+	p, err := WorkTreePatch(ctx, run, r.GitDir(), r.Dir, PatchRequest{Source: Head, Base: hex.EncodeToString(base), Paths: []string{"a"}, Context: -1})
+	if err != nil || !strings.Contains(string(p.Text), "+2\n+3\n") {
+		t.Fatalf("%v %q", err, p.Text)
+	}
+}
+
 func FuzzParseRaw(f *testing.F) {
 	f.Add([]byte(":100644 100644 " + strings.Repeat("1", 40) + " " + strings.Repeat("2", 40) + " R087\x00a\x00b\x00"))
 	f.Add([]byte(strings.Repeat("3", 40) + "\x00:000000 100644 " + strings.Repeat("0", 40) + " " + strings.Repeat("2", 40) + " A\x00x\x00"))

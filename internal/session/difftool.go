@@ -14,7 +14,8 @@ import (
 
 // DiffToolRequest names what an external diff tool compares: paths of the
 // work tree against the index, of the index against HEAD (Cached), or
-// between commits From and To when they are set.
+// between commits From and To when they are set, or of the work tree
+// against From when only it is.
 type DiffToolRequest struct {
 	Paths    []string
 	Cached   bool
@@ -92,6 +93,8 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 	switch {
 	case req.From != nil && req.To != nil:
 		args = append(args, hex.EncodeToString(req.From), hex.EncodeToString(req.To))
+	case req.From != nil:
+		args = append(args, hex.EncodeToString(req.From))
 	case req.Cached:
 		args = append(args, "--cached")
 	}
