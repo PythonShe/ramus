@@ -68,7 +68,10 @@ type PullMode string
 const (
 	PullMerge  PullMode = "--no-rebase"
 	PullRebase PullMode = "--rebase"
-	PullFFOnly PullMode = "--ff-only"
+	// PullRebaseMerges rebases keeping the merges of the branch's own,
+	// as pull.rebase=merges does.
+	PullRebaseMerges PullMode = "--rebase=merges"
+	PullFFOnly       PullMode = "--ff-only"
 )
 
 // Pull fetches the upstream of the branch HEAD is on and takes it in, as
@@ -76,7 +79,7 @@ const (
 // in what it replays, as Rebase does; branches are those it may move.
 func Pull(w Where, mode PullMode, branches []string, seen Seen) (Op, error) {
 	switch mode {
-	case PullMerge, PullRebase, PullFFOnly:
+	case PullMerge, PullRebase, PullRebaseMerges, PullFFOnly:
 	default:
 		return Op{}, errors.New("write: unknown pull mode " + string(mode))
 	}

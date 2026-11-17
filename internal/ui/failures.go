@@ -212,9 +212,12 @@ func pullMode(cfg *config.Config, branch string) write.PullMode {
 	if !ok {
 		v, ok = cfg.Get("pull.rebase")
 	}
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "true", "yes", "on", "1", "merges", "m", "interactive", "i":
-		if ok {
+	if ok {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "merges", "m":
+			return write.PullRebaseMerges
+		case "true", "yes", "on", "1", "interactive", "i":
+			// Interactive would open an editor no one is at.
 			return write.PullRebase
 		}
 	}

@@ -128,7 +128,7 @@ func TestPullMode(t *testing.T) {
 		{[][]string{{"pull.rebase", "true"}}, write.PullRebase},
 		{[][]string{{"pull.ff", "only"}}, write.PullFFOnly},
 		{[][]string{{"pull.rebase", "true"}, {"branch.main.rebase", "false"}}, write.PullMerge},
-		{[][]string{{"branch.main.rebase", "merges"}}, write.PullRebase},
+		{[][]string{{"branch.main.rebase", "merges"}}, write.PullRebaseMerges},
 	} {
 		r := gittest.Init(t)
 		for _, kv := range c.set {

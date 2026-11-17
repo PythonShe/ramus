@@ -252,3 +252,36 @@ func TestRemotesFetchPullPushAndTags(t *testing.T) {
 		t.Fatal("remote left")
 	}
 }
+
+// A pull rebasing with merges keeps the merges made on the branch.
+func TestPullRebaseMergesKeepsMerges(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	bare := gittest.Init(t, "--bare")
+	h.r.Git("remote", "add", "origin", bare.Dir)
+	h.r.Git("push", "-q", "-u", "origin", "main")
+	other := gittest.Init(t)
+	other.Git("fetch", "-q", bare.Dir, "main")
+	other.Git("reset", "-q", "--hard", "FETCH_HEAD")
+	other.Write("o", "1")
+	other.Commit("theirs")
+	other.Git("push", "-q", bare.Dir, "HEAD:main")
+
+	h.r.Git("switch", "-q", "-c", "side")
+	h.r.Write("s", "1")
+	h.r.Commit("side")
+	h.r.Git("switch", "-q", "main")
+	h.r.Write("m", "1")
+	h.r.Commit("mine")
+	h.r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+
+	op, err := Pull(h.w, PullRebaseMerges, nil, h.seen())
+	h.do(op, err, true)
+	if n := strings.TrimSpace(h.r.Git("rev-list", "--count", "--merges", "origin/main..main")); n != "1" {
+		t.Fatalf("%s merges left", n)
+	}
+	if _, err := h.r.Run(nil, "merge-base", "--is-ancestor", "origin/main", "main"); err != nil {
+		t.Fatal("not rebased onto origin/main")
+	}
+}
