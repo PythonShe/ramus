@@ -43,11 +43,11 @@ import (
 // The message is what a row is read by. It would like the room its
 // subjects take, up to historyMessageWant, or the width the user gave it
 // if less: when the list is too narrow for that, the free room at the end
-// goes first, then the columns at the end shut, the hash, then the date,
-// then the author, and then the graph goes thin; they come back as the
-// list widens. Only then does the message narrow, down to
-// historyMessageMin. Nor does a drag widen a column into the room the
-// message would like.
+// goes first, then the columns shut, the author, then the date, and then
+// the graph goes thin; they come back as the list widens. Only then does
+// the message narrow, down to historyMessageMin, short of which the hash
+// shuts too. Nor does a drag widen a column into the room the message
+// would like.
 
 type histColumn int
 
@@ -209,7 +209,7 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 			titles[colGraph] = columnTitle(c, "")
 			dividers[colGraph] = a.columnDivider(c, hv, colGraph)
 		}
-		ui.Text(c, locales.HistoryColumnMessage()).FontSize(textCaption).TextColor(th.TextMuted).SingleLine().Grow(1).Shrink(1)
+		columnTitle(c, locales.HistoryColumnMessage()).Grow(1).Shrink(1)
 		a.columnDivider(c, hv, colMessage).Width(spaceM)
 		for k := colAuthor; k < histColumns; k++ {
 			if built[k] {
@@ -220,6 +220,8 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 			}
 		}
 	})
+	// Ruled off from the rows, as a Table's header is.
+	ui.Divider(c)
 	l := a.historyColumns(head, hv, snap)
 	hv.cols = l
 	head.PaddingEnd(insetX + l.end)
@@ -453,20 +455,30 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) colWant {
 	for k := range histColumns {
 		room -= cw.w[k] + columnGap(k, cw.w[k], handles[k])
 	}
-	// Short of room, the columns at the end give way first, each whole:
-	// a column shows its values in full or not at all. Then the graph
-	// goes thin.
-	for k := colHash; k > colGraph && room < 0; k-- {
+	// Short of room, the columns give way first, each whole: a column
+	// shows its values in full or not at all. Then the graph goes thin.
+	// The hash, which takes little and is what a commit is looked up and
+	// copied by, as beside its patch, stays while the message can narrow
+	// to keep it, down to its least.
+	shut := func(k histColumn) {
 		if k != dragged && cw.w[k] > 0 {
 			room += cw.w[k] + columnGap(k, cw.w[k], handles[k]) - columnGap(k, 0, handles[k])
 			cw.w[k] = 0
 			cw.gaveWay = true
 		}
 	}
+	for _, k := range [...]histColumn{colAuthor, colDate} {
+		if room < 0 {
+			shut(k)
+		}
+	}
 	if thin := graphThin(snap); room < 0 && dragged != colGraph && cw.w[colGraph] > thin {
 		room += cw.w[colGraph] - thin
 		cw.w[colGraph] = thin
 		cw.gaveWay = true
+	}
+	if room+want-historyMessageMin < 0 {
+		shut(colHash)
 	}
 	// The message takes the room, up to the width it keeps; the rest is
 	// free at the end. With a column given way there is no room to leave
@@ -494,8 +506,10 @@ func histColumnName(k histColumn) string {
 	return locales.HistoryColumnCommit()
 }
 
+// columnTitle heads a column as a Table's headers do, for the history's to
+// look as the other lists'.
 func columnTitle(c *ui.Context, title string) ui.Element {
-	return ui.Text(c, title).FontSize(textCaption).TextColor(c.Theme().TextMuted).SingleLine()
+	return ui.Text(c, title).FontSize(textSmall).FontWeight(600).TextColor(c.Theme().TextMuted).SingleLine()
 }
 
 // columnDivider resizes the column on its left, k, when dragged; a thin
@@ -551,12 +565,35 @@ func (a *App) columnDivider(c *ui.Context, hv *historyState, k histColumn) ui.El
 	on := g.Hovered() || held
 	g.Draw(func(p *ui.Painter, r ui.Rect) {
 		col := th.Border
-		if on {
+		switch {
+		case on:
 			col = th.Accent
+		case !hv.cols.ruled(k):
+			return
 		}
 		dividerLine(p, r, col)
 	})
 	return g
+}
+
+// ruled reports whether the divider after column k shows its line while
+// the pointer is away: one between two titles does. The graph's, before
+// a column with no title, and the last, with no column after it, would
+// stand alone.
+func (l *histLayout) ruled(k histColumn) bool {
+	from := k + 1
+	switch k {
+	case colGraph:
+		return false
+	case colMessage:
+		from = colAuthor
+	}
+	for j := from; j < histColumns; j++ {
+		if l.shown[j] || l.handle[j] {
+			return true
+		}
+	}
+	return false
 }
 
 // dragSlop is how far a divider's press moves before it is a drag.
