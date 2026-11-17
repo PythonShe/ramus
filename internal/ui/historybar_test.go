@@ -10,14 +10,22 @@ import (
 )
 
 // History opens on the checked-out commit, its detail shown; the keys
-// of the list copy the chosen hash and go to its parent and its child.
+// of the list copy the chosen hash and go to its parent and its newest
+// child, with commits of other branches between them in the list.
 func TestHistoryStartsAtHead(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
+	r.Git("switch", "-q", "-c", "side")
+	r.Write("s.txt", "side\n")
+	r.Commit("side work")
+	r.Git("switch", "-q", "main")
 	r.Write("a.txt", "alpha\n")
 	r.Commit("add alpha")
 	r.Write("b.txt", "beta\n")
 	r.Commit("add beta")
+	r.Git("switch", "-q", "-c", "newer", "HEAD~1")
+	r.Write("c.txt", "gamma\n")
+	r.Commit("add gamma")
 	r.Git("switch", "-q", "-c", "older", "HEAD~1")
 	r.Git("branch", "aaa")
 	r.Git("tag", "v1")
@@ -29,9 +37,10 @@ func TestHistoryStartsAtHead(t *testing.T) {
 	hv := &tb.hist
 	head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
 	parent := strings.TrimSpace(r.Git("rev-parse", "HEAD~1"))
-	child := strings.TrimSpace(r.Git("rev-parse", "main"))
-	// HEAD is not the top row: main's commit is newer.
-	h.until("HEAD chosen", func() bool { return hex.EncodeToString(hv.chosenID) == head && hv.chosen == 1 })
+	child := strings.TrimSpace(r.Git("rev-parse", "newer"))
+	// HEAD is not the top row: its children are newer, and side's commit
+	// is between it and its parent.
+	h.until("HEAD chosen", func() bool { return hex.EncodeToString(hv.chosenID) == head && hv.chosen == 2 })
 	h.until("its detail", h.shows("1 file changed"))
 	// Its row names the current branch first, whatever its name, then
 	// the other branches, then the tags.
@@ -49,7 +58,7 @@ func TestHistoryStartsAtHead(t *testing.T) {
 	h.until("the hash copied", func() bool { return h.tt.Clipboard() == head })
 
 	h.tt.Key(ui.Alt, ui.KeyDown)
-	h.until("the parent", func() bool { return hex.EncodeToString(hv.chosenID) == parent })
+	h.until("the parent", func() bool { return hex.EncodeToString(hv.chosenID) == parent && hv.chosen == 4 })
 	// The child is read with the commit's relations, a moment after it.
 	h.until("its child known", func() bool { return hv.detail.rel != nil && len(hv.detail.rel.Children) > 0 })
 	h.tt.Key(ui.Alt, ui.KeyUp)
@@ -58,7 +67,7 @@ func TestHistoryStartsAtHead(t *testing.T) {
 		return hv.detail.rel != nil && len(hv.detail.rel.Children) > 0 && hex.EncodeToString(hv.detail.id) == head
 	})
 	h.tt.Key(ui.Alt, ui.KeyUp)
-	h.until("main's commit", func() bool { return hex.EncodeToString(hv.chosenID) == child })
+	h.until("the newest child", func() bool { return hex.EncodeToString(hv.chosenID) == child && hv.chosen == 0 })
 }
 
 // History starting at HEAD yields to the user: a row chosen, or the list
