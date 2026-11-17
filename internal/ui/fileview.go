@@ -14,6 +14,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/write"
+	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -88,14 +89,16 @@ func (a *App) ShowFile(abs string, blame bool) {
 		dir = filepath.Dir(abs)
 	}
 	a.Open(dir)
-	a.pendingFile = pendingFile{abs: abs, blame: blame, t: a.current()}
+	a.pendingFile = pendingFile{abs: abs, blame: blame, dir: library.Clean(dir)}
 }
 
 type pendingFile struct {
 	abs   string
 	blame bool
-	// t is the tab opened for it, which alone can show it.
-	t *tab
+	// dir is the folder opened for it, as its tab names it: the tab
+	// that alone can show it, which may not be open yet when git is
+	// still being looked for.
+	dir string
 }
 
 // resolvePending shows a file asked for before its repository was open,
@@ -105,7 +108,7 @@ type pendingFile struct {
 // for again each frame.
 func (a *App) resolvePending(t *tab) {
 	p := a.pendingFile
-	if p.abs == "" || p.t != t || t.s.Repo == nil {
+	if p.abs == "" || t.s.Path != p.dir || t.s.Repo == nil {
 		return
 	}
 	a.pendingFile = pendingFile{}

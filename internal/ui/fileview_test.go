@@ -96,3 +96,17 @@ func TestLineHistory(t *testing.T) {
 		return hasExact(h, "Lines 2–3") && hasExact(h, "shout gamma") && hasExact(h, "shout beta")
 	})
 }
+
+// A file asked for before git was found is shown once it is, and its
+// repository open.
+func TestShowFileBeforeGit(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith("src/b.go")
+	h.trust.Set(r.GitDir(), true)
+	runner := h.app.Runner
+	h.app.Runner = nil
+	h.app.ShowFile(filepath.Join(r.Dir, "src", "b.go"), false)
+	h.app.SetRunner(runner, nil)
+	tb := h.app.current()
+	h.until("the file", func() bool { return tb.sel == "file" && tb.file.path == "src/b.go" })
+}
