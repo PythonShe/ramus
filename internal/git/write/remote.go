@@ -149,6 +149,19 @@ func PushTag(w Where, remote, name string) (Op, error) {
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"push", "--progress", "--", remote, "refs/tags/" + name}, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }
 
+// DeleteRemoteBranch deletes branch on remote. It cannot be undone from
+// here: the remote no longer has it.
+func DeleteRemoteBranch(w Where, remote, branch string) (Op, error) {
+	if err := checkName("remote", remote); err != nil {
+		return Op{}, err
+	}
+	if err := checkName("branch", branch); err != nil {
+		return Op{}, err
+	}
+	return Op{Name: "Delete " + branch + " on " + remote, NoIndex: true,
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"push", "--progress", "--delete", "--", remote, "refs/heads/" + branch}, Timeout: PushTimeout, Stall: NetworkStall}}, nil
+}
+
 // CheckRemoteURL refuses a URL git would read as an option, one with
 // control characters, which hide what it is, and the ext:: and fd::
 // transports, which run commands.
