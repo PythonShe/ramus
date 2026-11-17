@@ -27,7 +27,7 @@ func TestLongBranchNameShowsWhole(t *testing.T) {
 	r.Git("branch", long)
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.until("the branch", func() bool { return hasExact(h, long) })
 
 	// rest puts the pointer on the text s and waits out the tooltip's

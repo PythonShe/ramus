@@ -28,7 +28,7 @@ func TestNewWindow(t *testing.T) {
 	h.trust.Set(one.GitDir(), true)
 	h.app.Open(one.Dir)
 	h.app.Open(two.Dir)
-	h.until("both tabs", func() bool { return len(h.app.tabs) == 2 && h.tt.HasText("No changes") })
+	h.until("both tabs", func() bool { return len(h.app.tabs) == 2 && h.tt.HasText("No local changes") })
 	if !h.app.Has(one.Dir) || h.app.Has(other) {
 		t.Fatal("Has")
 	}

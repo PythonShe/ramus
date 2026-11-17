@@ -43,7 +43,7 @@ func (h *harness) openTwo() (first, second *tab) {
 	h.trust.Set(r2.GitDir(), true)
 	h.app.Open(r1.Dir)
 	h.app.Open(r2.Dir)
-	h.until("the second repository", h.shows("No changes"))
+	h.until("the second repository", h.shows("No local changes"))
 	first, second = h.app.tabs[0], h.app.tabs[1]
 	h.stripTab(h.app.title(first))
 	return first, second
@@ -55,13 +55,13 @@ func TestTabStripFollowsTheTabShown(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	if _, ok := h.stripTabs(); ok {
 		t.Fatal("the strip shows with one repository open")
 	}
 	r2 := h.repoWith()
 	h.app.Open(r2.Dir)
-	h.until("the second repository", h.shows("No changes"))
+	h.until("the second repository", h.shows("No local changes"))
 	first, second := h.app.tabs[0], h.app.tabs[1]
 	selected := func(tb *tab) func() bool {
 		return func() bool {
@@ -109,7 +109,7 @@ func TestTabStripShowsState(t *testing.T) {
 	h.trust.Set(clean.GitDir(), true)
 	h.app.Open(dirty.Dir)
 	h.app.Open(clean.Dir)
-	h.until("the clean repository", h.shows("No changes"))
+	h.until("the clean repository", h.shows("No local changes"))
 	h.stripTab(h.app.title(h.app.tabs[0]) + ", uncommitted changes")
 	tb := h.app.tabs[1]
 	h.stripTab(h.app.title(tb))
@@ -198,7 +198,7 @@ func TestTabStripScrollsToTheTabShown(t *testing.T) {
 		r := h.repoWith()
 		h.app.Open(r.Dir)
 	}
-	h.until("the last repository", h.shows("No changes"))
+	h.until("the last repository", h.shows("No local changes"))
 	inView := func(tb *tab) func() bool {
 		return func() bool {
 			a, ok := h.tt.AccessByRole(ui.RoleTab, h.app.title(tb))

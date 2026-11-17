@@ -733,7 +733,6 @@
   "@changesDiscardAll": {
     "description": "Menu item: discard every change, staged and not, after asking."
   },
-  "changesNone": "No changes",
   "changesNoLocal": "No local changes",
   "@changesNoLocal": {
     "description": "Over the actions offered where a changed file's patch would be, when nothing in the work tree is changed."

@@ -24,7 +24,7 @@ func TestLFSLocksView(t *testing.T) {
 	r.Git("config", "lfs.url", srv.URL)
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.until("the locks in the sidebar", h.shows("LFS Locks"))
 	h.click("LFS Locks")
 	h.until("their lock", func() bool { return h.tt.HasText("theirs.psd") && h.tt.HasText("alice") })

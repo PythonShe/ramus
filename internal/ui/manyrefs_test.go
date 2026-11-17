@@ -29,7 +29,7 @@ func TestManyRefs(t *testing.T) {
 	}
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	tb := h.app.current()
 	if n := tb.s.State.Refs.Len(); n != 30001 {
 		t.Fatalf("%d refs", n)

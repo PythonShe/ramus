@@ -39,7 +39,7 @@ func TestHideSidebarParts(t *testing.T) {
 	r.Git("branch", "topic")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	palette := func(text string) {
 		t.Helper()
 		h.app.palette.open = true
@@ -101,7 +101,7 @@ func TestWarningBar(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	tb.s.State.RefreshErr = errors.New("a test failure")
 	h.until("the warning", h.shows("Refresh failed: a test failure"))

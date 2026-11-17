@@ -16,7 +16,7 @@ func TestRunningWriteCancel(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	op := write.Op{Name: "Slow fetch", Cmd: run.Cmd{GitDir: r.GitDir(), WorkTree: r.Dir,
 		Config: []string{"alias.slow=!echo 'Receiving objects:  42% (42/100)' >&2; sleep 30"}, Args: []string{"slow"}}}

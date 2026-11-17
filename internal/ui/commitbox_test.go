@@ -207,7 +207,7 @@ func TestCommitWhyNotAndRecent(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	cs := &tb.commit
 	h.until("the reason", func() bool { _, why := commitWhyNot(tb); return why == "Stage changes to commit" })
@@ -251,7 +251,7 @@ func TestAmendPushed(t *testing.T) {
 	r.Git("push", "-q", "origin", "main")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	cs := &tb.commit
 	h.until("set up", func() bool { return cs.setup != nil })
@@ -298,7 +298,7 @@ func TestAmendTrackShared(t *testing.T) {
 	r.Git("push", "-q", "origin", "main")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	cs := &tb.commit
 	h.until("set up", func() bool { return cs.setup != nil })

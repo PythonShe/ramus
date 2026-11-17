@@ -75,7 +75,7 @@ func TestStashAndClean(t *testing.T) {
 	r.Commit("ignore")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	r.Write("README", "changed")
 	r.Write("new.txt", "x")
@@ -153,7 +153,7 @@ func TestCommitOps(t *testing.T) {
 	}
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("History")
 	h.until("the history", h.shows("topic work"))

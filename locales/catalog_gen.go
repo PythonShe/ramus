@@ -3901,16 +3901,6 @@ func (msgs Messages) ChangesDiscardAll() string {
 	return Catalog.Format(msgs.locale, "changesDiscardAll", nil)
 }
 
-// ChangesNone says "No changes"
-// in the language the app shows.
-func ChangesNone() string { return In(i18n.Locale()).ChangesNone() }
-
-// ChangesNone says "No changes"
-// in the language of msgs.
-func (msgs Messages) ChangesNone() string {
-	return Catalog.Format(msgs.locale, "changesNone", nil)
-}
-
 // ChangesNoLocal says "No local changes"
 // in the language the app shows.
 //

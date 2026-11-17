@@ -344,12 +344,12 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 			return
 		}
 		if len(m.rows) == 0 {
+			// A clean tree is said so once, by the patch's pane, beside
+			// what there is to do next.
 			ui.Column(c).Fill().Center().Children(func() {
-				msg := locales.ChangesNone()
 				if m.filter != "" {
-					msg = locales.ChangesNoneMatch(m.filter)
+					ui.Text(c, locales.ChangesNoneMatch(m.filter)).TextColor(th.TextMuted)
 				}
-				ui.Text(c, msg).TextColor(th.TextMuted)
 			})
 			return
 		}

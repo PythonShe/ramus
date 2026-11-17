@@ -21,7 +21,7 @@ func TestColumnsKept(t *testing.T) {
 	r.Git("tag", "v1")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.click("Branches and Tags")
 	h.app.setSidebar(false)
 	h.until("the branches", func() bool { return hasExact(h, "other") && hasExact(h, "spare") })
@@ -67,7 +67,7 @@ func TestColumnsKept(t *testing.T) {
 	h2.app.Settings = saved
 	h2.trust.Set(r.GitDir(), true)
 	h2.app.Open(r.Dir)
-	h2.until("the repository", h2.shows("No changes"))
+	h2.until("the repository", h2.shows("No local changes"))
 	h2.app.current().sel = "refs"
 	h2.until("the branches", func() bool { return hasExact(h2, "other") })
 	if w := header(h2, "Upstream").W; w != want {

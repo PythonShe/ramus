@@ -37,7 +37,7 @@ func TestPictureDiff(t *testing.T) {
 	r.Commit("logo")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	r.Write("logo.png", pngOf(t, 64, 32, color.RGBA{0, 0, 200, 255}))
 	h.until("the change", h.shows("logo.png"))
 	h.click("logo.png")
@@ -73,7 +73,7 @@ func TestPictureDiffFromLFS(t *testing.T) {
 	}
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	r.Write("logo.png", pngOf(t, 64, 32, color.RGBA{0, 0, 200, 255}))
 	r.Write("gone.png", pngOf(t, 16, 16, color.RGBA{0, 0, 200, 255}))
 	// gone.png's old content was never downloaded: its object goes once

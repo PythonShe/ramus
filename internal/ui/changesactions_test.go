@@ -50,7 +50,8 @@ func TestPatchHeaderStagesTheFile(t *testing.T) {
 	h.until("unstaged", func() bool { return cv.model != nil && len(cv.model.files[secUnstaged]) == 1 })
 }
 
-// A clean tree offers what there is to do instead of a blank pane.
+// A clean tree offers what there is to do instead of a blank pane, and
+// says it is clean there alone: the list beside it stays empty.
 func TestCleanTreePane(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith("a.txt")
@@ -58,6 +59,9 @@ func TestCleanTreePane(t *testing.T) {
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
 	h.until("the clean tree", func() bool { return h.tt.HasText("No local changes") && h.tt.HasText("Reveal in File Manager") })
+	if n := countExact(h, "No local changes"); n != 1 || h.tt.HasText("No changes") {
+		t.Fatalf("the clean tree said %d times: %q", n, h.tt.Texts())
+	}
 }
 
 // A rename's header names the path it had.

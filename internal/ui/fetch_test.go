@@ -17,7 +17,7 @@ func TestBackgroundFetchSettings(t *testing.T) {
 	h.trust.Set(r.GitDir(), true)
 	h.app.Settings.NoFetch = true
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	if tb.s.FetchEvery() != 0 {
 		t.Fatal("fetching with the setting off")

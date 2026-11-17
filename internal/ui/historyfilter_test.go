@@ -27,7 +27,7 @@ func TestHistoryFilter(t *testing.T) {
 	h.trust.Set(r.GitDir(), true)
 	h.lib.Opened(r.Dir, h.app.Now())
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	h.click("History")
 	h.until("the commits", h.shows("5 commits"))
 
@@ -77,7 +77,7 @@ func TestHistoryFilter(t *testing.T) {
 	// Opened again, the branch is still hidden.
 	h.app.Close(0)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	h.click("History")
 	h.until("side still hidden", func() bool {
 		hs := h.app.current().s.History

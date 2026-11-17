@@ -28,7 +28,7 @@ func TestRepoPicker(t *testing.T) {
 		h.lib.Opened(r, time.Unix(1_700_000_000+int64(i), 0))
 	}
 	h.app.Open(shown.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 
 	h.click("Repository " + filepath.Base(shown.Dir))
 	h.until("the owners", func() bool {

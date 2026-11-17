@@ -28,7 +28,7 @@ func TestCloseTabWhileWriting(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.hang(tb)
 	h.tt.Key(ui.Cmd, ui.KeyW)
@@ -50,7 +50,7 @@ func TestQuitWhileWriting(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	if h.app.AskToClose(true, func() { t.Fatal("asked with nothing running") }) {
 		t.Fatal("asked with nothing running")
 	}

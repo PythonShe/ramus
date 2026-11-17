@@ -17,7 +17,7 @@ func TestManyChangesFrameTime(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 
 	const n = 30000
 	var b strings.Builder

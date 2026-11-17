@@ -20,7 +20,7 @@ func TestAskpassDialog(t *testing.T) {
 	r.Git("remote", "add", "origin", "https://git.example/r.git")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	program, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)

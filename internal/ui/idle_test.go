@@ -69,7 +69,7 @@ func TestIdle(t *testing.T) {
 	h.trust.Set(r.GitDir(), true)
 	h.trust.Set(other.GitDir(), true)
 	h.app.Open(other.Dir)
-	h.until("the other repository", h.shows("No changes"))
+	h.until("the other repository", h.shows("No local changes"))
 	h.app.Open(r.Dir)
 	r.Write("untracked.txt", "x\n")
 	h.until("the repository", h.shows("untracked.txt"))

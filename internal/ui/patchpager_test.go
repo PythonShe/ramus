@@ -27,7 +27,7 @@ func TestPatchPages(t *testing.T) {
 	r.Commit("files")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	r.Write("mid.txt", lines("new", 500))
 	r.Write("big.txt", lines("new", 2000))
 	h.until("the changes", func() bool { return h.tt.HasText("mid.txt") && h.tt.HasText("big.txt") })

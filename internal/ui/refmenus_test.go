@@ -62,7 +62,7 @@ func TestPaletteBranchCommands(t *testing.T) {
 	r.Git("branch", "feature/alpha")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.until("the refs", func() bool { return tb.s.State.Refs != nil && len(tb.sideRefs.build(tb).heads) == 2 })
 	has := func(query, label string) bool {
@@ -105,7 +105,7 @@ func TestBranchPickerCreateRow(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.click("Branch main")
 	h.tt.Type("zzz")
 	h.until("the row", h.shows("Create Branch zzz…"))

@@ -51,7 +51,7 @@ func TestChosenRowTextIsReadable(t *testing.T) {
 	r.Git("branch", "old", "HEAD~1")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.click("Branches and Tags")
 	h.until("the branch", func() bool { return hasExact(h, "old") })
 
@@ -99,7 +99,7 @@ func TestChosenListRowTextIsReadable(t *testing.T) {
 	r.Commit("a later subject")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.click("History")
 	short := strings.TrimSpace(r.Git("rev-parse", "--short=8", "HEAD~1"))
 	h.until("the hash", func() bool { return hasExact(h, short) })

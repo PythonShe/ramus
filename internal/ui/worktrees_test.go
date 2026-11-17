@@ -21,7 +21,7 @@ func TestWorktreeActions(t *testing.T) {
 	r.Git("update-ref", "refs/remotes/origin/feature", "HEAD")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	// git worktree list fails when the app removes the last worktree's
 	// folder under it as it reads: ask again then.

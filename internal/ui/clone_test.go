@@ -47,7 +47,7 @@ func TestCloneDialog(t *testing.T) {
 	if !h.app.clone.open {
 		t.Fatal("Escape hid the clone running")
 	}
-	h.until("the clone to open", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No changes") })
+	h.until("the clone to open", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No local changes") })
 	if h.app.clone.open {
 		t.Fatal("the dialog stayed after the clone")
 	}

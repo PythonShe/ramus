@@ -16,7 +16,7 @@ func TestMonitorOffer(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	tb := h.app.current()
 	rp := tb.s.Repo
 	a, ok := status.AdviseMonitor(runtime.GOOS, rp.Runner.Git().Version, rp.Config(), rp.GitDir, rp.WorkTree, true, 2*time.Second)

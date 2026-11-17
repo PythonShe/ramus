@@ -35,7 +35,7 @@ func TestPushBehindPullsAndPushes(t *testing.T) {
 
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	if _, err := tb.s.Submit(write.Push(tb.s.Where(), write.PushOptions{})); err != nil {
 		t.Fatal(err)
@@ -63,7 +63,7 @@ func TestStashAndTryAgain(t *testing.T) {
 	r.Git("switch", "-q", "main")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	r.Write("README", "mine")
 	tb := h.app.current()
 	h.until("the change", func() bool { return tb.s.State.Status != nil && tb.s.State.Status.Len() == 1 })
@@ -113,7 +113,7 @@ func TestWindowNotesStack(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.app.Notify("settings not read")
 	h.app.Notify("library not read")
 	h.until("both", func() bool { return h.tt.HasText("settings not read") && h.tt.HasText("library not read") })

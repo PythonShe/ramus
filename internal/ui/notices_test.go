@@ -18,7 +18,7 @@ func TestErrorBarShowsFailedWrite(t *testing.T) {
 	r.Git("switch", "-q", "main")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	r.Write("README", "mine")
 	tb := h.app.current()
 	h.until("the change", func() bool { return tb.s.State.Status != nil && tb.s.State.Status.Len() == 1 })

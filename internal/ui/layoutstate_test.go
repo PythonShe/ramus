@@ -23,7 +23,7 @@ func TestLayoutRestore(t *testing.T) {
 	h.app.LayoutChanged = func() { changed++ }
 	h.app.Open(one.Dir)
 	h.app.Open(two.Dir)
-	h.until("both tabs", func() bool { return len(h.app.tabs) == 2 && h.tt.HasText("No changes") })
+	h.until("both tabs", func() bool { return len(h.app.tabs) == 2 && h.tt.HasText("No local changes") })
 
 	// The first tab: its history, an older commit, a changed file.
 	h.app.active = 0

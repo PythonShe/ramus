@@ -25,7 +25,7 @@ func TestSyncButton(t *testing.T) {
 	r.Git("switch", "-q", "-c", "topic")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 
 	h.until("publish", h.shows("Publish Branch"))
@@ -97,7 +97,7 @@ func TestSyncGoneUpstream(t *testing.T) {
 	r.Git("fetch", "-q", "--prune", "origin")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.until("publish", h.shows("Publish Branch"))
 	for _, c := range h.app.commands("") {

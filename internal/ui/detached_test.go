@@ -15,7 +15,7 @@ func TestDetachedCommitInHistory(t *testing.T) {
 	r.Git("checkout", "-q", "--detach")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("History")
 	h.until("history", h.shows("add a"))

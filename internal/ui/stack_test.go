@@ -24,7 +24,7 @@ func TestStackInBranches(t *testing.T) {
 	r.Git("checkout", "-q", "bottom")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.click("Branches and Tags")
 	h.until("the stack", h.shows("on bottom"))
 	h.menu("top", "Push Stack of 2 Branches")

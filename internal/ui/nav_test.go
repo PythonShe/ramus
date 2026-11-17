@@ -18,7 +18,7 @@ func TestBackAndForward(t *testing.T) {
 	r.Commit("edit readme")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	tab := h.app.current()
 	head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
 	parent := strings.TrimSpace(r.Git("rev-parse", "HEAD~1"))
@@ -56,7 +56,7 @@ func TestSidebarToggle(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	h.click("Hide Sidebar")
 	h.until("no sidebar", func() bool { return !h.tt.HasText("Repository sections") })
 	if !h.app.Settings.NoSidebar {
@@ -88,7 +88,7 @@ func TestOpenAnotherRepository(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	// The repository's button sits on the line of the buttons beside it,
 	// as tall as the branch's.
 	name := "Repository " + h.app.title(h.app.tabs[0])

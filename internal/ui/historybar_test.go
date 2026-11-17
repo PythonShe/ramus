@@ -31,7 +31,7 @@ func TestHistoryStartsAtHead(t *testing.T) {
 	r.Git("tag", "v1")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	h.click("History")
 	tb := h.app.current()
 	hv := &tb.hist
@@ -86,7 +86,7 @@ func TestHistoryStartAtHeadYields(t *testing.T) {
 		r.Git("switch", "-q", "older")
 		h.trust.Set(r.GitDir(), true)
 		h.app.Open(r.Dir)
-		h.until("open", h.shows("No changes"))
+		h.until("open", h.shows("No local changes"))
 		h.click("History")
 		hv := &h.app.current().hist
 		// Stops before the update that finds HEAD's row.
@@ -131,7 +131,7 @@ func TestHistoryGoTo(t *testing.T) {
 	r.Commit("fix the needle")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	h.click("History")
 	h.until("the commits", h.shows("3 commits"))
 	tb := h.app.current()
@@ -193,7 +193,7 @@ func TestHistoryFilterAppliesAsTypingPauses(t *testing.T) {
 	r.Commit("add alpha")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	h.click("History")
 	h.until("the commits", h.shows("2 commits"))
 	h.click("Filter")
@@ -218,7 +218,7 @@ func TestHistoryFilterCountsWhatApplies(t *testing.T) {
 	r.Commit("add alpha")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	h.click("History")
 	h.until("the commits", h.shows("2 commits"))
 	hf := &h.app.current().hist.filter

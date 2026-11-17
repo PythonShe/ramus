@@ -24,7 +24,7 @@ func TestEditorPerRepository(t *testing.T) {
 	}
 	h.app.palette.tools = eds
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.until("the prefs", func() bool { return tb.prefs.loaded })
 	name := func() string {

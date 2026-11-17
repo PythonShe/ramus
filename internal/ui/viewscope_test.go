@@ -41,7 +41,7 @@ func TestLeftViewReadsAgain(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows("No changes"))
+	h.until("open", h.shows("No local changes"))
 	// The repository's cat-file process counts as running throughout.
 	h.settle()
 	base := runner.Running()

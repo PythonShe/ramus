@@ -184,7 +184,7 @@ func TestWelcome(t *testing.T) {
 	h.lib.Opened(r.Dir, time.Unix(1_700_000_000, 0))
 	h.until("the recent repository", h.shows(filepath.Base(r.Dir)))
 	h.click(filepath.Base(r.Dir))
-	h.until("the opened repository", h.shows("No changes"))
+	h.until("the opened repository", h.shows("No local changes"))
 }
 
 // Typing in the welcome window searches the repositories at once; Down
@@ -210,7 +210,7 @@ func TestOpenFollowsChanges(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("clean status", h.shows("No changes"))
+	h.until("clean status", h.shows("No local changes"))
 	if h.tt.HasText("Read-only") {
 		t.Fatal("trusted repository shown read-only")
 	}
@@ -249,7 +249,7 @@ func TestTrustBanner(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("the banner", h.shows("Read-only"))
 	h.click("Trust Repository")
-	h.until("the banner to go", func() bool { return !h.tt.HasText("Read-only") && h.tt.HasText("No changes") })
+	h.until("the banner to go", func() bool { return !h.tt.HasText("Read-only") && h.tt.HasText("No local changes") })
 	if !h.trust.Trusted(r.GitDir()) {
 		t.Fatal("trust not recorded")
 	}
@@ -309,7 +309,7 @@ func TestNewRepository(t *testing.T) {
 	h.app.PickFolder = func(string) (string, error) { return dir, nil }
 	h.tt.Frame()
 	h.click("New Repository…")
-	h.until("the new repository", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No changes") })
+	h.until("the new repository", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No local changes") })
 	if h.tt.HasText("Read-only") {
 		t.Fatal("a repository the app made asks to be trusted")
 	}
@@ -343,7 +343,7 @@ func TestPaletteAndClone(t *testing.T) {
 	h.app.clone.dir = filepath.Join(t.TempDir(), "copy")
 	h.tt.Frame()
 	h.click("Clone")
-	h.until("the clone to open", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No changes") })
+	h.until("the clone to open", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No local changes") })
 	if h.tt.HasText("Read-only") {
 		t.Fatal("a repository the app cloned asks to be trusted")
 	}
@@ -477,7 +477,7 @@ func TestActionsAndLog(t *testing.T) {
 		{Name: "Count bytes", Command: []string{sh, "-c", `wc -c "$1"`, "sh", "${file}"}, On: "file"},
 	}
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.app.palette.open = true
 	h.tt.Frame()
 	h.tt.Type("say hello")
@@ -515,7 +515,7 @@ func TestSnapshotsView(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	r.Write("README", "work in progress")
 	h.until("the change", h.shows("Changes (1)"))
 	h.app.current().sel = "snapshots"
@@ -549,7 +549,7 @@ func TestSnapshotOfACleanWorkTree(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.app.current().sel = "snapshots"
 	h.until("the empty list", h.shows("No snapshots"))
 	h.click("Snapshot Now")
@@ -564,7 +564,7 @@ func TestSnapshotNamedAndDeleted(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.app.current().sel = "snapshots"
 	h.until("the empty list", h.shows("No snapshots"))
 	h.click("Name")
@@ -592,7 +592,7 @@ func TestChangesStageAndDiscard(t *testing.T) {
 	r.Commit("a")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	r.Write("a.txt", "one\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\ntwelve\n")
 	r.Write("new.txt", "x\n")
 	h.until("the changes", func() bool { return h.tt.HasText("a.txt") && h.tt.HasText("new.txt") })
@@ -670,7 +670,7 @@ func TestChangesBulk(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	r.Write("one.txt", "1")
 	r.Write("two.txt", "2")
 	r.Write("three.txt", "3")
@@ -829,7 +829,7 @@ func TestWelcomeNotice(t *testing.T) {
 	h.tt.Frame()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	if h.tt.HasText("could not open it") {
 		t.Fatal("the welcome's notice followed into the tab")
 	}

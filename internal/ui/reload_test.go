@@ -20,7 +20,7 @@ func TestReload(t *testing.T) {
 	r.Commit("a")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	r.Write("a.txt", "two\n")
 	// Old enough for its patch to be kept.
 	old := time.Now().Add(-time.Hour)
