@@ -339,6 +339,7 @@ func (a *App) patchBodyWith(c *ui.Context, t *tab, pv *patchView, res session.Pa
 // and lines that can be selected.
 func (a *App) setDiffView(d *editor.DiffState, review bool, actions func(c *ui.Context, change int)) {
 	o := a.diffOpts()
+	d.Theme = a.themes.code
 	d.Layout = editor.DiffUnified
 	if *o.layout(review) == 1 {
 		d.Layout = editor.DiffSplit

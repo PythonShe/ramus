@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/egoist/mygo/ui"
+import (
+	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
+)
 
 // ivoryTheme is the app's light theme: warm paper rather than mygo's
 // white and zinc, with ink of the same warmth. Code and diffs take their
@@ -35,6 +38,8 @@ type themes struct {
 	dark  bool
 	prefs ui.Preferences
 	theme *ui.Theme
+	// code colors the diffs of the theme.
+	code *editor.Theme
 }
 
 // apply gives the window the app's theme for its appearance: dark when
@@ -58,6 +63,15 @@ func (ts *themes) apply(c *ui.Context, choice string) {
 			t, follow = ui.DarkTheme(), prefs
 		}
 		ts.dark, ts.prefs, ts.theme = dark, prefs, t.WithPreferences(follow)
+		ts.code = codeTheme(ts.theme)
 	}
 	c.SetTheme(ts.theme)
+}
+
+// codeTheme marks the changes of diffs in the theme's own colors, where
+// the editor's are GitHub's: a saturated blue for a change that both
+// adds and deletes, on the ivory's warm paper beside its amber. The
+// rest of the code theme follows t as it would.
+func codeTheme(t *ui.Theme) *editor.Theme {
+	return &editor.Theme{Added: t.Success, Deleted: t.Danger, Modified: t.Accent}
 }
