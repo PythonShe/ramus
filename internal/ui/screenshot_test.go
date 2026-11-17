@@ -28,6 +28,13 @@ func TestScreenshot(t *testing.T) {
 	h.tt.SetScale(2)
 	// Trust lives in the harness's own store, so nothing of the user's changes.
 	h.trust.Set(filepath.Join(dir, ".git"), true)
+	// RAMUS_SCREENSHOT_ALSO opens more repositories, "|" between them,
+	// in tabs before the one shown.
+	for _, p := range strings.Split(os.Getenv("RAMUS_SCREENSHOT_ALSO"), "|") {
+		if p != "" {
+			h.app.Open(p)
+		}
+	}
 	h.app.Open(dir)
 	h.until("the repository", h.shows("History"))
 	h.click("History")
