@@ -83,7 +83,8 @@ func TestPictureDiffFromLFS(t *testing.T) {
 	if err := os.Remove(filepath.Join(r.GitDir(), "lfs", "objects", oid[:2], oid[2:4], oid)); err != nil {
 		t.Fatal(err)
 	}
-	h.until("the change", h.shows("logo.png"))
+	// Both writes, which a status run between them can see one of.
+	h.until("the changes", func() bool { return h.tt.HasText("logo.png") && h.tt.HasText("gone.png") })
 	h.click("logo.png")
 	h.until("the pictures", h.shows("40 × 20, 95 bytes"))
 	if !h.tt.HasText("64 × 32") || h.tt.HasText("version https://git-lfs") {
