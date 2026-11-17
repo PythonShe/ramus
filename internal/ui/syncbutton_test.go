@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -87,7 +86,8 @@ func TestSyncButton(t *testing.T) {
 }
 
 // A push clicked on the button while a fetch in the background runs is
-// not dropped: it waits for the fetch, then goes.
+// not dropped: the fetch gives up its turn, as it does to every write the
+// user asks for, and the push goes.
 func TestSyncPushDuringFetch(t *testing.T) {
 	gittest.Shell(t)
 	h := newHarness(t)
@@ -95,7 +95,7 @@ func TestSyncPushDuringFetch(t *testing.T) {
 	r := h.repoWith()
 	r.Git("remote", "add", "origin", origin.Dir)
 	r.Git("push", "-q", "-u", "origin", "main")
-	// The fetch holds until the gate is there.
+	// The fetch holds until the gate is there, which it never is.
 	gate := filepath.Join(t.TempDir(), "gate")
 	r.Git("config", "remote.origin.uploadpack", "while [ ! -e '"+filepath.ToSlash(gate)+"' ]; do sleep 0.05; done; git upload-pack")
 	r.Write("mine", "x")
@@ -109,24 +109,12 @@ func TestSyncPushDuringFetch(t *testing.T) {
 		t.Fatal("no fetch in the background")
 	}
 	h.click(push)
-	for range 5 {
-		h.tt.Frame()
-	}
-	pushed := func() bool {
+	h.until("pushed though the fetch held", func() bool {
 		out, _ := origin.Run(nil, "rev-parse", "main")
 		return strings.TrimSpace(out) == head
-	}
-	if pushed() {
-		t.Fatal("pushed while the fetch ran")
-	}
-	if !tb.s.Fetching() {
-		t.Fatal("the fetch ended with the gate shut")
-	}
-	if err := os.WriteFile(gate, nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	h.until("pushed after the fetch", pushed)
+	})
 	h.idle(tb, "the push done")
+	h.until("the fetch let go", func() bool { return !tb.s.Fetching() })
 }
 
 // A branch whose upstream the remote deleted is offered to publish

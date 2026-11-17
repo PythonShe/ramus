@@ -160,9 +160,9 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 				}
 			})
 		})
-		// A pull or push asked for during a fetch the app started runs
-		// after it, as the queue has it; a second fetch, or a second of
-		// what the user started, would do nothing more.
+		// A pull or push asked for during a fetch the app started runs at
+		// once, the fetch giving up its turn; a second fetch, or a second
+		// of what the user started, would do nothing more.
 		if b.Clicked() && !mine && !(busy && len(pairs) == 0) {
 			act()
 		}
