@@ -6089,6 +6089,38 @@ func (msgs Messages) PatchBinary() string {
 	return Catalog.Format(msgs.locale, "patchBinary", nil)
 }
 
+// PatchBinarySize says "Binary file, {size}"
+// in the language the app shows.
+//
+// A binary file added or deleted, with its size, as 3.0 KB.
+func PatchBinarySize(size string) string { return In(i18n.Locale()).PatchBinarySize(size) }
+
+// PatchBinarySize says "Binary file, {size}"
+// in the language of msgs.
+//
+// A binary file added or deleted, with its size, as 3.0 KB.
+func (msgs Messages) PatchBinarySize(size string) string {
+	return Catalog.Format(msgs.locale, "patchBinarySize", map[string]any{"size": size})
+}
+
+// PatchBinarySizes says "Binary file, {from} to {to}"
+// in the language the app shows.
+//
+// A binary file changed, with its size before and after, as 2.1 KB and 720
+// bytes.
+func PatchBinarySizes(from string, to string) string {
+	return In(i18n.Locale()).PatchBinarySizes(from, to)
+}
+
+// PatchBinarySizes says "Binary file, {from} to {to}"
+// in the language of msgs.
+//
+// A binary file changed, with its size before and after, as 2.1 KB and 720
+// bytes.
+func (msgs Messages) PatchBinarySizes(from string, to string) string {
+	return Catalog.Format(msgs.locale, "patchBinarySizes", map[string]any{"from": from, "to": to})
+}
+
 // PatchCannotShow says "This patch cannot be shown"
 // in the language the app shows.
 func PatchCannotShow() string { return In(i18n.Locale()).PatchCannotShow() }

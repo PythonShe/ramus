@@ -58,9 +58,22 @@ func (a *App) diffOpts() *diffOptions {
 // wrapping and layout, the review's or the others', then what more
 // builds. A change of layout or wrapping is saved in the settings.
 func (a *App) diffBar(c *ui.Context, review bool, more func()) {
+	a.patchBar(c, review, true, more)
+}
+
+// patchBar is diffBar, with the options of text left out unless text: a
+// binary file's patch has no lines for them to change.
+func (a *App) patchBar(c *ui.Context, review, text bool, more func()) {
 	o := a.diffOpts()
 	// A toolbar: what does not fit a narrow patch goes into its menu.
 	ui.Toolbar(c, func() {
+		if !text {
+			ui.Spacer(c)
+			if more != nil {
+				more()
+			}
+			return
+		}
 		ws := []string{locales.DiffAllWhiteSpace(), locales.DiffIgnoreSpaceChanges(), locales.DiffIgnoreAllSpace()}
 		ui.PopoverMenuButton(c, ws[o.ws], func(m *ui.Menu) {
 			for i, label := range ws {
@@ -279,7 +292,7 @@ func (a *App) patchBodyWith(c *ui.Context, t *tab, pv *patchView, res session.Pa
 		loading(c, "")
 		return ui.Element{}
 	case p.Files[0].Binary:
-		emptyState(c, locales.PatchBinary())
+		emptyState(c, binarySizes(res))
 		return ui.Element{}
 	case pv.failed:
 		emptyState(c, locales.PatchCannotShow())
@@ -338,6 +351,21 @@ func (a *App) setDiffView(d *editor.DiffState, review bool, actions func(c *ui.C
 	}
 }
 
+// binarySizes says a binary file's patch is one, with the sizes of its
+// sides when they were read.
+func binarySizes(res session.PatchResult) string {
+	old, new := len(res.Old), len(res.New)
+	switch {
+	case !res.HasSides || old == 0 && new == 0:
+		return locales.PatchBinary()
+	case old == 0:
+		return locales.PatchBinarySize(byteSize(int64(new)))
+	case new == 0:
+		return locales.PatchBinarySize(byteSize(int64(old)))
+	}
+	return locales.PatchBinarySizes(byteSize(int64(old)), byteSize(int64(new)))
+}
+
 // isPicture reports whether a path names a picture the app can show.
 func isPicture(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
@@ -364,7 +392,23 @@ func decodePicture(data []byte) (ui.ImageSource, string) {
 		return nil, byteSize(int64(len(data)))
 	}
 	w, h := ui.ImageSize(img)
+	if b, ok := img.(*ui.Bitmap); ok && pictureScale(w, h) > 1 {
+		// Shown larger, a small picture's pixels stay sharp squares, as
+		// an icon's are meant to be seen.
+		b.Pixelated()
+	}
 	return img, fmt.Sprintf("%d × %d, %s", int(w), int(h), byteSize(int64(len(data))))
+}
+
+// pictureScale is how many times its size a picture of w by h shows: a
+// small one, as an icon, larger, by whole times, up to pictureShown.
+func pictureScale(w, h float32) float32 {
+	const pictureShown, most = 256, 8
+	side := max(w, h)
+	if side <= 0 || side*2 > pictureShown {
+		return 1
+	}
+	return min(float32(int(pictureShown/side)), most)
 }
 
 // pictures shows a picture before and after its change, side by side.
@@ -383,7 +427,8 @@ func pictures(c *ui.Context, pv *patchView) {
 				ui.Column(c).Grow(1).FillWidth().Center().Background(th.Surface).Radius(th.Radius).Padding(spaceM).Children(func() {
 					if img := pv.images[k]; img != nil {
 						w, h := ui.ImageSize(img)
-						ui.Image(c, img).MaxWidth(w).MaxHeight(h).FillWidth().Label(title)
+						k := pictureScale(w, h)
+						ui.Image(c, img).MaxWidth(w * k).MaxHeight(h * k).FillWidth().Label(title)
 					} else if pv.notFetched[k] {
 						ui.Text(c, locales.PatchNotFetched()).TextColor(th.TextMuted)
 					} else {

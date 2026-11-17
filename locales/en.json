@@ -1165,6 +1165,14 @@
   "diffSettingsNotSaved": "Settings not saved: {reason}",
   "patchNoDifferences": "No differences in content",
   "patchBinary": "Binary file",
+  "patchBinarySize": "Binary file, {size}",
+  "@patchBinarySize": {
+    "description": "A binary file added or deleted, with its size, as 3.0 KB."
+  },
+  "patchBinarySizes": "Binary file, {from} to {to}",
+  "@patchBinarySizes": {
+    "description": "A binary file changed, with its size before and after, as 2.1 KB and 720 bytes."
+  },
   "patchCannotShow": "This patch cannot be shown",
   "patchEndingsToLF": "Line endings change from CRLF to LF on every line shown",
   "patchEndingsToCRLF": "Line endings change from LF to CRLF on every line shown",
