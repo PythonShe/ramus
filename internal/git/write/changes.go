@@ -60,9 +60,19 @@ func Stage(w Where, paths []string) Op {
 // Unstage puts the paths in the index back as they are in HEAD; with
 // unborn set (no commit yet) it takes them out of the index.
 func Unstage(w Where, paths []string, unborn bool) Op {
+	return unstageOp(w, paths, unborn, false)
+}
+
+// unstageOp is Unstage; force takes a file out of the index of an unborn
+// repository though the index holds content the file no longer has,
+// which git rm refuses to lose unless the write kept it first.
+func unstageOp(w Where, paths []string, unborn, force bool) Op {
 	args := fromStdin("restore", "--staged")
 	if unborn {
 		args = fromStdin("rm", "--cached", "-r", "-q", "--ignore-unmatch")
+		if force {
+			args = append(args, "-f")
+		}
 	}
 	return Op{Name: "Unstage " + count(len(paths), paths[0]), Cmd: w.cmd(args...), Input: pathspecs(paths)}
 }
@@ -153,10 +163,29 @@ func DiscardStaged(w Where, unstage, tracked, untracked []string, unborn bool) (
 		return Op{}, errors.New("write: no files chosen")
 	}
 	name := "Discard changes to " + count(len(all), all[0])
-	op := Unstage(w, unstage, unborn)
+	// The snapshot keeps what the index held, which git rm need not
+	// refuse to lose.
+	op := unstageOp(w, unstage, unborn, true)
 	op.Name = name
-	op.More = append(argCmds(w.slow, []string{"restore", "--worktree", noRecurse, "--"}, tracked),
-		argCmds(w.cmd, []string{"clean", "-f", "-d", "-q", "--"}, untracked)...)
+	// A file staged as new is deleted though ignored, as one added with
+	// git add -f is once unstaged: -x for those files alone, not for the
+	// ignored files of an untracked folder, which the snapshot does not
+	// keep.
+	staged := map[string]bool{}
+	for _, p := range unstage {
+		staged[p] = true
+	}
+	var added, loose []string
+	for _, p := range untracked {
+		if staged[p] {
+			added = append(added, p)
+		} else {
+			loose = append(loose, p)
+		}
+	}
+	op.More = slices.Concat(argCmds(w.slow, []string{"restore", "--worktree", noRecurse, "--"}, tracked),
+		argCmds(w.cmd, []string{"clean", "-f", "-d", "-x", "-q", "--"}, added),
+		argCmds(w.cmd, []string{"clean", "-f", "-d", "-q", "--"}, loose))
 	op.Snapshot = &snapshot.Options{Reason: name, Paths: all}
 	op.Undo = FilesOnly
 	return op, nil

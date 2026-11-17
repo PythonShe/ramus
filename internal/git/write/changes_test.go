@@ -163,6 +163,48 @@ func TestRestoreFrom(t *testing.T) {
 	}
 }
 
+// A discard of what is staged deletes a file staged as new, though it
+// was changed after, in a repository with no commit yet, and one added
+// though ignored; the ignored files of an untracked folder deleted with
+// them stay.
+func TestDiscardStaged(t *testing.T) {
+	gone := func(r *gittest.Repo, name string) bool {
+		_, err := os.Stat(filepath.Join(r.Dir, name))
+		return os.IsNotExist(err)
+	}
+	r, q, _ := newQueue(t)
+	w := Where{GitDir: r.GitDir(), WorkTree: r.Dir}
+	r.Write("new.txt", "a\n")
+	r.Git("add", "new.txt")
+	r.Write("new.txt", "b\n")
+	op, err := DiscardStaged(w, []string{"new.txt"}, nil, []string{"new.txt"}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wait(t, q.Submit(op)); err != nil || !gone(r, "new.txt") {
+		t.Fatalf("unborn: %v; status\n%s", err, r.Git("status", "--porcelain"))
+	}
+
+	r, q, _ = newQueue(t)
+	w = Where{GitDir: r.GitDir(), WorkTree: r.Dir}
+	r.Write(".gitignore", "*.log\n")
+	r.Commit("one")
+	r.Write("forced.log", "x\n")
+	r.Git("add", "-f", "forced.log")
+	r.Write("loose/keep.log", "x\n")
+	r.Write("loose/x.txt", "x\n")
+	op, err = DiscardStaged(w, []string{"forced.log"}, nil, []string{"forced.log", "loose/"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wait(t, q.Submit(op)); err != nil || !gone(r, "forced.log") || !gone(r, "loose/x.txt") {
+		t.Fatalf("ignored: %v; status\n%s", err, r.Git("status", "--porcelain", "--ignored"))
+	}
+	if gone(r, "loose/keep.log") {
+		t.Fatal("an ignored file of an untracked folder was deleted")
+	}
+}
+
 func TestIgnore(t *testing.T) {
 	r, q, _ := newQueue(t)
 	w := Where{GitDir: r.GitDir(), WorkTree: r.Dir}
