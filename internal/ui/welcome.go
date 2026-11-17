@@ -1,8 +1,9 @@
 package ui
 
 import (
-	"github.com/egoist/mygo/ui"
 	"slices"
+
+	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/library"
 	"ramus/locales"
