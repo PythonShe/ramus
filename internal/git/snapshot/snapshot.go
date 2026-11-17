@@ -62,6 +62,39 @@ type Options struct {
 	Worktree string
 }
 
+// ignoredDirs are the work tree's ignored folders, each with its slash:
+// those a rule ignores, not those that only hold ignored files.
+func ignoredDirs(git func(stdin []byte, extra []string, args ...string) (string, error)) ([]string, error) {
+	out, err := git(nil, nil, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory")
+	if err != nil {
+		return nil, err
+	}
+	var in []byte
+	for _, p := range strings.Split(out, "\x00") {
+		if strings.HasSuffix(p, "/") {
+			in = append(append(in, p...), 0)
+		}
+	}
+	if len(in) == 0 {
+		return nil, nil
+	}
+	out, err = git(in, nil, "check-ignore", "-z", "--stdin")
+	var e *run.Error
+	if errors.As(err, &e) && e.ExitCode == 1 {
+		return nil, nil // none is
+	}
+	if err != nil {
+		return nil, err
+	}
+	var dirs []string
+	for _, p := range strings.Split(out, "\x00") {
+		if p != "" {
+			dirs = append(dirs, p)
+		}
+	}
+	return dirs, nil
+}
+
 // worktreeGitDir is the git directory of the linked worktree at dir, which
 // its .git file names.
 func worktreeGitDir(dir string) (string, error) {
@@ -169,6 +202,20 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 		for _, p := range paths {
 			spec = append(append(spec, p...), 0)
 		}
+	} else if opts.Ignored && opts.Worktree != "" {
+		// A worktree removed keeps its ignored files, a .env, but not
+		// its ignored folders, node_modules or a build's output: rebuilt
+		// from the rest, and so large that keeping them would hold up the
+		// removal for minutes and fill the object store.
+		dirs, err := ignoredDirs(git)
+		if err != nil {
+			return Snapshot{}, err
+		}
+		spec = append([]byte(":/"), 0)
+		for _, d := range dirs {
+			spec = append(append(append(spec, ":(exclude,literal)"...), d...), 0)
+		}
+		add = append(add, "--pathspec-from-file=-", "--pathspec-file-nul")
 	} else {
 		add = append(add, "--", ":/")
 	}

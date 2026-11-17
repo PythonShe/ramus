@@ -76,11 +76,11 @@ func TestWorktrees(t *testing.T) {
 }
 
 // Removing a worktree, alone or with its branch, keeps its files first,
-// ignored ones included, in a snapshot under the refs of the worktree it
-// is removed from: its own go with it.
+// ignored ones included but not ignored folders, in a snapshot under the
+// refs of the worktree it is removed from: its own go with it.
 func TestRemovingAWorktreeKeepsItsFiles(t *testing.T) {
 	h := newHarness(t)
-	h.r.Write(".gitignore", ".env\n")
+	h.r.Write(".gitignore", ".env\nnode_modules/\n")
 	h.r.Write("a", "1\n")
 	h.r.Commit("one")
 	h.r.Git("branch", "side")
@@ -91,6 +91,12 @@ func TestRemovingAWorktreeKeepsItsFiles(t *testing.T) {
 		op, err := AddWorktree(h.w, WorktreeOptions{Path: dir, Branch: branch})
 		h.do(op, err, true)
 		if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("SECRET="+branch+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(dir, "node_modules", "x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "node_modules", "x", "index.js"), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		return dir
@@ -116,6 +122,10 @@ func TestRemovingAWorktreeKeepsItsFiles(t *testing.T) {
 	}
 	kept(".env", "SECRET=side\n")
 	kept("a", "changed\n")
+	snap := strings.TrimSpace(h.r.Git("for-each-ref", "--sort=-refname", "--count=1", "--format=%(objectname)", "refs/worktree/ramus/snapshots/"))
+	if _, err := h.r.Run(nil, "cat-file", "-e", snap+":node_modules/x/index.js"); err == nil {
+		t.Fatal("an ignored folder kept in the snapshot")
+	}
 
 	other := add("other")
 	h.do(DeleteBranch(h.w, "refs/heads/other", h.rev("other"), true, other, h.seen()), nil, true)

@@ -3033,11 +3033,11 @@ func (msgs Messages) WorktreeRemoveTitle(name string) string {
 	return Catalog.Format(msgs.locale, "worktreeRemoveTitle", map[string]any{"name": name})
 }
 
-// WorktreeRemoveFolder says "Its folder {path} is deleted. Its files, ignored ones included, are kept in a snapshot first, which the Snapshots vie…"
+// WorktreeRemoveFolder says "Its folder {path} is deleted. Its files are kept in a snapshot first, which the Snapshots view shows; ignored folders…"
 // in the language the app shows.
 func WorktreeRemoveFolder(path string) string { return In(i18n.Locale()).WorktreeRemoveFolder(path) }
 
-// WorktreeRemoveFolder says "Its folder {path} is deleted. Its files, ignored ones included, are kept in a snapshot first, which the Snapshots vie…"
+// WorktreeRemoveFolder says "Its folder {path} is deleted. Its files are kept in a snapshot first, which the Snapshots view shows; ignored folders…"
 // in the language of msgs.
 func (msgs Messages) WorktreeRemoveFolder(path string) string {
 	return Catalog.Format(msgs.locale, "worktreeRemoveFolder", map[string]any{"path": path})
