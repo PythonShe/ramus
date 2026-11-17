@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -385,12 +386,20 @@ func identTooltip(in ui.Element, from write.Origin) ui.Element {
 }
 
 // homeTilde is path with the user's home folder at its start written ~.
+// On Windows, whose file names ignore case, the folder is matched in
+// any case, as a config can name it.
 func homeTilde(path string) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return path
 	}
-	if rest, ok := strings.CutPrefix(path, home); ok && (rest == "" || rest[0] == filepath.Separator) {
+	home = filepath.Clean(home)
+	if len(path) < len(home) {
+		return path
+	}
+	head, rest := path[:len(home)], path[len(home):]
+	same := head == home || runtime.GOOS == "windows" && strings.EqualFold(head, home)
+	if same && (rest == "" || rest[0] == filepath.Separator) {
 		return "~" + rest
 	}
 	return path
