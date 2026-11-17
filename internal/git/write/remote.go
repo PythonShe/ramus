@@ -27,6 +27,10 @@ type PushOptions struct {
 	// ForceWithLease overwrites the remote branch, but only if it is
 	// still where this repository last saw it, and that was taken in.
 	ForceWithLease bool
+	// Branch, when set, is the branch the user chose to push
+	// ("refs/heads/main"): the push refuses to run once HEAD is on
+	// another, which git push would send in its place.
+	Branch string
 }
 
 // Push sends the current branch to its remote.
@@ -41,7 +45,11 @@ func Push(w Where, opt PushOptions) Op {
 		args = append(args, "--set-upstream", "--", opt.Remote, "HEAD")
 		name += " to " + opt.Remote
 	}
-	return Op{Name: name, NoIndex: true, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}
+	op := Op{Name: name, NoIndex: true, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}
+	if opt.Branch != "" {
+		op.Expect = &Expect{Branch: opt.Branch, AnyCommit: true}
+	}
+	return op
 }
 
 // Fetch fetches from remote, or every remote when it is empty, pruning

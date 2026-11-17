@@ -208,7 +208,19 @@ func TestRemotesFetchPullPushAndTags(t *testing.T) {
 	op, err = Fetch(h.w, "origin", true)
 	h.do(op, err, true)
 	h.r.Git("rebase", "-q", "origin/main")
-	h.do(Push(h.w, PushOptions{ForceWithLease: true}), nil, true)
+	// A push bound to a branch refuses once HEAD is on another: git
+	// would push that one, here to the same upstream.
+	h.r.Git("switch", "-q", "-c", "elsewhere")
+	h.r.Git("branch", "-q", "--set-upstream-to", "origin/main")
+	h.r.Git("config", "push.default", "upstream")
+	h.r.Write("late", "1")
+	h.r.Commit("late")
+	h.do(Push(h.w, PushOptions{ForceWithLease: true, Branch: "refs/heads/main"}), nil, false)
+	if bare.Git("rev-parse", "main") == h.r.Git("rev-parse", "elsewhere") {
+		t.Fatal("pushed the branch checked out since")
+	}
+	h.r.Git("switch", "-q", "main")
+	h.do(Push(h.w, PushOptions{ForceWithLease: true, Branch: "refs/heads/main"}), nil, true)
 
 	// Prune drops a remote branch gone from the remote.
 	bare.Git("branch", "gone", "main")

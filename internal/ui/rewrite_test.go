@@ -110,6 +110,53 @@ func TestForcePushOffer(t *testing.T) {
 	})
 }
 
+// The force push offered for a rewritten branch, confirmed once another
+// branch is checked out, pushes nothing: git would push that one, to
+// the upstream the user was asked about.
+func TestForcePushOfferBranchChanged(t *testing.T) {
+	h := newHarness(t)
+	up := h.repoWith()
+	up.Git("config", "receive.denyCurrentBranch", "ignore")
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", up.Dir)
+	r.Git("fetch", "-q", "origin")
+	r.Git("reset", "-q", "--hard", "origin/main")
+	r.Git("branch", "-q", "--set-upstream-to", "origin/main")
+	// Each branch pushes to its upstream, whatever its name.
+	r.Git("config", "push.default", "upstream")
+	r.Write("a.txt", "a\n")
+	r.Commit("add a")
+	r.Git("push", "-q", "origin", "main")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("history", h.shows("add a"))
+	h.menu("add a", "Edit Commit", "Reword…")
+	h.until("the dialog", func() bool { return h.app.message.open })
+	h.app.message.message = "add a, reworded"
+	h.click("Reword")
+	h.until("the offer", h.shows("was rewritten after it was pushed to origin/main"))
+	h.click("Force Push with Lease")
+	h.until("the question", h.shows("Overwrite origin/main?"))
+
+	r.Git("switch", "-q", "-c", "other", "HEAD~1")
+	r.Git("branch", "-q", "--set-upstream-to", "origin/main")
+	r.Write("o.txt", "o\n")
+	r.Commit("other work")
+	h.until("the switch", func() bool { return tb.s.State.Head.Target == "refs/heads/other" })
+	h.click("Force Push")
+	h.until("why nothing was pushed", func() bool { return h.app.notice != "" })
+	if !strings.Contains(h.app.notice, "main is no longer checked out") {
+		t.Fatalf("notice %q", h.app.notice)
+	}
+	h.idle(tb, "no push")
+	if out, _ := up.Run(nil, "log", "-1", "--format=%s", "main"); strings.TrimSpace(out) != "add a" {
+		t.Fatalf("pushed %q", out)
+	}
+}
+
 // The history editor replays the commits from one on as its rows say:
 // a reword chosen from a row's menu, rows moved, a fix up; a branch at a
 // commit moves with it.

@@ -31,7 +31,9 @@ type Expect struct {
 	Files []FileState
 	// AnyHead leaves Branch and Head unchecked, for an action that does
 	// not depend on where HEAD is, as a tag of a commit chosen in history.
-	AnyHead bool
+	// AnyCommit checks Branch alone, for an action on the branch as it
+	// is, as a push of it.
+	AnyHead, AnyCommit bool
 	// Replay, when set, is a rewrite of a commit through a rebase of
 	// HEAD's branch from the commit's parent. The action refuses unless
 	// the commit is in HEAD's history, as the rebase would otherwise
@@ -74,6 +76,9 @@ func checkHead(ctx context.Context, r *run.Runner, gitDir string, x *Expect) err
 	}
 	if branch != x.Branch {
 		return &StaleError{What: "the current branch", Saw: orDetached(x.Branch), Now: orDetached(branch)}
+	}
+	if x.AnyCommit {
+		return nil
 	}
 	head, err := resolve(ctx, r, gitDir, "HEAD")
 	if err != nil {

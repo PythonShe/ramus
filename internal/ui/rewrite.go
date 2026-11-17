@@ -200,7 +200,13 @@ func (a *App) forcePushOffer(c *ui.Context, t *tab) {
 				message: locales.RefsForcePushMessage(), button: locales.RefsForcePush(),
 				run: func() {
 					t.forcePush = forcePush{}
-					a.submit(t, write.Push(t.s.Where(), write.PushOptions{ForceWithLease: true}), nil)
+					// git pushes the branch HEAD is on as it runs: only
+					// the branch the offer named, still checked out.
+					if h := t.s.State.Head; h.Detached || h.Target != fp.branch {
+						a.notice = locales.RewriteForcePushMoved(redact.Control(strings.TrimPrefix(fp.branch, "refs/heads/")))
+						return
+					}
+					a.submit(t, write.Push(t.s.Where(), write.PushOptions{ForceWithLease: true, Branch: fp.branch}), nil)
 				}}
 		}
 	})

@@ -6903,6 +6903,26 @@ func (msgs Messages) RewriteForcePush() string {
 	return Catalog.Format(msgs.locale, "rewriteForcePush", nil)
 }
 
+// RewriteForcePushMoved says "Nothing was pushed: {branch} is no longer checked out."
+// in the language the app shows.
+//
+// The error bar after the force push offered for a rewritten branch was
+// confirmed once another branch was checked out: git would have pushed that
+// one instead.
+func RewriteForcePushMoved(branch string) string {
+	return In(i18n.Locale()).RewriteForcePushMoved(branch)
+}
+
+// RewriteForcePushMoved says "Nothing was pushed: {branch} is no longer checked out."
+// in the language of msgs.
+//
+// The error bar after the force push offered for a rewritten branch was
+// confirmed once another branch was checked out: git would have pushed that
+// one instead.
+func (msgs Messages) RewriteForcePushMoved(branch string) string {
+	return Catalog.Format(msgs.locale, "rewriteForcePushMoved", map[string]any{"branch": branch})
+}
+
 // OpsCherryPick says "{count, plural, =1 {Cherry-Pick Commit onto {branch}} one {Cherry-Pick # Commit onto {branch}} other {Cherry-Pick # C…"
 // in the language the app shows.
 //

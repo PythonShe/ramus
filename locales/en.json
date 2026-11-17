@@ -1319,6 +1319,10 @@
   "rewritePushedOffer": "{branch} was rewritten after it was pushed to {upstream}",
   "rewriteNotNow": "Not Now",
   "rewriteForcePush": "Force Push with Lease",
+  "rewriteForcePushMoved": "Nothing was pushed: {branch} is no longer checked out.",
+  "@rewriteForcePushMoved": {
+    "description": "The error bar after the force push offered for a rewritten branch was confirmed once another branch was checked out: git would have pushed that one instead."
+  },
   "opsCherryPick": "{count, plural, =1 {Cherry-Pick Commit onto {branch}} one {Cherry-Pick # Commit onto {branch}} other {Cherry-Pick # Commits onto {branch}}}",
   "@opsCherryPick": {
     "description": "A commit's menu item; branch is the current branch, or HEAD."
