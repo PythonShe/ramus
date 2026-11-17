@@ -97,7 +97,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	cs.wasAmend = cs.amend
 	a.keepDraft(t)
 	head := t.s.State.Head
-	ui.Column(c).Padding(spaceM).Gap(spaceS).Background(th.Surface).FillWidth().Children(func() {
+	ui.Column(c).Padding(spaceM, insetX).Gap(spaceS).Background(th.Surface).FillWidth().Children(func() {
 		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &cs.subject).Label(locales.CommitBoxSummary()).Placeholder(locales.CommitBoxSummary()).Grow(1).Disabled(cs.busy)
 			a.coAuthorButton(c, t)
