@@ -11,13 +11,22 @@ import "strings"
 func reflowBody(body string) string {
 	var b strings.Builder
 	b.Grow(len(body))
-	fence, joins := false, false
+	// fence is the run of backticks or tildes that opened the code block
+	// the lines are in, "" outside one.
+	fence, joins := "", false
 	for i, l := range strings.Split(body, "\n") {
-		fenceLine := strings.HasPrefix(l, "```") || strings.HasPrefix(l, "~~~")
-		p := !fence && !fenceLine && isProse(l)
-		if fenceLine {
-			fence = !fence
+		run := fenceRun(l)
+		fenceLine := run != ""
+		switch {
+		case fence == "" && fenceLine:
+			fence = run
+		case fence != "" && fenceLine && run[0] == fence[0] && len(run) >= len(fence) && strings.TrimSpace(l[len(run):]) == "":
+			// Only a run as long of the same, with nothing after, closes.
+			fence = ""
+		default:
+			fenceLine = false
 		}
+		p := fence == "" && !fenceLine && isProse(l)
 		if p {
 			l = strings.TrimRight(l, " \t\r")
 		}
@@ -74,4 +83,20 @@ func isTrailer(l string) bool {
 		}
 	}
 	return true
+}
+
+// fenceRun is the run of three or more backticks or tildes l starts
+// with, "" when it starts with none.
+func fenceRun(l string) string {
+	if len(l) < 3 || l[0] != '`' && l[0] != '~' {
+		return ""
+	}
+	n := 0
+	for n < len(l) && l[n] == l[0] {
+		n++
+	}
+	if n < 3 {
+		return ""
+	}
+	return l[:n]
 }
