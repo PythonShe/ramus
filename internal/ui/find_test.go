@@ -81,3 +81,30 @@ func TestFindWithoutField(t *testing.T) {
 		t.Fatalf("Find did not focus the branches' filter: %q", tb.refs.filter)
 	}
 }
+
+// A Find waiting for a field that does not show is dropped by the next
+// Find, in another view: the first field does not take the focus once
+// it shows.
+func TestFindReplacesFindWaiting(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith("a.txt")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("a.txt"))
+	tb := h.app.current()
+	tb.sel = "refs"
+	tb.refs.kind = refsRemotes
+	h.tt.Frame()
+	// From the menu, between frames, twice before the next.
+	h.app.focusFind()
+	tb.sel = "changes"
+	h.app.focusFind()
+	tb.sel, tb.refs.kind = "refs", refsBranches
+	h.tt.Frame()
+	h.tt.Frame()
+	h.tt.Type("zz")
+	h.tt.Frame()
+	if tb.refs.filter != "" {
+		t.Fatal("the branches' filter took the focus of a Find another replaced")
+	}
+}

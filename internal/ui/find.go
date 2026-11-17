@@ -13,7 +13,13 @@ type findFields struct {
 // focusFind focuses the search or filter field of what the window
 // shows, with its text selected for typing anew: Find.
 func (a *App) focusFind() {
+	// A Find still waiting for another view's field would take the focus
+	// there once that field shows.
+	a.find.cancel()
 	t := a.current()
+	if t != nil {
+		t.hist.focusFind = false
+	}
 	var h *ui.Handle
 	switch {
 	case t == nil:
@@ -41,8 +47,14 @@ func (f *findFields) expire() {
 		return
 	}
 	if f.frames--; f.frames == 0 {
-		f.welcome.CancelFocus()
-		f.changes.CancelFocus()
-		f.refs.CancelFocus()
+		f.cancel()
 	}
+}
+
+// cancel drops the Find waiting for a field, if one is.
+func (f *findFields) cancel() {
+	f.frames = 0
+	f.welcome.CancelFocus()
+	f.changes.CancelFocus()
+	f.refs.CancelFocus()
 }
