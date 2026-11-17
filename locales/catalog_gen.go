@@ -5287,6 +5287,106 @@ func (msgs Messages) TimeYearsAgo(count int) string {
 	return Catalog.Format(msgs.locale, "timeYearsAgo", map[string]any{"count": count})
 }
 
+// TimeShortNow says "now"
+// in the language the app shows.
+//
+// How long ago a branch last moved, in a few letters beside it in the
+// branch picker: under a minute.
+func TimeShortNow() string { return In(i18n.Locale()).TimeShortNow() }
+
+// TimeShortNow says "now"
+// in the language of msgs.
+//
+// How long ago a branch last moved, in a few letters beside it in the
+// branch picker: under a minute.
+func (msgs Messages) TimeShortNow() string {
+	return Catalog.Format(msgs.locale, "timeShortNow", nil)
+}
+
+// TimeShortMinutes says "{count, number}m"
+// in the language the app shows.
+//
+// How long ago, in a few letters: minutes, as 5m.
+func TimeShortMinutes(count int) string { return In(i18n.Locale()).TimeShortMinutes(count) }
+
+// TimeShortMinutes says "{count, number}m"
+// in the language of msgs.
+//
+// How long ago, in a few letters: minutes, as 5m.
+func (msgs Messages) TimeShortMinutes(count int) string {
+	return Catalog.Format(msgs.locale, "timeShortMinutes", map[string]any{"count": count})
+}
+
+// TimeShortHours says "{count, number}h"
+// in the language the app shows.
+//
+// How long ago, in a few letters: hours, as 3h.
+func TimeShortHours(count int) string { return In(i18n.Locale()).TimeShortHours(count) }
+
+// TimeShortHours says "{count, number}h"
+// in the language of msgs.
+//
+// How long ago, in a few letters: hours, as 3h.
+func (msgs Messages) TimeShortHours(count int) string {
+	return Catalog.Format(msgs.locale, "timeShortHours", map[string]any{"count": count})
+}
+
+// TimeShortDays says "{count, number}d"
+// in the language the app shows.
+//
+// How long ago, in a few letters: days, as 2d.
+func TimeShortDays(count int) string { return In(i18n.Locale()).TimeShortDays(count) }
+
+// TimeShortDays says "{count, number}d"
+// in the language of msgs.
+//
+// How long ago, in a few letters: days, as 2d.
+func (msgs Messages) TimeShortDays(count int) string {
+	return Catalog.Format(msgs.locale, "timeShortDays", map[string]any{"count": count})
+}
+
+// TimeShortWeeks says "{count, number}w"
+// in the language the app shows.
+//
+// How long ago, in a few letters: weeks, as 4w.
+func TimeShortWeeks(count int) string { return In(i18n.Locale()).TimeShortWeeks(count) }
+
+// TimeShortWeeks says "{count, number}w"
+// in the language of msgs.
+//
+// How long ago, in a few letters: weeks, as 4w.
+func (msgs Messages) TimeShortWeeks(count int) string {
+	return Catalog.Format(msgs.locale, "timeShortWeeks", map[string]any{"count": count})
+}
+
+// TimeShortMonths says "{count, number}mo"
+// in the language the app shows.
+//
+// How long ago, in a few letters: months, as 3mo.
+func TimeShortMonths(count int) string { return In(i18n.Locale()).TimeShortMonths(count) }
+
+// TimeShortMonths says "{count, number}mo"
+// in the language of msgs.
+//
+// How long ago, in a few letters: months, as 3mo.
+func (msgs Messages) TimeShortMonths(count int) string {
+	return Catalog.Format(msgs.locale, "timeShortMonths", map[string]any{"count": count})
+}
+
+// TimeShortYears says "{count, number}y"
+// in the language the app shows.
+//
+// How long ago, in a few letters: years, as 2y.
+func TimeShortYears(count int) string { return In(i18n.Locale()).TimeShortYears(count) }
+
+// TimeShortYears says "{count, number}y"
+// in the language of msgs.
+//
+// How long ago, in a few letters: years, as 2y.
+func (msgs Messages) TimeShortYears(count int) string {
+	return Catalog.Format(msgs.locale, "timeShortYears", map[string]any{"count": count})
+}
+
 // CommitChildren says "{count, plural, one {Child} other {Children}}"
 // in the language the app shows.
 //

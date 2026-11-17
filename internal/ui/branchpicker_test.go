@@ -3,9 +3,44 @@ package ui
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
+
+// The picker lists the pinned branches first, then the others by their
+// last commit, the newest first, each with how long ago in a few letters.
+func TestBranchPickerByDate(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "old")
+	r.Write("b", "2")
+	r.CommitAt("two", time.Now().Add(-2*time.Hour).Unix())
+	r.Git("branch", "newer")
+	r.Git("branch", "alpha", "HEAD~1")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	order := func(want ...string) func() bool {
+		return func() bool {
+			var got []string
+			for _, r := range tb.pick.rows {
+				got = append(got, r.ref)
+			}
+			return slices.Equal(got, want)
+		}
+	}
+	h.click("Branch main")
+	h.until("by date", order("refs/heads/main", "refs/heads/newer", "refs/heads/alpha", "refs/heads/old"))
+	h.until("the date", func() bool { return hasExact(h, "2h") })
+	tb.pick.open = false
+	h.tt.Frame()
+
+	h.menu("old", "Pin to Top")
+	h.click("Branch main")
+	h.until("pinned first", order("refs/heads/old", "refs/heads/main", "refs/heads/newer", "refs/heads/alpha"))
+}
 
 // A remote branch is one row with the local branch of its name only when
 // that tracks it: one named whole in the query shows, and is not offered

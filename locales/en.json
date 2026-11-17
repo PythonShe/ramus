@@ -1039,6 +1039,34 @@
   },
   "timeMonthsAgo": "{count, plural, one {# month ago} other {# months ago}}",
   "timeYearsAgo": "{count, plural, one {# year ago} other {# years ago}}",
+  "timeShortNow": "now",
+  "@timeShortNow": {
+    "description": "How long ago a branch last moved, in a few letters beside it in the branch picker: under a minute."
+  },
+  "timeShortMinutes": "{count, number}m",
+  "@timeShortMinutes": {
+    "description": "How long ago, in a few letters: minutes, as 5m."
+  },
+  "timeShortHours": "{count, number}h",
+  "@timeShortHours": {
+    "description": "How long ago, in a few letters: hours, as 3h."
+  },
+  "timeShortDays": "{count, number}d",
+  "@timeShortDays": {
+    "description": "How long ago, in a few letters: days, as 2d."
+  },
+  "timeShortWeeks": "{count, number}w",
+  "@timeShortWeeks": {
+    "description": "How long ago, in a few letters: weeks, as 4w."
+  },
+  "timeShortMonths": "{count, number}mo",
+  "@timeShortMonths": {
+    "description": "How long ago, in a few letters: months, as 3mo."
+  },
+  "timeShortYears": "{count, number}y",
+  "@timeShortYears": {
+    "description": "How long ago, in a few letters: years, as 2y."
+  },
   "commitChildren": "{count, plural, one {Child} other {Children}}",
   "@commitChildren": {
     "description": "Labels the commits whose parent a commit is."

@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,6 +44,16 @@ type branchPick struct {
 	// state each row shows.
 	info    map[string]session.BranchInfo
 	infoFor *session.RefInfo
+	// heads are the local branches in the order listed, for the refs,
+	// pins and state of headsFor: sorted once, not as each key is typed.
+	heads    []string
+	headsFor headsKey
+}
+
+type headsKey struct {
+	refs *refs.List
+	gen  int
+	info *session.RefInfo
 }
 
 // pickRow is a branch in the picker, or the heading of the remote ones.
@@ -140,9 +152,10 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 					ui.Text(c, locales.BranchPickerNone()).FontSize(textSmall).TextColor(th.TextMuted).Padding(spaceM, spaceS)
 				}
 			} else {
+				now := a.Now()
 				hover := -1
 				ui.List(c, &p.list, len(rows), func(i int) {
-					r := pickRowView(c, t, p, rows[i], i == p.hi)
+					r := pickRowView(c, t, p, rows[i], i == p.hi, now)
 					if rows[i].heading != "" {
 						return
 					}
@@ -259,7 +272,7 @@ func (p *branchPick) indexInfo(t *tab) {
 
 // pickRowView builds a row of the picker: a heading, or a branch with a
 // check by the one checked out.
-func pickRowView(c *ui.Context, t *tab, p *branchPick, r pickRow, hi bool) ui.Element {
+func pickRowView(c *ui.Context, t *tab, p *branchPick, r pickRow, hi bool, now time.Time) ui.Element {
 	th := c.Theme()
 	if r.heading != "" {
 		return ui.Text(c, r.heading).FontSize(textCaption).TextColor(th.TextMuted).Height(rowHeight).Padding(spaceS+2, spaceS, 0, spaceS)
@@ -290,6 +303,11 @@ func pickRowView(c *ui.Context, t *tab, p *branchPick, r pickRow, hi bool) ui.El
 			describeAheadBehind(row, b.Ahead, b.Behind)
 			aheadBehind(c, k, b.Ahead, b.Behind, "")
 		}
+		// When it last moved, which the local branches are listed by.
+		if b.Time > 0 {
+			when := time.Unix(b.Time, 0)
+			ui.Text(c, shortAgo(now, when)).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(since(now, when))
+		}
 	})
 	return row
 }
@@ -319,7 +337,7 @@ func (p *branchPick) build(t *tab) []pickRow {
 		}
 		return true
 	}
-	for _, r := range sr.heads {
+	for _, r := range p.orderHeads(t, sr) {
 		if matches(r) {
 			p.rows = append(p.rows, pickRow{ref: r})
 		}
@@ -373,6 +391,51 @@ func (p *branchPick) build(t *tab) []pickRow {
 		}
 	}
 	return p.rows
+}
+
+// orderHeads is the local branches as the picker lists them: the pinned
+// first, as the sidebar has them, then the others by their last commit,
+// the newest first, once the branches' state is read (indexInfo); by
+// name until then.
+func (p *branchPick) orderHeads(t *tab, sr *sideRefs) []string {
+	key := headsKey{sr.refs, sr.gen, p.infoFor}
+	if key == p.headsFor && p.heads != nil {
+		return p.heads
+	}
+	p.headsFor, p.heads = key, slices.Clone(sr.heads)
+	if p.info == nil {
+		return p.heads
+	}
+	pinned := 0
+	for pinned < len(p.heads) && slices.Contains(t.prefs.pinned, p.heads[pinned]) {
+		pinned++
+	}
+	slices.SortStableFunc(p.heads[pinned:], func(x, y string) int {
+		return cmp.Compare(p.info[y].Time, p.info[x].Time)
+	})
+	return p.heads
+}
+
+// shortAgo is how long before now t was in a few letters, for a narrow
+// place: 5m, 3h, 2d, 4w, 3mo, 2y.
+func shortAgo(now, t time.Time) string {
+	const day = 24 * time.Hour
+	d := now.Sub(t)
+	switch {
+	case d < time.Minute:
+		return locales.TimeShortNow()
+	case d < time.Hour:
+		return locales.TimeShortMinutes(int(d / time.Minute))
+	case d < day:
+		return locales.TimeShortHours(int(d / time.Hour))
+	case d < 7*day:
+		return locales.TimeShortDays(int(d / day))
+	case d < 30*day:
+		return locales.TimeShortWeeks(int(d / (7 * day)))
+	case d < 365*day:
+		return locales.TimeShortMonths(int(d / (30 * day)))
+	}
+	return locales.TimeShortYears(int(d / (365 * day)))
 }
 
 // switchTo checks out ref: a local branch, or a remote one as a local
