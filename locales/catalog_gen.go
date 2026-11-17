@@ -13905,6 +13905,72 @@ func (msgs Messages) TabsMoveToNewWindow() string {
 	return Catalog.Format(msgs.locale, "tabsMoveToNewWindow", nil)
 }
 
+// TabsList says "Open Repositories"
+// in the language the app shows.
+//
+// Names, for a screen reader, the strip of tabs under the bar, one per
+// repository open in the window.
+func TabsList() string { return In(i18n.Locale()).TabsList() }
+
+// TabsList says "Open Repositories"
+// in the language of msgs.
+//
+// Names, for a screen reader, the strip of tabs under the bar, one per
+// repository open in the window.
+func (msgs Messages) TabsList() string {
+	return Catalog.Format(msgs.locale, "tabsList", nil)
+}
+
+// TabsTab says "{state, select, running {{name}, {write} running} changed {{name}, uncommitted changes} other {{name}}}"
+// in the language the app shows.
+//
+// Names a repository's tab for a screen reader, with its state: name is the
+// repository's name; write is the command running there, as Push; changed
+// means its working tree has changes not committed.
+func TabsTab(state string, name string, write string) string {
+	return In(i18n.Locale()).TabsTab(state, name, write)
+}
+
+// TabsTab says "{state, select, running {{name}, {write} running} changed {{name}, uncommitted changes} other {{name}}}"
+// in the language of msgs.
+//
+// Names a repository's tab for a screen reader, with its state: name is the
+// repository's name; write is the command running there, as Push; changed
+// means its working tree has changes not committed.
+func (msgs Messages) TabsTab(state string, name string, write string) string {
+	return Catalog.Format(msgs.locale, "tabsTab", map[string]any{"state": state, "name": name, "write": write})
+}
+
+// TabsClose says "Close {name}"
+// in the language the app shows.
+//
+// The x button of a repository's tab, for its tooltip and a screen reader;
+// name is the repository's name.
+func TabsClose(name string) string { return In(i18n.Locale()).TabsClose(name) }
+
+// TabsClose says "Close {name}"
+// in the language of msgs.
+//
+// The x button of a repository's tab, for its tooltip and a screen reader;
+// name is the repository's name.
+func (msgs Messages) TabsClose(name string) string {
+	return Catalog.Format(msgs.locale, "tabsClose", map[string]any{"name": name})
+}
+
+// TabsCloseTab says "Close Tab"
+// in the language the app shows.
+//
+// Item of a repository tab's context menu that closes the tab.
+func TabsCloseTab() string { return In(i18n.Locale()).TabsCloseTab() }
+
+// TabsCloseTab says "Close Tab"
+// in the language of msgs.
+//
+// Item of a repository tab's context menu that closes the tab.
+func (msgs Messages) TabsCloseTab() string {
+	return Catalog.Format(msgs.locale, "tabsCloseTab", nil)
+}
+
 // RepoPickerSearch says "Search repositories"
 // in the language the app shows.
 func RepoPickerSearch() string { return In(i18n.Locale()).RepoPickerSearch() }

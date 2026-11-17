@@ -9,7 +9,8 @@ import (
 // tabBar is the bar over a repository: the sidebar and the way back and
 // forward, the repository shown, which opens the picker of the others,
 // its branch and worktrees, what it is doing, and the app's button. The
-// repositories open stay open behind the one shown, as tabs would.
+// repositories open stay open behind the one shown, in tabs that the
+// strip under the bar shows while there are several (tabsStrip).
 func (a *App) tabBar(c *ui.Context) {
 	th := c.Theme()
 	ui.Row(c).Gap(spaceM).Padding(spaceXS, insetX).AlignItems(ui.Center).Background(th.Surface).Children(func() {

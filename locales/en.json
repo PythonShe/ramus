@@ -2938,6 +2938,22 @@
   "askpassConnect": "Connect",
   "askpassHide": "Hide",
   "tabsMoveToNewWindow": "Move to New Window",
+  "tabsList": "Open Repositories",
+  "@tabsList": {
+    "description": "Names, for a screen reader, the strip of tabs under the bar, one per repository open in the window."
+  },
+  "tabsTab": "{state, select, running {{name}, {write} running} changed {{name}, uncommitted changes} other {{name}}}",
+  "@tabsTab": {
+    "description": "Names a repository's tab for a screen reader, with its state: name is the repository's name; write is the command running there, as Push; changed means its working tree has changes not committed."
+  },
+  "tabsClose": "Close {name}",
+  "@tabsClose": {
+    "description": "The x button of a repository's tab, for its tooltip and a screen reader; name is the repository's name."
+  },
+  "tabsCloseTab": "Close Tab",
+  "@tabsCloseTab": {
+    "description": "Item of a repository tab's context menu that closes the tab."
+  },
   "repoPickerSearch": "Search repositories",
   "repoPickerLabel": "Repository {name}",
   "repoPickerTooltip": "Switch Repository",

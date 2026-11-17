@@ -103,6 +103,7 @@ type App struct {
 	tabs   []*tab
 	active int
 	nextID int
+	strip  tabStrip
 	// writes are the files being written off the main thread, for a test
 	// to wait for before their folder goes.
 	writes sync.WaitGroup
@@ -574,6 +575,7 @@ func (a *App) View(c *ui.Context) {
 	root.Children(func() {
 		if len(a.tabs) > 0 {
 			a.tabBar(c)
+			a.tabsStrip(c)
 		}
 		if t := a.current(); t != a.shownTab {
 			if a.shownTab != nil && slices.Contains(a.tabs, a.shownTab) {
