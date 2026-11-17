@@ -910,6 +910,16 @@
   },
   "commitBoxNotAllChecked": "Some staged files were too many or too large to check.",
   "commitAuthor": "Author",
+  "commitCoAuthors": "{count, plural, one {Co-author} other {Co-authors}}",
+  "@commitCoAuthors": {
+    "description": "Labels the people a commit's Co-authored-by trailers name."
+  },
+  "commitShowPersonHistory": "Show commits by {name}",
+  "@commitShowPersonHistory": {
+    "description": "Tooltip of a person's name in a commit: a click filters the history to their commits."
+  },
+  "timeMonthsAgo": "{count, plural, one {# month ago} other {# months ago}}",
+  "timeYearsAgo": "{count, plural, one {# year ago} other {# years ago}}",
   "commitTimeZone": "{time} UTC{offset}",
   "@commitTimeZone": {
     "description": "When a commit was made, on its author's clock; offset is like +8 or -3:30, empty for UTC itself."

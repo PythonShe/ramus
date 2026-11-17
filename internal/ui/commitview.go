@@ -11,6 +11,7 @@ import (
 
 	"ramus/internal/forge"
 	"ramus/internal/git/diff"
+	"ramus/internal/git/message"
 	"ramus/internal/git/object"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/signature"
@@ -68,6 +69,12 @@ type commitView struct {
 	// noPull keeps the pull request from being asked for: a stash entry
 	// is never pushed.
 	noPull bool
+	// msgOf is the detail that subject, body and coAuthors were taken
+	// from: the message as shown, its Co-authored-by trailers taken out
+	// to show as people.
+	msgOf         *session.CommitDetail
+	subject, body []byte
+	coAuthors     []message.Person
 }
 
 // sigResult is a verdict on a signature, or why there is none.
@@ -115,7 +122,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 	}
 	top := func() {
 		ui.Column(c).Fill().Clip().Children(func() {
-			if !hasBody(d) {
+			if _, body, _ := cv.message(d); len(body) == 0 {
 				a.commitMessage(c, t, cv, d)
 				a.commitMeta(c, t, cv, d)
 				a.commitFiles(c, cv, d, a.patchCopier(t, d))
@@ -233,7 +240,30 @@ func messageParts(d *session.CommitDetail) (subject, body []byte) {
 	return subject, bytes.TrimSpace(body)
 }
 
-func hasBody(d *session.CommitDetail) bool { _, b := messageParts(d); return len(b) > 0 }
+// message returns d's subject and body as shown, and the co-authors its
+// trailers name, whose lines the body leaves out: they show as people.
+func (cv *commitView) message(d *session.CommitDetail) (subject, body []byte, coAuthors []message.Person) {
+	if cv.msgOf != d {
+		msg := d.Commit.Message
+		var kept []byte
+		at := 0
+		cv.coAuthors = nil
+		for _, tr := range message.Trailers(msg) {
+			if p, ok := message.CoAuthor(tr); ok {
+				kept = append(kept, msg[at:tr.Start]...)
+				at = tr.End
+				cv.coAuthors = append(cv.coAuthors, p)
+			}
+		}
+		if at > 0 {
+			msg = append(kept, msg[at:]...)
+		}
+		cv.subject, cv.body, _ = bytes.Cut(bytes.TrimRight(msg, "\n"), []byte("\n"))
+		cv.body = bytes.TrimSpace(cv.body)
+		cv.msgOf = d
+	}
+	return cv.subject, cv.body, cv.coAuthors
+}
 
 // fittedMessage is the height that shows the subject and the body, or
 // commitBodyMax of a longer one.
@@ -244,7 +274,7 @@ func (cv *commitView) fittedMessage() float32 {
 // commitMessage shows the subject and the body; a body taller than the
 // space it has scrolls.
 func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
-	subject, body := messageParts(d)
+	subject, body, _ := cv.message(d)
 	col := ui.Column(c).Padding(spaceM, insetX, 0, insetX).Gap(spaceS).FillWidth()
 	if len(body) > 0 {
 		col.Fill()
@@ -282,18 +312,32 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 	meta := ui.Column(c).Padding(spaceS, insetX, spaceM, insetX).Gap(spaceS).FillWidth()
 	cv.metaH = meta.LayoutBounds().H
 	meta.Children(func() {
+		label := func(text string) {
+			ui.Text(c, text).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
+		}
 		// The time goes under the person it is theirs, rather than beside
 		// them, where a narrow panel would break it over lines.
 		person := func(role string, p object.Signature) {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
-				ui.Text(c, role).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
-				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).Children(func() {
-					ui.Text(c, fmt.Sprintf("%s <%s>", redact.Control(string(p.Name)), redact.Control(string(p.Email)))).FontSize(textSmall).Selectable()
-					ui.Text(c, zoneTime(signatureTime(p))).FontSize(textSmall).TextColor(th.TextMuted)
+				label(role)
+				a.personLine(c, t, string(p.Name), string(p.Email), avatarMeta, func() {
+					at := signatureTime(p)
+					ui.Text(c, zoneTime(at)).FontSize(textSmall).TextColor(th.TextMuted).Tooltip(since(a.Now(), at))
 				})
 			})
 		}
 		person(locales.CommitAuthor(), cm.Author)
+		if _, _, co := cv.message(d); len(co) > 0 {
+			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+				label(locales.CommitCoAuthors(len(co)))
+				ui.Column(c).Gap(spaceXS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+					for i, p := range co {
+						c.Key(i)
+						a.personLine(c, t, p.Name, p.Email, avatarSmall, nil)
+					}
+				})
+			})
+		}
 		if !samePerson(cm.Author, cm.Committer) {
 			person(locales.CommitCommitter(), cm.Committer)
 		}
@@ -348,7 +392,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		}
 		if len(d.Parents) > 0 {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
-				ui.Text(c, locales.CommitParents(len(d.Parents))).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
+				label(locales.CommitParents(len(d.Parents)))
 				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					for _, p := range d.Parents {
 						if clickable(ui.Text(c, hex.EncodeToString(p)).Font("monospace").FontSize(textSmall).FillWidth().MinWidth(0)).Tooltip(locales.CommitGoToParent()).Clicked() {
@@ -396,6 +440,61 @@ func (cv *commitView) stopPull() {
 		cv.pullAsked, cv.pullWaiting = false, false
 	}
 	cv.pullCancel = nil
+}
+
+// The sizes of the people's pictures: the author's and committer's, and a
+// co-author's, beside one line.
+const (
+	avatarMeta  = 28
+	avatarSmall = 18
+)
+
+// personLine shows a person: their picture, their name, which shows the
+// history of their commits, their email, and under them what more is
+// given.
+func (a *App) personLine(c *ui.Context, t *tab, name, email string, size float32, more func()) {
+	th := c.Theme()
+	name, email = redact.Control(name), redact.Control(email)
+	ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+		if a.avatar(c, t, name, email, size).Cursor(ui.CursorPointer).Tooltip(locales.CommitShowPersonHistory(name)).Clicked() {
+			a.showPersonHistory(t, email)
+		}
+		ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+			ui.Row(c).Gap(spaceS).Wrap().AlignItems(ui.Center).Children(func() {
+				if clickable(ui.Text(c, name).FontSize(textSmall).FontWeight(600)).Tooltip(locales.CommitShowPersonHistory(name)).Clicked() {
+					a.showPersonHistory(t, email)
+				}
+				ui.Text(c, email).FontSize(textSmall).TextColor(th.TextMuted).Selectable()
+			})
+			if more != nil {
+				more()
+			}
+		})
+	})
+}
+
+// showPersonHistory shows the history of the commits the person with
+// email authored, through the history's author filter, where it can be
+// seen and cleared. The email in brackets matches it whole.
+func (a *App) showPersonHistory(t *tab, email string) {
+	hf := &t.hist.filter
+	hf.author = "<" + email + ">"
+	hf.open = true
+	t.sel = "history"
+	a.applyHistoryFilter(t)
+}
+
+// since says how long before now t was, as words, for a tooltip beside
+// the date itself.
+func since(now, t time.Time) string {
+	d := now.Sub(t)
+	switch {
+	case d < 60*24*time.Hour:
+		return ago(now, t)
+	case d < 365*24*time.Hour:
+		return locales.TimeMonthsAgo(int(d / (30 * 24 * time.Hour)))
+	}
+	return locales.TimeYearsAgo(int(d / (365 * 24 * time.Hour)))
 }
 
 func signatureTime(p object.Signature) time.Time {

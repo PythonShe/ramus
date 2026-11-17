@@ -963,7 +963,41 @@ func TestHistoryMailmap(t *testing.T) {
 	r.Commit("add a mailmap")
 	h.until("mapped", func() bool { return hasExact(h, "handle") && !hasExact(h, "Full Name") })
 	h.click("merged on the web")
-	h.until("the detail", h.shows("handle <me@example.com>"))
+	h.until("the detail", func() bool { return hasExact(h, "handle") && h.tt.HasText("me@example.com") })
+}
+
+// A commit shows its people with their pictures: the author, the
+// co-authors its trailers name, whose lines leave the body, and its
+// parents by their subjects. A click on a person's name shows the history
+// of their commits.
+func TestCommitPeople(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("commit", "-q", "--allow-empty", "-m", "by someone else", "--author", "Other Person <other@example.com>")
+	r.Git("commit", "-q", "--allow-empty", "-m", "pair work\n\nWhy it was done.\n\nCo-authored-by: Ann Lee <ann@example.com>\nCo-authored-by: Bo Ray <bo@example.com>")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commits", h.shows("pair work"))
+	h.click("pair work")
+	h.until("the co-authors", func() bool {
+		return h.tt.HasText("Co-authors") && hasExact(h, "Ann Lee") && hasExact(h, "Bo Ray") && h.tt.HasText("bo@example.com")
+	})
+	if h.tt.HasText("Co-authored-by: Ann Lee <ann@example.com>") {
+		t.Fatal("the body still shows the trailer of a co-author shown as a person")
+	}
+	h.until("the body", h.shows("Why it was done."))
+
+	tab := h.app.current()
+	h.click("Ann Lee")
+	if got := tab.hist.filter.author; got != "<ann@example.com>" {
+		t.Fatalf("filtered by %q", got)
+	}
+	h.click("Other Person")
+	h.until("their history", func() bool {
+		return h.tt.HasText("by someone else") && !h.tt.HasText("pair work")
+	})
 }
 
 // History shown as commits land: a commit on top, then the commit on top

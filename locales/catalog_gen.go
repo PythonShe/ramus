@@ -4731,6 +4731,58 @@ func (msgs Messages) CommitAuthor() string {
 	return Catalog.Format(msgs.locale, "commitAuthor", nil)
 }
 
+// CommitCoAuthors says "{count, plural, one {Co-author} other {Co-authors}}"
+// in the language the app shows.
+//
+// Labels the people a commit's Co-authored-by trailers name.
+func CommitCoAuthors(count int) string { return In(i18n.Locale()).CommitCoAuthors(count) }
+
+// CommitCoAuthors says "{count, plural, one {Co-author} other {Co-authors}}"
+// in the language of msgs.
+//
+// Labels the people a commit's Co-authored-by trailers name.
+func (msgs Messages) CommitCoAuthors(count int) string {
+	return Catalog.Format(msgs.locale, "commitCoAuthors", map[string]any{"count": count})
+}
+
+// CommitShowPersonHistory says "Show commits by {name}"
+// in the language the app shows.
+//
+// Tooltip of a person's name in a commit: a click filters the history to
+// their commits.
+func CommitShowPersonHistory(name string) string {
+	return In(i18n.Locale()).CommitShowPersonHistory(name)
+}
+
+// CommitShowPersonHistory says "Show commits by {name}"
+// in the language of msgs.
+//
+// Tooltip of a person's name in a commit: a click filters the history to
+// their commits.
+func (msgs Messages) CommitShowPersonHistory(name string) string {
+	return Catalog.Format(msgs.locale, "commitShowPersonHistory", map[string]any{"name": name})
+}
+
+// TimeMonthsAgo says "{count, plural, one {# month ago} other {# months ago}}"
+// in the language the app shows.
+func TimeMonthsAgo(count int) string { return In(i18n.Locale()).TimeMonthsAgo(count) }
+
+// TimeMonthsAgo says "{count, plural, one {# month ago} other {# months ago}}"
+// in the language of msgs.
+func (msgs Messages) TimeMonthsAgo(count int) string {
+	return Catalog.Format(msgs.locale, "timeMonthsAgo", map[string]any{"count": count})
+}
+
+// TimeYearsAgo says "{count, plural, one {# year ago} other {# years ago}}"
+// in the language the app shows.
+func TimeYearsAgo(count int) string { return In(i18n.Locale()).TimeYearsAgo(count) }
+
+// TimeYearsAgo says "{count, plural, one {# year ago} other {# years ago}}"
+// in the language of msgs.
+func (msgs Messages) TimeYearsAgo(count int) string {
+	return Catalog.Format(msgs.locale, "timeYearsAgo", map[string]any{"count": count})
+}
+
 // CommitTimeZone says "{time} UTC{offset}"
 // in the language the app shows.
 //
