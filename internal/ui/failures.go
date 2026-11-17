@@ -105,7 +105,7 @@ func (a *App) diagnose(t *tab, e *session.LogEntry) diagnosis {
 		}
 	case again && isBranchPush(op) && strings.Contains(stderr, "! [rejected]"):
 		d.text = locales.RepoPushBehind()
-		if st.Status != nil && st.Status.Branch.Upstream != "" {
+		if st.Status != nil && st.Status.Branch.Upstream != "" && !st.Status.Branch.Gone {
 			d.fixes = append(d.fixes, remedy{locales.RepoPullAndPush(), func() { a.pullThenPush(t, op) }})
 		}
 	case strings.Contains(stderr, "would be overwritten by"):
@@ -267,14 +267,15 @@ func containsAny(s string, subs ...string) bool {
 
 // pushOptions is how the branch of tab t is pushed: to its upstream, or,
 // with none, to the one remote there is, or origin among several, made
-// its upstream, as Commit and Push does. False when there is nowhere to
-// push it.
+// its upstream, as Commit and Push does. One whose upstream is gone is
+// published again to the remote it tracked. False when there is nowhere
+// to push it.
 func pushOptions(t *tab) (write.PushOptions, bool) {
 	st := t.s.State.Status
 	if st == nil {
 		return write.PushOptions{}, false
 	}
-	if st.Branch.Upstream != "" {
+	if st.Branch.Upstream != "" && !st.Branch.Gone {
 		return write.PushOptions{}, true
 	}
 	r := t.s.Repo
@@ -282,6 +283,11 @@ func pushOptions(t *tab) (write.PushOptions, bool) {
 		return write.PushOptions{}, false
 	}
 	remotes := r.Config().Subsections("remote", "url")
+	if st.Branch.Gone && st.Branch.Head != "" {
+		if v, ok := r.Config().Get("branch." + st.Branch.Head + ".remote"); ok && slices.Contains(remotes, v) {
+			return write.PushOptions{Remote: v}, true
+		}
+	}
 	switch {
 	case len(remotes) == 1:
 		return write.PushOptions{Remote: remotes[0]}, true

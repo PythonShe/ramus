@@ -101,7 +101,7 @@ func TestStatus(t *testing.T) {
 			t.Fatalf("%+v\n got %q\nwant %q", opt, got, want)
 		}
 		b := s.Branch
-		if b.Head != "main" || b.Upstream != "origin/main" || b.Stashes != 1 || len(b.OID) != 40 || b.Detached {
+		if b.Head != "main" || b.Upstream != "origin/main" || b.Gone || b.Stashes != 1 || len(b.OID) != 40 || b.Detached {
 			t.Errorf("branch %+v", b)
 		}
 		kinds := map[Kind]int{}
@@ -126,6 +126,27 @@ func TestInitialAndDetached(t *testing.T) {
 	s, _ = Read(context.Background(), run, r.GitDir(), r.Dir, 20, Options{})
 	if !s.Branch.Detached || s.Branch.Head != "" {
 		t.Errorf("detached %+v", s.Branch)
+	}
+}
+
+// An upstream deleted on the remote and pruned is told as gone.
+func TestGoneUpstream(t *testing.T) {
+	up := gittest.Init(t)
+	up.Commit("base")
+	up.Git("branch", "topic")
+	r := gittest.Open(t, filepath.Join(t.TempDir(), "clone"))
+	up.Git("clone", "-q", up.Dir, r.Dir)
+	r.Git("switch", "-q", "topic")
+	run := testrun.Runner(t)
+	s, err := Read(context.Background(), run, r.GitDir(), r.Dir, 20, Options{})
+	if err != nil || s.Branch.Upstream != "origin/topic" || s.Branch.Gone {
+		t.Fatalf("there: %+v %v", s.Branch, err)
+	}
+	up.Git("branch", "-q", "-D", "topic")
+	r.Git("fetch", "-q", "--prune")
+	s, err = Read(context.Background(), run, r.GitDir(), r.Dir, 20, Options{})
+	if err != nil || s.Branch.Upstream != "origin/topic" || !s.Branch.Gone {
+		t.Fatalf("gone: %+v %v", s.Branch, err)
 	}
 }
 

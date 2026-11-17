@@ -83,6 +83,36 @@ func TestSyncButton(t *testing.T) {
 	h.until("even again", h.labelled("Fetch"))
 }
 
+// A branch whose upstream the remote deleted is offered to publish
+// again, from the button and the palette, and no pull of what is gone.
+func TestSyncGoneUpstream(t *testing.T) {
+	h := newHarness(t)
+	origin := gittest.Init(t, "--bare")
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", origin.Dir)
+	r.Git("switch", "-q", "-c", "topic")
+	r.Git("push", "-q", "-u", "origin", "topic")
+	origin.Git("branch", "-q", "-D", "topic")
+	r.Git("fetch", "-q", "--prune", "origin")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.until("publish", h.shows("Publish Branch"))
+	for _, c := range h.app.commands("") {
+		if strings.HasPrefix(c.id, "pull-") {
+			t.Fatalf("the palette offers %s of a gone upstream", c.id)
+		}
+	}
+	h.click("Publish Branch")
+	h.until("published", func() bool {
+		out, _ := origin.Run(nil, "rev-parse", "--verify", "-q", "topic")
+		return strings.TrimSpace(out) != ""
+	})
+	h.idle(tb, "the push done")
+	h.until("even", h.labelled("Fetch"))
+}
+
 // syncOf tells the writes the sync button follows from the others.
 func TestSyncOf(t *testing.T) {
 	w := write.Where{GitDir: "/r/.git", WorkTree: "/r"}

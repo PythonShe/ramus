@@ -35,6 +35,9 @@ type Branch struct {
 	Detached bool
 	// Upstream is the upstream branch, as "origin/main"; empty when none.
 	Upstream string
+	// Gone is an Upstream not there: the remote deleted it and a fetch
+	// pruned it, or it was never fetched.
+	Gone bool
 	// Stashes is the number of stash entries.
 	Stashes int
 }
@@ -253,7 +256,10 @@ func (s *Status) header(h []byte) {
 			s.Branch.Head = v
 		}
 	case "branch.upstream":
-		s.Branch.Upstream = v
+		// git follows it with branch.ab only when the upstream is there.
+		s.Branch.Upstream, s.Branch.Gone = v, true
+	case "branch.ab":
+		s.Branch.Gone = false
 	case "stash":
 		s.Branch.Stashes, _ = strconv.Atoi(v)
 	}

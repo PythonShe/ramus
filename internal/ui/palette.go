@@ -288,7 +288,7 @@ func (a *App) writeCommands(t *tab) []command {
 			cmds = append(cmds, cmd("unstage-all", func() { a.stageEntries(t, m, secStaged, es) }))
 		}
 	}
-	upstream := t.s.State.Status != nil && t.s.State.Status.Branch.Upstream != ""
+	upstream := t.s.State.Status != nil && t.s.State.Status.Branch.Upstream != "" && !t.s.State.Status.Branch.Gone
 	if !head.Detached && !head.Unborn && upstream {
 		// As the sync button pulls: the way git's config says.
 		cmds = append(cmds, cmd("pull", func() {
