@@ -331,9 +331,11 @@ func (cs *commitState) chooseRecent(msg string) {
 }
 
 // fillTemplate puts the commit template in an empty editor, once the
-// draft from the last run, which comes first, was read.
+// draft from the last run, which comes first, was read. Not while Amend
+// is ticked: HEAD's message, still being read, goes there, and a setup
+// read again after a commit lands as the user ticks it right after.
 func (cs *commitState) fillTemplate() {
-	if s := cs.setup; s != nil && cs.draftRead && cs.subject == "" && cs.body == "" && s.Template != "" {
+	if s := cs.setup; s != nil && !cs.amend && cs.draftRead && cs.subject == "" && cs.body == "" && s.Template != "" {
 		cs.subject, cs.body = message.Split(s.Template)
 	}
 }

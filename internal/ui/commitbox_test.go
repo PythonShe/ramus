@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"ramus/internal/session"
 )
 
 // A hook that fails, printing a lot, leaves the box its size: its last
@@ -408,5 +410,20 @@ func TestCommitNextPreparedMessage(t *testing.T) {
 	})
 	if cs.subject != "mine" {
 		t.Fatalf("an edited message replaced: %q", cs.subject)
+	}
+}
+
+// A setup read again after a commit that lands as Amend is ticked over
+// the emptied editor leaves the template out: HEAD's message goes there.
+func TestAmendBeforeTemplate(t *testing.T) {
+	cs := &commitState{amend: true, draftRead: true, setup: &session.CommitSetup{Template: "Subject line\n"}}
+	cs.fillTemplate()
+	if cs.subject != "" || cs.body != "" {
+		t.Fatalf("the template went in over Amend: %q %q", cs.subject, cs.body)
+	}
+	cs.amend = false
+	cs.fillTemplate()
+	if cs.subject != "Subject line" {
+		t.Fatalf("no template without Amend: %q", cs.subject)
 	}
 }
