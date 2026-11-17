@@ -232,13 +232,11 @@ func (a *App) branchCommands(t *tab, query string) []command {
 // stashTop is the commit of the newest stash, "" when there is none.
 func stashTop(t *tab) string {
 	l := t.s.State.Refs
-	if l == nil {
+	if st := t.s.State.Status; l == nil || st == nil || st.Branch.Stashes == 0 {
 		return ""
 	}
-	for i := range l.Len() {
-		if l.Name(i) == "refs/stash" {
-			return hex.EncodeToString(l.OID(i))
-		}
+	if i, ok := l.Find("refs/stash"); ok {
+		return hex.EncodeToString(l.OID(i))
 	}
 	return ""
 }

@@ -82,6 +82,16 @@ func TestList(t *testing.T) {
 			}
 		}
 	}
+	for i := 0; i < l.Len(); i++ {
+		if j, ok := l.Find(l.Name(i)); !ok || j != i {
+			t.Errorf("Find(%q) = %d %v, want %d", l.Name(i), j, ok, i)
+		}
+	}
+	for _, name := range []string{"", "refs/heads/feature", "refs/heads/feature/c", "refs/tags/v3", "zzz"} {
+		if _, ok := l.Find(name); ok {
+			t.Errorf("Find(%q) found a ref", name)
+		}
+	}
 }
 
 // Edges where git's reading of loose refs is looser or stricter than it

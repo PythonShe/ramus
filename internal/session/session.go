@@ -11,8 +11,6 @@ import (
 	"ramus/internal/git/cache"
 	"runtime"
 	"slices"
-	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -500,7 +498,7 @@ func keepsStatus(prevHead, head *refs.Head, prev, now *refs.List) bool {
 // refOID returns the object ref name points at in l, nil when l has no
 // such ref.
 func refOID(l *refs.List, name string) []byte {
-	i, ok := sort.Find(l.Len(), func(i int) int { return strings.Compare(name, l.Name(i)) })
+	i, ok := l.Find(name)
 	if !ok {
 		return nil
 	}

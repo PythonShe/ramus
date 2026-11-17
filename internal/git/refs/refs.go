@@ -5,6 +5,7 @@ package refs
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 )
@@ -77,6 +79,24 @@ func (l *List) Name(i int) string {
 		start = l.ends[i-1]
 	}
 	return string(l.names[start:l.ends[i]])
+}
+
+// Find returns the index of the ref named name, a full name, by binary
+// search of the sorted names, allocating nothing.
+func (l *List) Find(name string) (int, bool) {
+	return sort.Find(len(l.ends), func(i int) int {
+		start := uint32(0)
+		if i > 0 {
+			start = l.ends[i-1]
+		}
+		b := l.names[start:l.ends[i]]
+		for j := range min(len(name), len(b)) {
+			if name[j] != b[j] {
+				return cmp.Compare(name[j], b[j])
+			}
+		}
+		return cmp.Compare(len(name), len(b))
+	})
 }
 
 // OID returns the object ref i points at, through symbolic refs. A
