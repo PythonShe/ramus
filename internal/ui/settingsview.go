@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -37,7 +38,16 @@ type settingsState struct {
 	// difftool is whether git's global config makes the app its difftool
 	// and mergetool: as read, in difftoolWas, once difftoolRead.
 	difftool, difftoolWas, difftoolRead bool
-	err                                 string
+	// ident is the identity of git's global config as the form has it,
+	// identWas as read or last written, once identRead. It is written as
+	// the settings close, or as a field of it takes Enter: not as typed.
+	ident, identWas write.Identity
+	identRead       bool
+	// nameField is the field of the name, which focusName focuses once
+	// it can take the focus.
+	nameField ui.Handle
+	focusName bool
+	err       string
 }
 
 func (a *App) openSettings() {
@@ -46,6 +56,15 @@ func (a *App) openSettings() {
 	a.loadSettingsForm()
 	s.difftool, s.difftoolWas, s.difftoolRead = false, false, false
 	a.readDifftool()
+	s.ident, s.identWas, s.identRead = write.Identity{}, write.Identity{}, false
+	a.readIdentity()
+}
+
+// openIdentity opens the settings with the focus in the name git
+// commits with, for a commit git refused for want of it.
+func (a *App) openIdentity() {
+	a.openSettings()
+	a.settingsUI.focusName = true
 }
 
 // loadSettingsForm puts the settings in force in the form: as it opens,
@@ -87,13 +106,14 @@ func indexOf(xs []string, x string) int {
 	return -1
 }
 
-// settingsInput is the width of the settings' text inputs, at the end
-// of their rows.
-const settingsInput = 260
+// settingsControlW is the width of the settings' menus and text
+// inputs, at the end of their rows, so that they line up.
+const settingsControlW = 220
 
 func (a *App) settingsView(c *ui.Context) {
 	s := &a.settingsUI
 	if !s.open {
+		a.saveIdentity()
 		return
 	}
 	th := c.Theme()
@@ -118,13 +138,6 @@ func (a *App) settingsView(c *ui.Context) {
 			}
 			ui.Divider(c)
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Padding(spaceL, dialogPad).Children(func() {
-				if ui.Button(c, locales.SettingsKeyboardShortcuts()).Clicked() {
-					a.openKeys()
-				}
-				if a.SettingsPath != "" && ui.Button(c, locales.SettingsOpenFile()).Clicked() {
-					p := a.SettingsPath
-					a.goWork(nil, func() { tools.OpenDefault(p) })
-				}
 				ui.Spacer(c)
 				if ui.PrimaryButton(c, locales.CommonDone()).Clicked() {
 					s.open = false
@@ -147,12 +160,41 @@ func (a *App) settingsSections(c *ui.Context) {
 		if a.SetLocale != nil {
 			row(locales.SettingsLanguage(), func() ui.Element {
 				_, names := a.languageChoices()
-				return ui.Select(c, &s.lang, names)
+				return ui.Select(c, &s.lang, names).Width(settingsControlW)
 			})
 		}
+	})
+	settingsGroup(c, locales.SettingsGit(), func(row settingsRow) {
+		if a.Runner != nil {
+			field := func(v *string) ui.Element {
+				in := ui.TextInput(c, v).Width(settingsControlW).Disabled(!s.identRead)
+				if in.Submitted() {
+					a.saveIdentity()
+				}
+				return in
+			}
+			row(locales.SettingsGitName(), func() ui.Element {
+				in := field(&s.ident.Name).Bind(&s.nameField)
+				if s.focusName && s.identRead {
+					s.nameField.Focus(c)
+					s.focusName = false
+				}
+				return in
+			})
+			row(locales.SettingsGitEmail(), func() ui.Element { return field(&s.ident.Email) })
+		}
 		row(locales.SettingsEmails(), func() ui.Element {
-			return ui.TextInput(c, &s.emails).Placeholder(locales.SettingsEmailsExample()).Width(settingsInput)
+			return ui.TextInput(c, &s.emails).Placeholder(locales.SettingsEmailsExample()).Width(settingsControlW)
 		})
+		if a.Runner != nil {
+			row(locales.SettingsDefaultBranch(), func() ui.Element {
+				in := ui.TextInput(c, &s.ident.DefaultBranch).Placeholder(locales.SettingsDefaultBranchGit()).Width(settingsControlW).Disabled(!s.identRead)
+				if in.Submitted() {
+					a.saveIdentity()
+				}
+				return in
+			})
+		}
 	})
 	settingsGroup(c, locales.SettingsRepositories(), func(row settingsRow) {
 		row(locales.SettingsFetch(), func() ui.Element {
@@ -169,18 +211,39 @@ func (a *App) settingsSections(c *ui.Context) {
 		row(locales.SettingsFocusRefresh(), func() ui.Element { return ui.Switch(c, &s.focusRefresh) })
 		row(locales.SettingsPullRequests(), func() ui.Element { return ui.Switch(c, &s.pulls) })
 		row(locales.SettingsRecentLimit(), func() ui.Element {
-			return choice(c, &s.recent, []int{5, 10, 20, 50, 100}, strconv.Itoa)
+			return choice(c, &s.recent, []int{5, 10, 20, 50, 100}, strconv.Itoa).Width(settingsControlW)
 		})
 		row(locales.SettingsSnapshotDays(), func() ui.Element {
-			return choice(c, &s.days, []int{7, 14, 30, 90, 365}, locales.SettingsDays)
+			return choice(c, &s.days, []int{7, 14, 30, 90, 365}, locales.SettingsDays).Width(settingsControlW)
 		})
 	})
 	settingsGroup(c, locales.SettingsTools(), func(row settingsRow) {
-		row(locales.SettingsEditor(), func() ui.Element { return a.toolChoice(c, tools.Editor, &s.editor) })
-		row(locales.SettingsTerminal(), func() ui.Element { return a.toolChoice(c, tools.Terminal, &s.terminal) })
+		row(locales.SettingsEditor(), func() ui.Element { return a.toolChoice(c, tools.Editor, &s.editor).Width(settingsControlW) })
+		row(locales.SettingsTerminal(), func() ui.Element {
+			return a.toolChoice(c, tools.Terminal, &s.terminal).Width(settingsControlW)
+		})
 		if a.Program != "" && a.Runner != nil {
 			row(locales.SettingsDiffTool(), func() ui.Element {
 				return ui.Switch(c, &s.difftool).Disabled(!s.difftoolRead)
+			})
+		}
+	})
+	settingsGroup(c, locales.SettingsAdvanced(), func(row settingsRow) {
+		row(locales.SettingsKeyboardShortcuts(), func() ui.Element {
+			b := ui.Button(c, locales.SettingsCustomize())
+			if b.Clicked() {
+				a.openKeys()
+			}
+			return b
+		})
+		if a.SettingsPath != "" {
+			row(locales.SettingsFile(), func() ui.Element {
+				b := ui.Button(c, locales.SettingsOpenFile())
+				if b.Clicked() {
+					p := a.SettingsPath
+					a.goWork(nil, func() { tools.OpenDefault(p) })
+				}
+				return b
 			})
 		}
 	})
@@ -296,6 +359,58 @@ func (a *App) readDifftool() {
 	})
 }
 
+// readIdentity reads the identity of git's global config, for the
+// settings' fields.
+func (a *App) readIdentity() {
+	if a.Runner == nil {
+		return
+	}
+	r, update, s := a.Runner, a.Update, &a.settingsUI
+	a.goWork(nil, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		id, err := write.ReadIdentity(ctx, r)
+		cancel()
+		update(func() {
+			if err == nil && s.open && !s.identRead {
+				s.ident, s.identWas, s.identRead = id, id, true
+			}
+		})
+	})
+}
+
+// saveIdentity writes the identity the form has to git's global config,
+// off the main thread, when it changed. A failure says so, and the
+// identity is read again the next time the settings open.
+func (a *App) saveIdentity() {
+	s := &a.settingsUI
+	if !s.identRead || s.ident == s.identWas || a.Runner == nil {
+		return
+	}
+	r, update, was, now := a.Runner, a.Update, s.identWas, s.ident
+	s.identWas = now
+	a.goWork(nil, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := write.SetIdentity(ctx, r, was, now)
+		cancel()
+		if err == nil {
+			return
+		}
+		msg := errText(err)
+		if errors.Is(err, write.ErrBranchName) {
+			msg = locales.SettingsDefaultBranchInvalid(strings.TrimSpace(now.DefaultBranch))
+		}
+		update(func() {
+			if s.open {
+				s.err = locales.SettingsGitFailed(msg)
+				s.identWas = was
+				return
+			}
+			s.identRead = false
+			a.notice = locales.SettingsGitFailed(msg)
+		})
+	})
+}
+
 // globalTool is the app as git's difftool and mergetool.
 func (a *App) globalTool() write.GlobalTool {
 	d, m := cli.ToolCommands(a.Program)
@@ -312,7 +427,8 @@ type settingsRow func(label string, control func() ui.Element)
 func settingsGroup(c *ui.Context, heading string, fn func(row settingsRow)) {
 	th := c.Theme()
 	ui.Column(c).Gap(spaceS).FillWidth().Children(func() {
-		ui.Text(c, heading).FontSize(textSmall).Bold().TextColor(th.TextMuted).Padding(0, spaceXS)
+		// In line with the rows' names.
+		ui.Text(c, heading).FontSize(textSmall).Bold().TextColor(th.TextMuted).Padding(0, spaceL)
 		ui.Column(c).FillWidth().Radius(radiusLarge).Border(1, th.Border).Children(func() {
 			first := true
 			fn(func(label string, control func() ui.Element) {

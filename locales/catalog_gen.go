@@ -8159,6 +8159,38 @@ func (msgs Messages) RepoLoginRefused(name string) string {
 	return Catalog.Format(msgs.locale, "repoLoginRefused", map[string]any{"name": name})
 }
 
+// RepoIdentityUnknown says "{name} failed: git does not know your name and email"
+// in the language the app shows.
+//
+// The error bar: git refused to commit because user.name or user.email is
+// not set.
+func RepoIdentityUnknown(name string) string { return In(i18n.Locale()).RepoIdentityUnknown(name) }
+
+// RepoIdentityUnknown says "{name} failed: git does not know your name and email"
+// in the language of msgs.
+//
+// The error bar: git refused to commit because user.name or user.email is
+// not set.
+func (msgs Messages) RepoIdentityUnknown(name string) string {
+	return Catalog.Format(msgs.locale, "repoIdentityUnknown", map[string]any{"name": name})
+}
+
+// RepoSetIdentity says "Set Name and Email…"
+// in the language the app shows.
+//
+// A button in the error bar: opens Settings at the name and email git
+// commits with.
+func RepoSetIdentity() string { return In(i18n.Locale()).RepoSetIdentity() }
+
+// RepoSetIdentity says "Set Name and Email…"
+// in the language of msgs.
+//
+// A button in the error bar: opens Settings at the name and email git
+// commits with.
+func (msgs Messages) RepoSetIdentity() string {
+	return Catalog.Format(msgs.locale, "repoSetIdentity", nil)
+}
+
 // RepoPathFlagged says "This path {reasons}"
 // in the language the app shows.
 //
@@ -10158,17 +10190,123 @@ func (msgs Messages) SettingsTitle() string {
 // SettingsGeneral says "General"
 // in the language the app shows.
 //
-// The heading of the first group of settings: appearance, language, the
-// user's email addresses.
+// The heading of the first group of settings: appearance and language.
 func SettingsGeneral() string { return In(i18n.Locale()).SettingsGeneral() }
 
 // SettingsGeneral says "General"
 // in the language of msgs.
 //
-// The heading of the first group of settings: appearance, language, the
-// user's email addresses.
+// The heading of the first group of settings: appearance and language.
 func (msgs Messages) SettingsGeneral() string {
 	return Catalog.Format(msgs.locale, "settingsGeneral", nil)
+}
+
+// SettingsGit says "Git"
+// in the language the app shows.
+//
+// The heading of the settings of git itself: who commits are by, the user's
+// other email addresses, the branch a new repository starts on.
+func SettingsGit() string { return In(i18n.Locale()).SettingsGit() }
+
+// SettingsGit says "Git"
+// in the language of msgs.
+//
+// The heading of the settings of git itself: who commits are by, the user's
+// other email addresses, the branch a new repository starts on.
+func (msgs Messages) SettingsGit() string {
+	return Catalog.Format(msgs.locale, "settingsGit", nil)
+}
+
+// SettingsGitName says "Name"
+// in the language the app shows.
+//
+// The name git puts on the user's commits (user.name in git's global
+// config).
+func SettingsGitName() string { return In(i18n.Locale()).SettingsGitName() }
+
+// SettingsGitName says "Name"
+// in the language of msgs.
+//
+// The name git puts on the user's commits (user.name in git's global
+// config).
+func (msgs Messages) SettingsGitName() string {
+	return Catalog.Format(msgs.locale, "settingsGitName", nil)
+}
+
+// SettingsGitEmail says "Email"
+// in the language the app shows.
+//
+// The email address git puts on the user's commits (user.email in git's
+// global config).
+func SettingsGitEmail() string { return In(i18n.Locale()).SettingsGitEmail() }
+
+// SettingsGitEmail says "Email"
+// in the language of msgs.
+//
+// The email address git puts on the user's commits (user.email in git's
+// global config).
+func (msgs Messages) SettingsGitEmail() string {
+	return Catalog.Format(msgs.locale, "settingsGitEmail", nil)
+}
+
+// SettingsDefaultBranch says "Default branch for new repositories"
+// in the language the app shows.
+//
+// The branch a new repository starts on (init.defaultBranch in git's global
+// config).
+func SettingsDefaultBranch() string { return In(i18n.Locale()).SettingsDefaultBranch() }
+
+// SettingsDefaultBranch says "Default branch for new repositories"
+// in the language of msgs.
+//
+// The branch a new repository starts on (init.defaultBranch in git's global
+// config).
+func (msgs Messages) SettingsDefaultBranch() string {
+	return Catalog.Format(msgs.locale, "settingsDefaultBranch", nil)
+}
+
+// SettingsDefaultBranchGit says "Git's default"
+// in the language the app shows.
+//
+// The placeholder of an empty default branch: git then uses its own.
+func SettingsDefaultBranchGit() string { return In(i18n.Locale()).SettingsDefaultBranchGit() }
+
+// SettingsDefaultBranchGit says "Git's default"
+// in the language of msgs.
+//
+// The placeholder of an empty default branch: git then uses its own.
+func (msgs Messages) SettingsDefaultBranchGit() string {
+	return Catalog.Format(msgs.locale, "settingsDefaultBranchGit", nil)
+}
+
+// SettingsDefaultBranchInvalid says "{name} cannot be a branch's name"
+// in the language the app shows.
+//
+// The default branch typed is a name git refuses for a branch.
+func SettingsDefaultBranchInvalid(name string) string {
+	return In(i18n.Locale()).SettingsDefaultBranchInvalid(name)
+}
+
+// SettingsDefaultBranchInvalid says "{name} cannot be a branch's name"
+// in the language of msgs.
+//
+// The default branch typed is a name git refuses for a branch.
+func (msgs Messages) SettingsDefaultBranchInvalid(name string) string {
+	return Catalog.Format(msgs.locale, "settingsDefaultBranchInvalid", map[string]any{"name": name})
+}
+
+// SettingsGitFailed says "Could not change git's settings: {error}"
+// in the language the app shows.
+//
+// Writing the name, email or default branch to git's global config failed.
+func SettingsGitFailed(error string) string { return In(i18n.Locale()).SettingsGitFailed(error) }
+
+// SettingsGitFailed says "Could not change git's settings: {error}"
+// in the language of msgs.
+//
+// Writing the name, email or default branch to git's global config failed.
+func (msgs Messages) SettingsGitFailed(error string) string {
+	return Catalog.Format(msgs.locale, "settingsGitFailed", map[string]any{"error": error})
 }
 
 // SettingsRepositories says "Repositories"
@@ -10199,6 +10337,22 @@ func SettingsTools() string { return In(i18n.Locale()).SettingsTools() }
 // The heading of the settings naming the editor and terminal the app opens.
 func (msgs Messages) SettingsTools() string {
 	return Catalog.Format(msgs.locale, "settingsTools", nil)
+}
+
+// SettingsAdvanced says "Advanced"
+// in the language the app shows.
+//
+// The heading of the last settings: the keyboard shortcuts and the settings
+// file.
+func SettingsAdvanced() string { return In(i18n.Locale()).SettingsAdvanced() }
+
+// SettingsAdvanced says "Advanced"
+// in the language of msgs.
+//
+// The heading of the last settings: the keyboard shortcuts and the settings
+// file.
+func (msgs Messages) SettingsAdvanced() string {
+	return Catalog.Format(msgs.locale, "settingsAdvanced", nil)
 }
 
 // SettingsAppearance says "Appearance"
@@ -10307,14 +10461,14 @@ func (msgs Messages) SettingsTerminal() string {
 	return Catalog.Format(msgs.locale, "settingsTerminal", nil)
 }
 
-// SettingsEmails says "Your other email addresses"
+// SettingsEmails says "Other emails you commit with"
 // in the language the app shows.
 //
 // The email addresses the user commits with besides each repository's
 // user.email (git's setting), which mark their own commits.
 func SettingsEmails() string { return In(i18n.Locale()).SettingsEmails() }
 
-// SettingsEmails says "Your other email addresses"
+// SettingsEmails says "Other emails you commit with"
 // in the language of msgs.
 //
 // The email addresses the user commits with besides each repository's
@@ -10337,31 +10491,31 @@ func (msgs Messages) SettingsEmailsExample() string {
 	return Catalog.Format(msgs.locale, "settingsEmailsExample", nil)
 }
 
-// SettingsSnapshotDays says "Keep snapshots of dropped work"
+// SettingsSnapshotDays says "Keep snapshots for"
 // in the language the app shows.
 func SettingsSnapshotDays() string { return In(i18n.Locale()).SettingsSnapshotDays() }
 
-// SettingsSnapshotDays says "Keep snapshots of dropped work"
+// SettingsSnapshotDays says "Keep snapshots for"
 // in the language of msgs.
 func (msgs Messages) SettingsSnapshotDays() string {
 	return Catalog.Format(msgs.locale, "settingsSnapshotDays", nil)
 }
 
-// SettingsRecentLimit says "Recent repositories listed"
+// SettingsRecentLimit says "Recent repositories to show"
 // in the language the app shows.
 func SettingsRecentLimit() string { return In(i18n.Locale()).SettingsRecentLimit() }
 
-// SettingsRecentLimit says "Recent repositories listed"
+// SettingsRecentLimit says "Recent repositories to show"
 // in the language of msgs.
 func (msgs Messages) SettingsRecentLimit() string {
 	return Catalog.Format(msgs.locale, "settingsRecentLimit", nil)
 }
 
-// SettingsFocusRefresh says "Refresh when the window is focused"
+// SettingsFocusRefresh says "Refresh when the window becomes active"
 // in the language the app shows.
 func SettingsFocusRefresh() string { return In(i18n.Locale()).SettingsFocusRefresh() }
 
-// SettingsFocusRefresh says "Refresh when the window is focused"
+// SettingsFocusRefresh says "Refresh when the window becomes active"
 // in the language of msgs.
 func (msgs Messages) SettingsFocusRefresh() string {
 	return Catalog.Format(msgs.locale, "settingsFocusRefresh", nil)
@@ -10377,13 +10531,13 @@ func (msgs Messages) SettingsFetch() string {
 	return Catalog.Format(msgs.locale, "settingsFetch", nil)
 }
 
-// SettingsPullRequests says "Show pull requests, through gh or glab"
+// SettingsPullRequests says "Show pull requests (needs gh or glab)"
 // in the language the app shows.
 //
 // gh and glab are the names of programs.
 func SettingsPullRequests() string { return In(i18n.Locale()).SettingsPullRequests() }
 
-// SettingsPullRequests says "Show pull requests, through gh or glab"
+// SettingsPullRequests says "Show pull requests (needs gh or glab)"
 // in the language of msgs.
 //
 // gh and glab are the names of programs.
@@ -10391,13 +10545,13 @@ func (msgs Messages) SettingsPullRequests() string {
 	return Catalog.Format(msgs.locale, "settingsPullRequests", nil)
 }
 
-// SettingsDiffTool says "Use Ramus for git difftool and mergetool"
+// SettingsDiffTool says "Use Ramus as git's diff and merge tool"
 // in the language the app shows.
 //
 // difftool and mergetool are git's own words.
 func SettingsDiffTool() string { return In(i18n.Locale()).SettingsDiffTool() }
 
-// SettingsDiffTool says "Use Ramus for git difftool and mergetool"
+// SettingsDiffTool says "Use Ramus as git's diff and merge tool"
 // in the language of msgs.
 //
 // difftool and mergetool are git's own words.
@@ -10493,21 +10647,21 @@ func (msgs Messages) SettingsToolOther() string {
 	return Catalog.Format(msgs.locale, "settingsToolOther", nil)
 }
 
-// SettingsChooseEditor says "Choose an Editor"
+// SettingsChooseEditor says "Choose an editor"
 // in the language the app shows.
 func SettingsChooseEditor() string { return In(i18n.Locale()).SettingsChooseEditor() }
 
-// SettingsChooseEditor says "Choose an Editor"
+// SettingsChooseEditor says "Choose an editor"
 // in the language of msgs.
 func (msgs Messages) SettingsChooseEditor() string {
 	return Catalog.Format(msgs.locale, "settingsChooseEditor", nil)
 }
 
-// SettingsChooseTerminal says "Choose a Terminal"
+// SettingsChooseTerminal says "Choose a terminal"
 // in the language the app shows.
 func SettingsChooseTerminal() string { return In(i18n.Locale()).SettingsChooseTerminal() }
 
-// SettingsChooseTerminal says "Choose a Terminal"
+// SettingsChooseTerminal says "Choose a terminal"
 // in the language of msgs.
 func (msgs Messages) SettingsChooseTerminal() string {
 	return Catalog.Format(msgs.locale, "settingsChooseTerminal", nil)
@@ -10525,24 +10679,56 @@ func (msgs Messages) SettingsDiffToolFailed(error string) string {
 	return Catalog.Format(msgs.locale, "settingsDiffToolFailed", map[string]any{"error": error})
 }
 
-// SettingsKeyboardShortcuts says "Keyboard Shortcuts…"
+// SettingsKeyboardShortcuts says "Keyboard shortcuts"
 // in the language the app shows.
 func SettingsKeyboardShortcuts() string { return In(i18n.Locale()).SettingsKeyboardShortcuts() }
 
-// SettingsKeyboardShortcuts says "Keyboard Shortcuts…"
+// SettingsKeyboardShortcuts says "Keyboard shortcuts"
 // in the language of msgs.
 func (msgs Messages) SettingsKeyboardShortcuts() string {
 	return Catalog.Format(msgs.locale, "settingsKeyboardShortcuts", nil)
 }
 
-// SettingsOpenFile says "Open Settings File"
+// SettingsCustomize says "Customize…"
+// in the language the app shows.
+//
+// A button in the Keyboard shortcuts row of Settings: opens the list of
+// shortcuts to change.
+func SettingsCustomize() string { return In(i18n.Locale()).SettingsCustomize() }
+
+// SettingsCustomize says "Customize…"
+// in the language of msgs.
+//
+// A button in the Keyboard shortcuts row of Settings: opens the list of
+// shortcuts to change.
+func (msgs Messages) SettingsCustomize() string {
+	return Catalog.Format(msgs.locale, "settingsCustomize", nil)
+}
+
+// SettingsOpenFile says "Open"
 // in the language the app shows.
 func SettingsOpenFile() string { return In(i18n.Locale()).SettingsOpenFile() }
 
-// SettingsOpenFile says "Open Settings File"
+// SettingsOpenFile says "Open"
 // in the language of msgs.
 func (msgs Messages) SettingsOpenFile() string {
 	return Catalog.Format(msgs.locale, "settingsOpenFile", nil)
+}
+
+// SettingsFile says "Settings file"
+// in the language the app shows.
+//
+// A row of Settings: the file the settings are kept in, which Open opens in
+// the editor.
+func SettingsFile() string { return In(i18n.Locale()).SettingsFile() }
+
+// SettingsFile says "Settings file"
+// in the language of msgs.
+//
+// A row of Settings: the file the settings are kept in, which Open opens in
+// the editor.
+func (msgs Messages) SettingsFile() string {
+	return Catalog.Format(msgs.locale, "settingsFile", nil)
 }
 
 // SettingsNotSaved says "Settings not saved: {error}"

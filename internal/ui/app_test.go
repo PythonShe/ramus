@@ -354,6 +354,8 @@ func TestSettings(t *testing.T) {
 	h.app.SetLocale = func(tag string) { chosen = tag }
 	var told []settings.Settings
 	h.app.SettingsChanged = func(s settings.Settings) { told = append(told, s) }
+	// Tall enough for every setting, which scroll in a shorter window.
+	h.tt.SetSize(1200, 1400)
 	h.tt.Frame()
 	h.tt.Key(ui.Cmd, ui.KeyComma)
 	h.until("the settings", h.shows("Appearance"))

@@ -117,6 +117,14 @@ func (a *App) diagnose(t *tab, e *session.LogEntry) diagnosis {
 		}
 	case strings.Contains(stderr, "Host key verification failed") || strings.Contains(stderr, "REMOTE HOST IDENTIFICATION HAS CHANGED"):
 		d.text = locales.RepoHostKey(e.Name)
+	case containsAny(stderr, "Author identity unknown", "Committer identity unknown", "unable to auto-detect email address", "empty ident name"):
+		// The commonest failure of a first commit, which git ends with a
+		// line that says nothing to someone new to it.
+		d.text = locales.RepoIdentityUnknown(e.Name)
+		d.fixes = append(d.fixes, remedy{locales.RepoSetIdentity(), a.openIdentity})
+		if again {
+			d.fixes = append(d.fixes, retry())
+		}
 	case containsAny(stderr, "Authentication failed", "Permission denied (", "Invalid username or password", "could not read Username"):
 		d.text = locales.RepoLoginRefused(e.Name)
 	case again && op.NoIndex:

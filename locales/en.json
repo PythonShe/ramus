@@ -1627,6 +1627,14 @@
   "@repoLoginRefused": {
     "description": "The error bar: the remote refused the credentials or the ssh key."
   },
+  "repoIdentityUnknown": "{name} failed: git does not know your name and email",
+  "@repoIdentityUnknown": {
+    "description": "The error bar: git refused to commit because user.name or user.email is not set."
+  },
+  "repoSetIdentity": "Set Name and Email…",
+  "@repoSetIdentity": {
+    "description": "A button in the error bar: opens Settings at the name and email git commits with."
+  },
   "repoPathFlagged": "This path {reasons}",
   "@repoPathFlagged": {
     "description": "Why a path is flagged; reasons are one or more of the repoPath* reasons, joined by commas."
@@ -2054,7 +2062,35 @@
   },
   "settingsGeneral": "General",
   "@settingsGeneral": {
-    "description": "The heading of the first group of settings: appearance, language, the user's email addresses."
+    "description": "The heading of the first group of settings: appearance and language."
+  },
+  "settingsGit": "Git",
+  "@settingsGit": {
+    "description": "The heading of the settings of git itself: who commits are by, the user's other email addresses, the branch a new repository starts on."
+  },
+  "settingsGitName": "Name",
+  "@settingsGitName": {
+    "description": "The name git puts on the user's commits (user.name in git's global config)."
+  },
+  "settingsGitEmail": "Email",
+  "@settingsGitEmail": {
+    "description": "The email address git puts on the user's commits (user.email in git's global config)."
+  },
+  "settingsDefaultBranch": "Default branch for new repositories",
+  "@settingsDefaultBranch": {
+    "description": "The branch a new repository starts on (init.defaultBranch in git's global config)."
+  },
+  "settingsDefaultBranchGit": "Git's default",
+  "@settingsDefaultBranchGit": {
+    "description": "The placeholder of an empty default branch: git then uses its own."
+  },
+  "settingsDefaultBranchInvalid": "{name} cannot be a branch's name",
+  "@settingsDefaultBranchInvalid": {
+    "description": "The default branch typed is a name git refuses for a branch."
+  },
+  "settingsGitFailed": "Could not change git's settings: {error}",
+  "@settingsGitFailed": {
+    "description": "Writing the name, email or default branch to git's global config failed."
   },
   "settingsRepositories": "Repositories",
   "@settingsRepositories": {
@@ -2063,6 +2099,10 @@
   "settingsTools": "Tools",
   "@settingsTools": {
     "description": "The heading of the settings naming the editor and terminal the app opens."
+  },
+  "settingsAdvanced": "Advanced",
+  "@settingsAdvanced": {
+    "description": "The heading of the last settings: the keyboard shortcuts and the settings file."
   },
   "settingsAppearance": "Appearance",
   "settingsLanguage": "Language",
@@ -2090,7 +2130,7 @@
   "@settingsTerminal": {
     "description": "The terminal app the app opens repositories in."
   },
-  "settingsEmails": "Your other email addresses",
+  "settingsEmails": "Other emails you commit with",
   "@settingsEmails": {
     "description": "The email addresses the user commits with besides each repository's user.email (git's setting), which mark their own commits."
   },
@@ -2098,15 +2138,15 @@
   "@settingsEmailsExample": {
     "description": "Example email addresses in an empty field."
   },
-  "settingsSnapshotDays": "Keep snapshots of dropped work",
-  "settingsRecentLimit": "Recent repositories listed",
-  "settingsFocusRefresh": "Refresh when the window is focused",
+  "settingsSnapshotDays": "Keep snapshots for",
+  "settingsRecentLimit": "Recent repositories to show",
+  "settingsFocusRefresh": "Refresh when the window becomes active",
   "settingsFetch": "Fetch in the background",
-  "settingsPullRequests": "Show pull requests, through gh or glab",
+  "settingsPullRequests": "Show pull requests (needs gh or glab)",
   "@settingsPullRequests": {
     "description": "gh and glab are the names of programs."
   },
-  "settingsDiffTool": "Use Ramus for git difftool and mergetool",
+  "settingsDiffTool": "Use Ramus as git's diff and merge tool",
   "@settingsDiffTool": {
     "description": "difftool and mergetool are git's own words."
   },
@@ -2129,11 +2169,19 @@
   "@settingsToolOther": {
     "description": "The last choice of editor or terminal, which asks for an app on the disk."
   },
-  "settingsChooseEditor": "Choose an Editor",
-  "settingsChooseTerminal": "Choose a Terminal",
+  "settingsChooseEditor": "Choose an editor",
+  "settingsChooseTerminal": "Choose a terminal",
   "settingsDiffToolFailed": "Could not change git's difftool and mergetool: {error}",
-  "settingsKeyboardShortcuts": "Keyboard Shortcuts…",
-  "settingsOpenFile": "Open Settings File",
+  "settingsKeyboardShortcuts": "Keyboard shortcuts",
+  "settingsCustomize": "Customize…",
+  "@settingsCustomize": {
+    "description": "A button in the Keyboard shortcuts row of Settings: opens the list of shortcuts to change."
+  },
+  "settingsOpenFile": "Open",
+  "settingsFile": "Settings file",
+  "@settingsFile": {
+    "description": "A row of Settings: the file the settings are kept in, which Open opens in the editor."
+  },
   "settingsNotSaved": "Settings not saved: {error}",
   "statsFrom": "From",
   "@statsFrom": {
