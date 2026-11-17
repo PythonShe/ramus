@@ -90,23 +90,34 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 			return
 		}
 		st := r.Stats
-		ui.Column(c).Padding(spaceM, insetX).Gap(spaceXL).Grow(1).Children(func() {
-			ui.Row(c).Gap(space3XL).AlignItems(ui.End).Children(func() {
-				ui.Text(c, strconv.Itoa(st.Commits)).FontSize(textDisplay).Bold()
-				ui.Text(c, locales.StatsCommitsBy(st.Commits, len(st.Authors),
-					st.First.Format("2006-01-02"), st.Last.Format("2006-01-02"))).TextColor(th.TextMuted)
-			})
-			title, bars := overTime(st.Weeks)
-			barChart(c, title, bars, 140)
-			ui.Row(c).Gap(space3XL).FillWidth().Children(func() {
-				ui.Column(c).Grow(1).Children(func() {
-					barChart(c, locales.StatsByWeekday(), weekdayBars(st), 100)
-				})
-				ui.Column(c).Grow(2).Children(func() {
-					barChart(c, locales.StatsByHour(), hourBars(st), 100)
-				})
+		// The table outside the charts' inset: its cells pad their text to
+		// it already.
+		ui.Column(c).Padding(spaceM, 0).Gap(spaceXL).Grow(1).Children(func() {
+			ui.Column(c).Padding(0, insetX).Gap(spaceXL).FillWidth().Children(func() {
+				statsCharts(c, st)
 			})
 			a.authorTable(c, t, st)
+		})
+	})
+}
+
+// statsCharts shows the counts of commits and the charts of when they
+// were made.
+func statsCharts(c *ui.Context, st stats.Stats) {
+	th := c.Theme()
+	ui.Row(c).Gap(space3XL).AlignItems(ui.End).Children(func() {
+		ui.Text(c, strconv.Itoa(st.Commits)).FontSize(textDisplay).Bold()
+		ui.Text(c, locales.StatsCommitsBy(st.Commits, len(st.Authors),
+			st.First.Format("2006-01-02"), st.Last.Format("2006-01-02"))).TextColor(th.TextMuted)
+	})
+	title, bars := overTime(st.Weeks)
+	barChart(c, title, bars, 140)
+	ui.Row(c).Gap(space3XL).FillWidth().Children(func() {
+		ui.Column(c).Grow(1).Children(func() {
+			barChart(c, locales.StatsByWeekday(), weekdayBars(st), 100)
+		})
+		ui.Column(c).Grow(2).Children(func() {
+			barChart(c, locales.StatsByHour(), hourBars(st), 100)
 		})
 	})
 }
