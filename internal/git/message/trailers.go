@@ -72,6 +72,16 @@ func Trailers(msg []byte) []Trailer {
 	}
 	var out []Trailer
 	trailers, others, recognized := 0, 0, false
+	// after is what the line before an indented one was, as git's
+	// trailer.c tells: a trailer, which the line continues; a line git
+	// wrote that is none, which takes it without showing it; or text,
+	// with which it counts as text.
+	const (
+		afterText = iota
+		afterTrailer
+		afterGit
+	)
+	after := afterText
 	for _, l := range lines {
 		line := bytes.TrimRight(msg[l.start:l.end], "\r\n")
 		git := false
@@ -81,21 +91,28 @@ func Trailers(msg []byte) []Trailer {
 			}
 		}
 		switch {
-		case len(line) > 0 && isSpace(line[0]) && len(out) > 0:
-			// A continuation of the trailer above.
-			t := &out[len(out)-1]
-			t.Value += " " + strings.TrimSpace(string(line))
-			t.End = l.end
+		case len(line) > 0 && isSpace(line[0]):
+			switch after {
+			case afterTrailer:
+				t := &out[len(out)-1]
+				t.Value += " " + strings.TrimSpace(string(line))
+				t.End = l.end
+			case afterText:
+				others++
+			}
 		case trailerKey.Match(line):
 			k, v, _ := bytes.Cut(line, []byte(":"))
 			out = append(out, Trailer{Key: string(bytes.TrimSpace(k)), Value: string(bytes.TrimSpace(v)), Start: l.start, End: l.end})
 			trailers++
+			after = afterTrailer
 		case git:
 			// A line git wrote counts toward the block, as a trailer
 			// would, though it is none.
 			trailers++
+			after = afterGit
 		default:
 			others++
+			after = afterText
 		}
 	}
 	if trailers == 0 || others > 0 && !(recognized && trailers*3 >= others) {

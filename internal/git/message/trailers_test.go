@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"ramus/internal/git/gittest"
 )
 
 // TestTrailersMatchGit compares Trailers with git interpret-trailers
@@ -25,9 +27,16 @@ func TestTrailersMatchGit(t *testing.T) {
 		"Subject\n\nBody\n\nFixes: #12\nco-authored-by: d <D@X.org>\r\n",
 		"Subject\n\nBody\n\nnot a trailer: because spaces in key\n",
 		"Subject\n\n(cherry picked from commit abc)\nfree text\nfree text\nfree text\nAcked-by: E <e@x>\n",
+		// An indented line continues a trailer only right after one.
+		"Subject\n\nBody\n\nCo-authored-by: Ann <ann@x>\nfree text\n  explanation\nSigned-off-by: B <b@x>\n",
+		"Subject\n\nBody\n\n  indented first\nSigned-off-by: B <b@x>\nAcked-by: C <c@x>\nfree\n  more\n  more\n",
+		"Subject\n\nBody\n\n(cherry picked from commit abc)\n  after git's line\nAcked-by: E <e@x>\n",
+		"Subject\n\nBody\n\nfree\n  more\n  more\nSigned-off-by: B <b@x>\n",
 	}
 	for _, m := range msgs {
 		cmd := exec.Command("git", "interpret-trailers", "--parse")
+		// Without the user's trailer settings, which change git's answer.
+		cmd.Env = gittest.Env()
 		cmd.Stdin = strings.NewReader(m)
 		out, err := cmd.Output()
 		if err != nil {
