@@ -70,6 +70,44 @@ func TestCommitHookFails(t *testing.T) {
 	}
 }
 
+// A commit that failed for a reason not of its hooks, with hooks there,
+// is not offered to commit without them, which would skip the user's
+// checks for nothing.
+func TestCommitFailsNotForHooks(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the hook is a shell script")
+	}
+	h := newHarness(t)
+	r := h.repoWith()
+	path := filepath.Join(r.GitDir(), "hooks", "pre-commit")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.Git("config", "commit.gpgSign", "true")
+	r.Git("config", "gpg.format", "openpgp")
+	r.Git("config", "gpg.program", "false")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	r.Write("a.txt", "a")
+	r.Git("add", "a.txt")
+	h.until("staged", h.shows("Staged (1)"))
+	tb := h.app.current()
+	cs := &tb.commit
+	cs.subject = "Signed"
+	h.until("ready", func() bool { return commitReady(tb) })
+	h.click("Commit to main")
+	h.until("the failure", func() bool { return !cs.busy && cs.err != "" })
+	if !strings.Contains(cs.err, "gpg") {
+		t.Fatalf("failed with %q", cs.err)
+	}
+	if cs.withoutHooks {
+		t.Fatal("a signing failure offered to commit without hooks")
+	}
+}
+
 // A commit made says so, with Undo, which takes it back and puts its
 // message back in the editor. The box keeps its setup, and its Recent
 // menu, while the setup is read again.

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -192,9 +193,9 @@ func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done 
 	r, update := s.Repo, s.update
 	r.Life().Go(func(ctx context.Context) {
 		<-j.Done()
-		_, err := j.Result()
+		res, err := j.Result()
 		committed := err == nil
-		if err != nil && !opt.NoVerify && !errors.Is(err, context.Canceled) && hooksRun(ctx, r.Runner, r.GitDir, r.WorkTree) {
+		if err != nil && !opt.NoVerify && mayBeHooks(res, err) && hooksRun(ctx, r.Runner, r.GitDir, r.WorkTree) {
 			err = &HookError{Err: err}
 		}
 		var pushOpt write.PushOptions
@@ -225,6 +226,35 @@ type HookError struct{ Err error }
 
 func (e *HookError) Error() string { return e.Err.Error() }
 func (e *HookError) Unwrap() error { return e.Err }
+
+// notHooks are what git says of a commit that failed for a reason of
+// its own, on either output, as it exits 1 for a hook that failed too; a
+// hook's own words are all it prints for that.
+var notHooks = []string{
+	"Aborting commit due to empty commit message",
+	"nothing to commit", "nothing added to commit", "no changes added to commit",
+	"gpg failed to sign", "failed to write commit object",
+}
+
+// mayBeHooks reports whether a failed commit may have been stopped by a
+// hook: git ran and exited 1, which it does for a hook that failed, and
+// said nothing of another reason. A write refused before git ran, a
+// lock, a signing failure or one git ends as fatal is none; when unsure,
+// it is none, since committing without hooks skips the user's checks.
+func mayBeHooks(res run.Result, err error) bool {
+	var stale *write.StaleError
+	var locked *write.LockedError
+	var re *run.Error
+	if errors.As(err, &stale) || errors.As(err, &locked) || !errors.As(err, &re) || re.ExitCode != 1 {
+		return false
+	}
+	for _, m := range notHooks {
+		if strings.Contains(re.Stderr, m) || bytes.Contains(res.Stdout, []byte(m)) {
+			return false
+		}
+	}
+	return true
+}
 
 // commitHooks are the hooks a commit runs that can stop it.
 var commitHooks = []string{"pre-commit", "prepare-commit-msg", "commit-msg"}
