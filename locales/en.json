@@ -730,6 +730,10 @@
     "description": "Menu item: discard every change, staged and not, after asking."
   },
   "changesNone": "No changes",
+  "changesNoLocal": "No local changes",
+  "@changesNoLocal": {
+    "description": "Over the actions offered where a changed file's patch would be, when nothing in the work tree is changed."
+  },
   "changesNoneMatch": "No changed path holds “{filter}”",
   "@changesNoneMatch": {
     "description": "The changes list is empty under a filter; filter is what was typed."
@@ -1135,6 +1139,14 @@
   "diffDiscardLines": "{count, plural, one {Discard # Line…} other {Discard # Lines…}}",
   "diffStageLines": "{count, plural, one {Stage # Line} other {Stage # Lines}}",
   "diffOpenInTool": "Open in Diff Tool",
+  "diffRenamedPath": "{from} → {to}",
+  "@diffRenamedPath": {
+    "description": "Heading of a renamed file's patch: the path it had and the one it has."
+  },
+  "diffWhitespaceNoStaging": "Lines can be staged only with all whitespace shown",
+  "@diffWhitespaceNoStaging": {
+    "description": "Over a patch shown ignoring whitespace, which hides the buttons that stage or discard part of it."
+  },
   "diffDiscardLinesTitle": "Discard {count, plural, one {# changed line} other {# changed lines}}?",
   "diffDiscardLinesMessage": "This takes {count, plural, one {# changed line} other {# changed lines}} in {path} back to what is staged.\n\nA snapshot is kept: Undo or the Snapshots view brings them back.",
   "diffAllWhiteSpace": "Show All Whitespace",

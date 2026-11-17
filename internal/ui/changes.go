@@ -346,6 +346,14 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 			return
 		}
 		rows := m.rows
+		// With nothing chosen, as on opening or once the file chosen is
+		// gone, the first file is, so the patch's pane is never blank.
+		if cv.chosen < 0 && cv.want == "" && !cv.keep.set {
+			if i := slices.IndexFunc(rows, func(r changeRow) bool { return r.kind == rowFile }); i >= 0 {
+				cv.chosen = i
+				cv.list.Choose(i)
+			}
+		}
 		cv.list.Key = func(i int) any { return m.key(rows[i]) }
 		cv.list.Selected = &cv.chosen
 		cv.list.Selection = &cv.picked

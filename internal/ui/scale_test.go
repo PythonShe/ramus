@@ -50,13 +50,14 @@ func TestManyChangesFrameTime(t *testing.T) {
 		return p50
 	}
 	idle := frames("idle", func(int) {})
-	at, ok := h.tt.Find("src/d000/file00000.go")
+	// The second row: the first is chosen, its path shown over its patch.
+	at, ok := h.tt.Find("src/d000/file00300.go")
 	if !ok {
-		t.Fatal("first row not found")
+		t.Fatal("second row not found")
 	}
 	x, y := at.X+at.W/2, at.Y+at.H/2
 	scroll := frames("scrolling the list", func(int) { h.tt.Scroll(x, y, 0, 240) })
-	if h.tt.HasText("src/d000/file00000.go") {
+	if h.tt.HasText("src/d000/file00300.go") {
 		t.Fatal("the list did not scroll")
 	}
 	// Generous bounds: the test runs at background priority beside others.

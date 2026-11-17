@@ -3893,6 +3893,22 @@ func (msgs Messages) ChangesNone() string {
 	return Catalog.Format(msgs.locale, "changesNone", nil)
 }
 
+// ChangesNoLocal says "No local changes"
+// in the language the app shows.
+//
+// Over the actions offered where a changed file's patch would be, when
+// nothing in the work tree is changed.
+func ChangesNoLocal() string { return In(i18n.Locale()).ChangesNoLocal() }
+
+// ChangesNoLocal says "No local changes"
+// in the language of msgs.
+//
+// Over the actions offered where a changed file's patch would be, when
+// nothing in the work tree is changed.
+func (msgs Messages) ChangesNoLocal() string {
+	return Catalog.Format(msgs.locale, "changesNoLocal", nil)
+}
+
 // ChangesNoneMatch says "No changed path holds “{filter}”"
 // in the language the app shows.
 //
@@ -5929,6 +5945,38 @@ func DiffOpenInTool() string { return In(i18n.Locale()).DiffOpenInTool() }
 // in the language of msgs.
 func (msgs Messages) DiffOpenInTool() string {
 	return Catalog.Format(msgs.locale, "diffOpenInTool", nil)
+}
+
+// DiffRenamedPath says "{from} → {to}"
+// in the language the app shows.
+//
+// Heading of a renamed file's patch: the path it had and the one it has.
+func DiffRenamedPath(from string, to string) string {
+	return In(i18n.Locale()).DiffRenamedPath(from, to)
+}
+
+// DiffRenamedPath says "{from} → {to}"
+// in the language of msgs.
+//
+// Heading of a renamed file's patch: the path it had and the one it has.
+func (msgs Messages) DiffRenamedPath(from string, to string) string {
+	return Catalog.Format(msgs.locale, "diffRenamedPath", map[string]any{"from": from, "to": to})
+}
+
+// DiffWhitespaceNoStaging says "Lines can be staged only with all whitespace shown"
+// in the language the app shows.
+//
+// Over a patch shown ignoring whitespace, which hides the buttons that
+// stage or discard part of it.
+func DiffWhitespaceNoStaging() string { return In(i18n.Locale()).DiffWhitespaceNoStaging() }
+
+// DiffWhitespaceNoStaging says "Lines can be staged only with all whitespace shown"
+// in the language of msgs.
+//
+// Over a patch shown ignoring whitespace, which hides the buttons that
+// stage or discard part of it.
+func (msgs Messages) DiffWhitespaceNoStaging() string {
+	return Catalog.Format(msgs.locale, "diffWhitespaceNoStaging", nil)
 }
 
 // DiffDiscardLinesTitle says "Discard {count, plural, one {# changed line} other {# changed lines}}?"

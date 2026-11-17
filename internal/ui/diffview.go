@@ -2,14 +2,18 @@ package ui
 
 import (
 	"encoding/hex"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/cli"
 	"ramus/internal/git/diff"
+	"ramus/internal/git/pathsafe"
+	"ramus/internal/git/redact"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
+	"ramus/internal/tools"
 	"ramus/locales"
 )
 
@@ -50,6 +54,10 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	cv := &t.cv
 	r, ok := cv.chosenFile()
 	if !ok {
+		if m := cv.model; m != nil && len(m.rows) == 0 && m.filter == "" {
+			a.cleanTree(c, t)
+			return
+		}
 		emptyPane(c)
 		return
 	}
@@ -104,6 +112,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	ui.Column(c).Fill().Children(func() {
 		a.diffHeader(c, t, m, r)
 		a.pagerNotice(c, &d.pager, d.res, d.loading, locales.PatchShownInPartNoStaging(sizeText(d.pager.max())), d.load)
+		a.whitespaceNotice(c, d)
 		res := d.res
 		if d.loading && res.Parsed == nil {
 			res = session.PatchResult{}
@@ -202,10 +211,30 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	ro := t.s.Queue == nil
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 		shown, _ := showPath(string(m.st.Path(int(r.idx))))
+		if d.key.orig != "" {
+			// A rename names where the file came from, which a patch of no
+			// differences in content would not show.
+			from, _ := showPath(d.key.orig)
+			shown = locales.DiffRenamedPath(from, shown)
+		}
 		pathLabel(c, shown).Bold().Grow(1)
 		ui.Text(c, entryWords(m.st, int(r.idx), r.sec)).FontSize(textSmall).TextColor(th.TextMuted)
 		fileLines(c, t.cv.entryLines(m.st, int(r.idx), r.sec))
-		if picked, n := d.pv.selectedLines(); d.partialOK() && n > 0 {
+		picked, n := d.pv.selectedLines()
+		if !d.partialOK() || n == 0 {
+			// The file's own actions, which lines picked take the place of.
+			if r.sec != secStaged && ui.Button(c, locales.DiffDiscardChange()).Label(locales.ChangesDiscardFiles(1)).Disabled(ro).Clicked() {
+				a.discardIn(t, m.st, r.sec, []int32{r.idx})
+			}
+			label := locales.ChangesStageFiles(1)
+			if r.sec == secStaged {
+				label = locales.ChangesUnstageFiles(1)
+			}
+			if ui.Button(c, label).Disabled(ro).Clicked() {
+				a.toggleStage(t, m, []changeRow{r})
+			}
+		}
+		if d.partialOK() && n > 0 {
 			if r.sec == secStaged {
 				if linesOK(d.res, true) && ui.Button(c, locales.DiffUnstageLines(n)).Disabled(ro).Clicked() {
 					a.applyLines(t, picked, true, true)
@@ -220,7 +249,11 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 			}
 		}
 	})
-	a.diffBar(c, false, func() {
+	a.patchBar(c, false, !binaryPatch(d.res), func() {
+		_, editor := a.editor(t)
+		if ui.Button(c, locales.ActionsOpenInEditor()).Disabled(!editor).Clicked() {
+			a.openInEditor(t, d.key.path)
+		}
 		if ui.Button(c, locales.DiffOpenInTool()).Disabled(ro || d.key.src == diff.Untracked).Clicked() {
 			old, new := locales.CompareSideIndex(), locales.CompareSideWorkTree()
 			if d.key.src == diff.Staged {
@@ -228,6 +261,90 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 			}
 			t.s.OpenDiffTool(session.DiffToolRequest{Paths: d.key.paths(), Cached: d.key.src == diff.Staged, Own: a.ownDiffTool(old, new)}, a.toolDone)
 		}
+	})
+}
+
+// whitespaceNotice says why lines cannot be staged while white space is
+// ignored, which the viewer otherwise drops without a word, and offers to
+// show it all.
+func (a *App) whitespaceNotice(c *ui.Context, d *diffState) {
+	all := d.key
+	all.ws = diff.AllWhitespace
+	if d.key.ws == diff.AllWhitespace || !partialOK(d.res, all) {
+		return
+	}
+	ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, locales.DiffWhitespaceNoStaging()).FontSize(textSmall).TextColor(c.Theme().TextMuted).Grow(1)
+		if ui.Button(c, locales.DiffAllWhiteSpace()).Clicked() {
+			a.diffOpts().ws = int(diff.AllWhitespace)
+		}
+	})
+}
+
+// binaryPatch reports whether res is a binary file's patch, which the
+// options of text do nothing to.
+func binaryPatch(res session.PatchResult) bool {
+	p := res.Parsed
+	return p != nil && len(p.Files) > 0 && p.Files[0].Binary
+}
+
+// openInEditor opens the file at rel, of the work tree, in the editor
+// chosen.
+func (a *App) openInEditor(t *tab, rel string) {
+	ed, ok := a.editor(t)
+	r := t.s.Repo
+	if !ok || r == nil {
+		return
+	}
+	root, update := r.WorkTree, a.Update
+	a.goWork(t, func() {
+		abs, err := pathsafe.Target(root, rel)
+		if err == nil {
+			err = ed.Open(abs, 0)
+		}
+		if err != nil {
+			update(func() { a.tell(t, errText(err)) })
+		}
+	})
+}
+
+// cleanTree fills the patch's pane when nothing is changed with what
+// there is to do next: send or take the commits the branch is ahead or
+// behind by, or open the repository.
+func (a *App) cleanTree(c *ui.Context, t *tab) {
+	th := c.Theme()
+	ro := t.s.Queue == nil
+	head := t.s.State.Head
+	// As the sync button read it, for the branch checked out.
+	var tr session.Track
+	if t.sync.trackOf == head.Target {
+		tr = t.sync.track
+	}
+	w := t.s.Where()
+	ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
+		ui.Text(c, locales.ChangesNoLocal()).TextColor(th.TextMuted)
+		ui.Row(c).Gap(spaceM).Children(func() {
+			if tr.Upstream != "" && !tr.Gone && !head.Detached {
+				upstream := redact.Control(strings.TrimPrefix(tr.Upstream, "refs/remotes/"))
+				if tr.Behind > 0 && ui.Button(c, locales.SyncPullLabel(tr.Behind, upstream)).Disabled(ro || t.s.Fetching()).Clicked() {
+					a.syncPull(t, "")
+				}
+				if tr.Ahead > 0 && ui.Button(c, locales.SyncPushLabel(tr.Ahead, upstream)).Disabled(ro || t.s.Fetching()).Clicked() {
+					a.submit(t, write.Push(w, write.PushOptions{}), nil)
+				}
+			}
+			dir, update := t.s.Path, a.Update
+			if ed, ok := a.editor(t); ok && ui.Button(c, locales.ActionsOpenInEditor()).Clicked() {
+				a.goWork(t, func() {
+					if err := ed.Open(dir, 0); err != nil {
+						update(func() { a.tell(t, errText(err)) })
+					}
+				})
+			}
+			if ui.Button(c, locales.ActionsReveal()).Clicked() {
+				a.goWork(t, func() { tools.Reveal(dir) })
+			}
+		})
 	})
 }
 
