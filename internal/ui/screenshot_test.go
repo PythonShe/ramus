@@ -43,8 +43,15 @@ func TestScreenshot(t *testing.T) {
 		if text == "" {
 			continue
 		}
+		// "button>item" chooses item from the menu that button opens.
+		text, item, menu := strings.Cut(text, ">")
 		h.until(text, h.shows(text))
 		h.click(text)
+		if menu {
+			if err := h.tt.ChooseMenuItem(item); err != nil {
+				t.Fatalf("menu %q: %v", h.tt.Menu(), err)
+			}
+		}
 		h.pumpFor(1500 * time.Millisecond)
 	}
 	h.pumpFor(time.Second)
