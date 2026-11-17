@@ -203,6 +203,36 @@ func TestIssueLinksOnFork(t *testing.T) {
 	}
 }
 
+// A list of commits takes the whole pane until one is chosen, which then
+// opens beside it; the list keeps the focus, for the arrows to go on.
+func TestListWholeUntilChosen(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "two\n")
+	r.Commit("second")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("Reflog")
+	h.until("the reflog", h.shows("commit: second"))
+	h.tt.Frame()
+	rs := &h.app.current().reflog
+	// The window is 1200 wide, the sidebar aside.
+	if w := rs.detail.listRoom; w < 800 {
+		t.Fatalf("the list takes %v with nothing chosen", w)
+	}
+	if h.tt.HasText("1 file changed") {
+		t.Fatal("a commit shown with none chosen")
+	}
+	h.click("commit: second")
+	h.until("its detail", h.shows("1 file changed"))
+	h.tt.Key(0, ui.KeyDown)
+	h.tt.Frame()
+	if rs.chosen != 1 {
+		t.Fatalf("chosen %d after Down", rs.chosen)
+	}
+}
+
 func TestReflogView(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()

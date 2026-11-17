@@ -32,8 +32,11 @@ type commitView struct {
 	d      *session.CommitDetail
 	// names is the mailmap's number d was last read again for.
 	names int
-	files ui.ListState
-	file  int
+	// wholeFocus is whether the list, alone with no commit chosen, had
+	// the focus, which it keeps beside the commit chosen.
+	wholeFocus bool
+	files      ui.ListState
+	file       int
 	// infoW is the width of the commit beside its patch, and listW the
 	// list's beside them, while a patch is open; both are kept from commit
 	// to commit. wasOpen is whether one was open in the last frame.
@@ -223,8 +226,11 @@ func (cv *commitView) patchOpen() bool {
 
 // listPane is the width listBesideCommit gives the list: *w, or the
 // list's own while the commit's patch is open, given way for the commit
-// to keep its least.
-func listPane(w float32, cv *commitView) float32 {
+// to keep its least; with no commit chosen, the whole room.
+func listPane(w float32, cv *commitView, chosen bool) float32 {
+	if !chosen && cv.listRoom > 0 {
+		return cv.listRoom
+	}
 	if cv.patchOpen() {
 		w = cv.listW
 		if w == 0 {
@@ -246,15 +252,35 @@ func commitKeep(cv *commitView) float32 {
 // listBesideCommit splits a list of commits from the commit chosen in it.
 // While the commit's patch is open, the list takes a width of its own,
 // narrower, which leaves the patch room; it goes back to *w as the patch
-// closes.
-func listBesideCommit(c *ui.Context, w *float32, reset float32, cv *commitView, list, detail func()) ui.Element {
+// closes. With no commit chosen, the list takes the whole room, its
+// messages cut short beside nothing otherwise, and *w waits for one. ls
+// is the list's state, whose focus it keeps as the split opens: the list
+// is built anew inside it.
+func listBesideCommit(c *ui.Context, w *float32, reset float32, cv *commitView, chosen bool, ls *ui.ListState, list, detail func()) ui.Element {
+	if !chosen {
+		col := ui.Column(c).Children(list)
+		if rw := col.LayoutBounds().W; rw != cv.listRoom {
+			cv.listRoom = rw
+			c.AnimationFrame()
+		}
+		cv.wholeFocus = ls.FocusWithin(c)
+		return col
+	}
+	// Read before the detail is built: the commit chosen anew clears cv.
+	refocus := cv.wholeFocus
+	cv.wholeFocus = false
 	if cv.patchOpen() {
 		if cv.listW == 0 {
 			cv.listW = commitListW
 		}
 		w, reset = &cv.listW, commitListW
 	}
-	return keptSplit(c, w, &cv.listRoom, leastListW, commitKeep(cv), list, detail).SplitReset(reset)
+	sp := keptSplit(c, w, &cv.listRoom, leastListW, commitKeep(cv), list, detail).SplitReset(reset)
+	if refocus {
+		// Asked for once the list is built in its new place.
+		ls.Focus(c)
+	}
+	return sp
 }
 
 // fitSplit keeps a split's size at fit until the user drags it. A drag,

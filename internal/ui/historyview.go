@@ -198,8 +198,9 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	a.startAtHead(t, h)
 	a.findWanted(t, h)
 	a.buildLabels(hv, t.s.State, h)
-	hv.lastPane, hv.pane = hv.pane, listPane(hv.detailW, &hv.detail)
-	listBesideCommit(c, &hv.detailW, 640, &hv.detail, func() {
+	chosen := hv.chosenID != nil
+	hv.lastPane, hv.pane = hv.pane, listPane(hv.detailW, &hv.detail, chosen)
+	listBesideCommit(c, &hv.detailW, 640, &hv.detail, chosen, &hv.list, func() {
 		ui.Column(c).Fill().Children(func() {
 			a.bisectBar(c, t)
 			a.historyBar(c, t, h)

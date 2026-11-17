@@ -199,7 +199,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 			}
 		})
 	}
-	listBesideCommit(c, &fs.detailW, 560, &fs.detail, func() {
+	listBesideCommit(c, &fs.detailW, 560, &fs.detail, fs.chosen >= 0 && fs.chosen < len(fs.commits), &fs.list.ListState, func() {
 		ui.Column(c).Fill().Children(func() {
 			switch {
 			case fs.logErr != "":

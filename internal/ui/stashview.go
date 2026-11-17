@@ -127,7 +127,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			}
 		})
 	}
-	listBesideCommit(c, &ss.detailW, 560, &ss.detail, func() {
+	listBesideCommit(c, &ss.detailW, 560, &ss.detail, ss.chosen >= 0 && ss.chosen < len(ss.entries), &ss.list.ListState, func() {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				if d := ss.dropped; d != nil {

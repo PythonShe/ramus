@@ -45,7 +45,13 @@ func newReflogState() reflogState {
 
 func (a *App) reflogView(c *ui.Context, t *tab) {
 	rs := &t.reflog
-	listBesideCommit(c, &rs.detailW, 560, &rs.detail, func() {
+	chosen := rs.lostShown == 0 && rs.chosen >= 0 && rs.chosen < len(rs.entries) ||
+		rs.lostShown == 1 && rs.lostChosen >= 0 && rs.lostChosen < len(rs.lost)
+	ls := &rs.list.ListState
+	if rs.lostShown == 1 {
+		ls = &rs.lostList.ListState
+	}
+	listBesideCommit(c, &rs.detailW, 560, &rs.detail, chosen, ls, func() {
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Segmented(c, &rs.lostShown, locales.RepoSectionReflog(), locales.ReflogLostCommits())
