@@ -50,6 +50,9 @@ type settingsState struct {
 	identFrom       write.IdentityFrom
 	identRead       bool
 	identSaver      *identSaver
+	// identGen counts the openings of the settings, for a read or a
+	// failure of one before to leave the form alone.
+	identGen int
 	// nameField is the field of the name, which focusName focuses once
 	// it can take the focus.
 	nameField ui.Handle
@@ -63,7 +66,10 @@ func (a *App) openSettings() {
 	a.loadSettingsForm()
 	s.difftool, s.difftoolWas, s.difftoolRead = false, false, false
 	a.readDifftool()
+	// Closed, and opened again before a frame wrote what it had.
+	a.saveIdentity()
 	s.ident, s.identWas, s.identFrom, s.identRead = write.Identity{}, write.Identity{}, write.IdentityFrom{}, false
+	s.identGen++
 	a.readIdentity()
 }
 
@@ -402,13 +408,20 @@ func (a *App) readIdentity() {
 		w = t.s.Where()
 	}
 	r, update, s := a.Runner, a.Update, &a.settingsUI
+	gen, saver := s.identGen, s.identSaver
 	a.goWork(nil, func() {
+		if saver != nil {
+			// What a save asked before has to be in what is read, or
+			// the form would show, and save over, what it replaced.
+			saver.wait()
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		id, from, err := write.ReadIdentity(ctx, r, w)
 		cancel()
 		update(func() {
 			switch {
-			case !s.open || s.identRead:
+			case !s.open || s.identRead || s.identGen != gen:
+				// Read for an opening of the settings since gone.
 			case err != nil:
 				// The fields stay off: what they would write over is
 				// not known.
@@ -422,17 +435,18 @@ func (a *App) readIdentity() {
 
 // saveIdentity writes the identity the form has to git's global config,
 // or the files it includes where a field comes from, off the main
-// thread, when it changed. A failure says so, and the
-// identity is read again the next time the settings open.
+// thread, when it changed. A failure says so, in the form while the
+// same opening of it shows; the identity is read again the next time
+// the settings open.
 func (a *App) saveIdentity() {
 	s := &a.settingsUI
 	if !s.identRead || s.ident == s.identWas || a.Runner == nil {
 		return
 	}
-	r, update, was, now, from := a.Runner, a.Update, s.identWas, s.ident, s.identFrom
+	r, update, was, now, from, gen := a.Runner, a.Update, s.identWas, s.ident, s.identFrom, s.identGen
 	s.identWas = now
 	if s.identSaver == nil {
-		s.identSaver = &identSaver{}
+		s.identSaver = newIdentSaver()
 	}
 	s.identSaver.save(a, r, &identWrite{was: was, now: now, from: from, failed: func(was write.Identity, err error) {
 		msg := errText(err)
@@ -440,12 +454,16 @@ func (a *App) saveIdentity() {
 			msg = locales.SettingsDefaultBranchInvalid(strings.TrimSpace(now.DefaultBranch))
 		}
 		update(func() {
-			if s.open {
+			if s.open && s.identGen == gen {
 				s.err = locales.SettingsGitFailed(msg)
+				// What the config has, for the next save to write
+				// what did not go in.
 				s.identWas = was
 				return
 			}
-			s.identRead = false
+			if !s.open {
+				s.identRead = false
+			}
 			a.notice = locales.SettingsGitFailed(msg)
 		})
 	}})
@@ -459,7 +477,7 @@ func (a *App) SaveIdentity() { a.saveIdentity() }
 // once it is.
 func (a *App) WaitIdentity() {
 	if is := a.settingsUI.identSaver; is != nil {
-		is.done.Wait()
+		is.wait()
 	}
 }
 
@@ -470,7 +488,23 @@ type identSaver struct {
 	mu      sync.Mutex
 	running bool
 	next    *identWrite
-	done    sync.WaitGroup
+	// idle is broadcast as the last write ends, after its failure is told.
+	idle *sync.Cond
+}
+
+func newIdentSaver() *identSaver {
+	is := &identSaver{}
+	is.idle = sync.NewCond(&is.mu)
+	return is
+}
+
+// wait waits until nothing is being written.
+func (is *identSaver) wait() {
+	is.mu.Lock()
+	for is.running {
+		is.idle.Wait()
+	}
+	is.mu.Unlock()
 }
 
 type identWrite struct {
@@ -491,30 +525,38 @@ func (is *identSaver) save(a *App, r *run.Runner, w *identWrite) {
 		return
 	}
 	is.running = true
-	is.done.Add(1)
-	a.goWork(nil, func() {
-		defer is.done.Done()
-		for w != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			err := write.SetIdentity(ctx, r, w.was, w.now, w.from)
-			cancel()
-			is.mu.Lock()
-			next := is.next
-			is.next = nil
-			if err != nil && next != nil {
-				// What failed is not there for the next to change.
-				next.was = w.was
-			}
-			if next == nil {
-				is.running = false
-			}
+	a.goWork(nil, func() { is.drain(r, w) })
+}
+
+// drain writes w, then each write asked meanwhile, until none is left,
+// and leaves the saver idle.
+func (is *identSaver) drain(r *run.Runner, w *identWrite) {
+	for w != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		has, err := write.SetIdentity(ctx, r, w.was, w.now, w.from)
+		cancel()
+		is.mu.Lock()
+		if is.next == nil && err != nil {
+			// Told before the saver is idle, so that a read waiting
+			// for it comes after.
 			is.mu.Unlock()
-			if err != nil && next == nil {
-				w.failed(w.was, err)
-			}
-			w = next
+			w.failed(has, err)
+			is.mu.Lock()
 		}
-	})
+		next := is.next
+		is.next = nil
+		if next != nil && err != nil {
+			// The next changes the config as it is, with what of
+			// this one went in before the failure, not as asked.
+			next.was = has
+		}
+		if next == nil {
+			is.running = false
+			is.idle.Broadcast()
+		}
+		is.mu.Unlock()
+		w = next
+	}
 }
 
 // globalTool is the app as git's difftool and mergetool.

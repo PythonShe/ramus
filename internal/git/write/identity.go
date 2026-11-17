@@ -145,15 +145,17 @@ func readIdentity(ctx context.Context, r *run.Runner, cmd *run.Cmd) (Identity, I
 }
 
 // SetIdentity writes each field of now that differs from was, as read
-// from where from says. A value goes to the file of the global config
-// that gives it, so that it is the one git takes, or to the global
-// config when none does. A field left empty is unset in every file of
-// the global config that sets it, as git then guesses it, or falls
-// back to its own default branch. The repository's own config and the
-// system's are never written.
-func SetIdentity(ctx context.Context, r *run.Runner, was, now Identity, from IdentityFrom) error {
+// from where from says, and returns the identity the config has after:
+// was with the fields written, those before a failure, which stops it.
+// A value goes to the file of the global config that gives it, so that
+// it is the one git takes, or to the global config when none does. A
+// field left empty is unset in every file of the global config that
+// sets it, as git then guesses it, or falls back to its own default
+// branch. The repository's own config and the system's are never
+// written.
+func SetIdentity(ctx context.Context, r *run.Runner, was, now Identity, from IdentityFrom) (Identity, error) {
 	if b := strings.TrimSpace(now.DefaultBranch); b != "" && (strings.HasPrefix(b, "-") || !refs.ValidName("refs/heads/"+b)) {
-		return ErrBranchName
+		return was, ErrBranchName
 	}
 	in := func(file string) []string {
 		if file == "" {
@@ -162,6 +164,7 @@ func SetIdentity(ctx context.Context, r *run.Runner, was, now Identity, from Ide
 		return []string{"config", "--file", file}
 	}
 	old, next := was.values(), now.values()
+	done := [3]*string{&was.Name, &was.Email, &was.DefaultBranch}
 	for i, key := range identityKeys {
 		if old[i] == next[i] {
 			continue
@@ -170,8 +173,9 @@ func SetIdentity(ctx context.Context, r *run.Runner, was, now Identity, from Ide
 		if next[i] != "" {
 			// The value is never read as an option, whatever it starts with.
 			if err := global(ctx, r, append(in(o.File), "--replace-all", "--", key, next[i])...); err != nil {
-				return err
+				return was, err
 			}
+			*done[i] = next[i]
 			continue
 		}
 		files := o.Files
@@ -181,9 +185,10 @@ func SetIdentity(ctx context.Context, r *run.Runner, was, now Identity, from Ide
 		for _, f := range files {
 			// Exit code 5 is a key that is not set.
 			if err := global(ctx, r, append(in(f), "--unset-all", key)...); err != nil && exitCode(err) != 5 {
-				return err
+				return was, err
 			}
 		}
+		*done[i] = ""
 	}
-	return nil
+	return was, nil
 }

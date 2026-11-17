@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -62,7 +63,7 @@ func TestSetIdentity(t *testing.T) {
 		t.Fatalf("read at first: %+v %+v", was, from)
 	}
 	now := Identity{Name: "-x Someone", Email: "some@example.com", DefaultBranch: "trunk"}
-	if err := SetIdentity(ctx, r, was, now, from); err != nil {
+	if _, err := SetIdentity(ctx, r, was, now, from); err != nil {
 		t.Fatal(err)
 	}
 	got, from := readIdentityT(t, r, Where{})
@@ -73,7 +74,7 @@ func TestSetIdentity(t *testing.T) {
 		t.Fatalf("the name comes from %+v, want the global config", o)
 	}
 	later := Identity{Name: "Someone", Email: "some@example.com"}
-	if err := SetIdentity(ctx, r, now, later, from); err != nil {
+	if _, err := SetIdentity(ctx, r, now, later, from); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := readIdentityT(t, r, Where{}); got != later {
@@ -83,7 +84,7 @@ func TestSetIdentity(t *testing.T) {
 		t.Fatalf("the rest of the config went:\n%s", b)
 	}
 	for _, bad := range []string{"two words", "-b", "a..b", "x.lock"} {
-		if err := SetIdentity(ctx, r, later, Identity{Name: "Changed", DefaultBranch: bad}, from); !errors.Is(err, ErrBranchName) {
+		if _, err := SetIdentity(ctx, r, later, Identity{Name: "Changed", DefaultBranch: bad}, from); !errors.Is(err, ErrBranchName) {
 			t.Errorf("default branch %q: %v", bad, err)
 		}
 	}
@@ -113,7 +114,7 @@ func TestIdentityIncluded(t *testing.T) {
 		t.Fatalf("the email comes from %+v, want the included file", o)
 	}
 	now := Identity{Name: "Kept Apart", Email: "new@example.com"}
-	if err := SetIdentity(ctx, r, was, now, from); err != nil {
+	if _, err := SetIdentity(ctx, r, was, now, from); err != nil {
 		t.Fatal(err)
 	}
 	got, from := readIdentityT(t, r, Where{})
@@ -124,7 +125,7 @@ func TestIdentityIncluded(t *testing.T) {
 		t.Fatalf("the included file has not the change:\n%s", b)
 	}
 	cleared := Identity{Email: "new@example.com"}
-	if err := SetIdentity(ctx, r, now, cleared, from); err != nil {
+	if _, err := SetIdentity(ctx, r, now, cleared, from); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := readIdentityT(t, r, Where{}); got != cleared {
@@ -153,7 +154,7 @@ func TestIdentityIncludedForRepository(t *testing.T) {
 		t.Fatalf("the name comes from %+v, want the global config", o)
 	}
 	now := Identity{Name: "Everywhere", Email: "job@example.com"}
-	if err := SetIdentity(context.Background(), r, was, now, from); err != nil {
+	if _, err := SetIdentity(context.Background(), r, was, now, from); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := readIdentityT(t, r, w); got != now {
@@ -181,7 +182,7 @@ func TestIdentityRepositoryLocal(t *testing.T) {
 	}
 	now := was
 	now.Name = "Changed"
-	if err := SetIdentity(context.Background(), r, was, now, from); err != nil {
+	if _, err := SetIdentity(context.Background(), r, was, now, from); err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(repo.Git("config", "--local", "user.name")); got != "Only Here" {
@@ -189,5 +190,39 @@ func TestIdentityRepositoryLocal(t *testing.T) {
 	}
 	if got, _ := readIdentityT(t, r, Where{}); got.Name != "Changed" {
 		t.Fatalf("the global config has %+v", got)
+	}
+}
+
+// A write that fails part way says what it did write: the name went in,
+// the email, in a file git cannot write, did not.
+func TestSetIdentityPartly(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 {
+		t.Skip("a folder the user cannot write to is needed")
+	}
+	r, dir := identityConfig(t, map[string]string{
+		"gitconfig": "[user]\n\tname = Before\n[include]\n\tpath = {dir}/shut/inc\n",
+	})
+	shut := filepath.Join(dir, "shut")
+	if err := os.Mkdir(shut, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shut, "inc"), []byte("[user]\n\temail = before@example.com\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// git writes a config through a lock file beside it.
+	if err := os.Chmod(shut, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(shut, 0o755) })
+	was, from := readIdentityT(t, r, Where{})
+	got, err := SetIdentity(context.Background(), r, was, Identity{Name: "After", Email: "after@example.com"}, from)
+	if err == nil {
+		t.Fatal("the email was written")
+	}
+	if want := (Identity{Name: "After", Email: "before@example.com"}); got != want {
+		t.Fatalf("said %+v written, want %+v", got, want)
+	}
+	if now, _ := readIdentityT(t, r, Where{}); now != got {
+		t.Fatalf("the config has %+v, said %+v", now, got)
 	}
 }
