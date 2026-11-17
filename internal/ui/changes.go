@@ -899,9 +899,16 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, d discardSet) {
 	// are deleted as untracked, but the user knows them as changes.
 	n := len(tracked) + len(untracked) + len(intent)
 	news := 0
-	for _, p := range untracked {
-		if slices.Contains(d.unstage, p) {
-			news++
+	if len(d.unstage) > 0 {
+		// A set: a first import staged whole is tens of thousands of each.
+		staged := make(map[string]bool, len(d.unstage))
+		for _, p := range d.unstage {
+			staged[p] = true
+		}
+		for _, p := range untracked {
+			if staged[p] {
+				news++
+			}
 		}
 	}
 	w := t.s.Where()
