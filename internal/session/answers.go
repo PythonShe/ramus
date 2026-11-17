@@ -9,7 +9,6 @@ import (
 
 	"ramus/internal/git/cache"
 	"ramus/internal/git/diff"
-	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
 )
 
@@ -26,7 +25,7 @@ type answer struct {
 	// relations are a commit's relations to the refs and HEAD it was
 	// found for: an answer for others is stale.
 	relations     *CommitRelations
-	relationsRefs *refs.List
+	relationsRefs uint64
 	relationsHead []byte
 }
 

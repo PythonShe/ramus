@@ -160,6 +160,9 @@ type Session struct {
 	// avatars are the people's pictures; see RequestAvatars.
 	avatars        *avatarStore
 	avatarsChanged uint64
+	// refsGen counts the lists of refs State has had, so that what was
+	// found for one is told stale without keeping the list.
+	refsGen uint64
 	// avatarSourceHook, when set, replaces the host's tool for pictures.
 	avatarSourceHook func(*repo.Repository) avatarSource
 	// graphEvery and graphRetry, when set, replace the constants.
@@ -716,6 +719,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		if res.list != nil {
 			st.Refs = res.list
+			s.refsGen++
 		}
 		if res.st != nil {
 			if res.st != st.Status {

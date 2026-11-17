@@ -38,9 +38,9 @@ func (s *Session) LoadCommitRelations(oid []byte, done func(CommitRelations)) (c
 		done(CommitRelations{Err: errors.New("session: the repository is not open")})
 		return func() {}
 	}
-	list, head := s.State.Refs, bytes.Clone(s.State.Head.OID)
+	list, gen, head := s.State.Refs, s.refsGen, bytes.Clone(s.State.Head.OID)
 	key := relationsKey(oid)
-	if a, ok := s.answers().Get(key); ok && a.relations != nil && a.relationsRefs == list && bytes.Equal(a.relationsHead, head) {
+	if a, ok := s.answers().Get(key); ok && a.relations != nil && a.relationsRefs == gen && bytes.Equal(a.relationsHead, head) {
 		done(*a.relations)
 		return func() {}
 	}
@@ -55,7 +55,7 @@ func (s *Session) LoadCommitRelations(oid []byte, done func(CommitRelations)) (c
 		}
 		s.update(func() {
 			if rel.Err == nil {
-				s.keep(r, key, answer{relations: &rel, relationsRefs: list, relationsHead: head})
+				s.keep(r, key, answer{relations: &rel, relationsRefs: gen, relationsHead: head})
 			}
 			if !dropped {
 				done(rel)
@@ -231,7 +231,8 @@ func listRelations(names []string, children [][]byte) CommitRelations {
 	names = slices.Compact(names)
 	rel := CommitRelations{Refs: names, Children: children}
 	if len(names) > maxRelationRefs {
-		rel.Refs, rel.More = slices.Clip(names[:maxRelationRefs]), len(names)-maxRelationRefs
+		// A copy, so the names left out are not kept with the answer.
+		rel.Refs, rel.More = slices.Clone(names[:maxRelationRefs]), len(names)-maxRelationRefs
 	}
 	return rel
 }
