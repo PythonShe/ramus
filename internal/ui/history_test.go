@@ -543,17 +543,17 @@ func TestHistoryColumns(t *testing.T) {
 
 	// A full row: the author's divider has nowhere to push the date.
 	drag(after("Author"), 40, "Date", 0)
-	if authorCell().W != 120 {
+	if authorCell().W != histColumnWidth[colAuthor] {
 		t.Fatalf("author %v wide, pushed into no room", authorCell().W)
 	}
 	// The message's divider makes room at the end, the columns drawn
 	// along; the author's then pushes the date and the hash into it.
-	drag(before("Author"), -60, "Author", 1)
-	if e := hv.cols.end; e != 60 || h.app.Settings.HistoryMessage == 0 {
-		t.Fatalf("room at the end %v, made 60; message kept at %v", e, h.app.Settings.HistoryMessage)
+	drag(before("Author"), -50, "Author", 1)
+	if e := hv.cols.end; e != 50 || h.app.Settings.HistoryMessage == 0 {
+		t.Fatalf("room at the end %v, made 50; message kept at %v", e, h.app.Settings.HistoryMessage)
 	}
 	drag(after("Author"), 40, "Date", 1)
-	if authorCell().W != 160 || hv.cols.end != 20 {
+	if authorCell().W != histColumnWidth[colAuthor]+40 || hv.cols.end != 10 {
 		t.Fatalf("author %v wide, room at the end %v", authorCell().W, hv.cols.end)
 	}
 	// The date keeps its width, dragged either way.
@@ -577,7 +577,7 @@ func TestHistoryColumns(t *testing.T) {
 	// stands for it; a
 	// click opens it again, even one that slips a little.
 	x, y := after("Author")+spaceM/2+shutWidth/2, head.Y+head.H/2
-	if hv.cols.end != 20+112+spaceM-shutWidth-spaceM {
+	if hv.cols.end != 10+112+spaceM-shutWidth-spaceM {
 		t.Fatalf("room at the end %v with the date shut", hv.cols.end)
 	}
 	h.tt.Press(x, y)
@@ -586,7 +586,7 @@ func TestHistoryColumns(t *testing.T) {
 	h.tt.Frame()
 	h.tt.Release(x+1, y)
 	settle()
-	if !hasExact(h, "Date") || at("Date").W != histColumnMin[colDate] || hv.cols.end != 20 {
+	if !hasExact(h, "Date") || at("Date").W != histColumnMin[colDate] || hv.cols.end != 10 {
 		t.Fatalf("date clicked back to %v, room at the end %v", at("Date"), hv.cols.end)
 	}
 	// The hash, shut by its title, leaves its thin column at the end.
@@ -596,7 +596,7 @@ func TestHistoryColumns(t *testing.T) {
 	}
 	h.tt.ClickAt(after("Date")+spaceM/2+shutWidth/2, y)
 	settle()
-	if !hasExact(h, "Commit") || hv.cols.end != 20 {
+	if !hasExact(h, "Commit") || hv.cols.end != 10 {
 		t.Fatalf("hash not back from its divider: room at the end %v", hv.cols.end)
 	}
 	// Dragged left, a column stops at its least width.
@@ -672,12 +672,12 @@ func TestHistoryColumns(t *testing.T) {
 	h.app.Settings.HistoryMessage = 200
 	hv.detailW = 640
 	settle()
-	if hv.cols.shown != [histColumns]bool{true, true, true, true} || hv.cols.end != 76 {
+	if hv.cols.shown != [histColumns]bool{true, true, true, true} || hv.cols.end != 76-authorPicture {
 		t.Fatalf("room at the end %v, columns %v", hv.cols.end, hv.cols.shown)
 	}
 	hv.detailW = 560
 	settle()
-	if hv.cols.shown[colHash] || hv.cols.end != 0 || at("Message").W != 260 {
+	if hv.cols.shown[colHash] || hv.cols.end != 0 || at("Message").W != 260-authorPicture {
 		t.Fatalf("narrowed: room at the end %v, message %v, columns %v", hv.cols.end, at("Message").W, hv.cols.shown)
 	}
 }

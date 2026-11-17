@@ -66,12 +66,15 @@ const (
 var histColumnKeys = [histColumns]string{"graph", "author", "date", "hash"}
 
 // The columns' own widths and the least they settle at, the date's and
-// the hash's showing them whole; the graph's are graphWidth and
-// graphLeast.
+// the hash's showing them whole, the author's a picture and a name; the
+// graph's are graphWidth and graphLeast.
 var (
-	histColumnWidth = [histColumns]float32{0, 120, 112, 64}
-	histColumnMin   = [histColumns]float32{0, 80, 112, 64}
+	histColumnWidth = [histColumns]float32{0, 120 + authorPicture, 112, 64}
+	histColumnMin   = [histColumns]float32{0, 80 + authorPicture, 112, 64}
 )
+
+// authorPicture is what the author's picture takes of their column.
+const authorPicture = avatarRow + spaceXS
 
 const (
 	// historyMessageMin is the least the message narrows to;
@@ -381,7 +384,8 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) colWant {
 		case k == colGraph:
 			cw.w[k] = graphWidth(snap)
 		case k == colAuthor && p.Width > 0:
-			cw.w[k] = p.Width
+			// A width kept from before the column had its least.
+			cw.w[k] = max(p.Width, histColumnMin[k])
 		default:
 			cw.w[k] = histColumnWidth[k]
 		}
