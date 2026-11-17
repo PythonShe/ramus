@@ -53,6 +53,9 @@ func (cv *changesState) chosenFile() (changeRow, bool) {
 func (a *App) detail(c *ui.Context, t *tab) {
 	cv := &t.cv
 	r, ok := cv.chosenFile()
+	if !ok || r.sec == secConflicts || !untrackedFolder(cv.model.st, int(r.idx)) {
+		cv.folder.leave()
+	}
 	if !ok {
 		if m := cv.model; m != nil && len(m.rows) == 0 && m.filter == "" {
 			a.cleanTree(c, t)
@@ -69,8 +72,8 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	}
 	if untrackedFolder(m.st, i) {
 		// git diffs no folder: a patch of it would say there is no
-		// difference.
-		emptyState(c, locales.ChangesUntrackedFolder(string(m.st.Path(i))))
+		// difference. Its files are listed instead.
+		a.folderFiles(c, t, m, r)
 		return
 	}
 	key := diffKey{path: string(m.st.Path(i)), src: diff.Unstaged, st: m.st, ws: diff.Whitespace(a.diffOpts().ws)}
@@ -82,33 +85,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	}
 	key.orig = renamedFrom(m.st, i, key.src)
 	d := &cv.diff
-	if d.key != key {
-		if d.key.path != key.path || d.key.src != key.src {
-			d.pager = patchPager{}
-		}
-		d.key = key
-		sides := patchSides(m.st, i, key.src)
-		var load func()
-		load = func() {
-			d.loading = true
-			req := diff.PatchRequest{Source: key.src, Paths: key.paths(), Context: -1, MaxBytes: d.pager.max(), Whitespace: key.ws, Renames: key.orig != ""}
-			sides.Max = d.pager.sides()
-			t.s.Patch(req, sides, func(res session.PatchResult) {
-				if d.key != key {
-					return
-				}
-				d.res = res
-				a.setPatch(&d.pv, res)
-				if d.pager.more(res) {
-					load()
-					return
-				}
-				d.loading = false
-			})
-		}
-		d.load = load
-		load()
-	}
+	a.readPatch(t, key, patchSides(m.st, i, key.src))
 	ui.Column(c).Fill().Children(func() {
 		a.diffHeader(c, t, m, r)
 		a.pagerNotice(c, &d.pager, d.res, d.loading, locales.PatchShownInPartNoStaging(sizeText(d.pager.max())), d.load)
@@ -123,6 +100,39 @@ func (a *App) detail(c *ui.Context, t *tab) {
 		}
 		a.patchBody(c, t, &d.pv, res, actions)
 	})
+}
+
+// readPatch reads the patch of key, whose whole files sides names, into
+// the changes view's, unless that is the one it holds.
+func (a *App) readPatch(t *tab, key diffKey, sides session.Sides) {
+	d := &t.cv.diff
+	if d.key == key {
+		return
+	}
+	if d.key.path != key.path || d.key.src != key.src {
+		d.pager = patchPager{}
+	}
+	d.key = key
+	var load func()
+	load = func() {
+		d.loading = true
+		req := diff.PatchRequest{Source: key.src, Paths: key.paths(), Context: -1, MaxBytes: d.pager.max(), Whitespace: key.ws, Renames: key.orig != ""}
+		sides.Max = d.pager.sides()
+		t.s.Patch(req, sides, func(res session.PatchResult) {
+			if d.key != key {
+				return
+			}
+			d.res = res
+			a.setPatch(&d.pv, res)
+			if d.pager.more(res) {
+				load()
+				return
+			}
+			d.loading = false
+		})
+	}
+	d.load = load
+	load()
 }
 
 // renamedFrom is the old path of entry i when status found it renamed in

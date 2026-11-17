@@ -44,6 +44,8 @@ type changesState struct {
 	picked  ui.Selection[rowKey]
 	confirm confirmState
 	diff    diffState
+	// folder lists the files of the untracked folder chosen.
+	folder folderState
 	// lines are the lines each change adds and deletes, counted for the
 	// status countFor asked; totals adds them up by section, for the
 	// model and the count totalsFor names.

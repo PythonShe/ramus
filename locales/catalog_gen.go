@@ -4509,16 +4509,94 @@ func (msgs Messages) ChangesDiscard() string {
 	return Catalog.Format(msgs.locale, "changesDiscard", nil)
 }
 
-// ChangesUntrackedFolder says "{path} is a new folder git does not track. Stage it to see the files in it."
+// ChangesUntrackedFolder says "{path} is a new folder git does not track."
 // in the language the app shows.
 func ChangesUntrackedFolder(path string) string {
 	return In(i18n.Locale()).ChangesUntrackedFolder(path)
 }
 
-// ChangesUntrackedFolder says "{path} is a new folder git does not track. Stage it to see the files in it."
+// ChangesUntrackedFolder says "{path} is a new folder git does not track."
 // in the language of msgs.
 func (msgs Messages) ChangesUntrackedFolder(path string) string {
 	return Catalog.Format(msgs.locale, "changesUntrackedFolder", map[string]any{"path": path})
+}
+
+// ChangesStageFolder says "Stage Folder"
+// in the language the app shows.
+//
+// A button over the files of an untracked folder: stages them all.
+func ChangesStageFolder() string { return In(i18n.Locale()).ChangesStageFolder() }
+
+// ChangesStageFolder says "Stage Folder"
+// in the language of msgs.
+//
+// A button over the files of an untracked folder: stages them all.
+func (msgs Messages) ChangesStageFolder() string {
+	return Catalog.Format(msgs.locale, "changesStageFolder", nil)
+}
+
+// ChangesDiscardFolder says "Discard Folder…"
+// in the language the app shows.
+//
+// A button over the files of an untracked folder: deletes it, after asking.
+func ChangesDiscardFolder() string { return In(i18n.Locale()).ChangesDiscardFolder() }
+
+// ChangesDiscardFolder says "Discard Folder…"
+// in the language of msgs.
+//
+// A button over the files of an untracked folder: deletes it, after asking.
+func (msgs Messages) ChangesDiscardFolder() string {
+	return Catalog.Format(msgs.locale, "changesDiscardFolder", nil)
+}
+
+// ChangesFolderFiles says "{count, plural, one {# file} other {# files}}"
+// in the language the app shows.
+//
+// How many files an untracked folder holds, beside its name over their
+// list.
+func ChangesFolderFiles(count int) string { return In(i18n.Locale()).ChangesFolderFiles(count) }
+
+// ChangesFolderFiles says "{count, plural, one {# file} other {# files}}"
+// in the language of msgs.
+//
+// How many files an untracked folder holds, beside its name over their
+// list.
+func (msgs Messages) ChangesFolderFiles(count int) string {
+	return Catalog.Format(msgs.locale, "changesFolderFiles", map[string]any{"count": count})
+}
+
+// ChangesFolderFirstFiles says "{shown, number} of {count, plural, one {# file} other {# files}}"
+// in the language the app shows.
+//
+// Beside an untracked folder's name, when its list stops at the first
+// files: shown of all it holds.
+func ChangesFolderFirstFiles(shown int, count int) string {
+	return In(i18n.Locale()).ChangesFolderFirstFiles(shown, count)
+}
+
+// ChangesFolderFirstFiles says "{shown, number} of {count, plural, one {# file} other {# files}}"
+// in the language of msgs.
+//
+// Beside an untracked folder's name, when its list stops at the first
+// files: shown of all it holds.
+func (msgs Messages) ChangesFolderFirstFiles(shown int, count int) string {
+	return Catalog.Format(msgs.locale, "changesFolderFirstFiles", map[string]any{"shown": shown, "count": count})
+}
+
+// ChangesFolderFilesLabel says "Files in {path}"
+// in the language the app shows.
+//
+// Read aloud for the list of the files of an untracked folder.
+func ChangesFolderFilesLabel(path string) string {
+	return In(i18n.Locale()).ChangesFolderFilesLabel(path)
+}
+
+// ChangesFolderFilesLabel says "Files in {path}"
+// in the language of msgs.
+//
+// Read aloud for the list of the files of an untracked folder.
+func (msgs Messages) ChangesFolderFilesLabel(path string) string {
+	return Catalog.Format(msgs.locale, "changesFolderFilesLabel", map[string]any{"path": path})
 }
 
 // ChangesAndMore says "and {n} more"

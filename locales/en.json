@@ -875,7 +875,27 @@
   "@changesDiscard": {
     "description": "A button that discards changes, as a verb."
   },
-  "changesUntrackedFolder": "{path} is a new folder git does not track. Stage it to see the files in it.",
+  "changesUntrackedFolder": "{path} is a new folder git does not track.",
+  "changesStageFolder": "Stage Folder",
+  "@changesStageFolder": {
+    "description": "A button over the files of an untracked folder: stages them all."
+  },
+  "changesDiscardFolder": "Discard Folder…",
+  "@changesDiscardFolder": {
+    "description": "A button over the files of an untracked folder: deletes it, after asking."
+  },
+  "changesFolderFiles": "{count, plural, one {# file} other {# files}}",
+  "@changesFolderFiles": {
+    "description": "How many files an untracked folder holds, beside its name over their list."
+  },
+  "changesFolderFirstFiles": "{shown, number} of {count, plural, one {# file} other {# files}}",
+  "@changesFolderFirstFiles": {
+    "description": "Beside an untracked folder's name, when its list stops at the first files: shown of all it holds."
+  },
+  "changesFolderFilesLabel": "Files in {path}",
+  "@changesFolderFilesLabel": {
+    "description": "Read aloud for the list of the files of an untracked folder."
+  },
   "changesAndMore": "and {n} more",
   "@changesAndMore": {
     "description": "Ends a list of paths cut short.",
