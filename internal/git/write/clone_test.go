@@ -138,3 +138,13 @@ func TestCloneLFS(t *testing.T) {
 		t.Errorf("no LFS progress among\n%s", strings.Join(lines, "\n"))
 	}
 }
+
+// A write started on its own that panics ends with an error, and the app
+// goes on.
+func TestStartedWriteThatPanicsEnds(t *testing.T) {
+	// No runner: running the command panics.
+	j := start(nil, Op{Name: "Clone x", Cmd: run.Cmd{GitDir: t.TempDir(), Args: []string{"status"}}})
+	if _, err := wait(t, j); err == nil || !strings.Contains(err.Error(), "internal error") {
+		t.Fatalf("err %v", err)
+	}
+}

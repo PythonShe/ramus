@@ -3,6 +3,7 @@ package write
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -83,12 +84,20 @@ func Init(ctx context.Context, r *run.Runner, dir string, bare bool) error {
 	return err
 }
 
-// start runs op now, on its own.
+// start runs op now, on its own. A panic ends the job with an error, not
+// the app, and whoever waits on the job hears it ended.
 func start(r *run.Runner, op Op) *Job {
 	j := newJob(nil, op)
 	go func() {
-		res, err := execute(j.ctx, r, j, j.Op.Cmd, j.Op.Input)
-		j.finish(res, err)
+		var res run.Result
+		var err error
+		defer func() {
+			if v := recover(); v != nil {
+				res, err = run.Result{}, fmt.Errorf("write: %s stopped on an internal error: %v", j.Op.Name, v)
+			}
+			j.finish(res, err)
+		}()
+		res, err = execute(j.ctx, r, j, j.Op.Cmd, j.Op.Input)
 	}()
 	return j
 }
