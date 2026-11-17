@@ -3,6 +3,8 @@
 package watch
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 	"unicode/utf16"
 	"unsafe"
@@ -95,8 +97,14 @@ func (ww *windowsWatch) read() {
 			if off+12+rec.FileNameLength > n {
 				break
 			}
-			name := unsafe.Slice(&rec.FileName, nameLen)
-			ww.w.changed(string(utf16.Decode(name)))
+			name := string(utf16.Decode(unsafe.Slice(&rec.FileName, nameLen)))
+			// A folder is told modified when an entry in it changes,
+			// which is told too: a folder stands for all under it, so
+			// each file written would read its whole folder again, and
+			// each write of the index the whole git directory.
+			if rec.Action != windows.FILE_ACTION_MODIFIED || !isDir(filepath.Join(ww.w.root, name)) {
+				ww.w.changed(name)
+			}
 			if rec.NextEntryOffset == 0 {
 				break
 			}
@@ -114,4 +122,9 @@ func (ww *windowsWatch) close() error {
 	ww.done.Wait()
 	windows.CloseHandle(ww.ov.HEvent)
 	return windows.CloseHandle(ww.h)
+}
+
+func isDir(p string) bool {
+	fi, err := os.Lstat(p)
+	return err == nil && fi.IsDir()
 }
