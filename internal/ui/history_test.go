@@ -878,10 +878,11 @@ func TestHistoryMessageStaysLast(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("open", h.shows("No local changes"))
 	h.click("History")
-	h.until("the rows", h.shows(long))
-	h.tt.Frame()
 	hv := &h.app.current().hist
-	if hv.msgWant < 360 || hv.msgWant > historyMessageWant {
+	// The detail shows the subject too, and the row measures it as it is
+	// built, which a slow machine does frames later.
+	h.until("the subject measured", func() bool { return hv.msgWant >= 360 })
+	if hv.msgWant > historyMessageWant {
 		t.Fatalf("the message would like %v", hv.msgWant)
 	}
 	for _, w := range []float32{1000, 800, 700, 640, 560, 480, 420, 360, 300} {
