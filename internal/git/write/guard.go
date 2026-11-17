@@ -121,6 +121,13 @@ func Observe(workTree string, paths []string) ([]FileState, error) {
 			if d.IsDir() && d.Name() == ".git" {
 				return filepath.SkipDir
 			}
+			// A repository inside, a submodule's work tree among them,
+			// whose .git is a file: git leaves its files alone.
+			if d.IsDir() && path != root {
+				if _, err := os.Lstat(filepath.Join(path, ".git")); err == nil {
+					return filepath.SkipDir
+				}
+			}
 			rel, _ := filepath.Rel(workTree, path)
 			out = append(out, stat(workTree, filepath.ToSlash(rel)))
 			if len(out) > MaxObserved {

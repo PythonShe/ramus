@@ -159,3 +159,30 @@ func TestBackupBeforeRewrite(t *testing.T) {
 		t.Fatalf("backed up %q", out)
 	}
 }
+
+// A folder observed is recorded file by file, but not the files of a
+// repository inside it, as a submodule's work tree, whose .git is a
+// file: git leaves them alone.
+func TestObserveSkipsNestedRepositories(t *testing.T) {
+	dir := t.TempDir()
+	for _, f := range []string{"d/a", "d/sub/.git", "d/sub/b", "d/inner/.git/HEAD", "d/inner/c"} {
+		p := filepath.Join(dir, filepath.FromSlash(f))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := Observe(dir, []string{"d"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, f := range got {
+		paths = append(paths, f.Path)
+	}
+	if strings.Join(paths, " ") != "d d/a" {
+		t.Fatalf("observed %q", paths)
+	}
+}
