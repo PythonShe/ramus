@@ -431,6 +431,12 @@ func (q *Queue) leftPaths(ctx context.Context, e Entry, like *pathState) *pathSt
 		if like != nil && (i >= len(like.sums) || like.sums[i] == "") {
 			continue
 		}
+		if like != nil && i < len(like.files) && (f.Path != like.files[i].Path || f.Size != like.files[i].Size) {
+			// Changed, as its size says: not read, which a file grown
+			// past the budget since would be whole.
+			sums[i] = "changed"
+			continue
+		}
 		var b []byte
 		p := filepath.Join(root, filepath.FromSlash(f.Path))
 		switch {
