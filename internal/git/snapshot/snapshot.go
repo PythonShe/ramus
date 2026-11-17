@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -62,6 +63,14 @@ type Options struct {
 	// of the worktree Take is given, since its own go with it.
 	Worktree string
 }
+
+// noCommitOut is git add's refusal of a repository inside the work tree
+// with no commit checked out.
+var noCommitOut = regexp.MustCompile(`error: '([^'\n]+)' does not have a commit checked out`)
+
+// maxLeftOut bounds the repositories without a commit a snapshot leaves
+// out, one more each time git add is run again.
+const maxLeftOut = 32
 
 // ignoredDirs are the work tree's ignored folders, each with its slash:
 // those a rule ignores, not those that only hold ignored files.
@@ -160,7 +169,7 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	defer os.Remove(tmp + ".lock")
 	env := []string{"GIT_INDEX_FILE=" + tmp}
 	git := func(stdin []byte, extra []string, args ...string) (string, error) {
-		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: append(env, extra...), Args: args, Timeout: filterTimeout}
+		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: append(env, extra...), Args: args, Timeout: filterTimeout, Untranslated: true}
 		if stdin != nil {
 			c.Stdin = bytes.NewReader(stdin)
 		}
@@ -195,7 +204,10 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 		// write it keeps from.
 		add = append(add, "--sparse")
 	}
+	// Pathspecs go on standard input, each with its magic: literal for
+	// the paths asked, excluded for the folders left out.
 	var spec []byte
+	addSpec := func(magic, p string) { spec = append(append(append(spec, magic...), p...), 0) }
 	if !s.All {
 		paths, err := present(ctx, git, w.WorkTree, s.Paths)
 		if err != nil {
@@ -203,36 +215,50 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 		}
 		if len(paths) == 0 {
 			add = nil // nothing on disk or in the index to keep
-		} else {
-			add = append(add, "--pathspec-from-file=-", "--pathspec-file-nul")
 		}
 		for _, p := range paths {
-			spec = append(append(spec, p...), 0)
+			addSpec(":(literal)", p)
 		}
-	} else if opts.Ignored && opts.Worktree != "" {
-		// A worktree removed keeps its ignored files, a .env, but not
-		// its ignored folders, node_modules or a build's output: rebuilt
-		// from the rest, and so large that keeping them would hold up the
-		// removal for minutes and fill the object store.
-		dirs, err := ignoredDirs(git)
-		if err != nil {
-			return Snapshot{}, err
-		}
-		spec = append([]byte(":/"), 0)
-		for _, d := range dirs {
-			spec = append(append(append(spec, ":(exclude,literal)"...), d...), 0)
-		}
-		add = append(add, "--pathspec-from-file=-", "--pathspec-file-nul")
 	} else {
-		add = append(add, "--", ":/")
-	}
-	lit := []string{"GIT_LITERAL_PATHSPECS=1"}
-	if s.All {
-		lit = nil
+		addSpec("", ":/")
+		if opts.Ignored && opts.Worktree != "" {
+			// A worktree removed keeps its ignored files, a .env, but
+			// not its ignored folders, node_modules or a build's output:
+			// rebuilt from the rest, and so large that keeping them would
+			// hold up the removal for minutes and fill the object store.
+			dirs, err := ignoredDirs(git)
+			if err != nil {
+				return Snapshot{}, err
+			}
+			for _, d := range dirs {
+				addSpec(":(exclude,literal)", d)
+			}
+		}
 	}
 	if add != nil {
-		if _, err := git(spec, append(lit, "GIT_NO_LAZY_FETCH=1"), add...); err != nil {
-			return Snapshot{}, err
+		add = append(add, "--pathspec-from-file=-", "--pathspec-file-nul")
+		// A repository inside with no commit checked out, one just made
+		// with git init, cannot be added: it is left out, and the rest
+		// kept, rather than every snapshot failing until it has one.
+		for left := map[string]bool{}; ; {
+			_, err := git(spec, []string{"GIT_NO_LAZY_FETCH=1"}, add...)
+			if err == nil {
+				break
+			}
+			var e *run.Error
+			more := false
+			if errors.As(err, &e) {
+				for _, m := range noCommitOut.FindAllStringSubmatch(e.Stderr, -1) {
+					if d := m[1]; !left[d] && len(left) < maxLeftOut {
+						left[d] = true
+						addSpec(":(exclude,literal)", d)
+						more = true
+					}
+				}
+			}
+			if !more {
+				return Snapshot{}, err
+			}
 		}
 	}
 	if s.Tree, err = git(nil, nil, "write-tree"); err != nil {

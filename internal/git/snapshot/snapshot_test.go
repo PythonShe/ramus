@@ -395,3 +395,24 @@ func TestSparseCheckout(t *testing.T) {
 		t.Fatalf("the ignored file: %q", out)
 	}
 }
+
+// A repository inside with no commit, one just made with git init, is
+// left out of a snapshot, which keeps the rest rather than failing.
+func TestRepositoryWithoutCommitLeftOut(t *testing.T) {
+	f := setup(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	f.r.Git("init", "-q", "d/inner")
+	f.r.Write("d/new", "n")
+	f.r.Write("top", "t")
+	all := f.take(Options{Reason: "Snapshot now"})
+	some := f.take(Options{Reason: "Delete d", Paths: []string{"d"}})
+	for _, c := range []struct {
+		s    Snapshot
+		path string
+	}{{all, "top"}, {all, "d/new"}, {some, "d/new"}} {
+		if out := f.r.Git("show", c.s.Commit+":"+c.path); out == "" {
+			t.Fatalf("%s not kept", c.path)
+		}
+	}
+}
