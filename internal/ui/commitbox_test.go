@@ -369,3 +369,44 @@ func TestCommitDuringOperations(t *testing.T) {
 	h.until("the edit stop", func() bool { return tb.s.State.Operation == "rebase" && cs.prepRead })
 	h.until("the box", h.shows("Commit and Push"))
 }
+
+// The message git prepared for a cherry-pick gives way to the next
+// one's, as one pick ends and another stops between two reads of the
+// state, unless it was edited.
+func TestCommitNextPreparedMessage(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "base\n")
+	r.Commit("base")
+	r.Git("switch", "-q", "-c", "other")
+	r.Write("a.txt", "A\n")
+	r.Commit("pick A")
+	r.Git("switch", "-q", "main")
+	r.Write("a.txt", "main\n")
+	r.Commit("main")
+	if _, err := r.Run(nil, "cherry-pick", "other"); err == nil {
+		t.Fatal("the cherry-pick did not stop")
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	cs := &tb.commit
+	h.until("the first message", func() bool { return cs.subject == "pick A" })
+	if err := os.WriteFile(filepath.Join(r.GitDir(), "MERGE_MSG"), []byte("pick B\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r.Write("b.txt", "status changes\n")
+	h.until("the next message", func() bool { return cs.subject == "pick B" })
+
+	cs.subject = "mine"
+	if err := os.WriteFile(filepath.Join(r.GitDir(), "MERGE_MSG"), []byte("pick C\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r.Write("b.txt", "status changes again\n")
+	h.until("the status read", func() bool {
+		return cs.prepRead && cs.prepStatus == tb.s.State.Status && strings.HasPrefix(cs.prep.Message, "pick C")
+	})
+	if cs.subject != "mine" {
+		t.Fatalf("an edited message replaced: %q", cs.subject)
+	}
+}

@@ -388,7 +388,10 @@ func followOperation(t *tab) {
 			return
 		}
 		cs.prep, cs.prepRead = p, true
-		if operationCommit(op) && p.Message != "" && cs.opMsg == "" && cs.untouched() {
+		// The message of an operation before, not edited, gives way: one
+		// can end and the next stop between two reads of the state.
+		unwritten := cs.opMsg == "" && cs.untouched() || cs.opMsg != "" && cs.holds(cs.opMsg)
+		if operationCommit(op) && p.Message != "" && unwritten {
 			cs.subject, cs.body = message.Split(p.Message)
 			cs.opMsg = p.Message
 		}
