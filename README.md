@@ -22,10 +22,11 @@ repositories and runs your own git.
   a file's or a line's history, and blame. Each commit's files show the
   lines they add and delete; its people, co-authors among them, show the
   history of their commits, and it names its children and the branches
-  and tags that contain it.
-- **Changes**: the lines each change adds and deletes, staged and not;
-  stage, unstage or discard a file, a change or single lines, and commit
-  with co-authors.
+  and tags that contain it. Compare two commits, or one with the files
+  on disk.
+- **Changes**: the lines each change adds and deletes, staged and not,
+  and the files of a new folder; stage, unstage or discard a file, a
+  change or single lines, and commit with co-authors.
 - **Edit history**: reorder, reword, squash, fix up or drop commits by
   dragging them.
 - **Conflicts**: a merge editor that takes a side or both, previews the
@@ -45,8 +46,8 @@ repositories and runs your own git.
   release or force off a lock, through your `git-lfs`; pictures stored in
   LFS diff as pictures.
 - **When git refuses**: a write that fails says why, and offers the way
-  on: pull before pushing, stash and try again, or remove a lock a
-  crashed git left behind.
+  on: pull before pushing, stash and try again, remove a lock a crashed
+  git left behind, or set the name and email git commits with.
 - **Snapshots**: uncommitted work is kept before anything that would drop
   it, and can be restored or taken by hand at any time.
 - **Statistics**: commits by person, a calendar, heat map and treemaps.
