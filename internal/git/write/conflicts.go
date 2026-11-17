@@ -195,6 +195,28 @@ func keepMessage(gitDir string) (string, error) {
 	return cc, nil
 }
 
+// PreparedMessage is the message git prepared in MERGE_MSG for the
+// commit that ends a merge, cherry-pick or revert stopped, as git's
+// editor would show it stripped: without the conflicts listed and lines
+// starting with comment, the comment string. "" when there is none.
+func PreparedMessage(gitDir, comment string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(gitDir, "MERGE_MSG"))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var kept []string
+	for _, l := range strings.Split(dropConflicts(string(b)), "\n") {
+		if comment != "" && strings.HasPrefix(l, comment) {
+			continue
+		}
+		kept = append(kept, strings.TrimRight(l, " \t\r"))
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n")), nil
+}
+
 // squashComment is the comment string git wrote a squash's message with,
 // its first line a comment: one chosen by an earlier continue of the
 // same rebase, which git keeps using, strips only if given again.
