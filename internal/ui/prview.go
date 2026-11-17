@@ -756,7 +756,7 @@ func (a *App) prPatch(c *ui.Context, t *tab, rv *prReview) {
 		load()
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, rv.file))
 			pathLabel(c, shown).Bold().Grow(1)
 			fileLines(c, lineAt(d.Lines, rv.file))

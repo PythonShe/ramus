@@ -41,6 +41,13 @@ const (
 	// controlHeight is a toolbar button's height, which what sits on a
 	// bar beside toolbar buttons, as a tab, takes too.
 	controlHeight = 28
+	// barHeight is the least height of a pane's first row, its bar or
+	// header, whether it holds controls or only text: panes side by side
+	// put their first lines at one height.
+	barHeight = controlHeight + 2*barPadY
+	// messagePadY is the space above a commit's subject, which centres
+	// its first line on a bar beside it.
+	messagePadY = spaceL
 )
 
 // Type sizes. Body text takes the theme's size and sets none: it is 13 on

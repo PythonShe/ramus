@@ -172,7 +172,7 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 	ro := t.s.Queue == nil
 	w := t.s.Where()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(path)
 			pathLabel(c, shown).Bold().Grow(1)
 			if cf.Path != path || ms.loading && cf.Segments == nil {

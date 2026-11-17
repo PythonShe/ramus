@@ -73,7 +73,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 	d.table.Label = func(i int) string { return worktreeLabel(wts[i]) }
 	var act func()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.WorktreeCount(len(wts))).Bold().Grow(1)
 			picked := d.pickedTwo(wts)
 			if ui.Button(c, locales.WorktreeCompareFolders()).Disabled(picked == nil).Clicked() {

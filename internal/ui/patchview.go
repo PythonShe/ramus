@@ -65,7 +65,9 @@ func (a *App) diffBar(c *ui.Context, review bool, more func()) {
 // binary file's patch has no lines for them to change.
 func (a *App) patchBar(c *ui.Context, review, text bool, more func()) {
 	o := a.diffOpts()
-	// A toolbar: what does not fit a narrow patch goes into its menu.
+	// A toolbar: what does not fit a narrow patch goes into its menu. Its
+	// buttons pad their text by the theme's 2.5 steps, so that the first
+	// one's text starts at insetX, under the file's name above it.
 	ui.Toolbar(c, func() {
 		if !text {
 			ui.Spacer(c)
@@ -92,7 +94,7 @@ func (a *App) patchBar(c *ui.Context, review, text bool, more func()) {
 			a.Settings.DiffSplit, a.Settings.ReviewUnified, a.Settings.DiffNoWrap = o.split == 1, o.reviewSplit == 0, o.noWrap
 			a.keepSettingsOr(locales.DiffSettingsNotSaved)
 		}
-	}).Label(locales.DiffOptions()).Padding(0, insetX, spaceS, insetX)
+	}).Label(locales.DiffOptions()).Padding(0, insetX, spaceS, insetX-c.Theme().Space(2.5))
 }
 
 // patchView is one file's patch in mygo's diff viewer, with what maps the

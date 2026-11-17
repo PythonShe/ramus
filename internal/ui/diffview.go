@@ -209,7 +209,7 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	th := c.Theme()
 	d := &t.cv.diff
 	ro := t.s.Queue == nil
-	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 		shown, _ := showPath(string(m.st.Path(int(r.idx))))
 		if d.key.orig != "" {
 			// A rename names where the file came from, which a patch of no

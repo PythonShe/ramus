@@ -125,7 +125,7 @@ func (a *App) reviewView(c *ui.Context, t *tab) {
 	rv.list.Header = func(i int) bool { return i%2 == 0 }
 	var act func()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			changesModes(c, &t.cv)
 			what := locales.ReviewToReview(len(files))
 			if rv.onlyNew {
@@ -270,7 +270,7 @@ func (a *App) reviewHeader(c *ui.Context, t *tab, st *status.Status, e int, ro b
 	rv := &t.rev
 	path := string(st.Path(e))
 	it := rv.item(path)
-	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+	ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		shown, _ := showPath(path)
 		pathLabel(c, shown).Bold().Grow(1)
 		ui.Text(c, entryWords(st, e, secUnstaged)).FontSize(textSmall).TextColor(th.TextMuted)

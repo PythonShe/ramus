@@ -309,14 +309,14 @@ func (cv *commitView) message(d *session.CommitDetail) (subject, body []byte, co
 // fittedMessage is the height that shows the subject and the body, or
 // commitBodyMax of a longer one.
 func (cv *commitView) fittedMessage() float32 {
-	return spaceM + cv.subjectH + spaceS + min(cv.bodyH, commitBodyMax) + spaceS
+	return messagePadY + cv.subjectH + spaceS + min(cv.bodyH, commitBodyMax) + spaceS
 }
 
 // commitMessage shows the subject and the body; a body taller than the
 // space it has scrolls.
 func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	subject, body, _ := cv.message(d)
-	col := ui.Column(c).Padding(spaceM, insetX, 0, insetX).Gap(spaceS).FillWidth()
+	col := ui.Column(c).Padding(messagePadY, insetX, 0, insetX).Gap(spaceS).FillWidth()
 	if len(body) > 0 {
 		col.Fill()
 	}
@@ -853,7 +853,7 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		load()
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(commitFileName(f, cv.file))
 			pathLabel(c, shown).Bold().Grow(1)
 			fileLines(c, lineAt(d.Lines, cv.file))

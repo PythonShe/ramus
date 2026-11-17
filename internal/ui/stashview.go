@@ -129,7 +129,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 	}
 	listBesideCommit(c, &ss.detailW, 560, &ss.detail, func() {
 		ui.Column(c).Fill().Children(func() {
-			ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				if d := ss.dropped; d != nil {
 					ui.Text(c, locales.StashDropped(hex.EncodeToString(d.OID)[:10])).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Grow(1)
 					if ui.Button(c, locales.StashRestore()).Disabled(t.s.Queue == nil).Clicked() {

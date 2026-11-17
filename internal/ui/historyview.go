@@ -249,7 +249,7 @@ func (a *App) historyEmpty(c *ui.Context, t *tab, h session.HistoryState) {
 func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 	th := c.Theme()
 	hv := &t.hist
-	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 		in := ui.SearchField(c, &hv.jump).Placeholder(locales.HistoryGoTo()).Label(locales.HistoryGoTo()).
 			Bind(&hv.find).Grow(1).MinWidth(leastFieldW)
 		if hv.focusFind {

@@ -298,7 +298,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 	a.rebuildChanges(t)
 	cv.countLines(t)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			// The modes lead the bar here as in the review, so they stay
 			// in place as the mode changes.
 			changesModes(c, cv)

@@ -47,7 +47,7 @@ func (a *App) reflogView(c *ui.Context, t *tab) {
 	rs := &t.reflog
 	listBesideCommit(c, &rs.detailW, 560, &rs.detail, func() {
 		ui.Column(c).Fill().Children(func() {
-			ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Segmented(c, &rs.lostShown, locales.RepoSectionReflog(), locales.ReflogLostCommits())
 				if rs.lostShown == 0 {
 					a.reflogRefMenu(c, t)

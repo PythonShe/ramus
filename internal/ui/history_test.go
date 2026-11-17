@@ -468,7 +468,7 @@ func TestCommitMessageDragsTaller(t *testing.T) {
 	// The divider is msgH below the top of the message: its padding, the
 	// subject and the gap above the body.
 	body, _ := h.tt.Find(strings.Join(lines, "\n"))
-	x, y := body.X+40, body.Y-spaceS-cv.subjectH-spaceM+cv.msgH
+	x, y := body.X+40, body.Y-spaceS-cv.subjectH-messagePadY+cv.msgH
 	h.tt.Press(x, y)
 	h.tt.Frame()
 	for _, dy := range []float32{25, 50, 75, 100} {

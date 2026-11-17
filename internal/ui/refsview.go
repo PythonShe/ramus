@@ -139,7 +139,7 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 		a.loadPulls(t)
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Segmented(c, &rs.kind, locales.RefsBranches(), locales.RefsTags(), locales.RefsRemotes())
 			if rs.kind != refsRemotes {
 				ui.TextInput(c, &rs.filter).Placeholder(locales.CommonFilter()).Label(locales.CommonFilter()).Width(200).Bind(&a.find.refs)

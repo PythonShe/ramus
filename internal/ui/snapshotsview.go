@@ -64,7 +64,7 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 	ss := &t.snaps
 	a.loadSnapshots(t)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceL).AlignItems(ui.Center).Children(func() {
 			// The sidebar names the page, as it does the others.
 			ui.Spacer(c)
 			ro := t.s.Queue == nil
@@ -272,7 +272,7 @@ func (a *App) snapshotPatch(c *ui.Context, t *tab, s snapshot.Snapshot, f snapsh
 		load()
 	}
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(f.Path)
 			pathLabel(c, shown).Bold().Grow(1)
 			if closeButton(c, locales.CommitClosePatch()).Clicked() {

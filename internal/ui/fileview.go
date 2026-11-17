@@ -144,7 +144,7 @@ func within(root, abs string) (string, bool) {
 func (a *App) fileView(c *ui.Context, t *tab) {
 	fs := &t.file
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			shown, _ := showPath(fs.path)
 			pathLabel(c, shown).Bold().Grow(1)
 			if fs.blame == 0 {
