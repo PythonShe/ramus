@@ -88,24 +88,33 @@ func (a *App) ShowFile(abs string, blame bool) {
 		dir = filepath.Dir(abs)
 	}
 	a.Open(dir)
-	a.pendingFile = pendingFile{abs: abs, blame: blame}
+	a.pendingFile = pendingFile{abs: abs, blame: blame, t: a.current()}
 }
 
 type pendingFile struct {
 	abs   string
 	blame bool
+	// t is the tab opened for it, which alone can show it.
+	t *tab
 }
 
-// resolvePending shows a file asked for before its repository was open.
+// resolvePending shows a file asked for before its repository was open,
+// once that repository is: where it is in the work tree is worked out
+// off the main thread, which resolving symbolic links may hold up, and
+// once, so a file the repository turned out not to hold is not looked
+// for again each frame.
 func (a *App) resolvePending(t *tab) {
 	p := a.pendingFile
-	if p.abs == "" || t.s.Repo == nil {
+	if p.abs == "" || p.t != t || t.s.Repo == nil {
 		return
 	}
-	if rel, ok := within(t.s.Repo.WorkTree, p.abs); ok {
-		a.pendingFile = pendingFile{}
-		a.showFile(t, rel, p.blame)
-	}
+	a.pendingFile = pendingFile{}
+	root, update := t.s.Repo.WorkTree, a.Update
+	a.goWork(t, func() {
+		if rel, ok := within(root, p.abs); ok {
+			update(func() { a.showFile(t, rel, p.blame) })
+		}
+	})
 }
 
 // within is abs relative to root, with "/" for a folder, when it is in it.
