@@ -425,7 +425,7 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 			if !pending {
 				ui.Text(c, strconv.Itoa(r.Totals.Commits))
 			} else if r.Loading {
-				ui.Spinner(c).Size(12, 12)
+				ui.Spinner(c).Size(12, 12).Label(locales.CommonLoading())
 			}
 		case 2:
 			if !pending {

@@ -118,7 +118,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 				switch {
 				case w.Prunable || w.Bare:
 				case !read:
-					ui.Spinner(c).Size(12, 12)
+					ui.Spinner(c).Size(12, 12).Label(locales.CommonLoading())
 				case sum.Err == nil:
 					ui.Text(c, strconv.Itoa(sum.Changes))
 				}

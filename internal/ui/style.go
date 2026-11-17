@@ -2,6 +2,8 @@ package ui
 
 import (
 	"github.com/egoist/mygo/ui"
+
+	"ramus/locales"
 )
 
 // The app's spacing, type sizes and shared frames. Views take their
@@ -178,7 +180,7 @@ func dangerButton(c *ui.Context, label string, disabled bool) ui.Element {
 // it can take long enough to wonder.
 func loading(c *ui.Context, what string) {
 	ui.Column(c).Fill().Center().Gap(spaceM).Children(func() {
-		s := ui.Spinner(c)
+		s := ui.Spinner(c).Label(locales.CommonLoading())
 		if what != "" {
 			s.Label(what)
 			ui.Text(c, what).FontSize(textSmall).TextColor(c.Theme().TextMuted)

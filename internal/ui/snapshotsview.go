@@ -176,7 +176,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 				ui.Text(c, parts).FontSize(textSmall).TextColor(th.TextMuted)
 			}
 			if !ss.filesRead {
-				ui.Spinner(c)
+				ui.Spinner(c).Label(locales.CommonLoading())
 				return
 			}
 			if ss.filesErr != "" {

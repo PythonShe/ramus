@@ -183,6 +183,22 @@ func (msgs Messages) CommonUndoTooLate() string {
 	return Catalog.Format(msgs.locale, "commonUndoTooLate", nil)
 }
 
+// CommonLoading says "Loading"
+// in the language the app shows.
+//
+// The accessible name of a spinner shown while something is read, where no
+// text beside it says what: a screen reader says it.
+func CommonLoading() string { return In(i18n.Locale()).CommonLoading() }
+
+// CommonLoading says "Loading"
+// in the language of msgs.
+//
+// The accessible name of a spinner shown while something is read, where no
+// text beside it says what: a screen reader says it.
+func (msgs Messages) CommonLoading() string {
+	return Catalog.Format(msgs.locale, "commonLoading", nil)
+}
+
 // CommonChoose says "Choose…"
 // in the language the app shows.
 //

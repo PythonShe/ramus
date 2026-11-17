@@ -329,7 +329,7 @@ func (a *App) reviewBody(c *ui.Context, t *tab, st *status.Status, e int, ro boo
 	case res.Err != nil:
 		errorMessage(c, errText(res.Err))
 	case p == nil:
-		ui.Row(c).Padding(spaceL, insetX).Children(func() { ui.Spinner(c) })
+		ui.Row(c).Padding(spaceL, insetX).Children(func() { ui.Spinner(c).Label(locales.CommonLoading()) })
 	case res.Truncated:
 		ui.Row(c).Padding(spaceM, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.ReviewTooLarge()).TextColor(th.TextMuted)
@@ -347,7 +347,7 @@ func (a *App) reviewBody(c *ui.Context, t *tab, st *status.Status, e int, ro boo
 	case pv.failed:
 		note(locales.ReviewCannotShow())
 	case pv.d == nil:
-		ui.Row(c).Padding(spaceL, insetX).Children(func() { ui.Spinner(c) })
+		ui.Row(c).Padding(spaceL, insetX).Children(func() { ui.Spinner(c).Label(locales.CommonLoading()) })
 	default:
 		if pv.endings != "" {
 			ui.Text(c, locales.ReviewLineEndings(pv.endings)).

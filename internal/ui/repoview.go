@@ -27,7 +27,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 	switch {
 	case st.Opening:
 		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
-			ui.Spinner(c)
+			ui.Spinner(c).Label(locales.RepoOpening(t.s.Path))
 			ui.Text(c, locales.RepoOpening(t.s.Path)).TextColor(th.TextMuted)
 		})
 		return

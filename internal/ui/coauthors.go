@@ -69,7 +69,7 @@ func (a *App) coAuthorButton(c *ui.Context, t *tab) {
 			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 				f = ui.SearchField(c, &p.query).Label(locales.CommitBoxSearchPeople()).Placeholder(locales.CommitBoxSearchPeople()).AutoFocus().Grow(1)
 				if !p.read {
-					ui.Spinner(c).FontSize(textSmall)
+					ui.Spinner(c).FontSize(textSmall).Label(locales.CommonLoading())
 				}
 			})
 			rows := p.build(cs, a.Settings.Emails)

@@ -493,7 +493,7 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 		r := sc.rng
 		switch {
 		case sc.asked && r == nil:
-			ui.Spinner(c)
+			ui.Spinner(c).Label(locales.CommonLoading())
 			return
 		case r == nil:
 			return

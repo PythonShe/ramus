@@ -18,7 +18,7 @@ var named = map[ui.Role]bool{
 	ui.RoleSlider: true, ui.RoleTextField: true, ui.RolePopUpButton: true, ui.RoleTab: true, ui.RoleMenuButton: true,
 	ui.RoleToggleButton: true, ui.RoleComboBox: true, ui.RoleDisclosure: true, ui.RoleListItem: true, ui.RoleTreeItem: true,
 	ui.RoleRow: true, ui.RoleImage: true, ui.RoleList: true, ui.RoleTable: true, ui.RoleTree: true, ui.RoleSplitter: true,
-	ui.RoleStepper: true,
+	ui.RoleStepper: true, ui.RoleProgress: true,
 }
 
 // unnamed fails the test for each control of the last frame that a

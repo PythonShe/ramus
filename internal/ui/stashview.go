@@ -179,7 +179,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			case len(ss.entries) == 0:
 				ui.Column(c).Fill().Center().Children(func() {
 					if ss.loading {
-						ui.Spinner(c)
+						ui.Spinner(c).Label(locales.CommonLoading())
 						return
 					}
 					ui.Text(c, locales.StashNone()).TextColor(th.TextMuted)

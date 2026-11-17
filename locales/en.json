@@ -25,6 +25,10 @@
   "@commonUndoTooLate": {
     "description": "A toast when the user clicks a toast's Undo but another change was made since, or the change was already undone: Undo would take back something else, so it does nothing."
   },
+  "commonLoading": "Loading",
+  "@commonLoading": {
+    "description": "The accessible name of a spinner shown while something is read, where no text beside it says what: a screen reader says it."
+  },
   "commonChoose": "Choose…",
   "@commonChoose": {
     "description": "Opens a folder picker."

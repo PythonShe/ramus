@@ -247,7 +247,7 @@ func wtWorktreeRow(c *ui.Context, w repo.Worktree, sum session.WorktreeSummary, 
 		case w.Prunable:
 			ui.Text(c, locales.WorktreeFolderMissing()).FontSize(textSmall).TextColor(th.Warning)
 		case !read:
-			ui.Spinner(c).Size(12, 12)
+			ui.Spinner(c).Size(12, 12).Label(locales.CommonLoading())
 		case sum.Err != nil:
 			ui.Text(c, errText(sum.Err)).FontSize(textSmall).TextColor(th.Danger).SingleLine().MaxWidth(160).Tooltip(errText(sum.Err))
 		default:

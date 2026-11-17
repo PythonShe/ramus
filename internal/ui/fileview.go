@@ -208,7 +208,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 			case fs.commits == nil:
 				ui.Column(c).Fill().Center().Children(func() {
 					if fs.logLoading {
-						ui.Spinner(c)
+						ui.Spinner(c).Label(locales.CommonLoading())
 						return
 					}
 					ui.Text(c, locales.FileHistoryNoCommits()).TextColor(th.TextMuted)
@@ -338,7 +338,7 @@ func (a *App) blameView(c *ui.Context, t *tab) {
 	}
 	if !fs.blameDone {
 		ui.Row(c).Padding(0, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.Spinner(c)
+			ui.Spinner(c).Label(locales.FileHistoryBlaming())
 			ui.Text(c, locales.FileHistoryBlaming()).FontSize(textSmall).TextColor(th.TextMuted)
 		})
 	}

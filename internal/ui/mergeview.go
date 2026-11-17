@@ -624,7 +624,7 @@ func (a *App) mergeDialogView(c *ui.Context) {
 				ui.Text(c, d.err).TextColor(th.Danger).Selectable()
 			case p == nil:
 				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-					ui.Spinner(c)
+					ui.Spinner(c).Label(locales.MergeWorkingOut())
 					ui.Text(c, locales.MergeWorkingOut()).TextColor(th.TextMuted)
 				})
 			case p.UpToDate:
