@@ -98,3 +98,49 @@ func TestDefaultBranchRefused(t *testing.T) {
 		t.Fatalf("written:\n%s", b)
 	}
 }
+
+// A global config git cannot read says so, the fields left off.
+func TestIdentityUnreadable(t *testing.T) {
+	h, cfg := identityHarness(t)
+	if err := os.WriteFile(cfg, []byte("[user\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	h.app.openSettings()
+	s := &h.app.settingsUI
+	h.until("the reason", func() bool { return strings.Contains(s.err, "Could not read git's settings") })
+	if s.identRead {
+		t.Fatal("read")
+	}
+}
+
+// Changes saved in quick succession are written one after the other,
+// none failing on the config's lock; one typed with the settings open
+// as the window closes is written too.
+func TestIdentitySavesInTurn(t *testing.T) {
+	h, cfg := identityHarness(t)
+	h.tt.Frame()
+	h.app.openSettings()
+	s := &h.app.settingsUI
+	h.until("the identity", func() bool { return s.identRead })
+	s.ident.Name = "Some One"
+	h.app.saveIdentity()
+	s.ident.Email = "some@example.com"
+	h.app.saveIdentity()
+	s.ident.DefaultBranch = "trunk"
+	h.app.saveIdentity()
+	s.ident.Name = "Some Other"
+	h.app.SaveIdentity()
+	h.app.WaitIdentity()
+	n := 0
+	h.until("a failure told", func() bool { n++; return n > 5 })
+	if s.err != "" {
+		t.Fatal(s.err)
+	}
+	b, _ := os.ReadFile(cfg)
+	for _, want := range []string{"name = Some Other", "email = some@example.com", "defaultBranch = trunk"} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("no %q in:\n%s", want, b)
+		}
+	}
+}

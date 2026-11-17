@@ -81,12 +81,17 @@ func (ws *windows) layoutChanged() {
 }
 
 // flush writes the layout and the drafts, and waits for the settings
-// being written, at the start of a quit. They are the writes the main
+// and the git identity typed in them being written, at the start of a
+// quit. They are the writes the main
 // thread waits on: the OS may end the process as soon as the quit's
 // listeners return, and the files are small.
 func (ws *windows) flush() {
 	if k := ws.deps.SettingsKeeper; k != nil {
 		k.Wait()
+	}
+	for _, w := range ws.list {
+		w.app.SaveIdentity()
+		w.app.WaitIdentity()
 	}
 	if d := ws.deps.Drafts; d != nil {
 		if err := d.Flush(); err != nil {
@@ -214,6 +219,7 @@ func (ws *windows) show(w *window) {
 			ws.flush() // the app quits with its last window
 			ws.quitting = true
 		}
+		w.app.SaveIdentity() // the settings open, the change typed is kept
 		w.app.CloseAll()
 		ws.list = slices.DeleteFunc(ws.list, func(o *window) bool { return o == w })
 		if ws.focused == w {

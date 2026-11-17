@@ -8,12 +8,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/cli"
+	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 	"ramus/internal/settings"
 	"ramus/internal/tools"
@@ -43,6 +45,7 @@ type settingsState struct {
 	// the settings close, or as a field of it takes Enter: not as typed.
 	ident, identWas write.Identity
 	identRead       bool
+	identSaver      *identSaver
 	// nameField is the field of the name, which focusName focuses once
 	// it can take the focus.
 	nameField ui.Handle
@@ -371,7 +374,13 @@ func (a *App) readIdentity() {
 		id, err := write.ReadIdentity(ctx, r)
 		cancel()
 		update(func() {
-			if err == nil && s.open && !s.identRead {
+			switch {
+			case !s.open || s.identRead:
+			case err != nil:
+				// The fields stay off: what they would write over is
+				// not known.
+				s.err = locales.SettingsGitReadFailed(errText(err))
+			default:
 				s.ident, s.identWas, s.identRead = id, id, true
 			}
 		})
@@ -388,13 +397,10 @@ func (a *App) saveIdentity() {
 	}
 	r, update, was, now := a.Runner, a.Update, s.identWas, s.ident
 	s.identWas = now
-	a.goWork(nil, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := write.SetIdentity(ctx, r, was, now)
-		cancel()
-		if err == nil {
-			return
-		}
+	if s.identSaver == nil {
+		s.identSaver = &identSaver{}
+	}
+	s.identSaver.save(a, r, &identWrite{was: was, now: now, failed: func(was write.Identity, err error) {
 		msg := errText(err)
 		if errors.Is(err, write.ErrBranchName) {
 			msg = locales.SettingsDefaultBranchInvalid(strings.TrimSpace(now.DefaultBranch))
@@ -408,6 +414,71 @@ func (a *App) saveIdentity() {
 			s.identRead = false
 			a.notice = locales.SettingsGitFailed(msg)
 		})
+	}})
+}
+
+// SaveIdentity writes the identity the settings have, open or not: as
+// the window closes or the app quits, which no frame follows to write it.
+func (a *App) SaveIdentity() { a.saveIdentity() }
+
+// WaitIdentity waits for the identity being written, for the app to quit
+// once it is.
+func (a *App) WaitIdentity() {
+	if is := a.settingsUI.identSaver; is != nil {
+		is.done.Wait()
+	}
+}
+
+// identSaver writes the identity one change at a time: two writers of
+// git's global config at once, the second fails on its lock. A change
+// asked for while one is written follows it, the latest only.
+type identSaver struct {
+	mu      sync.Mutex
+	running bool
+	next    *identWrite
+	done    sync.WaitGroup
+}
+
+type identWrite struct {
+	was, now write.Identity
+	failed   func(was write.Identity, err error)
+}
+
+// save writes w, or after the write running.
+func (is *identSaver) save(a *App, r *run.Runner, w *identWrite) {
+	is.mu.Lock()
+	defer is.mu.Unlock()
+	if is.running {
+		if is.next != nil {
+			w.was = is.next.was // the one dropped was never written
+		}
+		is.next = w
+		return
+	}
+	is.running = true
+	is.done.Add(1)
+	a.goWork(nil, func() {
+		defer is.done.Done()
+		for w != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			err := write.SetIdentity(ctx, r, w.was, w.now)
+			cancel()
+			is.mu.Lock()
+			next := is.next
+			is.next = nil
+			if err != nil && next != nil {
+				// What failed is not there for the next to change.
+				next.was = w.was
+			}
+			if next == nil {
+				is.running = false
+			}
+			is.mu.Unlock()
+			if err != nil && next == nil {
+				w.failed(w.was, err)
+			}
+			w = next
+		}
 	})
 }
 

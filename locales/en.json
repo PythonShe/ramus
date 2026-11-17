@@ -2100,6 +2100,10 @@
   "@settingsGitFailed": {
     "description": "Writing the name, email or default branch to git's global config failed."
   },
+  "settingsGitReadFailed": "Could not read git's settings: {error}",
+  "@settingsGitReadFailed": {
+    "description": "Reading the name, email and default branch from git's global config failed, so their fields cannot be edited."
+  },
   "settingsRepositories": "Repositories",
   "@settingsRepositories": {
     "description": "The heading of the settings for open repositories: fetching, refreshing, pull requests, the recent list, snapshots."

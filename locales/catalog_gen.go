@@ -10345,6 +10345,24 @@ func (msgs Messages) SettingsGitFailed(error string) string {
 	return Catalog.Format(msgs.locale, "settingsGitFailed", map[string]any{"error": error})
 }
 
+// SettingsGitReadFailed says "Could not read git's settings: {error}"
+// in the language the app shows.
+//
+// Reading the name, email and default branch from git's global config
+// failed, so their fields cannot be edited.
+func SettingsGitReadFailed(error string) string {
+	return In(i18n.Locale()).SettingsGitReadFailed(error)
+}
+
+// SettingsGitReadFailed says "Could not read git's settings: {error}"
+// in the language of msgs.
+//
+// Reading the name, email and default branch from git's global config
+// failed, so their fields cannot be edited.
+func (msgs Messages) SettingsGitReadFailed(error string) string {
+	return Catalog.Format(msgs.locale, "settingsGitReadFailed", map[string]any{"error": error})
+}
+
 // SettingsRepositories says "Repositories"
 // in the language the app shows.
 //
