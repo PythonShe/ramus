@@ -119,6 +119,20 @@ func iconButton(c *ui.Context, g *ui.SVG, label string) ui.Element {
 	return b
 }
 
+// glyphMenuButton is a menu button that shows g before label and the
+// chevron after it, as ui.PopoverMenuButton does: the glyph ties it to
+// the top bar's button for the same action.
+func glyphMenuButton(c *ui.Context, g *ui.SVG, label string, build func(m *ui.Menu)) ui.Element {
+	th := c.Theme()
+	b := ui.Button(c, "").Label(label)
+	b.Children(func() {
+		ui.Icon(c, g).FontSize(iconMedium)
+		ui.Text(c, label).SingleLine()
+		ui.Icon(c, glyphs().chevronDown).FontSize(iconSmall).TextColor(th.TextMuted)
+	})
+	return b.PopoverMenuButton(build)
+}
+
 // smallIconButton is a small muted icon beside text that acts when
 // clicked, as Copy beside a hash, named label, which its tooltip says.
 func smallIconButton(c *ui.Context, g *ui.SVG, label string) ui.Element {

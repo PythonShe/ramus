@@ -954,7 +954,7 @@ func (a *App) remoteMenus(c *ui.Context, t *tab) {
 	}
 	none := ro || len(remotes) == 0
 	w := t.s.Where()
-	ui.PopoverMenuButton(c, locales.RefsFetch(), func(m *ui.Menu) {
+	glyphMenuButton(c, glyphs().refresh, locales.RefsFetch(), func(m *ui.Menu) {
 		if m.Item(locales.RefsFetchAll()).Disabled(none).Chosen() {
 			op, err := write.Fetch(w, "", rs.prune)
 			a.submit(t, op, err)
@@ -971,7 +971,7 @@ func (a *App) remoteMenus(c *ui.Context, t *tab) {
 		}
 	})
 	noUp := none || cur == nil || cur.Upstream == "" || cur.Gone
-	ui.PopoverMenuButton(c, locales.RefsPull(), func(m *ui.Menu) {
+	glyphMenuButton(c, glyphs().arrowDown, locales.RefsPull(), func(m *ui.Menu) {
 		for _, mode := range []struct {
 			label string
 			mode  write.PullMode
@@ -986,7 +986,7 @@ func (a *App) remoteMenus(c *ui.Context, t *tab) {
 			}
 		}
 	})
-	ui.PopoverMenuButton(c, locales.RefsPush(), func(m *ui.Menu) {
+	glyphMenuButton(c, glyphs().arrowUp, locales.RefsPush(), func(m *ui.Menu) {
 		if m.Item(locales.RefsPush()).Disabled(noUp).Chosen() {
 			a.submit(t, write.Push(w, write.PushOptions{}), nil)
 		}
