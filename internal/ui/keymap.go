@@ -413,9 +413,14 @@ func Accelerator(user map[string][]string, id string) string {
 	return accelerator(newKeymap(user), id)
 }
 
+// accelerator is the first of command id's chords a text field does not
+// take: the menu takes its keys before the window, so a chord of a
+// field's own given to it would take the key from the field.
 func accelerator(km *keymap, id string) string {
-	if ks := km.byID[id]; len(ks) > 0 {
-		return ks[0].String()
+	for _, k := range km.byID[id] {
+		if k.textSafe() {
+			return k.String()
+		}
 	}
 	return ""
 }

@@ -81,6 +81,14 @@ func TestKeymap(t *testing.T) {
 	if km.owner(chord{ui.Cmd, ui.KeyO}) != "open" || len(km.byID["palette"]) != 2 {
 		t.Fatalf("defaults %v", km.byID)
 	}
+	// The menu, which takes its keys before a text field, is given no
+	// chord of a field's own: typing an S stays typing.
+	if got := Accelerator(map[string][]string{"stash": {"S", "CmdOrCtrl+Alt+S"}}, "stash"); got != "CmdOrCtrl+Alt+S" {
+		t.Fatalf("stash's accelerator %q", got)
+	}
+	if got := Accelerator(nil, "stage-all"); got != "" {
+		t.Fatalf("Select All's chord given to the menu: %q", got)
+	}
 }
 
 func TestShortcutsRebound(t *testing.T) {
