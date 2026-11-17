@@ -7,8 +7,9 @@ import (
 )
 
 // BloomSettings describes a graph's changed-path Bloom filters. Version is
-// git's hash version: 1 hashes path bytes as signed chars (git's original
-// behaviour, wrong for bytes above 0x7f), 2 as unsigned.
+// git's hash version: 1 hashes path bytes as C chars (git's original
+// behaviour, wrong for bytes above 0x7f where char is signed; see
+// charSigned), 2 as unsigned.
 type BloomSettings struct {
 	Version         uint32
 	NumHashes       uint32
@@ -41,7 +42,7 @@ func (s BloomSettings) BloomKeys(path string) []BloomKey {
 // Key returns the key of one path, without a trailing slash.
 func (s BloomSettings) Key(path string) BloomKey {
 	const seed0, seed1 = 0x293ae76f, 0x7e646e2c
-	signed := s.Version == 1
+	signed := s.Version == 1 && charSigned
 	h0 := murmur3(seed0, path, signed)
 	h1 := murmur3(seed1, path, signed)
 	k := BloomKey{hashes: make([]uint32, s.NumHashes)}
@@ -106,7 +107,8 @@ func (l *layer) filter(i uint32) []byte {
 	return l.bdat[start:end:end]
 }
 
-// murmur3 is git's murmur3_seeded_v1 (signed) and _v2 (unsigned).
+// murmur3 is git's murmur3_seeded_v1 where char is signed (signed) and
+// _v2 (unsigned).
 func murmur3(seed uint32, data string, signed bool) uint32 {
 	const (
 		c1 = 0xcc9e2d51
