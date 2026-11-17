@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
@@ -206,13 +207,23 @@ func dropConflicts(msg string) string {
 		return msg
 	}
 	c := strings.TrimSuffix(strings.TrimRight(lines[i], "\n"), " Conflicts:")
-	if c == "" || strings.ContainsAny(c, " \t") {
+	// A comment string is marks, not a word: a line of the user's own,
+	// "Resolved Conflicts:", is not git's.
+	if c == "" || strings.IndexFunc(c, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsLetter(r) || unicode.IsDigit(r) }) >= 0 {
 		return msg
 	}
+	paths := 0
 	for _, l := range lines[i+1:] {
-		if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, c+"\t") {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		if !strings.HasPrefix(l, c+"\t") {
 			return msg
 		}
+		paths++
+	}
+	if paths == 0 {
+		return msg // git lists at least one
 	}
 	kept := strings.Join(lines[:i], "")
 	if cut := strings.LastIndex(kept, c+" ------------------------ >8 ------------------------\n"); cut >= 0 && (cut == 0 || kept[cut-1] == '\n') {

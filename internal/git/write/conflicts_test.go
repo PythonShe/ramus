@@ -173,6 +173,8 @@ func TestDropConflicts(t *testing.T) {
 		"s\n\n# ------------------------ >8 ------------------------\n# Do not modify or remove the line above.\n# Everything below it will be ignored.\n#\n# Conflicts:\n#\tf\n": "s\n",
 		"s\n\n# Conflicts:\nnot a path\n": "s\n\n# Conflicts:\nnot a path\n",
 		"s\n\nbody\n":                     "s\n\nbody\n",
+		"s\n\nResolved Conflicts:\n":      "s\n\nResolved Conflicts:\n",
+		"s\n\n# Conflicts:\n":             "s\n\n# Conflicts:\n",
 	} {
 		if got := dropConflicts(in); got != want {
 			t.Errorf("%q: got %q, want %q", in, got, want)
