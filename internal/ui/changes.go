@@ -295,8 +295,10 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 	cv.countLines(t)
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-			ui.SearchField(c, &cv.filter).Label(locales.ChangesFilterLabel()).Placeholder(locales.ChangesFilterPlaceholder()).Grow(1)
+			// The modes lead the bar here as in the review, so they stay
+			// in place as the mode changes.
 			changesModes(c, cv)
+			ui.SearchField(c, &cv.filter).Label(locales.ChangesFilterLabel()).Placeholder(locales.ChangesFilterPlaceholder()).Grow(1)
 			ro := t.s.Queue == nil
 			ui.PopoverMenuButton(c, locales.ChangesMore(), func(m *ui.Menu) {
 				// What there is to act on, the filter aside.

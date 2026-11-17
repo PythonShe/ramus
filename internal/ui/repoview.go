@@ -158,7 +158,8 @@ func (a *App) page(c *ui.Context, t *tab) {
 		// is committed without leaving it.
 		ui.Column(c).Fill().Children(func() {
 			ui.Column(c).Grow(1).Children(func() { a.reviewView(c, t) })
-			a.commitBox(c, t)
+			// As wide as under the list, not across the window.
+			ui.Column(c).FillWidth().MaxWidth(max(t.listW, leastListW)).Children(func() { a.commitBox(c, t) })
 		})
 		return
 	}

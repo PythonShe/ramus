@@ -145,6 +145,32 @@ func TestConflictBlock(t *testing.T) {
 	h.until("the result", func() bool { return h.tt.HasText("Result of conflict 1") && !h.tt.HasText("Ours: main") })
 }
 
+// The review keeps the modes where the list has them, and its commit box
+// as wide as under the list.
+func TestReviewLayout(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith("a.txt")
+	r.Commit("files")
+	r.Write("a.txt", "changed\n")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the patch", h.shows("Stage File"))
+	inList, ok := h.tt.Find("Review")
+	if !ok {
+		t.Fatal("no modes")
+	}
+	h.click("Review")
+	h.until("the review", h.shows("Mark All Seen"))
+	inReview, _ := h.tt.Find("Review")
+	if inReview.X != inList.X {
+		t.Errorf("the modes moved from %v to %v", inList.X, inReview.X)
+	}
+	tb := h.app.current()
+	if box, ok := h.tt.Find("Summary"); !ok || box.W > max(tb.listW, leastListW) {
+		t.Errorf("the commit box spans %v", box)
+	}
+}
+
 // Enter stages every file picked, as Delete discards them all, not only
 // the one the keyboard is on.
 func TestStagingActsOnEveryFilePicked(t *testing.T) {
