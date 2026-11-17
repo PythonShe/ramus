@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -115,5 +116,22 @@ func TestAbortMerge(t *testing.T) {
 	})
 	if strings.TrimSpace(r.Git("rev-parse", "HEAD")) != main {
 		t.Fatal("HEAD moved")
+	}
+}
+
+// A long run of unchanged text opened keeps its last lines, those next
+// to the conflict after it, and counts what it leaves out.
+func TestOpenedText(t *testing.T) {
+	var b strings.Builder
+	for i := range maxOpenedLines + 500 {
+		b.WriteString("line " + strconv.Itoa(i) + "\n")
+	}
+	got := openedText([]byte(b.String()))
+	last := "line " + strconv.Itoa(maxOpenedLines+499)
+	if !strings.HasPrefix(got, "line 0\n") || !strings.HasSuffix(got, last) || !strings.Contains(got, "\n⋯ 500 more lines\n") {
+		t.Fatalf("opened %q…%q", got[:20], got[len(got)-40:])
+	}
+	if got := openedText([]byte("a\nb\n")); got != "a\nb" {
+		t.Fatalf("short run %q", got)
 	}
 }

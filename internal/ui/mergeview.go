@@ -33,12 +33,14 @@ type mergeState struct {
 	gen   int
 	// index numbers each conflict segment among the conflicts.
 	index []int
-	// opened are the runs of unchanged text shown whole, by segment.
-	opened map[int]bool
+	// opened are the runs of unchanged text shown whole, by segment, as
+	// they show: made once, as one is opened.
+	opened map[int]string
 	// results are what each conflict's choice keeps, as shown, made
-	// for resultOf.
-	results  []string
-	resultOf []conflict.Choice
+	// for resultOf, once resultMade.
+	results    []string
+	resultOf   []conflict.Choice
+	resultMade []bool
 }
 
 // shownSegment is the text a segment shows: unchanged text shortened, or
@@ -132,7 +134,7 @@ func (a *App) loadMerge(t *tab, path string) {
 		ms.loading, ms.cf = false, cf
 		n := conflict.Count(cf.Segments)
 		ms.choices, ms.custom = make([]conflict.Choice, n), make([]string, n)
-		ms.results, ms.resultOf, ms.opened = nil, nil, nil
+		ms.results, ms.resultOf, ms.resultMade, ms.opened = nil, nil, nil, nil
 		a.showConflicts(ms)
 	})
 }
@@ -263,10 +265,10 @@ func unchanged(c *ui.Context, ms *mergeState, i int, text []byte) {
 	mono := func(s string) ui.Element {
 		return ui.Text(c, s).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).FillWidth()
 	}
-	if sh.hidden == 0 || ms.opened[i] {
-		whole := sh.text
-		if sh.hidden > 0 {
-			whole, _ = headLines(text, maxOpenedLines)
+	whole, opened := ms.opened[i]
+	if sh.hidden == 0 || opened {
+		if !opened {
+			whole = sh.text
 		}
 		mono(whole).Padding(rowPadY, insetX)
 		return
@@ -275,9 +277,9 @@ func unchanged(c *ui.Context, ms *mergeState, i int, text []byte) {
 		mono(sh.text)
 		if clickable(mono(locales.MergeUnchangedLines(sh.hidden))).Clicked() {
 			if ms.opened == nil {
-				ms.opened = map[int]bool{}
+				ms.opened = map[int]string{}
 			}
-			ms.opened[i] = true
+			ms.opened[i] = openedText(text)
 		}
 		mono(sh.tail)
 	})
@@ -287,10 +289,11 @@ func unchanged(c *ui.Context, ms *mergeState, i int, text []byte) {
 // as the choice changes.
 func (ms *mergeState) result(k int, cc *conflict.Conflict) string {
 	if len(ms.results) != len(ms.choices) {
-		ms.results, ms.resultOf = make([]string, len(ms.choices)), make([]conflict.Choice, len(ms.choices))
+		n := len(ms.choices)
+		ms.results, ms.resultOf, ms.resultMade = make([]string, n), make([]conflict.Choice, n), make([]bool, n)
 	}
-	if ch := ms.choices[k]; ms.resultOf[k] != ch || ms.results[k] == "" {
-		ms.resultOf[k] = ch
+	if ch := ms.choices[k]; ms.resultOf[k] != ch || !ms.resultMade[k] {
+		ms.resultOf[k], ms.resultMade[k] = ch, true
 		ms.results[k], _ = headLines(resolvedText(cc, ch), maxShownLines)
 	}
 	return ms.results[k]
@@ -370,16 +373,33 @@ func resolvedText(cc *conflict.Conflict, ch conflict.Choice) []byte {
 // compact shows unchanged text around conflicts: a short run whole, a long
 // one by its first and last lines, with how many it leaves out between.
 func compact(text []byte) (head string, hidden int, tail string) {
+	return compactTo(text, 3, 7)
+}
+
+// compactTo is text whole up to limit lines; past it, its first and
+// last keep lines and how many it leaves out between.
+func compactTo(text []byte, keep, limit int) (head string, hidden int, tail string) {
 	lines := bytes.SplitAfter(text, []byte{'\n'})
 	if len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
 		lines = lines[:len(lines)-1]
 	}
-	if len(lines) <= 7 {
+	if len(lines) <= limit {
 		return strings.TrimSuffix(redact.Control(string(text)), "\n"), 0, ""
 	}
-	first := bytes.Join(lines[:3], nil)
-	last := bytes.Join(lines[len(lines)-3:], nil)
-	return strings.TrimSuffix(redact.Control(string(first)), "\n"), len(lines) - 6, strings.TrimSuffix(redact.Control(string(last)), "\n")
+	first := bytes.Join(lines[:keep], nil)
+	last := bytes.Join(lines[len(lines)-keep:], nil)
+	return strings.TrimSuffix(redact.Control(string(first)), "\n"), len(lines) - 2*keep, strings.TrimSuffix(redact.Control(string(last)), "\n")
+}
+
+// openedText is a run of unchanged text opened whole, up to
+// maxOpenedLines; past it, its first and last lines with the count of
+// those left out, which keeps in view the lines by the conflicts.
+func openedText(text []byte) string {
+	head, hidden, tail := compactTo(text, maxOpenedLines/2, maxOpenedLines)
+	if hidden == 0 {
+		return head
+	}
+	return head + "\n" + locales.MergeMoreLines(hidden) + "\n" + tail
 }
 
 func (a *App) saveMerge(t *tab) {
