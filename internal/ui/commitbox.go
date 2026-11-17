@@ -411,11 +411,12 @@ func followTrack(t *tab) {
 	if !cs.amend || cs.trackLoading || (cs.trackFor == t.s.State.Refs && cs.trackOf == head.Target) {
 		return
 	}
-	cs.trackFor, cs.trackOf, cs.trackLoading = t.s.State.Refs, head.Target, true
-	of := head.Target
+	// Until the new read lands, the old one says nothing: a commit
+	// since may have left the upstream behind.
+	cs.trackFor, cs.trackOf, cs.trackLoading, cs.trackRead = t.s.State.Refs, head.Target, true, ""
 	t.s.LoadTrack(func(tr session.Track) {
 		cs.trackLoading = false
-		cs.track, cs.trackRead = tr, of
+		cs.track, cs.trackRead = tr, tr.Branch
 	})
 }
 

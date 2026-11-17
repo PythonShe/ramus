@@ -57,10 +57,9 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 	}
 	if !s.loading && (s.readFor != t.s.State.Refs || s.head != head.Target) {
 		s.readFor, s.head, s.loading = t.s.State.Refs, head.Target, true
-		of := head.Target
 		t.s.LoadTrack(func(tr session.Track) {
 			s.loading = false
-			s.track, s.trackOf = tr, of
+			s.track, s.trackOf = tr, tr.Branch
 		})
 	}
 	if s.trackOf != head.Target {

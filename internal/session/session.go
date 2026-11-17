@@ -146,7 +146,7 @@ type Session struct {
 	stats       statsLoad
 	tools       diffTools
 	refInfo     refLoad
-	track       refLoad
+	track       trackLoad
 	authors     authorsLoad
 	blame       blames
 	view        viewScope

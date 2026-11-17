@@ -180,6 +180,37 @@ func TestAmendPushed(t *testing.T) {
 	}
 }
 
+// With Amend ticked, the commit box and the sync button both read the
+// track as the refs change; neither is left waiting on a read the other
+// replaced.
+func TestAmendTrackShared(t *testing.T) {
+	h := newHarness(t)
+	up := h.repoWith()
+	up.Git("config", "receive.denyCurrentBranch", "ignore")
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", up.Dir)
+	r.Git("fetch", "-q", "origin")
+	r.Git("reset", "-q", "--hard", "origin/main")
+	r.Git("branch", "-q", "--set-upstream-to", "origin/main")
+	r.Write("a.txt", "a\n")
+	r.Commit("add a")
+	r.Git("push", "-q", "origin", "main")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	cs := &tb.commit
+	h.until("set up", func() bool { return cs.setup != nil })
+	cs.amend = true
+	h.until("the pushed commit", h.shows("Amend Pushed Commit"))
+	r.Write("b.txt", "b\n")
+	r.Commit("add b")
+	h.until("the sync button ahead", h.shows("Push 1 commit to origin/main"))
+	h.until("the commit box ahead", func() bool {
+		return !cs.trackLoading && cs.trackRead == "refs/heads/main" && cs.track.Ahead == 1
+	})
+}
+
 // While a merge waits for its commit, the box offers git's message and
 // commits the merge once conflicts are resolved; while a rebase waits on
 // its continue it is not there, but where it stopped to edit a commit.
