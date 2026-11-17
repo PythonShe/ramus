@@ -236,6 +236,10 @@ type tab struct {
 	failSeen *session.LogEntry
 	// note is the tab's notice, see claimNotice.
 	note tabNote
+	// pics are the people's pictures decoded, by lower-case email, as of
+	// the session's picsGen'th change of them.
+	pics    map[string]*ui.Bitmap
+	picsGen uint64
 }
 
 // NewApp returns the app with nothing open.

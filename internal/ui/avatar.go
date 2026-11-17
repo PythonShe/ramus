@@ -78,5 +78,46 @@ func hsl(h, s, l float64) ui.Color {
 // picture is the picture of the person with email, decoded once, nil
 // while the forge has given none.
 func (a *App) picture(t *tab, email string) *ui.Bitmap {
-	return nil
+	s := t.s
+	if gen := s.AvatarsChanged(); gen != t.picsGen || len(t.pics) > picsKept {
+		// Pictures dropped or come: decoded again as they are shown.
+		t.pics, t.picsGen = nil, gen
+	}
+	key := strings.ToLower(email)
+	if bmp, ok := t.pics[key]; ok {
+		return bmp
+	}
+	data, ok := s.Avatar(email)
+	if !ok {
+		return nil
+	}
+	// A small picture, decoded here once; one that does not decode is
+	// kept as nil, for initials.
+	bmp, err := ui.DecodeBitmap(data)
+	if err != nil {
+		bmp = nil
+	}
+	if t.pics == nil {
+		t.pics = map[string]*ui.Bitmap{}
+	}
+	t.pics[key] = bmp
+	return bmp
+}
+
+// picsKept bounds the pictures a tab keeps decoded: past it they are
+// decoded again as shown.
+const picsKept = 512
+
+// syncAvatars lets the session ask the forge for people's pictures while
+// the settings turn pull requests on, through the same tool, and asks for
+// those of commits ids.
+func (a *App) syncAvatars(t *tab, ids [][]byte) {
+	if !a.Settings.PullRequests || a.Runner == nil && a.forgeFind == nil {
+		t.s.SetForgeFind(nil)
+		return
+	}
+	t.s.SetForgeFind(a.findForge())
+	if len(ids) > 0 {
+		t.s.RequestAvatars(ids)
+	}
 }

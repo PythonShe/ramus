@@ -40,6 +40,9 @@ var historySlide = ui.Animation{Duration: 200 * time.Millisecond}
 type historyState struct {
 	list   ui.ListState
 	chosen int
+	// shownIDs are the commits whose authors the frame showed, whose
+	// pictures the next asks for.
+	shownIDs [][]byte
 	// loadFor is the load of history shown, snapFor its snapshot.
 	loadFor histLoad
 	snapFor *lanes.Snapshot
@@ -173,6 +176,9 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	t.s.LoadHistory()
 	h := t.s.History
 	hv.frame++
+	// The pictures of the authors of the rows shown in the last frame.
+	a.syncAvatars(t, hv.shownIDs)
+	hv.shownIDs = hv.shownIDs[:0]
 	a.followHistory(t, h)
 	switch {
 	case hv.slideFrom == 0:
@@ -775,6 +781,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 			var e ui.Element
 			switch col {
 			case colAuthor:
+				hv.shownIDs = append(hv.shownIDs, id)
 				e = ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Clip().Children(func() {
 					// The name beside it says who it is.
 					a.avatar(c, t, author, email, avatarRow).Role(ui.RoleNone).Label("")

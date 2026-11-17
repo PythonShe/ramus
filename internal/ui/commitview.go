@@ -116,6 +116,7 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		return
 	}
 	d := cv.d
+	a.syncAvatars(t, [][]byte{d.OID})
 	if cv.want != "" && cv.file < 0 && d.Files != nil {
 		for i := range d.Files.Len() {
 			if string(d.Files.Path(i)) == cv.want {

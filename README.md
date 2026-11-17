@@ -33,7 +33,7 @@ repositories and runs your own git.
   branch onto another, and clean up branches that are gone.
 - **Pull requests**: each branch's pull or merge request and the one each
   commit came in by, from GitHub through `gh` or GitLab through `glab`,
-  including GitHub stacks. Review a pull or merge request in the app: its
+  including GitHub stacks, and on GitHub the pictures of commit authors. Review a pull or merge request in the app: its
   files diffed locally, with the lines each changes and the threads under
   their lines; reply, resolve,
   comment on lines, and approve or request changes.
