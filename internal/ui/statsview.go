@@ -305,7 +305,7 @@ func barChart(c *ui.Context, title string, bars []bar, height float32) {
 		ui.Row(c).Gap(space2XS).Height(height).FillWidth().AlignItems(ui.End).Children(func() {
 			for i, b := range bars {
 				tip := locales.StatsBarTip(b.label, b.n)
-				ui.Column(c).Key(i).Grow(1).FillHeight().Justify(ui.End).Tooltip(tip).Label(tip).Role(ui.RoleImage).Children(func() {
+				ui.Column(c.Key(i)).Grow(1).FillHeight().Justify(ui.End).Tooltip(tip).Label(tip).Role(ui.RoleImage).Children(func() {
 					if b.n > 0 {
 						h := max(2, height*float32(b.n)/float32(most))
 						ui.Box(c).Height(h).FillWidth().Background(th.Accent).Radius(min(4, h/2), min(4, h/2), 0, 0)

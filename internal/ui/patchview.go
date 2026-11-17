@@ -428,7 +428,7 @@ func pictures(c *ui.Context, pv *patchView) {
 			if pv.images[k] == nil && pv.about[k] == "" && !pv.notFetched[k] {
 				continue
 			}
-			ui.Column(c).Key(k).Grow(1).Basis(0).FillHeight().Gap(spaceM).Children(func() {
+			ui.Column(c.Key(k)).Grow(1).Basis(0).FillHeight().Gap(spaceM).Children(func() {
 				ui.Row(c).Gap(spaceM).Children(func() {
 					ui.Text(c, title).FontSize(textSmall).Bold()
 					ui.Text(c, pv.about[k]).FontSize(textSmall).TextColor(th.TextMuted)

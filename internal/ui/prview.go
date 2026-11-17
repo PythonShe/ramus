@@ -965,7 +965,7 @@ func (a *App) threadNote(c *ui.Context, t *tab, rv *prReview, th *forge.Thread) 
 	ui.Scroll(c).Grow(1).FillWidth().Children(func() {
 		ui.Column(c).FillWidth().Gap(spaceS).Children(func() {
 			for _, cm := range th.Comments {
-				ui.Column(c).Key(cm.ID).FillWidth().Gap(spaceXS).Children(func() {
+				ui.Column(c.Key(cm.ID)).FillWidth().Gap(spaceXS).Children(func() {
 					commentHead(c, cm.Author, cm.At, now)
 					ui.Text(c, shownBody(cm.Body)).FontSize(noteBodySize).Selectable()
 				})
@@ -1195,7 +1195,7 @@ func (a *App) prConversation(c *ui.Context, t *tab, rv *prReview) {
 				})
 				if e.thread != nil {
 					for _, cm := range e.thread.Comments {
-						ui.Column(c).Key(cm.ID).Padding(0, 0, 0, spaceL).Gap(space2XS).Children(func() {
+						ui.Column(c.Key(cm.ID)).Padding(0, 0, 0, spaceL).Gap(space2XS).Children(func() {
 							commentHead(c, cm.Author, cm.At, now)
 							ui.Text(c, shownBody(cm.Body)).FontSize(noteBodySize).Selectable()
 						})
@@ -1348,7 +1348,7 @@ func (a *App) unplacedThreads(c *ui.Context, rv *prReview) {
 				ui.Column(c).FillWidth().Padding(spaceXS, 0).Gap(space2XS).Children(func() {
 					ui.Text(c, locales.PrsCommentLine(t.Line)).Bold().FontSize(textSmall)
 					for _, cm := range t.Comments {
-						ui.Column(c).Key(cm.ID).Padding(0, 0, 0, spaceL).Gap(space2XS).Children(func() {
+						ui.Column(c.Key(cm.ID)).Padding(0, 0, 0, spaceL).Gap(space2XS).Children(func() {
 							commentHead(c, cm.Author, cm.At, now)
 							ui.Text(c, shownBody(cm.Body)).FontSize(noteBodySize).Selectable()
 						})

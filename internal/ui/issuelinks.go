@@ -107,7 +107,7 @@ func (a *App) linksView(c *ui.Context) {
 			ui.Text(c, locales.IssueLinksTitle()).Bold()
 			for i := range d.rules {
 				r := &d.rules[i]
-				ui.Row(c).Key(i).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+				ui.Row(c.Key(i)).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 					ui.TextInput(c, &r.Pattern).Placeholder(`\bPROJ-(\d+)\b`).Label(locales.IssueLinksPattern()).Font("monospace").Grow(1)
 					ui.TextInput(c, &r.URL).Placeholder("https://tracker.example.com/browse/PROJ-$1").Label(locales.IssueLinksLink()).Grow(2)
 					if ui.Button(c, locales.CommonRemove()).Clicked() {

@@ -265,12 +265,12 @@ func heatMap(c *ui.Context, heat *activity.Heat) {
 	ui.Column(c).Gap(space2XS).Children(func() {
 		for i := range 7 {
 			d := (i + 1) % 7
-			ui.Row(c).Key(d).Gap(space2XS).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key(d)).Gap(space2XS).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, locales.StatsWeekdayShort(weekdayDate(time.Weekday(d)))).FontSize(textCaption).TextColor(th.TextMuted).Width(30)
 				for h := range 24 {
 					n := heat[d][h]
 					tip := locales.StatsHeatTip(weekdayDate(time.Weekday(d)), fmt.Sprintf("%02d:00", h), fmt.Sprintf("%02d:59", h), n)
-					ui.Box(c).Key(h).Size(cell, cell).Radius(2).Background(shadeColor(c, shade(n, most))).
+					ui.Box(c.Key(h)).Size(cell, cell).Radius(2).Background(shadeColor(c, shade(n, most))).
 						Tooltip(tip).Label(tip).Role(ui.RoleImage)
 				}
 			})
@@ -307,7 +307,7 @@ func (a *App) calendarView(c *ui.Context, sum *libstats.Summary) {
 	ui.Column(c).Gap(spaceXS).Children(func() {
 		ui.Row(c).Gap(space2XS).Children(func() {
 			for w := range calendarWeeks {
-				ui.Column(c).Key(w).Gap(space2XS).Children(func() {
+				ui.Column(c.Key(w)).Gap(space2XS).Children(func() {
 					for i := range 7 {
 						d := first + int32(7*w+i)
 						if d > end {
@@ -315,7 +315,7 @@ func (a *App) calendarView(c *ui.Context, sum *libstats.Summary) {
 						}
 						n := sum.Days[d]
 						tip := locales.StatsCalendarTip(activity.Date(d), activity.Date(d).Format("2006-01-02"), n)
-						ui.Box(c).Key(i).Size(cell, cell).Radius(2).Background(shadeColor(c, shade(n, most))).
+						ui.Box(c.Key(i)).Size(cell, cell).Radius(2).Background(shadeColor(c, shade(n, most))).
 							Tooltip(tip).Label(tip).Role(ui.RoleImage)
 					}
 				})

@@ -206,7 +206,7 @@ func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) stri
 		ui.Text(c, unit(d.weights[cur])).FontSize(textSmall).TextColor(th.TextMuted)
 	})
 	total := float64(d.weights[cur])
-	box := ui.Box(c).Key("treemap").Grow(1).FillWidth().MinHeight(240)
+	box := ui.Box(c.Key("treemap")).Grow(1).FillWidth().MinHeight(240)
 	// Laid out at the size the box had last frame; the first frame, and
 	// a resize, take one more to settle.
 	b := box.LayoutBounds()
@@ -291,7 +291,7 @@ func (a *App) treemapTile(c *ui.Context, ts *treemapState, d *treemapData, t til
 	if dir {
 		bg = th.Accent.Alpha(0.45)
 	}
-	el := ui.ButtonBase(c).Key(key).Background(bg).Radius(min(4, w/4, h/4)).Tooltip(tip).Label(tip).
+	el := ui.ButtonBase(c.Key(key)).Background(bg).Radius(min(4, w/4, h/4)).Tooltip(tip).Label(tip).
 		AlignItems(ui.Start).Justify(ui.Start)
 	// A tile too small for a label shows none, so it keeps its size.
 	if w >= 32 && h >= 20 {

@@ -203,7 +203,7 @@ func (a *App) historyHeader(c *ui.Context, hv *historyState, snap *lanes.Snapsho
 		built[k] = to.w[k] >= 0.5 || hv.cols.shown[k] || handles[k]
 	}
 	// No gap: the dividers stand in the rows' gaps.
-	head := ui.Row(c).Key("columns").Height(rowHeight).Padding(0, insetX).AlignItems(ui.Center).FillWidth()
+	head := ui.Row(c.Key("columns")).Height(rowHeight).Padding(0, insetX).AlignItems(ui.Center).FillWidth()
 	head.Children(func() {
 		if built[colGraph] {
 			titles[colGraph] = columnTitle(c, "")

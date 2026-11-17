@@ -1015,7 +1015,7 @@ func (a *App) remoteList(c *ui.Context, t *tab) {
 	var act func()
 	ui.Column(c).Grow(1).Children(func() {
 		for _, r := range remotes {
-			row := ui.Row(c).Padding(barPadY, insetX).Gap(spaceL).AlignItems(ui.Center).FillWidth().Key(r.Name)
+			row := ui.Row(c.Key(r.Name)).Padding(barPadY, insetX).Gap(spaceL).AlignItems(ui.Center).FillWidth()
 			row.Children(func() {
 				ui.Text(c, redact.Control(r.Name)).Bold().Width(160).SingleLine()
 				ui.Column(c).Grow(1).Children(func() {
