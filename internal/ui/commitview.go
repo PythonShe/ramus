@@ -323,13 +323,16 @@ func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.Co
 
 // metaLabelW is the width of the labels before what commitMeta shows, so
 // that what they label lines up.
-const metaLabelW = 76
+const metaLabelW = 84
+
+// metaGap parts a label from what it labels.
+const metaGap = spaceL
 
 // commitMeta shows who made the commit, its id, signature and parents.
 func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
 	th := c.Theme()
 	cm := d.Commit
-	meta := ui.Column(c).Padding(spaceS, insetX, spaceM, insetX).Gap(spaceS).FillWidth()
+	meta := ui.Column(c).Padding(spaceM, insetX, spaceL, insetX).Gap(spaceM).FillWidth()
 	cv.metaH = meta.LayoutBounds().H
 	meta.Children(func() {
 		label := func(text string) {
@@ -338,7 +341,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		// The time goes under the person it is theirs, rather than beside
 		// them, where a narrow panel would break it over lines.
 		person := func(role string, p object.Signature) {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
 				label(role)
 				a.personLine(c, t, string(p.Name), string(p.Email), avatarMeta, func() {
 					at := signatureTime(p)
@@ -348,9 +351,9 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		}
 		person(locales.CommitAuthor(), cm.Author)
 		if _, _, co := cv.message(d); len(co) > 0 {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
 				label(locales.CommitCoAuthors(len(co)))
-				ui.Column(c).Gap(spaceXS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+				ui.Column(c).Gap(spaceS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					for i, p := range co {
 						c.Key(i)
 						a.personLine(c, t, p.Name, p.Email, avatarSmall, nil)
@@ -361,7 +364,9 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		if !samePerson(cm.Author, cm.Committer) {
 			person(locales.CommitCommitter(), cm.Committer)
 		}
-		ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+		// The people apart from what names the commit.
+		ui.Box(c).Height(spaceS)
+		ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
 			ui.Text(c, locales.CommitHashLabel()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 			id := hex.EncodeToString(d.OID)
 			// A hash is one word: it breaks anywhere to fit a narrow panel,
@@ -375,7 +380,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		// not.
 		a.loadCommitPull(t, cv, d)
 		if p := cv.pull.Pull; a.Settings.PullRequests && cv.pull.Found {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(metaGap).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, locales.CommitPullRequest(kindName(p.Repo.Kind))).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
 					ui.Link(c, p.Ref(p.Repo.Kind), p.URL).FontSize(textSmall).Tooltip(redact.Control(p.Title))
@@ -386,7 +391,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 		// The commit's own signature, under its hash: the kind of key
 		// that made it, then what git made of it.
 		if cm.Signed {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(metaGap).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, locales.CommitSignature()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Children(func() {
 					if k := sigKindName(cm.SigKind); k != "" {
@@ -397,7 +402,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			})
 		}
 		if enc := string(cm.Encoding); !textenc.IsUTF8(enc) || d.Odd {
-			ui.Row(c).Gap(spaceM).Children(func() {
+			ui.Row(c).Gap(metaGap).Children(func() {
 				ui.Text(c, locales.CommitEncoding()).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				name := redact.Control(enc)
 				if textenc.IsUTF8(enc) {
@@ -420,7 +425,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 					}
 				})
 			}
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
 				label(locales.CommitParents(len(d.Parents)))
 				a.commitLinks(c, t, d.Parents, cv.parentSubjects, locales.CommitGoToParent())
 			})
@@ -433,9 +438,9 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			return
 		}
 		if n := len(rel.Children); n > 0 {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
 				label(locales.CommitChildren(n))
-				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+				ui.Column(c).Gap(spaceXS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					a.commitLinks(c, t, rel.Children[:min(n, shownChildren)], cv.childSubjects, locales.CommitGoToChild())
 					if n > shownChildren {
 						ui.Text(c, locales.CommitMoreChildren(n-shownChildren)).FontSize(textSmall).TextColor(th.TextMuted)
@@ -444,9 +449,9 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 			})
 		}
 		if len(rel.Refs) > 0 {
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Start).Children(func() {
+			ui.Row(c).Gap(metaGap).AlignItems(ui.Start).Children(func() {
 				label(locales.CommitContainedIn())
-				ui.Row(c).Gap(spaceXS).Wrap().AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+				ui.Row(c).Gap(spaceS).Wrap().AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 					shown := min(len(rel.Refs), shownRefs)
 					for i, name := range rel.Refs[:shown] {
 						c.Key(i)
@@ -558,11 +563,11 @@ const (
 func (a *App) personLine(c *ui.Context, t *tab, name, email string, size float32, more func()) {
 	th := c.Theme()
 	name, email = redact.Control(name), redact.Control(email)
-	ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+	ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 		if a.avatar(c, t, name, email, size).Cursor(ui.CursorPointer).Tooltip(locales.CommitShowPersonHistory(name)).Clicked() {
 			a.showPersonHistory(t, email)
 		}
-		ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+		ui.Column(c).Gap(spaceXS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 			ui.Row(c).Gap(spaceS).Wrap().AlignItems(ui.Center).Children(func() {
 				if clickable(ui.Text(c, name).FontSize(textSmall).FontWeight(600)).Tooltip(locales.CommitShowPersonHistory(name)).Clicked() {
 					a.showPersonHistory(t, email)
@@ -591,7 +596,7 @@ func (a *App) showPersonHistory(t *tab, email string) {
 // a click goes to one in the history.
 func (a *App) commitLinks(c *ui.Context, t *tab, ids [][]byte, subjects []string, tip string) {
 	th := c.Theme()
-	ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+	ui.Column(c).Gap(spaceXS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 		for i, id := range ids {
 			c.Key(i)
 			row := ui.Row(c).Gap(spaceS).AlignItems(ui.Center).FillWidth().MinWidth(0).Cursor(ui.CursorPointer).Focusable().Role(ui.RoleButton).Tooltip(tip)
