@@ -619,14 +619,18 @@ func TestChangesStageAndDiscard(t *testing.T) {
 	r.Write("loose/x", "x\n")
 	h.click("Tree")
 	// Both writes: a status read can come between them.
-	h.until("the folders", func() bool { return h.tt.HasText("dir/") && h.tt.HasText("loose/") })
-	if h.tt.HasText("deep.txt") {
-		t.Fatal("a closed folder shows its files")
+	h.until("the folders", func() bool { return hasExact(h, "dir") && h.tt.HasText("loose/") })
+	if !h.tt.HasText("deep.txt") {
+		t.Fatal("a folder does not start open")
 	}
 	if h.tt.HasText("Folder loose") {
 		t.Fatalf("an untracked folder is not one row: %q", h.tt.Texts())
 	}
-	h.click("▸")
+	// Its summed counts, the folder's own row's.
+	h.until("the folder's lines", func() bool { return countExact(h, "+1") >= 2 })
+	tb.cv.toggleFolder(openKey{secUnstaged, "dir"})
+	h.until("the folder closed", func() bool { return !h.tt.HasText("deep.txt") })
+	tb.cv.toggleFolder(openKey{secUnstaged, "dir"})
 	h.until("the folder open", h.shows("deep.txt"))
 	tb.cv.filter = "deep"
 	h.until("the filter", func() bool { return !h.tt.HasText("a.txt") && h.tt.HasText("deep.txt") })

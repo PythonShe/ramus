@@ -96,7 +96,7 @@ type rowKey struct {
 	path string
 }
 
-// openKey names a folder shown open.
+// openKey names a folder of a section's tree.
 type openKey struct {
 	sec  section
 	path string
@@ -120,8 +120,9 @@ func inSection(st *status.Status, i int, sec section) bool {
 }
 
 // buildChanges sorts the entries of st into sections, keeping those whose
-// path holds filter (ignoring ASCII case), and lays out the rows.
-func buildChanges(st *status.Status, filter string, tree bool, open map[openKey]bool) *changeModel {
+// path holds filter (ignoring ASCII case), and lays out the rows, with
+// the folders in closed shown closed.
+func buildChanges(st *status.Status, filter string, tree bool, closed map[openKey]bool) *changeModel {
 	m := &changeModel{st: st, filter: filter, tree: tree}
 	q := []byte(strings.ToLower(filter))
 	for i := range st.Len() {
@@ -180,13 +181,14 @@ func buildChanges(st *status.Status, filter string, tree bool, open map[openKey]
 			walk(pathtree.Root, dirSpan{})
 		}
 	}
-	m.layout(open)
+	m.layout(closed)
 	return m
 }
 
 // layout makes the rows: a header per section with entries, then its
-// files, or its tree with the folders in open shown open.
-func (m *changeModel) layout(open map[openKey]bool) {
+// files, or its tree with every folder open but those in closed: the
+// files are what the user came to see, as in the flat list.
+func (m *changeModel) layout(closed map[openKey]bool) {
 	m.rows = m.rows[:0]
 	for sec := range sections {
 		f := m.files[sec]
@@ -206,7 +208,7 @@ func (m *changeModel) layout(open map[openKey]bool) {
 			for _, k := range t.Children(n) {
 				if t.IsDir(k) {
 					m.rows = append(m.rows, changeRow{kind: rowDir, sec: sec, depth: depth, idx: int32(k)})
-					if len(open) > 0 && open[openKey{sec, m.dir(sec, int32(k))}] {
+					if len(closed) == 0 || !closed[openKey{sec, m.dir(sec, int32(k))}] {
 						walk(k, depth+1)
 					}
 					continue
@@ -258,13 +260,22 @@ func (m *changeModel) under(sec section, path string, dir bool) []int32 {
 		}
 		return f[i : i+1]
 	}
-	prefix := []byte(path + "/")
-	lo := sort.Search(len(f), func(i int) bool { return bytes.Compare(m.st.Path(int(f[i])), prefix) >= 0 })
-	hi := lo
-	for hi < len(f) && bytes.HasPrefix(m.st.Path(int(f[hi])), prefix) {
-		hi++
-	}
+	lo, hi := m.folderRange(sec, path)
 	return f[lo:hi]
+}
+
+// folderRange is where the entries of sec in folder path are among the
+// section's sorted entries, f[lo:hi].
+func (m *changeModel) folderRange(sec section, path string) (lo, hi int) {
+	f := m.files[sec]
+	// The paths in it run from "path/" up to "path0", '0' following '/':
+	// both ends are found by a search, for a folder of the tree shown
+	// each frame.
+	prefix := []byte(path + "/")
+	end := []byte(path + "0")
+	lo = sort.Search(len(f), func(i int) bool { return bytes.Compare(m.st.Path(int(f[i])), prefix) >= 0 })
+	hi = lo + sort.Search(len(f)-lo, func(i int) bool { return bytes.Compare(m.st.Path(int(f[lo+i])), end) >= 0 })
+	return lo, hi
 }
 
 // containsFold reports whether s holds q, which is lower case, ignoring

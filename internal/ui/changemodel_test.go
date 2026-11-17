@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"ramus/internal/git/diff"
 	"ramus/internal/git/status"
+	"ramus/internal/session"
 )
 
 const zeroOID = "0000000000000000000000000000000000000000"
@@ -58,7 +60,7 @@ func TestBuildChanges(t *testing.T) {
 		t.Fatalf("under b: %d", n)
 	}
 
-	tree := buildChanges(st, "", true, map[openKey]bool{{secUnstaged, "b"}: true})
+	tree := buildChanges(st, "", true, map[openKey]bool{{secStaged, "b"}: true})
 	var names []string
 	for _, r := range tree.rows {
 		names = append(names, fmt.Sprint(r.depth)+tree.name(r))
@@ -119,6 +121,29 @@ func TestEntryNote(t *testing.T) {
 	} {
 		if got := entryNote(st, i, want.sec); got != want.note {
 			t.Errorf("%s: %q, want %q", st.Path(i), got, want.note)
+		}
+	}
+}
+
+// A folder of the tree shows the sum of its files' counts, nested ones
+// with them, and no more: not a neighbour whose name it starts.
+func TestFolderLines(t *testing.T) {
+	st := fakeStatus(t, map[string]string{"b/one": ".M", "b/sub/two": ".M", "b.go": ".M", "bc/three": ".M"})
+	cv := newChangesState()
+	cv.lines = session.ChangeLines{For: st, Staged: make([]diff.Lines, st.Len()), Unstaged: make([]diff.Lines, st.Len())}
+	added := map[string]uint32{}
+	for i := range st.Len() {
+		cv.lines.Unstaged[i] = diff.Lines{Added: uint32(i + 1), Deleted: 1, Known: true}
+		added[string(st.Path(i))] = uint32(i + 1)
+	}
+	m := buildChanges(st, "", true, nil)
+	for dir, want := range map[string]lineSum{
+		"b":     {added["b/one"] + added["b/sub/two"], 2},
+		"b/sub": {added["b/sub/two"], 1},
+		"bc":    {added["bc/three"], 1},
+	} {
+		if got := cv.folderLines(m, secUnstaged, dir); got != want {
+			t.Errorf("%s: %+v, want %+v", dir, got, want)
 		}
 	}
 }

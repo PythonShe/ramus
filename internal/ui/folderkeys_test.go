@@ -20,19 +20,21 @@ func TestChangesFolderKeys(t *testing.T) {
 	r.Write("dir/deep.txt", "changed\n")
 	h.until("the change", h.shows("deep.txt"))
 	h.click("Tree")
-	h.until("the folder", func() bool { return hasExact(h, "dir/") })
-	h.click("dir/")
-	if !h.tt.HasText("Folder dir, closed") {
-		t.Fatalf("the folder's label does not say it is closed: %q", h.tt.Texts())
-	}
-
-	h.tt.Key(0, ui.KeyRight)
-	h.until("opened by Right", h.shows("deep.txt"))
+	// Folders start open: the files are what the user came to see.
+	h.until("the folder", func() bool { return hasExact(h, "dir") && h.tt.HasText("deep.txt") })
+	h.click("dir")
 	if !h.tt.HasText("Folder dir, open") {
 		t.Fatalf("the folder's label does not say it is open: %q", h.tt.Texts())
 	}
 	h.tt.Key(0, ui.KeyLeft)
 	h.until("closed by Left", func() bool { return !h.tt.HasText("deep.txt") })
+	if !h.tt.HasText("Folder dir, closed") {
+		t.Fatalf("the folder's label does not say it is closed: %q", h.tt.Texts())
+	}
+	h.tt.Key(0, ui.KeyRight)
+	h.until("opened by Right", h.shows("deep.txt"))
+	h.tt.Key(0, ui.KeyLeft)
+	h.until("closed again", func() bool { return !h.tt.HasText("deep.txt") })
 	h.tt.Key(0, ui.KeyEnter)
 	h.until("opened by Enter", h.shows("deep.txt"))
 	if s := r.Git("status", "--porcelain"); !strings.HasPrefix(s, " M") {

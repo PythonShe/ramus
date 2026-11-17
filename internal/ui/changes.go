@@ -29,10 +29,12 @@ type changesState struct {
 	builtOpen   int
 	filter      string
 	mode        int // modeList, modeTree or modeReview
-	open        map[openKey]bool
-	openGen     int
-	list        ui.ListState
-	chosen      int
+	// closed are the folders of the tree the user closed; the others
+	// are open. openGen counts its changes.
+	closed  map[openKey]bool
+	openGen int
+	list    ui.ListState
+	chosen  int
 	// want is the path of a file to choose once the list is built: one
 	// chosen when the app last ran.
 	want string
@@ -46,9 +48,12 @@ type changesState struct {
 	// lines are the lines each change adds and deletes, counted for the
 	// status countFor asked; totals adds them up by section, for the
 	// model and the count totalsFor names.
-	lines     session.ChangeLines
-	countFor  *status.Status
-	totals    [sections]diff.Lines
+	lines    session.ChangeLines
+	countFor *status.Status
+	totals   [sections]diff.Lines
+	// sums are, per section, the running sum of the counts of its files
+	// in order, a folder's total being the difference across its range.
+	sums      [sections][]lineSum
 	totalsFor struct {
 		m  *changeModel
 		st *status.Status
@@ -93,18 +98,58 @@ func (cv *changesState) entryLines(st *status.Status, i int, sec section) diff.L
 	return unstaged
 }
 
-// sectionLines adds up the counts of sec's files in m.
-func (cv *changesState) sectionLines(m *changeModel, sec section) diff.Lines {
-	if cv.totalsFor.m != m || cv.totalsFor.st != cv.lines.For {
-		cv.totalsFor.m, cv.totalsFor.st = m, cv.lines.For
-		for s := range sections {
-			cv.totals[s] = diff.Lines{}
-			for _, i := range m.files[s] {
-				cv.totals[s].Add(cv.entryLines(m.st, int(i), s))
+// lineSum is lines added and deleted, summed.
+type lineSum struct{ added, deleted uint32 }
+
+// sum adds up the counts of m's files once per model and count, for
+// sectionLines and folderLines.
+func (cv *changesState) sum(m *changeModel) {
+	if cv.totalsFor.m == m && cv.totalsFor.st == cv.lines.For {
+		return
+	}
+	cv.totalsFor.m, cv.totalsFor.st = m, cv.lines.For
+	for s := range sections {
+		cv.totals[s] = diff.Lines{}
+		sums := cv.sums[s][:0]
+		if m.tree {
+			sums = append(sums, lineSum{})
+		}
+		for _, i := range m.files[s] {
+			cv.totals[s].Add(cv.entryLines(m.st, int(i), s))
+			if m.tree {
+				sums = append(sums, lineSum{cv.totals[s].Added, cv.totals[s].Deleted})
 			}
 		}
+		cv.sums[s] = sums
 	}
+}
+
+// sectionLines adds up the counts of sec's files in m.
+func (cv *changesState) sectionLines(m *changeModel, sec section) diff.Lines {
+	cv.sum(m)
 	return cv.totals[sec]
+}
+
+// folderLines adds up the counts of the files of sec in folder dir of
+// m's tree.
+func (cv *changesState) folderLines(m *changeModel, sec section, dir string) lineSum {
+	cv.sum(m)
+	sums := cv.sums[sec]
+	lo, hi := m.folderRange(sec, dir)
+	if len(sums) != len(m.files[sec])+1 {
+		return lineSum{}
+	}
+	return lineSum{sums[hi].added - sums[lo].added, sums[hi].deleted - sums[lo].deleted}
+}
+
+// toggleFolder opens a folder of the tree closed, or closes it.
+func (cv *changesState) toggleFolder(key openKey) {
+	if cv.closed[key] {
+		delete(cv.closed, key)
+	} else {
+		cv.closed[key] = true
+	}
+	cv.openGen++
 }
 
 // confirmState is a question asked before a write that drops work.
@@ -116,7 +161,7 @@ type confirmState struct {
 }
 
 func newChangesState() changesState {
-	return changesState{chosen: -1, open: map[openKey]bool{}, diff: newDiffState()}
+	return changesState{chosen: -1, closed: map[openKey]bool{}, diff: newDiffState()}
 }
 
 // rebuildChanges makes the model again, off the main thread, when the
@@ -130,13 +175,13 @@ func (a *App) rebuildChanges(t *tab) {
 	}
 	cv.building = true
 	filter, gen := cv.filter, cv.openGen
-	open := make(map[openKey]bool, len(cv.open))
-	for k, v := range cv.open {
-		open[k] = v
+	closed := make(map[openKey]bool, len(cv.closed))
+	for k, v := range cv.closed {
+		closed[k] = v
 	}
 	update := a.Update
 	a.goWork(t, func() {
-		m := buildChanges(st, filter, tree, open)
+		m := buildChanges(st, filter, tree, closed)
 		update(func() {
 			cv.building = false
 			old := cv.model
@@ -295,9 +340,9 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 			// Its menu stages it.
 			if r.kind == rowDir {
 				key := openKey{r.sec, m.dir(r.sec, r.idx)}
-				open := cv.open[key]
+				open := !cv.closed[key]
 				if !open && l.Shortcut(0, ui.KeyRight) || open && l.Shortcut(0, ui.KeyLeft) || l.Submitted() {
-					act = func() { cv.open[key] = !open; cv.openGen++ }
+					act = func() { cv.toggleFolder(key) }
 				}
 			} else if l.Submitted() {
 				// Enter acts on every row picked, as Delete and the menu do.
@@ -348,7 +393,7 @@ func rowLabel(cv *changesState, m *changeModel, r changeRow) string {
 	case rowHeader:
 		return locales.ChangesSectionLabel(r.sec.title(), len(m.files[r.sec]))
 	case rowDir:
-		return locales.ChangesFolderLabel(openState(cv.open[openKey{r.sec, m.dir(r.sec, r.idx)}]), m.name(r))
+		return locales.ChangesFolderLabel(openState(!cv.closed[openKey{r.sec, m.dir(r.sec, r.idx)}]), m.name(r))
 	}
 	i := int(r.idx)
 	return fileLabel(entryWords(m.st, i, r.sec), string(m.st.Path(i)), cv.entryLines(m.st, i, r.sec))
@@ -377,19 +422,24 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 		})
 		return
 	}
-	indent := float32(r.depth) * 16
+	indent := float32(r.depth) * treeIndent
 	row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceS).AlignItems(ui.Center).FillWidth().Children(func() {
 		ui.Box(c).Width(indent)
 		if r.kind == rowDir {
+			// The chevron takes the status letter's column and the folder
+			// the file icon's, so names line up with the files'.
 			key := openKey{r.sec, m.dir(r.sec, r.idx)}
-			arrow := "▸"
-			if cv.open[key] {
-				arrow = "▾"
+			chevron := pickIcons().chevron
+			if cv.closed[key] {
+				chevron = wtIcons().right
 			}
-			if ui.Text(c, arrow).Width(12).TextColor(k.Muted).RowClicked() {
-				*act = func() { cv.open[key] = !cv.open[key]; cv.openGen++ }
+			if ui.Icon(c, chevron).FontSize(iconSmall).Width(statusLetterW).TextColor(k.Muted).RowClicked() {
+				*act = func() { cv.toggleFolder(key) }
 			}
-			ui.Text(c, m.name(r)+"/").SingleLine().Grow(1)
+			ui.Icon(c, changeIcons().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Muted)
+			ui.Text(c, m.name(r)).SingleLine().Grow(1)
+			tot := cv.folderLines(m, r.sec, key.path)
+			inkLineCounts(c, k, int(tot.added), int(tot.deleted))
 			return
 		}
 		i := int(r.idx)
