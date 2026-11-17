@@ -406,6 +406,15 @@ func (a *App) compareTable(c *ui.Context, sum *libstats.Summary) {
 		return locales.StatsNameCommits(r.Name, r.Totals.Commits)
 	}
 	now := a.Now().Unix()
+	// A row being read, or whose read failed, says so under its name:
+	// rows of two lines then, which the table's rows share.
+	s.table.RowHeight = rowHeight
+	for _, r := range rows {
+		if r.Err != nil || r.Loading && r.Total > 0 {
+			s.table.RowHeight = rowTallHeight
+			break
+		}
+	}
 	a.savedTable(c, "libraryStats", &s.table, cols, len(rows), func(i, col int) {
 		r := rows[i]
 		k := s.table.ink(c, i)
