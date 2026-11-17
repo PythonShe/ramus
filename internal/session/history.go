@@ -815,6 +815,9 @@ type CommitDetail struct {
 	// Renames is git leaving renames unfound, too many files changed:
 	// they show deleted and added. Compare sets it.
 	Renames diff.RenameLimit
+	// Names is the number of the mailmap that named its people, as
+	// HistoryState's Names: a detail named through a lower one is stale.
+	Names int
 	// Done is set on the last of the details handed over.
 	Done bool
 	Err  error
@@ -831,7 +834,9 @@ func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()
 		return func() {}
 	}
 	key := commitKey(oid)
-	if a, ok := s.answers().Get(key); ok {
+	// One kept from before the mailmap changed names its people as it no
+	// longer does.
+	if a, ok := s.answers().Get(key); ok && a.detail.Names >= s.History.Names {
 		done(*a.detail)
 		return func() {}
 	}
@@ -890,7 +895,8 @@ func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitD
 	}
 	d.Odd = !ok
 	// Each person as the mailmap names them, as git show does.
-	mm := s.mailmap(ctx, r)
+	mm, names := s.names(ctx, r)
+	d.Names = names
 	for _, p := range []*object.Signature{&d.Commit.Author, &d.Commit.Committer} {
 		name, email := mm.Lookup(string(p.Name), string(p.Email))
 		p.Name, p.Email = []byte(name), []byte(email)

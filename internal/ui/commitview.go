@@ -30,8 +30,10 @@ type commitView struct {
 	// cancel stops reading the commit shown before.
 	cancel func()
 	d      *session.CommitDetail
-	files  ui.ListState
-	file   int
+	// names is the mailmap's number d was last read again for.
+	names int
+	files ui.ListState
+	file  int
 	// infoW is the width of the commit beside its patch, and listW the
 	// list's beside them, while a patch is open; both are kept from commit
 	// to commit. wasOpen is whether one was open in the last frame.
@@ -133,6 +135,19 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		return
 	}
 	d := cv.d
+	if n := t.s.History.Names; d.Done && d.Err == nil && n > d.Names && cv.names < n {
+		// The mailmap changed since it was read: read again for its
+		// people's names, shown as they were until then.
+		cv.names = n
+		if cv.cancel != nil {
+			cv.cancel()
+		}
+		cv.cancel = t.s.LoadCommit(id, func(nd session.CommitDetail) {
+			if nd.Done && bytes.Equal(cv.id, nd.OID) {
+				cv.d = &nd
+			}
+		})
+	}
 	a.syncAvatars(t, [][]byte{d.OID})
 	if cv.want != "" && cv.file < 0 && d.Files != nil {
 		for i := range d.Files.Len() {

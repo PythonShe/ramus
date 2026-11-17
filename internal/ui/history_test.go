@@ -975,17 +975,24 @@ func TestHistoryMailmap(t *testing.T) {
 	h.click("History")
 	h.until("the commit", h.shows("merged on the web"))
 	h.until("the name", h.shows("Full Name"))
-	// Another commit's detail open, the person is named in the rows
-	// alone. A detail open as the mailmap changes keeps the name it was
-	// read with.
-	h.click("one")
-	h.until("the other detail", func() bool { return !h.tt.HasText("me@example.com") })
+	// The commit's detail open as the mailmap changes names the person
+	// anew, as the rows do.
+	h.click("merged on the web")
+	h.until("the detail", h.shows("me@example.com"))
 
 	r.Write(".mailmap", "handle <me@example.com>\n")
 	r.Commit("add a mailmap")
-	h.until("mapped", func() bool { return hasExact(h, "handle") && !hasExact(h, "Full Name") })
+	h.until("mapped", func() bool {
+		return hasExact(h, "handle") && !hasExact(h, "Full Name") && h.tt.HasText("me@example.com")
+	})
+	// Chosen again, it is not the detail read before the mailmap.
+	h.click("one")
+	h.until("the other detail", func() bool { return !h.tt.HasText("me@example.com") })
 	h.click("merged on the web")
-	h.until("the detail", func() bool { return hasExact(h, "handle") && h.tt.HasText("me@example.com") })
+	h.until("the detail again", func() bool { return h.tt.HasText("me@example.com") })
+	if hasExact(h, "Full Name") {
+		t.Fatal("the detail kept the name the mailmap no longer gives")
+	}
 }
 
 // A commit shows its people with their pictures: the author, the
