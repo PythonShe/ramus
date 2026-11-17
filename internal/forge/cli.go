@@ -48,6 +48,9 @@ var ErrNotFound = errors.New("forge: not found")
 // ErrTimeout is the host's tool not answering within Timeout.
 var ErrTimeout = errors.New("forge: the host's command-line tool did not answer in time")
 
+// ErrTooLarge is the tool printing more than the call allows.
+var ErrTooLarge = errors.New("forge: the answer is too large")
+
 // RejectedError is the host refusing a request it understood, as GitHub
 // does with 422 for a review on lines outside the diff, or a second
 // pending review: Msg is what it said.
@@ -134,26 +137,32 @@ func quiet(env []string) []string {
 // run runs the tool with args in dir, which may be "", and returns what
 // it printed.
 func (c *CLI) run(ctx context.Context, dir string, host string, args ...string) ([]byte, error) {
-	return c.runWith(ctx, dir, host, nil, args...)
+	return c.runWith(ctx, dir, host, nil, maxOutput, 0, args...)
 }
 
 // runInput is run with stdin on the tool's standard input.
 func (c *CLI) runInput(ctx context.Context, host string, stdin []byte, args ...string) ([]byte, error) {
-	return c.runWith(ctx, "", host, stdin, args...)
+	return c.runWith(ctx, "", host, stdin, maxOutput, 0, args...)
 }
 
-func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte, args ...string) ([]byte, error) {
+// runWith runs the tool; what it prints past limit bytes fails the call,
+// as does its running longer than wait, when shorter than the CLI's
+// timeout.
+func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte, limit int, wait time.Duration, args ...string) ([]byte, error) {
 	select {
 	case c.slots <- struct{}{}:
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 	defer func() { <-c.slots }()
-	limit := Timeout
+	most := Timeout
 	if c.Timeout > 0 {
-		limit = c.Timeout
+		most = c.Timeout
 	}
-	ctx, cancel := context.WithTimeout(ctx, limit)
+	if wait <= 0 || wait > most {
+		wait = most
+	}
+	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.Path, args...)
 	cmd.Dir, cmd.Env = dir, c.env
@@ -162,18 +171,18 @@ func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte
 	}
 	cmd.WaitDelay = 2 * time.Second
 	ownGroup(cmd)
-	out := &capped{max: maxOutput}
+	out := &capped{max: limit}
 	var stderr capped
 	stderr.max = 64 << 10
 	cmd.Stdout, cmd.Stderr = out, &stderr
 	err := cmd.Run()
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
-		return nil, fmt.Errorf("%w: %s, within %v", ErrTimeout, c.Kind.Program(), limit)
+		return nil, fmt.Errorf("%w: %s, within %v", ErrTimeout, c.Kind.Program(), wait)
 	case ctx.Err() != nil:
 		return nil, ctx.Err()
 	case out.over:
-		return nil, fmt.Errorf("forge: %s printed more than %d bytes", c.Kind.Program(), maxOutput)
+		return nil, fmt.Errorf("%w: %s printed more than %d bytes", ErrTooLarge, c.Kind.Program(), limit)
 	case err != nil:
 		return nil, c.failure(err, host, stderr.b.String())
 	}
