@@ -99,6 +99,69 @@ func TestCommitUndo(t *testing.T) {
 	h.until("staged again", h.shows("Staged (1)"))
 }
 
+// The toast's Undo takes back the commit it was shown for and no other:
+// once Undo from the menu took that back, it says nothing was undone,
+// though the commit before has the same name.
+func TestCommitUndoOnlyItsOwn(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	cs := &tb.commit
+	for _, f := range []string{"a", "b"} {
+		r.Write(f+".txt", f)
+		r.Git("add", f+".txt")
+		h.until("staged", h.shows("Staged (1)"))
+		cs.subject = "Add " + f
+		h.until("ready", func() bool { return commitReady(tb) })
+		h.click("Commit to main")
+		h.until("the toast", h.shows("Committed “Add "+f+"”"))
+		h.idle(tb, "the commit done")
+	}
+	first := strings.TrimSpace(r.Git("rev-parse", "HEAD~1"))
+	h.app.undo(tb, false)
+	h.until("b undone", func() bool { return strings.TrimSpace(r.Git("rev-parse", "HEAD")) == first })
+	h.idle(tb, "the undo done")
+	h.click("Undo")
+	h.until("the refusal", h.shows("Nothing undone: other changes came since"))
+	h.idle(tb, "nothing more")
+	if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != first {
+		t.Fatalf("the toast for \"Add b\" undid \"Add a\" too")
+	}
+}
+
+// The commit that ends a merge has no Undo in its toast: undone, the
+// merge would not be in progress again, and its message committed again
+// would make a plain commit of it.
+func TestCommitMergeNoUndo(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "base\n")
+	r.Commit("base")
+	r.Git("switch", "-q", "-c", "other")
+	r.Write("a.txt", "theirs\n")
+	r.Commit("theirs")
+	r.Git("switch", "-q", "main")
+	r.Write("a.txt", "ours\n")
+	r.Commit("ours")
+	r.Run(nil, "merge", "-q", "other")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the merge", h.shows("Commit Merge"))
+	tb := h.app.current()
+	cs := &tb.commit
+	h.until("git's message", func() bool { return cs.subject == "Merge branch 'other'" })
+	r.Write("a.txt", "both\n")
+	r.Git("add", "a.txt")
+	h.until("resolved", func() bool { return commitReady(tb) })
+	h.click("Commit Merge")
+	h.until("the toast", h.shows("Committed “Merge branch 'other'”"))
+	if h.tt.HasText("Undo") {
+		t.Fatal("the commit of a merge offers Undo")
+	}
+}
+
 // The commit button says why it is disabled; a recent message chosen
 // over one written asks first.
 func TestCommitWhyNotAndRecent(t *testing.T) {

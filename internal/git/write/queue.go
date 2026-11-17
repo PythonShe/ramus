@@ -112,6 +112,8 @@ type Job struct {
 	// dropped counts events the reader was too slow for; Result still
 	// holds the output.
 	dropped int
+	// entry is the History entry the write recorded, 0 for none.
+	entry uint64
 }
 
 // Events delivers output as it comes; it is closed when the job ends.
@@ -152,6 +154,16 @@ func (j *Job) Result() (run.Result, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.res, j.err
+}
+
+// Entry is the id of the History entry the job recorded, once Done is
+// closed; 0 when it recorded none, as a write not undoable, failed, or
+// whose result could not be read. History.Last tells whether Undo would
+// still take it back.
+func (j *Job) Entry() uint64 {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.entry
 }
 
 // Kept returns the snapshot taken and the backup directory made before the
@@ -397,7 +409,10 @@ func (q *Queue) record(j *Job, before fullState) {
 	j.mu.Unlock()
 	e := Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op}
 	q.settle(&e, config)
-	q.History.push(e)
+	id := q.History.push(e)
+	j.mu.Lock()
+	j.entry = id
+	j.mu.Unlock()
 }
 
 // prepare runs inside the job's turn, so nothing the queue runs can

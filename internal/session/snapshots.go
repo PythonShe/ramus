@@ -136,6 +136,23 @@ func (s *Session) Undo() (*write.Job, error) {
 	return j, nil
 }
 
+// UndoWrite undoes the write whose job recorded History entry id
+// (write.Job's Entry), logged; false, and nothing done, when that is not
+// the write Undo would take back.
+func (s *Session) UndoWrite(id uint64) (*write.Job, bool, error) {
+	q := s.Queue
+	if q == nil {
+		return nil, false, s.noWrites()
+	}
+	if id == 0 || q.History.Last() != id {
+		return nil, false, nil
+	}
+	name, _ := q.History.Next()
+	j := q.UndoEntry(id)
+	s.follow(s.addLog(locales.SessionUndo(name), ""), j)
+	return j, true, nil
+}
+
 // Redo redoes the last write undone, logged.
 func (s *Session) Redo() (*write.Job, error) {
 	if s.Queue == nil {

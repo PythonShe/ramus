@@ -599,6 +599,10 @@ func (a *App) commit(t *tab, r commitRun) {
 	cs.busy, cs.lastRun = true, r
 	seen := t.s.Seen()
 	written := struct{ subject, body, coAuthors string }{cs.subject, cs.body, cs.coAuthors}
+	// A commit that ends a merge, cherry-pick or revert: undoing it
+	// moves the branch back but leaves the operation ended, and its
+	// message committed again would make a plain commit of it.
+	ends := operationCommit(t.s.State.Operation)
 	var entry *session.LogEntry
 	err := t.s.Commit(opt, r.push, func(err error) {
 		cs.busy, cs.running = false, nil
@@ -625,7 +629,11 @@ func (a *App) commit(t *tab, r commitRun) {
 			}
 			cs.err = locales.CommitBoxNotPushed(reason)
 		} else {
-			a.toastCommit(t, opt, r.push != nil, written.subject, written.body, written.coAuthors)
+			var id uint64
+			if entry != nil {
+				id = entry.Recorded()
+			}
+			a.toastCommit(t, opt, r.push == nil && !ends, id, written.subject, written.body, written.coAuthors)
 		}
 		// Recent messages and HEAD's message changed.
 		cs.reload = true
@@ -639,26 +647,23 @@ func (a *App) commit(t *tab, r commitRun) {
 }
 
 // toastCommit tells of a commit made, with Undo while it is the write
-// Undo would take back; one pushed is not taken back from the remote,
-// so it has none.
-func (a *App) toastCommit(t *tab, opt write.CommitOptions, pushed bool, subject, body, coAuthors string) {
+// Undo would take back: entry is the History entry the commit recorded,
+// 0 for none. One pushed is not taken back from the remote, and one
+// that ended a merge, cherry-pick or revert would not be that again, so
+// neither has Undo.
+func (a *App) toastCommit(t *tab, opt write.CommitOptions, undoable bool, entry uint64, subject, body, coAuthors string) {
 	title := locales.CommitBoxCommitted(firstLine(opt.Message))
 	if opt.Amend {
 		title = locales.CommitBoxAmended(firstLine(opt.Message))
 	}
 	toast := ui.Toast{ID: "commit", Title: title}
 	q := t.s.Queue
-	if q != nil && !pushed {
-		undo, _ := q.History.Next()
+	if q != nil && undoable && entry != 0 {
 		toast.Action = locales.CommitBoxUndo()
 		toast.OnAction = func() {
-			if t.s.Queue != q {
+			if !a.undoWrite(t, q, entry) {
 				return
 			}
-			if now, _ := q.History.Next(); now != undo {
-				return // another write came since, which Undo would take back
-			}
-			a.undo(t, false)
 			// The commit's changes are staged again; its message comes
 			// back with them, to commit them again, unless the user has
 			// started another.
@@ -668,7 +673,7 @@ func (a *App) toastCommit(t *tab, opt write.CommitOptions, pushed bool, subject,
 			}
 		}
 	}
-	a.toast(toast)
+	a.tabToast(t, toast)
 }
 
 // firstLine is a message's first line.

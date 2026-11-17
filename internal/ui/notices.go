@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -291,4 +292,18 @@ var causeMarks = []string{
 // the user.
 func (a *App) toast(t ui.Toast) {
 	a.toasts = append(a.toasts, t)
+}
+
+// tabToast shows toast, which tells of work in tab t: one from a tab not
+// shown names its repository, as the action it offers acts there. Its
+// ID is the tab's own, so that it does not take the place of another
+// tab's.
+func (a *App) tabToast(t *tab, toast ui.Toast) {
+	if t != a.current() {
+		toast.Description = redact.Control(a.title(t))
+	}
+	if toast.ID != "" {
+		toast.ID += "/" + strconv.Itoa(t.id)
+	}
+	a.toast(toast)
 }

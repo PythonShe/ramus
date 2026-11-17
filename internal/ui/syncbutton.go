@@ -279,7 +279,7 @@ func (a *App) watchSync(t *tab, op write.Op, j *write.Job) {
 		if err != nil {
 			return
 		}
-		say := func(title string) { a.toast(ui.Toast{ID: "sync", Title: title}) }
+		say := func(title string) { a.tabToast(t, ui.Toast{ID: "sync", Title: title}) }
 		switch kind {
 		case syncFetch:
 			s.fetched = time.Now()

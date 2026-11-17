@@ -54,6 +54,15 @@ func (e *LogEntry) Op() (write.Op, bool) {
 	return e.job.Op, true
 }
 
+// Recorded is the History entry the write recorded once it ended, for
+// UndoWrite; 0 for none.
+func (e *LogEntry) Recorded() uint64 {
+	if e.job == nil {
+		return 0
+	}
+	return e.job.Entry()
+}
+
 // Cancellable reports a write that Cancel stops.
 func (e *LogEntry) Cancellable() bool { return e.Running && e.job != nil }
 

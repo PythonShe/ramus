@@ -21,6 +21,10 @@
   "@commonUndo": {
     "description": "The action of a toast that undoes what the app just did."
   },
+  "commonUndoTooLate": "Nothing undone: other changes came since",
+  "@commonUndoTooLate": {
+    "description": "A toast when the user clicks a toast's Undo but another change was made since, or the change was already undone: Undo would take back something else, so it does nothing."
+  },
   "commonChoose": "Choose…",
   "@commonChoose": {
     "description": "Opens a folder picker."

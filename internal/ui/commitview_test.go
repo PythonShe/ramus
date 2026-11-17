@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"ramus/internal/git/write"
 )
 
 // A merge reverts against the parent the user names, which git needs;
@@ -38,6 +40,40 @@ func TestRevertMergeAndUndo(t *testing.T) {
 	h.until("the toast", h.shows("Reverted 1 commit"))
 	h.click("Undo")
 	h.until("undone", func() bool { return strings.TrimSpace(r.Git("rev-parse", "HEAD")) == merge })
+}
+
+// A toast's Undo takes back its own write only: a write of the same name
+// made since, by a route with no toast, is left alone.
+func TestUndoToastOnlyItsOwn(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "a\n")
+	one := r.Commit("one")
+	r.Write("b.txt", "b\n")
+	two := r.Commit("two")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	op, err := write.Revert(tb.s.Where(), []string{one}, tb.s.Seen())
+	h.app.submitUndoable(tb, op, err, "Reverted one", false)
+	h.until("the toast", h.shows("Reverted one"))
+	h.idle(tb, "the revert done")
+	op, err = write.Revert(tb.s.Where(), []string{two}, tb.s.Seen())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tb.s.Submit(op); err != nil {
+		t.Fatal(err)
+	}
+	h.idle(tb, "the second revert done")
+	head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	h.click("Undo")
+	h.until("the refusal", h.shows("Nothing undone: other changes came since"))
+	h.idle(tb, "nothing undone")
+	if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != head {
+		t.Fatal("the toast's Undo took back another write of its name")
+	}
 }
 
 // A file a commit changed has a menu: its path copied, its history.

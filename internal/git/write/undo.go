@@ -64,6 +64,9 @@ type Entry struct {
 	// left them, nil when not known: what an undo must find, so as not to
 	// overwrite work done since.
 	left *pathState
+	// id tells this entry from every other of its History, for an undo
+	// that must take back this write and no other.
+	id uint64
 }
 
 // History holds a repository's undoable writes, for as long as the
@@ -72,6 +75,8 @@ type History struct {
 	mu     sync.Mutex
 	done   []Entry
 	undone []Entry
+	// seq is the id the last entry pushed got.
+	seq uint64
 }
 
 // MaxHistory bounds the entries kept; the oldest go first.
@@ -91,18 +96,37 @@ func (h *History) Next() (undo, redo string) {
 	return undo, redo
 }
 
-func (h *History) push(e Entry) {
+// Last is the id of the write Undo would act on, 0 when none: as a Job's
+// Entry, to tell whether Undo would still take that write back.
+func (h *History) Last() uint64 {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if n := len(h.done); n > 0 {
+		return h.done[n-1].id
+	}
+	return 0
+}
+
+// push records e and returns the id it gave it.
+func (h *History) push(e Entry) uint64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.seq++
+	e.id = h.seq
 	h.done = append(h.done, e)
 	if len(h.done) > MaxHistory {
 		h.done = slices.Delete(h.done, 0, len(h.done)-MaxHistory)
 	}
 	h.undone = nil
+	return e.id
 }
 
 // ErrNothingToUndo is an Undo or Redo with nothing on its side.
 var ErrNothingToUndo = errors.New("write: nothing to undo or redo")
+
+// ErrNotLast is an UndoEntry of a write that is no longer the last
+// undoable one: another came after it, or it was undone already.
+var ErrNotLast = errors.New("write: another write came since")
 
 // ignored are refs undo neither records nor moves: its own snapshots and
 // backups.
@@ -153,18 +177,25 @@ func touched(a, b fullState, extra []string) (State, State) {
 
 // Undo queues undoing the last undoable write; it acts on whatever is
 // last when its turn comes.
-func (q *Queue) Undo() *Job { return q.submitHistory("Undo", true) }
+func (q *Queue) Undo() *Job { return q.submitHistory("Undo", true, 0) }
+
+// UndoEntry queues undoing the write a Job's Entry names; when its turn
+// comes, it refuses with ErrNotLast unless that write is the last
+// undoable one.
+func (q *Queue) UndoEntry(id uint64) *Job { return q.submitHistory("Undo", true, id) }
 
 // Redo queues redoing the last undone write.
-func (q *Queue) Redo() *Job { return q.submitHistory("Redo", false) }
+func (q *Queue) Redo() *Job { return q.submitHistory("Redo", false, 0) }
 
-func (q *Queue) submitHistory(name string, undo bool) *Job {
+func (q *Queue) submitHistory(name string, undo bool, id uint64) *Job {
 	return q.Submit(Op{Name: name, do: func(ctx context.Context, _ *Job) (run.Result, error) {
-		return q.travel(ctx, undo)
+		return q.travel(ctx, undo, id)
 	}})
 }
 
-func (q *Queue) travel(ctx context.Context, undo bool) (run.Result, error) {
+// travel undoes or redoes the last write on its side; id, when not 0,
+// is the entry that must be.
+func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, error) {
 	h := &q.History
 	h.mu.Lock()
 	from := &h.done
@@ -177,6 +208,9 @@ func (q *Queue) travel(ctx context.Context, undo bool) (run.Result, error) {
 	}
 	e := (*from)[len(*from)-1]
 	h.mu.Unlock()
+	if id != 0 && e.id != id {
+		return run.Result{}, ErrNotLast
+	}
 	if q.Refs == nil {
 		return run.Result{}, errors.New("write: undo needs the repository's refs")
 	}

@@ -165,6 +165,24 @@ func (msgs Messages) CommonUndo() string {
 	return Catalog.Format(msgs.locale, "commonUndo", nil)
 }
 
+// CommonUndoTooLate says "Nothing undone: other changes came since"
+// in the language the app shows.
+//
+// A toast when the user clicks a toast's Undo but another change was made
+// since, or the change was already undone: Undo would take back something
+// else, so it does nothing.
+func CommonUndoTooLate() string { return In(i18n.Locale()).CommonUndoTooLate() }
+
+// CommonUndoTooLate says "Nothing undone: other changes came since"
+// in the language of msgs.
+//
+// A toast when the user clicks a toast's Undo but another change was made
+// since, or the change was already undone: Undo would take back something
+// else, so it does nothing.
+func (msgs Messages) CommonUndoTooLate() string {
+	return Catalog.Format(msgs.locale, "commonUndoTooLate", nil)
+}
+
 // CommonChoose says "Choose…"
 // in the language the app shows.
 //

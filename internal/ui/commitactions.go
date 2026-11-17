@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/hex"
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -106,7 +107,7 @@ func (a *App) submitUndoable(t *tab, op write.Op, err error, done string, rewrot
 		a.notice = errText(err)
 		return
 	}
-	name := op.Name
+	q := t.s.Queue
 	t.s.Then(j, func(err error) {
 		if err != nil {
 			return
@@ -114,16 +115,33 @@ func (a *App) submitUndoable(t *tab, op write.Op, err error, done string, rewrot
 		if rewrote {
 			a.checkPushed(t, seen)
 		}
-		a.toast(ui.Toast{ID: "undo", Title: done, Action: locales.CommonUndo(), OnAction: func() {
-			// Another write since is what Undo would undo: this one is
-			// left to the Snapshots view.
-			if q := t.s.Queue; q != nil {
-				if last, _ := q.History.Next(); last == name {
-					a.undo(t, false)
-				}
-			}
-		}})
+		toast := ui.Toast{ID: "undo", Title: done}
+		if id := j.Entry(); id != 0 {
+			toast.Action = locales.CommonUndo()
+			toast.OnAction = func() { a.undoWrite(t, q, id) }
+		}
+		a.tabToast(t, toast)
 	})
+}
+
+// undoWrite takes back the write of tab t's queue q whose job recorded
+// History entry id, for a toast's Undo: only while it is the write Undo
+// would take back, in a tab still open; else a toast says nothing was
+// undone, and the write is left to the Snapshots view. It reports
+// whether the undo was queued.
+func (a *App) undoWrite(t *tab, q *write.Queue, id uint64) bool {
+	if slices.Contains(a.tabs, t) && t.s.Queue == q {
+		_, ok, err := t.s.UndoWrite(id)
+		if err != nil {
+			a.notice = errText(err)
+			return false
+		}
+		if ok {
+			return true
+		}
+	}
+	a.tabToast(t, ui.Toast{ID: "undo", Title: locales.CommonUndoTooLate()})
+	return false
 }
 
 // reset resets target, the branch checked out or HEAD, to commit.
