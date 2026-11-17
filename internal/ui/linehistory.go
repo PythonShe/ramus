@@ -140,7 +140,7 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 				if m.Item(locales.CommonCopyHash()).Chosen() {
 					a.clip = hex.EncodeToString(fc.OID)
 				}
-				a.commitActions(m, t, fc.OID)
+				a.commitItems(m, t, fc.OID, fc.Merges)
 			}
 			a.savedTable(c, "lineHistory", &lh.list, commitColumns(), len(cs), func(i, col int) {
 				fileCommitCell(c, lh.list.ink(c, i), cs[i], fs.path, now, col)

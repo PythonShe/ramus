@@ -236,7 +236,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 				if fc.Path == "" || fc.Path == fs.path {
 					a.restoreFromItem(m, t, fs.path, hex.EncodeToString(fc.OID))
 				}
-				a.commitActions(m, t, fc.OID)
+				a.commitItems(m, t, fc.OID, fc.Merges)
 			}
 			a.savedTable(c, "fileHistory", &fs.list, commitColumns(), len(cs), func(i, col int) {
 				fileCommitCell(c, fs.list.ink(c, i), cs[i], fs.path, now, col)

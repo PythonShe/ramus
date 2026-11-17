@@ -176,7 +176,7 @@ func parseLineLog(out []byte) *LineLog {
 		}
 		when, _ := strconv.ParseInt(string(f[3]), 10, 64)
 		c := FileCommit{OID: id, Author: string(f[2]), Time: time.Unix(when, 0), Subject: string(f[4]),
-			Merge: bytes.Count(f[1], []byte{' '}) > 0}
+			Merges: bytes.Count(f[1], []byte{' '})}
 		patch = bytes.TrimLeft(patch, "\n")
 		if _, after, ok := bytes.Cut(patch, []byte("\n+++ b/")); ok {
 			name, _, _ := bytes.Cut(after, []byte{'\n'})

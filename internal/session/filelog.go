@@ -20,7 +20,8 @@ type FileCommit struct {
 	Author  string
 	Time    time.Time
 	Subject string
-	Merge   bool
+	// Merges is the number of its parents past the first.
+	Merges int
 }
 
 // MaxFileLog bounds the commits a file's history lists.
@@ -89,7 +90,7 @@ func parseFileLog(out []byte) []FileCommit {
 		}
 		when, _ := strconv.ParseInt(string(f[3]), 10, 64)
 		c := FileCommit{OID: id, Author: string(f[2]), Time: time.Unix(when, 0), Subject: string(f[4]),
-			Merge: bytes.Count(f[1], []byte{' '}) > 0}
+			Merges: bytes.Count(f[1], []byte{' '})}
 		names = bytes.TrimLeft(names, "\n")
 		if p, _, ok := bytes.Cut(names, []byte{0}); ok {
 			c.Path = string(p)
