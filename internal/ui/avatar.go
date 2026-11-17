@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"bytes"
 	"hash/fnv"
+	"image"
 	"math"
 	"strings"
 	"unicode"
@@ -91,11 +93,14 @@ func (a *App) picture(t *tab, email string) *ui.Bitmap {
 	if !ok {
 		return nil
 	}
-	// A small picture, decoded here once; one that does not decode is
-	// kept as nil, for initials.
-	bmp, err := ui.DecodeBitmap(data)
-	if err != nil {
-		bmp = nil
+	// A small picture, decoded here once; one that does not decode, or
+	// says it is larger than a picture of a person is, is kept as nil,
+	// for initials.
+	var bmp *ui.Bitmap
+	if cfg, _, err := image.DecodeConfig(bytes.NewReader(data)); err == nil && cfg.Width*cfg.Height <= maxAvatarPixels {
+		if b, err := ui.DecodeBitmap(data); err == nil {
+			bmp = b
+		}
 	}
 	if t.pics == nil {
 		t.pics = map[string]*ui.Bitmap{}
@@ -103,6 +108,10 @@ func (a *App) picture(t *tab, email string) *ui.Bitmap {
 	t.pics[key] = bmp
 	return bmp
 }
+
+// maxAvatarPixels bounds a picture of a person decoded: the forge sends
+// them 64 pixels square.
+const maxAvatarPixels = 512 * 512
 
 // picsKept bounds the pictures a tab keeps decoded: past it they are
 // decoded again as shown.
