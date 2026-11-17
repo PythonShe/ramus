@@ -89,7 +89,9 @@ func (s *Session) CountChanges(st *status.Status, done func(ChangeLines)) {
 		return
 	}
 	a := &countAsk{r: r, ctx: s.viewContext(r), st: st, done: done}
-	if s.count.running {
+	// One running for a repository since closed, whose end never came,
+	// holds up none.
+	if s.count.running && s.count.r == r {
 		s.count.next = a
 		return
 	}
@@ -104,8 +106,11 @@ func (s *Session) startCount(a *countAsk) {
 	kept := c.kept
 	c.running = true
 	err := a.r.Life().Go(func(context.Context) {
-		out, ok := countChanged(a.ctx, a.r, a.st, kept)
-		s.update(func() {
+		var out ChangeLines
+		ok := false
+		// Deferred, to run though the count panicked: else no count
+		// would run again.
+		defer s.update(func() {
 			c.running = false
 			if ok && a.ctx.Err() == nil {
 				a.done(out)
@@ -117,6 +122,7 @@ func (s *Session) startCount(a *countAsk) {
 				}
 			}
 		})
+		out, ok = countChanged(a.ctx, a.r, a.st, kept)
 	})
 	if err != nil {
 		c.running = false
