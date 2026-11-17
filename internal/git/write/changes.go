@@ -31,6 +31,14 @@ func (w Where) cmd(args ...string) run.Cmd {
 	return run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Env: []string{"GIT_LITERAL_PATHSPECS=1"}}
 }
 
+// slow is cmd for a command that runs the clean or smudge filters, Git
+// LFS among them, or the post-checkout hook, which take their time.
+func (w Where) slow(args ...string) run.Cmd {
+	c := w.cmd(args...)
+	c.Timeout = HookTimeout
+	return c
+}
+
 func fromStdin(args ...string) []string {
 	return append(args, "--pathspec-from-file=-", "--pathspec-file-nul")
 }
@@ -45,7 +53,7 @@ func count(n int, one string) string {
 // Stage adds the paths as they are in the work tree to the index,
 // deletions included.
 func Stage(w Where, paths []string) Op {
-	return Op{Name: "Stage " + count(len(paths), paths[0]), Cmd: w.cmd(fromStdin("add", "--all")...), Input: pathspecs(paths)}
+	return Op{Name: "Stage " + count(len(paths), paths[0]), Cmd: w.slow(fromStdin("add", "--all")...), Input: pathspecs(paths)}
 }
 
 // Unstage puts the paths in the index back as they are in HEAD; with
@@ -67,7 +75,7 @@ const noRecurse = "--no-recurse-submodules"
 // index, after keeping them in a snapshot; it is undoable.
 func Discard(w Where, paths []string) Op {
 	name := "Discard changes to " + count(len(paths), paths[0])
-	return Op{Name: name, Cmd: w.cmd(fromStdin("restore", "--worktree", noRecurse)...), Input: pathspecs(paths),
+	return Op{Name: name, Cmd: w.slow(fromStdin("restore", "--worktree", noRecurse)...), Input: pathspecs(paths),
 		Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Undo: FilesOnly}
 }
 
@@ -84,7 +92,7 @@ func RestoreFrom(w Where, path, commit string) (Op, error) {
 		return Op{}, fmt.Errorf("write: %q is not a commit id", commit)
 	}
 	name := "Restore " + path + " as of " + short(commit)
-	return Op{Name: name, Cmd: w.cmd(fromStdin("restore", "--source="+commit, "--worktree", "--no-overlay", noRecurse)...),
+	return Op{Name: name, Cmd: w.slow(fromStdin("restore", "--source="+commit, "--worktree", "--no-overlay", noRecurse)...),
 		Input: pathspecs([]string{path}), Snapshot: &snapshot.Options{Reason: name, Paths: []string{path}}, Undo: FilesOnly}, nil
 }
 

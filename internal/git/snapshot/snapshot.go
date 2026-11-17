@@ -33,6 +33,11 @@ const Prefix = "refs/worktree/ramus/snapshots/"
 // paths is recorded as the whole work tree, which it then covers.
 const MaxPaths = 10000
 
+// filterTimeout bounds a git command that keeps or restores files: it
+// runs their clean or smudge filters, Git LFS among them, which take
+// their time on large files.
+const filterTimeout = 30 * time.Minute
+
 // DefaultKeep is how long a snapshot lives before Expire removes it.
 const DefaultKeep = 14 * 24 * time.Hour
 
@@ -121,7 +126,7 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	defer os.Remove(tmp + ".lock")
 	env := []string{"GIT_INDEX_FILE=" + tmp}
 	git := func(stdin []byte, extra []string, args ...string) (string, error) {
-		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: append(env, extra...), Args: args}
+		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: append(env, extra...), Args: args, Timeout: filterTimeout}
 		if stdin != nil {
 			c.Stdin = bytes.NewReader(stdin)
 		}
@@ -492,7 +497,7 @@ func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 		// Out of submodules whatever submodule.recurse says: a snapshot
 		// holds a submodule's commit, not the files inside it.
 		args = append(args, "--no-recurse-submodules")
-		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: []string{"GIT_LITERAL_PATHSPECS=1"}}
+		c := &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Timeout: filterTimeout}
 		if spec == nil {
 			c.Args = append(args, "--", ":/")
 			c.Env = nil

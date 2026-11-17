@@ -105,7 +105,7 @@ func BisectStart(w Where, bad string, good []string, seen Seen) (Op, error) {
 		return Op{}, err
 	}
 	args := append([]string{"bisect", "start", bad}, good...)
-	return Op{Name: "Start bisect", Expect: seen.expect(), Cmd: w.cmd(append(args, "--")...)}, nil
+	return Op{Name: "Start bisect", Expect: seen.expect(), Cmd: w.slow(append(args, "--")...)}, nil
 }
 
 // BisectMark marks commit (hex), or HEAD when it is "", good, bad or
@@ -126,17 +126,17 @@ func BisectMark(w Where, v BisectVerdict, commit string, start bool) (Op, error)
 		args = append(args, commit)
 		name += " " + short(commit)
 	}
-	op := Op{Name: name, Cmd: w.cmd(args...)}
+	op := Op{Name: name, Cmd: w.slow(args...)}
 	if start {
 		op.Name = "Start bisect, " + strings.ToLower(name[:1]) + name[1:]
-		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"bisect", "start"}}
+		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"bisect", "start"}, Timeout: HookTimeout}
 	}
 	return op, nil
 }
 
 // BisectReset ends a bisect and checks out where it started.
 func BisectReset(w Where) Op {
-	return Op{Name: "End bisect", Cmd: w.cmd("bisect", "reset")}
+	return Op{Name: "End bisect", Cmd: w.slow("bisect", "reset")}
 }
 
 // ApplyPatch applies a patch file to the work tree. A mailbox of commits
@@ -160,5 +160,5 @@ func ApplyPatch(w Where, file string, mailbox bool, paths []string, seen Seen) (
 		return Op{}, errors.New("write: the patch changes no files")
 	}
 	return Op{Name: "Apply " + base, Undo: FilesOnly, Snapshot: &snapshot.Options{Reason: "Apply " + base, Paths: paths},
-		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"apply", "--", file}}}, nil
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"apply", "--", file}, Timeout: HookTimeout}}, nil
 }

@@ -225,7 +225,7 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 	var err error
 	w := snapshot.Where{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree}
 	git := func(args ...string) error {
-		_, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: w.WorkTree, Args: args})
+		_, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: w.WorkTree, Args: args, Timeout: HookTimeout})
 		return err
 	}
 	switch e.Kind {
