@@ -3,11 +3,15 @@ package write
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +57,13 @@ type Entry struct {
 	// Snapshot is the work the write kept before it ran, if any.
 	Snapshot snapshot.Snapshot
 	op       Op
+	// config is the settings of the branches the write may move, before
+	// and after it.
+	config [2]branchConfig
+	// left is the paths Snapshot covers as the write, or its last redo,
+	// left them, nil when not known: what an undo must find, so as not to
+	// overwrite work done since.
+	left *pathState
 }
 
 // History holds a repository's undoable writes, for as long as the
@@ -170,20 +181,29 @@ func (q *Queue) travel(ctx context.Context, undo bool) (run.Result, error) {
 		return run.Result{}, errors.New("write: undo needs the repository's refs")
 	}
 	var err error
-	if undo {
-		err = q.apply(ctx, e, e.After, e.Before, true)
-	} else if e.Kind == FilesOnly || e.op.Snapshot != nil {
+	switch {
+	case undo:
+		if err = q.unchanged(ctx, e); err == nil {
+			err = q.apply(ctx, e, e.After, e.Before, true)
+		}
+	case e.Kind == FilesOnly || e.Kind == MovesHead && e.op.Snapshot != nil:
 		// A write that dropped work is redone by running it again, after
 		// checking nothing moved, since only it knows what it drops. Its
 		// fresh snapshot is what a later undo restores.
 		if err = q.verify(e.Before); err == nil {
 			e.Snapshot, err = q.redoFiles(ctx, e)
 		}
-	} else {
+	default:
 		err = q.apply(ctx, e, e.Before, e.After, false)
 	}
-	if err != nil {
+	// The refs and files moved even when the branches' settings could not
+	// follow: the entry moves with them, and the error says what is left.
+	var ce *configError
+	if err != nil && !errors.As(err, &ce) {
 		return run.Result{}, err
+	}
+	if !undo {
+		e.left = q.leftPaths(ctx, e)
 	}
 	h.mu.Lock()
 	*from = (*from)[:len(*from)-1]
@@ -193,7 +213,7 @@ func (q *Queue) travel(ctx context.Context, undo bool) (run.Result, error) {
 		h.done = append(h.done, e)
 	}
 	h.mu.Unlock()
-	return run.Result{}, nil
+	return run.Result{}, err
 }
 
 // apply moves the repository from state from to state to, refusing if it
@@ -233,8 +253,12 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 			err, skip = git("reset", "-q", "--keep", to.Head), to.Symbolic
 		}
 		if err != nil {
-			// Put back what moved early, so the history still matches.
-			if rb := q.moveRefs(ctx, to, from, func(name, nu string) bool { return early(name, to.Refs[name]) }, false); rb != nil {
+			// Put back what moved early, so the history still matches,
+			// though the undo was cancelled: that may be why it failed.
+			rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+			rb := q.moveRefs(rctx, to, from, func(name, nu string) bool { return early(name, to.Refs[name]) }, false)
+			cancel()
+			if rb != nil {
 				return fmt.Errorf("%w (and putting refs back failed: %v)", err, rb)
 			}
 			return err
@@ -250,10 +274,19 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 		}
 	}
 	if restore && e.Kind == MovesHead && e.Snapshot.Commit != "" {
-		return restoreFiles(ctx, q, w, e.Snapshot)
+		if err := restoreFiles(ctx, q, w, e.Snapshot); err != nil {
+			return err
+		}
 	}
-	return nil
+	cf, ct := e.config[1], e.config[0]
+	if !restore {
+		cf, ct = ct, cf
+	}
+	return q.setBranchConfig(ctx, w.WorkTree, cf, ct)
 }
+
+// rollbackTimeout bounds putting refs back after an undo failed part way.
+const rollbackTimeout = time.Minute
 
 // verify refuses unless HEAD and the touched refs are as in s.
 func (q *Queue) verify(s State) error {
@@ -337,4 +370,189 @@ func (q *Queue) redoFiles(ctx context.Context, e Entry) (snapshot.Snapshot, erro
 		return e.Snapshot, err
 	}
 	return s, nil
+}
+
+// settleTimeout bounds reading what a write left, once it ran.
+const settleTimeout = time.Minute
+
+// settle reads what the write of e left: its branches' settings, and the
+// paths its snapshot covers, for undo and redo to check against.
+func (q *Queue) settle(e *Entry, config branchConfig) {
+	ctx, cancel := context.WithTimeout(context.Background(), settleTimeout)
+	defer cancel()
+	if config != nil {
+		after, err := q.branchConfig(ctx, e.op.Cmd.WorkTree, slices.Collect(maps.Keys(config)))
+		if err == nil {
+			e.config = [2]branchConfig{config, after}
+		}
+	}
+	e.left = q.leftPaths(ctx, *e)
+}
+
+// pathState is the paths a write's snapshot covers, as they are on disk
+// and in the index.
+type pathState struct {
+	files []FileState
+	// sums are the files' contents hashed, "" for a folder or a file not
+	// there: a file written again as it was is not work done since.
+	sums  []string
+	index string // git ls-files --stage of them
+}
+
+// leftPaths reads the paths the snapshot of e covers as they are now, nil
+// when e restores no paths by name, or they cannot be read.
+func (q *Queue) leftPaths(ctx context.Context, e Entry) *pathState {
+	paths := e.Snapshot.Paths
+	if e.Kind != FilesOnly || e.Snapshot.All || len(paths) == 0 {
+		return nil
+	}
+	root := e.op.Cmd.WorkTree
+	files, err := Observe(root, paths)
+	if err != nil {
+		return nil
+	}
+	sums := make([]string, len(files))
+	for i, f := range files {
+		var b []byte
+		p := filepath.Join(root, filepath.FromSlash(f.Path))
+		switch {
+		case !f.Exists || f.Mode.IsDir():
+			continue
+		case f.Mode&os.ModeSymlink != 0:
+			var target string
+			target, err = os.Readlink(p)
+			b = []byte(target)
+		default:
+			b, err = os.ReadFile(p)
+		}
+		if err != nil {
+			return nil
+		}
+		sum := sha256.Sum256(b)
+		sums[i] = string(sum[:])
+	}
+	var index strings.Builder
+	for c := range slices.Chunk(paths, 256) {
+		res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree, Read: true,
+			Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: append([]string{"ls-files", "--stage", "-z", "--"}, c...)})
+		if err != nil {
+			return nil
+		}
+		index.Write(res.Stdout)
+	}
+	return &pathState{files: files, sums: sums, index: index.String()}
+}
+
+// unchanged refuses to undo e when the paths it puts back changed since
+// the write, or its last redo, left them: that would overwrite work done
+// since, which no redo brings back. A redo needs no such check: it keeps
+// what it drops in a fresh snapshot, which the next undo restores.
+func (q *Queue) unchanged(ctx context.Context, e Entry) error {
+	if e.left == nil {
+		return nil
+	}
+	now := q.leftPaths(ctx, e)
+	if now == nil {
+		return errors.New("write: the files to put back could not be read")
+	}
+	if len(now.files) != len(e.left.files) {
+		return &StaleError{What: "the files to put back", Saw: strconv.Itoa(len(e.left.files)), Now: strconv.Itoa(len(now.files))}
+	}
+	for i, f := range e.left.files {
+		if g := now.files[i]; g.Path != f.Path || g.Exists != f.Exists || g.Mode != f.Mode || now.sums[i] != e.left.sums[i] {
+			return &StaleError{What: g.Path, Saw: describe(f), Now: describe(g)}
+		}
+	}
+	if now.index != e.left.index {
+		return &StaleError{What: "the staged state of " + count(len(e.Snapshot.Paths), e.Snapshot.Paths[0]), Saw: "as left", Now: "changed"}
+	}
+	return nil
+}
+
+// branchConfig is the settings of branches, branch.<name>.*, by short
+// name: what git renames with a branch and drops with it, and so what
+// undo puts back. Each holds its keys and values in order, a NUL between
+// key and value, as a branch name may hold any other character.
+type branchConfig map[string][]string
+
+// branchNames are the short names of the local branches among refs.
+func branchNames(refs []string) []string {
+	var out []string
+	for _, r := range refs {
+		if name, ok := strings.CutPrefix(r, "refs/heads/"); ok {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// branchConfig reads the settings of the branches names in the
+// repository's own config, where git branch keeps them.
+func (q *Queue) branchConfig(ctx context.Context, workTree string, names []string) (branchConfig, error) {
+	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Read: true, Args: []string{"config", "--local", "-z", "--list"}})
+	if err != nil {
+		return nil, err
+	}
+	out := make(branchConfig, len(names))
+	for _, n := range names {
+		out[n] = nil
+	}
+	for _, rec := range strings.Split(string(res.Stdout), "\x00") {
+		key, value, ok := strings.Cut(rec, "\n")
+		if !ok {
+			value = "true" // a key with no value reads as true
+		}
+		rest, ok := strings.CutPrefix(key, "branch.")
+		dot := strings.LastIndexByte(rest, '.')
+		if !ok || dot < 0 {
+			continue
+		}
+		if name := rest[:dot]; slices.Contains(names, name) {
+			out[name] = append(out[name], key+"\x00"+value)
+		}
+	}
+	return out, nil
+}
+
+// configError is an undo or redo that moved the refs, but could not
+// give the branches their settings back.
+type configError struct{ err error }
+
+func (e *configError) Error() string {
+	return "write: the refs were put back, but not every branch's settings: " + e.err.Error()
+}
+
+func (e *configError) Unwrap() error { return e.err }
+
+// setBranchConfig gives each branch the settings to holds for it, where
+// they are as from holds: settings changed since are left as they are.
+func (q *Queue) setBranchConfig(ctx context.Context, workTree string, from, to branchConfig) error {
+	if len(to) == 0 {
+		return nil
+	}
+	now, err := q.branchConfig(ctx, workTree, slices.Collect(maps.Keys(to)))
+	if err != nil {
+		return &configError{err}
+	}
+	git := func(args ...string) error {
+		_, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Args: append([]string{"config", "--local"}, args...)})
+		return err
+	}
+	for _, name := range slices.Sorted(maps.Keys(to)) {
+		if slices.Equal(now[name], to[name]) || !slices.Equal(now[name], from[name]) {
+			continue
+		}
+		if len(now[name]) > 0 {
+			if err := git("--remove-section", "branch."+name); err != nil {
+				return &configError{err}
+			}
+		}
+		for _, kv := range to[name] {
+			k, v, _ := strings.Cut(kv, "\x00")
+			if err := git("--add", k, v); err != nil {
+				return &configError{err}
+			}
+		}
+	}
+	return nil
 }

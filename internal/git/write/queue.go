@@ -106,6 +106,9 @@ type Job struct {
 	err    error
 	snap   snapshot.Snapshot
 	backup string
+	// config is the settings of the branches the write may move, read
+	// before it ran, for undo to put back.
+	config branchConfig
 	// dropped counts events the reader was too slow for; Result still
 	// holds the output.
 	dropped int
@@ -390,9 +393,11 @@ func (q *Queue) record(j *Job, before fullState) {
 	}
 	b, a := touched(before, after, j.Op.Refs)
 	j.mu.Lock()
-	snap := j.snap
+	snap, config := j.snap, j.config
 	j.mu.Unlock()
-	q.History.push(Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op})
+	e := Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op}
+	q.settle(&e, config)
+	q.History.push(e)
 }
 
 // prepare runs inside the job's turn, so nothing the queue runs can
@@ -411,6 +416,15 @@ func (q *Queue) prepare(ctx context.Context, j *Job) error {
 		}
 		j.mu.Lock()
 		j.snap = s
+		j.mu.Unlock()
+	}
+	if names := branchNames(op.Refs); len(names) > 0 && op.Undo != NotUndoable && q.Refs != nil {
+		config, err := q.branchConfig(ctx, op.Cmd.WorkTree, names)
+		if err != nil {
+			return fmt.Errorf("write: reading the branches' settings first: %w", err)
+		}
+		j.mu.Lock()
+		j.config = config
 		j.mu.Unlock()
 	}
 	if len(op.Backup) > 0 {

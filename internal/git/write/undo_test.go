@@ -226,6 +226,96 @@ func TestRedoKeepsWhatItDrops(t *testing.T) {
 	}
 }
 
+// Undo of a discard or a delete refuses to put files back over work done
+// on them since, on disk or in the index, and puts them back once that
+// work is gone again.
+func TestUndoRefusesOverNewerWork(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("f", "base\n")
+	h.r.Commit("base")
+	h.r.Write("f", "first edit\n")
+	h.do(Discard(h.w, []string{"f"}), nil, true)
+	h.r.Write("f", "NEWER WORK\n")
+	var stale *StaleError
+	if _, err := wait(t, h.q.Undo()); !errors.As(err, &stale) {
+		t.Fatalf("undo over newer work: %v", err)
+	}
+	if h.read("f") != "NEWER WORK\n" {
+		t.Fatalf("f is %q", h.read("f"))
+	}
+	h.r.Git("checkout", "--", "f")
+	h.undo()
+	if h.read("f") != "first edit\n" {
+		t.Fatalf("f is %q", h.read("f"))
+	}
+
+	h.r.Write("u", "untracked\n")
+	op, err := Delete(h.w, []string{"u"})
+	h.do(op, err, true)
+	h.r.Write("u", "made again\n")
+	if _, err := wait(t, h.q.Undo()); !errors.As(err, &stale) {
+		t.Fatalf("undo of a delete over a file made since: %v", err)
+	}
+	if h.read("u") != "made again\n" {
+		t.Fatalf("u is %q", h.read("u"))
+	}
+
+	h.r.Git("checkout", "--", "f")
+	h.r.Write("f", "second edit\n")
+	h.do(Discard(h.w, []string{"f"}), nil, true)
+	h.r.Git("rm", "-q", "--cached", "f")
+	if _, err := wait(t, h.q.Undo()); !errors.As(err, &stale) {
+		t.Fatalf("undo over a change to the index: %v", err)
+	}
+}
+
+// Undo of a branch delete or rename gives the branch its settings back,
+// its upstream among them, and redo takes them along again.
+func TestUndoKeepsBranchSettings(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("f", "1\n")
+	h.r.Commit("base")
+	h.r.Git("branch", "feat")
+	h.r.Git("config", "branch.feat.remote", "origin")
+	h.r.Git("config", "branch.feat.merge", "refs/heads/feat")
+	settings := func(name string) string {
+		out, _ := h.r.Run(nil, "config", "--get-regexp", `^branch\.`+name+`\.`)
+		return strings.TrimSpace(out)
+	}
+	const feat = "branch.feat.remote origin\nbranch.feat.merge refs/heads/feat"
+	h.do(DeleteBranch(h.w, "refs/heads/feat", h.rev("feat"), true, "", h.seen()), nil, true)
+	if settings("feat") != "" {
+		t.Fatalf("git kept %q", settings("feat"))
+	}
+	h.undo()
+	if h.rev("feat") == "" || settings("feat") != feat {
+		t.Fatalf("after undo: %q", settings("feat"))
+	}
+	if _, err := wait(t, h.q.Redo()); err != nil {
+		t.Fatal(err)
+	}
+	if h.rev("feat") != "" || settings("feat") != "" {
+		t.Fatalf("after redo: %q", settings("feat"))
+	}
+	h.undo()
+
+	op, err := RenameBranch(h.w, "refs/heads/feat", "trunk", h.seen())
+	h.do(op, err, true)
+	if settings("trunk") == "" || settings("feat") != "" {
+		t.Fatal("git did not move the settings")
+	}
+	h.undo()
+	if settings("feat") != feat || settings("trunk") != "" {
+		t.Fatalf("after undo: feat %q, trunk %q", settings("feat"), settings("trunk"))
+	}
+	if _, err := wait(t, h.q.Redo()); err != nil {
+		t.Fatal(err)
+	}
+	if settings("feat") != "" || settings("trunk") == "" {
+		t.Fatalf("after redo: feat %q, trunk %q", settings("feat"), settings("trunk"))
+	}
+}
+
 func TestUndoHardResetKeepsStaged(t *testing.T) {
 	f := newUndo(t)
 	f.r.Write("a", "1")
