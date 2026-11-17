@@ -1,11 +1,13 @@
 package write
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"ramus/internal/git/config"
 	"ramus/internal/git/run"
 )
 
@@ -149,17 +151,71 @@ func PushTag(w Where, remote, name string) (Op, error) {
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"push", "--progress", "--", remote, "refs/tags/" + name}, Timeout: PushTimeout, Stall: NetworkStall}}, nil
 }
 
-// DeleteRemoteBranch deletes branch on remote. It cannot be undone from
-// here: the remote no longer has it.
-func DeleteRemoteBranch(w Where, remote, branch string) (Op, error) {
+// DeleteRemoteBranch deletes branch on remote, but only while it is still
+// at tip (hex), where this repository last saw it: commits pushed to it
+// since were fetched nowhere here, and would be lost. It cannot be
+// undone from here: the remote no longer has it.
+func DeleteRemoteBranch(w Where, remote, branch, tip string) (Op, error) {
 	if err := checkName("remote", remote); err != nil {
 		return Op{}, err
 	}
 	if err := checkName("branch", branch); err != nil {
 		return Op{}, err
 	}
+	if _, err := hex.DecodeString(tip); err != nil || tip == "" {
+		return Op{}, fmt.Errorf("write: %q is no commit to lease the delete on", tip)
+	}
+	ref := "refs/heads/" + branch
 	return Op{Name: "Delete " + branch + " on " + remote, NoIndex: true,
-		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"push", "--progress", "--delete", "--", remote, "refs/heads/" + branch}, Timeout: PushTimeout, Stall: NetworkStall}}, nil
+		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"push", "--progress", "--force-with-lease=" + ref + ":" + tip, "--delete", "--", remote, ref}, Timeout: PushTimeout, Stall: NetworkStall}}, nil
+}
+
+// RemoteBranchOf finds the remote and the branch on it that a remote
+// branch (a full name, as refs/remotes/origin/main) is fetched from, by
+// the remotes' fetch refspecs, as git maps them; false unless exactly
+// one source maps to it, and that is a branch: a pull request's ref
+// under origin/pr/ is also where a branch pr/12 would go.
+func RemoteBranchOf(cfg *config.Config, ref string) (remote, branch string, ok bool) {
+	var from string
+	for _, r := range cfg.Subsections("remote", "fetch") {
+		for _, spec := range cfg.All("remote." + r + ".fetch") {
+			src, ok := refspecSource(spec, ref)
+			if !ok {
+				continue
+			}
+			if remote != "" && (remote != r || from != src) {
+				return "", "", false
+			}
+			remote, from = r, src
+		}
+	}
+	branch, ok = strings.CutPrefix(from, "refs/heads/")
+	if !ok || branch == "" {
+		return "", "", false
+	}
+	return remote, branch, true
+}
+
+// refspecSource maps ref back through a fetch refspec to the source ref
+// it is fetched from.
+func refspecSource(spec, ref string) (string, bool) {
+	spec = strings.TrimPrefix(spec, "+")
+	src, dst, ok := strings.Cut(spec, ":")
+	if !ok || strings.HasPrefix(spec, "^") || dst == "" {
+		return "", false
+	}
+	pre, post, glob := strings.Cut(dst, "*")
+	if !glob {
+		return src, dst == ref && !strings.Contains(src, "*")
+	}
+	if !strings.HasPrefix(ref, pre) || !strings.HasSuffix(ref, post) || len(ref) < len(pre)+len(post) {
+		return "", false
+	}
+	mid := ref[len(pre) : len(ref)-len(post)]
+	if strings.Count(src, "*") != 1 {
+		return "", false
+	}
+	return strings.Replace(src, "*", mid, 1), true
 }
 
 // CheckRemoteURL refuses a URL git would read as an option, one with

@@ -535,14 +535,20 @@ func (a *App) remoteBranchMenu(m *ui.Menu, t *tab, name string, act *func()) {
 	ro := t.s.Queue == nil
 	head := t.s.State.Head
 	short := strings.TrimPrefix(name, "refs/remotes/")
-	remote, branch, _ := strings.Cut(short, "/")
+	// What is deleted on the remote is what its fetch refspec maps there
+	// from, not what the name looks like; the item says the remote the
+	// name starts with when none does.
+	remote, branch, mapped := "", "", false
+	if r := t.s.Repo; r != nil {
+		remote, branch, mapped = write.RemoteBranchOf(r.Config(), name)
+	}
+	if !mapped {
+		remote, _, _ = strings.Cut(short, "/")
+	}
 	var tip []byte
 	if l := t.s.State.Refs; l != nil {
-		for i := range l.Len() {
-			if l.Name(i) == name {
-				tip = l.OID(i)
-				break
-			}
+		if i, ok := l.Find(name); ok {
+			tip = l.OID(i)
 		}
 	}
 	commit := hex.EncodeToString(tip)
@@ -571,12 +577,12 @@ func (a *App) remoteBranchMenu(m *ui.Menu, t *tab, name string, act *func()) {
 		*act = func() { a.tagDialog(t, commit) }
 	}
 	m.Separator()
-	if m.Item(locales.RefsDeleteOnRemote(redact.Control(remote))).Disabled(ro || isHead || branch == "").Danger().Chosen() {
+	if m.Item(locales.RefsDeleteOnRemote(redact.Control(remote))).Disabled(ro || isHead || !mapped || len(tip) == 0).Danger().Chosen() {
 		*act = func() {
 			a.confirm = confirmState{open: true, title: locales.RefsDeleteRemoteBranchTitle(redact.Control(branch), redact.Control(remote)),
 				message: locales.RefsDeleteRemoteBranchMessage(), button: locales.CommonDelete(),
 				run: func() {
-					op, err := write.DeleteRemoteBranch(t.s.Where(), remote, branch)
+					op, err := write.DeleteRemoteBranch(t.s.Where(), remote, branch, commit)
 					a.submit(t, op, err)
 				}}
 		}

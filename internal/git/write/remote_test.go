@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"ramus/internal/git/config"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/refs"
 )
@@ -250,6 +251,79 @@ func TestRemotesFetchPullPushAndTags(t *testing.T) {
 	h.do(op, err, true)
 	if strings.TrimSpace(h.r.Git("remote")) != "" {
 		t.Fatal("remote left")
+	}
+}
+
+// Deleting a branch on a remote is leased on where this repository last
+// saw it: one pushed to since is refused, and kept, until fetched.
+func TestDeleteRemoteBranchLeased(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	bare := gittest.Init(t, "--bare")
+	h.r.Git("remote", "add", "origin", bare.Dir)
+	h.r.Git("push", "-q", "origin", "HEAD:refs/heads/topic")
+	h.r.Git("fetch", "-q", "origin")
+	seen := h.rev("refs/remotes/origin/topic")
+
+	other := gittest.Init(t)
+	other.Git("fetch", "-q", bare.Dir, "topic")
+	other.Git("reset", "-q", "--hard", "FETCH_HEAD")
+	other.Write("o", "1")
+	theirs := other.Commit("theirs")
+	other.Git("push", "-q", bare.Dir, "HEAD:topic")
+
+	op, err := DeleteRemoteBranch(h.w, "origin", "topic", seen)
+	h.do(op, err, false)
+	if got := strings.TrimSpace(bare.Git("rev-parse", "topic")); got != theirs {
+		t.Fatalf("the branch moved to %s, want %s", got, theirs)
+	}
+	h.r.Git("fetch", "-q", "origin")
+	op, err = DeleteRemoteBranch(h.w, "origin", "topic", h.rev("refs/remotes/origin/topic"))
+	h.do(op, err, true)
+	if out, _ := bare.Run(nil, "rev-parse", "-q", "--verify", "refs/heads/topic"); strings.TrimSpace(out) != "" {
+		t.Fatal("not deleted")
+	}
+	if h.rev("refs/remotes/origin/topic") != "" {
+		t.Fatal("the remote branch is still here")
+	}
+	for _, bad := range [][3]string{{"origin", "-x", seen}, {"origin", "topic", ""}, {"origin", "topic", "HEAD"}} {
+		if _, err := DeleteRemoteBranch(h.w, bad[0], bad[1], bad[2]); err == nil {
+			t.Errorf("took %q", bad)
+		}
+	}
+}
+
+// A remote branch maps back to its remote and branch through the fetch
+// refspecs, not its name: a remote with a slash, and a refspec of pull
+// requests, which are no branch.
+func TestRemoteBranchOf(t *testing.T) {
+	cfg, err := config.Parse([]byte(strings.Join([]string{
+		"local", "f", "remote.origin.url\nu",
+		"local", "f", "remote.origin.fetch\n+refs/heads/*:refs/remotes/origin/*",
+		"local", "f", "remote.origin.fetch\n+refs/pull/*/head:refs/remotes/origin/pr/*",
+		"local", "f", "remote.team/origin.url\nu",
+		"local", "f", "remote.team/origin.fetch\n+refs/heads/*:refs/remotes/team/origin/*",
+		"local", "f", "remote.one.url\nu",
+		"local", "f", "remote.one.fetch\nrefs/heads/main:refs/remotes/one/trunk",
+		"",
+	}, "\x00")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ ref, remote, branch string }{
+		{"refs/remotes/origin/main", "origin", "main"},
+		{"refs/remotes/origin/feature/x", "origin", "feature/x"},
+		{"refs/remotes/team/origin/x", "team/origin", "x"},
+		{"refs/remotes/one/trunk", "one", "main"},
+		{"refs/remotes/origin/pr/12", "", ""},
+		{"refs/remotes/one/main", "", ""},
+		{"refs/remotes/nowhere/main", "", ""},
+	} {
+		r, b, ok := RemoteBranchOf(cfg, c.ref)
+		if r != c.remote || b != c.branch || ok != (c.remote != "") {
+			t.Errorf("%s: %q %q %v, want %q %q", c.ref, r, b, ok, c.remote, c.branch)
+		}
 	}
 }
 
