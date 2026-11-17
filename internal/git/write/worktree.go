@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"ramus/internal/git/run"
+	"ramus/internal/git/snapshot"
 )
 
 // WorktreeOptions say what a new work tree checks out.
@@ -64,14 +65,22 @@ func AddWorktree(w Where, o WorktreeOptions) (Op, error) {
 
 // RemoveWorktree removes the work tree at path and its folder; git refuses
 // when it has changes or untracked files, unless force is set, and always
-// when it is locked.
+// when it is locked. Its files are kept in a snapshot of w first.
 func RemoveWorktree(w Where, path string, force bool) Op {
 	args := []string{"worktree", "remove"}
 	if force {
 		args = append(args, "--force")
 	}
-	return Op{Name: "Remove worktree " + filepath.Base(path),
+	name := "Remove worktree " + filepath.Base(path)
+	return Op{Name: name, Snapshot: keepWorktree(name, path),
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: append(args, "--", path)}}
+}
+
+// keepWorktree keeps the worktree at path whole before it is removed:
+// git deletes its ignored files even unforced, and its own refs, where
+// its snapshots are, go with it.
+func keepWorktree(reason, path string) *snapshot.Options {
+	return &snapshot.Options{Reason: reason, Ignored: true, Worktree: path}
 }
 
 // PruneWorktrees forgets the work trees whose folders are gone.

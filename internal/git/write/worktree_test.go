@@ -74,3 +74,60 @@ func TestWorktrees(t *testing.T) {
 		}
 	}
 }
+
+// Removing a worktree, alone or with its branch, keeps its files first,
+// ignored ones included, in a snapshot under the refs of the worktree it
+// is removed from: its own go with it.
+func TestRemovingAWorktreeKeepsItsFiles(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write(".gitignore", ".env\n")
+	h.r.Write("a", "1\n")
+	h.r.Commit("one")
+	h.r.Git("branch", "side")
+	h.r.Git("branch", "other")
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	add := func(branch string) string {
+		dir := filepath.Join(base, branch)
+		op, err := AddWorktree(h.w, WorktreeOptions{Path: dir, Branch: branch})
+		h.do(op, err, true)
+		if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("SECRET="+branch+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	kept := func(path, want string) {
+		t.Helper()
+		snap := strings.TrimSpace(h.r.Git("for-each-ref", "--sort=-refname", "--count=1", "--format=%(objectname)", "refs/worktree/ramus/snapshots/"))
+		if snap == "" {
+			t.Fatal("no snapshot kept")
+		}
+		if got, err := h.r.Run(nil, "show", snap+":"+path); err != nil || got != want {
+			t.Fatalf("%s in the snapshot: %q %v", path, got, err)
+		}
+	}
+
+	side := add("side")
+	if err := os.WriteFile(filepath.Join(side, "a"), []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.do(RemoveWorktree(h.w, side, true), nil, true)
+	if _, err := os.Stat(side); !os.IsNotExist(err) {
+		t.Fatalf("folder left: %v", err)
+	}
+	kept(".env", "SECRET=side\n")
+	kept("a", "changed\n")
+
+	other := add("other")
+	h.do(DeleteBranch(h.w, "refs/heads/other", h.rev("other"), true, other, h.seen()), nil, true)
+	if _, err := os.Stat(other); !os.IsNotExist(err) || h.rev("other") != "" {
+		t.Fatalf("worktree or branch left: %v", err)
+	}
+	kept(".env", "SECRET=other\n")
+	h.undo()
+	if h.rev("other") == "" {
+		t.Fatal("undo did not bring the branch back")
+	}
+	if _, err := wait(t, h.q.Redo()); err != nil || h.rev("other") != "" {
+		t.Fatalf("redo: %v", err)
+	}
+}

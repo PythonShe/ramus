@@ -51,6 +51,27 @@ type Options struct {
 	// Ignored also keeps ignored files, for "Snapshot now" before an
 	// agent run.
 	Ignored bool
+	// Worktree, when set, is the folder of another worktree of the
+	// repository, about to be removed: its state is kept, under the refs
+	// of the worktree Take is given, since its own go with it.
+	Worktree string
+}
+
+// worktreeGitDir is the git directory of the linked worktree at dir, which
+// its .git file names.
+func worktreeGitDir(dir string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(dir, ".git"))
+	if err != nil {
+		return "", fmt.Errorf("snapshot: %s is not a linked worktree: %w", dir, err)
+	}
+	gd, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir: ")
+	if !ok || gd == "" {
+		return "", fmt.Errorf("snapshot: %s has no git directory named in its .git file", dir)
+	}
+	if !filepath.IsAbs(gd) {
+		gd = filepath.Join(dir, gd)
+	}
+	return gd, nil
 }
 
 // Snapshot is one kept state.
@@ -79,6 +100,14 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	s := Snapshot{Reason: opts.Reason, Ignored: opts.Ignored, Paths: opts.Paths}
 	if len(s.Paths) == 0 || len(s.Paths) > MaxPaths {
 		s.Paths, s.All = nil, true
+	}
+	keep := w.GitDir
+	if opts.Worktree != "" {
+		gd, err := worktreeGitDir(opts.Worktree)
+		if err != nil {
+			return Snapshot{}, err
+		}
+		w = Where{GitDir: gd, WorkTree: opts.Worktree}
 	}
 	var err error
 	if s.Head, err = revParse(ctx, r, w, "HEAD^{commit}"); err != nil {
@@ -162,7 +191,7 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	s.Time = time.Now()
 	s.Ref = Prefix + strconv.FormatInt(s.Time.UnixNano(), 10)
 	// An empty old value makes git refuse if the name is taken.
-	if _, err := git(nil, nil, "update-ref", "-m", "ramus snapshot", s.Ref, s.Commit, ""); err != nil {
+	if _, err := r.Run(ctx, &run.Cmd{GitDir: keep, Args: []string{"update-ref", "-m", "ramus snapshot", s.Ref, s.Commit, ""}}); err != nil {
 		return Snapshot{}, err
 	}
 	return s, nil

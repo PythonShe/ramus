@@ -777,7 +777,7 @@ func (msgs Messages) RefsDeleteBranchesMessage() string {
 	return Catalog.Format(msgs.locale, "refsDeleteBranchesMessage", nil)
 }
 
-// RefsDeleteBranchesWorktreesMessage says "Each is backed up first; Undo brings it back. The worktree at {folders} is removed with its branch; git refuses if it…"
+// RefsDeleteBranchesWorktreesMessage says "Each is backed up first; Undo brings the branch back. The worktree at {folders} is removed with its branch, and Undo …"
 // in the language the app shows.
 //
 // folders is a comma-separated list of paths.
@@ -785,7 +785,7 @@ func RefsDeleteBranchesWorktreesMessage(folders string) string {
 	return In(i18n.Locale()).RefsDeleteBranchesWorktreesMessage(folders)
 }
 
-// RefsDeleteBranchesWorktreesMessage says "Each is backed up first; Undo brings it back. The worktree at {folders} is removed with its branch; git refuses if it…"
+// RefsDeleteBranchesWorktreesMessage says "Each is backed up first; Undo brings the branch back. The worktree at {folders} is removed with its branch, and Undo …"
 // in the language of msgs.
 //
 // folders is a comma-separated list of paths.
@@ -3033,11 +3033,11 @@ func (msgs Messages) WorktreeRemoveTitle(name string) string {
 	return Catalog.Format(msgs.locale, "worktreeRemoveTitle", map[string]any{"name": name})
 }
 
-// WorktreeRemoveFolder says "Its folder {path} is deleted."
+// WorktreeRemoveFolder says "Its folder {path} is deleted. Its files, ignored ones included, are kept in a snapshot first, which the Snapshots vie…"
 // in the language the app shows.
 func WorktreeRemoveFolder(path string) string { return In(i18n.Locale()).WorktreeRemoveFolder(path) }
 
-// WorktreeRemoveFolder says "Its folder {path} is deleted."
+// WorktreeRemoveFolder says "Its folder {path} is deleted. Its files, ignored ones included, are kept in a snapshot first, which the Snapshots vie…"
 // in the language of msgs.
 func (msgs Messages) WorktreeRemoveFolder(path string) string {
 	return Catalog.Format(msgs.locale, "worktreeRemoveFolder", map[string]any{"path": path})

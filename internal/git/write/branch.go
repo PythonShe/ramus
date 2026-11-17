@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -316,7 +317,8 @@ func RenameBranch(w Where, from, to string, seen Seen) (Op, error) {
 // DeleteBranch deletes a local branch at commit (hex), which the user saw
 // it at; force deletes it though not merged. Its value is backed up
 // first, and undo puts it back. A worktree that has it checked out is
-// removed first, which git refuses when the worktree has changes.
+// removed first, which git refuses when the worktree has changes; its
+// files are kept in a snapshot of w before, which undo does not restore.
 func DeleteBranch(w Where, branch, commit string, force bool, worktree string, seen Seen) Op {
 	name := strings.TrimPrefix(branch, "refs/heads/")
 	ref := "refs/heads/" + name
@@ -331,6 +333,7 @@ func DeleteBranch(w Where, branch, commit string, force bool, worktree string, s
 		Cmd:    run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"branch", flag, "--end-of-options", name}}}
 	if worktree != "" {
 		op.Pre = &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"worktree", "remove", "--", worktree}}
+		op.Snapshot = keepWorktree("Remove worktree "+filepath.Base(worktree)+" with branch "+name, worktree)
 	}
 	return op
 }

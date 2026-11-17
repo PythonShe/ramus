@@ -115,7 +115,7 @@
   "refsDeleteBranchesTitle": "{count, plural, one {Delete # branch?} other {Delete # branches?}}",
   "refsDeleteBranchTitle": "Delete branch {name} at {commit}?",
   "refsDeleteBranchesMessage": "Each is backed up first; Undo brings it back.",
-  "refsDeleteBranchesWorktreesMessage": "Each is backed up first; Undo brings it back. The worktree at {folders} is removed with its branch; git refuses if it has changes.",
+  "refsDeleteBranchesWorktreesMessage": "Each is backed up first; Undo brings the branch back. The worktree at {folders} is removed with its branch, and Undo does not bring it back; git refuses if it has changes. Its files, ignored ones included, are kept in a snapshot first, which the Snapshots view shows.",
   "@refsDeleteBranchesWorktreesMessage": {
     "description": "folders is a comma-separated list of paths."
   },
@@ -549,7 +549,7 @@
   "worktreeMissingTitle": "Worktree {name} is missing",
   "worktreePrune": "Prune",
   "worktreeRemoveTitle": "Remove worktree {name}?",
-  "worktreeRemoveFolder": "Its folder {path} is deleted.",
+  "worktreeRemoveFolder": "Its folder {path} is deleted. Its files, ignored ones included, are kept in a snapshot first, which the Snapshots view shows.",
   "worktreeAlsoDeleteBranch": "Also delete branch {branch}",
   "worktreeRemoveForce": "Remove even with changes or untracked files",
   "worktreeLockTitle": "Lock worktree {name}",
