@@ -805,13 +805,19 @@ func (a *App) copyChosen(t *tab, h session.HistoryState) {
 	if hv.chosenID == nil {
 		return
 	}
-	ids := []string{hex.EncodeToString(hv.chosenID)}
-	if hv.chosen >= 0 && h.Snap != nil && hv.chosen < h.Snap.Len() {
-		all, _ := a.historyIDs(t, h, hv.chosen)
-		ids = all()
-		slices.Reverse(ids)
+	if hv.chosen < 0 || h.Snap == nil || hv.chosen >= h.Snap.Len() {
+		a.clip = hex.EncodeToString(hv.chosenID)
+		return
 	}
-	a.clip = strings.Join(ids, "\n")
+	all, n := a.historyIDs(t, h, hv.chosen)
+	if n > 1 {
+		// As the menu's Copy Hashes copies them.
+		ids := all()
+		slices.Reverse(ids)
+		a.clip = strings.Join(ids, "\n") + "\n"
+		return
+	}
+	a.clip = all()[0]
 }
 
 // chooseRelative goes to the chosen commit's first child, or its first
