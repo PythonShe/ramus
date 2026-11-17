@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/hex"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -218,15 +219,25 @@ func (a *App) branchCommands(t *tab, query string) []command {
 		return nil
 	}
 	head := t.s.State.Head
+	// A word matches the name or the words around it, as match would
+	// find it in the label; only the branches kept are put in words.
+	words := strings.Fields(strings.ToLower(query))
+	fixed := strings.ToLower(locales.PaletteSwitchTo(""))
 	var cmds []command
 	for _, ref := range t.sideRefs.build(t).heads {
+		if len(cmds) == paletteBranches {
+			break
+		}
 		if !head.Detached && ref == head.Target {
 			continue
 		}
-		cmds = append(cmds, command{label: locales.PaletteSwitchTo(redact.Control(strings.TrimPrefix(ref, "refs/heads/"))), run: func() { a.switchTo(t, ref) }})
+		name := redact.Control(strings.TrimPrefix(ref, "refs/heads/"))
+		lower := strings.ToLower(name)
+		if !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(lower, w) && !strings.Contains(fixed, w) }) {
+			cmds = append(cmds, command{label: locales.PaletteSwitchTo(name), run: func() { a.switchTo(t, ref) }})
+		}
 	}
-	cmds = match(cmds, query)
-	return cmds[:min(len(cmds), paletteBranches)]
+	return cmds
 }
 
 // stashTop is the commit of the newest stash, "" when there is none.
