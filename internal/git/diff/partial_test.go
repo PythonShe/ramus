@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -292,6 +293,9 @@ func TestSelectPastNoNewline(t *testing.T) {
 // Lines staged or discarded leave the file's mode as it is on the side
 // they go to.
 func TestSelectLeavesTheModeAlone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no executable bit to change on Windows")
+	}
 	r := gittest.Init(t)
 	rn := testrun.Runner(t)
 	r.Write("f", "a\nb\n")
