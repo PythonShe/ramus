@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"encoding/hex"
 	"math"
 	"slices"
@@ -781,7 +782,9 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 			var e ui.Element
 			switch col {
 			case colAuthor:
-				hv.shownIDs = append(hv.shownIDs, id)
+				// A copy: the id may be in the commit-graph's mapping,
+				// which can go before the next frame reads it.
+				hv.shownIDs = append(hv.shownIDs, bytes.Clone(id))
 				e = ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Clip().Children(func() {
 					// The name beside it says who it is.
 					a.avatar(c, t, author, email, avatarRow).Role(ui.RoleNone).Label("")
