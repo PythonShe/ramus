@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,4 +71,31 @@ func (s *Session) LoadTrack(done func(Track)) {
 		cancel()
 		done(Track{})
 	}
+}
+
+// CountPulled counts the commits of the upstream of branch (a full ref
+// name) that commit old (hex) did not hold, off the main thread: after a
+// pull, what it took in. done hears on the main thread, and not at all
+// when git could not count.
+func (s *Session) CountPulled(branch, old string, done func(int)) {
+	r := s.Repo
+	if r == nil || !strings.HasPrefix(branch, "refs/heads/") || old == "" {
+		return
+	}
+	update := s.update
+	// git takes @{upstream} after a branch's short name only.
+	r.Life().Go(func(ctx context.Context) {
+		ctx, cancel := context.WithTimeout(ctx, trackTimeout)
+		defer cancel()
+		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
+			Args: []string{"rev-list", "--count", strings.TrimPrefix(branch, "refs/heads/") + "@{upstream}", "^" + old, "--"}})
+		if err != nil {
+			return
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(string(res.Stdout)))
+		if err != nil {
+			return
+		}
+		update(func() { done(n) })
+	})
 }

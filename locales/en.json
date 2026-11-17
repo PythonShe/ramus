@@ -2385,23 +2385,102 @@
   },
   "branchPickerTooltip": "Switch Branch",
   "syncFetch": "Fetch",
-  "syncPull": "Pull ↓{behind}",
-  "@syncPull": {
+  "@syncFetch": {
+    "description": "A verb: what the sync button does when the branch is even with its upstream, for assistive technology and the toolbar's overflow menu."
+  },
+  "syncCount": "{count, number}",
+  "@syncCount": {
+    "description": "A count of commits beside an arrow: to pull beside one pointing down, to push beside one pointing up.",
     "placeholders": {
-      "behind": {
-        "type": "int"
-      }
+        "count": {
+          "type": "int"
+        }
     }
   },
-  "syncPush": "Push ↑{ahead}",
-  "@syncPush": {
+  "syncPullLabel": "Pull {behind, plural, one {# commit} other {# commits}} from {upstream}",
+  "@syncPullLabel": {
+    "description": "What the sync button does for a branch behind its upstream, as \"origin/main\"; also its tooltip.",
     "placeholders": {
-      "ahead": {
-        "type": "int"
-      }
+        "behind": {
+          "type": "int"
+        }
     }
+  },
+  "syncPushLabel": "Push {ahead, plural, one {# commit} other {# commits}} to {upstream}",
+  "@syncPushLabel": {
+    "description": "What the sync button does for a branch ahead of its upstream; also its tooltip.",
+    "placeholders": {
+        "ahead": {
+          "type": "int"
+        }
+    }
+  },
+  "syncDivergedLabel": "Pull {behind, plural, one {# commit} other {# commits}} from {upstream}; {ahead, plural, one {# commit} other {# commits}} to push after",
+  "@syncDivergedLabel": {
+    "description": "What the sync button does for a branch both behind and ahead of its upstream: it pulls first.",
+    "placeholders": {
+        "behind": {
+          "type": "int"
+        },
+        "ahead": {
+          "type": "int"
+        }
+    }
+  },
+  "syncUpToDate": "Up to date with {upstream}. Fetch to look for new commits.",
+  "@syncUpToDate": {
+    "description": "The sync button's tooltip when the branch is even with its upstream."
+  },
+  "syncFetching": "Fetching from {upstream}",
+  "@syncFetching": {
+    "description": "The sync button's tooltip while a fetch runs."
+  },
+  "syncPulling": "Pulling from {upstream}",
+  "@syncPulling": {
+    "description": "The sync button's tooltip while a pull runs."
+  },
+  "syncPushing": "Pushing to {upstream}",
+  "@syncPushing": {
+    "description": "The sync button's tooltip while a push runs."
+  },
+  "syncLastFetched": "Last fetched {ago}",
+  "@syncLastFetched": {
+    "description": "A second line of the sync button's tooltip; ago is as \"5 minutes ago\" or \"just now\"."
+  },
+  "syncMenu": "Fetch, Pull or Push",
+  "@syncMenu": {
+    "description": "The small button beside the sync button that opens the menu of every way to fetch, pull and push."
+  },
+  "syncFetchedAll": "Fetched all remotes",
+  "@syncFetchedAll": {
+    "description": "A toast once a fetch of every remote the user asked for ended well."
+  },
+  "syncFetched": "Fetched {remote}",
+  "@syncFetched": {
+    "description": "A toast once a fetch the user asked for ended well."
+  },
+  "syncPulled": "Pulled {count, plural, one {# commit} other {# commits}} into {branch}",
+  "@syncPulled": {
+    "description": "A toast once a pull the user asked for ended well.",
+    "placeholders": {
+        "count": {
+          "type": "int"
+        }
+    }
+  },
+  "syncPushed": "Pushed {branch} to {remote}",
+  "@syncPushed": {
+    "description": "A toast once a push of the branch checked out ended well."
+  },
+  "syncAlreadyUpToDate": "Already up to date with {upstream}",
+  "@syncAlreadyUpToDate": {
+    "description": "A toast once a pull ended well with nothing to take in."
   },
   "syncPublish": "Publish Branch",
+  "syncPublishShort": "Publish",
+  "@syncPublishShort": {
+    "description": "Beside a cloud on the sync button of a branch with no upstream; syncPublish names the button for assistive technology."
+  },
   "syncPublishTo": "Push the branch to {remote} and track it there",
   "branchPickerDetached": "Detached HEAD",
   "@branchPickerDetached": {

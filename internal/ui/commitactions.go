@@ -64,12 +64,15 @@ func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
 
 // submit runs a write and shows why it could not start.
 func (a *App) submit(t *tab, op write.Op, err error) {
+	var j *write.Job
 	if err == nil {
-		_, err = t.s.Submit(op)
+		j, err = t.s.Submit(op)
 	}
 	if err != nil {
 		a.notice = errText(err)
+		return
 	}
+	a.watchSync(t, op, j)
 }
 
 func (a *App) reset(t *tab, commit string, mode write.ResetMode) {

@@ -5,10 +5,12 @@ import (
 	"testing"
 
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/write"
 )
 
 // The button beside the branch picker publishes a branch with no
-// upstream, pushes one ahead, and pulls one behind.
+// upstream, pushes one ahead, and pulls one behind, saying how each went;
+// one both ahead and behind shows both and pulls first.
 func TestSyncButton(t *testing.T) {
 	h := newHarness(t)
 	origin := gittest.Init(t, "--bare")
@@ -27,6 +29,7 @@ func TestSyncButton(t *testing.T) {
 
 	h.until("publish", h.shows("Publish Branch"))
 	h.click("Publish Branch")
+	h.until("the toast of the push", h.shows("Pushed topic to origin"))
 	h.until("published", func() bool {
 		out, _ := origin.Run(nil, "rev-parse", "--verify", "-q", "topic")
 		return strings.TrimSpace(out) != ""
@@ -35,8 +38,8 @@ func TestSyncButton(t *testing.T) {
 
 	r.Write("mine", "x")
 	r.Commit("mine")
-	h.until("ahead", h.shows("Push ↑1"))
-	h.click("Push ↑1")
+	h.until("ahead", h.shows("Push 1 commit to origin/topic"))
+	h.click("Push 1 commit to origin/topic")
 	h.until("pushed", func() bool {
 		a, _ := origin.Run(nil, "rev-parse", "topic")
 		b, _ := r.Run(nil, "rev-parse", "HEAD")
@@ -49,12 +52,67 @@ func TestSyncButton(t *testing.T) {
 	other.Write("theirs", "x")
 	theirs := other.Commit("theirs")
 	other.Git("push", "-q", "origin", "topic")
-	h.until("even", h.shows("Fetch"))
+	h.until("even", h.labelled("Fetch"))
 	h.click("Fetch")
-	h.until("behind", h.shows("Pull ↓1"))
-	h.click("Pull ↓1")
+	h.until("the toast of the fetch", h.shows("Fetched all remotes"))
+	h.until("behind", h.shows("Pull 1 commit from origin/topic"))
+
+	r.Write("more", "x")
+	r.Commit("more")
+	diverged := "Pull 1 commit from origin/topic; 1 commit to push after"
+	h.until("diverged", h.shows(diverged))
+	h.click(diverged)
 	h.until("pulled", func() bool {
 		_, err := r.Run(nil, "merge-base", "--is-ancestor", theirs, "HEAD")
 		return err == nil
 	})
+	h.until("the toast of the pull", h.shows("Pulled 1 commit into topic"))
+	h.idle(tb, "the pull done")
+	h.until("ahead after the pull", h.shows("Push 2 commits to origin/topic"))
+
+	// The menu beside it pushes too.
+	h.click("Fetch, Pull or Push")
+	if err := h.tt.ChooseMenuItem("Push"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("pushed from the menu", func() bool {
+		a, _ := origin.Run(nil, "rev-parse", "topic")
+		b, _ := r.Run(nil, "rev-parse", "HEAD")
+		return strings.TrimSpace(a) == strings.TrimSpace(b)
+	})
+	h.until("even again", h.labelled("Fetch"))
+}
+
+// syncOf tells the writes the sync button follows from the others.
+func TestSyncOf(t *testing.T) {
+	w := write.Where{GitDir: "/r/.git", WorkTree: "/r"}
+	fetchAll, _ := write.Fetch(w, "", false)
+	fetchOne, _ := write.Fetch(w, "upstream", true)
+	pull, _ := write.Pull(w, write.PullRebase, nil, write.Seen{Branch: "refs/heads/main", Head: "x"})
+	pr, _ := write.FetchPull(w, "origin", 7, "refs/pull/7/head", "main", 0)
+	tag, _ := write.PushTag(w, "origin", "v1")
+	for _, c := range []struct {
+		op     write.Op
+		kind   syncKind
+		remote string
+	}{
+		{fetchAll, syncFetch, ""},
+		{fetchOne, syncFetch, "upstream"},
+		{pull, syncPull, ""},
+		{write.Push(w, write.PushOptions{}), syncPush, ""},
+		{write.Push(w, write.PushOptions{Remote: "origin"}), syncPush, "origin"},
+		{write.Push(w, write.PushOptions{ForceWithLease: true}), syncPush, ""},
+		{pr, syncNone, ""},
+		{tag, syncNone, ""},
+	} {
+		if k, r := syncOf(c.op); k != c.kind || r != c.remote {
+			t.Errorf("%q: %v %q, want %v %q", c.op.Cmd.Args, k, r, c.kind, c.remote)
+		}
+	}
+}
+
+// labelled reports whether the last frame shows an element showing or
+// labeled exactly s.
+func (h *harness) labelled(s string) func() bool {
+	return func() bool { _, ok := h.tt.Find(s); return ok }
 }

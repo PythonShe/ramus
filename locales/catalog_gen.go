@@ -11737,32 +11737,250 @@ func (msgs Messages) BranchPickerTooltip() string {
 
 // SyncFetch says "Fetch"
 // in the language the app shows.
+//
+// A verb: what the sync button does when the branch is even with its
+// upstream, for assistive technology and the toolbar's overflow menu.
 func SyncFetch() string { return In(i18n.Locale()).SyncFetch() }
 
 // SyncFetch says "Fetch"
 // in the language of msgs.
+//
+// A verb: what the sync button does when the branch is even with its
+// upstream, for assistive technology and the toolbar's overflow menu.
 func (msgs Messages) SyncFetch() string {
 	return Catalog.Format(msgs.locale, "syncFetch", nil)
 }
 
-// SyncPull says "Pull ↓{behind}"
+// SyncCount says "{count, number}"
 // in the language the app shows.
-func SyncPull(behind int) string { return In(i18n.Locale()).SyncPull(behind) }
+//
+// A count of commits beside an arrow: to pull beside one pointing down, to
+// push beside one pointing up.
+func SyncCount(count int) string { return In(i18n.Locale()).SyncCount(count) }
 
-// SyncPull says "Pull ↓{behind}"
+// SyncCount says "{count, number}"
 // in the language of msgs.
-func (msgs Messages) SyncPull(behind int) string {
-	return Catalog.Format(msgs.locale, "syncPull", map[string]any{"behind": behind})
+//
+// A count of commits beside an arrow: to pull beside one pointing down, to
+// push beside one pointing up.
+func (msgs Messages) SyncCount(count int) string {
+	return Catalog.Format(msgs.locale, "syncCount", map[string]any{"count": count})
 }
 
-// SyncPush says "Push ↑{ahead}"
+// SyncPullLabel says "Pull {behind, plural, one {# commit} other {# commits}} from {upstream}"
 // in the language the app shows.
-func SyncPush(ahead int) string { return In(i18n.Locale()).SyncPush(ahead) }
+//
+// What the sync button does for a branch behind its upstream, as
+// "origin/main"; also its tooltip.
+func SyncPullLabel(behind int, upstream string) string {
+	return In(i18n.Locale()).SyncPullLabel(behind, upstream)
+}
 
-// SyncPush says "Push ↑{ahead}"
+// SyncPullLabel says "Pull {behind, plural, one {# commit} other {# commits}} from {upstream}"
 // in the language of msgs.
-func (msgs Messages) SyncPush(ahead int) string {
-	return Catalog.Format(msgs.locale, "syncPush", map[string]any{"ahead": ahead})
+//
+// What the sync button does for a branch behind its upstream, as
+// "origin/main"; also its tooltip.
+func (msgs Messages) SyncPullLabel(behind int, upstream string) string {
+	return Catalog.Format(msgs.locale, "syncPullLabel", map[string]any{"behind": behind, "upstream": upstream})
+}
+
+// SyncPushLabel says "Push {ahead, plural, one {# commit} other {# commits}} to {upstream}"
+// in the language the app shows.
+//
+// What the sync button does for a branch ahead of its upstream; also its
+// tooltip.
+func SyncPushLabel(ahead int, upstream string) string {
+	return In(i18n.Locale()).SyncPushLabel(ahead, upstream)
+}
+
+// SyncPushLabel says "Push {ahead, plural, one {# commit} other {# commits}} to {upstream}"
+// in the language of msgs.
+//
+// What the sync button does for a branch ahead of its upstream; also its
+// tooltip.
+func (msgs Messages) SyncPushLabel(ahead int, upstream string) string {
+	return Catalog.Format(msgs.locale, "syncPushLabel", map[string]any{"ahead": ahead, "upstream": upstream})
+}
+
+// SyncDivergedLabel says "Pull {behind, plural, one {# commit} other {# commits}} from {upstream}; {ahead, plural, one {# commit} other {# comm…"
+// in the language the app shows.
+//
+// What the sync button does for a branch both behind and ahead of its
+// upstream: it pulls first.
+func SyncDivergedLabel(behind int, ahead int, upstream string) string {
+	return In(i18n.Locale()).SyncDivergedLabel(behind, ahead, upstream)
+}
+
+// SyncDivergedLabel says "Pull {behind, plural, one {# commit} other {# commits}} from {upstream}; {ahead, plural, one {# commit} other {# comm…"
+// in the language of msgs.
+//
+// What the sync button does for a branch both behind and ahead of its
+// upstream: it pulls first.
+func (msgs Messages) SyncDivergedLabel(behind int, ahead int, upstream string) string {
+	return Catalog.Format(msgs.locale, "syncDivergedLabel", map[string]any{"behind": behind, "ahead": ahead, "upstream": upstream})
+}
+
+// SyncUpToDate says "Up to date with {upstream}. Fetch to look for new commits."
+// in the language the app shows.
+//
+// The sync button's tooltip when the branch is even with its upstream.
+func SyncUpToDate(upstream string) string { return In(i18n.Locale()).SyncUpToDate(upstream) }
+
+// SyncUpToDate says "Up to date with {upstream}. Fetch to look for new commits."
+// in the language of msgs.
+//
+// The sync button's tooltip when the branch is even with its upstream.
+func (msgs Messages) SyncUpToDate(upstream string) string {
+	return Catalog.Format(msgs.locale, "syncUpToDate", map[string]any{"upstream": upstream})
+}
+
+// SyncFetching says "Fetching from {upstream}"
+// in the language the app shows.
+//
+// The sync button's tooltip while a fetch runs.
+func SyncFetching(upstream string) string { return In(i18n.Locale()).SyncFetching(upstream) }
+
+// SyncFetching says "Fetching from {upstream}"
+// in the language of msgs.
+//
+// The sync button's tooltip while a fetch runs.
+func (msgs Messages) SyncFetching(upstream string) string {
+	return Catalog.Format(msgs.locale, "syncFetching", map[string]any{"upstream": upstream})
+}
+
+// SyncPulling says "Pulling from {upstream}"
+// in the language the app shows.
+//
+// The sync button's tooltip while a pull runs.
+func SyncPulling(upstream string) string { return In(i18n.Locale()).SyncPulling(upstream) }
+
+// SyncPulling says "Pulling from {upstream}"
+// in the language of msgs.
+//
+// The sync button's tooltip while a pull runs.
+func (msgs Messages) SyncPulling(upstream string) string {
+	return Catalog.Format(msgs.locale, "syncPulling", map[string]any{"upstream": upstream})
+}
+
+// SyncPushing says "Pushing to {upstream}"
+// in the language the app shows.
+//
+// The sync button's tooltip while a push runs.
+func SyncPushing(upstream string) string { return In(i18n.Locale()).SyncPushing(upstream) }
+
+// SyncPushing says "Pushing to {upstream}"
+// in the language of msgs.
+//
+// The sync button's tooltip while a push runs.
+func (msgs Messages) SyncPushing(upstream string) string {
+	return Catalog.Format(msgs.locale, "syncPushing", map[string]any{"upstream": upstream})
+}
+
+// SyncLastFetched says "Last fetched {ago}"
+// in the language the app shows.
+//
+// A second line of the sync button's tooltip; ago is as "5 minutes ago" or
+// "just now".
+func SyncLastFetched(ago string) string { return In(i18n.Locale()).SyncLastFetched(ago) }
+
+// SyncLastFetched says "Last fetched {ago}"
+// in the language of msgs.
+//
+// A second line of the sync button's tooltip; ago is as "5 minutes ago" or
+// "just now".
+func (msgs Messages) SyncLastFetched(ago string) string {
+	return Catalog.Format(msgs.locale, "syncLastFetched", map[string]any{"ago": ago})
+}
+
+// SyncMenu says "Fetch, Pull or Push"
+// in the language the app shows.
+//
+// The small button beside the sync button that opens the menu of every way
+// to fetch, pull and push.
+func SyncMenu() string { return In(i18n.Locale()).SyncMenu() }
+
+// SyncMenu says "Fetch, Pull or Push"
+// in the language of msgs.
+//
+// The small button beside the sync button that opens the menu of every way
+// to fetch, pull and push.
+func (msgs Messages) SyncMenu() string {
+	return Catalog.Format(msgs.locale, "syncMenu", nil)
+}
+
+// SyncFetchedAll says "Fetched all remotes"
+// in the language the app shows.
+//
+// A toast once a fetch of every remote the user asked for ended well.
+func SyncFetchedAll() string { return In(i18n.Locale()).SyncFetchedAll() }
+
+// SyncFetchedAll says "Fetched all remotes"
+// in the language of msgs.
+//
+// A toast once a fetch of every remote the user asked for ended well.
+func (msgs Messages) SyncFetchedAll() string {
+	return Catalog.Format(msgs.locale, "syncFetchedAll", nil)
+}
+
+// SyncFetched says "Fetched {remote}"
+// in the language the app shows.
+//
+// A toast once a fetch the user asked for ended well.
+func SyncFetched(remote string) string { return In(i18n.Locale()).SyncFetched(remote) }
+
+// SyncFetched says "Fetched {remote}"
+// in the language of msgs.
+//
+// A toast once a fetch the user asked for ended well.
+func (msgs Messages) SyncFetched(remote string) string {
+	return Catalog.Format(msgs.locale, "syncFetched", map[string]any{"remote": remote})
+}
+
+// SyncPulled says "Pulled {count, plural, one {# commit} other {# commits}} into {branch}"
+// in the language the app shows.
+//
+// A toast once a pull the user asked for ended well.
+func SyncPulled(count int, branch string) string { return In(i18n.Locale()).SyncPulled(count, branch) }
+
+// SyncPulled says "Pulled {count, plural, one {# commit} other {# commits}} into {branch}"
+// in the language of msgs.
+//
+// A toast once a pull the user asked for ended well.
+func (msgs Messages) SyncPulled(count int, branch string) string {
+	return Catalog.Format(msgs.locale, "syncPulled", map[string]any{"count": count, "branch": branch})
+}
+
+// SyncPushed says "Pushed {branch} to {remote}"
+// in the language the app shows.
+//
+// A toast once a push of the branch checked out ended well.
+func SyncPushed(branch string, remote string) string {
+	return In(i18n.Locale()).SyncPushed(branch, remote)
+}
+
+// SyncPushed says "Pushed {branch} to {remote}"
+// in the language of msgs.
+//
+// A toast once a push of the branch checked out ended well.
+func (msgs Messages) SyncPushed(branch string, remote string) string {
+	return Catalog.Format(msgs.locale, "syncPushed", map[string]any{"branch": branch, "remote": remote})
+}
+
+// SyncAlreadyUpToDate says "Already up to date with {upstream}"
+// in the language the app shows.
+//
+// A toast once a pull ended well with nothing to take in.
+func SyncAlreadyUpToDate(upstream string) string {
+	return In(i18n.Locale()).SyncAlreadyUpToDate(upstream)
+}
+
+// SyncAlreadyUpToDate says "Already up to date with {upstream}"
+// in the language of msgs.
+//
+// A toast once a pull ended well with nothing to take in.
+func (msgs Messages) SyncAlreadyUpToDate(upstream string) string {
+	return Catalog.Format(msgs.locale, "syncAlreadyUpToDate", map[string]any{"upstream": upstream})
 }
 
 // SyncPublish says "Publish Branch"
@@ -11773,6 +11991,22 @@ func SyncPublish() string { return In(i18n.Locale()).SyncPublish() }
 // in the language of msgs.
 func (msgs Messages) SyncPublish() string {
 	return Catalog.Format(msgs.locale, "syncPublish", nil)
+}
+
+// SyncPublishShort says "Publish"
+// in the language the app shows.
+//
+// Beside a cloud on the sync button of a branch with no upstream;
+// syncPublish names the button for assistive technology.
+func SyncPublishShort() string { return In(i18n.Locale()).SyncPublishShort() }
+
+// SyncPublishShort says "Publish"
+// in the language of msgs.
+//
+// Beside a cloud on the sync button of a branch with no upstream;
+// syncPublish names the button for assistive technology.
+func (msgs Messages) SyncPublishShort() string {
+	return Catalog.Format(msgs.locale, "syncPublishShort", nil)
 }
 
 // SyncPublishTo says "Push the branch to {remote} and track it there"

@@ -35,8 +35,9 @@ type backgroundFetch struct {
 	// failures counts the background fetches failed in a row.
 	failures int
 	onFailed func(error)
-	// started is when the last fetch of either kind started.
-	started time.Time
+	// started is when the last fetch of either kind started, fetched
+	// when the last one ended well.
+	started, fetched time.Time
 	// waited counts the fetches put off for another worktree's git, for
 	// a test to tell one put off from one not yet due.
 	waited atomic.Int32
@@ -237,6 +238,10 @@ func (s *Session) FetchFresh(fresh time.Duration, done func(error)) bool {
 // Fetching reports whether a quiet fetch is running.
 func (s *Session) Fetching() bool { return s.fetch.job != nil }
 
+// Fetched is when the last quiet fetch ended well, zero for never since
+// the repository opened.
+func (s *Session) Fetched() time.Time { return s.fetch.fetched }
+
 // quietFetch fetches every remote with no one to ask for a password,
 // unless a fetch is running or there is no remote; it reports whether
 // it started one.
@@ -271,6 +276,9 @@ func (s *Session) quietFetch(done func(error)) bool {
 				return // the state was reset since: the repository opened again
 			}
 			bf.job = nil
+			if err == nil {
+				bf.fetched = time.Now()
+			}
 			done(err)
 		})
 	}()

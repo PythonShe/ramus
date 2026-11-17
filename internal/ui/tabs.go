@@ -21,8 +21,9 @@ func (a *App) tabBar(c *ui.Context) {
 		ready := t != nil && !t.s.State.Opening && t.s.State.Err == nil
 		if ready {
 			a.branchButton(c, t)
-			a.syncButton(c, t)
+			// The sync button last: it is the one whose width changes.
 			a.worktreeButton(c, t)
+			a.syncButton(c, t)
 		}
 		ui.Spacer(c)
 		if ready {
