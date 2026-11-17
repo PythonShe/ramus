@@ -9,9 +9,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The tab bar offers the worktree panel once there is a second
-// worktree. It shows, live, what changed in each against its HEAD, and
-// the patch of a file. A worktree being written in opens view-only until
+// The tab bar offers the worktree panel, which makes a worktree with one
+// only. It shows, live, what changed in each against its HEAD, and the
+// patch of a file. A worktree being written in opens view-only until
 // taken over, and one left alone opens as any other.
 func TestWorktreePanel(t *testing.T) {
 	h := newHarness(t)
@@ -26,9 +26,16 @@ func TestWorktreePanel(t *testing.T) {
 		_, ok := h.tt.AccessByRole(ui.RoleButton, "Worktree Changes")
 		return ok
 	}
-	if button() {
-		t.Fatal("the panel is offered with one worktree")
+	h.until("the button with one worktree", button)
+	h.click("Worktree Changes")
+	h.until("the panel", h.shows("New Worktree…"))
+	h.click("New Worktree…")
+	h.until("the dialog", func() bool { return h.app.worktreeUI.open && h.app.worktreeUI.fresh })
+	if tb.wtp.open {
+		t.Fatal("the panel stayed open over the dialog")
 	}
+	h.click("Cancel")
+	h.until("the dialog closed", func() bool { return !h.app.worktreeUI.open })
 
 	agent := filepath.Join(base, "agent")
 	r.Git("worktree", "add", "-q", "-b", "agent-work", agent)
@@ -59,6 +66,20 @@ func TestWorktreePanel(t *testing.T) {
 	if !h.tt.HasText("agent-work") || !h.tt.HasText("quiet-work") {
 		t.Fatalf("no branches; texts %q", h.tt.Texts())
 	}
+
+	// A worktree's row has its sidebar menu.
+	if err := h.tt.RightClick("Show the files changed in quiet"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if err := h.tt.ChooseMenuItem("Lock…"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the lock dialog", func() bool { return h.app.worktreeLockUI.open && h.app.worktreeLockUI.path == quiet })
+	h.click("Cancel")
+	h.until("the lock dialog closed", func() bool { return !h.app.worktreeLockUI.open })
+	h.click("Worktree Changes")
+	h.until("the panel again", h.shows("Changing now"))
 
 	h.click("Show the files changed in agent")
 	h.until("its files", func() bool { return hasExact(h, "new.txt") })

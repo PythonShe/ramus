@@ -207,35 +207,41 @@ func worktreeLabel(w repo.Worktree) string {
 // first is the main one, which git never removes.
 func (a *App) worktreeMenu(it ui.Element, t *tab, w repo.Worktree, main bool) {
 	it.ContextMenu(func(m *ui.Menu) {
-		ro := t.s.Queue == nil
 		var act func()
-		if m.Item(locales.WorktreeOpenInNewTab()).Disabled(w.Current || w.Prunable).Chosen() {
-			act = func() { a.openWorktree(t, w) }
-		}
-		if a.NewWindow != nil && m.Item(locales.WorktreeOpenInNewWindow()).Disabled(w.Current || w.Prunable).Chosen() {
-			act = func() { a.NewWindow([]string{w.Path}) }
-		}
-		if m.Item(locales.WorktreeCopyPath()).Chosen() {
-			act = func() { a.clip = w.Path }
-		}
-		if w.Locked {
-			if m.Item(locales.WorktreeUnlock()).Disabled(ro).Chosen() {
-				act = func() { a.submit(t, write.UnlockWorktree(t.s.Where(), w.Path), nil) }
-			}
-		} else if m.Item(locales.WorktreeLockEllipsis()).Disabled(ro || main).Chosen() {
-			act = func() { a.worktreeLockUI = worktreeLock{open: true, t: t, path: w.Path} }
-		}
-		if w.Prunable {
-			if m.Item(locales.WorktreePruneEllipsis()).Disabled(ro || w.Locked).Chosen() {
-				act = func() { a.askPrune(t, w) }
-			}
-		} else if m.Item(locales.WorktreeRemoveEllipsis()).Disabled(ro || main || w.Current || w.Locked).Danger().Chosen() {
-			act = func() { a.worktreeRemoveUI = worktreeRemoval{open: true, t: t, wt: w} }
-		}
+		a.worktreeItems(m, t, w, main, &act)
 		if act != nil {
 			act()
 		}
 	})
+}
+
+// worktreeItems fills the menu of worktree w, in the sidebar or the
+// worktree panel; act is set to what was chosen.
+func (a *App) worktreeItems(m *ui.Menu, t *tab, w repo.Worktree, main bool, act *func()) {
+	ro := t.s.Queue == nil
+	if m.Item(locales.WorktreeOpenInNewTab()).Disabled(w.Current || w.Prunable).Chosen() {
+		*act = func() { a.openWorktree(t, w) }
+	}
+	if a.NewWindow != nil && m.Item(locales.WorktreeOpenInNewWindow()).Disabled(w.Current || w.Prunable).Chosen() {
+		*act = func() { a.NewWindow([]string{w.Path}) }
+	}
+	if m.Item(locales.WorktreeCopyPath()).Chosen() {
+		*act = func() { a.clip = w.Path }
+	}
+	if w.Locked {
+		if m.Item(locales.WorktreeUnlock()).Disabled(ro).Chosen() {
+			*act = func() { a.submit(t, write.UnlockWorktree(t.s.Where(), w.Path), nil) }
+		}
+	} else if m.Item(locales.WorktreeLockEllipsis()).Disabled(ro || main).Chosen() {
+		*act = func() { a.worktreeLockUI = worktreeLock{open: true, t: t, path: w.Path} }
+	}
+	if w.Prunable {
+		if m.Item(locales.WorktreePruneEllipsis()).Disabled(ro || w.Locked).Chosen() {
+			*act = func() { a.askPrune(t, w) }
+		}
+	} else if m.Item(locales.WorktreeRemoveEllipsis()).Disabled(ro || main || w.Current || w.Locked).Danger().Chosen() {
+		*act = func() { a.worktreeRemoveUI = worktreeRemoval{open: true, t: t, wt: w} }
+	}
 }
 
 // askPrune offers to forget a worktree whose folder is gone, which is

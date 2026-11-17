@@ -132,17 +132,18 @@ func (p *wtPanel) readPatch(a *App, t *tab) {
 // tab is not the one shown.
 func (a *App) keepPanel(t *tab) {
 	p := &t.wtp
-	if p.stop != nil && (!p.open || a.current() != t || len(t.s.State.Worktrees) < 2) {
+	if p.stop != nil && (!p.open || a.current() != t || len(t.s.State.Worktrees) == 0) {
 		p.open = false
 		p.halt()
 	}
 }
 
 // worktreeButton opens the worktree panel, beside the branch picker,
-// when the repository has more than one worktree.
+// once the worktrees are read: with one, the panel is where a second is
+// made.
 func (a *App) worktreeButton(c *ui.Context, t *tab) {
 	p := &t.wtp
-	if len(t.s.State.Worktrees) < 2 {
+	if len(t.s.State.Worktrees) == 0 {
 		return
 	}
 	label := locales.WorktreePanel()
@@ -165,6 +166,22 @@ func (a *App) worktreeButton(c *ui.Context, t *tab) {
 				return
 			}
 			act = a.wtList(c, t, p)
+			ui.Divider(c)
+			// As the branch picker's New Branch: a row of the panel, its
+			// text where the worktrees' names start.
+			th := c.Theme()
+			nw := ui.ButtonBase(c).Padding(rowPadY, spaceS, rowPadY, spaceS+markW+spaceS).Radius(th.Radius).FillWidth().Justify(ui.Start).
+				Disabled(t.s.Queue == nil)
+			if nw.Hovered() && t.s.Queue != nil {
+				nw.Background(th.SurfaceHover)
+			}
+			nw.Children(func() { ui.Text(c, locales.PaletteNewWorktree()) })
+			if nw.Clicked() {
+				act = func() {
+					p.open = false
+					a.openNewWorktree(t)
+				}
+			}
 		})
 	})
 	if act != nil {
@@ -202,6 +219,18 @@ func (a *App) wtList(c *ui.Context, t *tab, p *wtPanel) (act func()) {
 			return
 		}
 		row, open := wtWorktreeRow(c, w, sum, read, p.expanded[w.Path], now)
+		// The sidebar's menu of a worktree, which closes the panel for
+		// what it opens.
+		row.ContextMenu(func(m *ui.Menu) {
+			var pick func()
+			a.worktreeItems(m, t, w, r.w == 0, &pick)
+			if pick != nil {
+				act = func() {
+					p.open = false
+					pick()
+				}
+			}
+		})
 		switch {
 		case open:
 			act = func() { a.openWorktree(t, w) }
