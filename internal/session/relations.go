@@ -93,6 +93,12 @@ func readRelations(ctx context.Context, r *repo.Repository, list *refs.List, hea
 	if err != nil {
 		return CommitRelations{Err: err}
 	}
+	if list == nil {
+		// Refs read through git, in a storage the engine does not read:
+		// git says which contain the commit, and HEAD's children are
+		// those found.
+		return gitRelations(ctx, r, cat, g, oid, all, nil)
+	}
 	if g != nil && g.HasGenerations() {
 		rel, err := history.RelationsOf(ctx, history.NewSource(g, nil, r.Caps.HashSize), cat, oid, all, staleRead)
 		if err == nil {
@@ -110,17 +116,31 @@ func readRelations(ctx context.Context, r *repo.Repository, list *refs.List, hea
 		// Past the limit, or a commit that cannot be read: git walks it,
 		// or says what is wrong.
 	}
+	// Not nil: a list without branches or tags lists none.
+	return gitRelations(ctx, r, cat, g, oid, all, append([]string{}, names...))
+}
+
+// gitRelations finds the relations of commit oid through git, among the
+// refs names when not nil: git lists symbolic refs too
+// (refs/remotes/origin/HEAD), and may have seen refs moved since the
+// list was read. Without names, those of other kinds and remotes' HEADs
+// are left out.
+func gitRelations(ctx context.Context, r *repo.Repository, cat *catfile.Process, g *commitgraph.Graph, oid []byte, all [][]byte, names []string) CommitRelations {
 	in, err := history.RefsContainingGit(ctx, r.Runner, r.GitDir, oid)
 	if err != nil {
 		return CommitRelations{Err: err}
 	}
-	// git lists symbolic refs too (refs/remotes/origin/HEAD), and may
-	// have seen refs moved since the list was read.
-	listed := map[string]bool{}
-	for _, n := range names {
-		listed[n] = true
+	if names != nil {
+		listed := map[string]bool{}
+		for _, n := range names {
+			listed[n] = true
+		}
+		in = slices.DeleteFunc(in, func(n string) bool { return !listed[n] })
+	} else {
+		in = slices.DeleteFunc(in, func(n string) bool {
+			return refKind(n) < 0 || refKind(n) == 2 && strings.HasSuffix(n, "/HEAD")
+		})
 	}
-	in = slices.DeleteFunc(in, func(n string) bool { return !listed[n] })
 	commits, err := commitsOf(cat, g, all)
 	if err != nil {
 		return CommitRelations{Err: err}

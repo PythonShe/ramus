@@ -2,6 +2,7 @@ package session
 
 import (
 	"cmp"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 )
 
 // wantRelations is what git says of commit c: the refs that contain it, in
@@ -144,5 +146,30 @@ func TestCommitRelations(t *testing.T) {
 	check("from the commit-graph")
 	if contains() != asked {
 		t.Fatal("git was asked with a commit-graph")
+	}
+}
+
+// Refs read through git, without a list of them: git still says which
+// contain a commit, branches, tags and remotes, without remotes' HEADs.
+func TestCommitRelationsWithoutRefList(t *testing.T) {
+	r := gittest.Init(t)
+	root := r.Commit("root")
+	r.Git("tag", "-a", "-m", "annotated", "v1", root)
+	r.Git("branch", "side")
+	r.Commit("two")
+	r.Git("update-ref", "refs/remotes/origin/main", "main")
+	r.Git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the repository", func() bool { return s.Repo != nil })
+	head := mustHex(t, strings.TrimSpace(r.Git("rev-parse", "HEAD")))
+	rel := readRelations(context.Background(), s.Repo, nil, head, mustHex(t, root))
+	if rel.Err != nil {
+		t.Fatal(rel.Err)
+	}
+	refs, _ := wantRelations(r, root)
+	if !slices.Equal(rel.Refs, refs) {
+		t.Fatalf("refs %v, git %v", rel.Refs, refs)
 	}
 }
