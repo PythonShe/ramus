@@ -135,11 +135,14 @@ func TestIdentityIncluded(t *testing.T) {
 
 // In a repository, a file the global config includes for it alone
 // (includeIf gitdir) counts and is written; out of it, it does not.
+// The include names the file in another form than the one paths are
+// compared in, as forward slashes are on Windows, and it is still the
+// file said, in that one form.
 func TestIdentityIncludedForRepository(t *testing.T) {
 	repo := gittest.Init(t)
 	r, dir := identityConfig(t, map[string]string{
 		"gitconfig": "[user]\n\tname = Everywhere\n\temail = home@example.com\n" +
-			"[includeIf \"gitdir:" + filepath.ToSlash(repo.Dir) + "/\"]\n\tpath = {dir}/work\n",
+			"[includeIf \"gitdir:" + filepath.ToSlash(repo.Dir) + "/\"]\n\tpath = {dir}/.//work\n",
 		"work": "[user]\n\temail = work@example.com\n",
 	})
 	w := Where{GitDir: repo.GitDir(), WorkTree: repo.Dir}

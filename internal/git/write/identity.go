@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -80,7 +81,10 @@ type configEntry struct{ scope, file, key, value string }
 // configEntries runs cmd, a listing of identityArgs, and parses what it
 // prints: nothing for exit code 1, no key set. A file named relative to
 // where git ran is made absolute; one that is no file, as the command
-// line, is "".
+// line, is "". git names a file as it was given, an include's path as
+// written and the repository's config as its git dir with "/config"
+// after it, so on Windows with both separators: each is cleaned to the
+// one form a path is shown and compared in.
 func configEntries(ctx context.Context, r *run.Runner, cmd *run.Cmd) ([]configEntry, error) {
 	res, err := r.Run(ctx, cmd)
 	if exitCode(err) == 1 {
@@ -99,6 +103,8 @@ func configEntries(ctx context.Context, r *run.Runner, cmd *run.Cmd) ([]configEn
 			file = ""
 		case !filepath.IsAbs(file):
 			file = filepath.Join(cmd.WorkTree, file)
+		default:
+			file = filepath.Clean(file)
 		}
 		out = append(out, configEntry{scope: string(fields[i]), file: file, key: strings.ToLower(key), value: value})
 	}
@@ -131,7 +137,7 @@ func readIdentity(ctx context.Context, r *run.Runner, cmd *run.Cmd) (Identity, I
 			case "global":
 				if e.file != "" {
 					o.File = e.file
-					if !slices.Contains(o.Files, e.file) {
+					if !slices.ContainsFunc(o.Files, func(f string) bool { return samePath(f, e.file) }) {
 						o.Files = append(o.Files, e.file)
 					}
 				}
@@ -139,9 +145,16 @@ func readIdentity(ctx context.Context, r *run.Runner, cmd *run.Cmd) (Identity, I
 				o.Kept = e.file
 			}
 		}
-		o.Included = o.File != "" && !slices.ContainsFunc(top, func(e configEntry) bool { return e.file == o.File })
+		o.Included = o.File != "" && !slices.ContainsFunc(top, func(e configEntry) bool { return samePath(e.file, o.File) })
 	}
 	return Identity{Name: v[0], Email: v[1], DefaultBranch: v[2]}, from, nil
+}
+
+// samePath is whether two cleaned paths name the same file, as far as
+// their text says: on Windows, whose file names ignore case, a path
+// given in one case and included in another is one file.
+func samePath(a, b string) bool {
+	return a == b || runtime.GOOS == "windows" && strings.EqualFold(a, b)
 }
 
 // SetIdentity writes each field of now that differs from was, as read
