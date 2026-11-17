@@ -299,7 +299,9 @@ func (a *App) commit(t *tab, push bool) {
 		if opt.Amend {
 			a.checkPushed(t, seen)
 		}
-		cs.subject, cs.body, cs.coAuthors, cs.amend, cs.err = "", "", "", false, ""
+		// Skip hooks is for the commit it was ticked for, as Amend is:
+		// left on, it would skip every hook after it unseen.
+		cs.subject, cs.body, cs.coAuthors, cs.amend, cs.noVerify, cs.err = "", "", "", false, false, ""
 		if notPushed != nil {
 			// The commit is made: its message goes, or a second click
 			// would commit or amend it again.
