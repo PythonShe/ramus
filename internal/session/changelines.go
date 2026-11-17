@@ -3,11 +3,18 @@ package session
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
+	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
-	"strings"
+	"time"
 
+	"ramus/internal/git/cache"
 	"ramus/internal/git/diff"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/status"
 )
 
@@ -37,31 +44,110 @@ func (l *ChangeLines) Find(path []byte) (staged, unstaged diff.Lines) {
 // them it reads: past them a file is not counted.
 const maxCountedFiles = 10000
 
+// countBudget bounds the counts kept by what they were counted from.
+const countBudget = 4 << 20
+
+// countRecent is how new a file's modification time may be for its count
+// to be kept: one changed again within the clock's tick, at the same
+// size, would look the same.
+const countRecent = 2 * time.Second
+
+// countSlot runs the counts of the changes' lines one at a time. A count
+// asked for while one runs waits for it, the newest only: under edits
+// that never stop, a slow count cancelled by each new status would never
+// end. Main thread only.
+type countSlot struct {
+	running bool
+	next    *countAsk
+	// kept holds counts by what they were counted from, for r. Only the
+	// running count reads and writes it: counts run one at a time, and
+	// each starts from the main thread after the last has ended.
+	r    *repo.Repository
+	kept *cache.Cache[string, keptLines]
+}
+
+type countAsk struct {
+	r    *repo.Repository
+	ctx  context.Context
+	st   *status.Status
+	done func(ChangeLines)
+}
+
+type keptLines struct {
+	lines diff.Lines
+	bytes int
+}
+
 // CountChanges counts the lines of the changes st lists off the main
-// thread and hands them to done on it. A newer call cancels a count still
-// running, whose done is not called.
+// thread and hands them to done on it. One asked for while another runs
+// starts once it ended, unless a newer one is asked for first, which
+// takes its place, whose done is then not called; a count whose view was
+// left is not handed over.
 func (s *Session) CountChanges(st *status.Status, done func(ChangeLines)) {
 	r := s.Repo
 	if r == nil || st == nil {
 		return
 	}
-	slot := &s.changeLines
-	slot.mu.Lock()
-	if slot.cancel != nil {
-		slot.cancel()
+	a := &countAsk{r: r, ctx: s.viewContext(r), st: st, done: done}
+	if s.count.running {
+		s.count.next = a
+		return
 	}
-	ctx, cancel := context.WithCancel(s.viewContext(r))
-	slot.cancel = cancel
-	slot.mu.Unlock()
-	var staged, unstaged, untracked []string
+	s.startCount(a)
+}
+
+func (s *Session) startCount(a *countAsk) {
+	c := &s.count
+	if c.r != a.r {
+		c.r, c.kept = a.r, cache.New[string](countBudget, func(k keptLines) int { return k.bytes })
+	}
+	kept := c.kept
+	c.running = true
+	err := a.r.Life().Go(func(context.Context) {
+		out, ok := countChanged(a.ctx, a.r, a.st, kept)
+		s.update(func() {
+			c.running = false
+			if ok && a.ctx.Err() == nil {
+				a.done(out)
+			}
+			if next := c.next; next != nil {
+				c.next = nil
+				if next.ctx.Err() == nil && next.r == s.Repo {
+					s.startCount(next)
+				}
+			}
+		})
+	})
+	if err != nil {
+		c.running = false
+	}
+}
+
+// countChanged counts the lines of st's changes, taking those counted
+// before from kept where what they were counted from is the same: the
+// objects for a staged change, and the work-tree file's size and
+// modification time besides for the rest.
+func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, kept *cache.Cache[string, keptLines]) (ChangeLines, bool) {
+	out := ChangeLines{For: st, Staged: make([]diff.Lines, st.Len()), Unstaged: make([]diff.Lines, st.Len())}
+	type ask struct {
+		i   int
+		key string // "" when not to keep
+	}
+	var staged, unstaged []string
+	var stagedAsk, unstagedAsk []ask
+	var untracked []int
 	renames := false
+	now := time.Now()
 	for i := range st.Len() {
+		if i&4095 == 0 && ctx.Err() != nil {
+			return out, false
+		}
 		k := st.Kind(i)
-		path := string(st.Path(i))
+		path := st.Path(i)
 		switch k {
 		case status.Untracked:
-			if !strings.HasSuffix(path, "/") {
-				untracked = append(untracked, path)
+			if !bytes.HasSuffix(path, []byte("/")) {
+				untracked = append(untracked, i)
 			}
 			continue
 		case status.Changed, status.Renamed:
@@ -69,77 +155,125 @@ func (s *Session) CountChanges(st *status.Status, done func(ChangeLines)) {
 			continue
 		}
 		x, y := st.XY(i)
+		oids := st.OIDs(i)
 		if x != '.' {
-			staged = append(staged, path)
 			if k == status.Renamed && x == 'R' {
-				staged = append(staged, string(st.OrigPath(i)))
+				staged = append(staged, string(path), string(st.OrigPath(i)))
+				stagedAsk = append(stagedAsk, ask{i: i})
 				renames = true
+			} else if key := objectsKey(path, oids[0], oids[1]); !take(kept, key, &out.Staged[i]) {
+				staged = append(staged, string(path))
+				stagedAsk = append(stagedAsk, ask{i, key})
 			}
 		}
 		if y != '.' {
-			unstaged = append(unstaged, path)
+			if key := stampKey('u', r.WorkTree, path, oids[1], now); !take(kept, key, &out.Unstaged[i]) {
+				unstaged = append(unstaged, string(path))
+				unstagedAsk = append(unstagedAsk, ask{i, key})
+			}
 		}
 	}
 	base := st.Branch.OID
 	if base == "" {
 		base = hex.EncodeToString(emptyTree(r.Caps.HashSize))
 	}
-	r.Life().Go(func(context.Context) {
-		var inIndex, inTree *diff.NumStat
-		var err error
-		if len(staged) > 0 {
-			if inIndex, err = diff.WorkTreeLines(ctx, r.Runner, r.GitDir, r.WorkTree, true, base, renames, staged); err != nil {
-				inIndex = nil
-			}
+	var inIndex, inTree *diff.NumStat
+	var err error
+	if len(staged) > 0 {
+		if inIndex, err = diff.WorkTreeLines(ctx, r.Runner, r.GitDir, r.WorkTree, true, base, renames, staged); err != nil {
+			inIndex = nil
 		}
-		if len(unstaged) > 0 && ctx.Err() == nil {
-			if inTree, err = diff.WorkTreeLines(ctx, r.Runner, r.GitDir, r.WorkTree, false, "", false, unstaged); err != nil {
-				inTree = nil
-			}
+	}
+	if len(unstaged) > 0 && ctx.Err() == nil {
+		if inTree, err = diff.WorkTreeLines(ctx, r.Runner, r.GitDir, r.WorkTree, false, "", false, unstaged); err != nil {
+			inTree = nil
 		}
-		own := map[string]diff.Lines{}
-		read := 0
-		for _, p := range untracked {
-			if ctx.Err() != nil || len(own) >= maxCountedFiles || read >= maxCountedBytes {
-				break
-			}
-			b, err := readWorkTreeFile(r.WorkTree, p, min(maxCountedFile, maxCountedBytes-read))
-			if err != nil {
-				continue
-			}
-			read += len(b)
-			own[p] = diff.CountText(b)
+	}
+	files, read := 0, 0
+	for _, i := range untracked {
+		if ctx.Err() != nil || files >= maxCountedFiles || read >= maxCountedBytes {
+			break
 		}
-		if ctx.Err() != nil {
-			cancel()
-			return
+		path := st.Path(i)
+		key := stampKey('n', r.WorkTree, path, nil, now)
+		if take(kept, key, &out.Unstaged[i]) {
+			continue
 		}
-		out := ChangeLines{For: st, Staged: make([]diff.Lines, st.Len()), Unstaged: make([]diff.Lines, st.Len())}
-		for i := range st.Len() {
-			path := st.Path(i)
-			switch st.Kind(i) {
-			case status.Untracked:
-				out.Unstaged[i] = own[string(path)]
-			case status.Changed, status.Renamed:
-				old := path
-				if x, _ := st.XY(i); st.Kind(i) == status.Renamed && x == 'R' {
-					old = st.OrigPath(i)
-				}
-				out.Staged[i] = inIndex.Find(old, path)
-				out.Unstaged[i] = inTree.Find(path, path)
-			}
+		b, err := readWorkTreeFile(r.WorkTree, string(path), min(maxCountedFile, maxCountedBytes-read))
+		if err != nil {
+			continue
 		}
-		out.order = make([]int32, st.Len())
-		for i := range out.order {
-			out.order[i] = int32(i)
+		files++
+		read += len(b)
+		out.Unstaged[i] = diff.CountText(b)
+		keep(kept, key, out.Unstaged[i])
+	}
+	if ctx.Err() != nil {
+		return out, false
+	}
+	for _, a := range stagedAsk {
+		path := st.Path(a.i)
+		old := path
+		if x, _ := st.XY(a.i); st.Kind(a.i) == status.Renamed && x == 'R' {
+			old = st.OrigPath(a.i)
 		}
-		slices.SortFunc(out.order, func(a, b int32) int { return bytes.Compare(st.Path(int(a)), st.Path(int(b))) })
-		s.update(func() {
-			live := ctx.Err() == nil
-			cancel()
-			if live {
-				done(out)
-			}
-		})
-	})
+		out.Staged[a.i] = inIndex.Find(old, path)
+		keep(kept, a.key, out.Staged[a.i])
+	}
+	for _, a := range unstagedAsk {
+		path := st.Path(a.i)
+		out.Unstaged[a.i] = inTree.Find(path, path)
+		keep(kept, a.key, out.Unstaged[a.i])
+	}
+	out.order = make([]int32, st.Len())
+	for i := range out.order {
+		out.order[i] = int32(i)
+	}
+	slices.SortFunc(out.order, func(a, b int32) int { return bytes.Compare(st.Path(int(a)), st.Path(int(b))) })
+	return out, true
+}
+
+// objectsKey is what a staged change is counted from: the path and its
+// objects in HEAD and the index.
+func objectsKey(path, head, index []byte) string {
+	return string(slices.Concat([]byte{'s'}, path, []byte{0}, head, index))
+}
+
+// stampKey is what an unstaged change (kind 'u', with the index's object)
+// or a file git does not track (kind 'n') is counted from: the work-tree
+// file's size and modification time, or that it is gone. It is "" for
+// what is not to be kept: not a file, or one changed too lately to tell
+// from a change to come.
+func stampKey(kind byte, workTree string, path, index []byte, now time.Time) string {
+	fi, err := os.Lstat(filepath.Join(workTree, filepath.FromSlash(string(path))))
+	var stamp [17]byte
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		stamp[16] = 1 // gone: what was in the index is counted deleted
+	case err != nil, !fi.Mode().IsRegular(), now.Sub(fi.ModTime()) < countRecent:
+		return ""
+	default:
+		binary.LittleEndian.PutUint64(stamp[:8], uint64(fi.Size()))
+		binary.LittleEndian.PutUint64(stamp[8:16], uint64(fi.ModTime().UnixNano()))
+	}
+	return string(slices.Concat([]byte{kind}, path, []byte{0}, index, stamp[:]))
+}
+
+// take sets *l to the count kept for key, if any.
+func take(kept *cache.Cache[string, keptLines], key string, l *diff.Lines) bool {
+	if key == "" {
+		return false
+	}
+	k, ok := kept.Get(key)
+	if ok {
+		*l = k.lines
+	}
+	return ok
+}
+
+// keep keeps l for key, once counted.
+func keep(kept *cache.Cache[string, keptLines], key string, l diff.Lines) {
+	if key != "" && l.Known {
+		kept.Put(key, keptLines{l, len(key) + 64})
+	}
 }

@@ -133,9 +133,8 @@ type Session struct {
 	historyLoadN int
 	// commitPatch cancels a commit patch read that a newer one replaced.
 	commitPatch PatchSlot
-	// changeLines cancels a count of the changes' lines that a newer one
-	// replaced.
-	changeLines PatchSlot
+	// count runs the counts of the changes' lines, one at a time.
+	count countSlot
 	// trusting is set while Trust writes its record; main thread only.
 	trusting bool
 	// ignored is the open repository's ignored directories, which its
