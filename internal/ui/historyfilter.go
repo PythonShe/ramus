@@ -225,6 +225,11 @@ func (a *App) filterButton(c *ui.Context, t *tab) {
 	}
 	if b.Clicked() {
 		hf.open = !hf.open
+		if !hf.open && hf.pending() {
+			// Closed before typing paused: what was typed applies, as
+			// Escape applies it.
+			a.applyHistoryFilter(t)
+		}
 	}
 }
 
@@ -333,7 +338,10 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 		// left half typed says how dates are written.
 		switch wait := filterPause - c.Now().Sub(hf.typed); {
 		case !hf.pending():
+			// Typed back to the filter applied: nothing to load again,
+			// but an error said of what was typed before may be stale.
 			hf.typed = time.Time{}
+			_, hf.err = hf.filter(a.Now())
 		case wait > 0:
 			c.After(wait)
 		default:

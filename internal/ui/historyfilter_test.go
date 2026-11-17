@@ -3,6 +3,7 @@ package ui
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -88,6 +89,54 @@ func TestHistoryFilter(t *testing.T) {
 	h.until("side alone", h.shows("side later"))
 	if shownRow(h, "main work") {
 		t.Fatalf("main shown with side alone: %q", h.tt.Texts())
+	}
+}
+
+// What is typed in the filter bar applies when the Filter button closes
+// it before typing paused, and an error said of a date typed before goes
+// once the date is typed back to the filter applied.
+func TestFilterClosedAndRetyped(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "a\n")
+	r.Commit("alpha work")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commits", h.shows("2 commits"))
+	hf := &h.app.current().hist.filter
+
+	h.click("Filter")
+	h.click("Message")
+	h.tt.Type("alpha")
+	h.tt.Frame()
+	// The Tester's clock stands still: typing has not paused.
+	h.click("Filter")
+	if hf.open || hf.pending() {
+		t.Fatalf("closed with %q typed and not applied", hf.message)
+	}
+	h.until("the match", h.shows("1 commit"))
+
+	h.click("Filter (1)")
+	h.tt.Frame()
+	since, ok := h.tt.AccessByRole(ui.RoleTextField, "Since")
+	if !ok {
+		t.Fatal("no Since field")
+	}
+	h.tt.ClickAt(since.Bounds.X+since.Bounds.W/2, since.Bounds.Y+since.Bounds.H/2)
+	h.tt.Frame()
+	h.tt.Type("202")
+	h.tt.Advance(time.Second)
+	h.until("the date's error", h.shows("Dates are written as 2024-01-31"))
+	for range 3 {
+		h.tt.Key(0, ui.KeyBackspace)
+	}
+	h.tt.Frame()
+	h.tt.Advance(time.Second)
+	h.until("no error", func() bool { return !h.tt.HasText("Dates are written as 2024-01-31") })
+	if hf.err != "" {
+		t.Fatalf("error %q", hf.err)
 	}
 }
 
