@@ -289,7 +289,7 @@ func (a *App) commitMeta(c *ui.Context, t *tab, cv *commitView, d *session.Commi
 				ui.Text(c, role).FontSize(textSmall).TextColor(th.TextMuted).Width(metaLabelW)
 				ui.Column(c).Gap(space2XS).Grow(1).Shrink(1).Children(func() {
 					ui.Text(c, fmt.Sprintf("%s <%s>", redact.Control(string(p.Name)), redact.Control(string(p.Email)))).FontSize(textSmall).Selectable()
-					ui.Text(c, signatureTime(p).Format("2006-01-02 15:04:05 -0700")).FontSize(textSmall).TextColor(th.TextMuted)
+					ui.Text(c, zoneTime(signatureTime(p))).FontSize(textSmall).TextColor(th.TextMuted)
 				})
 			})
 		}

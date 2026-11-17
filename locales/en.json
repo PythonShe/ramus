@@ -910,6 +910,26 @@
   },
   "commitBoxNotAllChecked": "Some staged files were too many or too large to check.",
   "commitAuthor": "Author",
+  "commitTimeZone": "{time} UTC{offset}",
+  "@commitTimeZone": {
+    "description": "When a commit was made, on its author's clock; offset is like +8 or -3:30, empty for UTC itself."
+  },
+  "commitTimeZoneIn1": "{time} UTC{offset} ({place1})",
+  "@commitTimeZoneIn1": {
+    "description": "As commitTimeZone, with a place that was at that offset then, where the author may have been."
+  },
+  "commitTimeZoneIn2": "{time} UTC{offset} ({place1}, {place2})",
+  "@commitTimeZoneIn2": {
+    "description": "As commitTimeZoneIn1, with two places."
+  },
+  "commitTimeZoneIn3": "{time} UTC{offset} ({place1}, {place2}, {place3})",
+  "@commitTimeZoneIn3": {
+    "description": "As commitTimeZoneIn1, with three places."
+  },
+  "timeZonePlace": "{place, select, losangeles {Los Angeles} newyork {New York} chicago {Chicago} denver {Denver} phoenix {Phoenix} anchorage {Anchorage} honolulu {Honolulu} mexicocity {Mexico City} bogota {Bogotá} saopaulo {São Paulo} buenosaires {Buenos Aires} santiago {Santiago} stjohns {St. John's} azores {Azores} london {London} lisbon {Lisbon} reykjavik {Reykjavík} berlin {Berlin} paris {Paris} lagos {Lagos} athens {Athens} telaviv {Tel Aviv} cairo {Cairo} johannesburg {Johannesburg} moscow {Moscow} istanbul {Istanbul} riyadh {Riyadh} nairobi {Nairobi} tehran {Tehran} dubai {Dubai} kabul {Kabul} karachi {Karachi} tashkent {Tashkent} bengaluru {Bengaluru} colombo {Colombo} kathmandu {Kathmandu} dhaka {Dhaka} yangon {Yangon} bangkok {Bangkok} jakarta {Jakarta} hochiminh {Ho Chi Minh City} shanghai {Shanghai} hongkong {Hong Kong} singapore {Singapore} taipei {Taipei} perth {Perth} tokyo {Tokyo} seoul {Seoul} adelaide {Adelaide} sydney {Sydney} brisbane {Brisbane} auckland {Auckland} other {{place}}}",
+  "@timeZonePlace": {
+    "description": "A city or region that names a time zone, in commitTimeZoneIn1 and the like."
+  },
   "commitCommitter": "Committer",
   "commitHashLabel": "Commit",
   "@commitHashLabel": {

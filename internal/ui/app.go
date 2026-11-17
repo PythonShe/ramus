@@ -248,6 +248,7 @@ func NewApp(d Deps) *App {
 	}
 	a := &App{Deps: d, active: -1}
 	a.findTools()
+	loadZones()
 	return a
 }
 

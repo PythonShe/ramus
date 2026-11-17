@@ -4731,6 +4731,90 @@ func (msgs Messages) CommitAuthor() string {
 	return Catalog.Format(msgs.locale, "commitAuthor", nil)
 }
 
+// CommitTimeZone says "{time} UTC{offset}"
+// in the language the app shows.
+//
+// When a commit was made, on its author's clock; offset is like +8 or
+// -3:30, empty for UTC itself.
+func CommitTimeZone(time_ string, offset string) string {
+	return In(i18n.Locale()).CommitTimeZone(time_, offset)
+}
+
+// CommitTimeZone says "{time} UTC{offset}"
+// in the language of msgs.
+//
+// When a commit was made, on its author's clock; offset is like +8 or
+// -3:30, empty for UTC itself.
+func (msgs Messages) CommitTimeZone(time_ string, offset string) string {
+	return Catalog.Format(msgs.locale, "commitTimeZone", map[string]any{"time": time_, "offset": offset})
+}
+
+// CommitTimeZoneIn1 says "{time} UTC{offset} ({place1})"
+// in the language the app shows.
+//
+// As commitTimeZone, with a place that was at that offset then, where the
+// author may have been.
+func CommitTimeZoneIn1(time_ string, offset string, place1 string) string {
+	return In(i18n.Locale()).CommitTimeZoneIn1(time_, offset, place1)
+}
+
+// CommitTimeZoneIn1 says "{time} UTC{offset} ({place1})"
+// in the language of msgs.
+//
+// As commitTimeZone, with a place that was at that offset then, where the
+// author may have been.
+func (msgs Messages) CommitTimeZoneIn1(time_ string, offset string, place1 string) string {
+	return Catalog.Format(msgs.locale, "commitTimeZoneIn1", map[string]any{"time": time_, "offset": offset, "place1": place1})
+}
+
+// CommitTimeZoneIn2 says "{time} UTC{offset} ({place1}, {place2})"
+// in the language the app shows.
+//
+// As commitTimeZoneIn1, with two places.
+func CommitTimeZoneIn2(time_ string, offset string, place1 string, place2 string) string {
+	return In(i18n.Locale()).CommitTimeZoneIn2(time_, offset, place1, place2)
+}
+
+// CommitTimeZoneIn2 says "{time} UTC{offset} ({place1}, {place2})"
+// in the language of msgs.
+//
+// As commitTimeZoneIn1, with two places.
+func (msgs Messages) CommitTimeZoneIn2(time_ string, offset string, place1 string, place2 string) string {
+	return Catalog.Format(msgs.locale, "commitTimeZoneIn2", map[string]any{"time": time_, "offset": offset, "place1": place1, "place2": place2})
+}
+
+// CommitTimeZoneIn3 says "{time} UTC{offset} ({place1}, {place2}, {place3})"
+// in the language the app shows.
+//
+// As commitTimeZoneIn1, with three places.
+func CommitTimeZoneIn3(time_ string, offset string, place1 string, place2 string, place3 string) string {
+	return In(i18n.Locale()).CommitTimeZoneIn3(time_, offset, place1, place2, place3)
+}
+
+// CommitTimeZoneIn3 says "{time} UTC{offset} ({place1}, {place2}, {place3})"
+// in the language of msgs.
+//
+// As commitTimeZoneIn1, with three places.
+func (msgs Messages) CommitTimeZoneIn3(time_ string, offset string, place1 string, place2 string, place3 string) string {
+	return Catalog.Format(msgs.locale, "commitTimeZoneIn3", map[string]any{"time": time_, "offset": offset, "place1": place1, "place2": place2, "place3": place3})
+}
+
+// TimeZonePlace says "{place, select, losangeles {Los Angeles} newyork {New York} chicago {Chicago} denver {Denver} phoenix {Phoenix} ancho…"
+// in the language the app shows.
+//
+// A city or region that names a time zone, in commitTimeZoneIn1 and the
+// like.
+func TimeZonePlace(place string) string { return In(i18n.Locale()).TimeZonePlace(place) }
+
+// TimeZonePlace says "{place, select, losangeles {Los Angeles} newyork {New York} chicago {Chicago} denver {Denver} phoenix {Phoenix} ancho…"
+// in the language of msgs.
+//
+// A city or region that names a time zone, in commitTimeZoneIn1 and the
+// like.
+func (msgs Messages) TimeZonePlace(place string) string {
+	return Catalog.Format(msgs.locale, "timeZonePlace", map[string]any{"place": place})
+}
+
 // CommitCommitter says "Committer"
 // in the language the app shows.
 func CommitCommitter() string { return In(i18n.Locale()).CommitCommitter() }
