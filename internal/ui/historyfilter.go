@@ -24,6 +24,11 @@ type historyFilter struct {
 	// only is the branch history shows alone, "" for every branch.
 	only string
 	err  string
+	// person names whom author, set to personAuthor from a person's
+	// name in a commit, matches: the bar shows the name, while author,
+	// their email, filters. Once author is anything else, it shows as
+	// typed.
+	person, personAuthor string
 	// applied is the filter as last applied, by its fields, "" for none;
 	// typed, when set, is when a field last changed, to apply once typing
 	// pauses.
@@ -294,6 +299,13 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 				v     *string
 				label string
 			}{{&hf.author, locales.HistoryFilterAuthor()}, {&hf.message, locales.CommonMessage()}, {&hf.path, locales.HistoryFilterPath()}} {
+				c.Key(f.label)
+				if f.v == &hf.author && hf.person != "" && hf.author == hf.personAuthor {
+					if a.personChip(c, hf) {
+						apply = true
+					}
+					continue
+				}
 				field(f.v, f.label, f.label, f.label).Grow(1)
 			}
 		})
@@ -332,6 +344,28 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 	if apply {
 		a.applyHistoryFilter(t)
 	}
+}
+
+// personChip stands in the Author field for the person history is
+// filtered to: their name, their email in its tooltip, and an x that
+// stops filtering by them. It reports whether the x was clicked.
+func (a *App) personChip(c *ui.Context, hf *historyFilter) bool {
+	th := c.Theme()
+	removed := false
+	ui.Row(c).Grow(1).MinWidth(leastFieldW).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(space2XS).AlignItems(ui.Center).Padding(space2XS, space2XS, space2XS, spaceS).Shrink(1).MinWidth(0).
+			Radius(th.Radius).Background(th.Background).Border(1, th.Border).Tooltip(hf.author).
+			Label(locales.HistoryFilterPerson(hf.person)).Children(func() {
+			ui.Text(c, hf.person).FontSize(textSmall).SingleLine().Shrink(1).MinWidth(0)
+			if closeButton(c, locales.HistoryFilterRemovePerson(hf.person)).Clicked() {
+				removed = true
+			}
+		})
+	})
+	if removed {
+		hf.author, hf.person, hf.personAuthor = "", "", ""
+	}
+	return removed
 }
 
 // shortRefName is a branch or tag name as the user knows it.

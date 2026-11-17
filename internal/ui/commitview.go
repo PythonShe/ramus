@@ -637,12 +637,12 @@ func (a *App) personLine(c *ui.Context, t *tab, name, email string, size float32
 	name, email = redact.Control(name), redact.Control(email)
 	ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 		if a.avatar(c, t, name, email, size).Cursor(ui.CursorPointer).Tooltip(locales.CommitShowPersonHistory(name)).Clicked() {
-			a.showPersonHistory(t, email)
+			a.showPersonHistory(t, name, email)
 		}
 		ui.Column(c).Gap(spaceXS).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 			ui.Row(c).Gap(spaceS).Wrap().AlignItems(ui.Center).Children(func() {
 				if clickable(ui.Text(c, name).FontSize(textSmall).FontWeight(600)).Tooltip(locales.CommitShowPersonHistory(name)).Clicked() {
-					a.showPersonHistory(t, email)
+					a.showPersonHistory(t, name, email)
 				}
 				ui.Text(c, email).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Shrink(1).MinWidth(0).Selectable()
 			})
@@ -655,10 +655,12 @@ func (a *App) personLine(c *ui.Context, t *tab, name, email string, size float32
 
 // showPersonHistory shows the history of the commits the person with
 // email authored, through the history's author filter, where it can be
-// seen and cleared. The email in brackets matches it whole.
-func (a *App) showPersonHistory(t *tab, email string) {
+// seen and cleared, under their name. The email in brackets matches it
+// whole.
+func (a *App) showPersonHistory(t *tab, name, email string) {
 	hf := &t.hist.filter
 	hf.author = "<" + email + ">"
+	hf.person, hf.personAuthor = name, hf.author
 	hf.open = true
 	t.sel = "history"
 	a.applyHistoryFilter(t)

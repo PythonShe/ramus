@@ -1067,6 +1067,21 @@ func TestCommitPeople(t *testing.T) {
 	h.until("their history", func() bool {
 		return tab.hist.filter.author == "<other@example.com>" && h.tt.HasText("1 commit")
 	})
+	// The bar names the person, not the email it filters by, which the
+	// x clears.
+	if _, ok := h.tt.AccessByRole(ui.RoleGroup, "Author: Other Person"); !ok {
+		t.Fatalf("no person in the filter bar: %q", h.tt.Texts())
+	}
+	if h.tt.HasText("<other@example.com>") {
+		t.Fatal("the bar shows the email filtered by")
+	}
+	h.click("Stop filtering by Other Person")
+	h.until("every author", func() bool {
+		return tab.hist.filter.author == "" && tab.hist.filter.active() == 0 && !h.tt.HasText("1 commit")
+	})
+	if _, ok := h.tt.AccessByRole(ui.RoleTextField, "Author"); !ok {
+		t.Fatal("no Author field back")
+	}
 }
 
 // History shown as commits land: a commit on top, then the commit on top

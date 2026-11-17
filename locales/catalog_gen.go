@@ -9129,6 +9129,40 @@ func (msgs Messages) HistoryFilterAuthor() string {
 	return Catalog.Format(msgs.locale, "historyFilterAuthor", nil)
 }
 
+// HistoryFilterPerson says "Author: {name}"
+// in the language the app shows.
+//
+// Names, for assistive technology, the history filter's author shown as a
+// person's name, after a click on that person in a commit.
+func HistoryFilterPerson(name string) string { return In(i18n.Locale()).HistoryFilterPerson(name) }
+
+// HistoryFilterPerson says "Author: {name}"
+// in the language of msgs.
+//
+// Names, for assistive technology, the history filter's author shown as a
+// person's name, after a click on that person in a commit.
+func (msgs Messages) HistoryFilterPerson(name string) string {
+	return Catalog.Format(msgs.locale, "historyFilterPerson", map[string]any{"name": name})
+}
+
+// HistoryFilterRemovePerson says "Stop filtering by {name}"
+// in the language the app shows.
+//
+// Label and tooltip of the x on the person the history is filtered to: it
+// clears the author filter.
+func HistoryFilterRemovePerson(name string) string {
+	return In(i18n.Locale()).HistoryFilterRemovePerson(name)
+}
+
+// HistoryFilterRemovePerson says "Stop filtering by {name}"
+// in the language of msgs.
+//
+// Label and tooltip of the x on the person the history is filtered to: it
+// clears the author filter.
+func (msgs Messages) HistoryFilterRemovePerson(name string) string {
+	return Catalog.Format(msgs.locale, "historyFilterRemovePerson", map[string]any{"name": name})
+}
+
 // HistoryFilterPath says "Path"
 // in the language the app shows.
 func HistoryFilterPath() string { return In(i18n.Locale()).HistoryFilterPath() }

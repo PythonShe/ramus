@@ -1851,6 +1851,14 @@
   },
   "historyAllBranches": "All Branches",
   "historyFilterAuthor": "Author",
+  "historyFilterPerson": "Author: {name}",
+  "@historyFilterPerson": {
+    "description": "Names, for assistive technology, the history filter's author shown as a person's name, after a click on that person in a commit."
+  },
+  "historyFilterRemovePerson": "Stop filtering by {name}",
+  "@historyFilterRemovePerson": {
+    "description": "Label and tooltip of the x on the person the history is filtered to: it clears the author filter."
+  },
   "historyFilterPath": "Path",
   "historyFilterChanged": "Content",
   "@historyFilterChanged": {

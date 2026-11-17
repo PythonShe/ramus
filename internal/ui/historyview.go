@@ -1198,7 +1198,7 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, h session.HistoryState, i, merges i
 	if _, author, email, _, ok := a.historyRow(t, h, i); ok && email != "" {
 		m.Separator()
 		if m.Item(locales.HistoryShowAuthorCommits(redact.Control(author))).Chosen() {
-			a.showPersonHistory(t, email)
+			a.showPersonHistory(t, redact.Control(author), email)
 		}
 	}
 	m.Separator()
