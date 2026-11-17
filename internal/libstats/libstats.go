@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -116,7 +117,7 @@ func (l *Loader) Load(paths, names []string, publish func(i int, r Repo)) {
 			}
 			r := Repo{Path: p, Name: names[i]}
 			var last time.Time
-			err := l.read(ctx, &r, func(read, total int) {
+			err := l.readSafe(ctx, &r, func(read, total int) {
 				if now := time.Now(); now.Sub(last) >= progressEvery {
 					last = now
 					send(i, Repo{Path: r.Path, Name: r.Name, Read: read, Total: total})
@@ -145,6 +146,17 @@ func (l *Loader) Cancel() {
 func (l *Loader) Close() {
 	l.stop()
 	l.wg.Wait()
+}
+
+// readSafe reads one repository as read does, a panic in it its error:
+// the others are read all the same, and the app goes on.
+func (l *Loader) readSafe(ctx context.Context, out *Repo, progress func(read, total int)) (err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("libstats: reading %s panicked: %v", out.Path, p)
+		}
+	}()
+	return l.read(ctx, out, progress)
 }
 
 func (l *Loader) read(ctx context.Context, out *Repo, progress func(read, total int)) error {
