@@ -63,6 +63,11 @@ type commitView struct {
 	// stay keeps a file chosen, its patch open, where nothing else shows
 	// in its place: no Close, no Escape.
 	stay bool
+	// asOf names the commit a file is restored from, for a comparison,
+	// where "this commit" says too little; "" names it so.
+	asOf string
+	// workSlot reads the patches of a comparison with the work tree.
+	workSlot *session.PatchSlot
 
 	patchFor     string
 	patchLoading bool
@@ -778,7 +783,7 @@ func (a *App) commitFiles(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 	ui.List(c, &cv.files, f.Len()).Rows(func(r ui.ListRow) {
 		i, k := r.Index, rowInk(r)
 		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
-		row.ContextMenu(func(m *ui.Menu) { a.commitFileMenu(m, t, d, i, &act) })
+		row.ContextMenu(func(m *ui.Menu) { a.commitFileMenu(m, t, d, cv.asOf, i, &act) })
 		row.Children(func() {
 			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(statusLetterSmallW).TextColor(fileStatusColor(k, f.Status(i)))
 			fileIcon(c, string(f.Path(i)), k)
@@ -797,8 +802,9 @@ func (a *App) commitFiles(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 
 // commitFileMenu is the menu of file i of commit d: copy its path, put
 // it back in the work tree as d has it, and what the work tree's files
-// offer, its history and blame among them.
-func (a *App) commitFileMenu(m *ui.Menu, t *tab, d *session.CommitDetail, i int, act *func()) {
+// offer, its history and blame among them. asOf names d in the restore
+// item, "" for "this commit".
+func (a *App) commitFileMenu(m *ui.Menu, t *tab, d *session.CommitDetail, asOf string, i int, act *func()) {
 	f := d.Files
 	if f == nil || i >= f.Len() {
 		return
@@ -807,9 +813,10 @@ func (a *App) commitFileMenu(m *ui.Menu, t *tab, d *session.CommitDetail, i int,
 	if m.Item(locales.CommitCopyPath()).Chosen() {
 		a.clip = path
 	}
-	// A file the commit deleted has nothing to restore.
-	if f.Status(i) != 'D' {
-		a.restoreFromItem(m, t, path, hex.EncodeToString(d.OID))
+	// A file the commit deleted has nothing to restore, nor has the work
+	// tree compared with.
+	if f.Status(i) != 'D' && !d.WorkTree {
+		a.restoreFromItem(m, t, path, hex.EncodeToString(d.OID), asOf)
 	}
 	m.Separator()
 	a.fileMenu(m, t, path, act)
@@ -854,9 +861,19 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		paths = []string{string(f.OldPath(cv.file)), paths[0]}
 	}
 	ws := diff.Whitespace(a.diffOpts().ws)
-	key := fmt.Sprintf("%x\x00%s\x00%s\x00%d", d.OID, paths[0], paths[len(paths)-1], ws)
+	file := fmt.Sprintf("%x\x00%s\x00%s\x00%d", d.OID, paths[0], paths[len(paths)-1], ws)
+	key := file
+	if d.WorkTree {
+		// Each reading of the work tree reads the patch again; the one
+		// shown stays until the new one comes.
+		file = fmt.Sprintf("w%x\x00%s\x00%s\x00%d", d.Parents[0], paths[0], paths[len(paths)-1], ws)
+		key = fmt.Sprintf("%s\x00%p", file, d)
+	}
 	if cv.patchFor != key {
-		cv.patchFor, cv.patch, cv.pager = key, session.PatchResult{}, patchPager{}
+		if !strings.HasPrefix(cv.patchFor, file) {
+			cv.patch, cv.pager = session.PatchResult{}, patchPager{}
+		}
+		cv.patchFor = key
 		_, oldID := f.Old(cv.file)
 		_, newID := f.New(cv.file)
 		detail := *d
@@ -864,7 +881,18 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		load = func() {
 			cv.patchLoading = true
 			sides := session.Sides{Old: oldID, New: newID, Max: cv.pager.sides()}
-			t.s.CommitPatch(detail, paths, cv.pager.max(), ws, sides, func(res session.PatchResult) {
+			read := func(done func(session.PatchResult)) {
+				t.s.CommitPatch(detail, paths, cv.pager.max(), ws, sides, done)
+			}
+			if detail.WorkTree {
+				if cv.workSlot == nil {
+					cv.workSlot = new(session.PatchSlot)
+				}
+				read = func(done func(session.PatchResult)) {
+					t.s.WorkTreeComparePatch(cv.workSlot, detail.Parents[0], paths, cv.pager.max(), ws, sides, done)
+				}
+			}
+			read(func(res session.PatchResult) {
 				if cv.patchFor != key {
 					return
 				}
@@ -891,7 +919,11 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		})
 		a.diffBar(c, false, func() {
 			if ui.Button(c, locales.DiffOpenInTool()).Disabled(t.s.Queue == nil || len(d.Parents) == 0).Clicked() {
-				t.s.OpenDiffTool(session.DiffToolRequest{Paths: paths, From: d.Parents[0], To: d.OID, Own: a.ownDiffTool(shortID(d.Parents[0]), shortID(d.OID))}, a.toolDone)
+				to := locales.CompareWorkTree()
+				if !d.WorkTree {
+					to = shortID(d.OID)
+				}
+				t.s.OpenDiffTool(session.DiffToolRequest{Paths: paths, From: d.Parents[0], To: d.OID, Own: a.ownDiffTool(shortID(d.Parents[0]), to)}, a.toolDone)
 			}
 		})
 		a.pagerNotice(c, &cv.pager, cv.patch, cv.patchLoading, "", cv.loadPatch)

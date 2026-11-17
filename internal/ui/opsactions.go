@@ -102,6 +102,10 @@ func (a *App) commitOps(m *ui.Menu, t *tab, ids func() []string, n int) {
 		from, _ := hex.DecodeString(ids()[0])
 		a.compareCommits(t, from, head.OID, shortID(from), "HEAD")
 	}
+	if n == 1 && m.Item(locales.OpsCompareWithWorkTree()).Disabled(t.s.Where().WorkTree == "").Chosen() {
+		from, _ := hex.DecodeString(ids()[0])
+		a.compareWorkTree(t, from, shortID(from))
+	}
 	bs := t.bisect.state
 	if n == 2 && !bs.Active {
 		if m.Item(locales.OpsBisectBetween()).Disabled(ro).Chosen() {

@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // Any commit compares with HEAD from its menu: the files changed between
@@ -35,9 +37,54 @@ func TestCompareCommits(t *testing.T) {
 	if !strings.HasPrefix(tb.cmp.fromName, strings.TrimSpace(r.Git("rev-parse", "--short=10", "HEAD~2"))) {
 		t.Fatalf("from %q", tb.cmp.fromName)
 	}
+	// A file is restored as the newer side has it, which its item names.
+	h.menu("b.txt", "Restore File as of HEAD…")
+	h.until("the question", h.shows("Restore b.txt?"))
+	h.click("Cancel")
 	h.click("Swap")
 	h.until("the other way", func() bool { return tb.cmp.fromName == "HEAD" && h.tt.HasText("3 files changed") })
 	h.until("a's patch reversed", patchHas(&tb.cmp.cv.pv, "a1", "a2"))
+}
+
+// A commit compares with the working tree: what changed since it, staged
+// or not, read again as the files change; nothing there to restore from
+// or swap.
+func TestCompareWithWorkTree(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "a1\n")
+	r.Commit("add a")
+	r.Write("b.txt", "b\n")
+	r.Commit("add b")
+	r.Write("a.txt", "a2\n")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("Changes (1)"))
+	h.click("History")
+	h.until("history", h.shows("add a"))
+	h.menu("add a", "Compare with Working Tree")
+	tb := h.app.current()
+	h.until("the comparison", func() bool {
+		d := tb.cmp.d
+		return d != nil && d.Done && d.Files.Len() == 2 && h.tt.HasText("Working Tree")
+	})
+	h.until("a's patch", patchHas(&tb.cmp.cv.pv, "a2", "a1"))
+	if _, ok := h.tt.Access("Swap"); ok {
+		t.Fatal("the work tree can be swapped")
+	}
+	if err := h.tt.RightClick("b.txt"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	for _, item := range h.tt.Menu() {
+		if strings.HasPrefix(item, "Restore") {
+			t.Fatalf("restore offered from the work tree: %q", h.tt.Menu())
+		}
+	}
+	h.tt.Key(0, ui.KeyEscape)
+
+	r.Write("a.txt", "a3\n")
+	h.until("the change read", patchHas(&tb.cmp.cv.pv, "a3", "a1"))
 }
 
 // A branch compared with the one checked out shows what it changes since

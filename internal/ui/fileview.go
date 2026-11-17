@@ -234,7 +234,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 					a.clip = hex.EncodeToString(fc.OID)
 				}
 				if fc.Path == "" || fc.Path == fs.path {
-					a.restoreFromItem(m, t, fs.path, hex.EncodeToString(fc.OID))
+					a.restoreFromItem(m, t, fs.path, hex.EncodeToString(fc.OID), "")
 				}
 				a.commitItems(m, t, fc.OID, fc.Merges)
 			}
@@ -412,11 +412,20 @@ func statDir(p string) (bool, error) {
 }
 
 // restoreFromItem offers to put path in the work tree back as it is in
-// commit, which keeps it in a snapshot first.
-func (a *App) restoreFromItem(m *ui.Menu, t *tab, path, commit string) {
-	label := locales.FileHistoryRestoreFile()
-	if strings.HasSuffix(path, "/") {
+// commit, which keeps it in a snapshot first. asOf names the commit in
+// the item, "" for "this commit".
+func (a *App) restoreFromItem(m *ui.Menu, t *tab, path, commit, asOf string) {
+	folder := strings.HasSuffix(path, "/")
+	var label string
+	switch {
+	case asOf != "" && folder:
+		label = locales.FileHistoryRestoreFolderAsOf(redact.Control(asOf))
+	case asOf != "":
+		label = locales.FileHistoryRestoreFileAsOf(redact.Control(asOf))
+	case folder:
 		label = locales.FileHistoryRestoreFolder()
+	default:
+		label = locales.FileHistoryRestoreFile()
 	}
 	if !m.Item(label).Disabled(t.s.Queue == nil).Chosen() {
 		return

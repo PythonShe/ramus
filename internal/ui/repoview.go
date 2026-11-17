@@ -297,7 +297,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 		if a.hasPulls(t) {
 			item(sidePulls, a.pullsSection(t))
 		}
-		if t.cmp.to != nil {
+		if t.cmp.shown() {
 			ui.SidebarItem(c, sideCompare, nil, locales.RepoSectionComparison())
 		}
 		sideDivider(c)

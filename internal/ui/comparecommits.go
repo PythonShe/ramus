@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/redact"
+	"ramus/internal/git/status"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -17,6 +18,10 @@ import (
 type commitCompare struct {
 	from, to         []byte
 	fromName, toName string
+	// workTree compares from with the work tree, to nil; readFor is the
+	// status it was read for, read again as the status changes.
+	workTree bool
+	readFor  *status.Status
 	// branches compares two branches: by default (tips 0) what to changes
 	// since it split off from, from their merge base, as git diff
 	// from...to and a pull request do; tips 1 compares the two as they are.
@@ -47,6 +52,15 @@ type commitCompare struct {
 func (a *App) compareCommits(t *tab, from, to []byte, fromName, toName string) {
 	a.compare(t, commitCompare{from: from, to: to, fromName: fromName, toName: toName})
 }
+
+// compareWorkTree shows what changed from commit from to the work tree,
+// as git diff from shows it.
+func (a *App) compareWorkTree(t *tab, from []byte, fromName string) {
+	a.compare(t, commitCompare{from: from, fromName: fromName, toName: locales.CompareWorkTree(), workTree: true})
+}
+
+// shown reports whether there is a comparison to show.
+func (cc *commitCompare) shown() bool { return cc.to != nil || cc.workTree }
 
 // compareBranches shows what the branch at to changes since it split off
 // from the one at from, or how their tips differ, as the user picks.
@@ -101,10 +115,20 @@ func shortID(id []byte) string { return hex.EncodeToString(id)[:10] }
 func (a *App) commitCompareView(c *ui.Context, t *tab) {
 	th := c.Theme()
 	cc := &t.cmp
-	if cc.to == nil {
+	if !cc.shown() {
 		return
 	}
-	if from := a.compareFrom(t, cc); cc.d == nil && !cc.loading && from != nil {
+	switch from := a.compareFrom(t, cc); {
+	case cc.workTree && !cc.loading && cc.readFor != t.s.State.Status:
+		// Read again as the work tree changes, the files read before
+		// shown till then.
+		cc.loading, cc.against, cc.readFor = true, from, t.s.State.Status
+		cc.cancel = t.s.CompareWorkTree(from, func(d session.CommitDetail) {
+			if cc.workTree && bytes.Equal(cc.against, from) {
+				cc.loading, cc.d = !d.Done, &d
+			}
+		})
+	case !cc.workTree && cc.d == nil && !cc.loading && from != nil:
 		cc.loading, cc.against = true, from
 		to := cc.to
 		cc.cancel = t.s.Compare(from, to, func(d session.CommitDetail) {
@@ -117,7 +141,11 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 	if !cc.subjectsAsked {
 		cc.subjectsAsked = true
 		from, to := cc.from, cc.to
-		cc.subjectsCancel = t.s.LoadSubjects([][]byte{from, to}, func(subjects []string) {
+		ids := [][]byte{from, to}
+		if cc.workTree {
+			ids = ids[:1]
+		}
+		cc.subjectsCancel = t.s.LoadSubjects(ids, func(subjects []string) {
 			if bytes.Equal(cc.from, from) && bytes.Equal(cc.to, to) {
 				cc.subjects = subjects
 			}
@@ -126,14 +154,18 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 	// side names one side by its name, its subject under it.
 	side := func(name string, k int) {
 		ui.Column(c).Gap(space2XS).Shrink(1).MinWidth(0).Children(func() {
-			ui.Text(c, redact.Control(name)).Font("monospace").SingleLine().MinWidth(0)
+			n := ui.Text(c, redact.Control(name)).SingleLine().MinWidth(0)
+			if k == 0 || !cc.workTree {
+				n.Font("monospace")
+			}
 			if k < len(cc.subjects) && cc.subjects[k] != "" {
 				ui.Text(c, redact.Control(cc.subjects[k])).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MinWidth(0)
 			}
 		})
 	}
-	// The comparison has nothing else to show: a file stays chosen.
-	cc.cv.stay = true
+	// The comparison has nothing else to show: a file stays chosen. A
+	// file is restored as the newer side has it.
+	cc.cv.stay, cc.cv.asOf = true, cc.toName
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			side(cc.fromName, 0)
@@ -147,7 +179,7 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 					a.compareBranches(t, cc.from, cc.to, cc.fromName, cc.toName, cc.tips)
 				}
 			}
-			if ui.Button(c, locales.CompareSwap()).Clicked() {
+			if !cc.workTree && ui.Button(c, locales.CompareSwap()).Clicked() {
 				if cc.branches {
 					a.compareBranches(t, cc.to, cc.from, cc.toName, cc.fromName, cc.tips)
 				} else {

@@ -2863,6 +2863,20 @@ func (msgs Messages) CompareSwap() string {
 	return Catalog.Format(msgs.locale, "compareSwap", nil)
 }
 
+// CompareWorkTree says "Working Tree"
+// in the language the app shows.
+//
+// Names the newer side of a comparison of a commit with the files on disk.
+func CompareWorkTree() string { return In(i18n.Locale()).CompareWorkTree() }
+
+// CompareWorkTree says "Working Tree"
+// in the language of msgs.
+//
+// Names the newer side of a comparison of a commit with the files on disk.
+func (msgs Messages) CompareWorkTree() string {
+	return Catalog.Format(msgs.locale, "compareWorkTree", nil)
+}
+
 // CompareSinceSplit says "Since Branching Off"
 // in the language the app shows.
 //
@@ -7029,6 +7043,22 @@ func (msgs Messages) OpsCompareWithHead() string {
 	return Catalog.Format(msgs.locale, "opsCompareWithHead", nil)
 }
 
+// OpsCompareWithWorkTree says "Compare with Working Tree"
+// in the language the app shows.
+//
+// A commit's menu item: shows what changed from the commit to the files on
+// disk, as git diff <commit> does.
+func OpsCompareWithWorkTree() string { return In(i18n.Locale()).OpsCompareWithWorkTree() }
+
+// OpsCompareWithWorkTree says "Compare with Working Tree"
+// in the language of msgs.
+//
+// A commit's menu item: shows what changed from the commit to the files on
+// disk, as git diff <commit> does.
+func (msgs Messages) OpsCompareWithWorkTree() string {
+	return Catalog.Format(msgs.locale, "opsCompareWithWorkTree", nil)
+}
+
 // OpsBisectBetween says "Bisect Between These"
 // in the language the app shows.
 func OpsBisectBetween() string { return In(i18n.Locale()).OpsBisectBetween() }
@@ -9035,6 +9065,70 @@ func (msgs Messages) HistoryCopyPatch() string {
 	return Catalog.Format(msgs.locale, "historyCopyPatch", nil)
 }
 
+// HistoryPicked says "{count, plural, one {# commit picked} other {# commits picked}}"
+// in the language the app shows.
+//
+// The bar over the history list while several commits are picked, before
+// what acts on them.
+func HistoryPicked(count int) string { return In(i18n.Locale()).HistoryPicked(count) }
+
+// HistoryPicked says "{count, plural, one {# commit picked} other {# commits picked}}"
+// in the language of msgs.
+//
+// The bar over the history list while several commits are picked, before
+// what acts on them.
+func (msgs Messages) HistoryPicked(count int) string {
+	return Catalog.Format(msgs.locale, "historyPicked", map[string]any{"count": count})
+}
+
+// HistoryPickedCompare says "Compare"
+// in the language the app shows.
+//
+// A button of the bar of commits picked, shown when two are: compares the
+// older with the newer.
+func HistoryPickedCompare() string { return In(i18n.Locale()).HistoryPickedCompare() }
+
+// HistoryPickedCompare says "Compare"
+// in the language of msgs.
+//
+// A button of the bar of commits picked, shown when two are: compares the
+// older with the newer.
+func (msgs Messages) HistoryPickedCompare() string {
+	return Catalog.Format(msgs.locale, "historyPickedCompare", nil)
+}
+
+// HistoryPickedCherryPick says "Cherry-Pick"
+// in the language the app shows.
+//
+// A button of the bar of commits picked: cherry-picks them onto the branch
+// checked out, oldest first.
+func HistoryPickedCherryPick() string { return In(i18n.Locale()).HistoryPickedCherryPick() }
+
+// HistoryPickedCherryPick says "Cherry-Pick"
+// in the language of msgs.
+//
+// A button of the bar of commits picked: cherry-picks them onto the branch
+// checked out, oldest first.
+func (msgs Messages) HistoryPickedCherryPick() string {
+	return Catalog.Format(msgs.locale, "historyPickedCherryPick", nil)
+}
+
+// HistoryPickedClear says "Clear"
+// in the language the app shows.
+//
+// A button of the bar of commits picked: lets go of them, the chosen commit
+// kept.
+func HistoryPickedClear() string { return In(i18n.Locale()).HistoryPickedClear() }
+
+// HistoryPickedClear says "Clear"
+// in the language of msgs.
+//
+// A button of the bar of commits picked: lets go of them, the chosen commit
+// kept.
+func (msgs Messages) HistoryPickedClear() string {
+	return Catalog.Format(msgs.locale, "historyPickedClear", nil)
+}
+
 // HistoryCopyHashes says "{count, plural, one {Copy # Hash} other {Copy # Hashes}}"
 // in the language the app shows.
 //
@@ -9691,6 +9785,40 @@ func FileHistoryRestoreFolder() string { return In(i18n.Locale()).FileHistoryRes
 // in the language of msgs.
 func (msgs Messages) FileHistoryRestoreFolder() string {
 	return Catalog.Format(msgs.locale, "fileHistoryRestoreFolder", nil)
+}
+
+// FileHistoryRestoreFileAsOf says "Restore File as of {name}…"
+// in the language the app shows.
+//
+// A file's menu item in a comparison: puts the file back in the work tree
+// as the newer side has it; name is that side's short hash or ref name.
+func FileHistoryRestoreFileAsOf(name string) string {
+	return In(i18n.Locale()).FileHistoryRestoreFileAsOf(name)
+}
+
+// FileHistoryRestoreFileAsOf says "Restore File as of {name}…"
+// in the language of msgs.
+//
+// A file's menu item in a comparison: puts the file back in the work tree
+// as the newer side has it; name is that side's short hash or ref name.
+func (msgs Messages) FileHistoryRestoreFileAsOf(name string) string {
+	return Catalog.Format(msgs.locale, "fileHistoryRestoreFileAsOf", map[string]any{"name": name})
+}
+
+// FileHistoryRestoreFolderAsOf says "Restore Folder as of {name}…"
+// in the language the app shows.
+//
+// As fileHistoryRestoreFileAsOf, for a folder.
+func FileHistoryRestoreFolderAsOf(name string) string {
+	return In(i18n.Locale()).FileHistoryRestoreFolderAsOf(name)
+}
+
+// FileHistoryRestoreFolderAsOf says "Restore Folder as of {name}…"
+// in the language of msgs.
+//
+// As fileHistoryRestoreFileAsOf, for a folder.
+func (msgs Messages) FileHistoryRestoreFolderAsOf(name string) string {
+	return Catalog.Format(msgs.locale, "fileHistoryRestoreFolderAsOf", map[string]any{"name": name})
 }
 
 // FileHistoryRestoreTitle says "Restore {path}?"

@@ -526,6 +526,10 @@
   },
   "compareDifferingFiles": "Differing files",
   "compareSwap": "Swap",
+  "compareWorkTree": "Working Tree",
+  "@compareWorkTree": {
+    "description": "Names the newer side of a comparison of a commit with the files on disk."
+  },
   "compareSinceSplit": "Since Branching Off",
   "@compareSinceSplit": {
     "description": "Compares what a branch changes since it split off from the other, as a pull request does."
@@ -1353,6 +1357,10 @@
   "opsSaveAsPatch": "{count, plural, =1 {Save Commit as Patch…} one {Save # Commit as Patch…} other {Save # Commits as Patch…}}",
   "opsCompareTheseCommits": "Compare These Commits",
   "opsCompareWithHead": "Compare with HEAD",
+  "opsCompareWithWorkTree": "Compare with Working Tree",
+  "@opsCompareWithWorkTree": {
+    "description": "A commit's menu item: shows what changed from the commit to the files on disk, as git diff <commit> does."
+  },
   "opsBisectBetween": "Bisect Between These",
   "opsBisect": "Bisect",
   "@opsBisect": {
@@ -1827,6 +1835,22 @@
   "historyKindDetachedHead": "detached HEAD",
   "historyCopyMessage": "Copy Message",
   "historyCopyPatch": "Copy Patch",
+  "historyPicked": "{count, plural, one {# commit picked} other {# commits picked}}",
+  "@historyPicked": {
+    "description": "The bar over the history list while several commits are picked, before what acts on them."
+  },
+  "historyPickedCompare": "Compare",
+  "@historyPickedCompare": {
+    "description": "A button of the bar of commits picked, shown when two are: compares the older with the newer."
+  },
+  "historyPickedCherryPick": "Cherry-Pick",
+  "@historyPickedCherryPick": {
+    "description": "A button of the bar of commits picked: cherry-picks them onto the branch checked out, oldest first."
+  },
+  "historyPickedClear": "Clear",
+  "@historyPickedClear": {
+    "description": "A button of the bar of commits picked: lets go of them, the chosen commit kept."
+  },
   "historyCopyHashes": "{count, plural, one {Copy # Hash} other {Copy # Hashes}}",
   "@historyCopyHashes": {
     "description": "A menu item of several commits picked: copies their hashes, one a line, oldest first."
@@ -1970,6 +1994,14 @@
   },
   "fileHistoryRestoreFile": "Restore File as of This Commit…",
   "fileHistoryRestoreFolder": "Restore Folder as of This Commit…",
+  "fileHistoryRestoreFileAsOf": "Restore File as of {name}…",
+  "@fileHistoryRestoreFileAsOf": {
+    "description": "A file's menu item in a comparison: puts the file back in the work tree as the newer side has it; name is that side's short hash or ref name."
+  },
+  "fileHistoryRestoreFolderAsOf": "Restore Folder as of {name}…",
+  "@fileHistoryRestoreFolderAsOf": {
+    "description": "As fileHistoryRestoreFileAsOf, for a folder."
+  },
   "fileHistoryRestoreTitle": "Restore {path}?",
   "fileHistoryRestoreMessage": "The work tree copy becomes as it was in {commit}; the change is left unstaged.\n\nA snapshot is kept: Undo or the Snapshots view brings it back.",
   "fileHistoryRestore": "Restore",
