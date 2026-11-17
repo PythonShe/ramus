@@ -159,3 +159,35 @@ func TestBranchPicker(t *testing.T) {
 		t.Fatal("the palette did not open the picker")
 	}
 }
+
+// What a branch's menu in the picker asks, over the Changes page, shows:
+// deleting a branch, and switching over local changes.
+func TestBranchPickerAsks(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "other")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	h.app.setSidebar(false)
+	h.click("Branch main")
+	tb := h.app.current()
+	h.until("the branch and its state", func() bool { _, ok := tb.pick.info["refs/heads/other"]; return ok && hasExact(h, "other") })
+	if err := h.tt.RightClick("other"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if err := h.tt.ChooseMenuItem("Delete…"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the question", h.shows("Delete branch other at "))
+	h.click("Cancel")
+
+	r.Write("README", "changed")
+	h.until("the change", func() bool { st := tb.s.State.Status; return st != nil && st.Len() > 0 })
+	h.click("Branch main")
+	h.tt.Type("other")
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+	h.until("the switch question", h.shows("Switch to other with local changes?"))
+}

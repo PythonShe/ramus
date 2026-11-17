@@ -193,8 +193,6 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 			a.remoteList(c, t)
 		}
 	})
-	a.confirmView(c, &rs.ask)
-	a.switchAsk(c, t)
 	a.cleanupView(c, t)
 }
 

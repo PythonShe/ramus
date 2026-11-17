@@ -605,8 +605,12 @@ func (a *App) View(c *ui.Context) {
 	a.messageView(c)
 	a.historyEditView(c)
 	if t := a.current(); t != nil {
-		// Opened from the branches view or a commit's menu.
+		// Opened from the branches view or a commit's menu, and the
+		// questions of a branch's menu, which the branch picker and the
+		// sidebar open over any page.
 		a.refDialogView(c, &t.refs.dlg, t)
+		a.confirmView(c, &t.refs.ask)
+		a.switchAsk(c, t)
 	}
 	a.stashDialogView(c)
 	a.cleanView(c)
