@@ -195,3 +195,27 @@ func TestMergeTool(t *testing.T) {
 		t.Fatalf("a.txt %q, unmerged %q", h.read("a.txt"), h.r.Git("ls-files", "-u"))
 	}
 }
+
+// A squash stopped on a conflict, in a rebase an earlier continue gave
+// another comment character, is stripped with that one.
+func TestSquashKeepsItsCommentCharacter(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "rebase-merge"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("rebase-merge/current-fixups", "squash 1234\n")
+	for _, c := range []struct{ body, want string }{
+		{"; This is a combination of 2 commits.\n; This is the 1st commit message:\n\none\n\n; This is the commit message #2:\n\ntwo\n", ";"},
+		{"Resolved: a subject\n\nResolved: a body\n", ""},
+	} {
+		write("rebase-merge/message", c.body)
+		if cc, err := keepMessage(dir); err != nil || cc != c.want {
+			t.Fatalf("comment %q, want %q: %v", cc, c.want, err)
+		}
+	}
+}

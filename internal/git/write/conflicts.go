@@ -166,10 +166,11 @@ func Sequence(w Where, operation string, action SequenceAction) (Op, error) {
 // conflicts git listed in it, as comments, are taken out, and the comment
 // character returned is one no line left starts with, as git's editor,
 // even one that changes nothing, strips comments. "" leaves the message
-// to git: in a squash, git's own comments join the messages.
+// to git: in a squash, git's own comments join the messages, and the
+// character returned is the one they start with.
 func keepMessage(gitDir string) (string, error) {
 	if b, err := os.ReadFile(filepath.Join(gitDir, "rebase-merge", "current-fixups")); err == nil && len(bytes.TrimSpace(b)) > 0 {
-		return "", nil
+		return squashComment(gitDir), nil
 	}
 	var all strings.Builder
 	for _, name := range []string{"MERGE_MSG", filepath.Join("rebase-merge", "message")} {
@@ -194,6 +195,30 @@ func keepMessage(gitDir string) (string, error) {
 	return cc, nil
 }
 
+// squashComment is the comment string git wrote a squash's message with,
+// its first line a comment: one chosen by an earlier continue of the
+// same rebase, which git keeps using, strips only if given again.
+func squashComment(gitDir string) string {
+	for _, name := range []string{filepath.Join("rebase-merge", "message"), "MERGE_MSG"} {
+		b, err := os.ReadFile(filepath.Join(gitDir, name))
+		if err != nil {
+			continue
+		}
+		first, _, _ := strings.Cut(string(b), "\n")
+		c, _, ok := strings.Cut(first, " ")
+		if ok && isMarks(c) && strings.Contains(string(b), "\n"+c+" ") {
+			return c
+		}
+	}
+	return ""
+}
+
+// isMarks reports whether c could be a comment string: marks, not a
+// word.
+func isMarks(c string) bool {
+	return c != "" && strings.IndexFunc(c, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsLetter(r) || unicode.IsDigit(r) }) < 0
+}
+
 // dropConflicts takes the list of conflicted paths git ends a message
 // with off it: "<c> Conflicts:" and a line "<c>\t<path>" for each, after
 // the scissors line when commit.cleanup is scissors.
@@ -209,7 +234,7 @@ func dropConflicts(msg string) string {
 	c := strings.TrimSuffix(strings.TrimRight(lines[i], "\n"), " Conflicts:")
 	// A comment string is marks, not a word: a line of the user's own,
 	// "Resolved Conflicts:", is not git's.
-	if c == "" || strings.IndexFunc(c, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsLetter(r) || unicode.IsDigit(r) }) >= 0 {
+	if !isMarks(c) {
 		return msg
 	}
 	paths := 0
