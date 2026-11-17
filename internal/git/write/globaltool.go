@@ -76,9 +76,11 @@ func SetTool(ctx context.Context, r *run.Runner, tool GlobalTool, on bool) error
 	return nil
 }
 
-// globalGet is the value of key in the global config, "" when unset.
-func globalGet(ctx context.Context, r *run.Runner, key string) (string, error) {
-	res, err := r.Run(ctx, &run.Cmd{Outside: true, WorkTree: home(), Read: true, Args: []string{"config", "--global", "--get", key}})
+// globalGet is the value of key in the global config, "" when unset,
+// read with the options opts, as --includes.
+func globalGet(ctx context.Context, r *run.Runner, key string, opts ...string) (string, error) {
+	args := append(append([]string{"config", "--global"}, opts...), "--get", key)
+	res, err := r.Run(ctx, &run.Cmd{Outside: true, WorkTree: home(), Read: true, Args: args})
 	if exitCode(err) == 1 {
 		return "", nil
 	}

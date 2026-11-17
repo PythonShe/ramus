@@ -26,11 +26,14 @@ func (id Identity) values() [3]string {
 // ErrBranchName is a default branch git would refuse as a branch's name.
 var ErrBranchName = errors.New("write: not a name git takes for a branch")
 
-// ReadIdentity reads Identity from the user's global git config.
+// ReadIdentity reads Identity from the user's global git config, with
+// the files it includes: a config named, as --global names it, includes
+// none unless asked, and an identity kept in an included file, as
+// ~/.gitconfig.local, is the one git commits with.
 func ReadIdentity(ctx context.Context, r *run.Runner) (Identity, error) {
 	var v [3]string
 	for i, key := range identityKeys {
-		s, err := globalGet(ctx, r, key)
+		s, err := globalGet(ctx, r, key, "--includes")
 		if err != nil {
 			return Identity{}, err
 		}

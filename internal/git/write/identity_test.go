@@ -63,3 +63,30 @@ func TestSetIdentity(t *testing.T) {
 		t.Fatalf("a refused identity was written: %+v", got)
 	}
 }
+
+// An identity kept in a file the global config includes is read.
+func TestReadIdentityIncluded(t *testing.T) {
+	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	dir := t.TempDir()
+	local := filepath.Join(dir, "gitconfig.local")
+	if err := os.WriteFile(local, []byte("[user]\n\tname = Kept Apart\n\temail = apart@example.com\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(dir, "gitconfig")
+	if err := os.WriteFile(cfg, []byte("[include]\n\tpath = "+filepath.ToSlash(local)+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"GIT_CONFIG_GLOBAL=" + cfg}
+	for _, kv := range gittest.Env() {
+		if !strings.HasPrefix(kv, "GIT_CONFIG_GLOBAL=") {
+			env = append(env, kv)
+		}
+	}
+	got, err := ReadIdentity(context.Background(), run.New(g, env, 2))
+	if err != nil || got != (Identity{Name: "Kept Apart", Email: "apart@example.com"}) {
+		t.Fatalf("read %+v %v", got, err)
+	}
+}
