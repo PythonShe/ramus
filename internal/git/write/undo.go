@@ -181,8 +181,16 @@ func (q *Queue) Undo() *Job { return q.submitHistory("Undo", true, 0) }
 
 // UndoEntry queues undoing the write a Job's Entry names; when its turn
 // comes, it refuses with ErrNotLast unless that write is the last
-// undoable one.
-func (q *Queue) UndoEntry(id uint64) *Job { return q.submitHistory("Undo", true, id) }
+// undoable one. An id of 0, a write that recorded no entry, names none:
+// it refuses too, rather than undo whatever write is last.
+func (q *Queue) UndoEntry(id uint64) *Job {
+	if id == 0 {
+		return q.Submit(Op{Name: "Undo", do: func(context.Context, *Job) (run.Result, error) {
+			return run.Result{}, ErrNotLast
+		}})
+	}
+	return q.submitHistory("Undo", true, id)
+}
 
 // Redo queues redoing the last undone write.
 func (q *Queue) Redo() *Job { return q.submitHistory("Redo", false, 0) }

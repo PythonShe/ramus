@@ -109,6 +109,23 @@ func TestUndoRefsOnly(t *testing.T) {
 	f.roundTrip("Commit detached", RefsOnly, nil, "commit", "-q", "-m", "detached")
 }
 
+// UndoEntry undoes only the write it names: 0, a write that recorded no
+// entry, names none, and the last write stays done.
+func TestUndoEntryOfNone(t *testing.T) {
+	f := newUndo(t)
+	f.r.Write("a", "1")
+	f.r.Git("add", "a")
+	f.do("Commit", RefsOnly, nil, "commit", "-q", "-m", "first")
+	before := f.state()
+	if _, err := wait(t, f.q.UndoEntry(0)); !errors.Is(err, ErrNotLast) {
+		t.Fatalf("undo of no entry: %v", err)
+	}
+	if f.state() != before {
+		t.Fatal("an earlier write was undone")
+	}
+	f.undo("Commit")
+}
+
 func TestUndoMovesHead(t *testing.T) {
 	f := newUndo(t)
 	f.r.Write("a", "1")
