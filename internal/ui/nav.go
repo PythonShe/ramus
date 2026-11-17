@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/locales"
 )
 
@@ -110,7 +111,9 @@ func (a *App) pageTitle(t *tab) string {
 	case t.sel == "history" && t.hist.chosenID != nil:
 		if d := t.hist.detail.d; d != nil && string(d.OID) == string(t.hist.chosenID) {
 			subject, _ := messageParts(d)
-			return string(subject)
+			// Back and Forward list it: a bidi override in it could
+			// make it read as another commit's.
+			return redact.Control(string(subject))
 		}
 		return hex.EncodeToString(t.hist.chosenID)[:10]
 	case strings.HasPrefix(t.sel, "refs/"):
