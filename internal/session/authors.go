@@ -12,6 +12,7 @@ import (
 	"ramus/internal/git/mailmap"
 	"ramus/internal/git/object"
 	"ramus/internal/git/repo"
+	"ramus/internal/git/run"
 	"ramus/internal/git/textenc"
 )
 
@@ -42,7 +43,7 @@ type authorsLoad struct {
 
 // LoadAuthors hands publish, on the main thread, the people who wrote
 // the newest commits reachable from HEAD, those with the most first; the
-// user, as user.email names them, is left out. They are read once for a
+// user, as git names them in a commit, is left out. They are read once for a
 // HEAD; a call while they are read replaces the publish of the one
 // before. A repository without commits, or one that cannot be read, has
 // nobody.
@@ -65,11 +66,12 @@ func (s *Session) LoadAuthors(publish func([]Person)) {
 	}
 	*a = authorsLoad{head: key, publish: publish}
 	tip := slices.Clone(head)
-	me, _ := r.Config().Get("user.email")
 	update := s.update
 	r.Life().Go(func(ctx context.Context) {
-		people, _ := readAuthors(ctx, r, s.mailmap(ctx, r), tip, AuthorCommits)
-		people = slices.DeleteFunc(people, func(p Person) bool { return me != "" && strings.EqualFold(p.Email, me) })
+		mm := s.mailmap(ctx, r)
+		people, _ := readAuthors(ctx, r, mm, tip, AuthorCommits)
+		me := ownEmails(ctx, r, mm)
+		people = slices.DeleteFunc(people, func(p Person) bool { return slices.Contains(me, strings.ToLower(p.Email)) })
 		update(func() {
 			if a.head != key {
 				return
@@ -81,6 +83,43 @@ func (s *Session) LoadAuthors(publish func([]Person)) {
 			}
 		})
 	})
+}
+
+// ownEmails are the addresses, lower case, git writes into a commit
+// made here as its author and committer: user.email, or author.email,
+// committer.email or the environment, which take its place; each also
+// as the mailmap names it, as people are.
+func ownEmails(ctx context.Context, r *repo.Repository, mm *mailmap.Map) []string {
+	var out []string
+	add := func(name, email string) {
+		if email == "" {
+			return
+		}
+		out = append(out, strings.ToLower(email))
+		if _, e := mm.Lookup(name, email); e != "" && !strings.EqualFold(e, email) {
+			out = append(out, strings.ToLower(e))
+		}
+	}
+	for _, v := range []string{"GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"} {
+		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true, Untranslated: true, Args: []string{"var", v}})
+		if err != nil {
+			continue
+		}
+		// "Name <email> 1700000000 +0000"
+		id := string(res.Stdout)
+		lt, gt := strings.IndexByte(id, '<'), strings.IndexByte(id, '>')
+		if lt >= 0 && gt > lt {
+			add(strings.TrimSpace(id[:lt]), id[lt+1:gt])
+		}
+	}
+	if len(out) == 0 {
+		// git would not say, as when user.useConfigOnly forbids it to
+		// make one up: the config is all there is.
+		email, _ := r.Config().Get("user.email")
+		name, _ := r.Config().Get("user.name")
+		add(name, email)
+	}
+	return out
 }
 
 // readAuthors reads the authors of the newest n commits reachable from

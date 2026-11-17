@@ -9,11 +9,11 @@ import (
 
 // Co-authors are chosen among the repository's authors, but the user, or
 // typed in whole; one taken off is not written; those left go in the
-// commit's trailers.
+// commit's trailers. The user is who git commits as, here named by the
+// environment and in no config.
 func TestCoAuthorPicker(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
-	r.Git("config", "user.email", "test@example.com")
 	for _, who := range []string{"Ada Lovelace <ada@example.com>", "Alan Turing <alan@example.com>"} {
 		name, email, _ := strings.Cut(strings.TrimSuffix(who, ">"), " <")
 		r.Env = []string{"GIT_AUTHOR_NAME=" + name, "GIT_AUTHOR_EMAIL=" + email}
