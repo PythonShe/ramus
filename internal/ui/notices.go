@@ -238,3 +238,10 @@ var causeMarks = []string{
 	"Invalid username or password",
 	"hook declined",
 }
+
+// toast shows t on the next frame: what went well, briefly, with an
+// action such as Undo. Failures stay in the error bar, which waits for
+// the user.
+func (a *App) toast(t ui.Toast) {
+	a.toasts = append(a.toasts, t)
+}

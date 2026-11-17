@@ -13,6 +13,10 @@
   "commonCreate": "Create",
   "commonRename": "Rename",
   "commonCopyHash": "Copy Hash",
+  "commonCopied": "Copied",
+  "@commonCopied": {
+    "description": "A toast after the app put text on the clipboard."
+  },
   "commonChoose": "Choose…",
   "@commonChoose": {
     "description": "Opens a folder picker."

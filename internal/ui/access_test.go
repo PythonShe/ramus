@@ -49,6 +49,9 @@ func (h *harness) settle() {
 		}
 		if h.tt.FramePending() || h.runner.Commands() > 0 {
 			since = time.Now()
+			// The tester's clock stands still: a toast showing would ask
+			// for frames until its time ran out.
+			h.tt.Advance(100 * time.Millisecond)
 		}
 		if time.Now().After(deadline) {
 			h.t.Fatalf("never settled: frame pending %v, %d git commands running", h.tt.FramePending(), h.runner.Commands())

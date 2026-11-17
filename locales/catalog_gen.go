@@ -137,6 +137,20 @@ func (msgs Messages) CommonCopyHash() string {
 	return Catalog.Format(msgs.locale, "commonCopyHash", nil)
 }
 
+// CommonCopied says "Copied"
+// in the language the app shows.
+//
+// A toast after the app put text on the clipboard.
+func CommonCopied() string { return In(i18n.Locale()).CommonCopied() }
+
+// CommonCopied says "Copied"
+// in the language of msgs.
+//
+// A toast after the app put text on the clipboard.
+func (msgs Messages) CommonCopied() string {
+	return Catalog.Format(msgs.locale, "commonCopied", nil)
+}
+
 // CommonChoose says "Choose…"
 // in the language the app shows.
 //

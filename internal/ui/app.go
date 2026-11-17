@@ -122,6 +122,9 @@ type App struct {
 	// clip is text to put on the clipboard on the next frame: work read
 	// off the main thread cannot reach the clipboard itself.
 	clip string
+	// toasts wait for the next frame to show, for the same reason: what
+	// ends a write runs without the window's context.
+	toasts []ui.Toast
 	// openURL is a page to open in the browser.
 	openURL string
 	// forges finds gh and glab, forgeFind in their place for a test;
@@ -530,7 +533,12 @@ func (a *App) View(c *ui.Context) {
 	if a.clip != "" {
 		c.WriteClipboard(a.clip)
 		a.clip = ""
+		c.AddToast(ui.Toast{ID: "copied", Title: locales.CommonCopied()})
 	}
+	for _, t := range a.toasts {
+		c.AddToast(t)
+	}
+	a.toasts = a.toasts[:0]
 	if a.openURL != "" {
 		c.OpenURL(a.openURL)
 		a.openURL = ""
