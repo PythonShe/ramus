@@ -166,10 +166,20 @@ func (a *App) page(c *ui.Context, t *tab) {
 	keptSplit(c, &t.listW, &t.listRoom, leastListW, leastPatchW, func() { a.changesPane(c, t) }, func() { a.detail(c, t) }).SplitReset(420).Fill()
 }
 
+// bannerLead is a banner's text, which text builds, after g in col: it
+// says at a glance what kind of banner it is. It takes the room the
+// banner's buttons leave.
+func bannerLead(c *ui.Context, g *ui.SVG, col ui.Color, text func()) {
+	ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Grow(1).Shrink(1).Children(func() {
+		ui.Icon(c, g).FontSize(iconMedium).TextColor(col).Shrink(0)
+		text()
+	})
+}
+
 func (a *App) trustBanner(c *ui.Context, t *tab) {
 	th := c.Theme()
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-		ui.Text(c, locales.RepoTrustBanner()).Grow(1)
+		bannerLead(c, glyphs().warning, th.Warning, func() { ui.Text(c, locales.RepoTrustBanner()).Grow(1) })
 		if ui.Button(c, locales.RepoTrust()).Clicked() {
 			if err := t.s.Trust(); err != nil {
 				a.notice = errText(err)
@@ -183,7 +193,7 @@ func (a *App) trustBanner(c *ui.Context, t *tab) {
 func (a *App) heldBanner(c *ui.Context, t *tab) {
 	th := c.Theme()
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-		ui.Text(c, locales.RepoHeldBanner()).Grow(1)
+		bannerLead(c, glyphs().warning, th.Warning, func() { ui.Text(c, locales.RepoHeldBanner()).Grow(1) })
 		if ui.Button(c, locales.RepoTakeOver()).Clicked() {
 			t.s.TakeOver()
 		}
@@ -196,7 +206,7 @@ func (a *App) panicBanner(c *ui.Context, t *tab) {
 	th := c.Theme()
 	p := t.s.Panic
 	ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-		ui.Text(c, locales.RepoPanic(p.Value)).TextColor(th.Danger).Grow(1).Selectable()
+		bannerLead(c, glyphs().error, th.Danger, func() { ui.Text(c, locales.RepoPanic(p.Value)).TextColor(th.Danger).Grow(1).Selectable() })
 		if ui.Button(c, locales.RepoCopyDetails()).Clicked() {
 			a.clip = p.Value + "\n\n" + p.Stack
 		}

@@ -153,11 +153,13 @@ func (a *App) errorBar(c *ui.Context, t *tab) {
 }
 
 // noteLine is a message in a band: text, one line of it, in color,
-// with the remedies of fixes, the whole message in full, the way to its
-// command in the log, and to dismiss it, where there are.
+// after glyph (the error glyph when nil), with the remedies of fixes, the
+// whole message in full, the way to its command in the log, and to
+// dismiss it, where there are.
 type noteLine struct {
 	text, full   string
 	color        ui.Color
+	glyph        *ui.SVG
 	fixes        []remedy
 	log, dismiss func()
 }
@@ -167,7 +169,15 @@ type noteLine struct {
 func (a *App) noteRow(c *ui.Context, n noteLine) ui.Element {
 	th := c.Theme()
 	return ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-		ui.Text(c, n.text).FontSize(textSmall).TextColor(n.color).SingleLine().Shrink(1).Grow(1).Tooltip(n.full)
+		// A glyph to see it by, as red alone is missed at a glance.
+		g := n.glyph
+		if g == nil {
+			g = glyphs().error
+		}
+		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Shrink(1).Grow(1).Children(func() {
+			ui.Icon(c, g).FontSize(iconMedium).TextColor(n.color).Shrink(0)
+			ui.Text(c, n.text).FontSize(textSmall).TextColor(n.color).SingleLine().Shrink(1).Grow(1).Tooltip(n.full)
+		})
 		for _, f := range n.fixes {
 			if ui.Button(c, f.label).Clicked() {
 				f.run()

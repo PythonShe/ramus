@@ -59,7 +59,7 @@ func (a *App) welcomeBody(c *ui.Context) {
 			}
 			if a.gitWarning != "" {
 				c.Key("git")
-				note(noteLine{text: a.gitWarning, full: a.gitWarning, color: th.Warning, dismiss: func() { a.gitWarning = "" }})
+				note(noteLine{text: a.gitWarning, full: a.gitWarning, color: th.Warning, glyph: glyphs().warning, dismiss: func() { a.gitWarning = "" }})
 			}
 			repos := a.known()
 			if a.Library == nil || (len(repos) == 0 && a.welcome.query == "") {
