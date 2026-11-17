@@ -36,6 +36,11 @@ type commitCompare struct {
 	cancel  func()
 	cv      commitView
 	split   float32
+	// subjects are those of from and to once read, to tell the sides
+	// apart by more than a hash; subjectsCancel stops the reading.
+	subjects       []string
+	subjectsAsked  bool
+	subjectsCancel func()
 }
 
 // compareCommits shows what changed from commit from to commit to.
@@ -50,8 +55,10 @@ func (a *App) compareBranches(t *tab, from, to []byte, fromName, toName string, 
 }
 
 func (a *App) compare(t *tab, cc commitCompare) {
-	if t.cmp.cancel != nil {
-		t.cmp.cancel()
+	for _, cancel := range []func(){t.cmp.cancel, t.cmp.subjectsCancel} {
+		if cancel != nil {
+			cancel()
+		}
 	}
 	cc.split = 360
 	t.cmp = cc
@@ -107,11 +114,32 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 			}
 		})
 	}
+	if !cc.subjectsAsked {
+		cc.subjectsAsked = true
+		from, to := cc.from, cc.to
+		cc.subjectsCancel = t.s.LoadSubjects([][]byte{from, to}, func(subjects []string) {
+			if bytes.Equal(cc.from, from) && bytes.Equal(cc.to, to) {
+				cc.subjects = subjects
+			}
+		})
+	}
+	// side names one side by its name, its subject under it.
+	side := func(name string, k int) {
+		ui.Column(c).Gap(space2XS).Shrink(1).MinWidth(0).Children(func() {
+			ui.Text(c, redact.Control(name)).Font("monospace").SingleLine().MinWidth(0)
+			if k < len(cc.subjects) && cc.subjects[k] != "" {
+				ui.Text(c, redact.Control(cc.subjects[k])).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().MinWidth(0)
+			}
+		})
+	}
+	// The comparison has nothing else to show: a file stays chosen.
+	cc.cv.stay = true
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-			ui.Text(c, redact.Control(cc.fromName)).Font("monospace").SingleLine()
-			ui.Text(c, "→").TextColor(th.TextMuted)
-			ui.Text(c, redact.Control(cc.toName)).Font("monospace").SingleLine().Grow(1)
+			side(cc.fromName, 0)
+			ui.Text(c, "→").TextColor(th.TextMuted).Shrink(0)
+			side(cc.toName, 1)
+			ui.Spacer(c)
 			if cc.branches {
 				was := cc.tips
 				ui.Segmented(c, &cc.tips, locales.CompareSinceSplit(), locales.CompareTipToTip())

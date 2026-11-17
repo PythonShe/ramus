@@ -26,6 +26,12 @@ func TestCompareCommits(t *testing.T) {
 	h.until("the comparison", h.shows("3 files changed"))
 	tb := h.app.current()
 	h.until("a's patch", patchHas(&tb.cmp.cv.pv, "a2", "a1"))
+	// Each side shows its subject; the first file's patch stays open,
+	// with nothing to close it to.
+	h.until("the subjects", func() bool { return h.tt.HasText("add a") && h.tt.HasText("add c") })
+	if _, ok := h.tt.Access("Close Patch"); ok {
+		t.Fatal("the patch can be closed onto nothing")
+	}
 	if !strings.HasPrefix(tb.cmp.fromName, strings.TrimSpace(r.Git("rev-parse", "--short=10", "HEAD~2"))) {
 		t.Fatalf("from %q", tb.cmp.fromName)
 	}
