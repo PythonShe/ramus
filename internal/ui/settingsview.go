@@ -206,7 +206,7 @@ func (a *App) settingsSections(c *ui.Context) {
 					return locales.SettingsEveryHours(n / 60)
 				}
 				return locales.SettingsEveryMinutes(n)
-			})
+			}).Width(settingsControlW)
 		})
 		row(locales.SettingsFocusRefresh(), func() ui.Element { return ui.Switch(c, &s.focusRefresh) })
 		row(locales.SettingsPullRequests(), func() ui.Element { return ui.Switch(c, &s.pulls) })
