@@ -38,7 +38,7 @@ func TestBranchPicker(t *testing.T) {
 	h.until("the fetched branch", func() bool {
 		return slices.ContainsFunc(tb.pick.rows, func(r pickRow) bool { return r.ref == "refs/remotes/origin/pushed-since" })
 	})
-	if len(tb.pick.rows) != 7 { // 3 local, the heading, 3 remote
+	if len(tb.pick.rows) != 6 { // 3 local, the heading, 2 remote: origin/main is main's
 		t.Fatalf("rows %v", tb.pick.rows)
 	}
 	// The highlight follows the pointer on the frame it moves: the row

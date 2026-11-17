@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,10 @@ type branchPick struct {
 	rowsFor  *refs.List
 	rowsGen  int
 	rowsWith string
+	// info indexes the local branches of infoFor by full name, for the
+	// state each row shows.
+	info    map[string]session.BranchInfo
+	infoFor *session.RefInfo
 }
 
 // pickRow is a branch in the picker, or the heading of the remote ones.
@@ -49,7 +54,7 @@ const (
 	// pickFresh is how long a fetch keeps the picker from starting
 	// another.
 	pickFresh = time.Minute
-	pickWidth = 320
+	pickWidth = 400
 	pickRows  = 10 // shown before the list scrolls
 )
 
@@ -85,6 +90,7 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 		return
 	}
 	var chosen *pickRow
+	var act func()
 	newBranch := false
 	ui.Popover(c, b, &p.open, func() {
 		ui.Column(c).Width(pickWidth).Gap(spaceS).Children(func() {
@@ -120,14 +126,39 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 				newBranch = true
 			}
 			if len(rows) == 0 {
-				ui.Text(c, locales.BranchPickerNone()).FontSize(textSmall).TextColor(th.TextMuted).Padding(spaceM, spaceS)
+				if q := strings.TrimSpace(p.query); q != "" && canCreate {
+					// What Enter does with a name no branch has, in view.
+					nb := ui.ButtonBase(c).Padding(rowPadY, spaceS).Radius(th.Radius).FillWidth().Justify(ui.Start).Label(locales.BranchPickerCreate(q))
+					if nb.Hovered() {
+						nb.Background(th.SurfaceHover)
+					}
+					nb.Children(func() { ui.Text(c, locales.BranchPickerCreate(q)).SingleLine().TruncateMiddle() })
+					if nb.Clicked() {
+						newBranch = true
+					}
+				} else {
+					ui.Text(c, locales.BranchPickerNone()).FontSize(textSmall).TextColor(th.TextMuted).Padding(spaceM, spaceS)
+				}
 			} else {
+				p.indexInfo(t)
 				hover := -1
 				ui.List(c, &p.list, len(rows), func(i int) {
-					r := pickRowView(c, t, rows[i], i == p.hi)
+					r := pickRowView(c, t, p, rows[i], i == p.hi)
 					if rows[i].heading != "" {
 						return
 					}
+					ref := rows[i].ref
+					r.ContextMenu(func(m *ui.Menu) {
+						var pick func()
+						if strings.HasPrefix(ref, "refs/remotes/") {
+							a.remoteBranchMenu(m, t, ref, &pick)
+						} else if b, ok := p.info[ref]; ok {
+							a.branchMenu(m, t, b, &pick)
+						}
+						if pick != nil {
+							act = pick
+						}
+					})
 					if r.Clicked() {
 						chosen = &rows[i]
 					}
@@ -146,7 +177,12 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 				}
 			}
 			if p.fetchErr != "" {
-				ui.Text(c, p.fetchErr).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, spaceS)
+				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Padding(0, spaceS).Children(func() {
+					ui.Text(c, p.fetchErr).FontSize(textSmall).TextColor(th.Danger).Grow(1).Shrink(1)
+					if ui.Button(c, locales.BranchPickerRetry()).FontSize(textSmall).Clicked() {
+						a.fetchForPicker(t)
+					}
+				})
 			}
 			if canCreate {
 				ui.Divider(c)
@@ -162,6 +198,11 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 			}
 		})
 	})
+	if act != nil {
+		p.open = false
+		act()
+		return
+	}
 	switch {
 	case chosen != nil:
 		p.open = false
@@ -181,27 +222,55 @@ func (a *App) openPicker(t *tab) {
 	// one just ran or the user stopped this repository fetching.
 	a.loadRefPrefs(t)
 	if !t.prefs.fetchOff {
-		t.s.FetchFresh(pickFresh, func(err error) {
-			if err != nil && !errors.Is(err, context.Canceled) {
-				p.fetchErr = locales.BranchPickerFetchFailed(oneLine(failure(err)))
-			}
-		})
+		a.fetchFor(t, pickFresh)
+	}
+}
+
+// fetchForPicker fetches again for the picker, whatever just ran.
+func (a *App) fetchForPicker(t *tab) {
+	t.pick.fetchErr = ""
+	a.fetchFor(t, 0)
+}
+
+func (a *App) fetchFor(t *tab, fresh time.Duration) {
+	p := &t.pick
+	t.s.FetchFresh(fresh, func(err error) {
+		if err != nil && !errors.Is(err, context.Canceled) {
+			p.fetchErr = locales.BranchPickerFetchFailed(oneLine(failure(err)))
+		}
+	})
+}
+
+// indexInfo keeps the local branches' state by name, read with the
+// branches view's refs.
+func (p *branchPick) indexInfo(t *tab) {
+	info := t.refs.info
+	if info == p.infoFor {
+		return
+	}
+	p.infoFor, p.info = info, nil
+	if info == nil {
+		return
+	}
+	p.info = make(map[string]session.BranchInfo, len(info.Branches))
+	for _, b := range info.Branches {
+		p.info[b.Name] = b
 	}
 }
 
 // pickRowView builds a row of the picker: a heading, or a branch with a
 // check by the one checked out.
-func pickRowView(c *ui.Context, t *tab, r pickRow, hi bool) ui.Element {
+func pickRowView(c *ui.Context, t *tab, p *branchPick, r pickRow, hi bool) ui.Element {
 	th := c.Theme()
 	if r.heading != "" {
 		return ui.Text(c, r.heading).FontSize(textCaption).TextColor(th.TextMuted).Height(rowHeight).Padding(spaceS+2, spaceS, 0, spaceS)
 	}
 	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(shortRef(r.ref))
-	fg := th.Text
+	fg, muted := th.Text, th.TextMuted
 	if hi {
 		row.Background(th.Accent)
-		fg = th.AccentText
+		fg, muted = th.AccentText, th.AccentText
 	}
 	row.Children(func() {
 		check := ""
@@ -209,7 +278,20 @@ func pickRowView(c *ui.Context, t *tab, r pickRow, hi bool) ui.Element {
 			check = "✓"
 		}
 		ui.Text(c, check).Width(12).TextColor(fg)
-		ui.Text(c, shortRef(r.ref)).SingleLine().TruncateMiddle().Shrink(1).TextColor(fg)
+		ui.Text(c, shortRef(r.ref)).SingleLine().TruncateMiddle().Shrink(1).Grow(1).TextColor(fg)
+		b, ok := p.info[r.ref]
+		if !ok {
+			return
+		}
+		if b.Worktree != "" {
+			ui.Text(c, locales.RefsInWorktree(filepath.Base(b.Worktree))).FontSize(textSmall).TextColor(muted).SingleLine().Description(locales.RefsCheckedOutIn(b.Worktree))
+		}
+		if b.Ahead > 0 {
+			ui.Text(c, locales.RepoPickerAhead(b.Ahead)).FontSize(textSmall).TextColor(muted).Description(locales.RepoPickerAheadLabel(b.Ahead))
+		}
+		if b.Behind > 0 {
+			ui.Text(c, locales.RepoPickerBehind(b.Behind)).FontSize(textSmall).TextColor(muted).Description(locales.RepoPickerBehindLabel(b.Behind))
+		}
 	})
 	return row
 }
@@ -244,8 +326,14 @@ func (p *branchPick) build(t *tab) []pickRow {
 		}
 	}
 	heading := false
+	local := make(map[string]bool, len(sr.heads))
+	for _, r := range sr.heads {
+		local[r] = true
+	}
 	for _, r := range sr.remotes {
-		if !matches(r) {
+		// A remote branch a local one of its name stands for is not a
+		// second row; its menu and the sidebar still reach it.
+		if !matches(r) || local["refs/heads/"+localName(r)] {
 			continue
 		}
 		if !heading {
@@ -266,7 +354,10 @@ func (p *branchPick) build(t *tab) []pickRow {
 		}
 	}
 	for i, r := range p.rows {
-		if r.heading == "" && (len(words) > 0 || r.ref != t.s.State.Head.Target) {
+		// Enter on a fresh picker takes a local branch, never a remote
+		// one the user has not looked at.
+		remote := strings.HasPrefix(r.ref, "refs/remotes/")
+		if r.heading == "" && (len(words) > 0 || !remote && r.ref != t.s.State.Head.Target) {
 			p.hi = i
 			break
 		}
