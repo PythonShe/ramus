@@ -61,6 +61,55 @@ func TestHistoryStartsAtHead(t *testing.T) {
 	h.until("main's commit", func() bool { return hex.EncodeToString(hv.chosenID) == child })
 }
 
+// History starting at HEAD yields to the user: a row chosen, or the list
+// scrolled, before HEAD's row is found stays as the user left it.
+func TestHistoryStartAtHeadYields(t *testing.T) {
+	open := func(t *testing.T, above int) (*harness, *historyState, string) {
+		h := newHarness(t)
+		r := h.repoWith()
+		r.Write("a.txt", "alpha\n")
+		head := r.Commit("add alpha")
+		r.Git("branch", "older")
+		for i := range above {
+			r.Write("b.txt", strings.Repeat("b", i+1))
+			r.Commit("add b" + strings.Repeat("!", i))
+		}
+		r.Git("switch", "-q", "older")
+		h.trust.Set(r.GitDir(), true)
+		h.app.Open(r.Dir)
+		h.until("open", h.shows("No changes"))
+		h.click("History")
+		hv := &h.app.current().hist
+		// Stops before the update that finds HEAD's row.
+		h.until("HEAD looked for", func() bool { return hv.want != nil })
+		return h, hv, head
+	}
+	settle := func(h *harness) {
+		n := 0
+		h.until("settled", func() bool { n++; return n > 30 })
+	}
+
+	t.Run("chosen", func(t *testing.T) {
+		h, hv, head := open(t, 1)
+		// The top row, its text not read yet.
+		h.click("commit, loading")
+		settle(h)
+		if hex.EncodeToString(hv.chosenID) == head || hv.chosen != 0 {
+			t.Fatalf("HEAD took the choice back: row %d", hv.chosen)
+		}
+	})
+	t.Run("scrolled", func(t *testing.T) {
+		h, hv, head := open(t, 80)
+		hv.list.ScrollTo(10, ui.Start)
+		h.tt.Frame()
+		h.until("HEAD chosen", func() bool { return hex.EncodeToString(hv.chosenID) == head && hv.chosen == 80 })
+		settle(h)
+		if first, _ := hv.list.Visible(); first != 10 {
+			t.Fatalf("the list scrolled from row 10 to %d", first)
+		}
+	})
+}
+
 // The go-to field: a name that is no commit says so until the text
 // changes; words are looked for in the messages instead; a commit gone to
 // leaves the field empty. Escape closes the filter bar.

@@ -67,8 +67,12 @@ type historyState struct {
 	// chosen before history reloaded, or one jumped to.
 	want    []byte
 	wantFor *lanes.Snapshot
-	jump    string
-	jumpErr string
+	// wantFrom is, for the commit the history chose by itself as it
+	// came, one past the first row shown then: the list is scrolled to it
+	// only if the user has not scrolled since. 0 scrolls to it anyway.
+	wantFrom int
+	jump     string
+	jumpErr  string
 	// find is the go-to field; focusFind asks it for the focus, and
 	// focusList the list, once they are built.
 	find                 ui.Handle
@@ -218,12 +222,14 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	if hv.chosen >= 0 && h.Snap != nil && hv.chosen < h.Snap.Len() {
 		id := h.OID(h.Snap.Commit(hv.chosen))
 		if string(id) != string(hv.chosenID) {
-			// A row chosen by hand outranks a go-to still resolving. A
-			// copy: id may point into the commit-graph's mapping, which
-			// goes when the repository reopens.
+			// A row chosen by hand outranks a go-to still resolving, and a
+			// commit still looked for in the list. A copy: id may point
+			// into the commit-graph's mapping, which goes when the
+			// repository reopens.
 			hv.chosenID = slices.Clone(id)
 			hv.jumpN++
 			hv.jumpErr = ""
+			hv.want, hv.wantFor, hv.wantFrom = nil, nil, 0
 		}
 	}
 }
@@ -464,7 +470,7 @@ func (a *App) chooseCommit(t *tab, id []byte) {
 func (a *App) showCommit(t *tab, id []byte) {
 	hv := &t.hist
 	hv.jumpN++
-	hv.want, hv.wantFor = id, nil
+	hv.want, hv.wantFor, hv.wantFrom = id, nil, 0
 	hv.chosenID = id
 	hv.chosen = -1
 }
@@ -484,8 +490,11 @@ func (a *App) startAtHead(t *tab, h session.HistoryState) {
 	top := h.OID(h.Snap.Commit(0))
 	id := t.s.State.Head.OID
 	if id != nil && !bytes.Equal(id, top) {
-		// Found further down, it is scrolled to.
+		// Found further down, it is scrolled to, unless the user
+		// scrolled the list meanwhile.
 		a.showCommit(t, bytes.Clone(id))
+		first, _ := hv.list.Visible()
+		hv.wantFrom = first + 1
 		return
 	}
 	// At the top, where the list is: chosen as a click chooses it, with
@@ -517,14 +526,17 @@ func (a *App) findWanted(t *tab, h session.HistoryState) {
 		if loadOf(t.s.History) != hv.loadFor {
 			return
 		}
-		hv.want, hv.chosenID = nil, want
+		from := hv.wantFrom
+		hv.want, hv.wantFrom, hv.chosenID = nil, 0, want
 		hv.list.Choose(row)
 		// Picked as a click picks it, for the choice to follow the commit
 		// as commits land above it: the list keeps the app's choice on its
 		// item while the item is picked.
 		hv.picked.Clear()
 		hv.picked.Add(string(want))
-		hv.list.ScrollTo(row, ui.Center)
+		if first, _ := hv.list.Visible(); from == 0 || first == from-1 {
+			hv.list.ScrollTo(row, ui.Center)
+		}
 	})
 }
 
