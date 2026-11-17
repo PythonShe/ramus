@@ -44,7 +44,7 @@ func (s *Session) LoadTrack(done func(Track)) {
 	s.track.cancel = cancel
 	s.track.mu.Unlock()
 	update := s.update
-	r.Life().Go(func(context.Context) {
+	err := r.Life().Go(func(context.Context) {
 		defer cancel()
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
 			Args: []string{"for-each-ref", "--format=%(upstream)%00%(upstream:track,nobracket)", head.Target}})
@@ -65,4 +65,9 @@ func (s *Session) LoadTrack(done func(Track)) {
 			}
 		})
 	})
+	if err != nil {
+		// The repository closed: none, rather than a caller left waiting.
+		cancel()
+		done(Track{})
+	}
 }
