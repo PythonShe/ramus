@@ -436,7 +436,7 @@ func settingsGroup(c *ui.Context, heading string, fn func(row settingsRow)) {
 					ui.Box(c).Height(1).Background(th.Border).Margin(0, spaceL)
 				}
 				first = false
-				ui.Row(c).Gap(spaceL).AlignItems(ui.Center).MinHeight(40).Padding(spaceS, spaceL).Children(func() {
+				ui.Row(c).Gap(spaceL).AlignItems(ui.Center).MinHeight(barHeight).Padding(spaceS, spaceL).Children(func() {
 					name := ui.Text(c, label).Grow(1).Shrink(1)
 					control().LabelledBy(name)
 				})

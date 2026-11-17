@@ -159,8 +159,8 @@ func (a *App) libStatsView(c *ui.Context) {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, locales.StatsLibraryTitle()).Bold()
 				a.libScopeMenu(c)
-				from := ui.TextInput(c, &s.from).Placeholder(locales.StatsFromPlaceholder()).Label(locales.StatsFrom()).Width(150)
-				to := ui.TextInput(c, &s.to).Placeholder(locales.StatsToPlaceholder()).Label(locales.StatsTo()).Width(150)
+				from := ui.TextInput(c, &s.from).Placeholder(locales.StatsFromPlaceholder()).Label(locales.StatsFrom()).Width(fieldNarrow)
+				to := ui.TextInput(c, &s.to).Placeholder(locales.StatsToPlaceholder()).Label(locales.StatsTo()).Width(fieldNarrow)
 				if from.Submitted() || to.Submitted() {
 					a.summarize()
 				}

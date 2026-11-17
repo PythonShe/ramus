@@ -142,7 +142,7 @@ func (a *App) refsView(c *ui.Context, t *tab) {
 		ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			ui.Segmented(c, &rs.kind, locales.RefsBranches(), locales.RefsTags(), locales.RefsRemotes())
 			if rs.kind != refsRemotes {
-				ui.TextInput(c, &rs.filter).Placeholder(locales.CommonFilter()).Label(locales.CommonFilter()).Width(200).Bind(&a.find.refs)
+				ui.TextInput(c, &rs.filter).Placeholder(locales.CommonFilter()).Label(locales.CommonFilter()).Width(fieldMedium).Bind(&a.find.refs)
 			}
 			ui.Spacer(c)
 			a.remoteMenus(c, t)
@@ -906,7 +906,7 @@ func (a *App) refDialogView(c *ui.Context, d *refDialog, t *tab) {
 			if d.tag {
 				ui.Segmented(c, &d.kind, locales.RefsTagLightweight(), locales.RefsTagAnnotated(), locales.RefsTagSigned())
 				if d.kind > 0 {
-					ui.TextArea(c, &d.message).Placeholder(locales.CommonMessage()).Label(locales.CommonMessage()).Height(96)
+					ui.TextArea(c, &d.message).Placeholder(locales.CommonMessage()).Label(locales.CommonMessage()).Height(textAreaH)
 				}
 			}
 			if d.err != "" {

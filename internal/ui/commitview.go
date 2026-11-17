@@ -778,7 +778,7 @@ func (a *App) commitFiles(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth()
 		row.ContextMenu(func(m *ui.Menu) { a.commitFileMenu(m, t, d, i, &act) })
 		row.Children(func() {
-			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(k, f.Status(i)))
+			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(statusLetterSmallW).TextColor(fileStatusColor(k, f.Status(i)))
 			fileIcon(c, string(f.Path(i)), k)
 			shown, why := showPath(commitFileName(f, i))
 			txt := pathLabel(c, shown).Grow(1)

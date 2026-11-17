@@ -76,7 +76,7 @@ func (a *App) lfsLocksView(c *ui.Context, t *tab) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.RepoSectionLocks()).Bold().Grow(1)
-			in := ui.TextInput(c, &ls.path).Label(locales.LocksPath()).Placeholder(locales.LocksPath()).Width(260).Disabled(ro)
+			in := ui.TextInput(c, &ls.path).Label(locales.LocksPath()).Placeholder(locales.LocksPath()).Width(fieldWide).Disabled(ro)
 			path := strings.TrimSpace(ls.path)
 			if ui.Button(c, locales.LocksLock()).Disabled(ro || path == "").Clicked() || in.Submitted() && !ro && path != "" {
 				if _, err := t.s.LFSLock(path); err != nil {

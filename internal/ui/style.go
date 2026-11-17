@@ -66,8 +66,12 @@ const (
 	iconLarge  = 16
 )
 
-// statusLetterW is the width of a file's status letter, M or A, in a list.
-const statusLetterW = spaceXL
+// statusLetterW is the width of a file's status letter, M or A, in a list,
+// and statusLetterSmallW of one in textSmall.
+const (
+	statusLetterW      = spaceXL
+	statusLetterSmallW = iconMedium
+)
 
 // markW is the column of a mark before a row's name, as the check by the
 // branch checked out, which rows without one keep empty to line up.
@@ -103,6 +107,18 @@ const (
 // leastFieldW is the least a text field on a bar narrows to, its
 // placeholder still read whole.
 const leastFieldW = 160
+
+// The widths of text fields on a bar that do not grow: for a date, for a
+// name or a filter, and for a path.
+const (
+	fieldNarrow = 150
+	fieldMedium = 220
+	fieldWide   = 260
+)
+
+// textAreaH is the height of a text area for a message of a few lines,
+// as a tag's.
+const textAreaH = 96
 
 // fitPane is the width the first pane of a split takes of room, the
 // split's width as last laid out: size, as the user set it, cut for the

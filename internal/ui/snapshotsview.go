@@ -68,7 +68,7 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 			// The sidebar names the page, as it does the others.
 			ui.Spacer(c)
 			ro := t.s.Queue == nil
-			name := ui.TextInput(c, &ss.name).Label(locales.SnapshotsName()).Placeholder(locales.SnapshotsNamePlaceholder()).Width(220).Disabled(ro)
+			name := ui.TextInput(c, &ss.name).Label(locales.SnapshotsName()).Placeholder(locales.SnapshotsNamePlaceholder()).Width(fieldMedium).Disabled(ro)
 			ui.Checkbox(c, &ss.ignored, locales.OpsIncludeIgnoredFiles()).Disabled(ro)
 			if ui.Button(c, locales.SnapshotsNow()).Disabled(ro).Clicked() || name.Submitted() && !ro {
 				if _, err := t.s.SnapshotNow(ss.name, ss.ignored); err != nil {

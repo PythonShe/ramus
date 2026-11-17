@@ -283,7 +283,7 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 		ui.List(c, &cs.rows, l.Len()).Rows(func(r ui.ListRow) {
 			i, k := r.Index, rowInk(r)
 			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(k, l.Status(i)))
+				ui.Text(c, string(l.Status(i))).Font("monospace").FontSize(textSmall).Width(statusLetterSmallW).TextColor(fileStatusColor(k, l.Status(i)))
 				p := l.New(i)
 				if p == "" {
 					p = l.Old(i)

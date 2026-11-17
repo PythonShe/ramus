@@ -292,7 +292,7 @@ func wtFileRow(c *ui.Context, f session.WorktreeFile) ui.Element {
 		row.Background(th.SurfaceHover)
 	}
 	row.Children(func() {
-		ui.Text(c, string(st)).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(plainInk(th), st))
+		ui.Text(c, string(st)).Font("monospace").FontSize(textSmall).Width(statusLetterSmallW).TextColor(fileStatusColor(plainInk(th), st))
 		pathLabel(c, shown).Shrink(1)
 		ui.Spacer(c)
 		fileLines(c, lines)
