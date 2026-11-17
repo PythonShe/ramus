@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
@@ -88,4 +89,36 @@ func TestDiedSaysWhy(t *testing.T) {
 func decode(s string) []byte {
 	b, _ := hex.DecodeString(s)
 	return b
+}
+
+// A callback that panics mid-batch ends the process, which then closes
+// rather than waiting on git blocked writing the answers no one reads,
+// and reads nothing more: its answers would be the old batch's.
+func TestPanicEndsTheProcess(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", strings.Repeat("x", 1<<20))
+	c := r.Commit("first")
+	blob := strings.TrimSpace(r.Git("rev-parse", "HEAD:a.txt"))
+	p, err := Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := [][]byte{decode(c)}
+	for range 64 {
+		ids = append(ids, decode(blob))
+	}
+	func() {
+		defer func() { recover() }()
+		p.Read(ids, func(int, Object) error { panic("boom") })
+	}()
+	if p.Alive() {
+		t.Fatal("alive after an abandoned batch")
+	}
+	done := make(chan struct{})
+	go func() { p.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close hangs")
+	}
 }

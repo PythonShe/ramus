@@ -104,6 +104,15 @@ func (p *Process) Read(oids [][]byte, fn func(i int, o Object) error) error {
 	if err := p.in.Flush(); err != nil {
 		return p.fail(err)
 	}
+	// A panic in fn leaves the rest of the batch unread: the next batch
+	// would read its answers, and git, blocked writing them, would never
+	// end. The process is ended instead, for another to take its place.
+	read := false
+	defer func() {
+		if !read && p.dead == nil {
+			p.fail(errors.New("catfile: batch abandoned"))
+		}
+	}()
 	var first error
 	for i := range oids {
 		o, err := p.next()
@@ -114,6 +123,7 @@ func (p *Process) Read(oids [][]byte, fn func(i int, o Object) error) error {
 			first = fn(i, o)
 		}
 	}
+	read = true
 	return first
 }
 
