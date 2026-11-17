@@ -452,11 +452,12 @@ func (cv *commitView) stopPull() {
 	cv.pullCancel = nil
 }
 
-// The sizes of the people's pictures: the author's and committer's, and a
-// co-author's, beside one line.
+// The sizes of the people's pictures: the author's and committer's, a
+// co-author's, beside one line, and an author's in a history row.
 const (
 	avatarMeta  = 28
 	avatarSmall = 18
+	avatarRow   = 16
 )
 
 // personLine shows a person: their picture, their name, which shows the

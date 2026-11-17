@@ -498,13 +498,13 @@ func labelMap(st session.State, h session.HistoryState) map[string][]refLabel {
 
 // historyRow returns the text of row i, asking for the text of its chunk
 // of rows when it is not read yet.
-func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author string, when time.Time, ok bool) {
+func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author, email string, when time.Time, ok bool) {
 	hv := &t.hist
 	id := h.OID(h.Snap.Commit(i))
 	ch, k, ok := hv.text.lookup(id)
 	if !ok {
 		a.askText(t, h, i/history.TextChunkRows)
-		return "", "", time.Time{}, false
+		return "", "", "", time.Time{}, false
 	}
 	hv.text.use(id, hv.frame)
 	if hv.text.wanted(id) {
@@ -514,7 +514,7 @@ func (a *App) historyRow(t *tab, h session.HistoryState, i int) (subject, author
 	// In the viewer's zone, not each author's, so that the times of rows
 	// compare.
 	s, au, w := ch.Row(k)
-	return s, au, w.Local(), true
+	return s, au, ch.Email(k), w.Local(), true
 }
 
 // askText reads the text of the commits of chunk k of h's rows that is
@@ -621,7 +621,7 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		}
 	}
 	hv.list.Label = func(i int) string {
-		s, au, w, ok := a.historyRow(t, h, i)
+		s, au, _, w, ok := a.historyRow(t, h, i)
 		if !ok {
 			return locales.HistoryRowLoading()
 		}
@@ -709,7 +709,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 	th := c.Theme()
 	hv := &t.hist
 	snap := h.Snap
-	subject, author, when, ok := a.historyRow(t, h, i)
+	subject, author, email, when, ok := a.historyRow(t, h, i)
 	id := h.OID(snap.Commit(i))
 	lay := &hv.cols
 	gw := lay.w[colGraph]
@@ -775,7 +775,11 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 			var e ui.Element
 			switch col {
 			case colAuthor:
-				e = ui.Text(c, author)
+				e = ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Clip().Children(func() {
+					// The name beside it says who it is.
+					a.avatar(c, t, author, email, avatarRow).Role(ui.RoleNone).Label("")
+					ui.Text(c, author).SingleLine().Grow(1).Shrink(1).MinWidth(0)
+				})
 			case colDate:
 				e = ui.Text(c, when.Format("2006-01-02 15:04"))
 			default:

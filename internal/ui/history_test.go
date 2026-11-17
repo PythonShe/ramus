@@ -507,7 +507,13 @@ func TestHistoryColumns(t *testing.T) {
 	h.tt.Frame()
 	hv := &h.app.current().hist
 	at := func(s string) ui.Rect { b, _ := h.tt.Find(s); return b }
-	head, cell := at("Author"), at("Ramus Test")
+	// The author's cell is their picture and their name.
+	authorCell := func() ui.Rect {
+		b := at("Ramus Test")
+		b.X, b.W = b.X-avatarRow-spaceXS, b.W+avatarRow+spaceXS
+		return b
+	}
+	head, cell := at("Author"), authorCell()
 	if head.X != cell.X || head.W != cell.W {
 		t.Fatalf("author header at %v, its cells at %v", head, cell)
 	}
@@ -537,8 +543,8 @@ func TestHistoryColumns(t *testing.T) {
 
 	// A full row: the author's divider has nowhere to push the date.
 	drag(after("Author"), 40, "Date", 0)
-	if at("Ramus Test").W != 120 {
-		t.Fatalf("author %v wide, pushed into no room", at("Ramus Test").W)
+	if authorCell().W != 120 {
+		t.Fatalf("author %v wide, pushed into no room", authorCell().W)
 	}
 	// The message's divider makes room at the end, the columns drawn
 	// along; the author's then pushes the date and the hash into it.
@@ -547,8 +553,8 @@ func TestHistoryColumns(t *testing.T) {
 		t.Fatalf("room at the end %v, made 60; message kept at %v", e, h.app.Settings.HistoryMessage)
 	}
 	drag(after("Author"), 40, "Date", 1)
-	if at("Ramus Test").W != 160 || hv.cols.end != 20 {
-		t.Fatalf("author %v wide, room at the end %v", at("Ramus Test").W, hv.cols.end)
+	if authorCell().W != 160 || hv.cols.end != 20 {
+		t.Fatalf("author %v wide, room at the end %v", authorCell().W, hv.cols.end)
 	}
 	// The date keeps its width, dragged either way.
 	drag(after("Date"), 20, "Commit", 0)
@@ -598,13 +604,13 @@ func TestHistoryColumns(t *testing.T) {
 	h.tt.Frame()
 	h.tt.Move(after("Author")-200, y)
 	h.tt.Frame()
-	if w := at("Ramus Test").W; w != histColumnMin[colAuthor] {
+	if w := authorCell().W; w != histColumnMin[colAuthor] {
 		t.Fatalf("author %v wide dragged past its least", w)
 	}
 	h.tt.Release(after("Author")-200, y)
 	settle()
-	if hasExact(h, "Author") == false || at("Ramus Test").W != histColumnMin[colAuthor] {
-		t.Fatalf("author let go at %v", at("Ramus Test").W)
+	if hasExact(h, "Author") == false || authorCell().W != histColumnMin[colAuthor] {
+		t.Fatalf("author let go at %v", authorCell().W)
 	}
 	// A press the system takes undoes its drag.
 	end := hv.cols.end
@@ -614,8 +620,8 @@ func TestHistoryColumns(t *testing.T) {
 	h.tt.Frame()
 	h.tt.CancelPress()
 	settle()
-	if at("Ramus Test").W != histColumnMin[colAuthor] || hv.cols.end != end {
-		t.Fatalf("canceled drag left the author %v wide, room at the end %v", at("Ramus Test").W, hv.cols.end)
+	if authorCell().W != histColumnMin[colAuthor] || hv.cols.end != end {
+		t.Fatalf("canceled drag left the author %v wide, room at the end %v", authorCell().W, hv.cols.end)
 	}
 	// Or the header's menu brings it back, into the room at the end.
 	if err := h.tt.RightClick("Message"); err != nil {
