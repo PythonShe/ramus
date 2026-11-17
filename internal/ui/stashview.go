@@ -197,7 +197,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 				{Title: locales.ColumnMessage(), ID: "message", MinWidth: 80},
 				dateColumn(),
 			}
-			a.savedTable(c, "stashes", &ss.list, cols, len(entries), func(i, col int) {
+			tbl := a.savedTable(c, "stashes", &ss.list, cols, len(entries), func(i, col int) {
 				e := entries[i]
 				k := ss.list.ink(c, i)
 				switch col {
@@ -209,6 +209,12 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 					mutedCell(c, k, ago(now, e.Time))
 				}
 			}).Label(locales.StashEntriesLabel()).Grow(1)
+			// A double click or Enter pops the stash, as its menu's Pop
+			// does, which keeps it when it does not apply.
+			if tbl.Submitted() && t.s.Queue != nil && ss.chosen >= 0 && ss.chosen < len(entries) {
+				n, e := ss.chosen, entries[ss.chosen]
+				act = func() { a.popStash(t, n, e) }
+			}
 			if act != nil {
 				act()
 			}
@@ -223,6 +229,12 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 	}).Fill()
 	a.confirmView(c, &ss.ask)
 	a.refDialogView(c, &ss.branch, t)
+}
+
+// popStash applies stash entry n, e, and drops it.
+func (a *App) popStash(t *tab, n int, e session.ReflogEntry) {
+	op, err := write.StashPop(t.s.Where(), write.StashEntry{N: n, Commit: hex.EncodeToString(e.OID)}, false)
+	a.submit(t, op, err)
 }
 
 // stashName is git's name of the stash entry n.
@@ -246,10 +258,7 @@ func (a *App) stashMenu(m *ui.Menu, t *tab, n int, e session.ReflogEntry, act *f
 		}
 	}
 	if m.Item(locales.StashPop()).Disabled(ro).Chosen() {
-		*act = func() {
-			op, err := write.StashPop(w, entry, false)
-			a.submit(t, op, err)
-		}
+		*act = func() { a.popStash(t, n, e) }
 	}
 	if m.Item(locales.StashCreateBranch()).Disabled(ro).Chosen() {
 		*act = func() {

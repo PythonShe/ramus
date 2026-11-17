@@ -296,6 +296,7 @@ var defaultKeys = map[string][]string{
 	"push":          {"CmdOrCtrl+P"},
 	"stage-all":     {"CmdOrCtrl+Shift+A"},
 	"unstage-all":   {"CmdOrCtrl+Shift+U"},
+	"stash":         {"CmdOrCtrl+Shift+S"},
 	// The system's own: Control-Command-S on macOS, as in Finder and
 	// Xcode.
 	"toggle-sidebar": {sidebarKey},

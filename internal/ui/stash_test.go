@@ -1,9 +1,62 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 )
+
+// The stash command has a key of its own, and Enter on a stash, as a
+// double click, pops it, as its menu's Pop does.
+func TestStashKeyAndPop(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	readme := func() string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(r.Dir, "README"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	stash := func(text string) {
+		t.Helper()
+		r.Write("README", text)
+		h.until("the change", func() bool { st := tb.s.State.Status; return st != nil && st.Len() > 0 })
+		h.tt.Key(ui.Cmd|ui.Shift, ui.KeyS)
+		h.until("the dialog", h.shows("Include untracked files"))
+		h.tt.Type(text)
+		h.click("Stash")
+		h.idle(tb, "the stash")
+		h.until("no changes", func() bool { st := tb.s.State.Status; return st != nil && st.Len() == 0 })
+	}
+	stash("first")
+	stash("second")
+	h.until("the stashes item", h.shows("Stashes (2)"))
+	h.click("Stashes (2)")
+	h.until("the stashes", func() bool { return hasExact(h, "On main: second") && hasExact(h, "On main: first") })
+
+	// Chosen by its entry: the detail beside the list shows its message
+	// too. The Tester has no double click; Enter is the same action.
+	h.click("stash@{1}")
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+	h.idle(tb, "the pop")
+	h.until("one stash left", h.shows("Stashes (1)"))
+	if got := readme(); got != "first" {
+		t.Fatalf("README %q", got)
+	}
+	if got := strings.TrimSpace(r.Git("stash", "list")); !strings.HasSuffix(got, "On main: second") {
+		t.Fatalf("stashes left %q", got)
+	}
+}
 
 // Stash the changes to one file, then what is staged alone; both show
 // in the list with their messages.
