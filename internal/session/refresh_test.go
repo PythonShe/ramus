@@ -123,6 +123,11 @@ func TestIgnoredWritesKeepTheStatus(t *testing.T) {
 			t.Fatalf("write %d to an ignored file published a status", i)
 		}
 	}
+	if runtime.GOOS == "windows" {
+		// Windows tells the git directory modified with the index in
+		// it, which reads the repository again.
+		return
+	}
 	// The index written anew, as it was.
 	r.Git("add", "a")
 	r.Git("reset", "-q", "--", "a")
