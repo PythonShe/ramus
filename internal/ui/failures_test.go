@@ -145,3 +145,37 @@ func TestPullMode(t *testing.T) {
 		}
 	}
 }
+
+// A write that fails during a merge with conflicts for a reason of its
+// own, a lock left behind, says so, rather than leaving it to the
+// merge's bar.
+func TestFailureDuringConflicts(t *testing.T) {
+	if _, err := os.Stat("/usr/sbin/lsof"); err != nil {
+		if _, err := os.Stat("/usr/bin/lsof"); err != nil {
+			t.Skip("no lsof")
+		}
+	}
+	h := newHarness(t)
+	r := h.repoWith("a.txt")
+	r.Git("switch", "-q", "-c", "side")
+	r.Write("a.txt", "side\n")
+	r.Commit("side")
+	r.Git("switch", "-q", "main")
+	r.Write("a.txt", "main\n")
+	r.Commit("main")
+	if _, err := r.Run(nil, "merge", "side"); err == nil {
+		t.Fatal("the merge did not conflict")
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("the conflict", func() bool { st := tb.s.State.Status; return st != nil && st.Unmerged() == 1 })
+	tb.s.Queue.LockWait = 50 * time.Millisecond
+	if err := os.WriteFile(filepath.Join(r.GitDir(), "index.lock"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{"a.txt"})); err != nil {
+		t.Fatal(err)
+	}
+	h.until("the lock", h.shows("a git command that ended left index.lock behind"))
+}

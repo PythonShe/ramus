@@ -56,8 +56,12 @@ func (a *App) diagnose(t *tab, e *session.LogEntry) diagnosis {
 		return remedy{locales.RepoTryAgain(), func() { a.submit(t, op, nil) }}
 	}
 	var le *write.LockedError
+	// A write stopped on conflicts says so; any other failure while a
+	// merge has some, a lock or a refused login, is told as itself.
+	// Only what git printed is read, not the error's paths.
+	conflicted := unmerged > 0 && re != nil && strings.Contains(strings.ToLower(stderr+"\n"+strings.Join(e.Output, "\n")), "conflict")
 	switch {
-	case unmerged > 0:
+	case conflicted:
 		switch st.Operation {
 		case repo.Merge, repo.Rebase, repo.CherryPick, repo.Revert, repo.Am:
 			d.covered = true
