@@ -4,6 +4,8 @@ import (
 	"sync"
 
 	"github.com/egoist/mygo/ui"
+
+	"ramus/locales"
 )
 
 // glyph parses an icon body drawn on a 24x24 grid with a 1.75 stroke,
@@ -115,4 +117,26 @@ func iconButton(c *ui.Context, g *ui.SVG, label string) ui.Element {
 	b := ui.Button(c, "").Label(label).Tooltip(label)
 	b.Children(func() { ui.Icon(c, g).FontSize(iconLarge) })
 	return b
+}
+
+// aheadBehind is how a branch stands with its upstream as glyphs and
+// counts: up for the commits to push, down for those to pull, each left
+// out at 0, so a branch even with its upstream shows nothing. Figures are
+// tabular so that the width holds as the counts change.
+func aheadBehind(c *ui.Context, k ink, ahead, behind int, upstream string) ui.Element {
+	return ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Description(locales.WorktreeAheadBehind(ahead, behind, upstream)).Children(func() {
+		for _, p := range []struct {
+			n int
+			g *ui.SVG
+		}{{ahead, glyphs().arrowUp}, {behind, glyphs().arrowDown}} {
+			if p.n == 0 {
+				continue
+			}
+			c.Key(p.g)
+			ui.Row(c).Gap(space2XS).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, p.g).FontSize(iconMedium).TextColor(k.Muted)
+				ui.Text(c, locales.SyncCount(p.n)).FontFeatures("tnum").TextColor(k.Muted)
+			})
+		}
+	})
 }

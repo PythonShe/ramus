@@ -2,7 +2,6 @@ package ui
 
 import (
 	"encoding/hex"
-	"fmt"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -125,7 +124,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 				}
 			case 3:
 				if b, ok := branches[w.Branch]; ok && b.Upstream != "" && !b.Gone {
-					ui.Text(c, fmt.Sprintf("↑%d ↓%d", b.Ahead, b.Behind)).Description(locales.WorktreeAheadBehind(b.Ahead, b.Behind, strings.TrimPrefix(b.Upstream, "refs/remotes/")))
+					aheadBehind(c, k, b.Ahead, b.Behind, redact.Control(strings.TrimPrefix(b.Upstream, "refs/remotes/")))
 				}
 			case 4:
 				active := sum.Active
