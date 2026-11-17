@@ -8,6 +8,37 @@ import (
 	"ramus/internal/git/write"
 )
 
+// A double click on a branch in the sidebar of a repository opened
+// read-only switches to nothing and says nothing, local branch or remote,
+// as their menu items are off there. The Tester has no double click: the
+// test calls what one runs.
+func TestSidebarSwitchReadOnly(t *testing.T) {
+	h := newHarness(t)
+	up := h.repoWith()
+	up.Git("branch", "topic")
+	r := h.repoWith()
+	r.Git("branch", "other")
+	r.Git("remote", "add", "origin", up.Dir)
+	r.Git("fetch", "-q", "origin")
+	h.app.Open(r.Dir)
+	h.until("the banner", h.shows("Read-only"))
+	tb := h.app.current()
+	h.until("the sidebar's branches", func() bool { return h.tt.HasText("origin/topic") && hasExact(h, "other") })
+	if tb.s.Queue != nil {
+		t.Fatal("an untrusted repository opened writable")
+	}
+	for _, ref := range []string{"refs/heads/other", "refs/remotes/origin/topic"} {
+		h.app.sidebarSwitch(tb, ref)
+		h.tt.Frame()
+		if h.app.notice != "" || len(tb.s.Log) > 0 {
+			t.Fatalf("%s: notice %q, log %d", ref, h.app.notice, len(tb.s.Log))
+		}
+	}
+	if head := tb.s.State.Head.Target; head != "refs/heads/main" {
+		t.Fatalf("switched to %s", head)
+	}
+}
+
 // A remote branch's menu offers what a local branch's does, and deleting
 // it where it lives, which asks first.
 func TestRemoteBranchMenu(t *testing.T) {

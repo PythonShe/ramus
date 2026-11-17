@@ -8,6 +8,28 @@ import (
 	"time"
 )
 
+// New Worktree… in the sidebar opens its dialog over the page shown,
+// which stays: it is an action, not a page.
+func TestSidebarNewWorktreeKeepsPage(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	t.Cleanup(h.closeAll) // before the folder above goes
+	r.Git("worktree", "add", "-q", "-b", "second", filepath.Join(base, "second"))
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("history", func() bool { return tb.sel == "history" })
+	h.until("the worktrees section", h.shows("New Worktree…"))
+	h.click("New Worktree…")
+	h.until("the dialog", func() bool { return h.app.worktreeUI.open })
+	if tb.sel != "history" {
+		t.Fatalf("the page went to %q", tb.sel)
+	}
+}
+
 // Worktrees made from a branch and a remote branch, locked, removed with
 // their branch, and pruned once their folder is gone; git worktree list
 // is the oracle.
