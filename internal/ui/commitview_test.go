@@ -144,12 +144,12 @@ func TestCopyPickedHashes(t *testing.T) {
 	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("History")
-	h.until("the history", h.shows("add b"))
+	// The open commit's detail can show its subject before the list has
+	// its rows, as on Windows: the rows are waited for before picking.
+	h.until("the history", func() bool { hs := tb.s.History; return hs.Done && hs.Snap != nil && hs.Snap.Len() == 3 })
 	hs := tb.s.History
-	for k := 0; k < hs.Snap.Len(); k++ {
-		if k < 2 {
-			tb.hist.picked.Add(string(hs.OID(hs.Snap.Commit(k))))
-		}
+	for k := range 2 {
+		tb.hist.picked.Add(string(hs.OID(hs.Snap.Commit(k))))
 	}
 	h.menu("add b", "Copy 2 Hashes")
 	want := r.Git("rev-parse", "HEAD~1", "HEAD")

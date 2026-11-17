@@ -2,8 +2,10 @@ package ui
 
 import (
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -35,12 +37,34 @@ func (h *harness) repoMenu(name string, path ...string) {
 
 func (h *harness) menu(row string, path ...string) {
 	h.t.Helper()
-	// A list read again after a write shows its rows a frame or more later.
-	h.until("the row "+row, h.shows(row))
-	if err := h.tt.RightClick(row); err != nil {
-		h.t.Fatalf("right-click %q: %v; texts %q", row, err, h.tt.Texts())
-	}
-	h.tt.Frame()
+	// A list read again after a write shows its rows a frame or more
+	// later, and the open commit's detail can show a row's subject before
+	// the list has the row, as selectable text whose menu is Copy and
+	// Select All: the right-click is made again until its menu has the
+	// item, the row's coming before the detail's.
+	var err error
+	var menu []string
+	found := false
+	defer func() {
+		if !found {
+			h.t.Logf("last right-click on %q: %v; menu %q", row, err, menu)
+		}
+	}()
+	h.until(fmt.Sprintf("the menu of %q with %q", row, path[0]), func() bool {
+		if !h.tt.HasText(row) {
+			return false
+		}
+		if err = h.tt.RightClick(row); err != nil {
+			return false
+		}
+		h.tt.Frame()
+		if menu = h.tt.Menu(); slices.Contains(menu, path[0]) {
+			found = true
+			return true
+		}
+		h.tt.CloseMenu()
+		return false
+	})
 	if err := h.tt.ChooseMenuItem(path...); err != nil {
 		h.t.Fatalf("%v: %q", err, h.tt.Menu())
 	}
