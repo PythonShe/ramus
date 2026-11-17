@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui"
+
 	"ramus/internal/git/write"
 )
 
@@ -113,6 +115,29 @@ func TestPaletteBranchCommands(t *testing.T) {
 	if has("stashes", "Show Stashes") {
 		t.Fatal("Show Stashes with no stash")
 	}
+}
+
+// Two branches whose names read alike once what could mislead is taken
+// out are two commands in the palette, each switching to its own.
+func TestPaletteBranchesReadAlike(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "topic")
+	r.Git("branch", "topic​")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.until("the refs", func() bool { return tb.s.State.Refs != nil && len(tb.sideRefs.build(tb).heads) == 3 })
+	h.app.palette.open = true
+	h.tt.Frame()
+	h.tt.Type("switch to topic")
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyDown)
+	h.tt.Key(0, ui.KeyDown)
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Frame()
+	h.until("on the second", func() bool { return tb.s.State.Head.Target == "refs/heads/topic​" })
 }
 
 func TestDeleteRemoteBranchOp(t *testing.T) {

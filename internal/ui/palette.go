@@ -355,17 +355,29 @@ func (a *App) paletteView(c *ui.Context) {
 		return
 	}
 	cmds := match(a.commands(p.query), p.query)
+	// The options' values are the labels, made unique: two branches
+	// whose names differ only in what redact.Control takes out read
+	// alike, and the value says which command was chosen.
+	values := make([]string, len(cmds))
+	seen := map[string]int{}
+	for i, cmd := range cmds {
+		values[i] = cmd.label
+		if n := seen[cmd.label]; n > 0 {
+			values[i] += "\x00" + strconv.Itoa(n)
+		}
+		seen[cmd.label]++
+	}
 	var run func()
 	a.modal(c, &p.open, func() {
 		cb := ui.ComboboxBase(c, &p.query)
 		cb.Input.AutoFocus().Placeholder(locales.PalettePlaceholder()).Label(locales.PaletteLabel()).Width(520)
 		cb.Popup(func(panel ui.Element) {
 			km := a.keys()
-			for _, cmd := range cmds {
+			for i, cmd := range cmds {
 				if cmd.hidden {
 					continue
 				}
-				cb.Item(cmd.label).Padding(spaceS, spaceL).Gap(spaceXL).Children(func() {
+				cb.Item(values[i]).Padding(spaceS, spaceL).Gap(spaceXL).Children(func() {
 					ui.Text(c, cmd.label).SingleLine().Grow(1)
 					if ks := km.byID[cmd.id]; cmd.id != "" && len(ks) > 0 {
 						ui.Text(c, ks[0].label()).FontSize(textSmall).TextColor(c.Theme().TextMuted)
@@ -373,9 +385,9 @@ func (a *App) paletteView(c *ui.Context) {
 				})
 			}
 		})
-		if label, ok := cb.Chosen(); ok {
-			for _, cmd := range cmds {
-				if cmd.label == label && !cmd.hidden {
+		if value, ok := cb.Chosen(); ok {
+			for i, cmd := range cmds {
+				if values[i] == value && !cmd.hidden {
 					run = cmd.run
 					break
 				}
