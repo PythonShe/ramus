@@ -16,7 +16,10 @@ import (
 // syncState is how the branch checked out stands with its upstream, for
 // the button beside the branch picker, read again as the refs change.
 type syncState struct {
-	track   session.Track
+	track session.Track
+	// trackOf is the branch track was read for: until the branch
+	// switched to is read, the button is not shown.
+	trackOf string
 	readFor *refs.List
 	head    string
 	loading bool
@@ -33,12 +36,13 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 	}
 	if !s.loading && (s.readFor != t.s.State.Refs || s.head != head.Target) {
 		s.readFor, s.head, s.loading = t.s.State.Refs, head.Target, true
+		of := head.Target
 		t.s.LoadTrack(func(tr session.Track) {
 			s.loading = false
-			s.track = tr
+			s.track, s.trackOf = tr, of
 		})
 	}
-	if s.head != head.Target {
+	if s.trackOf != head.Target {
 		return
 	}
 	tr := s.track
