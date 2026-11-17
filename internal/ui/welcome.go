@@ -68,7 +68,7 @@ func (a *App) welcomeBody(c *ui.Context) {
 			w := &a.welcome
 			// Typing searches at once, unless a dialog has the keys.
 			f := ui.SearchField(c, &w.query).Label(locales.WelcomeFind()).Placeholder(locales.WelcomeFind()).Bind(&a.find.welcome)
-			if !a.dialogOpen() {
+			if !a.DialogOpen() {
 				f.AutoFocus()
 			}
 			if f.Changed() {
@@ -110,13 +110,6 @@ func (a *App) welcomeBody(c *ui.Context) {
 			}
 		})
 	})
-}
-
-// dialogOpen reports a dialog of the app's own open over the welcome
-// window, which then has the keys.
-func (a *App) dialogOpen() bool {
-	return a.clone.open || a.settingsUI.open || a.keysUI.open || a.palette.open || a.manager.open ||
-		a.libStats.open || a.diag.open || a.prompt.open || a.confirm.open
 }
 
 // known lists the library's repositories matching the search, favourites

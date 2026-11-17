@@ -890,7 +890,7 @@ func (a *App) refDialogView(c *ui.Context, d *refDialog, t *tab) {
 		return
 	}
 	th := c.Theme()
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, d.title).Bold()
 			submitted := false
@@ -1151,7 +1151,7 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 		return
 	}
 	th := c.Theme()
-	ui.Modal(c, &cs.open, func() {
+	a.modal(c, &cs.open, func() {
 		dialogBox(c).Width(dialogWide).Height(480).Children(func() {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, locales.RefsCleanupTitle()).Bold().Grow(1)

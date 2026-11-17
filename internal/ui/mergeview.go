@@ -611,7 +611,7 @@ func (a *App) mergeDialogView(c *ui.Context) {
 	if !head.Detached {
 		into = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, locales.MergeDialogTitle(redact.Control(strings.TrimPrefix(d.what, "refs/heads/")), redact.Control(into))).Bold()
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {

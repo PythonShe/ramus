@@ -364,14 +364,14 @@ var repoMenu = []string{
 
 func repoMenuID(id string) string { return "repo:" + id }
 
-// repoMenuEnabled enables the Repository menu's items while the window
-// focused shows a repository.
+// repoMenuEnabled enables the Repository menu's items while they act on
+// the window focused: it shows a repository, with no dialog over it.
 func (ws *windows) repoMenuEnabled() {
 	m := mygo.App.Menu()
 	if m == nil {
 		return
 	}
-	on := ws.showsRepository()
+	on := ws.repoCommandsOn()
 	for _, id := range repoMenu {
 		if it := m.ItemByID(repoMenuID(id)); it != nil && it.IsEnabled() != on {
 			it.SetEnabled(on)
@@ -379,12 +379,13 @@ func (ws *windows) repoMenuEnabled() {
 	}
 }
 
-func (ws *windows) showsRepository() bool {
-	return ws.focused != nil && ws.focused.app.ShowsRepository()
+func (ws *windows) repoCommandsOn() bool {
+	return ws.focused != nil && ws.focused.app.RepoCommandsOn()
 }
 
 // menu is the app's menu; an item acts in the window it was chosen in,
-// else the one last focused.
+// else the one last focused, and waits while a dialog is open there, as
+// the window's own shortcuts do: the menu takes the keys first.
 func menu(ws *windows) *mygo.Menu {
 	key := func(id string) string { return ui.Accelerator(ws.deps.Settings.Keys, id) }
 	act := func(fn func(*ui.App)) func(*mygo.MenuItem, *mygo.Window) {
@@ -392,6 +393,9 @@ func menu(ws *windows) *mygo.Menu {
 			w := ws.of(win)
 			if w == nil {
 				w = ws.target()
+			}
+			if w.app.DialogOpen() {
+				return
 			}
 			fn(w.app)
 			if w.win != nil {
@@ -449,7 +453,7 @@ func menu(ws *windows) *mygo.Menu {
 			continue
 		}
 		repo = append(repo, &mygo.MenuItem{ID: repoMenuID(id), Label: ui.CommandName(id), Accelerator: key(id),
-			Disabled: !ws.showsRepository(), Click: act(func(a *ui.App) { a.RunCommand(id) })})
+			Disabled: !ws.repoCommandsOn(), Click: act(func(a *ui.App) { a.RunCommand(id) })})
 	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		appMenu,
@@ -467,7 +471,7 @@ func menu(ws *windows) *mygo.Menu {
 				case w == nil:
 					w = ws.focused
 				}
-				if w == nil {
+				if w == nil || w.app.DialogOpen() {
 					return
 				}
 				if !w.app.CloseTab() && w.win != nil {

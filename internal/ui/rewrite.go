@@ -114,7 +114,7 @@ func (a *App) messageView(c *ui.Context) {
 		return
 	}
 	th := c.Theme()
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, d.title).Bold()
 			ui.TextArea(c, &d.message).Label(locales.CommonMessage()).Lines(4, 14).FillWidth().AutoFocus()

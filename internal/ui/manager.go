@@ -42,7 +42,7 @@ func (a *App) managerView(c *ui.Context) {
 	}
 	repos := m.repos
 	var act func()
-	ui.Modal(c, &m.open, func() {
+	a.modal(c, &m.open, func() {
 		dialogBox(c).Width(dialogWide).Height(560).Children(func() {
 			ui.Text(c, locales.ManagerTitle()).Bold()
 			ui.SearchField(c, &m.query).Label(locales.ManagerSearchLabel()).Placeholder(locales.ManagerSearchPlaceholder()).AutoFocus()

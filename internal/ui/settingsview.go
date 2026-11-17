@@ -120,7 +120,7 @@ func (a *App) settingsView(c *ui.Context) {
 	ww, wh := c.Size()
 	// A modal of the theme's look but for its padding, so that the line
 	// above the buttons runs from edge to edge.
-	ui.DialogBase(c, &s.open, func(back, panel ui.Element) {
+	a.dialogBase(c, &s.open, func(back, panel ui.Element) {
 		back.Background(ui.RGBA(0, 0, 0, 0.4))
 		panel.Width(min(dialogMedium+40, ww-2*space2XL)).MaxHeight(max(wh-2*space2XL, 240)).Radius(radiusLarge).Background(th.Background).
 			Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))

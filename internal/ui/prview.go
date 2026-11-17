@@ -1231,7 +1231,7 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 	}
 	th := c.Theme()
 	own := rv.r.Viewer != "" && strings.EqualFold(rv.r.Viewer, rv.r.Author)
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, locales.PrsSubmitTitle(rv.r.Ref(rv.repo.Kind))).Bold()
 			ui.TextArea(c, &d.body).Label(locales.PrsSummary()).Placeholder(locales.PrsSummary()).Lines(3, 8).FillWidth().AutoFocus()

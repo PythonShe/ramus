@@ -111,7 +111,7 @@ func (a *App) keysView(c *ui.Context) {
 			shown = slices.Delete(shown, i, i+1)
 		}
 	}
-	ui.Modal(c, &ks.open, func() {
+	a.modal(c, &ks.open, func() {
 		dialogBox(c).Width(dialogWide).Children(func() {
 			ui.Text(c, locales.KeysTitle()).Bold()
 			ui.TextInput(c, &ks.filter).Label(locales.CommonFilter()).Placeholder(locales.CommonFilter()).AutoFocus().FillWidth()

@@ -151,7 +151,7 @@ func (ws *windows) add() *window {
 	d.Languages, d.ChosenLocale, d.SetLocale = mygo.App.Languages(), mygo.App.ChosenLocale, mygo.App.SetLocale
 	w.app = ui.NewApp(d)
 	w.app.KeysChanged = func() { mygo.App.SetMenu(menu(ws)) }
-	w.app.RepoShown = func(bool) {
+	w.app.RepoCommandsChanged = func(bool) {
 		if w == ws.focused {
 			ws.repoMenuEnabled()
 		}

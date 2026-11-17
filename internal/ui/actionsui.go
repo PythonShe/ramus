@@ -62,7 +62,7 @@ func (a *App) promptView(c *ui.Context) {
 		return
 	}
 	run := false
-	ui.Modal(c, &p.open, func() {
+	a.modal(c, &p.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, p.action.Name).Bold()
 			for i, q := range p.questions {

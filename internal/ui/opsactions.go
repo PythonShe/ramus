@@ -343,7 +343,7 @@ func (a *App) cleanView(c *ui.Context) {
 	}
 	th := c.Theme()
 	t := cs.t
-	ui.Modal(c, &cs.open, func() {
+	a.modal(c, &cs.open, func() {
 		dialogBox(c).Width(dialogMedium).Height(440).Children(func() {
 			ui.Text(c, locales.OpsCleanTitle()).Bold()
 			if ui.Checkbox(c, &cs.ignored, locales.OpsIncludeIgnoredFiles()).Changed() {

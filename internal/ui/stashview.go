@@ -71,7 +71,7 @@ func (a *App) stashDialogView(c *ui.Context) {
 		return
 	}
 	th := c.Theme()
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			title := locales.StashTitle()
 			if n := len(d.paths); n > 0 {

@@ -109,7 +109,7 @@ func (a *App) diagnosticsView(c *ui.Context) {
 		return
 	}
 	text := a.diagnostics()
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogWide).Children(func() {
 			ui.Text(c, locales.DiagnosticsTitle()).Bold()
 			ui.Text(c, locales.DiagnosticsNote()).FontSize(textSmall).TextColor(c.Theme().TextMuted)

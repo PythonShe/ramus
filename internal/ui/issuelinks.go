@@ -102,7 +102,7 @@ func (a *App) linksView(c *ui.Context) {
 	}
 	th := c.Theme()
 	t := d.t
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogWide).Children(func() {
 			ui.Text(c, locales.IssueLinksTitle()).Bold()
 			for i := range d.rules {

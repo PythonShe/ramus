@@ -438,24 +438,28 @@ func (a *App) shortcuts(c *ui.Context) {
 	}
 }
 
-// ShowsRepository reports whether the window shows a repository, which
-// the app menu's Repository items act on.
-func (a *App) ShowsRepository() bool { return a.current() != nil }
+// RepoCommandsOn reports whether the app menu's Repository items act on
+// the window: it shows a repository, with no dialog over it.
+func (a *App) RepoCommandsOn() bool { return a.current() != nil && !a.DialogOpen() }
 
-// tellRepoShown tells RepoShown when the window comes to show a
-// repository, or stops.
-func (a *App) tellRepoShown() {
-	if shown := a.ShowsRepository(); shown != a.repoShown {
-		a.repoShown = shown
-		if a.RepoShown != nil {
-			a.RepoShown(shown)
+// tellRepoCommands tells RepoCommandsChanged when RepoCommandsOn changes.
+func (a *App) tellRepoCommands() {
+	if on := a.RepoCommandsOn(); on != a.repoOn {
+		a.repoOn = on
+		if a.RepoCommandsChanged != nil {
+			a.RepoCommandsChanged(on)
 		}
 	}
 }
 
 // RunCommand runs command id, as a shortcut does, if it can run now:
-// for the app menu.
-func (a *App) RunCommand(id string) { a.runCommand(id) }
+// for the app menu, which takes its keys before the window, so nothing
+// runs while a dialog is open, as the window's own shortcuts wait then.
+func (a *App) RunCommand(id string) {
+	if !a.DialogOpen() {
+		a.runCommand(id)
+	}
+}
 
 // runCommand runs command id if it can run now.
 func (a *App) runCommand(id string) {

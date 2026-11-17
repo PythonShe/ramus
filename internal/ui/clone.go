@@ -50,7 +50,7 @@ func (a *App) cloneDialog(c *ui.Context) {
 	}
 	ready := strings.TrimSpace(cs.url) != "" && strings.TrimSpace(cs.dir) != ""
 	th := c.Theme()
-	ui.Modal(c, &cs.open, func() {
+	a.modal(c, &cs.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, locales.CloneTitle()).Bold()
 			ui.Field(c, locales.CommonURL(), func() {

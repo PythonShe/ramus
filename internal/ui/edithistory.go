@@ -147,7 +147,7 @@ func (a *App) historyEditView(c *ui.Context) {
 	}
 	t := he.t
 	th := c.Theme()
-	ui.Modal(c, &he.open, func() {
+	a.modal(c, &he.open, func() {
 		dialogBox(c).Width(760).Children(func() {
 			ui.Text(c, locales.RewriteEditHistoryFrom(he.rw.Commit[:min(10, len(he.rw.Commit))])).Bold()
 			rows := he.rows

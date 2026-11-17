@@ -153,7 +153,7 @@ func (a *App) askView(c *ui.Context) {
 		a.dropAsk(q)
 	}
 	open := true
-	ui.Modal(c, &open, func() {
+	a.modal(c, &open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, askTitle(q.Question, d.hosts[q])).Bold()
 			ui.Text(c, strings.TrimSpace(redact.Shown(q.Prompt))).Selectable().FontSize(textSmall).TextColor(th.TextMuted)

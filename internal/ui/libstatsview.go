@@ -154,7 +154,7 @@ func (a *App) libStatsView(c *ui.Context) {
 		return
 	}
 	th := c.Theme()
-	ui.Modal(c, &s.open, func() {
+	a.modal(c, &s.open, func() {
 		dialogBox(c).Width(980).Height(740).Children(func() {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, locales.StatsLibraryTitle()).Bold()

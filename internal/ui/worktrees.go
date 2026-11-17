@@ -97,7 +97,7 @@ func (a *App) worktreeView(c *ui.Context) {
 		d.path = d.autoPath
 	}
 	named := d.remote || d.fresh
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
 			title := locales.WorktreeNewTitle(redact.Control(short))
 			if d.fresh {
@@ -262,7 +262,7 @@ func (a *App) worktreeRemoveView(c *ui.Context) {
 		return
 	}
 	branch := strings.TrimPrefix(d.wt.Branch, "refs/heads/")
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, locales.WorktreeRemoveTitle(filepath.Base(d.wt.Path))).Bold()
 			ui.Text(c, locales.WorktreeRemoveFolder(d.wt.Path)).Selectable()
@@ -312,7 +312,7 @@ func (a *App) worktreeLockView(c *ui.Context) {
 	if !d.open || d.t == nil {
 		return
 	}
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, locales.WorktreeLockTitle(filepath.Base(d.path))).Bold()
 			in := ui.TextInput(c, &d.reason).Label(locales.WorktreeReason()).Placeholder(locales.WorktreeReasonPlaceholder()).AutoFocus().FillWidth()

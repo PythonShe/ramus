@@ -111,7 +111,7 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 	reset := func() {
 		submit(write.CheckoutRemote(t.s.Where(), d.remote, name, d.local.Commit, true, write.CarryChanges, t.s.Seen()))
 	}
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, locales.RemoteCheckoutExists(redact.Control(name))).Bold()
 			ui.Text(c, redact.Control(text)).Selectable()
@@ -159,7 +159,7 @@ func (a *App) elsewhereView(c *ui.Context) {
 		return
 	}
 	name := strings.TrimPrefix(d.branch, "refs/heads/")
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, locales.RemoteCheckoutElsewhereTitle(redact.Control(name))).Bold()
 			ui.Text(c, locales.RemoteCheckoutElsewhereMessage(d.folder)).Selectable()

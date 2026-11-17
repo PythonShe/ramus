@@ -30,7 +30,7 @@ func (a *App) toolFrame(c *ui.Context, open *bool, body func(box ui.Element)) {
 		body(ui.Column(c).Fill())
 		return
 	}
-	ui.Modal(c, open, func() { body(ui.Column(c).Width(1100).Height(760)) })
+	a.modal(c, open, func() { body(ui.Column(c).Width(1100).Height(760)) })
 }
 
 // mergeTool resolves the merge git mergetool hands over: the conflicts of

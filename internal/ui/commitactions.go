@@ -167,7 +167,7 @@ func (a *App) branchView(c *ui.Context) {
 		return
 	}
 	th := c.Theme()
-	ui.Modal(c, &d.open, func() {
+	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			title := locales.CommitCreateBranchAt(d.commit[:10])
 			if h := d.t.s.State.Head; d.from == "" && !h.Detached && h.Target != "" && hex.EncodeToString(h.OID) == d.commit {

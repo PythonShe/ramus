@@ -17,7 +17,7 @@ func (a *App) confirmView(c *ui.Context, q *confirmState) {
 	}
 	th := c.Theme()
 	chosen := false
-	ui.Modal(c, &q.open, func() {
+	a.modal(c, &q.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, q.title).Bold().FontSize(th.FontSize + 1)
 			if q.message != "" {

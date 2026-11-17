@@ -12,13 +12,13 @@ import (
 func TestFindAndTabKeys(t *testing.T) {
 	h := newHarness(t)
 	var told []bool
-	h.app.RepoShown = func(shown bool) { told = append(told, shown) }
+	h.app.RepoCommandsChanged = func(on bool) { told = append(told, on) }
 	one, two := h.repoWith("a.txt"), h.repoWith("b.txt")
 	h.trust.Set(one.GitDir(), true)
 	h.trust.Set(two.GitDir(), true)
 	h.app.Open(one.Dir)
 	h.until("the first", h.shows("a.txt"))
-	if len(told) != 1 || !told[0] || !h.app.ShowsRepository() {
+	if len(told) != 1 || !told[0] || !h.app.RepoCommandsOn() {
 		t.Fatalf("told %v", told)
 	}
 	tb := h.app.current()

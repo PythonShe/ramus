@@ -356,7 +356,7 @@ func (a *App) paletteView(c *ui.Context) {
 	}
 	cmds := match(a.commands(p.query), p.query)
 	var run func()
-	ui.Modal(c, &p.open, func() {
+	a.modal(c, &p.open, func() {
 		cb := ui.ComboboxBase(c, &p.query)
 		cb.Input.AutoFocus().Placeholder(locales.PalettePlaceholder()).Label(locales.PaletteLabel()).Width(520)
 		cb.Popup(func(panel ui.Element) {
