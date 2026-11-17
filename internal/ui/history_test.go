@@ -541,7 +541,18 @@ func TestHistoryColumns(t *testing.T) {
 	at := func(s string) ui.Rect { b, _ := h.tt.Find(s); return b }
 	// The author's cell is their picture and their name.
 	authorCell := func() ui.Rect {
-		b := at("Ramus Test")
+		// The first row's, under the header: the name can show elsewhere
+		// first, as a tooltip over the list.
+		var b ui.Rect
+		hy := at("Author").Y
+		for _, a := range h.tt.AccessAll() {
+			if a.Name == "Ramus Test" && a.Bounds.H > 0 && a.Bounds.Y > hy && (b.H == 0 || a.Bounds.Y < b.Y) {
+				b = a.Bounds
+			}
+		}
+		if b.H == 0 { // no text measured, with no fonts: the labels have it
+			b = at("Ramus Test")
+		}
 		b.X, b.W = b.X-avatarRow-spaceXS, b.W+avatarRow+spaceXS
 		return b
 	}
