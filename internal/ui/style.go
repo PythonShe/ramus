@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"sync"
-
 	"github.com/egoist/mygo/ui"
 )
 
@@ -176,7 +174,7 @@ func infoButton(c *ui.Context, open *bool, label, text string, color ui.Color) {
 	if b.Hovered() {
 		b.Background(th.SurfaceHover)
 	}
-	b.Children(func() { ui.Icon(c, styleIcons().info).FontSize(iconMedium).TextColor(color) })
+	b.Children(func() { ui.Icon(c, glyphs().info).FontSize(iconMedium).TextColor(color) })
 	if b.Clicked() {
 		*open = !*open
 	}
@@ -184,12 +182,6 @@ func infoButton(c *ui.Context, open *bool, label, text string, color ui.Color) {
 		ui.Text(c, text).FontSize(textSmall).MaxWidth(320).Selectable()
 	})
 }
-
-// styleIcons are the shared controls' icons, parsed once.
-var styleIcons = sync.OnceValue(func() (icons struct{ info *ui.SVG }) {
-	icons.info = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.6v.1" stroke-width="2.4"/></svg>`))
-	return icons
-})
 
 // closeButton is the × that closes a tab or a pane, named label for
 // assistive technology: without a face until hovered, so that it does not
@@ -202,6 +194,6 @@ func closeButton(c *ui.Context, label string) ui.Element {
 		// hovered or chosen, or a pane's header.
 		b.Background(th.Text.Alpha(0.12))
 	}
-	b.Children(func() { ui.Text(c, "×").TextColor(th.TextMuted) })
+	b.Children(func() { ui.Icon(c, glyphs().xThick).FontSize(iconSmall).Padding(spaceXS, 0).TextColor(th.TextMuted) })
 	return b
 }

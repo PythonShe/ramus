@@ -47,7 +47,7 @@ func (a *App) appButton(c *ui.Context) {
 	label := locales.TabsApp()
 	ui.Toolbar(c, func() {
 		b := ui.Button(c, "").Label(label).Tooltip(label)
-		b.Children(func() { ui.Icon(c, navIcons().gear).FontSize(iconLarge) })
+		b.Children(func() { ui.Icon(c, glyphs().gear).FontSize(iconLarge) })
 		b.Menu(func(m *ui.Menu) {
 			if m.Item(locales.KeysSettings()).Chosen() {
 				a.openSettings()

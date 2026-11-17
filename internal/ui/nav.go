@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"net/url"
 	"strings"
-	"sync"
 
 	"github.com/egoist/mygo/ui"
 
@@ -138,9 +137,7 @@ func (a *App) navBar(c *ui.Context, t *tab) {
 		if a.Settings.NoSidebar {
 			label = locales.HidingShowSidebar()
 		}
-		b := ui.Button(c, "").Label(label).Tooltip(label)
-		b.Children(func() { ui.Icon(c, navIcons().sidebar).FontSize(iconLarge) })
-		if b.Clicked() {
+		if iconButton(c, glyphs().sidebar, label).Clicked() {
 			a.setSidebar(a.Settings.NoSidebar)
 		}
 		if r := t.nav.router; r != nil {
@@ -149,13 +146,3 @@ func (a *App) navBar(c *ui.Context, t *tab) {
 		}
 	}).Label(locales.NavToolbar())
 }
-
-// navIcons are the icons of the navigation bar, parsed once.
-var navIcons = sync.OnceValue(func() (icons struct{ sidebar, plus, gear *ui.SVG }) {
-	icons.sidebar = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg>`))
-	icons.plus = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5.5v13M5.5 12h13"/></svg>`))
-	// A gear: a ring with eight teeth, dashes of a thick circle, round a
-	// hole.
-	icons.gear = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.25" stroke-width="3" stroke-dasharray="3.24 3.24"/><circle cx="12" cy="12" r="6" stroke-width="1.75"/><circle cx="12" cy="12" r="2.25" stroke-width="1.75"/></svg>`))
-	return icons
-})

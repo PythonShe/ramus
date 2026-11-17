@@ -180,17 +180,19 @@ func pullBadge(c *ui.Context, k ink, p session.PullInfo) {
 	if p.State != forge.PullOpen {
 		return
 	}
-	mark, color, says := "", k.Muted, ""
+	var mark *ui.SVG
+	color, says := k.Muted, ""
+	g := glyphs()
 	switch p.Checks {
 	case forge.ChecksPassing:
-		mark, color, says = "✓", k.Success, locales.PullsChecksPassed()
+		mark, color, says = g.check, k.Success, locales.PullsChecksPassed()
 	case forge.ChecksFailing:
-		mark, color, says = "✗", k.Danger, locales.PullsChecksFailed()
+		mark, color, says = g.x, k.Danger, locales.PullsChecksFailed()
 	case forge.ChecksPending:
-		mark, says = "●", locales.PullsChecksRunning()
+		mark, says = g.dot, locales.PullsChecksRunning()
 	}
-	if mark != "" {
-		ui.Text(c, mark).FontSize(textSmall).TextColor(color).Label(says).Tooltip(says)
+	if mark != nil {
+		ui.Icon(c, mark).FontSize(iconMedium).TextColor(color).Label(says).Tooltip(says)
 	}
 }
 
