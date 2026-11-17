@@ -151,8 +151,9 @@ func dangerButton(c *ui.Context, label string, disabled bool) ui.Element {
 // it can take long enough to wonder.
 func loading(c *ui.Context, what string) {
 	ui.Column(c).Fill().Center().Gap(spaceM).Children(func() {
-		ui.Spinner(c)
+		s := ui.Spinner(c)
 		if what != "" {
+			s.Label(what)
 			ui.Text(c, what).FontSize(textSmall).TextColor(c.Theme().TextMuted)
 		}
 	})

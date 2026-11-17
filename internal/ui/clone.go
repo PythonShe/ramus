@@ -19,6 +19,11 @@ type cloneState struct {
 	open       bool
 	url, dir   string
 	submodules bool
+	// parent is the folder a clone goes into: the one picked last, else
+	// a folder of projects in the home. dir is parent/<the URL's name>,
+	// which auto keeps, until the user types another.
+	parent, auto string
+	looked       bool
 	// starting is set while the folder is checked, before the job exists;
 	// gen tells a start that was stopped meanwhile.
 	starting bool
@@ -36,17 +41,28 @@ func (a *App) cloneDialog(c *ui.Context) {
 	if !cs.open {
 		return
 	}
+	a.findCloneParent()
+	busy := cs.job != nil || cs.starting
+	if !busy && cs.dir == cs.auto && cs.parent != "" {
+		// The folder follows the URL until the user types one.
+		cs.dir = filepath.Join(cs.parent, defaultCloneDir(cs.url))
+		cs.auto = cs.dir
+	}
+	ready := strings.TrimSpace(cs.url) != "" && strings.TrimSpace(cs.dir) != ""
 	th := c.Theme()
 	ui.Modal(c, &cs.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
 			ui.Text(c, locales.CloneTitle()).Bold()
-			busy := cs.job != nil || cs.starting
 			ui.Field(c, locales.CommonURL(), func() {
-				ui.TextInput(c, &cs.url).Label(locales.CloneURLLabel()).Placeholder("https://github.com/owner/repo.git").AutoFocus().Disabled(busy)
+				if ui.TextInput(c, &cs.url).Placeholder(locales.CloneURLExample()).AutoFocus().Disabled(busy).Submitted() && ready {
+					a.startClone()
+				}
 			})
 			ui.Field(c, locales.CommonFolder(), func() {
 				ui.Row(c).Gap(spaceM).Children(func() {
-					ui.TextInput(c, &cs.dir).Label(locales.CloneFolderLabel()).Placeholder(locales.CloneFolderLabel()).Grow(1).Disabled(busy)
+					if ui.TextInput(c, &cs.dir).Grow(1).Disabled(busy).Submitted() && ready {
+						a.startClone()
+					}
 					if ui.Button(c, locales.CommonChoose()).Disabled(busy).Clicked() {
 						a.pickCloneParent()
 					}
@@ -54,11 +70,16 @@ func (a *App) cloneDialog(c *ui.Context) {
 			})
 			ui.Checkbox(c, &cs.submodules, locales.CloneSubmodules()).Disabled(busy)
 			if busy {
-				ui.Progress(c, float64(max(cs.percent, 0))/100)
+				// Of unknown length until git tells how far it is.
+				done := -1.0
+				if cs.percent >= 0 {
+					done = float64(cs.percent) / 100
+				}
+				ui.Progress(c, done).Label(locales.CloneProgress())
 				ui.Text(c, cs.progress).SingleLine().FontSize(textSmall).TextColor(th.TextMuted)
 			}
 			if cs.err != "" {
-				ui.Text(c, cs.err).TextColor(th.Danger).MaxWidth(480)
+				ui.Text(c, cs.err).TextColor(th.Danger).Selectable()
 			}
 			ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
 				if busy {
@@ -74,21 +95,60 @@ func (a *App) cloneDialog(c *ui.Context) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					cs.open = false
 				}
-				if ui.PrimaryButton(c, locales.CloneClone()).Disabled(strings.TrimSpace(cs.url) == "" || strings.TrimSpace(cs.dir) == "").Clicked() {
+				if ui.PrimaryButton(c, locales.CloneClone()).Disabled(!ready).Clicked() {
 					a.startClone()
 				}
 			})
 		})
 	})
+	if busy && !cs.open {
+		// Escape or a click outside would hide a clone still running,
+		// with nothing left to show its progress or stop it: Stop does.
+		cs.open = true
+	}
 }
 
-// defaultCloneDir is the folder a URL clones into, named as git would.
+// defaultCloneDir is the folder a URL clones into, named as git would;
+// "" while the URL names none.
 func defaultCloneDir(url string) string {
-	name := strings.TrimSuffix(path.Base(strings.TrimRight(strings.ReplaceAll(url, ":", "/"), "/")), ".git")
-	if name == "" || name == "." || name == "/" {
-		return locales.CloneFolderLabel()
+	name := strings.TrimSuffix(path.Base(strings.TrimRight(strings.ReplaceAll(strings.TrimSpace(url), ":", "/"), "/")), ".git")
+	if name == "." || name == "/" {
+		return ""
 	}
 	return name
+}
+
+// cloneParents are the folders of projects in the home a clone goes
+// into, the first there is, until the user picks one; else the home.
+var cloneParents = []string{"Developer", "Projects", "projects", "src", "Code", "code", "dev"}
+
+// findCloneParent finds, off the main thread, the folder a clone goes
+// into until the user picks another.
+func (a *App) findCloneParent() {
+	cs := &a.clone
+	if cs.looked {
+		return
+	}
+	cs.looked = true
+	update := a.Update
+	a.goWork(nil, func() {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return
+		}
+		p := home
+		for _, name := range cloneParents {
+			if fi, err := os.Stat(filepath.Join(home, name)); err == nil && fi.IsDir() {
+				p = filepath.Join(home, name)
+				break
+			}
+		}
+		update(func() {
+			if cs.parent == "" {
+				cs.parent = p
+			}
+		})
+	})
 }
 
 func (a *App) pickCloneParent() {
@@ -100,7 +160,10 @@ func (a *App) pickCloneParent() {
 		p, err := pick(locales.CloneInto())
 		update(func() {
 			if err == nil && p != "" {
-				a.clone.dir = filepath.Join(p, defaultCloneDir(a.clone.url))
+				cs := &a.clone
+				cs.parent = p
+				cs.dir = filepath.Join(p, defaultCloneDir(cs.url))
+				cs.auto = cs.dir
 			}
 		})
 	})
@@ -178,7 +241,7 @@ func (a *App) followClone(j *write.Job, dir string, update func(func()), ts *tru
 			cs.err = failure(err)
 			return
 		}
-		cs.open, cs.url, cs.dir, cs.submodules = false, "", "", false
+		cs.open, cs.url, cs.dir, cs.auto, cs.submodules = false, "", "", "", false
 		a.Open(dir)
 	})
 }

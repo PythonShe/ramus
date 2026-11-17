@@ -11713,24 +11713,20 @@ func (msgs Messages) CloneTitle() string {
 	return Catalog.Format(msgs.locale, "cloneTitle", nil)
 }
 
-// CloneURLLabel says "Repository URL"
+// CloneURLExample says "https://github.com/owner/repo.git"
 // in the language the app shows.
-func CloneURLLabel() string { return In(i18n.Locale()).CloneURLLabel() }
+//
+// The placeholder of the clone dialog's URL field: an example of a
+// repository's URL.
+func CloneURLExample() string { return In(i18n.Locale()).CloneURLExample() }
 
-// CloneURLLabel says "Repository URL"
+// CloneURLExample says "https://github.com/owner/repo.git"
 // in the language of msgs.
-func (msgs Messages) CloneURLLabel() string {
-	return Catalog.Format(msgs.locale, "cloneURLLabel", nil)
-}
-
-// CloneFolderLabel says "Folder to clone into"
-// in the language the app shows.
-func CloneFolderLabel() string { return In(i18n.Locale()).CloneFolderLabel() }
-
-// CloneFolderLabel says "Folder to clone into"
-// in the language of msgs.
-func (msgs Messages) CloneFolderLabel() string {
-	return Catalog.Format(msgs.locale, "cloneFolderLabel", nil)
+//
+// The placeholder of the clone dialog's URL field: an example of a
+// repository's URL.
+func (msgs Messages) CloneURLExample() string {
+	return Catalog.Format(msgs.locale, "cloneURLExample", nil)
 }
 
 // CloneSubmodules says "Clone submodules too"
@@ -11741,6 +11737,20 @@ func CloneSubmodules() string { return In(i18n.Locale()).CloneSubmodules() }
 // in the language of msgs.
 func (msgs Messages) CloneSubmodules() string {
 	return Catalog.Format(msgs.locale, "cloneSubmodules", nil)
+}
+
+// CloneProgress says "Cloning"
+// in the language the app shows.
+//
+// Names the clone dialog's progress bar for assistive technology.
+func CloneProgress() string { return In(i18n.Locale()).CloneProgress() }
+
+// CloneProgress says "Cloning"
+// in the language of msgs.
+//
+// Names the clone dialog's progress bar for assistive technology.
+func (msgs Messages) CloneProgress() string {
+	return Catalog.Format(msgs.locale, "cloneProgress", nil)
 }
 
 // CloneStop says "Stop"
@@ -11771,13 +11781,13 @@ func (msgs Messages) CloneClone() string {
 	return Catalog.Format(msgs.locale, "cloneClone", nil)
 }
 
-// CloneInto says "Clone Into"
+// CloneInto says "Choose a folder to clone into"
 // in the language the app shows.
 //
 // The title of the folder picker for where to clone.
 func CloneInto() string { return In(i18n.Locale()).CloneInto() }
 
-// CloneInto says "Clone Into"
+// CloneInto says "Choose a folder to clone into"
 // in the language of msgs.
 //
 // The title of the folder picker for where to clone.

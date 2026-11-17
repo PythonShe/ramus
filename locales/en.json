@@ -2449,9 +2449,15 @@
     "description": "A command that finished; duration is as 1.25s."
   },
   "cloneTitle": "Clone a repository",
-  "cloneURLLabel": "Repository URL",
-  "cloneFolderLabel": "Folder to clone into",
+  "cloneURLExample": "https://github.com/owner/repo.git",
+  "@cloneURLExample": {
+    "description": "The placeholder of the clone dialog's URL field: an example of a repository's URL."
+  },
   "cloneSubmodules": "Clone submodules too",
+  "cloneProgress": "Cloning",
+  "@cloneProgress": {
+    "description": "Names the clone dialog's progress bar for assistive technology."
+  },
   "cloneStop": "Stop",
   "@cloneStop": {
     "description": "A button: stops the clone running."
@@ -2460,7 +2466,7 @@
   "@cloneClone": {
     "description": "A button: starts the clone."
   },
-  "cloneInto": "Clone Into",
+  "cloneInto": "Choose a folder to clone into",
   "@cloneInto": {
     "description": "The title of the folder picker for where to clone."
   },

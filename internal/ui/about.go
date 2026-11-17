@@ -117,7 +117,7 @@ func (ab *About) failed(update func(func())) func(lifetime.Panic) {
 func (ab *About) install() {
 	u := ab.found
 	ctx := ab.begin(updateInstalling)
-	ab.done = 0
+	ab.done = -1 // of unknown length until the download says its size
 	update, relaunch := ab.Update, ab.Relaunch
 	goRecover(ab.Crash, func() {
 		err := u.Install(ctx, func(done, total int64) {
@@ -197,7 +197,7 @@ func (ab *About) updates(c *ui.Context) {
 			return
 		case updateInstalling:
 			status(locales.AboutInstalling(ab.found.Version()), th.TextMuted)
-			ui.Progress(c, ab.done).Width(200)
+			ui.Progress(c, ab.done).Width(200).Label(locales.AboutInstalling(ab.found.Version()))
 			return
 		}
 		b := ui.Button(c, locales.AboutCheckForUpdates()).Disabled(ab.upd == updateChecking || ab.Check == nil)
