@@ -1534,7 +1534,7 @@
   "@repoShowInLog": {
     "description": "A button in the error bar: shows the failed command's output in the Command Log."
   },
-  "repoDismiss": "Dismiss",
+  "repoDismiss": "Dismiss Message",
   "@repoDismiss": {
     "description": "The error bar's close button: takes the error away."
   },

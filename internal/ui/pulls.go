@@ -308,6 +308,7 @@ func (a *App) stackItems(m *ui.Menu, t *tab, b session.BranchInfo, repo forge.Re
 				t.refs.ask = confirmState{open: true, title: locales.PullsSubmitStackTitle(),
 					message: locales.PullsSubmitStackMessage(n),
 					button:  locales.PullsSubmit(),
+					safe:    true,
 					run:     func() { a.runStack(t, c, locales.PullsSubmitStackJob(), "submit", "--auto") }}
 			}
 		}
@@ -333,6 +334,7 @@ func (a *App) stackItems(m *ui.Menu, t *tab, b session.BranchInfo, repo forge.Re
 			t.refs.ask = confirmState{open: true, title: locales.PullsCreateStackTitle(),
 				message: locales.PullsCreateStackMessage(strings.Join(names, ", "), top),
 				button:  locales.CommonCreate(),
+				safe:    true,
 				run:     func() { a.runStack(t, c, locales.PullsCreateStackJob(), append([]string{"init", "--"}, names...)...) }}
 		}
 	}

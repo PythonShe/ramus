@@ -124,9 +124,27 @@ func keptSplit(c *ui.Context, size, room *float32, least, keep float32, first, s
 }
 
 // dialogBox is the frame inside every dialog; the caller sets its width
-// and builds its children.
+// and builds its children. ui.Modal pads its panel already.
 func dialogBox(c *ui.Context) ui.Element {
-	return ui.Column(c).Gap(dialogGap).Padding(dialogPad)
+	return ui.Column(c).Gap(dialogGap)
+}
+
+// dangerButton is the button of an action that deletes or throws work
+// away, in the theme's Danger color, so that it looks unlike one that
+// makes something. Disabled, it is a plain button disabled.
+func dangerButton(c *ui.Context, label string, disabled bool) ui.Element {
+	th := c.Theme()
+	b := ui.Button(c, label).Disabled(disabled)
+	bg := th.Danger
+	switch {
+	case disabled:
+		return b
+	case b.Pressed():
+		bg = bg.Mix(ui.RGBA(0, 0, 0, 1), 0.24)
+	case b.Hovered():
+		bg = bg.Mix(ui.RGBA(0, 0, 0, 1), 0.12)
+	}
+	return b.Background(bg).TextColor(th.AccentText).Border(1, bg)
 }
 
 // loading fills the space with a spinner, above what is being read when

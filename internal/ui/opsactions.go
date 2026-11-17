@@ -207,7 +207,7 @@ func (a *App) askApply(t *tab, pf session.PatchFile) {
 		a.notice = errText(err)
 		return
 	}
-	a.confirm = confirmState{open: true, title: title, message: msg, button: locales.OpsApply(), run: func() { a.submit(t, op, nil) }}
+	a.confirm = confirmState{open: true, title: title, message: msg, button: locales.OpsApply(), safe: true, run: func() { a.submit(t, op, nil) }}
 }
 
 // bisectState is a tab's bisect in progress, read again as refs change.

@@ -7783,13 +7783,13 @@ func (msgs Messages) RepoShowInLog() string {
 	return Catalog.Format(msgs.locale, "repoShowInLog", nil)
 }
 
-// RepoDismiss says "Dismiss"
+// RepoDismiss says "Dismiss Message"
 // in the language the app shows.
 //
 // The error bar's close button: takes the error away.
 func RepoDismiss() string { return In(i18n.Locale()).RepoDismiss() }
 
-// RepoDismiss says "Dismiss"
+// RepoDismiss says "Dismiss Message"
 // in the language of msgs.
 //
 // The error bar's close button: takes the error away.

@@ -152,12 +152,17 @@ func (cv *changesState) toggleFolder(key openKey) {
 	cv.openGen++
 }
 
-// confirmState is a question asked before a write that drops work.
+// confirmState is a question asked before a write that drops work, or
+// one that does more than its click says.
 type confirmState struct {
 	open           bool
 	title, message string
 	button         string
-	run            func()
+	// safe is an action that loses nothing, which is then the default
+	// that Enter clicks. Otherwise Cancel is, and the action shows as one
+	// that destroys.
+	safe bool
+	run  func()
 }
 
 func newChangesState() changesState {
@@ -986,18 +991,6 @@ func nameList(ps []string) string {
 		b.WriteByte('\n')
 	}
 	return strings.TrimSuffix(b.String(), "\n")
-}
-
-// confirmView shows a pending question; the safe answer is the default.
-func (a *App) confirmView(c *ui.Context, q *confirmState) {
-	if !q.open {
-		return
-	}
-	if ui.AlertDialog(c, &q.open, q.title, q.message, q.button, locales.CommonCancel()) == 0 && q.run != nil {
-		run := q.run
-		q.run = nil
-		run()
-	}
 }
 
 // untrackedFolder reports whether entry i is a folder git does not

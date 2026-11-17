@@ -90,6 +90,7 @@ func (a *App) chooseSubmodule(t *tab, path string) {
 			a.confirm = confirmState{open: true, title: locales.SubmoduleNotCheckedOutTitle(path),
 				message: locales.SubmoduleCheckOutMessage(),
 				button:  locales.RefsCheckOut(),
+				safe:    true,
 				run:     func() { a.submit(t, write.SubmoduleUpdate(t.s.Where(), []string{path}, true, true), nil) }}
 		}
 	}

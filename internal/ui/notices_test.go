@@ -36,7 +36,7 @@ func TestErrorBarShowsFailedWrite(t *testing.T) {
 		t.Fatalf("shows %q, entry %d", tb.sel, tb.logChosen)
 	}
 	h.until("the entry", h.shows("switch --no-guess --end-of-options topic"))
-	h.click("Dismiss")
+	h.click("Dismiss Message")
 	h.until("dismissed", func() bool { return !h.tt.HasText(failed) })
 
 	switchTopic()
@@ -75,7 +75,7 @@ func TestErrorBarNoticeBelongsToItsTab(t *testing.T) {
 	}
 	h.app.active = 0
 	h.until("back in its tab", h.shows("the first broke later"))
-	h.click("Dismiss")
+	h.click("Dismiss Message")
 	h.until("dismissed", func() bool { return !h.tt.HasText("the first broke later") && h.app.notice == "" })
 
 	h.app.active = 1

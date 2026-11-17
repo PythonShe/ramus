@@ -1206,7 +1206,7 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 				if n > 0 {
 					label = locales.RefsCleanupDelete(n)
 				}
-				if ui.PrimaryButton(c, label).Disabled(n == 0 || t.s.Queue == nil || cs.loading).Clicked() {
+				if dangerButton(c, label, n == 0 || t.s.Queue == nil || cs.loading).Clicked() {
 					var bs []session.BranchInfo
 					for i, f := range cs.found {
 						if cs.picked[i] {

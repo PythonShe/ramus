@@ -248,11 +248,11 @@ func (a *App) askPrune(t *tab, w repo.Worktree) {
 		if w.LockReason != "" {
 			msg = locales.WorktreeGoneLockedReasonMessage(w.Path, w.LockReason)
 		}
-		a.confirm = confirmState{open: true, title: title, message: msg, button: locales.WorktreeUnlock(),
+		a.confirm = confirmState{open: true, title: title, message: msg, button: locales.WorktreeUnlock(), safe: true,
 			run: func() { a.submit(t, write.UnlockWorktree(t.s.Where(), w.Path), nil) }}
 		return
 	}
-	a.confirm = confirmState{open: true, title: title, message: msg, button: locales.WorktreePrune(),
+	a.confirm = confirmState{open: true, title: title, message: msg, button: locales.WorktreePrune(), safe: true,
 		run: func() { a.submit(t, write.PruneWorktrees(t.s.Where()), nil) }}
 }
 

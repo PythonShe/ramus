@@ -794,7 +794,7 @@ func TestWelcomeNotice(t *testing.T) {
 	r := h.repoWith()
 	h.app.notice = "could not open it"
 	h.until("the notice", h.shows("could not open it"))
-	h.click("Dismiss")
+	h.click("Dismiss Message")
 	h.until("dismissed", func() bool { return !h.tt.HasText("could not open it") })
 	h.app.notice = "could not open it"
 	h.tt.Frame()
