@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"ramus/internal/forge"
 	"ramus/internal/git/commitgraph"
 	"ramus/internal/git/lfs"
 	"ramus/internal/git/lifetime"
@@ -153,6 +154,14 @@ type Session struct {
 	graph       autoGraph
 	// forks are the parents the hosts named; see PullsRepo.
 	forks forks
+	// forgeFind finds the host's tool for what the session asks by
+	// itself, nil while the settings turn that off; see SetForgeFind.
+	forgeFind func(forge.Kind) (*forge.CLI, error)
+	// avatars are the people's pictures; see RequestAvatars.
+	avatars        *avatarStore
+	avatarsChanged uint64
+	// avatarSourceHook, when set, replaces the host's tool for pictures.
+	avatarSourceHook func(*repo.Repository) avatarSource
 	// graphEvery and graphRetry, when set, replace the constants.
 	graphEvery, graphRetry time.Duration
 	// worktreeEvery and fetchBusyWait, when set, replace the constants.
