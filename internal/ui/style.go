@@ -238,12 +238,12 @@ func infoButton(c *ui.Context, open *bool, label, text string, color ui.Color) {
 // box in what it sits on.
 func closeButton(c *ui.Context, label string) ui.Element {
 	th := c.Theme()
-	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(radiusSmall).Padding(0, spaceXS)
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Radius(radiusSmall).Padding(spaceXS)
 	if b.Hovered() {
 		// A wash of the text's color shows on whatever it sits on: a tab
 		// hovered or chosen, or a pane's header.
 		b.Background(th.Text.Alpha(0.12))
 	}
-	b.Children(func() { ui.Icon(c, glyphs().xThick).FontSize(iconSmall).Padding(spaceXS, 0).TextColor(th.TextMuted) })
+	b.Children(func() { ui.Icon(c, glyphs().xThick).FontSize(iconSmall).TextColor(th.TextMuted) })
 	return b
 }
