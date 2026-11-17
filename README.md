@@ -28,8 +28,9 @@ repositories and runs your own git.
   dragging them.
 - **Conflicts**: a merge editor that takes a side or both, previews the
   result, and continues, skips or aborts the merge, rebase or cherry-pick.
-- **Branches, tags and remotes**: fetch, pull and push, rebase a branch onto
-  another, and clean up branches that are gone.
+- **Branches, tags and remotes**: fetch, pull and push, from a button
+  beside the branch that shows how far ahead or behind it is; rebase a
+  branch onto another, and clean up branches that are gone.
 - **Pull requests**: each branch's pull or merge request and the one each
   commit came in by, from GitHub through `gh` or GitLab through `glab`,
   including GitHub stacks. Review a pull or merge request in the app: its
@@ -41,6 +42,9 @@ repositories and runs your own git.
 - **Git LFS**: see who holds a lock, lock a file before editing it, and
   release or force off a lock, through your `git-lfs`; pictures stored in
   LFS diff as pictures.
+- **When git refuses**: a write that fails says why, and offers the way
+  on: pull before pushing, stash and try again, or remove a lock a
+  crashed git left behind.
 - **Snapshots**: uncommitted work is kept before anything that would drop
   it, and can be restored or taken by hand at any time.
 - **Statistics**: commits by person, a calendar, heat map and treemaps.
