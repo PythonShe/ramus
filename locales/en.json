@@ -739,7 +739,7 @@
   "@changesSectionStaged": {
     "description": "Title of the section of changes staged for the next commit."
   },
-  "changesSectionChanges": "Changes",
+  "changesSectionChanges": "Unstaged",
   "@changesSectionChanges": {
     "description": "Title of the section of changes not staged."
   },
@@ -761,7 +761,7 @@
       }
     }
   },
-  "changesSectionChangesCount": "Changes ({n})",
+  "changesSectionChangesCount": "Unstaged ({n})",
   "@changesSectionChangesCount": {
     "description": "Header of the section of changes not staged, with how many files there are.",
     "placeholders": {

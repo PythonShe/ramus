@@ -3931,13 +3931,13 @@ func (msgs Messages) ChangesSectionStaged() string {
 	return Catalog.Format(msgs.locale, "changesSectionStaged", nil)
 }
 
-// ChangesSectionChanges says "Changes"
+// ChangesSectionChanges says "Unstaged"
 // in the language the app shows.
 //
 // Title of the section of changes not staged.
 func ChangesSectionChanges() string { return In(i18n.Locale()).ChangesSectionChanges() }
 
-// ChangesSectionChanges says "Changes"
+// ChangesSectionChanges says "Unstaged"
 // in the language of msgs.
 //
 // Title of the section of changes not staged.
@@ -3979,14 +3979,14 @@ func (msgs Messages) ChangesSectionStagedCount(n int) string {
 	return Catalog.Format(msgs.locale, "changesSectionStagedCount", map[string]any{"n": n})
 }
 
-// ChangesSectionChangesCount says "Changes ({n})"
+// ChangesSectionChangesCount says "Unstaged ({n})"
 // in the language the app shows.
 //
 // Header of the section of changes not staged, with how many files there
 // are.
 func ChangesSectionChangesCount(n int) string { return In(i18n.Locale()).ChangesSectionChangesCount(n) }
 
-// ChangesSectionChangesCount says "Changes ({n})"
+// ChangesSectionChangesCount says "Unstaged ({n})"
 // in the language of msgs.
 //
 // Header of the section of changes not staged, with how many files there

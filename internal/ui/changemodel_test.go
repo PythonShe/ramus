@@ -63,7 +63,7 @@ func TestBuildChanges(t *testing.T) {
 	for _, r := range tree.rows {
 		names = append(names, fmt.Sprint(r.depth)+tree.name(r))
 	}
-	want := "0Staged 0b 0Changes 0b 1new 1two 0a 0c 0dir/"
+	want := "0Staged 0b 0Unstaged 0b 1new 1two 0a 0c 0dir/"
 	if s := strings.Join(names, " "); s != want {
 		t.Fatalf("tree rows\n%s\nwant\n%s", s, want)
 	}

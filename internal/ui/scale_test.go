@@ -33,7 +33,7 @@ func TestManyChangesFrameTime(t *testing.T) {
 	tb := h.app.current()
 	tb.s.State.Status = st
 	// The section's header, besides the sidebar's item.
-	h.until("the changes", func() bool { return countExact(h, "Changes (30,000)") >= 2 })
+	h.until("the changes", func() bool { return h.tt.HasText("Changes (30,000)") && h.tt.HasText("Unstaged (30,000)") })
 	h.until("the rows", h.shows("src/d000/file00000.go"))
 
 	frames := func(what string, step func(i int)) time.Duration {
