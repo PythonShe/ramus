@@ -203,7 +203,7 @@ func (q *Queue) travel(ctx context.Context, undo bool) (run.Result, error) {
 		return run.Result{}, err
 	}
 	if !undo {
-		e.left = q.leftPaths(ctx, e)
+		e.left = q.leftPaths(ctx, e, nil)
 	}
 	h.mu.Lock()
 	*from = (*from)[:len(*from)-1]
@@ -386,22 +386,28 @@ func (q *Queue) settle(e *Entry, config branchConfig) {
 			e.config = [2]branchConfig{config, after}
 		}
 	}
-	e.left = q.leftPaths(ctx, *e)
+	e.left = q.leftPaths(ctx, *e, nil)
 }
 
 // pathState is the paths a write's snapshot covers, as they are on disk
 // and in the index.
 type pathState struct {
 	files []FileState
-	// sums are the files' contents hashed, "" for a folder or a file not
-	// there: a file written again as it was is not work done since.
+	// sums are the files' contents hashed, so that a file written again
+	// as it was is not taken for work done since; "" for a folder, a file
+	// not there, or one past hashBudget, which its size and time tell.
 	sums  []string
 	index string // git ls-files --stage of them
 }
 
+// hashBudget bounds the bytes of files leftPaths hashes, for a write of
+// a large folder.
+const hashBudget = 64 << 20
+
 // leftPaths reads the paths the snapshot of e covers as they are now, nil
-// when e restores no paths by name, or they cannot be read.
-func (q *Queue) leftPaths(ctx context.Context, e Entry) *pathState {
+// when e restores no paths by name, or they cannot be read. It hashes the
+// files like hashed, or within hashBudget when like is nil.
+func (q *Queue) leftPaths(ctx context.Context, e Entry, like *pathState) *pathState {
 	paths := e.Snapshot.Paths
 	if e.Kind != FilesOnly || e.Snapshot.All || len(paths) == 0 {
 		return nil
@@ -412,11 +418,17 @@ func (q *Queue) leftPaths(ctx context.Context, e Entry) *pathState {
 		return nil
 	}
 	sums := make([]string, len(files))
+	budget := int64(hashBudget)
 	for i, f := range files {
+		if like != nil && (i >= len(like.sums) || like.sums[i] == "") {
+			continue
+		}
 		var b []byte
 		p := filepath.Join(root, filepath.FromSlash(f.Path))
 		switch {
 		case !f.Exists || f.Mode.IsDir():
+			continue
+		case like == nil && f.Size > budget:
 			continue
 		case f.Mode&os.ModeSymlink != 0:
 			var target string
@@ -428,6 +440,7 @@ func (q *Queue) leftPaths(ctx context.Context, e Entry) *pathState {
 		if err != nil {
 			return nil
 		}
+		budget -= int64(len(b))
 		sum := sha256.Sum256(b)
 		sums[i] = string(sum[:])
 	}
@@ -451,7 +464,7 @@ func (q *Queue) unchanged(ctx context.Context, e Entry) error {
 	if e.left == nil {
 		return nil
 	}
-	now := q.leftPaths(ctx, e)
+	now := q.leftPaths(ctx, e, e.left)
 	if now == nil {
 		return errors.New("write: the files to put back could not be read")
 	}
@@ -459,7 +472,12 @@ func (q *Queue) unchanged(ctx context.Context, e Entry) error {
 		return &StaleError{What: "the files to put back", Saw: strconv.Itoa(len(e.left.files)), Now: strconv.Itoa(len(now.files))}
 	}
 	for i, f := range e.left.files {
-		if g := now.files[i]; g.Path != f.Path || g.Exists != f.Exists || g.Mode != f.Mode || now.sums[i] != e.left.sums[i] {
+		g := now.files[i]
+		changed := g.Path != f.Path || g.Exists != f.Exists || g.Mode != f.Mode || now.sums[i] != e.left.sums[i]
+		if e.left.sums[i] == "" && f.Exists && !f.Mode.IsDir() {
+			changed = changed || !g.same(f)
+		}
+		if changed {
 			return &StaleError{What: g.Path, Saw: describe(f), Now: describe(g)}
 		}
 	}
