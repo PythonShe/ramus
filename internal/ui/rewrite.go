@@ -31,7 +31,6 @@ type messageDialog struct {
 func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 	ro := t.s.Queue == nil || t.s.Repo == nil
 	staged := hasStaged(t.s.State.Status)
-	m.Separator()
 	if m.Item(locales.RewriteRewordMenu()).Disabled(ro).Chosen() {
 		a.withCommit(t, id, func(d session.CommitDetail) {
 			rw := t.s.Rewrite(d)
@@ -59,6 +58,7 @@ func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 	if m.Item(locales.RewriteEditHistoryHere()).Disabled(ro).Chosen() {
 		a.editHistory(t, id, nil)
 	}
+	m.Separator()
 	if m.Item(locales.RewriteDropCommit()).Disabled(ro).Danger().Chosen() {
 		a.withCommit(t, id, func(d session.CommitDetail) {
 			op, err := write.DropCommit(t.s.Where(), t.s.Rewrite(d), t.s.Seen())

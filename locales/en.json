@@ -17,6 +17,10 @@
   "@commonCopied": {
     "description": "A toast after the app put text on the clipboard."
   },
+  "commonUndo": "Undo",
+  "@commonUndo": {
+    "description": "The action of a toast that undoes what the app just did."
+  },
   "commonChoose": "Choose…",
   "@commonChoose": {
     "description": "Opens a folder picker."
@@ -1046,6 +1050,10 @@
   "@commitReset": {
     "description": "A button that resets the branch, as a verb."
   },
+  "commitResetDone": "Reset {branch} to {commit}",
+  "@commitResetDone": {
+    "description": "A toast once a branch, or HEAD, was reset to a commit, named by its short hash; it offers Undo."
+  },
   "commitCreateBranchAt": "Create Branch at {commit}",
   "commitCreateBranchFrom": "New Branch from {branch}",
   "@commitCreateBranchFrom": {
@@ -1181,6 +1189,10 @@
   "rewriteNotOnFirstParents": "the commits are not all on HEAD's line of first parents",
   "rewriteSquashCommits": "{count, plural, one {Squash # Commit…} other {Squash # Commits…}}",
   "rewriteDropCommits": "{count, plural, one {Drop # Commit…} other {Drop # Commits…}}",
+  "rewriteEditCommit": "Edit Commit",
+  "@rewriteEditCommit": {
+    "description": "A submenu of a commit's menu holding what rewrites it: reword, fix up, squash, drop."
+  },
   "rewriteRewordMenu": "Reword…",
   "rewriteRewordTitle": "Reword {commit}",
   "rewriteFixUpStaged": "Fix Up with Staged Changes",
@@ -1198,7 +1210,33 @@
   "@opsCherryPick": {
     "description": "A commit's menu item; branch is the current branch, or HEAD."
   },
+  "opsCherryPickAgainst": "Changes Against Parent {n}",
+  "@opsCherryPickAgainst": {
+    "description": "An item of the cherry-pick submenu of a merge commit: applies what the merge changed as against its parent number n, as git cherry-pick -m n does.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "opsCherryPicked": "{count, plural, one {Cherry-picked # commit onto {branch}} other {Cherry-picked # commits onto {branch}}}",
+  "@opsCherryPicked": {
+    "description": "A toast once commits were cherry-picked; it offers Undo. branch is the current branch, or HEAD."
+  },
   "opsRevert": "{count, plural, =1 {Revert Commit} one {Revert # Commit} other {Revert # Commits}}",
+  "opsRevertKeeping": "Keeping Parent {n}",
+  "@opsRevertKeeping": {
+    "description": "An item of the revert submenu of a merge commit: undoes what the merge brought in, keeping its parent number n, as git revert -m n does.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "opsReverted": "{count, plural, one {Reverted # commit} other {Reverted # commits}}",
+  "@opsReverted": {
+    "description": "A toast once commits were reverted; it offers Undo."
+  },
   "opsSaveAsPatch": "{count, plural, =1 {Save Commit as Patch…} one {Save # Commit as Patch…} other {Save # Commits as Patch…}}",
   "opsCompareTheseCommits": "Compare These Commits",
   "opsCompareWithHead": "Compare with HEAD",
@@ -1660,6 +1698,18 @@
   "historyKindDetachedHead": "detached HEAD",
   "historyCopyMessage": "Copy Message",
   "historyCopyPatch": "Copy Patch",
+  "historyCopyHashes": "{count, plural, one {Copy # Hash} other {Copy # Hashes}}",
+  "@historyCopyHashes": {
+    "description": "A menu item of several commits picked: copies their hashes, one a line, oldest first."
+  },
+  "historyCopySubjects": "{count, plural, one {Copy # Subject} other {Copy # Subjects}}",
+  "@historyCopySubjects": {
+    "description": "A menu item of several commits picked: copies their subjects, one a line, oldest first."
+  },
+  "historyShowAuthorCommits": "Show Commits by {name}",
+  "@historyShowAuthorCommits": {
+    "description": "A commit's menu item: filters the history to the commits of its author, named."
+  },
   "historyDateFormat": "Dates are written as 2024-01-31",
   "historyFilterCount": "Filter ({n})",
   "@historyFilterCount": {

@@ -151,6 +151,20 @@ func (msgs Messages) CommonCopied() string {
 	return Catalog.Format(msgs.locale, "commonCopied", nil)
 }
 
+// CommonUndo says "Undo"
+// in the language the app shows.
+//
+// The action of a toast that undoes what the app just did.
+func CommonUndo() string { return In(i18n.Locale()).CommonUndo() }
+
+// CommonUndo says "Undo"
+// in the language of msgs.
+//
+// The action of a toast that undoes what the app just did.
+func (msgs Messages) CommonUndo() string {
+	return Catalog.Format(msgs.locale, "commonUndo", nil)
+}
+
 // CommonChoose says "Choose…"
 // in the language the app shows.
 //
@@ -5507,6 +5521,24 @@ func (msgs Messages) CommitReset() string {
 	return Catalog.Format(msgs.locale, "commitReset", nil)
 }
 
+// CommitResetDone says "Reset {branch} to {commit}"
+// in the language the app shows.
+//
+// A toast once a branch, or HEAD, was reset to a commit, named by its short
+// hash; it offers Undo.
+func CommitResetDone(branch string, commit string) string {
+	return In(i18n.Locale()).CommitResetDone(branch, commit)
+}
+
+// CommitResetDone says "Reset {branch} to {commit}"
+// in the language of msgs.
+//
+// A toast once a branch, or HEAD, was reset to a commit, named by its short
+// hash; it offers Undo.
+func (msgs Messages) CommitResetDone(branch string, commit string) string {
+	return Catalog.Format(msgs.locale, "commitResetDone", map[string]any{"branch": branch, "commit": commit})
+}
+
 // CommitCreateBranchAt says "Create Branch at {commit}"
 // in the language the app shows.
 func CommitCreateBranchAt(commit string) string {
@@ -6251,6 +6283,22 @@ func (msgs Messages) RewriteDropCommits(count int) string {
 	return Catalog.Format(msgs.locale, "rewriteDropCommits", map[string]any{"count": count})
 }
 
+// RewriteEditCommit says "Edit Commit"
+// in the language the app shows.
+//
+// A submenu of a commit's menu holding what rewrites it: reword, fix up,
+// squash, drop.
+func RewriteEditCommit() string { return In(i18n.Locale()).RewriteEditCommit() }
+
+// RewriteEditCommit says "Edit Commit"
+// in the language of msgs.
+//
+// A submenu of a commit's menu holding what rewrites it: reword, fix up,
+// squash, drop.
+func (msgs Messages) RewriteEditCommit() string {
+	return Catalog.Format(msgs.locale, "rewriteEditCommit", nil)
+}
+
 // RewriteRewordMenu says "Reword…"
 // in the language the app shows.
 func RewriteRewordMenu() string { return In(i18n.Locale()).RewriteRewordMenu() }
@@ -6401,6 +6449,42 @@ func (msgs Messages) OpsCherryPick(count int, branch string) string {
 	return Catalog.Format(msgs.locale, "opsCherryPick", map[string]any{"count": count, "branch": branch})
 }
 
+// OpsCherryPickAgainst says "Changes Against Parent {n}"
+// in the language the app shows.
+//
+// An item of the cherry-pick submenu of a merge commit: applies what the
+// merge changed as against its parent number n, as git cherry-pick -m n
+// does.
+func OpsCherryPickAgainst(n int) string { return In(i18n.Locale()).OpsCherryPickAgainst(n) }
+
+// OpsCherryPickAgainst says "Changes Against Parent {n}"
+// in the language of msgs.
+//
+// An item of the cherry-pick submenu of a merge commit: applies what the
+// merge changed as against its parent number n, as git cherry-pick -m n
+// does.
+func (msgs Messages) OpsCherryPickAgainst(n int) string {
+	return Catalog.Format(msgs.locale, "opsCherryPickAgainst", map[string]any{"n": n})
+}
+
+// OpsCherryPicked says "{count, plural, one {Cherry-picked # commit onto {branch}} other {Cherry-picked # commits onto {branch}}}"
+// in the language the app shows.
+//
+// A toast once commits were cherry-picked; it offers Undo. branch is the
+// current branch, or HEAD.
+func OpsCherryPicked(count int, branch string) string {
+	return In(i18n.Locale()).OpsCherryPicked(count, branch)
+}
+
+// OpsCherryPicked says "{count, plural, one {Cherry-picked # commit onto {branch}} other {Cherry-picked # commits onto {branch}}}"
+// in the language of msgs.
+//
+// A toast once commits were cherry-picked; it offers Undo. branch is the
+// current branch, or HEAD.
+func (msgs Messages) OpsCherryPicked(count int, branch string) string {
+	return Catalog.Format(msgs.locale, "opsCherryPicked", map[string]any{"count": count, "branch": branch})
+}
+
 // OpsRevert says "{count, plural, =1 {Revert Commit} one {Revert # Commit} other {Revert # Commits}}"
 // in the language the app shows.
 func OpsRevert(count int) string { return In(i18n.Locale()).OpsRevert(count) }
@@ -6409,6 +6493,36 @@ func OpsRevert(count int) string { return In(i18n.Locale()).OpsRevert(count) }
 // in the language of msgs.
 func (msgs Messages) OpsRevert(count int) string {
 	return Catalog.Format(msgs.locale, "opsRevert", map[string]any{"count": count})
+}
+
+// OpsRevertKeeping says "Keeping Parent {n}"
+// in the language the app shows.
+//
+// An item of the revert submenu of a merge commit: undoes what the merge
+// brought in, keeping its parent number n, as git revert -m n does.
+func OpsRevertKeeping(n int) string { return In(i18n.Locale()).OpsRevertKeeping(n) }
+
+// OpsRevertKeeping says "Keeping Parent {n}"
+// in the language of msgs.
+//
+// An item of the revert submenu of a merge commit: undoes what the merge
+// brought in, keeping its parent number n, as git revert -m n does.
+func (msgs Messages) OpsRevertKeeping(n int) string {
+	return Catalog.Format(msgs.locale, "opsRevertKeeping", map[string]any{"n": n})
+}
+
+// OpsReverted says "{count, plural, one {Reverted # commit} other {Reverted # commits}}"
+// in the language the app shows.
+//
+// A toast once commits were reverted; it offers Undo.
+func OpsReverted(count int) string { return In(i18n.Locale()).OpsReverted(count) }
+
+// OpsReverted says "{count, plural, one {Reverted # commit} other {Reverted # commits}}"
+// in the language of msgs.
+//
+// A toast once commits were reverted; it offers Undo.
+func (msgs Messages) OpsReverted(count int) string {
+	return Catalog.Format(msgs.locale, "opsReverted", map[string]any{"count": count})
 }
 
 // OpsSaveAsPatch says "{count, plural, =1 {Save Commit as Patch…} one {Save # Commit as Patch…} other {Save # Commits as Patch…}}"
@@ -8383,6 +8497,56 @@ func HistoryCopyPatch() string { return In(i18n.Locale()).HistoryCopyPatch() }
 // in the language of msgs.
 func (msgs Messages) HistoryCopyPatch() string {
 	return Catalog.Format(msgs.locale, "historyCopyPatch", nil)
+}
+
+// HistoryCopyHashes says "{count, plural, one {Copy # Hash} other {Copy # Hashes}}"
+// in the language the app shows.
+//
+// A menu item of several commits picked: copies their hashes, one a line,
+// oldest first.
+func HistoryCopyHashes(count int) string { return In(i18n.Locale()).HistoryCopyHashes(count) }
+
+// HistoryCopyHashes says "{count, plural, one {Copy # Hash} other {Copy # Hashes}}"
+// in the language of msgs.
+//
+// A menu item of several commits picked: copies their hashes, one a line,
+// oldest first.
+func (msgs Messages) HistoryCopyHashes(count int) string {
+	return Catalog.Format(msgs.locale, "historyCopyHashes", map[string]any{"count": count})
+}
+
+// HistoryCopySubjects says "{count, plural, one {Copy # Subject} other {Copy # Subjects}}"
+// in the language the app shows.
+//
+// A menu item of several commits picked: copies their subjects, one a line,
+// oldest first.
+func HistoryCopySubjects(count int) string { return In(i18n.Locale()).HistoryCopySubjects(count) }
+
+// HistoryCopySubjects says "{count, plural, one {Copy # Subject} other {Copy # Subjects}}"
+// in the language of msgs.
+//
+// A menu item of several commits picked: copies their subjects, one a line,
+// oldest first.
+func (msgs Messages) HistoryCopySubjects(count int) string {
+	return Catalog.Format(msgs.locale, "historyCopySubjects", map[string]any{"count": count})
+}
+
+// HistoryShowAuthorCommits says "Show Commits by {name}"
+// in the language the app shows.
+//
+// A commit's menu item: filters the history to the commits of its author,
+// named.
+func HistoryShowAuthorCommits(name string) string {
+	return In(i18n.Locale()).HistoryShowAuthorCommits(name)
+}
+
+// HistoryShowAuthorCommits says "Show Commits by {name}"
+// in the language of msgs.
+//
+// A commit's menu item: filters the history to the commits of its author,
+// named.
+func (msgs Messages) HistoryShowAuthorCommits(name string) string {
+	return Catalog.Format(msgs.locale, "historyShowAuthorCommits", map[string]any{"name": name})
 }
 
 // HistoryDateFormat says "Dates are written as 2024-01-31"

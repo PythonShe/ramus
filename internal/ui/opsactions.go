@@ -17,26 +17,66 @@ import (
 	"ramus/locales"
 )
 
-// commitOps adds what acts on commits (hex, newest first) to a menu:
-// cherry-pick, revert, save as a patch, bisect.
-func (a *App) commitOps(m *ui.Menu, t *tab, ids func() []string, n int) {
+// pickOps adds what applies commits (hex, newest first) to HEAD to a
+// menu: cherry-pick and revert. One merge, of merges parents past the
+// first, has a submenu for each, of the parents to take its change
+// against: git takes a merge with no parent named for neither.
+func (a *App) pickOps(m *ui.Menu, t *tab, ids func() []string, n, merges int) {
 	ro := t.s.Queue == nil
 	head := t.s.State.Head
 	onto := "HEAD"
 	if !head.Detached {
 		onto = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
-	m.Separator()
-	if m.Item(locales.OpsCherryPick(n, redact.Control(onto))).Disabled(ro || len(head.OID) == 0).Chosen() {
+	onto = redact.Control(onto)
+	off := ro || len(head.OID) == 0
+	pick := func(mainline int) {
 		list := ids()
 		slices.Reverse(list)
 		op, err := write.CherryPick(t.s.Where(), list, t.s.Seen())
-		a.submit(t, op, err)
+		if mainline > 0 {
+			op, err = write.CherryPickMerge(t.s.Where(), list[0], mainline, t.s.Seen())
+		}
+		a.submitUndoable(t, op, err, locales.OpsCherryPicked(len(list), onto), false)
 	}
-	if m.Item(locales.OpsRevert(n)).Disabled(ro || len(head.OID) == 0).Chosen() {
-		op, err := write.Revert(t.s.Where(), ids(), t.s.Seen())
-		a.submit(t, op, err)
+	revert := func(mainline int) {
+		list := ids()
+		op, err := write.Revert(t.s.Where(), list, t.s.Seen())
+		if mainline > 0 {
+			op, err = write.RevertMerge(t.s.Where(), list[0], mainline, t.s.Seen())
+		}
+		a.submitUndoable(t, op, err, locales.OpsReverted(len(list)), false)
 	}
+	if n == 1 && merges > 0 {
+		m.Submenu(locales.OpsCherryPick(n, onto), func(sub *ui.Menu) {
+			for p := 1; p <= merges+1; p++ {
+				if sub.Item(locales.OpsCherryPickAgainst(p)).Disabled(off).Chosen() {
+					pick(p)
+				}
+			}
+		}).Disabled(off)
+		m.Submenu(locales.OpsRevert(n), func(sub *ui.Menu) {
+			for p := 1; p <= merges+1; p++ {
+				if sub.Item(locales.OpsRevertKeeping(p)).Disabled(off).Chosen() {
+					revert(p)
+				}
+			}
+		}).Disabled(off)
+		return
+	}
+	if m.Item(locales.OpsCherryPick(n, onto)).Disabled(off).Chosen() {
+		pick(0)
+	}
+	if m.Item(locales.OpsRevert(n)).Disabled(off).Chosen() {
+		revert(0)
+	}
+}
+
+// commitOps adds what else acts on commits (hex, newest first) to a
+// menu: save as a patch, compare, bisect.
+func (a *App) commitOps(m *ui.Menu, t *tab, ids func() []string, n int) {
+	ro := t.s.Queue == nil
+	head := t.s.State.Head
 	if m.Item(locales.OpsSaveAsPatch(n)).Disabled(a.SaveFile == nil).Chosen() {
 		list := ids()
 		slices.Reverse(list)

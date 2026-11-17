@@ -34,7 +34,7 @@ func TestRewriteFromHistory(t *testing.T) {
 		h.until(what, func() bool { hs := tb.s.History; return hs.Done && hs.For == tb.s.State.Refs })
 	}
 
-	h.menu("add b", "Reword…")
+	h.menu("add b", "Edit Commit", "Reword…")
 	h.until("the dialog", func() bool { return h.app.message.open && h.app.message.message == "add b" })
 	h.app.message.message = "add b, reworded"
 	h.click("Reword")
@@ -45,12 +45,12 @@ func TestRewriteFromHistory(t *testing.T) {
 	r.Git("add", "a.txt")
 	h.until("staged", func() bool { return hasStaged(tb.s.State.Status) })
 	h.until("history again", h.shows("add a"))
-	h.menu("add a", "Fix Up with Staged Changes")
+	h.menu("add a", "Edit Commit", "Fix Up with Staged Changes")
 	h.until("fixed up", func() bool { return r.Git("show", "HEAD~2:a.txt") == "a fixed\n" })
 	fresh("the fixup shown")
 
 	h.until("history again", h.shows("add b, reworded"))
-	h.menu("add b, reworded", "Drop Commit…")
+	h.menu("add b, reworded", "Edit Commit", "Drop Commit…")
 	h.until("the question", func() bool {
 		if h.app.notice != "" {
 			t.Fatal(h.app.notice)
@@ -93,7 +93,7 @@ func TestForcePushOffer(t *testing.T) {
 	h.until("the repository", h.shows("No changes"))
 	h.click("History")
 	h.until("history", h.shows("add a"))
-	h.menu("add a", "Reword…")
+	h.menu("add a", "Edit Commit", "Reword…")
 	h.until("the dialog", func() bool { return h.app.message.open })
 	h.app.message.message = "add a, reworded"
 	h.click("Reword")
@@ -123,7 +123,7 @@ func TestEditHistoryDialog(t *testing.T) {
 	h.click("History")
 	h.until("history", h.shows("add b"))
 
-	h.menu("add b", "Edit History from Here…")
+	h.menu("add b", "Edit Commit", "Edit History from Here…")
 	he := &h.app.history
 	h.until("the editor", func() bool {
 		if h.app.notice != "" {

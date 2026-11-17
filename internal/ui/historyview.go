@@ -724,7 +724,6 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 	cols := style.Columns(gw)
 	r, buf := snap.Row(i, cols, hv.buf)
 	hv.buf = buf
-	merge := r.Merges > 0
 	// No gap: the one after each column opens and closes with it, as the
 	// header's divider; the free room at the end follows.
 	row := ui.Row(c).Height(historyRowHeight).Padding(0, insetX).PaddingEnd(insetX + lay.end).AlignItems(ui.Center).FillWidth()
@@ -800,8 +799,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 		}
 	})
 	row.ContextMenu(func(m *ui.Menu) {
-		ids, n := a.historyIDs(t, h, i)
-		a.commitMenu(m, t, id, merge, ids, n)
+		a.commitMenu(m, t, h, i, r.Merges)
 	})
 	if t.s.Queue != nil {
 		if _, over := ui.DragOver[draggedCommits](row); over {
@@ -907,14 +905,25 @@ func (k labelKind) word() string {
 	return locales.HistoryKindBranch()
 }
 
-// commitMenu is a commit's context menu: copying its hash, message or
-// patch, and what acts on it or, when several are picked, on them all.
-func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() []string, n int) {
+// commitMenu is the context menu of history row i, a commit of merges
+// parents past the first: copying its hash, message or patch, showing
+// its author's commits, and what acts on it or, when several are picked,
+// on them all.
+func (a *App) commitMenu(m *ui.Menu, t *tab, h session.HistoryState, i, merges int) {
+	// A copy: the id may be in the commit-graph's mapping, which can go
+	// before the menu's choice is made.
+	id := bytes.Clone(h.OID(h.Snap.Commit(i)))
+	ids, n := a.historyIDs(t, h, i)
 	if n > 1 {
-		a.commitOps(m, t, ids, n)
+		a.copyMany(m, t, ids, n)
+		m.Separator()
+		a.pickOps(m, t, ids, n, 0)
 		a.rewriteMany(m, t, ids, n)
+		m.Separator()
+		a.commitOps(m, t, ids, n)
 		return
 	}
+	merge := merges > 0
 	if m.Item(locales.CommonCopyHash()).Chosen() {
 		a.clip = hex.EncodeToString(id)
 	}
@@ -931,8 +940,39 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, id []byte, merge bool, ids func() [
 	if m.Item(locales.HistoryCopyPatch()).Disabled(merge).Chosen() {
 		a.copyPatch(t, id)
 	}
+	if _, author, email, _, ok := a.historyRow(t, h, i); ok && email != "" {
+		m.Separator()
+		if m.Item(locales.HistoryShowAuthorCommits(redact.Control(author))).Chosen() {
+			a.showPersonHistory(t, email)
+		}
+	}
 	m.Separator()
-	a.commitActions(m, t, id)
+	a.commitItems(m, t, id, merges)
+}
+
+// copyMany adds to a menu what copies the hashes and the subjects of
+// commits picked (hex, newest first), one a line, oldest first, as
+// git log --reverse lists them.
+func (a *App) copyMany(m *ui.Menu, t *tab, ids func() []string, n int) {
+	if m.Item(locales.HistoryCopyHashes(n)).Chosen() {
+		list := ids()
+		slices.Reverse(list)
+		a.clip = strings.Join(list, "\n") + "\n"
+	}
+	if m.Item(locales.HistoryCopySubjects(n)).Chosen() {
+		var oids [][]byte
+		for _, id := range ids() {
+			if b, err := hex.DecodeString(id); err == nil {
+				oids = append(oids, b)
+			}
+		}
+		slices.Reverse(oids)
+		t.s.LoadSubjects(oids, func(subjects []string) {
+			if len(subjects) > 0 {
+				a.clip = redact.Control(strings.Join(subjects, "\n")) + "\n"
+			}
+		})
+	}
 }
 
 // copiedMessage is a commit message as Copy Message puts it on the

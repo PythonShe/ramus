@@ -24,11 +24,21 @@ type branchDialog struct {
 	err      string
 }
 
-// commitActions adds what can be done from a commit to a menu: check it
-// out, branch from it, reset the current branch to it.
+// commitActions adds what can be done from a commit to a menu, for a
+// commit not known to be a merge: see commitItems.
 func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
+	a.commitItems(m, t, id, 0)
+}
+
+// commitItems adds what can be done from commit id to a menu, in groups:
+// check it out, branch or tag it; bring it onto HEAD or HEAD to it; the
+// Edit Commit submenu, which rewrites it; compare, save and bisect.
+// merges is the number of its parents past the first, which a merge is
+// cherry-picked or reverted against.
+func (a *App) commitItems(m *ui.Menu, t *tab, id []byte, merges int) {
 	ro := t.s.Queue == nil
 	commit := hex.EncodeToString(id)
+	ids := func() []string { return []string{commit} }
 	if m.Item(locales.CommitCheckOut()).Disabled(ro).Chosen() {
 		a.submit(t, write.Detach(t.s.Where(), commit, t.s.Seen()), nil)
 	}
@@ -38,6 +48,8 @@ func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
 	if m.Item(locales.CommitCreateTagHere()).Disabled(ro).Chosen() {
 		a.tagDialog(t, commit)
 	}
+	m.Separator()
+	a.pickOps(m, t, ids, 1, merges)
 	head := t.s.State.Head
 	target := "HEAD"
 	if !head.Detached {
@@ -54,12 +66,16 @@ func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
 			{locales.CommitResetHard(), write.ResetHard},
 		} {
 			if sub.Item(mode.label).Disabled(ro || len(head.OID) == 0).Chosen() {
-				a.reset(t, commit, mode.mode)
+				a.reset(t, commit, mode.mode, target)
 			}
 		}
 	})
-	a.rewriteActions(m, t, id)
-	a.commitOps(m, t, func() []string { return []string{commit} }, 1)
+	m.Separator()
+	// What rewrites the commit stands apart, Drop with it, so that no
+	// slip of the pointer from a common item reaches it.
+	m.Submenu(locales.RewriteEditCommit(), func(sub *ui.Menu) { a.rewriteActions(sub, t, id) })
+	m.Separator()
+	a.commitOps(m, t, ids, 1)
 }
 
 // submit runs a write and shows why it could not start.
@@ -75,10 +91,47 @@ func (a *App) submit(t *tab, op write.Op, err error) {
 	a.watchSync(t, op, j)
 }
 
-func (a *App) reset(t *tab, commit string, mode write.ResetMode) {
+// submitUndoable runs a write that moves HEAD, as a cherry-pick, a revert
+// or a reset; once it went well, a toast says so, done, with Undo, which
+// undoes it while it is still the last write. rewrote is set for a write
+// that may have dropped commits the branch's upstream has.
+func (a *App) submitUndoable(t *tab, op write.Op, err error, done string, rewrote bool) {
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
+	seen := t.s.Seen()
+	j, err := t.s.Submit(op)
+	if err != nil {
+		a.notice = errText(err)
+		return
+	}
+	name := op.Name
+	t.s.Then(j, func(err error) {
+		if err != nil {
+			return
+		}
+		if rewrote {
+			a.checkPushed(t, seen)
+		}
+		a.toast(ui.Toast{ID: "undo", Title: done, Action: locales.CommonUndo(), OnAction: func() {
+			// Another write since is what Undo would undo: this one is
+			// left to the Snapshots view.
+			if q := t.s.Queue; q != nil {
+				if last, _ := q.History.Next(); last == name {
+					a.undo(t, false)
+				}
+			}
+		}})
+	})
+}
+
+// reset resets target, the branch checked out or HEAD, to commit.
+func (a *App) reset(t *tab, commit string, mode write.ResetMode, target string) {
 	op, err := write.Reset(t.s.Where(), commit, mode, t.s.Seen())
+	done := locales.CommitResetDone(redact.Control(target), commit[:10])
 	if err != nil || mode != write.ResetHard {
-		a.submitRewrite(t, op, err)
+		a.submitUndoable(t, op, err, done, true)
 		return
 	}
 	a.confirm = confirmState{
@@ -86,7 +139,7 @@ func (a *App) reset(t *tab, commit string, mode write.ResetMode) {
 		title:   locales.CommitResetHardTitle(commit[:10]),
 		message: locales.CommitResetHardMessage(),
 		button:  locales.CommitReset(),
-		run:     func() { a.submitRewrite(t, op, nil) },
+		run:     func() { a.submitUndoable(t, op, nil, done, true) },
 	}
 }
 
