@@ -59,6 +59,10 @@ func TestMergeAndResolve(t *testing.T) {
 	tb.sel = "changes"
 	h.tt.Frame()
 	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	// Each conflict says what kind it is.
+	if !hasExact(h, "both modified") || !hasExact(h, "deleted by them") {
+		t.Fatalf("kinds of conflict %q", h.tt.Texts())
+	}
 	h.click("a.txt")
 	h.until("the editor", h.shows("Conflict 1"))
 	h.click("Theirs")

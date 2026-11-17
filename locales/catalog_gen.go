@@ -4081,6 +4081,22 @@ func (msgs Messages) ChangesState(state string) string {
 	return Catalog.Format(msgs.locale, "changesState", map[string]any{"state": state})
 }
 
+// ChangesConflictState says "{state, select, UU {both modified} AA {both added} DD {both deleted} AU {added by us} UA {added by them} DU {deleted …"
+// in the language the app shows.
+//
+// What kind of merge conflict a file is in, by git's two status letters: U
+// changed, A added, D deleted, ours then theirs.
+func ChangesConflictState(state string) string { return In(i18n.Locale()).ChangesConflictState(state) }
+
+// ChangesConflictState says "{state, select, UU {both modified} AA {both added} DD {both deleted} AU {added by us} UA {added by them} DU {deleted …"
+// in the language of msgs.
+//
+// What kind of merge conflict a file is in, by git's two status letters: U
+// changed, A added, D deleted, ours then theirs.
+func (msgs Messages) ChangesConflictState(state string) string {
+	return Catalog.Format(msgs.locale, "changesConflictState", map[string]any{"state": state})
+}
+
 // ChangesStagedState says "{state, select, M {staged modified} A {staged added} D {staged deleted} R {staged renamed} C {staged copied} T {stage…"
 // in the language the app shows.
 //

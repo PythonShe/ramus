@@ -505,7 +505,8 @@ func entryWords(st *status.Status, i int, sec section) string {
 		}
 		return locales.ChangesState("untracked")
 	case status.Unmerged:
-		return locales.ChangesState("conflicted")
+		x, y := st.XY(i)
+		return locales.ChangesConflictState(string([]byte{x, y}))
 	}
 	// The messages choose their words by the status letter.
 	if sec == secStaged {
@@ -523,9 +524,12 @@ const (
 )
 
 // entryNote says what a change is when it is not plain file content: a
-// symlink, a submodule, an executable bit, a rename.
+// symlink, a submodule, an executable bit, a rename; or what kind of
+// conflict a file is in, which the letter alone does not tell.
 func entryNote(st *status.Status, i int, sec section) string {
 	switch st.Kind(i) {
+	case status.Unmerged:
+		return entryWords(st, i, sec)
 	case status.Changed, status.Renamed:
 	default:
 		return ""

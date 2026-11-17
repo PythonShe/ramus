@@ -784,9 +784,13 @@
   },
   "changesUnstageAll": "Unstage All",
   "changesStageAll": "Stage All",
-  "changesState": "{state, select, M {modified} A {added} D {deleted} R {renamed} C {copied} T {type changed} untracked {untracked} untrackedFolder {untracked folder} conflicted {conflicted} other {changed}}",
+  "changesState": "{state, select, M {modified} A {added} D {deleted} R {renamed} C {copied} T {type changed} untracked {untracked} untrackedFolder {untracked folder} other {changed}}",
   "@changesState": {
     "description": "The state of a changed file, by git's status letter."
+  },
+  "changesConflictState": "{state, select, UU {both modified} AA {both added} DD {both deleted} AU {added by us} UA {added by them} DU {deleted by us} UD {deleted by them} other {conflicted}}",
+  "@changesConflictState": {
+    "description": "What kind of merge conflict a file is in, by git's two status letters: U changed, A added, D deleted, ours then theirs."
   },
   "changesStagedState": "{state, select, M {staged modified} A {staged added} D {staged deleted} R {staged renamed} C {staged copied} T {staged type changed} other {staged changed}}",
   "@changesStagedState": {
