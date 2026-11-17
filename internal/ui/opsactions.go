@@ -173,7 +173,7 @@ func pickedIDs(t *tab, h session.HistoryState) []string {
 	return out
 }
 
-// pickedBar shows, over the history, how many commits are picked while
+// pickedBar shows, under the history, how many commits are picked while
 // several are, with what acts on them all: compare two, cherry-pick
 // them, or let them go.
 func (a *App) pickedBar(c *ui.Context, t *tab, h session.HistoryState) {

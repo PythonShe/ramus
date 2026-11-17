@@ -211,7 +211,6 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 		ui.Column(c).Fill().Children(func() {
 			a.bisectBar(c, t)
 			a.historyBar(c, t, h)
-			a.pickedBar(c, t, h)
 			switch {
 			case h.Snap == nil && h.Err == nil:
 				loading(c, "")
@@ -221,6 +220,9 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 				return
 			}
 			a.historyList(c, t, h)
+			// Under the list: above it, its coming would move the rows
+			// away from the pointer that picked them.
+			a.pickedBar(c, t, h)
 		})
 	}, func() { a.commitDetail(c, t, hv.chosenID, &hv.detail) }).Fill()
 	if hv.chosen >= 0 && h.Snap != nil && hv.chosen < h.Snap.Len() {

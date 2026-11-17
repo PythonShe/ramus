@@ -9088,14 +9088,14 @@ func (msgs Messages) HistoryCopyPatch() string {
 // HistoryPicked says "{count, plural, one {# commit picked} other {# commits picked}}"
 // in the language the app shows.
 //
-// The bar over the history list while several commits are picked, before
+// The bar under the history list while several commits are picked, before
 // what acts on them.
 func HistoryPicked(count int) string { return In(i18n.Locale()).HistoryPicked(count) }
 
 // HistoryPicked says "{count, plural, one {# commit picked} other {# commits picked}}"
 // in the language of msgs.
 //
-// The bar over the history list while several commits are picked, before
+// The bar under the history list while several commits are picked, before
 // what acts on them.
 func (msgs Messages) HistoryPicked(count int) string {
 	return Catalog.Format(msgs.locale, "historyPicked", map[string]any{"count": count})

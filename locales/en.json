@@ -1841,7 +1841,7 @@
   "historyCopyPatch": "Copy Patch",
   "historyPicked": "{count, plural, one {# commit picked} other {# commits picked}}",
   "@historyPicked": {
-    "description": "The bar over the history list while several commits are picked, before what acts on them."
+    "description": "The bar under the history list while several commits are picked, before what acts on them."
   },
   "historyPickedCompare": "Compare",
   "@historyPickedCompare": {
