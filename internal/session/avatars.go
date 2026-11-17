@@ -357,7 +357,12 @@ func (s *Session) peopleArrived(st *avatarStore, batch, shas []string, got map[s
 		}
 		emails := make([]string, 0, len(people))
 		for _, p := range people {
+			// The mailmap's address too: one of them forgotten asks for
+			// the commit again.
 			emails = append(emails, p.Email)
+			if e := mapped[p.Email]; e != "" {
+				emails = append(emails, e)
+			}
 			// An address seen with an account keeps it; GitHub ties an
 			// address to one account.
 			for _, e := range []string{p.Email, mapped[p.Email]} {
