@@ -140,9 +140,7 @@ func TestHistoryShowsNoDisguise(t *testing.T) {
 			t.Fatalf("shown as is: %q", s)
 		}
 	}
-	if err := h.tt.RightClick("fix gnp.exe"); err != nil {
-		t.Fatal(err)
-	}
+	h.rightClickRow(ui.RoleListItem, "fix gnp.exe")
 	if err := h.tt.ChooseMenuItem("Copy Message"); err != nil {
 		t.Fatal(err)
 	}
@@ -1377,4 +1375,23 @@ func TestHistoryShowsCommitsLandingOnTop(t *testing.T) {
 	if top() != 45 || oid(top()) != topID {
 		t.Errorf("after the reset the top is row %d", top())
 	}
+}
+
+// rightClickRow waits for the row of role whose name holds text and
+// right-clicks it: the open commit's detail shows the same subject, and
+// may show it before the list's row has loaded.
+func (h *harness) rightClickRow(role ui.Role, text string) {
+	h.t.Helper()
+	var row ui.AccessInfo
+	h.until("the row "+text, func() bool {
+		for _, a := range h.tt.AccessAll() {
+			if a.Role == role && strings.Contains(a.Name, text) {
+				row = a
+				return true
+			}
+		}
+		return false
+	})
+	h.tt.RightClickAt(row.Bounds.X+row.Bounds.W/2, row.Bounds.Y+row.Bounds.H/2)
+	h.tt.Frame()
 }
