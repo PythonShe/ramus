@@ -39,7 +39,8 @@ func TestSigning(t *testing.T) {
 	}
 
 	h.click("History")
-	h.until("the history", h.shows("signed here"))
+	// The commit's own row, not the toast that tells of it.
+	h.until("the history", func() bool { return hasExact(h, "signed here") })
 	h.click("signed here")
 	h.until("its signature", h.shows("Good signature by test@example.com"))
 	if h.tt.HasText("SHA256:") {

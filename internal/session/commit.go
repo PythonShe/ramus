@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -171,9 +174,12 @@ func (s *Session) CommitOptions(opt write.CommitOptions) write.CommitOptions {
 	return opt
 }
 
-// Commit commits, logged; with push set, a push follows a commit that
-// succeeded. done, when set, gets the result on the main thread.
-func (s *Session) Commit(opt write.CommitOptions, push bool, done func(error)) error {
+// Commit commits, logged; with push set, a push with those options
+// follows a commit that succeeded, from a branch with no upstream to
+// the one remote there is. done, when set, gets the result on the main
+// thread: a commit that failed where the user's hooks ran is a
+// *HookError.
+func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done func(error)) error {
 	op, err := write.Commit(s.Where(), s.CommitOptions(opt))
 	if err != nil {
 		return err
@@ -188,12 +194,18 @@ func (s *Session) Commit(opt write.CommitOptions, push bool, done func(error)) e
 		<-j.Done()
 		_, err := j.Result()
 		committed := err == nil
+		if err != nil && !opt.NoVerify && !errors.Is(err, context.Canceled) && hooksRun(ctx, r.Runner, r.GitDir, r.WorkTree) {
+			err = &HookError{Err: err}
+		}
 		var pushOpt write.PushOptions
-		if err == nil && push && !upstream {
+		if push != nil {
+			pushOpt = *push
+		}
+		if err == nil && push != nil && !upstream {
 			pushOpt, err = pushTarget(ctx, r.Runner, r.GitDir)
 		}
 		update(func() {
-			if err == nil && push {
+			if err == nil && push != nil {
 				_, err = s.Submit(write.Push(s.Where(), pushOpt))
 			}
 			if committed && err != nil {
@@ -205,6 +217,80 @@ func (s *Session) Commit(opt write.CommitOptions, push bool, done func(error)) e
 		})
 	})
 	return nil
+}
+
+// HookError is a commit that failed where hooks of the user's ran,
+// which likely failed it; committing without them may go through.
+type HookError struct{ Err error }
+
+func (e *HookError) Error() string { return e.Err.Error() }
+func (e *HookError) Unwrap() error { return e.Err }
+
+// commitHooks are the hooks a commit runs that can stop it.
+var commitHooks = []string{"pre-commit", "prepare-commit-msg", "commit-msg"}
+
+// hooksRun reports whether a commit runs a hook that can stop it: one is
+// in the hooks folder, core.hooksPath's or the repository's own.
+func hooksRun(ctx context.Context, r *run.Runner, gitDir, workTree string) bool {
+	args := []string{"rev-parse"}
+	for _, h := range commitHooks {
+		args = append(args, "--git-path", "hooks/"+h)
+	}
+	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, Untranslated: true, Args: args})
+	if err != nil {
+		return false
+	}
+	// git runs in the work tree, or the git directory of a bare
+	// repository, and names paths from there.
+	dir := workTree
+	if dir == "" {
+		dir = gitDir
+	}
+	for _, p := range strings.Split(strings.TrimSpace(string(res.Stdout)), "\n") {
+		if p == "" {
+			continue
+		}
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(dir, p)
+		}
+		fi, err := os.Stat(p)
+		// git skips a hook that cannot run, but on Windows, where any
+		// file can.
+		if err == nil && fi.Mode().IsRegular() && (runtime.GOOS == "windows" || fi.Mode()&0o111 != 0) {
+			return true
+		}
+	}
+	return false
+}
+
+// Prepared is what git left for the commit that ends an operation
+// stopped part way.
+type Prepared struct {
+	// Message is the message git prepared (MERGE_MSG), without its
+	// comments and the conflicts it lists; "" none.
+	Message string
+	// Edit is a rebase stopped to edit a commit, which a commit amends;
+	// stopped otherwise, a rebase's continue makes the commit.
+	Edit bool
+}
+
+// LoadPrepared reads what git prepared for the commit of the operation
+// in progress, off the main thread, comment being the comment string,
+// and hands it to done on it.
+func (s *Session) LoadPrepared(comment string, done func(Prepared)) {
+	r := s.Repo
+	if r == nil {
+		done(Prepared{})
+		return
+	}
+	update := s.update
+	r.Life().Go(func(ctx context.Context) {
+		var p Prepared
+		p.Message, _ = write.PreparedMessage(r.GitDir, comment)
+		_, err := os.Lstat(filepath.Join(r.GitDir, "rebase-merge", "amend"))
+		p.Edit = err == nil
+		update(func() { done(p) })
+	})
 }
 
 // NotPushedError is a commit made whose push could not start.

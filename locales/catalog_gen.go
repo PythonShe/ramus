@@ -4623,6 +4623,36 @@ func (msgs Messages) CommitBoxSkipHooks() string {
 	return Catalog.Format(msgs.locale, "commitBoxSkipHooks", nil)
 }
 
+// CommitBoxReplaceTitle says "Replace the message?"
+// in the language the app shows.
+func CommitBoxReplaceTitle() string { return In(i18n.Locale()).CommitBoxReplaceTitle() }
+
+// CommitBoxReplaceTitle says "Replace the message?"
+// in the language of msgs.
+func (msgs Messages) CommitBoxReplaceTitle() string {
+	return Catalog.Format(msgs.locale, "commitBoxReplaceTitle", nil)
+}
+
+// CommitBoxReplaceMessage says "The message written so far is replaced by the one chosen."
+// in the language the app shows.
+func CommitBoxReplaceMessage() string { return In(i18n.Locale()).CommitBoxReplaceMessage() }
+
+// CommitBoxReplaceMessage says "The message written so far is replaced by the one chosen."
+// in the language of msgs.
+func (msgs Messages) CommitBoxReplaceMessage() string {
+	return Catalog.Format(msgs.locale, "commitBoxReplaceMessage", nil)
+}
+
+// CommitBoxReplace says "Replace"
+// in the language the app shows.
+func CommitBoxReplace() string { return In(i18n.Locale()).CommitBoxReplace() }
+
+// CommitBoxReplace says "Replace"
+// in the language of msgs.
+func (msgs Messages) CommitBoxReplace() string {
+	return Catalog.Format(msgs.locale, "commitBoxReplace", nil)
+}
+
 // CommitBoxCommitTo says "Commit to {branch}"
 // in the language the app shows.
 func CommitBoxCommitTo(branch string) string { return In(i18n.Locale()).CommitBoxCommitTo(branch) }
@@ -4657,6 +4687,152 @@ func (msgs Messages) CommitBoxAmendLast() string {
 	return Catalog.Format(msgs.locale, "commitBoxAmendLast", nil)
 }
 
+// CommitBoxAmendPushed says "Amend Pushed Commit"
+// in the language the app shows.
+//
+// The commit button while Amend is ticked and the last commit is already on
+// the branch's upstream.
+func CommitBoxAmendPushed() string { return In(i18n.Locale()).CommitBoxAmendPushed() }
+
+// CommitBoxAmendPushed says "Amend Pushed Commit"
+// in the language of msgs.
+//
+// The commit button while Amend is ticked and the last commit is already on
+// the branch's upstream.
+func (msgs Messages) CommitBoxAmendPushed() string {
+	return Catalog.Format(msgs.locale, "commitBoxAmendPushed", nil)
+}
+
+// CommitBoxCommitOperation says "{operation, select, merge {Commit Merge} cherryPick {Commit Cherry-Pick} revert {Commit Revert} other {Commit}}"
+// in the language the app shows.
+//
+// The commit button while a merge, cherry-pick or revert stopped: the
+// commit that ends it. operation is merge, cherryPick or revert.
+func CommitBoxCommitOperation(operation string) string {
+	return In(i18n.Locale()).CommitBoxCommitOperation(operation)
+}
+
+// CommitBoxCommitOperation says "{operation, select, merge {Commit Merge} cherryPick {Commit Cherry-Pick} revert {Commit Revert} other {Commit}}"
+// in the language of msgs.
+//
+// The commit button while a merge, cherry-pick or revert stopped: the
+// commit that ends it. operation is merge, cherryPick or revert.
+func (msgs Messages) CommitBoxCommitOperation(operation string) string {
+	return Catalog.Format(msgs.locale, "commitBoxCommitOperation", map[string]any{"operation": operation})
+}
+
+// CommitBoxCommitting says "Committing…"
+// in the language the app shows.
+func CommitBoxCommitting() string { return In(i18n.Locale()).CommitBoxCommitting() }
+
+// CommitBoxCommitting says "Committing…"
+// in the language of msgs.
+func (msgs Messages) CommitBoxCommitting() string {
+	return Catalog.Format(msgs.locale, "commitBoxCommitting", nil)
+}
+
+// CommitBoxWhyConflicts says "Resolve the conflicts to commit"
+// in the language the app shows.
+//
+// Tooltip of the commit button, disabled: why it cannot commit.
+func CommitBoxWhyConflicts() string { return In(i18n.Locale()).CommitBoxWhyConflicts() }
+
+// CommitBoxWhyConflicts says "Resolve the conflicts to commit"
+// in the language of msgs.
+//
+// Tooltip of the commit button, disabled: why it cannot commit.
+func (msgs Messages) CommitBoxWhyConflicts() string {
+	return Catalog.Format(msgs.locale, "commitBoxWhyConflicts", nil)
+}
+
+// CommitBoxWhyNothingStaged says "Stage changes to commit"
+// in the language the app shows.
+//
+// Tooltip of the commit button, disabled: why it cannot commit.
+func CommitBoxWhyNothingStaged() string { return In(i18n.Locale()).CommitBoxWhyNothingStaged() }
+
+// CommitBoxWhyNothingStaged says "Stage changes to commit"
+// in the language of msgs.
+//
+// Tooltip of the commit button, disabled: why it cannot commit.
+func (msgs Messages) CommitBoxWhyNothingStaged() string {
+	return Catalog.Format(msgs.locale, "commitBoxWhyNothingStaged", nil)
+}
+
+// CommitBoxWhySummary says "Write a summary to commit"
+// in the language the app shows.
+//
+// Tooltip of the commit button, disabled: why it cannot commit.
+func CommitBoxWhySummary() string { return In(i18n.Locale()).CommitBoxWhySummary() }
+
+// CommitBoxWhySummary says "Write a summary to commit"
+// in the language of msgs.
+//
+// Tooltip of the commit button, disabled: why it cannot commit.
+func (msgs Messages) CommitBoxWhySummary() string {
+	return Catalog.Format(msgs.locale, "commitBoxWhySummary", nil)
+}
+
+// CommitBoxCommitted says "Committed “{subject}”"
+// in the language the app shows.
+//
+// A toast after a commit; subject is its first line.
+func CommitBoxCommitted(subject string) string { return In(i18n.Locale()).CommitBoxCommitted(subject) }
+
+// CommitBoxCommitted says "Committed “{subject}”"
+// in the language of msgs.
+//
+// A toast after a commit; subject is its first line.
+func (msgs Messages) CommitBoxCommitted(subject string) string {
+	return Catalog.Format(msgs.locale, "commitBoxCommitted", map[string]any{"subject": subject})
+}
+
+// CommitBoxAmended says "Amended “{subject}”"
+// in the language the app shows.
+//
+// A toast after an amend; subject is the commit's first line.
+func CommitBoxAmended(subject string) string { return In(i18n.Locale()).CommitBoxAmended(subject) }
+
+// CommitBoxAmended says "Amended “{subject}”"
+// in the language of msgs.
+//
+// A toast after an amend; subject is the commit's first line.
+func (msgs Messages) CommitBoxAmended(subject string) string {
+	return Catalog.Format(msgs.locale, "commitBoxAmended", map[string]any{"subject": subject})
+}
+
+// CommitBoxUndo says "Undo"
+// in the language the app shows.
+//
+// The button of the toast after a commit: undoes the commit, keeping its
+// changes staged.
+func CommitBoxUndo() string { return In(i18n.Locale()).CommitBoxUndo() }
+
+// CommitBoxUndo says "Undo"
+// in the language of msgs.
+//
+// The button of the toast after a commit: undoes the commit, keeping its
+// changes staged.
+func (msgs Messages) CommitBoxUndo() string {
+	return Catalog.Format(msgs.locale, "commitBoxUndo", nil)
+}
+
+// CommitBoxWithoutHooks says "Commit Without Hooks"
+// in the language the app shows.
+//
+// Beside a commit that failed where git hooks ran: commits once more, this
+// time not running them.
+func CommitBoxWithoutHooks() string { return In(i18n.Locale()).CommitBoxWithoutHooks() }
+
+// CommitBoxWithoutHooks says "Commit Without Hooks"
+// in the language of msgs.
+//
+// Beside a commit that failed where git hooks ran: commits once more, this
+// time not running them.
+func (msgs Messages) CommitBoxWithoutHooks() string {
+	return Catalog.Format(msgs.locale, "commitBoxWithoutHooks", nil)
+}
+
 // CommitBoxCommitAndPush says "Commit and Push"
 // in the language the app shows.
 func CommitBoxCommitAndPush() string { return In(i18n.Locale()).CommitBoxCommitAndPush() }
@@ -4665,6 +4841,42 @@ func CommitBoxCommitAndPush() string { return In(i18n.Locale()).CommitBoxCommitA
 // in the language of msgs.
 func (msgs Messages) CommitBoxCommitAndPush() string {
 	return Catalog.Format(msgs.locale, "commitBoxCommitAndPush", nil)
+}
+
+// CommitBoxAmendAndPush says "Amend and Push"
+// in the language the app shows.
+func CommitBoxAmendAndPush() string { return In(i18n.Locale()).CommitBoxAmendAndPush() }
+
+// CommitBoxAmendAndPush says "Amend and Push"
+// in the language of msgs.
+func (msgs Messages) CommitBoxAmendAndPush() string {
+	return Catalog.Format(msgs.locale, "commitBoxAmendAndPush", nil)
+}
+
+// CommitBoxAmendAndForcePush says "Amend and Force Push…"
+// in the language the app shows.
+//
+// Amends the last commit, already on the upstream, and pushes it with
+// force, after asking.
+func CommitBoxAmendAndForcePush() string { return In(i18n.Locale()).CommitBoxAmendAndForcePush() }
+
+// CommitBoxAmendAndForcePush says "Amend and Force Push…"
+// in the language of msgs.
+//
+// Amends the last commit, already on the upstream, and pushes it with
+// force, after asking.
+func (msgs Messages) CommitBoxAmendAndForcePush() string {
+	return Catalog.Format(msgs.locale, "commitBoxAmendAndForcePush", nil)
+}
+
+// CommitBoxAmendForcePush says "Amend and Force Push"
+// in the language the app shows.
+func CommitBoxAmendForcePush() string { return In(i18n.Locale()).CommitBoxAmendForcePush() }
+
+// CommitBoxAmendForcePush says "Amend and Force Push"
+// in the language of msgs.
+func (msgs Messages) CommitBoxAmendForcePush() string {
+	return Catalog.Format(msgs.locale, "commitBoxAmendForcePush", nil)
 }
 
 // CommitBoxNotPushed says "Committed, but not pushed: {reason}"

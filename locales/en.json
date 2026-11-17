@@ -902,13 +902,59 @@
     "description": "A checkbox: sign the commit cryptographically."
   },
   "commitBoxSkipHooks": "Skip hooks",
+  "commitBoxReplaceTitle": "Replace the message?",
+  "commitBoxReplaceMessage": "The message written so far is replaced by the one chosen.",
+  "commitBoxReplace": "Replace",
   "commitBoxCommitTo": "Commit to {branch}",
   "commitBoxCommit": "Commit",
   "@commitBoxCommit": {
     "description": "A button that commits, as a verb."
   },
   "commitBoxAmendLast": "Amend Last Commit",
+  "commitBoxAmendPushed": "Amend Pushed Commit",
+  "@commitBoxAmendPushed": {
+    "description": "The commit button while Amend is ticked and the last commit is already on the branch's upstream."
+  },
+  "commitBoxCommitOperation": "{operation, select, merge {Commit Merge} cherryPick {Commit Cherry-Pick} revert {Commit Revert} other {Commit}}",
+  "@commitBoxCommitOperation": {
+    "description": "The commit button while a merge, cherry-pick or revert stopped: the commit that ends it. operation is merge, cherryPick or revert."
+  },
+  "commitBoxCommitting": "Committing…",
+  "commitBoxWhyConflicts": "Resolve the conflicts to commit",
+  "@commitBoxWhyConflicts": {
+    "description": "Tooltip of the commit button, disabled: why it cannot commit."
+  },
+  "commitBoxWhyNothingStaged": "Stage changes to commit",
+  "@commitBoxWhyNothingStaged": {
+    "description": "Tooltip of the commit button, disabled: why it cannot commit."
+  },
+  "commitBoxWhySummary": "Write a summary to commit",
+  "@commitBoxWhySummary": {
+    "description": "Tooltip of the commit button, disabled: why it cannot commit."
+  },
+  "commitBoxCommitted": "Committed “{subject}”",
+  "@commitBoxCommitted": {
+    "description": "A toast after a commit; subject is its first line."
+  },
+  "commitBoxAmended": "Amended “{subject}”",
+  "@commitBoxAmended": {
+    "description": "A toast after an amend; subject is the commit's first line."
+  },
+  "commitBoxUndo": "Undo",
+  "@commitBoxUndo": {
+    "description": "The button of the toast after a commit: undoes the commit, keeping its changes staged."
+  },
+  "commitBoxWithoutHooks": "Commit Without Hooks",
+  "@commitBoxWithoutHooks": {
+    "description": "Beside a commit that failed where git hooks ran: commits once more, this time not running them."
+  },
   "commitBoxCommitAndPush": "Commit and Push",
+  "commitBoxAmendAndPush": "Amend and Push",
+  "commitBoxAmendAndForcePush": "Amend and Force Push…",
+  "@commitBoxAmendAndForcePush": {
+    "description": "Amends the last commit, already on the upstream, and pushes it with force, after asking."
+  },
+  "commitBoxAmendForcePush": "Amend and Force Push",
   "commitBoxNotPushed": "Committed, but not pushed: {reason}",
   "commitBoxNoRemote": "this branch has no upstream, and no single remote or origin to push it to",
   "commitBoxLineEndsNotChecked": "Line endings not checked: {reason}",

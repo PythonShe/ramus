@@ -264,11 +264,15 @@ func (a *App) writeCommands(t *tab) []command {
 	if a.PickFile != nil {
 		cmds = append(cmds, cmd("apply-patch", func() { a.applyPatchFile(t) }))
 	}
-	if commitReady(t) {
-		cmds = append(cmds, cmd("commit", func() { a.startCommit(t, false) }))
+	if ready, why := commitWhyNot(t); ready {
+		cmds = append(cmds, cmd("commit", func() { a.startCommit(t, commitRun{}) }))
 		if !head.Detached {
-			cmds = append(cmds, cmd("commit-push", func() { a.startCommit(t, true) }))
+			upstream, pushed := amendsPushed(t)
+			cmds = append(cmds, cmd("commit-push", func() { a.commitAndPush(t, upstream, pushed) }))
 		}
+	} else if why != "" && t.sel == "changes" {
+		// The shortcut says why it does nothing, as the button does.
+		cmds = append(cmds, cmd("commit", func() { a.notice = why }))
 	}
 	if m := t.cv.model; m != nil {
 		if es := m.files[secUnstaged]; len(es) > 0 {

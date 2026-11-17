@@ -9,6 +9,10 @@ import (
 
 	"ramus/internal/drafts"
 	"ramus/internal/git/message"
+	"ramus/internal/git/redact"
+	"ramus/internal/git/refs"
+	"ramus/internal/git/repo"
+	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
 	"ramus/locales"
@@ -26,27 +30,72 @@ type commitState struct {
 	noVerify  bool
 	// sign is the Sign box, set from commit.gpgSign as the setup is read.
 	sign bool
-	// setup is loaded once per tab; loading is set meanwhile.
-	setup   *session.CommitSetup
-	loading bool
+	// setup is loaded once per tab, and again after a commit changed the
+	// recent messages and HEAD's: reload asks for that, the setup before
+	// staying shown meanwhile. loading is set while it is read.
+	setup           *session.CommitSetup
+	loading, reload bool
 	// encoding is the setup's commit encoding, kept while the setup is
 	// read again after a commit; encodingRead once it was read at all.
 	encoding     string
 	encodingRead bool
 	busy         bool
-	err          string
+	// running is the commit's entry in the log while it runs, for its
+	// output.
+	running *session.LogEntry
+	err     string
+	// errLog is the commit in the log that err tells of, for all it
+	// printed; errChecked once the error bar was told the commit box
+	// shows it. withoutHooks offers committing as last tried (lastRun)
+	// without the hooks that may have failed it.
+	errLog       *session.LogEntry
+	errChecked   bool
+	withoutHooks bool
+	lastRun      commitRun
 	// wasAmend is amend as of the last frame, to load HEAD's message
 	// when amend is turned on over an empty editor; amendMsg is the
 	// message so loaded, which turning amend off takes away again while
 	// it is not edited.
 	wasAmend bool
 	amendMsg string
-	confirm  confirmState
+	// recentMsg is the message the Recent menu put in the editor last,
+	// which another may replace without asking.
+	recentMsg string
+	// track is how branch trackOf stood to its upstream, read for the
+	// refs trackFor while Amend is ticked: amending a commit already
+	// pushed takes a force push.
+	track        session.Track
+	trackFor     *refs.List
+	trackOf      string
+	trackRead    string
+	trackLoading bool
+	// prep is what git prepared for the operation prepFor in progress,
+	// once read, as of status prepStatus; opMsg is the message the editor
+	// got from it, which goes again when the operation ends while it is
+	// not edited.
+	prep                  session.Prepared
+	prepFor               repo.Operation
+	prepStatus            *status.Status
+	prepRead, prepLoading bool
+	opMsg                 string
+	confirm               confirmState
 	// draftRead is set once the draft kept from the last run was read,
 	// draftLoading meanwhile; kept is the draft last handed to the store.
 	draftRead, draftLoading bool
 	kept                    drafts.Draft
 }
+
+// commitRun is how a commit goes beyond what the box says.
+type commitRun struct {
+	// push, when set, pushes the commit made with these options.
+	push *write.PushOptions
+	// noHooks commits this once without the hooks, as Skip hooks does.
+	noHooks bool
+}
+
+// errLines bounds the lines of a failed commit's output the box shows;
+// the log has them all.
+const errLines = 4
 
 var personsRE = regexp.MustCompile(`[^<>,;\n]+<[^<>\s]+>`)
 
@@ -67,8 +116,8 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	if t.s.Queue == nil {
 		return
 	}
-	if cs.setup == nil && !cs.loading {
-		cs.loading = true
+	if (cs.setup == nil || cs.reload) && !cs.loading {
+		cs.loading, cs.reload = true, false
 		t.s.LoadCommitSetup(func(setup session.CommitSetup) {
 			cs.loading, cs.setup = false, &setup
 			cs.encoding, cs.encodingRead = setup.Encoding, true
@@ -77,6 +126,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		})
 	}
 	a.loadDraft(t)
+	followOperation(t)
 	switch {
 	case cs.amend && !cs.wasAmend && cs.subject == "" && cs.body == "":
 		// HEAD as it is now: a commit made in a terminal or a switch
@@ -89,14 +139,28 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 			cs.amendMsg = msg
 		})
 	case !cs.amend && cs.wasAmend && cs.amendMsg != "":
-		if s, b := message.Split(cs.amendMsg); s == cs.subject && b == cs.body {
+		if cs.holds(cs.amendMsg) {
 			cs.subject, cs.body = "", ""
 		}
 		cs.amendMsg = ""
 	}
 	cs.wasAmend = cs.amend
+	followTrack(t)
 	a.keepDraft(t)
+	a.confirmView(c, &cs.confirm)
+	if commitHidden(t) {
+		return
+	}
+	if e := cs.errLog; e != nil && !cs.errChecked && !e.Running {
+		// The box tells of the failure, with its way out; the error bar
+		// tells it again only with one of its own, as a lock to remove.
+		cs.errChecked = true
+		if len(a.diagnose(t, e).fixes) == 0 {
+			t.failSeen = e
+		}
+	}
 	head := t.s.State.Head
+	op := t.s.State.Operation
 	ui.Column(c).Padding(spaceM, insetX).Gap(spaceS).Background(th.Surface).FillWidth().Children(func() {
 		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 			ui.TextInput(c, &cs.subject).Label(locales.CommitBoxSummary()).Placeholder(locales.CommitBoxSummary()).Grow(1).Disabled(cs.busy)
@@ -107,7 +171,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 					for _, msg := range recent {
 						subject, _ := message.Split(msg)
 						if m.Item(subject).Chosen() {
-							cs.subject, cs.body = message.Split(msg)
+							cs.chooseRecent(msg)
 						}
 					}
 				})
@@ -116,7 +180,9 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		ui.TextArea(c, &cs.body).Label(locales.CommitBoxDescription()).Placeholder(locales.CommitBoxDescription()).Lines(2, 8).FillWidth().Disabled(cs.busy)
 		coAuthorChips(c, cs)
 		ui.Row(c).Gap(spaceL).Children(func() {
-			ui.Checkbox(c, &cs.amend, locales.CommitBoxAmend()).Disabled(cs.busy || head.Unborn || len(head.OID) == 0)
+			// git amends nothing while a merge, cherry-pick or revert
+			// waits for its commit.
+			ui.Checkbox(c, &cs.amend, locales.CommitBoxAmend()).Disabled(cs.busy || head.Unborn || len(head.OID) == 0 || operationCommit(op))
 			ui.Checkbox(c, &cs.signOff, locales.CommitBoxSignOff())
 			if cs.setup != nil && cs.setup.CanSign {
 				ui.Checkbox(c, &cs.sign, locales.CommitBoxSign())
@@ -124,27 +190,138 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 			ui.Checkbox(c, &cs.noVerify, locales.CommitBoxSkipHooks())
 		})
 		if cs.err != "" {
-			ui.Text(c, cs.err).FontSize(textSmall).TextColor(th.Danger).Selectable()
+			a.commitError(c, t)
 		}
-		ready := commitReady(t)
+		ready, why := commitWhyNot(t)
+		upstream, pushed := amendsPushed(t)
 		ui.Row(c).Gap(spaceM).Children(func() {
 			branch := strings.TrimPrefix(head.Target, "refs/heads/")
 			label := locales.CommitBoxCommitTo(branch)
-			if head.Detached {
+			switch {
+			case cs.busy:
+				label = locales.CommitBoxCommitting()
+			case cs.amend && pushed:
+				label = locales.CommitBoxAmendPushed()
+			case cs.amend:
+				label = locales.CommitBoxAmendLast()
+			case operationCommit(op):
+				label = locales.CommitBoxCommitOperation(operationKey(op))
+			case head.Detached:
 				label = locales.CommitBoxCommit()
 			}
-			if cs.amend {
-				label = locales.CommitBoxAmendLast()
+			// A disabled button shows no tooltip of its own: the row
+			// around it says why it is.
+			ui.Row(c).Grow(1).Tooltip(why).Children(func() {
+				if ui.PrimaryButton(c, label).Description(why).Disabled(!ready).Grow(1).Clicked() {
+					a.startCommit(t, commitRun{})
+				}
+			})
+			second := locales.CommitBoxCommitAndPush()
+			switch {
+			case cs.amend && pushed:
+				second = locales.CommitBoxAmendAndForcePush()
+			case cs.amend:
+				second = locales.CommitBoxAmendAndPush()
 			}
-			if ui.PrimaryButton(c, label).Disabled(!ready).Grow(1).Clicked() {
-				a.startCommit(t, false)
-			}
-			if ui.Button(c, locales.CommitBoxCommitAndPush()).Disabled(!ready || head.Detached).Clicked() {
-				a.startCommit(t, true)
+			if ui.Button(c, second).Disabled(!ready || head.Detached).Clicked() {
+				a.commitAndPush(t, upstream, pushed)
 			}
 		})
+		if cs.busy {
+			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).FillWidth().Children(func() {
+				ui.Spinner(c).FontSize(textSmall).Label(locales.CommitBoxCommitting())
+				if line := runningLine(cs.running); line != "" {
+					ui.Text(c, line).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().TruncateMiddle().Shrink(1)
+				}
+			})
+		}
 	})
-	a.confirmView(c, &cs.confirm)
+}
+
+// commitError is why the last commit failed, in its last lines, with
+// what can be done about it.
+func (a *App) commitError(c *ui.Context, t *tab) {
+	th := c.Theme()
+	cs := &t.commit
+	text, cut := lastLines(cs.err, errLines)
+	ui.Text(c, text).FontSize(textSmall).TextColor(th.Danger).Selectable().MaxLines(errLines).FillWidth()
+	inLog := cut && cs.errLog != nil
+	if !cs.withoutHooks && !inLog {
+		return
+	}
+	ui.Row(c).Gap(spaceS).Children(func() {
+		if cs.withoutHooks && ui.Button(c, locales.CommitBoxWithoutHooks()).Disabled(cs.busy).Clicked() {
+			r := cs.lastRun
+			r.noHooks = true
+			a.startCommit(t, r)
+		}
+		if inLog && ui.Button(c, locales.RepoShowInLog()).Clicked() {
+			a.showLogEntry(t, cs.errLog)
+		}
+	})
+}
+
+// lastLines is the last n lines of s that hold something, and whether
+// there were more: a hook prints its progress first and its verdict
+// last.
+func lastLines(s string, n int) (string, bool) {
+	var lines []string
+	for _, l := range strings.Split(s, "\n") {
+		if strings.TrimSpace(l) != "" {
+			lines = append(lines, l)
+		}
+	}
+	if len(lines) <= n {
+		return strings.Join(lines, "\n"), false
+	}
+	return strings.Join(lines[len(lines)-n:], "\n"), true
+}
+
+// runningLine is the last line a write running printed, "" none.
+func runningLine(e *session.LogEntry) string {
+	if e == nil || !e.Running {
+		return ""
+	}
+	if e.Progress != "" {
+		return e.Progress
+	}
+	for i := len(e.Output) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(e.Output[i]); l != "" {
+			return l
+		}
+	}
+	return ""
+}
+
+// holds reports whether the editor holds msg as it is.
+func (cs *commitState) holds(msg string) bool {
+	s, b := message.Split(msg)
+	return s == cs.subject && b == cs.body
+}
+
+// untouched reports whether the editor holds nothing the user wrote:
+// nothing, or the commit template.
+func (cs *commitState) untouched() bool {
+	if cs.subject == "" && cs.body == "" {
+		return true
+	}
+	return cs.setup != nil && cs.setup.Template != "" && cs.holds(cs.setup.Template)
+}
+
+// chooseRecent puts recent message msg in the editor, asking first when
+// that would replace a message the user wrote.
+func (cs *commitState) chooseRecent(msg string) {
+	fill := func() {
+		cs.subject, cs.body = message.Split(msg)
+		cs.recentMsg = msg
+	}
+	filled := func(m string) bool { return m != "" && cs.holds(m) }
+	if cs.untouched() || filled(cs.recentMsg) || filled(cs.amendMsg) || filled(cs.opMsg) {
+		fill()
+		return
+	}
+	cs.confirm = confirmState{open: true, title: locales.CommitBoxReplaceTitle(), message: locales.CommitBoxReplaceMessage(),
+		button: locales.CommitBoxReplace(), run: fill}
 }
 
 // fillTemplate puts the commit template in an empty editor, once the
@@ -153,6 +330,106 @@ func (cs *commitState) fillTemplate() {
 	if s := cs.setup; s != nil && cs.draftRead && cs.subject == "" && cs.body == "" && s.Template != "" {
 		cs.subject, cs.body = message.Split(s.Template)
 	}
+}
+
+// operationCommit reports whether operation op stopped waiting for the
+// commit that ends it, which the commit box makes.
+func operationCommit(op repo.Operation) bool {
+	return op == repo.Merge || op == repo.CherryPick || op == repo.Revert
+}
+
+// operationKey is op as the catalog selects on it: a select case is a
+// word.
+func operationKey(op repo.Operation) string {
+	if op == repo.CherryPick {
+		return "cherryPick"
+	}
+	return string(op)
+}
+
+// followOperation reads what git prepared for the operation in
+// progress, and puts the message it prepared for a merge, cherry-pick
+// or revert in an editor holding nothing written; once the operation
+// ends, that message goes again unless edited.
+func followOperation(t *tab) {
+	cs := &t.commit
+	op := t.s.State.Operation
+	if !operationCommit(op) && op != repo.Rebase {
+		if cs.opMsg != "" && cs.holds(cs.opMsg) {
+			cs.subject, cs.body = "", ""
+			cs.fillTemplate()
+		}
+		cs.prepFor, cs.prepStatus, cs.prepRead, cs.opMsg = "", nil, false, ""
+		return
+	}
+	// Read again as the status is: an operation can end and another of
+	// its kind start between two reads of the state.
+	st := t.s.State.Status
+	if cs.prepLoading || cs.setup == nil || (cs.prepFor == op && cs.prepStatus == st) {
+		return
+	}
+	if cs.prepFor != op {
+		cs.prepRead = false
+		if operationCommit(op) {
+			cs.amend = false
+		}
+	}
+	cs.prepFor, cs.prepStatus, cs.prepLoading = op, st, true
+	t.s.LoadPrepared(cs.setup.Comment, func(p session.Prepared) {
+		cs.prepLoading = false
+		if t.s.State.Operation != op {
+			cs.prepFor = "" // ended or changed meanwhile: read again
+			return
+		}
+		cs.prep, cs.prepRead = p, true
+		if operationCommit(op) && p.Message != "" && cs.opMsg == "" && cs.untouched() {
+			cs.subject, cs.body = message.Split(p.Message)
+			cs.opMsg = p.Message
+		}
+	})
+}
+
+// commitHidden reports whether the commit box is left out: while an
+// am, or a rebase but where it stopped to edit a commit, waits on its
+// continue, which makes the commit.
+func commitHidden(t *tab) bool {
+	cs := &t.commit
+	switch t.s.State.Operation {
+	case repo.Am:
+		return true
+	case repo.Rebase:
+		return !(cs.prepRead && cs.prepFor == repo.Rebase && cs.prep.Edit)
+	}
+	return false
+}
+
+// followTrack reads how the branch stands to its upstream while Amend
+// is ticked, as the refs change.
+func followTrack(t *tab) {
+	cs := &t.commit
+	head := t.s.State.Head
+	if !cs.amend || cs.trackLoading || (cs.trackFor == t.s.State.Refs && cs.trackOf == head.Target) {
+		return
+	}
+	cs.trackFor, cs.trackOf, cs.trackLoading = t.s.State.Refs, head.Target, true
+	of := head.Target
+	t.s.LoadTrack(func(tr session.Track) {
+		cs.trackLoading = false
+		cs.track, cs.trackRead = tr, of
+	})
+}
+
+// amendsPushed reports whether Amend is ticked over a commit already on
+// the branch's upstream, which it names: pushing the amend takes a
+// force.
+func amendsPushed(t *tab) (upstream string, pushed bool) {
+	cs := &t.commit
+	h := t.s.State.Head
+	tr := cs.track
+	if !cs.amend || h.Detached || cs.trackRead != h.Target || tr.Upstream == "" || tr.Gone || tr.Ahead > 0 {
+		return "", false
+	}
+	return strings.TrimPrefix(tr.Upstream, "refs/remotes/"), true
 }
 
 // loadDraft reads the message left unfinished in the repository when
@@ -204,29 +481,60 @@ func (a *App) keepDraft(t *tab) {
 
 // commitReady reports whether the commit box can commit now.
 func commitReady(t *tab) bool {
+	ready, _ := commitWhyNot(t)
+	return ready
+}
+
+// commitWhyNot reports whether the commit box can commit now, and when
+// not, why in words the user can act on; "" while it waits on what is
+// being read or a commit running.
+func commitWhyNot(t *tab) (ready bool, why string) {
 	cs := &t.commit
 	// The model is built off the main thread; until the first one is,
 	// nothing counts as staged.
-	staged := 0
-	if m := t.cv.model; m != nil {
-		staged = m.staged
-	}
+	m := t.cv.model
 	// The setup names the encoding the message is written in.
-	return !cs.busy && cs.encodingRead && strings.TrimSpace(cs.subject) != "" && (staged > 0 || cs.amend)
+	if cs.busy || !cs.encodingRead || m == nil || t.s.Queue == nil || commitHidden(t) {
+		return false, ""
+	}
+	op := t.s.State.Operation
+	switch {
+	case t.s.State.Status != nil && t.s.State.Status.Unmerged() > 0:
+		return false, locales.CommitBoxWhyConflicts()
+	// A merge's commit records the branch merged in, though the result
+	// may hold no change.
+	case m.staged == 0 && !cs.amend && op != repo.Merge:
+		return false, locales.CommitBoxWhyNothingStaged()
+	case strings.TrimSpace(cs.subject) == "":
+		return false, locales.CommitBoxWhySummary()
+	}
+	return true, ""
+}
+
+// commitAndPush commits and pushes; an amend of a commit already on
+// upstream, after asking, with a force push.
+func (a *App) commitAndPush(t *tab, upstream string, pushed bool) {
+	if !pushed {
+		a.startCommit(t, commitRun{push: &write.PushOptions{}})
+		return
+	}
+	t.commit.confirm = confirmState{open: true, title: locales.RefsForcePushTitle(redact.Control(upstream)),
+		message: locales.RefsForcePushMessage(), button: locales.CommitBoxAmendForcePush(),
+		run: func() { a.startCommit(t, commitRun{push: &write.PushOptions{ForceWithLease: true}}) }}
 }
 
 // startCommit checks line endings of what is staged, asks when one
 // stands out, and commits.
-func (a *App) startCommit(t *tab, push bool) {
+func (a *App) startCommit(t *tab, r commitRun) {
 	cs := &t.commit
-	cs.busy, cs.err = true, ""
+	cs.busy, cs.err, cs.errLog, cs.withoutHooks = true, "", nil, false
 	t.s.CheckLineEnds(func(le session.LineEnds) {
 		if le.Err != nil {
 			// A check that fails does not stop a commit, but says so.
 			a.tell(t, locales.CommitBoxLineEndsNotChecked(errText(le.Err)))
 		}
 		if le.Err != nil || len(le.Findings) == 0 {
-			a.commit(t, push)
+			a.commit(t, r)
 			return
 		}
 		cs.confirm = confirmState{
@@ -234,7 +542,7 @@ func (a *App) startCommit(t *tab, push bool) {
 			title:   locales.CommitBoxLineEndsTitle(len(le.Findings)),
 			message: lineEndMessage(le),
 			button:  locales.CommitBoxCommitAnyway(),
-			run:     func() { a.commit(t, push) },
+			run:     func() { a.commit(t, r) },
 		}
 		cs.busy = false
 	})
@@ -273,13 +581,13 @@ func lineEndMessage(le session.LineEnds) string {
 	return b.String()
 }
 
-func (a *App) commit(t *tab, push bool) {
+func (a *App) commit(t *tab, r commitRun) {
 	cs := &t.commit
 	msg := message.Join(cs.subject, cs.body)
 	if s := cs.setup; s != nil && s.Template != "" {
 		msg = message.StripTemplate(msg, s.Template, s.Comment)
 	}
-	opt := write.CommitOptions{Message: msg, Amend: cs.amend, SignOff: cs.signOff, NoVerify: cs.noVerify, CoAuthors: coAuthorList(cs.coAuthors)}
+	opt := write.CommitOptions{Message: msg, Amend: cs.amend, SignOff: cs.signOff, NoVerify: cs.noVerify || r.noHooks, CoAuthors: coAuthorList(cs.coAuthors)}
 	opt.Encoding = cs.encoding
 	if s := cs.setup; s != nil && s.CanSign && cs.sign != s.Sign {
 		opt.Sign = write.SignNo
@@ -287,16 +595,21 @@ func (a *App) commit(t *tab, push bool) {
 			opt.Sign = write.SignYes
 		}
 	}
-	cs.busy = true
+	cs.busy, cs.lastRun = true, r
 	seen := t.s.Seen()
-	err := t.s.Commit(opt, push, func(err error) {
-		cs.busy = false
+	written := struct{ subject, body, coAuthors string }{cs.subject, cs.body, cs.coAuthors}
+	var entry *session.LogEntry
+	err := t.s.Commit(opt, r.push, func(err error) {
+		cs.busy, cs.running = false, nil
 		var notPushed *session.NotPushedError
 		if err != nil && !errors.As(err, &notPushed) {
-			cs.err = failure(err)
+			var hooks *session.HookError
+			cs.err, cs.errLog, cs.errChecked = failure(err), entry, false
+			cs.withoutHooks = errors.As(err, &hooks)
 			return
 		}
-		if opt.Amend {
+		// A force push replaces the commit on the upstream itself.
+		if opt.Amend && (r.push == nil || !r.push.ForceWithLease) {
 			a.checkPushed(t, seen)
 		}
 		// Skip hooks is for the commit it was ticked for, as Amend is:
@@ -310,11 +623,55 @@ func (a *App) commit(t *tab, push bool) {
 				reason = locales.CommitBoxNoRemote()
 			}
 			cs.err = locales.CommitBoxNotPushed(reason)
+		} else {
+			a.toastCommit(t, opt, r.push != nil, written.subject, written.body, written.coAuthors)
 		}
 		// Recent messages and HEAD's message changed.
-		cs.setup = nil
+		cs.reload = true
 	})
 	if err != nil {
 		cs.busy, cs.err = false, failure(err)
+		return
 	}
+	entry = lastEntry(t)
+	cs.running = entry
+}
+
+// toastCommit tells of a commit made, with Undo while it is the write
+// Undo would take back; one pushed is not taken back from the remote,
+// so it has none.
+func (a *App) toastCommit(t *tab, opt write.CommitOptions, pushed bool, subject, body, coAuthors string) {
+	title := locales.CommitBoxCommitted(firstLine(opt.Message))
+	if opt.Amend {
+		title = locales.CommitBoxAmended(firstLine(opt.Message))
+	}
+	toast := ui.Toast{ID: "commit", Title: title}
+	q := t.s.Queue
+	if q != nil && !pushed {
+		undo, _ := q.History.Next()
+		toast.Action = locales.CommitBoxUndo()
+		toast.OnAction = func() {
+			if t.s.Queue != q {
+				return
+			}
+			if now, _ := q.History.Next(); now != undo {
+				return // another write came since, which Undo would take back
+			}
+			a.undo(t, false)
+			// The commit's changes are staged again; its message comes
+			// back with them, to commit them again, unless the user has
+			// started another.
+			cs := &t.commit
+			if !opt.Amend && cs.untouched() && cs.coAuthors == "" {
+				cs.subject, cs.body, cs.coAuthors = subject, body, coAuthors
+			}
+		}
+	}
+	a.toast(toast)
+}
+
+// firstLine is a message's first line.
+func firstLine(msg string) string {
+	s, _ := message.Split(msg)
+	return s
 }
