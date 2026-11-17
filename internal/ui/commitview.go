@@ -738,7 +738,7 @@ func (a *App) commitFiles(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		row.ContextMenu(func(m *ui.Menu) { a.commitFileMenu(m, t, d, i, &act) })
 		row.Children(func() {
 			ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(k, f.Status(i)))
-			fileIcon(c, string(f.Path(i)))
+			fileIcon(c, string(f.Path(i)), k)
 			shown, why := showPath(commitFileName(f, i))
 			txt := pathLabel(c, shown).Grow(1)
 			if why != "" {

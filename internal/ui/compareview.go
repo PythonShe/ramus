@@ -288,7 +288,7 @@ func (a *App) comparedList(c *ui.Context, cs *compareState) {
 				if p == "" {
 					p = l.Old(i)
 				}
-				fileIcon(c, p)
+				fileIcon(c, p, k)
 				shown, why := showPath(name(i))
 				txt := pathLabel(c, shown).Grow(1)
 				if why != "" {

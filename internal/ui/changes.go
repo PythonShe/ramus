@@ -398,7 +398,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 		if untrackedFolder(m.st, i) {
 			ui.Icon(c, changeIcons().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Muted)
 		} else {
-			fileIcon(c, string(m.st.Path(i)))
+			fileIcon(c, string(m.st.Path(i)), k)
 		}
 		shown, flagged := showPath(m.name(r))
 		if f, why := showPath(string(m.st.Path(i))); why != "" {

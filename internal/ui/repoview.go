@@ -480,9 +480,14 @@ func runningWrite(log []*session.LogEntry) *session.LogEntry {
 
 // fileIcon shows the icon of the file at path, as a code editor's list
 // does, in its own colors: a decoration, which assistive technology does
-// not read.
-func fileIcon(c *ui.Context, path string) {
+// not read. On a chosen row, k being chosenInk, it is drawn in the row's
+// text colour: its own colours can be the accent's and vanish on it.
+func fileIcon(c *ui.Context, path string, k ink) {
 	if s := fileicon.For(path); s != nil {
+		if k == chosenInk(c.Theme()) {
+			ui.Icon(c, s).FontSize(iconLarge).Width(iconLarge).Height(iconLarge).TextColor(k.Muted)
+			return
+		}
 		ui.Image(c, s).Width(iconLarge).Height(iconLarge).Role(ui.RoleNone)
 		return
 	}

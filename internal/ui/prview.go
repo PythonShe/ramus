@@ -678,7 +678,7 @@ func (a *App) prFiles(c *ui.Context, t *tab, rv *prReview) {
 			i, k := r.Index, rowInk(r)
 			ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 				ui.Text(c, string(f.Status(i))).Font("monospace").FontSize(textSmall).Width(14).TextColor(fileStatusColor(k, f.Status(i)))
-				fileIcon(c, string(f.Path(i)))
+				fileIcon(c, string(f.Path(i)), k)
 				shown, _ := showPath(commitFileName(f, i))
 				pathLabel(c, shown).Grow(1)
 				if n := rv.threadsOn[string(f.Path(i))] + drafts[string(f.Path(i))]; n > 0 {

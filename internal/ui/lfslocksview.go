@@ -117,7 +117,7 @@ func (a *App) lfsLocksView(c *ui.Context, t *tab) {
 			switch col {
 			case 0:
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
-					fileIcon(c, l.Path)
+					fileIcon(c, l.Path, k)
 					ui.Text(c, redact.Control(l.Path)).SingleLine()
 				})
 			case 1:

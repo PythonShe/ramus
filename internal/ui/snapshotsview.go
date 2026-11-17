@@ -196,7 +196,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 				shown, flagged := showPath(f.Path)
 				ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).Children(func() {
 					ui.Text(c, string(rune(f.Status))).Font("monospace").TextColor(fileStatusColor(plainInk(th), byte(f.Status))).Width(statusLetterW)
-					fileIcon(c, f.Path)
+					fileIcon(c, f.Path, plainInk(th))
 					name := pathLabel(c, shown).Grow(1)
 					if flagged != "" {
 						name.TextColor(th.Warning).Description(flagged)
