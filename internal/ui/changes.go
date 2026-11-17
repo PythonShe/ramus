@@ -428,11 +428,18 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 			ui.Text(c, r.sec.header(len(m.files[r.sec]))).Bold().Grow(1)
 			tot := cv.sectionLines(m, r.sec)
 			lineCounts(c, int(tot.Added), int(tot.Deleted))
+			// With a filter typed, the files hidden are left as they are,
+			// and the button says so.
 			var label string
-			switch r.sec {
-			case secStaged:
+			n := len(m.files[r.sec])
+			switch {
+			case r.sec == secStaged && m.filter != "":
+				label = locales.ChangesUnstageShown(n)
+			case r.sec == secStaged:
 				label = locales.ChangesUnstageAll()
-			case secUnstaged:
+			case r.sec == secUnstaged && m.filter != "":
+				label = locales.ChangesStageShown(n)
+			case r.sec == secUnstaged:
 				label = locales.ChangesStageAll()
 			}
 			if label != "" && ui.Button(c, label).Disabled(ro).Clicked() {

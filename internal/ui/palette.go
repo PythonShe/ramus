@@ -275,10 +275,10 @@ func (a *App) writeCommands(t *tab) []command {
 		cmds = append(cmds, cmd("commit", func() { a.notice = why }))
 	}
 	if m := t.cv.model; m != nil {
-		if es := m.files[secUnstaged]; len(es) > 0 {
+		if es := m.all(secUnstaged); len(es) > 0 {
 			cmds = append(cmds, cmd("stage-all", func() { a.stageEntries(t, m, secUnstaged, es) }))
 		}
-		if es := m.files[secStaged]; len(es) > 0 {
+		if es := m.all(secStaged); len(es) > 0 {
 			cmds = append(cmds, cmd("unstage-all", func() { a.stageEntries(t, m, secStaged, es) }))
 		}
 	}

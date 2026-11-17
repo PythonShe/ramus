@@ -4081,6 +4081,38 @@ func (msgs Messages) ChangesStageAll() string {
 	return Catalog.Format(msgs.locale, "changesStageAll", nil)
 }
 
+// ChangesUnstageShown says "Unstage {count, number} Shown"
+// in the language the app shows.
+//
+// Button on the staged section's header while a filter hides some files:
+// unstages only the count files shown.
+func ChangesUnstageShown(count int) string { return In(i18n.Locale()).ChangesUnstageShown(count) }
+
+// ChangesUnstageShown says "Unstage {count, number} Shown"
+// in the language of msgs.
+//
+// Button on the staged section's header while a filter hides some files:
+// unstages only the count files shown.
+func (msgs Messages) ChangesUnstageShown(count int) string {
+	return Catalog.Format(msgs.locale, "changesUnstageShown", map[string]any{"count": count})
+}
+
+// ChangesStageShown says "Stage {count, number} Shown"
+// in the language the app shows.
+//
+// Button on the unstaged section's header while a filter hides some files:
+// stages only the count files shown.
+func ChangesStageShown(count int) string { return In(i18n.Locale()).ChangesStageShown(count) }
+
+// ChangesStageShown says "Stage {count, number} Shown"
+// in the language of msgs.
+//
+// Button on the unstaged section's header while a filter hides some files:
+// stages only the count files shown.
+func (msgs Messages) ChangesStageShown(count int) string {
+	return Catalog.Format(msgs.locale, "changesStageShown", map[string]any{"count": count})
+}
+
 // ChangesState says "{state, select, M {modified} A {added} D {deleted} R {renamed} C {copied} T {type changed} untracked {untracked} untr…"
 // in the language the app shows.
 //

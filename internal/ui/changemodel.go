@@ -249,6 +249,21 @@ func (m *changeModel) name(r changeRow) string {
 	return r.sec.title()
 }
 
+// all returns the entries of sec, those the filter hides too, for what
+// says it acts on all.
+func (m *changeModel) all(sec section) []int32 {
+	if m.filter == "" {
+		return m.files[sec]
+	}
+	var out []int32
+	for i := range m.st.Len() {
+		if inSection(m.st, i, sec) {
+			out = append(out, int32(i))
+		}
+	}
+	return out
+}
+
 // under returns the entries of sec at or below path, a file or a folder:
 // a range of the section's sorted entries.
 func (m *changeModel) under(sec section, path string, dir bool) []int32 {
