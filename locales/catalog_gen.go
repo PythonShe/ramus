@@ -14463,6 +14463,22 @@ func (msgs Messages) RepoPickerNone() string {
 	return Catalog.Format(msgs.locale, "repoPickerNone", nil)
 }
 
+// RepoPickerOpenHeading says "Open"
+// in the language the app shows.
+//
+// Heads the repositories open in the window, first in the repository
+// picker: an adjective.
+func RepoPickerOpenHeading() string { return In(i18n.Locale()).RepoPickerOpenHeading() }
+
+// RepoPickerOpenHeading says "Open"
+// in the language of msgs.
+//
+// Heads the repositories open in the window, first in the repository
+// picker: an adjective.
+func (msgs Messages) RepoPickerOpenHeading() string {
+	return Catalog.Format(msgs.locale, "repoPickerOpenHeading", nil)
+}
+
 // RepoPickerRecent says "Recent"
 // in the language the app shows.
 func RepoPickerRecent() string { return In(i18n.Locale()).RepoPickerRecent() }
@@ -14512,17 +14528,49 @@ func (msgs Messages) RepoPickerShown() string {
 // RepoPickerOpen says "Open in a tab"
 // in the language the app shows.
 //
-// Read aloud for the dot beside a repository open in another tab, in the
+// Read aloud for a repository open in another tab of the window, in the
 // repository picker.
 func RepoPickerOpen() string { return In(i18n.Locale()).RepoPickerOpen() }
 
 // RepoPickerOpen says "Open in a tab"
 // in the language of msgs.
 //
-// Read aloud for the dot beside a repository open in another tab, in the
+// Read aloud for a repository open in another tab of the window, in the
 // repository picker.
 func (msgs Messages) RepoPickerOpen() string {
 	return Catalog.Format(msgs.locale, "repoPickerOpen", nil)
+}
+
+// RepoPickerChanged says "Uncommitted changes"
+// in the language the app shows.
+//
+// Read aloud for the dot beside an open repository whose working tree has
+// changes, in the repository picker.
+func RepoPickerChanged() string { return In(i18n.Locale()).RepoPickerChanged() }
+
+// RepoPickerChanged says "Uncommitted changes"
+// in the language of msgs.
+//
+// Read aloud for the dot beside an open repository whose working tree has
+// changes, in the repository picker.
+func (msgs Messages) RepoPickerChanged() string {
+	return Catalog.Format(msgs.locale, "repoPickerChanged", nil)
+}
+
+// RepoPickerRunning says "{write} running"
+// in the language the app shows.
+//
+// Read aloud for the spinner beside an open repository where a command
+// runs, in the repository picker; write is the command, as Push.
+func RepoPickerRunning(write string) string { return In(i18n.Locale()).RepoPickerRunning(write) }
+
+// RepoPickerRunning says "{write} running"
+// in the language of msgs.
+//
+// Read aloud for the spinner beside an open repository where a command
+// runs, in the repository picker; write is the command, as Push.
+func (msgs Messages) RepoPickerRunning(write string) string {
+	return Catalog.Format(msgs.locale, "repoPickerRunning", map[string]any{"write": write})
 }
 
 // RepoPickerAheadLabel says "{count, plural, one {# commit to push} other {# commits to push}}"

@@ -94,12 +94,7 @@ func (a *App) tabsStrip(c *ui.Context) {
 					tb.ScrollIntoView()
 				}
 				name := a.paletteTitle(t)
-				state, write := "", ""
-				if e := busyWrite(t); e != nil {
-					state, write = "running", e.Name
-				} else if st := t.s.State.Status; st != nil && st.Len() > 0 {
-					state = "changed"
-				}
+				state, write := tabState(t)
 				tb.Label(locales.TabsTab(state, name, write)).Tooltip(t.s.Path)
 				tb.ContextMenu(func(m *ui.Menu) {
 					if a.NewWindow != nil && m.Item(locales.TabsMoveToNewWindow()).Disabled(busyWrite(t) != nil).Chosen() {
@@ -125,12 +120,7 @@ func (a *App) tabsStrip(c *ui.Context) {
 					if !on {
 						txt.TextColor(th.TextMuted)
 					}
-					switch state {
-					case "running":
-						ui.Spinner(c).FontSize(textSmall).Shrink(0).Label(write)
-					case "changed":
-						ui.Icon(c, glyphs().dot).FontSize(iconMedium).TextColor(th.TextMuted).Shrink(0)
-					}
+					tabMark(c, state, write, th.TextMuted)
 					ui.Spacer(c)
 					ui.Box(c).Width(tabCloseW).Shrink(0)
 				})
@@ -153,5 +143,30 @@ func (a *App) tabsStrip(c *ui.Context) {
 		a.closeTab(closing)
 	case moving >= 0:
 		a.moveToNewWindow(moving)
+	}
+}
+
+// tabState is what the repository of tab t is doing, as its tab and the
+// repository picker show it: "running", with the write's name, while a
+// write the user asked for runs; "changed" while its working tree has
+// changes; else "".
+func tabState(t *tab) (state, write string) {
+	if e := busyWrite(t); e != nil {
+		return "running", e.Name
+	}
+	if st := t.s.State.Status; st != nil && st.Len() > 0 {
+		return "changed", ""
+	}
+	return "", ""
+}
+
+// tabMark shows state as tabState says it: a spinner named by the write
+// while it runs, a dot in col while there are changes.
+func tabMark(c *ui.Context, state, write string, col ui.Color) {
+	switch state {
+	case "running":
+		ui.Spinner(c).FontSize(textSmall).Shrink(0).Label(write)
+	case "changed":
+		ui.Icon(c, glyphs().dot).FontSize(iconMedium).TextColor(col).Shrink(0)
 	}
 }

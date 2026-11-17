@@ -3068,6 +3068,10 @@
   "repoPickerAdd": "Add",
   "repoPickerList": "Repositories",
   "repoPickerNone": "No repository matches",
+  "repoPickerOpenHeading": "Open",
+  "@repoPickerOpenHeading": {
+    "description": "Heads the repositories open in the window, first in the repository picker: an adjective."
+  },
   "repoPickerRecent": "Recent",
   "repoPickerFavourites": "Favorites",
   "repoPickerOther": "Other",
@@ -3077,7 +3081,15 @@
   },
   "repoPickerOpen": "Open in a tab",
   "@repoPickerOpen": {
-    "description": "Read aloud for the dot beside a repository open in another tab, in the repository picker."
+    "description": "Read aloud for a repository open in another tab of the window, in the repository picker."
+  },
+  "repoPickerChanged": "Uncommitted changes",
+  "@repoPickerChanged": {
+    "description": "Read aloud for the dot beside an open repository whose working tree has changes, in the repository picker."
+  },
+  "repoPickerRunning": "{write} running",
+  "@repoPickerRunning": {
+    "description": "Read aloud for the spinner beside an open repository where a command runs, in the repository picker; write is the command, as Push."
   },
   "repoPickerAheadLabel": "{count, plural, one {# commit to push} other {# commits to push}}",
   "@repoPickerAheadLabel": {

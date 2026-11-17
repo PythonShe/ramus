@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/locales"
@@ -314,7 +315,8 @@ func (a *App) stopBriefs() {
 }
 
 // repoRows are the picker's rows. A query lists the repositories it
-// finds, best first. Without one: the few opened last, the favourites,
+// finds, best first. Without one: those open in the window, the few
+// opened last of the others, the favourites,
 // then every repository under the group the user put it in, or else
 // under the owner of its remote, as GitHub Desktop has them; one with
 // no owner known goes under Other.
@@ -354,12 +356,19 @@ func (a *App) repoRows() []repoRow {
 			all = append(all, library.Repo{Path: t.s.Path, Name: a.title(t)})
 		}
 	}
+	// The repositories open in the window first, as their tabs are
+	// ordered; the recent ones are those not open.
+	var open []library.Repo
+	for _, t := range a.tabs {
+		open = append(open, library.Repo{Path: t.s.Path, Name: a.title(t)})
+	}
+	section(locales.RepoPickerOpenHeading(), open)
 	var recent []library.Repo
 	for _, r := range all {
 		if len(recent) == repoPickRecent {
 			break
 		}
-		if r.Path != current {
+		if r.Path != current && !a.Has(r.Path) {
 			recent = append(recent, r)
 		}
 	}
@@ -414,8 +423,9 @@ func (a *App) repoRows() []repoRow {
 }
 
 // repoRowView builds a row of the picker: a heading, or a repository
-// with a check by the one shown and a dot by the others open, its icon, and the commits its branch
-// has to push and to pull.
+// with a check by the one shown, its icon, for one open its branch and a
+// dot while it has changes, and the commits its branch has to push and
+// to pull.
 func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 	th := c.Theme()
 	if r.heading != "" {
@@ -429,16 +439,20 @@ func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 		row.Background(th.Accent)
 		fg = th.AccentText
 	}
+	var open *tab
+	if at := slices.IndexFunc(a.tabs, func(t *tab) bool { return t.s.Path == r.path }); at >= 0 {
+		open = a.tabs[at]
+	}
 	row.Children(func() {
-		// A check by the repository shown, a dot by the others open.
-		switch {
-		case a.current() != nil && a.current().s.Path == r.path:
+		// A check by the repository shown; the others open are in their
+		// own group.
+		if cur := a.current(); cur != nil && cur.s.Path == r.path {
 			row.Description(locales.RepoPickerShown())
 			ui.Icon(c, glyphs().check).FontSize(iconMedium).Width(markW).TextColor(fg)
-		case a.Has(r.path):
-			row.Description(locales.RepoPickerOpen())
-			ui.Icon(c, glyphs().dot).FontSize(iconMedium).Width(markW).TextColor(fg)
-		default:
+		} else {
+			if open != nil {
+				row.Description(locales.RepoPickerOpen())
+			}
 			ui.Box(c).Width(markW)
 		}
 		icon := glyphs().repo
@@ -447,6 +461,23 @@ func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 		}
 		ui.Icon(c, icon).FontSize(iconMedium).TextColor(k.Muted)
 		ui.Text(c, r.name).SingleLine().TruncateMiddle().Shrink(1).Grow(1).TextColor(fg)
+		if open != nil {
+			// Its branch, and a dot while it has changes, as its tab has.
+			head := open.s.State.Head
+			branch := strings.TrimPrefix(head.Target, "refs/heads/")
+			if head.Detached {
+				branch = locales.BranchPickerDetached()
+			}
+			ui.Text(c, redact.Control(branch)).FontSize(textSmall).TextColor(k.Muted).SingleLine().TruncateMiddle().Shrink(2)
+			state, write := tabState(open)
+			switch state {
+			case "running":
+				row.Description(locales.RepoPickerRunning(write))
+			case "changed":
+				row.Description(locales.RepoPickerChanged())
+			}
+			tabMark(c, state, write, k.Muted)
+		}
 		describeAheadBehind(row, b.Ahead, b.Behind)
 		aheadBehind(c, k, b.Ahead, b.Behind, "")
 	})

@@ -2,13 +2,53 @@ package ui
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/gittest"
 	"ramus/internal/library"
 )
+
+// The repositories open in the window head the picker, in their own
+// group, each with its branch and a dot while it has changes; the recent
+// ones are the others.
+func TestRepoPickerOpenFirst(t *testing.T) {
+	h := newHarness(t)
+	one, two, closed := h.repoWith(), h.repoWith(), h.repoWith()
+	two.Git("checkout", "-q", "-b", "topic")
+	for i, r := range []*gittest.Repo{closed, one, two} {
+		h.trust.Set(r.GitDir(), true)
+		h.lib.Opened(r.Dir, time.Unix(1_700_000_000+int64(i), 0))
+	}
+	h.app.Open(one.Dir)
+	h.app.Open(two.Dir)
+	h.until("both open", func() bool {
+		return len(h.app.tabs) == 2 && h.app.tabs[0].s.State.Status != nil && h.app.tabs[1].s.State.Status != nil
+	})
+	one.Write("README", "changed")
+	h.until("the change", func() bool { st := h.app.tabs[0].s.State.Status; return st != nil && st.Len() > 0 })
+
+	h.click("Repository " + filepath.Base(two.Dir))
+	h.until("the open group", func() bool { return hasExact(h, "Open") && hasExact(h, "topic") })
+	var names []string
+	for _, r := range h.app.repoRows() {
+		if r.heading != "" {
+			names = append(names, "# "+r.heading)
+		} else {
+			names = append(names, filepath.Base(r.path))
+		}
+	}
+	want := []string{"# Open", filepath.Base(one.Dir), filepath.Base(two.Dir), "# Recent", filepath.Base(closed.Dir)}
+	if len(names) < len(want) || !slices.Equal(names[:len(want)], want) {
+		t.Fatalf("rows %q", names)
+	}
+	if !h.describes("Uncommitted changes")() {
+		t.Fatal("no dot for the changes")
+	}
+}
 
 // The picker lists the repositories the library knows under the owners
 // of their remotes, marks a fork and the commits a branch has to push,
