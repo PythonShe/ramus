@@ -94,9 +94,7 @@ func TestRemoveStaleLock(t *testing.T) {
 	tb := h.app.current()
 	tb.s.Queue.LockWait = 50 * time.Millisecond
 	lock := filepath.Join(r.GitDir(), "index.lock")
-	if err := os.WriteFile(lock, nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	staleLock(t, lock)
 	if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{"a.txt"})); err != nil {
 		t.Fatal(err)
 	}
@@ -171,11 +169,43 @@ func TestFailureDuringConflicts(t *testing.T) {
 	tb := h.app.current()
 	h.until("the conflict", func() bool { st := tb.s.State.Status; return st != nil && st.Unmerged() == 1 })
 	tb.s.Queue.LockWait = 50 * time.Millisecond
+	staleLock(t, filepath.Join(r.GitDir(), "index.lock"))
+	if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{"a.txt"})); err != nil {
+		t.Fatal(err)
+	}
+	h.until("the lock", h.shows("a git command that ended left index.lock behind"))
+}
+
+// staleLock leaves a lock as a git that crashed long enough ago would.
+func staleLock(t *testing.T, path string) {
+	t.Helper()
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-write.LeftAfter - time.Minute)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A lock no process has open but made a moment ago may be a commit's,
+// running a hook: it is not offered for removal.
+func TestFreshLockInUse(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith("a.txt")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("a.txt"))
+	tb := h.app.current()
+	tb.s.Queue.LockWait = 50 * time.Millisecond
 	if err := os.WriteFile(filepath.Join(r.GitDir(), "index.lock"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{"a.txt"})); err != nil {
 		t.Fatal(err)
 	}
-	h.until("the lock", h.shows("a git command that ended left index.lock behind"))
+	h.until("in use", h.shows("index.lock is in use by a git command running now"))
+	if h.tt.HasText("Remove Lock and Try Again") || !h.tt.HasText("Try Again") {
+		t.Fatalf("fixes: %q", h.tt.Texts())
+	}
 }

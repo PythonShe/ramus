@@ -1343,6 +1343,7 @@
   "@repoLockLeft": {
     "description": "The error bar: a lock file that no process holds, most likely left by git crashing. lock is its path in the git directory, as index.lock."
   },
+  "repoLockInUse": "{name} failed: {lock} is in use by a git command running now",
   "repoRemoveLock": "Remove Lock",
   "@repoRemoveLock": {
     "description": "A button in the error bar: deletes the lock file no process holds."

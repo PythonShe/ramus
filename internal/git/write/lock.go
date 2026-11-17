@@ -38,6 +38,9 @@ type Holder struct {
 
 func (e *LockedError) Error() string {
 	who := "no process holds it; a git command may have crashed"
+	if e.Age < LeftAfter {
+		who = "no process holds it open; a git command may be running a hook"
+	}
 	if e.Unknown != nil {
 		who = "who holds it cannot be told (" + e.Unknown.Error() + ")"
 	}
@@ -192,8 +195,25 @@ func RemoveLock(ctx context.Context, gitDir, path string) error {
 	if !inRepository(gitDir, path) {
 		return fmt.Errorf("write: %s is not a lock of this repository", path)
 	}
-	if hs, err := holders(ctx, path); len(hs) > 0 || err != nil {
-		return &LockedError{Path: path, Holders: hs, Unknown: err}
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	age := time.Since(fi.ModTime())
+	if hs, err := holders(ctx, path); len(hs) > 0 || err != nil || age < LeftAfter {
+		return &LockedError{Path: path, Age: age, Holders: hs, Unknown: err}
 	}
 	return os.Remove(path)
+}
+
+// LeftAfter is how old a lock no process has open must be to be taken
+// for one a git that ended left behind: git closes the lock it writes
+// while its hooks run, so a younger one may belong to a commit still
+// running a hook.
+const LeftAfter = 2 * time.Minute
+
+// Left reports whether the lock is one a git that ended left behind,
+// which RemoveLock removes.
+func (e *LockedError) Left() bool {
+	return len(e.Holders) == 0 && e.Unknown == nil && e.Age >= LeftAfter
 }

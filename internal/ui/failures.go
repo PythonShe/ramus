@@ -78,6 +78,12 @@ func (a *App) diagnose(t *tab, e *session.LogEntry) diagnosis {
 				who = append(who, redact.Control(h.Command))
 			}
 			d.text = locales.RepoLockHeld(e.Name, name, strings.Join(who, ", "))
+		case le.Unknown == nil && !le.Left():
+			// Closed while git runs a hook: in use, for all lsof can tell.
+			d.text = locales.RepoLockInUse(e.Name, name)
+			if again {
+				d.fixes = append(d.fixes, retry())
+			}
 		case le.Unknown == nil:
 			d.text = locales.RepoLockLeft(e.Name, name)
 			label := locales.RepoRemoveLock()

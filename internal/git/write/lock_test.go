@@ -75,6 +75,14 @@ func TestLockedError(t *testing.T) {
 		t.Fatalf("removed a held lock: %v", err)
 	}
 	f.Close()
+	// Fresh, it may be a commit's running a hook, which has it closed.
+	if err := RemoveLock(context.Background(), r.GitDir(), lock); !errors.As(err, &le) || le.Left() {
+		t.Fatalf("removed a fresh lock: %v", err)
+	}
+	old := time.Now().Add(-LeftAfter - time.Second)
+	if err := os.Chtimes(lock, old, old); err != nil {
+		t.Fatal(err)
+	}
 	if err := RemoveLock(context.Background(), r.GitDir(), lock); err != nil {
 		t.Fatal(err)
 	}

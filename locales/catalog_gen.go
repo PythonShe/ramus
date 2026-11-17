@@ -7059,6 +7059,18 @@ func (msgs Messages) RepoLockLeft(name string, lock string) string {
 	return Catalog.Format(msgs.locale, "repoLockLeft", map[string]any{"name": name, "lock": lock})
 }
 
+// RepoLockInUse says "{name} failed: {lock} is in use by a git command running now"
+// in the language the app shows.
+func RepoLockInUse(name string, lock string) string {
+	return In(i18n.Locale()).RepoLockInUse(name, lock)
+}
+
+// RepoLockInUse says "{name} failed: {lock} is in use by a git command running now"
+// in the language of msgs.
+func (msgs Messages) RepoLockInUse(name string, lock string) string {
+	return Catalog.Format(msgs.locale, "repoLockInUse", map[string]any{"name": name, "lock": lock})
+}
+
 // RepoRemoveLock says "Remove Lock"
 // in the language the app shows.
 //
