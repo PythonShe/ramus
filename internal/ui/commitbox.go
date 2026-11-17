@@ -251,9 +251,15 @@ func (a *App) commitError(c *ui.Context, t *tab) {
 	}
 	ui.Row(c).Gap(spaceS).Children(func() {
 		if cs.withoutHooks && ui.Button(c, locales.CommitBoxWithoutHooks()).Disabled(cs.busy).Clicked() {
-			r := cs.lastRun
-			r.noHooks = true
-			a.startCommit(t, r)
+			// The push is decided again: Amend may have been ticked or
+			// unticked since, which a force turns on.
+			r := commitRun{noHooks: true}
+			if cs.lastRun.push == nil {
+				a.startCommit(t, r)
+			} else {
+				upstream, pushed := amendsPushed(t)
+				a.commitAndPushRun(t, upstream, pushed, r)
+			}
 		}
 		if inLog && ui.Button(c, locales.RepoShowInLog()).Clicked() {
 			a.showLogEntry(t, cs.errLog)
@@ -515,13 +521,22 @@ func commitWhyNot(t *tab) (ready bool, why string) {
 // commitAndPush commits and pushes; an amend of a commit already on
 // upstream, after asking, with a force push.
 func (a *App) commitAndPush(t *tab, upstream string, pushed bool) {
+	a.commitAndPushRun(t, upstream, pushed, commitRun{})
+}
+
+// commitAndPushRun is commitAndPush of r, whose push it sets.
+func (a *App) commitAndPushRun(t *tab, upstream string, pushed bool, r commitRun) {
 	if !pushed {
-		a.startCommit(t, commitRun{push: &write.PushOptions{}})
+		r.push = &write.PushOptions{}
+		a.startCommit(t, r)
 		return
 	}
 	t.commit.confirm = confirmState{open: true, title: locales.RefsForcePushTitle(redact.Control(upstream)),
 		message: locales.RefsForcePushMessage(), button: locales.CommitBoxAmendForcePush(),
-		run: func() { a.startCommit(t, commitRun{push: &write.PushOptions{ForceWithLease: true}}) }}
+		run: func() {
+			r.push = &write.PushOptions{ForceWithLease: true}
+			a.startCommit(t, r)
+		}}
 }
 
 // startCommit checks line endings of what is staged, asks when one
