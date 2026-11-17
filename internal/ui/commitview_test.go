@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui"
+
 	"ramus/internal/git/write"
 )
 
@@ -40,6 +42,37 @@ func TestRevertMergeAndUndo(t *testing.T) {
 	h.until("the toast", h.shows("Reverted 1 commit"))
 	h.click("Undo")
 	h.until("undone", func() bool { return strings.TrimSpace(r.Git("rev-parse", "HEAD")) == merge })
+}
+
+// The reflog knows a merge as History does: it is cherry-picked or
+// reverted against the parent the user names.
+func TestReflogMergeParents(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("checkout", "-q", "-b", "side")
+	r.Write("s.txt", "s\n")
+	r.Commit("on side")
+	r.Git("checkout", "-q", "main")
+	r.Write("m.txt", "m\n")
+	r.Commit("on main")
+	r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No changes"))
+	tb := h.app.current()
+	h.click("Reflog")
+	// The strategy git names in the entry depends on its version.
+	h.rightClickRow(ui.RoleRow, "merge side:")
+	if err := h.tt.ChooseMenuItem("Revert Commit", "Keeping Parent 1"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.idle(tb, "the revert")
+	if l := tb.s.Log; l[len(l)-1].Err != nil || h.app.notice != "" {
+		t.Fatalf("%s: %v; notice %q", l[len(l)-1].Name, l[len(l)-1].Err, h.app.notice)
+	}
+	if _, err := os.Stat(filepath.Join(r.Dir, "s.txt")); !os.IsNotExist(err) {
+		t.Fatal("what the merge brought in is still there")
+	}
 }
 
 // A toast's Undo takes back its own write only: a write of the same name

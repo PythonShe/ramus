@@ -36,6 +36,8 @@ type ReflogEntry struct {
 	// from main to topic").
 	Message string
 	Time    time.Time
+	// Merges is the number of its parents past the first.
+	Merges int
 }
 
 // MaxReflog bounds the entries a reflog view reads.
@@ -52,7 +54,7 @@ func (s *Session) Reflog(ref string, done func([]ReflogEntry, error)) {
 	r.Life().Go(func(ctx context.Context) {
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
 			Args: []string{"log", "-g", "--no-abbrev", "--date=raw", "--max-count=" + strconv.Itoa(MaxReflog),
-				"--format=%H%x00%gd%x00%gs", "--end-of-options", ref, "--"}})
+				"--format=%H%x00%P%x00%gd%x00%gs", "--end-of-options", ref, "--"}})
 		var out []ReflogEntry
 		if err == nil {
 			out = parseReflog(res.Stdout, ref)
@@ -61,24 +63,25 @@ func (s *Session) Reflog(ref string, done func([]ReflogEntry, error)) {
 	})
 }
 
-// parseReflog reads `git log -g --date=raw --format=%H%x00%gd%x00%gs`:
+// parseReflog reads `git log -g --date=raw --format=%H%x00%P%x00%gd%x00%gs`:
 // with raw dates the selector holds the time, so entries are numbered
 // here.
 func parseReflog(out []byte, ref string) []ReflogEntry {
 	var entries []ReflogEntry
 	short := strings.TrimPrefix(ref, "refs/heads/")
 	for line := range bytes.SplitSeq(bytes.TrimRight(out, "\n"), []byte{'\n'}) {
-		f := bytes.SplitN(line, []byte{0}, 3)
-		if len(f) != 3 {
+		f := bytes.SplitN(line, []byte{0}, 4)
+		if len(f) != 4 {
 			continue
 		}
 		id, err := hex.DecodeString(string(f[0]))
 		if err != nil {
 			continue
 		}
-		e := ReflogEntry{OID: id, Message: string(f[2]), Selector: short + "@{" + strconv.Itoa(len(entries)) + "}"}
-		// f[1] is name@{<seconds> <zone>}.
-		if _, sel, ok := bytes.Cut(f[1], []byte("@{")); ok {
+		e := ReflogEntry{OID: id, Message: string(f[3]), Selector: short + "@{" + strconv.Itoa(len(entries)) + "}",
+			Merges: bytes.Count(f[1], []byte{' '})}
+		// f[2] is name@{<seconds> <zone>}.
+		if _, sel, ok := bytes.Cut(f[2], []byte("@{")); ok {
 			secs, _, _ := bytes.Cut(bytes.TrimSuffix(sel, []byte("}")), []byte(" "))
 			if n, err := strconv.ParseInt(string(secs), 10, 64); err == nil {
 				e.Time = time.Unix(n, 0)
@@ -95,6 +98,8 @@ type LostCommit struct {
 	Subject string
 	Author  string
 	Time    time.Time
+	// Merges is the number of its parents past the first.
+	Merges int
 }
 
 // MaxLost bounds the lost commits listed, newest first.
@@ -155,7 +160,7 @@ func lostCommits(ctx context.Context, r *repo.Repository) ([]LostCommit, error) 
 		}
 		subject, _, _ := bytes.Cut(c.Message, []byte{'\n'})
 		lost = append(lost, LostCommit{OID: ids[i], Subject: string(subject), Author: string(c.Author.Name),
-			Time: time.Unix(c.Committer.When, 0)})
+			Time: time.Unix(c.Committer.When, 0), Merges: max(c.Parents-1, 0)})
 		return nil
 	})
 	if err != nil {

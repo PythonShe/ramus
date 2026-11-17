@@ -144,7 +144,7 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 	rs.list.Label = func(i int) string {
 		return locales.ReflogEntry(entries[i].Selector, redact.Control(entries[i].Message))
 	}
-	rs.list.CellMenu = func(m *ui.Menu, i, _ int) { a.commitActions(m, t, entries[i].OID) }
+	rs.list.CellMenu = func(m *ui.Menu, i, _ int) { a.commitItems(m, t, entries[i].OID, entries[i].Merges) }
 	cols := []ui.TableColumn{
 		{Title: locales.ColumnEntry(), ID: "entry", Width: 110, MinWidth: 60},
 		{Title: locales.ColumnMessage(), ID: "message", MinWidth: 80},
@@ -200,7 +200,7 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	lost := rs.lost
 	rs.lostList.Selected = &rs.lostChosen
 	rs.lostList.Label = func(i int) string { return locales.ReflogLost(redact.Control(lost[i].Subject), lost[i].Author) }
-	rs.lostList.CellMenu = func(m *ui.Menu, i, _ int) { a.commitActions(m, t, lost[i].OID) }
+	rs.lostList.CellMenu = func(m *ui.Menu, i, _ int) { a.commitItems(m, t, lost[i].OID, lost[i].Merges) }
 	now := a.Now()
 	a.savedTable(c, "lostCommits", &rs.lostList, commitColumns(), len(lost), func(i, col int) {
 		l := lost[i]

@@ -25,12 +25,6 @@ type branchDialog struct {
 	err      string
 }
 
-// commitActions adds what can be done from a commit to a menu, for a
-// commit not known to be a merge: see commitItems.
-func (a *App) commitActions(m *ui.Menu, t *tab, id []byte) {
-	a.commitItems(m, t, id, 0)
-}
-
 // commitItems adds what can be done from commit id to a menu, in groups:
 // check it out, branch or tag it; bring it onto HEAD or HEAD to it; the
 // Edit Commit submenu, which rewrites it; compare, save and bisect.
