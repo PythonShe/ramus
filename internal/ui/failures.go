@@ -189,11 +189,7 @@ func (a *App) removeLock(t *tab, e *session.LogEntry, path string, op write.Op, 
 // went through.
 func (a *App) pullThenPush(t *tab, push write.Op) {
 	seen := t.s.Seen()
-	cfg := (*config.Config)(nil)
-	if r := t.s.Repo; r != nil {
-		cfg = r.Config()
-	}
-	pull, err := write.Pull(t.s.Where(), pullMode(cfg, seen.Branch), t.s.LocalBranches(), seen)
+	pull, err := write.Pull(t.s.Where(), tabPullMode(t, seen.Branch), t.s.LocalBranches(), seen)
 	if err != nil {
 		a.tell(t, errText(err))
 		return
@@ -208,6 +204,15 @@ func (a *App) pullThenPush(t *tab, push write.Op) {
 			a.submit(t, push, nil)
 		}
 	})
+}
+
+// tabPullMode is pullMode with the config of tab t's repository.
+func tabPullMode(t *tab, branch string) write.PullMode {
+	var cfg *config.Config
+	if r := t.s.Repo; r != nil {
+		cfg = r.Config()
+	}
+	return pullMode(cfg, branch)
 }
 
 // pullMode is how git pull would take in the upstream of branch (a full

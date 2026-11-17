@@ -29,23 +29,46 @@ func (a *App) openKeys() {
 	a.keysUI = keysState{open: true}
 }
 
-// keyCommand is a command listed in the dialog.
-type keyCommand struct{ id, name string }
+// keyCommand is a command listed in the dialog; one with a heading and
+// no id is the heading of the commands after it.
+type keyCommand struct{ id, name, heading string }
 
 // keyCommands are the commands a shortcut can run: the app's, then the
 // user's actions and the tools found.
 func (a *App) keyCommands() []keyCommand {
 	var out []keyCommand
-	for _, b := range bindable {
-		out = append(out, keyCommand{b.id, b.name()})
-	}
-	for _, x := range a.Settings.Actions {
-		if x.On == "" {
-			out = append(out, keyCommand{actionID(x.Name), x.Name})
+	for _, kc := range a.keyRows() {
+		if kc.id != "" {
+			out = append(out, kc)
 		}
 	}
-	for _, tl := range a.palette.tools {
-		out = append(out, keyCommand{toolID(tl.Name), locales.PaletteOpenIn(toolName(tl.Name))})
+	return out
+}
+
+// keyRows are the dialog's rows: the commands of keyCommands under the
+// headings of their groups.
+func (a *App) keyRows() []keyCommand {
+	var out []keyCommand
+	for _, g := range commandGroups {
+		out = append(out, keyCommand{heading: g.heading()})
+		for _, b := range g.cmds {
+			out = append(out, keyCommand{id: b.id, name: b.name()})
+		}
+	}
+	var own []keyCommand
+	for _, x := range a.Settings.Actions {
+		if x.On == "" {
+			own = append(own, keyCommand{id: actionID(x.Name), name: x.Name})
+		}
+	}
+	if len(own) > 0 {
+		out = append(append(out, keyCommand{heading: locales.KeysGroupActions()}), own...)
+	}
+	if len(a.palette.tools) > 0 {
+		out = append(out, keyCommand{heading: locales.KeysGroupTools()})
+		for _, tl := range a.palette.tools {
+			out = append(out, keyCommand{id: toolID(tl.Name), name: locales.PaletteOpenIn(toolName(tl.Name))})
+		}
 	}
 	return out
 }
@@ -73,12 +96,19 @@ func (a *App) keysView(c *ui.Context) {
 	}
 	th := c.Theme()
 	km := a.keys()
+	// The commands the filter matches, under the headings of theirs.
 	var shown []keyCommand
 	words := strings.Fields(strings.ToLower(ks.filter))
-	for _, k := range a.keyCommands() {
+	for _, k := range a.keyRows() {
 		name := strings.ToLower(k.name)
-		if !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(name, w) }) {
+		if k.id == "" || !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(name, w) }) {
 			shown = append(shown, k)
+		}
+	}
+	for i := len(shown) - 1; i >= 0; i-- {
+		// A heading whose commands the filter left out goes too.
+		if shown[i].id == "" && (i == len(shown)-1 || shown[i+1].id == "") {
+			shown = slices.Delete(shown, i, i+1)
 		}
 	}
 	ui.Modal(c, &ks.open, func() {
@@ -86,23 +116,34 @@ func (a *App) keysView(c *ui.Context) {
 			ui.Text(c, locales.KeysTitle()).Bold()
 			ui.TextInput(c, &ks.filter).Label(locales.CommonFilter()).Placeholder(locales.CommonFilter()).AutoFocus().FillWidth()
 			ks.list.Label = func(i int) string {
+				if shown[i].id == "" {
+					return shown[i].heading
+				}
 				return locales.KeysListLabel(shown[i].name, chordsLabel(km.byID[shown[i].id]))
 			}
 			ui.List(c, &ks.list, len(shown), func(i int) {
 				k := shown[i]
+				if k.id == "" {
+					ui.Text(c, k.heading).FontSize(textSmall).Bold().TextColor(th.TextMuted).Padding(spaceM, insetX, spaceXS, insetX)
+					return
+				}
 				ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 					ui.Text(c, k.name).SingleLine().Grow(1)
-					a.recorder(c, k, km)
-					_, set := a.Settings.Keys[k.id]
-					if ui.Button(c, locales.KeysClear()).Disabled(len(km.byID[k.id]) == 0).Clicked() {
-						a.bind(k.id, nil, km)
-					}
-					if ui.Button(c, locales.KeysReset()).Disabled(!set).Clicked() {
+					// Reset only where the user changed the default, and the
+					// x only where there is a shortcut to take away: most rows
+					// have neither.
+					if _, set := a.Settings.Keys[k.id]; set && ui.Button(c, locales.KeysReset()).Clicked() {
 						user := maps.Clone(a.Settings.Keys)
 						delete(user, k.id)
 						a.setKeys(user)
 						ks.note = ""
 					}
+					a.recorder(c, k, km)
+					ui.Row(c).Width(rowHeight).Justify(ui.Center).Children(func() {
+						if len(km.byID[k.id]) > 0 && closeButton(c, locales.KeysClearShortcut(k.name)).Clicked() {
+							a.bind(k.id, nil, km)
+						}
+					})
 				})
 			}).Label(locales.KeysCommands()).Height(420)
 			for _, e := range km.errs {
@@ -127,6 +168,9 @@ func (a *App) recorder(c *ui.Context, k keyCommand, km *keymap) {
 	ks := &a.keysUI
 	on := ks.recording == k.id
 	label := chordsLabel(km.byID[k.id])
+	if len(km.byID[k.id]) == 0 {
+		label = locales.KeysAddShortcut()
+	}
 	if on {
 		label = locales.KeysTypeShortcut()
 	}

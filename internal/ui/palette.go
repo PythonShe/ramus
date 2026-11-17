@@ -96,6 +96,12 @@ func (a *App) commands(query string) []command {
 	if a.NewWindow != nil {
 		cmds = append(cmds, cmd("new-window", func() { a.NewWindow(nil) }))
 	}
+	cmds = append(cmds, cmd("find", a.focusFind))
+	if n := len(a.tabs); n > 1 {
+		cmds = append(cmds,
+			cmd("next-tab", func() { a.active = (a.active + 1) % n }),
+			cmd("previous-tab", func() { a.active = (a.active - 1 + n) % n }))
+	}
 	t := a.current()
 	if t != nil {
 		cmds = append(cmds, cmd("switch-repository", a.openRepoPicker))
@@ -284,6 +290,11 @@ func (a *App) writeCommands(t *tab) []command {
 	}
 	upstream := t.s.State.Status != nil && t.s.State.Status.Branch.Upstream != ""
 	if !head.Detached && !head.Unborn && upstream {
+		// As the sync button pulls: the way git's config says.
+		cmds = append(cmds, cmd("pull", func() {
+			op, err := write.Pull(w, tabPullMode(t, head.Target), t.s.LocalBranches(), t.s.Seen())
+			a.submit(t, op, err)
+		}))
 		for _, p := range []struct {
 			id   string
 			mode write.PullMode

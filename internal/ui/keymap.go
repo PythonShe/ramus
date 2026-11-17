@@ -160,59 +160,98 @@ func (k chord) textSafe() bool {
 
 // bindable is every command a shortcut can run, in the order the
 // settings list them, with the name they show there.
-var bindable = append([]bindableCommand{
-	{"palette", locales.KeysPalette},
-	{"open", locales.KeysOpen},
-	{"clone", locales.KeysClone},
-	{"new", locales.KeysNew},
-	{"repositories", locales.KeysRepositories},
-	{"switch-repository", locales.KeysSwitchRepository},
-	{"settings", locales.KeysSettings},
-	{"keyboard-shortcuts", locales.KeysKeyboardShortcuts},
-	{"about", locales.MenuAbout},
-	{"check-for-updates", locales.MenuCheckForUpdates},
-	{"library-stats", locales.KeysLibraryStats},
-	{"crash-reports", locales.KeysCrashReports},
-	{"diagnostics", locales.KeysDiagnostics},
-	{"new-window", locales.KeysNewWindow},
-	{"move-to-window", locales.KeysMoveToWindow},
-	{"close-tab", locales.KeysCloseTab},
-	{"refresh", locales.KeysRefresh},
-	{"undo", locales.KeysUndo},
-	{"redo", locales.KeysRedo},
-	{"show-changes", locales.KeysShowChanges},
-	{"show-history", locales.KeysShowHistory},
-	{"show-reflog", locales.KeysShowReflog},
-	{"show-stats", locales.KeysShowStats},
-	{"lost-commits", locales.KeysLostCommits},
-	{"show-refs", locales.KeysShowRefs},
-	{"show-stashes", locales.KeysShowStashes},
-	{"show-log", locales.KeysShowLog},
-	{"show-snapshots", locales.KeysShowSnapshots},
-	{"show-lfs-locks", locales.KeysShowLocks},
-	{"show-pulls", locales.KeysShowPulls},
-	{"commit", locales.KeysCommit},
-	{"commit-push", locales.KeysCommitPush},
-	{"stage-all", locales.KeysStageAll},
-	{"unstage-all", locales.KeysUnstageAll},
-	{"fetch", locales.KeysFetch},
-	{"write-commit-graph", locales.KeysWriteCommitGraph},
-	{"pull-merge", locales.KeysPullMerge},
-	{"pull-rebase", locales.KeysPullRebase},
-	{"pull-ff", locales.KeysPullFF},
-	{"push", locales.KeysPush},
-	{"new-branch", locales.KeysNewBranch},
-	{"new-tag", locales.KeysNewTag},
-	{"stash", locales.KeysStash},
-	{"clean", locales.KeysClean},
-	{"apply-patch", locales.KeysApplyPatch},
-	{"snapshot", locales.KeysSnapshot},
-	{"trust", locales.KeysTrust},
-	{"reveal", locales.KeysReveal},
-	{"issue-links", locales.KeysIssueLinks},
-	{"toggle-sidebar", locales.KeysToggleSidebar},
-	{"switch-branch", locales.KeysSwitchBranch},
-}, goToTabs()...)
+var bindable = func() []bindableCommand {
+	var out []bindableCommand
+	for _, g := range commandGroups {
+		out = append(out, g.cmds...)
+	}
+	return out
+}()
+
+// commandGroup is a section of the commands, as the keyboard shortcuts
+// list them under heading.
+type commandGroup struct {
+	heading func() string
+	cmds    []bindableCommand
+}
+
+// commandGroups are the app's commands by what they act on.
+var commandGroups = []commandGroup{
+	{locales.KeysGroupApp, []bindableCommand{
+		{"palette", locales.KeysPalette},
+		{"open", locales.KeysOpen},
+		{"clone", locales.KeysClone},
+		{"new", locales.KeysNew},
+		{"repositories", locales.KeysRepositories},
+		{"settings", locales.KeysSettings},
+		{"keyboard-shortcuts", locales.KeysKeyboardShortcuts},
+		{"about", locales.MenuAbout},
+		{"check-for-updates", locales.MenuCheckForUpdates},
+		{"library-stats", locales.KeysLibraryStats},
+		{"crash-reports", locales.KeysCrashReports},
+		{"diagnostics", locales.KeysDiagnostics},
+	}},
+	{locales.KeysGroupWindow, append([]bindableCommand{
+		{"new-window", locales.KeysNewWindow},
+		{"move-to-window", locales.KeysMoveToWindow},
+		{"switch-repository", locales.KeysSwitchRepository},
+		{"close-tab", locales.KeysCloseTab},
+		{"next-tab", locales.KeysNextTab},
+		{"previous-tab", locales.KeysPreviousTab},
+		{"toggle-sidebar", locales.KeysToggleSidebar},
+		{"find", locales.KeysFind},
+	}, goToTabs()...)},
+	{locales.KeysGroupView, []bindableCommand{
+		{"show-changes", locales.KeysShowChanges},
+		{"show-history", locales.KeysShowHistory},
+		{"show-reflog", locales.KeysShowReflog},
+		{"show-stats", locales.KeysShowStats},
+		{"lost-commits", locales.KeysLostCommits},
+		{"show-refs", locales.KeysShowRefs},
+		{"show-stashes", locales.KeysShowStashes},
+		{"show-log", locales.KeysShowLog},
+		{"show-snapshots", locales.KeysShowSnapshots},
+		{"show-lfs-locks", locales.KeysShowLocks},
+		{"show-pulls", locales.KeysShowPulls},
+	}},
+	{locales.KeysGroupRepository, []bindableCommand{
+		{"refresh", locales.KeysRefresh},
+		{"undo", locales.KeysUndo},
+		{"redo", locales.KeysRedo},
+		{"commit", locales.KeysCommit},
+		{"commit-push", locales.KeysCommitPush},
+		{"stage-all", locales.KeysStageAll},
+		{"unstage-all", locales.KeysUnstageAll},
+		{"fetch", locales.KeysFetch},
+		{"pull", locales.KeysPull},
+		{"pull-merge", locales.KeysPullMerge},
+		{"pull-rebase", locales.KeysPullRebase},
+		{"pull-ff", locales.KeysPullFF},
+		{"push", locales.KeysPush},
+		{"switch-branch", locales.KeysSwitchBranch},
+		{"new-branch", locales.KeysNewBranch},
+		{"new-tag", locales.KeysNewTag},
+		{"stash", locales.KeysStash},
+		{"clean", locales.KeysClean},
+		{"apply-patch", locales.KeysApplyPatch},
+		{"snapshot", locales.KeysSnapshot},
+		{"write-commit-graph", locales.KeysWriteCommitGraph},
+		{"trust", locales.KeysTrust},
+		{"reveal", locales.KeysReveal},
+		{"issue-links", locales.KeysIssueLinks},
+	}},
+}
+
+// CommandName is what the app calls command id, for the app menu; id
+// itself for none of the app's.
+func CommandName(id string) string {
+	for _, b := range bindable {
+		if b.id == id {
+			return b.name()
+		}
+	}
+	return id
+}
 
 // bindableCommand is a command a shortcut can run; name says it in the
 // language the app shows.
@@ -242,6 +281,10 @@ var defaultKeys = map[string][]string{
 	"undo":              {"CmdOrCtrl+Z"},
 	"redo":              {"CmdOrCtrl+Shift+Z"},
 	"commit":            {"CmdOrCtrl+Enter"},
+	"find":              {"CmdOrCtrl+F"},
+	// As in browsers and editors; Control-Tab on macOS too.
+	"next-tab":     {"Ctrl+Tab", "CmdOrCtrl+Shift+]"},
+	"previous-tab": {"Ctrl+Shift+Tab", "CmdOrCtrl+Shift+["},
 	// The day's work, each a chord away: menus and the system take none
 	// of these.
 	"show-changes":  {"CmdOrCtrl+Shift+C"},
@@ -249,7 +292,10 @@ var defaultKeys = map[string][]string{
 	"switch-branch": {"CmdOrCtrl+Shift+B"},
 	"new-branch":    {"CmdOrCtrl+Alt+N"},
 	"fetch":         {"CmdOrCtrl+Shift+F"},
+	"pull":          {"CmdOrCtrl+Shift+L"},
 	"push":          {"CmdOrCtrl+P"},
+	"stage-all":     {"CmdOrCtrl+Shift+A"},
+	"unstage-all":   {"CmdOrCtrl+Shift+U"},
 	// The system's own: Control-Command-S on macOS, as in Finder and
 	// Xcode.
 	"toggle-sidebar": {sidebarKey},
@@ -386,6 +432,25 @@ func (a *App) shortcuts(c *ui.Context) {
 		a.runCommand(b.id)
 	}
 }
+
+// ShowsRepository reports whether the window shows a repository, which
+// the app menu's Repository items act on.
+func (a *App) ShowsRepository() bool { return a.current() != nil }
+
+// tellRepoShown tells RepoShown when the window comes to show a
+// repository, or stops.
+func (a *App) tellRepoShown() {
+	if shown := a.ShowsRepository(); shown != a.repoShown {
+		a.repoShown = shown
+		if a.RepoShown != nil {
+			a.RepoShown(shown)
+		}
+	}
+}
+
+// RunCommand runs command id, as a shortcut does, if it can run now:
+// for the app menu.
+func (a *App) RunCommand(id string) { a.runCommand(id) }
 
 // runCommand runs command id if it can run now.
 func (a *App) runCommand(id string) {

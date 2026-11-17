@@ -2536,7 +2536,7 @@
   "keysNew": "New Repository…",
   "keysRepositories": "Repositories…",
   "keysSettings": "Settings…",
-  "tabsApp": "Ramus",
+  "tabsApp": "Settings, Updates and About",
   "@tabsApp": {
     "description": "Names, for its tooltip and for a screen reader, the gear button at the end of the tab bar, whose menu holds Settings, Check for Updates and About."
   },
@@ -2547,6 +2547,18 @@
   "keysNewWindow": "New Window",
   "keysMoveToWindow": "Move Tab to New Window",
   "keysCloseTab": "Close Tab",
+  "keysNextTab": "Show Next Tab",
+  "@keysNextTab": {
+    "description": "A command: shows the repository open after the one shown, round the end."
+  },
+  "keysPreviousTab": "Show Previous Tab",
+  "@keysPreviousTab": {
+    "description": "A command: shows the repository open before the one shown, round the start."
+  },
+  "keysFind": "Find",
+  "@keysFind": {
+    "description": "A command: puts the keyboard focus in the search or filter field of the view shown."
+  },
   "keysRefresh": "Refresh",
   "@keysRefresh": {
     "description": "A command: reads the repository again."
@@ -2576,10 +2588,14 @@
   "keysStageAll": "Stage All",
   "keysUnstageAll": "Unstage All",
   "keysFetch": "Fetch All Remotes",
-  "keysWriteCommitGraph": "Write Commit-Graph",
-  "keysPullMerge": "Pull, Merging",
-  "keysPullRebase": "Pull, Rebasing",
-  "keysPullFF": "Pull, Fast-Forward Only",
+  "keysWriteCommitGraph": "Update Commit Graph",
+  "keysPull": "Pull",
+  "@keysPull": {
+    "description": "A command: pulls the branch's upstream the way git's config says, as the sync button does."
+  },
+  "keysPullMerge": "Pull (Merge)",
+  "keysPullRebase": "Pull (Rebase)",
+  "keysPullFF": "Pull (Fast-Forward Only)",
   "keysPush": "Push",
   "@keysPush": {
     "description": "A command: pushes the current branch."
@@ -2747,23 +2763,51 @@
   "@keysListLabel": {
     "description": "A command in the list of shortcuts, and the shortcuts that run it."
   },
-  "keysClear": "Clear",
-  "@keysClear": {
-    "description": "A button: takes every shortcut off the command."
-  },
   "keysReset": "Reset",
   "@keysReset": {
     "description": "A button: gives the command its default shortcuts again."
   },
   "keysCommands": "Commands",
+  "keysGroupApp": "App",
+  "@keysGroupApp": {
+    "description": "A heading in the keyboard shortcuts: the commands of the app as a whole."
+  },
+  "keysGroupWindow": "Window and Tabs",
+  "@keysGroupWindow": {
+    "description": "A heading in the keyboard shortcuts: the commands on the window and the repositories open in it."
+  },
+  "keysGroupView": "View",
+  "@keysGroupView": {
+    "description": "A heading in the keyboard shortcuts: the commands showing a view of the repository."
+  },
+  "keysGroupRepository": "Repository",
+  "@keysGroupRepository": {
+    "description": "A heading in the keyboard shortcuts: the commands acting on the repository shown."
+  },
+  "keysGroupActions": "Your Actions",
+  "@keysGroupActions": {
+    "description": "A heading in the keyboard shortcuts: the commands the user defined in the settings file."
+  },
+  "keysGroupTools": "Open in a Tool",
+  "@keysGroupTools": {
+    "description": "A heading in the keyboard shortcuts: opening the repository in an editor or terminal found."
+  },
   "keysTypeShortcut": "Type a Shortcut",
   "keysNoLongerRuns": "{shortcut} no longer runs {command}",
   "@keysNoLongerRuns": {
     "description": "A shortcut just taken from another command, as ⌘K no longer runs Command Palette."
   },
+  "keysClearShortcut": "Remove the shortcuts of {command}",
+  "@keysClearShortcut": {
+    "description": "The button clearing a command's shortcut, for assistive technology and as its tooltip."
+  },
   "keysNone": "None",
   "@keysNone": {
     "description": "A command with no shortcut."
+  },
+  "keysAddShortcut": "Add Shortcut",
+  "@keysAddShortcut": {
+    "description": "The button of a command with no shortcut: pressed, it takes the next one typed."
   },
   "paletteOpenIn": "Open in {tool}",
   "@paletteOpenIn": {
@@ -3062,6 +3106,10 @@
   "menuCloseWindow": "Close Window",
   "@menuCloseWindow": {
     "description": "The File menu: closes the window and every tab in it."
+  },
+  "menuRepository": "Repository",
+  "@menuRepository": {
+    "description": "The app menu of the commands on the repository shown."
   },
   "@menuRefresh": {
     "description": "A menu item: reads the repository again."

@@ -12085,7 +12085,7 @@ func (msgs Messages) KeysSettings() string {
 	return Catalog.Format(msgs.locale, "keysSettings", nil)
 }
 
-// TabsApp says "Ramus"
+// TabsApp says "Settings, Updates and About"
 // in the language the app shows.
 //
 // Names, for its tooltip and for a screen reader, the gear button at the
@@ -12093,7 +12093,7 @@ func (msgs Messages) KeysSettings() string {
 // About.
 func TabsApp() string { return In(i18n.Locale()).TabsApp() }
 
-// TabsApp says "Ramus"
+// TabsApp says "Settings, Updates and About"
 // in the language of msgs.
 //
 // Names, for its tooltip and for a screen reader, the gear button at the
@@ -12171,6 +12171,52 @@ func KeysCloseTab() string { return In(i18n.Locale()).KeysCloseTab() }
 // in the language of msgs.
 func (msgs Messages) KeysCloseTab() string {
 	return Catalog.Format(msgs.locale, "keysCloseTab", nil)
+}
+
+// KeysNextTab says "Show Next Tab"
+// in the language the app shows.
+//
+// A command: shows the repository open after the one shown, round the end.
+func KeysNextTab() string { return In(i18n.Locale()).KeysNextTab() }
+
+// KeysNextTab says "Show Next Tab"
+// in the language of msgs.
+//
+// A command: shows the repository open after the one shown, round the end.
+func (msgs Messages) KeysNextTab() string {
+	return Catalog.Format(msgs.locale, "keysNextTab", nil)
+}
+
+// KeysPreviousTab says "Show Previous Tab"
+// in the language the app shows.
+//
+// A command: shows the repository open before the one shown, round the
+// start.
+func KeysPreviousTab() string { return In(i18n.Locale()).KeysPreviousTab() }
+
+// KeysPreviousTab says "Show Previous Tab"
+// in the language of msgs.
+//
+// A command: shows the repository open before the one shown, round the
+// start.
+func (msgs Messages) KeysPreviousTab() string {
+	return Catalog.Format(msgs.locale, "keysPreviousTab", nil)
+}
+
+// KeysFind says "Find"
+// in the language the app shows.
+//
+// A command: puts the keyboard focus in the search or filter field of the
+// view shown.
+func KeysFind() string { return In(i18n.Locale()).KeysFind() }
+
+// KeysFind says "Find"
+// in the language of msgs.
+//
+// A command: puts the keyboard focus in the search or filter field of the
+// view shown.
+func (msgs Messages) KeysFind() string {
+	return Catalog.Format(msgs.locale, "keysFind", nil)
 }
 
 // KeysRefresh says "Refresh"
@@ -12359,41 +12405,57 @@ func (msgs Messages) KeysFetch() string {
 	return Catalog.Format(msgs.locale, "keysFetch", nil)
 }
 
-// KeysWriteCommitGraph says "Write Commit-Graph"
+// KeysWriteCommitGraph says "Update Commit Graph"
 // in the language the app shows.
 func KeysWriteCommitGraph() string { return In(i18n.Locale()).KeysWriteCommitGraph() }
 
-// KeysWriteCommitGraph says "Write Commit-Graph"
+// KeysWriteCommitGraph says "Update Commit Graph"
 // in the language of msgs.
 func (msgs Messages) KeysWriteCommitGraph() string {
 	return Catalog.Format(msgs.locale, "keysWriteCommitGraph", nil)
 }
 
-// KeysPullMerge says "Pull, Merging"
+// KeysPull says "Pull"
+// in the language the app shows.
+//
+// A command: pulls the branch's upstream the way git's config says, as the
+// sync button does.
+func KeysPull() string { return In(i18n.Locale()).KeysPull() }
+
+// KeysPull says "Pull"
+// in the language of msgs.
+//
+// A command: pulls the branch's upstream the way git's config says, as the
+// sync button does.
+func (msgs Messages) KeysPull() string {
+	return Catalog.Format(msgs.locale, "keysPull", nil)
+}
+
+// KeysPullMerge says "Pull (Merge)"
 // in the language the app shows.
 func KeysPullMerge() string { return In(i18n.Locale()).KeysPullMerge() }
 
-// KeysPullMerge says "Pull, Merging"
+// KeysPullMerge says "Pull (Merge)"
 // in the language of msgs.
 func (msgs Messages) KeysPullMerge() string {
 	return Catalog.Format(msgs.locale, "keysPullMerge", nil)
 }
 
-// KeysPullRebase says "Pull, Rebasing"
+// KeysPullRebase says "Pull (Rebase)"
 // in the language the app shows.
 func KeysPullRebase() string { return In(i18n.Locale()).KeysPullRebase() }
 
-// KeysPullRebase says "Pull, Rebasing"
+// KeysPullRebase says "Pull (Rebase)"
 // in the language of msgs.
 func (msgs Messages) KeysPullRebase() string {
 	return Catalog.Format(msgs.locale, "keysPullRebase", nil)
 }
 
-// KeysPullFF says "Pull, Fast-Forward Only"
+// KeysPullFF says "Pull (Fast-Forward Only)"
 // in the language the app shows.
 func KeysPullFF() string { return In(i18n.Locale()).KeysPullFF() }
 
-// KeysPullFF says "Pull, Fast-Forward Only"
+// KeysPullFF says "Pull (Fast-Forward Only)"
 // in the language of msgs.
 func (msgs Messages) KeysPullFF() string {
 	return Catalog.Format(msgs.locale, "keysPullFF", nil)
@@ -13037,20 +13099,6 @@ func (msgs Messages) KeysListLabel(name string, shortcuts string) string {
 	return Catalog.Format(msgs.locale, "keysListLabel", map[string]any{"name": name, "shortcuts": shortcuts})
 }
 
-// KeysClear says "Clear"
-// in the language the app shows.
-//
-// A button: takes every shortcut off the command.
-func KeysClear() string { return In(i18n.Locale()).KeysClear() }
-
-// KeysClear says "Clear"
-// in the language of msgs.
-//
-// A button: takes every shortcut off the command.
-func (msgs Messages) KeysClear() string {
-	return Catalog.Format(msgs.locale, "keysClear", nil)
-}
-
 // KeysReset says "Reset"
 // in the language the app shows.
 //
@@ -13073,6 +13121,100 @@ func KeysCommands() string { return In(i18n.Locale()).KeysCommands() }
 // in the language of msgs.
 func (msgs Messages) KeysCommands() string {
 	return Catalog.Format(msgs.locale, "keysCommands", nil)
+}
+
+// KeysGroupApp says "App"
+// in the language the app shows.
+//
+// A heading in the keyboard shortcuts: the commands of the app as a whole.
+func KeysGroupApp() string { return In(i18n.Locale()).KeysGroupApp() }
+
+// KeysGroupApp says "App"
+// in the language of msgs.
+//
+// A heading in the keyboard shortcuts: the commands of the app as a whole.
+func (msgs Messages) KeysGroupApp() string {
+	return Catalog.Format(msgs.locale, "keysGroupApp", nil)
+}
+
+// KeysGroupWindow says "Window and Tabs"
+// in the language the app shows.
+//
+// A heading in the keyboard shortcuts: the commands on the window and the
+// repositories open in it.
+func KeysGroupWindow() string { return In(i18n.Locale()).KeysGroupWindow() }
+
+// KeysGroupWindow says "Window and Tabs"
+// in the language of msgs.
+//
+// A heading in the keyboard shortcuts: the commands on the window and the
+// repositories open in it.
+func (msgs Messages) KeysGroupWindow() string {
+	return Catalog.Format(msgs.locale, "keysGroupWindow", nil)
+}
+
+// KeysGroupView says "View"
+// in the language the app shows.
+//
+// A heading in the keyboard shortcuts: the commands showing a view of the
+// repository.
+func KeysGroupView() string { return In(i18n.Locale()).KeysGroupView() }
+
+// KeysGroupView says "View"
+// in the language of msgs.
+//
+// A heading in the keyboard shortcuts: the commands showing a view of the
+// repository.
+func (msgs Messages) KeysGroupView() string {
+	return Catalog.Format(msgs.locale, "keysGroupView", nil)
+}
+
+// KeysGroupRepository says "Repository"
+// in the language the app shows.
+//
+// A heading in the keyboard shortcuts: the commands acting on the
+// repository shown.
+func KeysGroupRepository() string { return In(i18n.Locale()).KeysGroupRepository() }
+
+// KeysGroupRepository says "Repository"
+// in the language of msgs.
+//
+// A heading in the keyboard shortcuts: the commands acting on the
+// repository shown.
+func (msgs Messages) KeysGroupRepository() string {
+	return Catalog.Format(msgs.locale, "keysGroupRepository", nil)
+}
+
+// KeysGroupActions says "Your Actions"
+// in the language the app shows.
+//
+// A heading in the keyboard shortcuts: the commands the user defined in the
+// settings file.
+func KeysGroupActions() string { return In(i18n.Locale()).KeysGroupActions() }
+
+// KeysGroupActions says "Your Actions"
+// in the language of msgs.
+//
+// A heading in the keyboard shortcuts: the commands the user defined in the
+// settings file.
+func (msgs Messages) KeysGroupActions() string {
+	return Catalog.Format(msgs.locale, "keysGroupActions", nil)
+}
+
+// KeysGroupTools says "Open in a Tool"
+// in the language the app shows.
+//
+// A heading in the keyboard shortcuts: opening the repository in an editor
+// or terminal found.
+func KeysGroupTools() string { return In(i18n.Locale()).KeysGroupTools() }
+
+// KeysGroupTools says "Open in a Tool"
+// in the language of msgs.
+//
+// A heading in the keyboard shortcuts: opening the repository in an editor
+// or terminal found.
+func (msgs Messages) KeysGroupTools() string {
+	return Catalog.Format(msgs.locale, "keysGroupTools", nil)
 }
 
 // KeysTypeShortcut says "Type a Shortcut"
@@ -13103,6 +13245,22 @@ func (msgs Messages) KeysNoLongerRuns(shortcut string, command string) string {
 	return Catalog.Format(msgs.locale, "keysNoLongerRuns", map[string]any{"shortcut": shortcut, "command": command})
 }
 
+// KeysClearShortcut says "Remove the shortcuts of {command}"
+// in the language the app shows.
+//
+// The button clearing a command's shortcut, for assistive technology and as
+// its tooltip.
+func KeysClearShortcut(command string) string { return In(i18n.Locale()).KeysClearShortcut(command) }
+
+// KeysClearShortcut says "Remove the shortcuts of {command}"
+// in the language of msgs.
+//
+// The button clearing a command's shortcut, for assistive technology and as
+// its tooltip.
+func (msgs Messages) KeysClearShortcut(command string) string {
+	return Catalog.Format(msgs.locale, "keysClearShortcut", map[string]any{"command": command})
+}
+
 // KeysNone says "None"
 // in the language the app shows.
 //
@@ -13115,6 +13273,22 @@ func KeysNone() string { return In(i18n.Locale()).KeysNone() }
 // A command with no shortcut.
 func (msgs Messages) KeysNone() string {
 	return Catalog.Format(msgs.locale, "keysNone", nil)
+}
+
+// KeysAddShortcut says "Add Shortcut"
+// in the language the app shows.
+//
+// The button of a command with no shortcut: pressed, it takes the next one
+// typed.
+func KeysAddShortcut() string { return In(i18n.Locale()).KeysAddShortcut() }
+
+// KeysAddShortcut says "Add Shortcut"
+// in the language of msgs.
+//
+// The button of a command with no shortcut: pressed, it takes the next one
+// typed.
+func (msgs Messages) KeysAddShortcut() string {
+	return Catalog.Format(msgs.locale, "keysAddShortcut", nil)
 }
 
 // PaletteOpenIn says "Open in {tool}"
@@ -14477,6 +14651,20 @@ func MenuCloseWindow() string { return In(i18n.Locale()).MenuCloseWindow() }
 // The File menu: closes the window and every tab in it.
 func (msgs Messages) MenuCloseWindow() string {
 	return Catalog.Format(msgs.locale, "menuCloseWindow", nil)
+}
+
+// MenuRepository says "Repository"
+// in the language the app shows.
+//
+// The app menu of the commands on the repository shown.
+func MenuRepository() string { return In(i18n.Locale()).MenuRepository() }
+
+// MenuRepository says "Repository"
+// in the language of msgs.
+//
+// The app menu of the commands on the repository shown.
+func (msgs Messages) MenuRepository() string {
+	return Catalog.Format(msgs.locale, "menuRepository", nil)
 }
 
 // WindowCompare says "Compare {file}"

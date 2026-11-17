@@ -66,6 +66,9 @@ type Deps struct {
 	// KeysChanged is called on the main thread when the shortcuts
 	// change, for the app menu to show them; Accelerator reads them.
 	KeysChanged func()
+	// RepoShown is called on the main thread when the window comes to
+	// show a repository, or stops, for the app menu's Repository items.
+	RepoShown func(shown bool)
 	// NewWindow opens a window showing the repositories at paths, none
 	// for an empty one; nil offers no other window.
 	NewWindow func(paths []string)
@@ -136,7 +139,11 @@ type App struct {
 	forgeWarned map[string]bool
 	ghStack     stackTool
 
-	keymap     *keymap
+	keymap *keymap
+	// find are the fields Find focuses; repoShown is whether the window
+	// showed a repository, as RepoShown was last told.
+	find       findFields
+	repoShown  bool
 	welcome    welcomeState
 	repoPick   repoPick
 	clone      cloneState
@@ -603,6 +610,7 @@ func (a *App) View(c *ui.Context) {
 	a.diagnosticsView(c)
 	a.paletteView(c)
 	a.noteLayout()
+	a.tellRepoShown()
 }
 
 // title is what a tab and the window call a repository.

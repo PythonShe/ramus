@@ -151,6 +151,11 @@ func (ws *windows) add() *window {
 	d.Languages, d.ChosenLocale, d.SetLocale = mygo.App.Languages(), mygo.App.ChosenLocale, mygo.App.SetLocale
 	w.app = ui.NewApp(d)
 	w.app.KeysChanged = func() { mygo.App.SetMenu(menu(ws)) }
+	w.app.RepoShown = func(bool) {
+		if w == ws.focused {
+			ws.repoMenuEnabled()
+		}
+	}
 	if ws.found {
 		w.app.SetRunner(ws.git, ws.gitErr)
 	}
@@ -222,6 +227,7 @@ func (ws *windows) show(w *window) {
 	w.win.OnFocus(func() {
 		ws.focused = w
 		w.app.WindowFocused()
+		ws.repoMenuEnabled()
 	})
 }
 

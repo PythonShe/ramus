@@ -67,7 +67,7 @@ func (a *App) welcomeBody(c *ui.Context) {
 			}
 			w := &a.welcome
 			// Typing searches at once, unless a dialog has the keys.
-			f := ui.SearchField(c, &w.query).Label(locales.WelcomeFind()).Placeholder(locales.WelcomeFind())
+			f := ui.SearchField(c, &w.query).Label(locales.WelcomeFind()).Placeholder(locales.WelcomeFind()).Bind(&a.find.welcome)
 			if !a.dialogOpen() {
 				f.AutoFocus()
 			}

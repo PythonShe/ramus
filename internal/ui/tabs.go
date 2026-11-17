@@ -43,24 +43,32 @@ func (a *App) indexOf(id int) int {
 }
 
 // appButton is the app's own: its settings, its updates and About, at
-// the end of the bar.
+// the end of the bar, named by what it opens.
 func (a *App) appButton(c *ui.Context) {
 	label := locales.TabsApp()
+	km := a.keys()
+	item := func(m *ui.Menu, name, id string) *ui.MenuItem {
+		it := m.Item(name)
+		if ks := km.byID[id]; len(ks) > 0 {
+			it.Shortcut(ks[0].mods, ks[0].key)
+		}
+		return it
+	}
 	ui.Toolbar(c, func() {
 		b := ui.Button(c, "").Label(label).Tooltip(label)
 		b.Children(func() { ui.Icon(c, glyphs().gear).FontSize(iconLarge) })
 		b.Menu(func(m *ui.Menu) {
-			if m.Item(locales.KeysSettings()).Chosen() {
+			if item(m, locales.KeysSettings(), "settings").Chosen() {
 				a.openSettings()
 			}
 			if a.ShowAbout == nil {
 				return
 			}
 			m.Separator()
-			if m.Item(locales.MenuCheckForUpdates()).Chosen() {
+			if item(m, locales.MenuCheckForUpdates(), "check-for-updates").Chosen() {
 				a.ShowAbout(true)
 			}
-			if m.Item(locales.MenuAbout()).Chosen() {
+			if item(m, locales.MenuAbout(), "about").Chosen() {
 				a.ShowAbout(false)
 			}
 		})

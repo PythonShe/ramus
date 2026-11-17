@@ -352,6 +352,37 @@ func lookup(env []string, key string) string {
 	return ""
 }
 
+// repoMenu are the commands of the Repository menu, by id, "" a
+// separator.
+var repoMenu = []string{
+	"commit", "commit-push", "",
+	"stage-all", "unstage-all", "",
+	"fetch", "pull", "push", "",
+	"switch-branch", "new-branch", "new-tag", "stash", "",
+	"refresh",
+}
+
+func repoMenuID(id string) string { return "repo:" + id }
+
+// repoMenuEnabled enables the Repository menu's items while the window
+// focused shows a repository.
+func (ws *windows) repoMenuEnabled() {
+	m := mygo.App.Menu()
+	if m == nil {
+		return
+	}
+	on := ws.showsRepository()
+	for _, id := range repoMenu {
+		if it := m.ItemByID(repoMenuID(id)); it != nil && it.IsEnabled() != on {
+			it.SetEnabled(on)
+		}
+	}
+}
+
+func (ws *windows) showsRepository() bool {
+	return ws.focused != nil && ws.focused.app.ShowsRepository()
+}
+
 // menu is the app's menu; an item acts in the window it was chosen in,
 // else the one last focused.
 func menu(ws *windows) *mygo.Menu {
@@ -371,10 +402,15 @@ func menu(ws *windows) *mygo.Menu {
 	about := func(check bool) func(*mygo.MenuItem, *mygo.Window) {
 		return func(*mygo.MenuItem, *mygo.Window) { ws.showAbout(check) }
 	}
-	// macOS has About in the app's menu, the others in Help.
+	mac := runtime.GOOS == "darwin"
+	settingsItem := &mygo.MenuItem{Label: locales.MenuSettings(), Accelerator: key("settings"), Click: act((*ui.App).ShowSettings)}
+	// macOS has About and Settings in the app's menu, the others About in
+	// Help and Settings in File.
 	appMenu := &mygo.MenuItem{Role: mygo.RoleAppMenu, Submenu: []*mygo.MenuItem{
 		{Label: locales.MenuAbout(), Click: about(false)},
 		{Label: locales.MenuCheckForUpdates(), Click: about(true)},
+		mygo.Separator(),
+		settingsItem,
 		mygo.Separator(),
 		{Role: mygo.RoleServices},
 		mygo.Separator(),
@@ -384,24 +420,40 @@ func menu(ws *windows) *mygo.Menu {
 		mygo.Separator(),
 		{Role: mygo.RoleQuit},
 	}}
-	help := &mygo.MenuItem{Label: locales.MenuHelp(), Hidden: runtime.GOOS == "darwin", Submenu: []*mygo.MenuItem{
+	help := &mygo.MenuItem{Label: locales.MenuHelp(), Hidden: mac, Submenu: []*mygo.MenuItem{
 		{Label: locales.MenuCheckForUpdates(), Click: about(true)},
 		mygo.Separator(),
 		{Label: locales.MenuAbout(), Click: about(false)},
 	}}
+	file := []*mygo.MenuItem{
+		{Label: locales.MenuNewWindow(), Accelerator: key("new-window"), Click: func(*mygo.MenuItem, *mygo.Window) { ws.open(nil) }},
+		{Label: locales.MenuOpenRepository(), Accelerator: key("open"), Click: act((*ui.App).PickAndOpen)},
+		{Label: locales.MenuCloneRepository(), Accelerator: key("clone"), Click: act((*ui.App).ShowClone)},
+		{Label: locales.MenuRepositories(), Accelerator: key("repositories"), Click: act((*ui.App).ShowManager)},
+		{Role: mygo.RoleOpenRecent},
+		mygo.Separator(),
+	}
+	if !mac {
+		file = append(file, settingsItem)
+	}
+	file = append(file,
+		&mygo.MenuItem{Label: locales.MenuCommandPalette(), Accelerator: key("palette"), Click: act((*ui.App).ShowPalette)},
+		mygo.Separator())
+	// The commands on the repository shown, with the user's shortcuts,
+	// enabled while the window shows one (repoMenuEnabled); one that
+	// cannot run then, as a Push with nowhere to push, does nothing.
+	repo := make([]*mygo.MenuItem, 0, len(repoMenu))
+	for _, id := range repoMenu {
+		if id == "" {
+			repo = append(repo, mygo.Separator())
+			continue
+		}
+		repo = append(repo, &mygo.MenuItem{ID: repoMenuID(id), Label: ui.CommandName(id), Accelerator: key(id),
+			Disabled: !ws.showsRepository(), Click: act(func(a *ui.App) { a.RunCommand(id) })})
+	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		appMenu,
-		{Label: locales.MenuFile(), Submenu: []*mygo.MenuItem{
-			{Label: locales.MenuNewWindow(), Accelerator: key("new-window"), Click: func(*mygo.MenuItem, *mygo.Window) { ws.open(nil) }},
-			{Label: locales.MenuOpenRepository(), Accelerator: key("open"), Click: act((*ui.App).PickAndOpen)},
-			{Label: locales.MenuCloneRepository(), Accelerator: key("clone"), Click: act((*ui.App).ShowClone)},
-			{Label: locales.MenuRepositories(), Accelerator: key("repositories"), Click: act((*ui.App).ShowManager)},
-			{Role: mygo.RoleOpenRecent},
-			mygo.Separator(),
-			{Label: locales.MenuSettings(), Accelerator: key("settings"), Click: act((*ui.App).ShowSettings)},
-			{Label: locales.MenuCommandPalette(), Accelerator: key("palette"), Click: act((*ui.App).ShowPalette)},
-			{Label: locales.MenuRefresh(), Accelerator: key("refresh"), Click: act((*ui.App).Reload)},
-			mygo.Separator(),
+		{Label: locales.MenuFile(), Submenu: append(file, []*mygo.MenuItem{
 			// Not RoleClose, whose Cmd+W would close the window and every
 			// tab in it: the menu takes keys before the window does.
 			{Label: locales.MenuCloseTab(), Accelerator: key("close-tab"), Click: func(_ *mygo.MenuItem, win *mygo.Window) {
@@ -432,8 +484,9 @@ func menu(ws *windows) *mygo.Menu {
 					win.Close()
 				}
 			}},
-		}},
+		}...)},
 		{Role: mygo.RoleEditMenu},
+		{Label: locales.MenuRepository(), Submenu: repo},
 		{Role: mygo.RoleViewMenu},
 		{Role: mygo.RoleWindowMenu},
 		help,

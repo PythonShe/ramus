@@ -128,24 +128,24 @@ func TestKeysDialog(t *testing.T) {
 	h.tt.Frame()
 	ks := &h.app.keysUI
 	// Record a shortcut for Show Reflog.
-	h.click("None")
+	h.click("Add Shortcut")
 	if ks.recording != "show-reflog" {
 		t.Fatalf("recording %q", ks.recording)
 	}
 	h.tt.Frame()
-	h.tt.Key(ui.Cmd|ui.Shift, ui.KeyL)
+	h.tt.Key(ui.Cmd|ui.Shift, ui.KeyJ)
 	h.tt.Frame()
-	if got := h.app.Settings.Keys["show-reflog"]; !slices.Equal(got, []string{"CmdOrCtrl+Shift+L"}) || ks.recording != "" {
+	if got := h.app.Settings.Keys["show-reflog"]; !slices.Equal(got, []string{"CmdOrCtrl+Shift+J"}) || ks.recording != "" {
 		t.Fatalf("keys %v, recording %q", h.app.Settings.Keys, ks.recording)
 	}
-	label := chord{ui.Cmd | ui.Shift, ui.KeyL}.label()
+	label := chord{ui.Cmd | ui.Shift, ui.KeyJ}.label()
 	h.until("the new shortcut", h.shows(label))
 	// Escape gives up, and the dialog stays.
 	h.click(label)
 	h.tt.Frame()
 	h.tt.Key(0, ui.KeyEscape)
 	h.tt.Frame()
-	if !ks.open || ks.recording != "" || !slices.Equal(h.app.Settings.Keys["show-reflog"], []string{"CmdOrCtrl+Shift+L"}) {
+	if !ks.open || ks.recording != "" || !slices.Equal(h.app.Settings.Keys["show-reflog"], []string{"CmdOrCtrl+Shift+J"}) {
 		t.Fatalf("escape: open %v, recording %q, keys %v", ks.open, ks.recording, h.app.Settings.Keys)
 	}
 	// Refresh's chord moves to Show Reflog, and Refresh is told.
