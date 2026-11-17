@@ -129,7 +129,7 @@ func TestOpenedText(t *testing.T) {
 	got := openedText([]byte(b.String()))
 	last := "line " + strconv.Itoa(maxOpenedLines+499)
 	if !strings.HasPrefix(got, "line 0\n") || !strings.HasSuffix(got, last) || !strings.Contains(got, "\n⋯ 500 more lines\n") {
-		t.Fatalf("opened %q…%q", got[:20], got[len(got)-40:])
+		t.Fatalf("opened %.20q…%q", got, got[max(0, len(got)-40):])
 	}
 	if got := openedText([]byte("a\nb\n")); got != "a\nb" {
 		t.Fatalf("short run %q", got)
