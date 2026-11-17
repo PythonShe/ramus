@@ -64,10 +64,11 @@ func (a *App) snapshotsView(c *ui.Context, t *tab) {
 	ss := &t.snaps
 	a.loadSnapshots(t)
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.RepoSectionSnapshots()).Bold().Grow(1)
+		ui.Row(c).Padding(barPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
+			// The sidebar names the page, as it does the others.
+			ui.Spacer(c)
 			ro := t.s.Queue == nil
-			name := ui.TextInput(c, &ss.name).Label(locales.SnapshotsName()).Placeholder(locales.SnapshotsName()).Width(220).Disabled(ro)
+			name := ui.TextInput(c, &ss.name).Label(locales.SnapshotsName()).Placeholder(locales.SnapshotsNamePlaceholder()).Width(220).Disabled(ro)
 			ui.Checkbox(c, &ss.ignored, locales.OpsIncludeIgnoredFiles()).Disabled(ro)
 			if ui.Button(c, locales.SnapshotsNow()).Disabled(ro).Clicked() || name.Submitted() && !ro {
 				if _, err := t.s.SnapshotNow(ss.name, ss.ignored); err != nil {
@@ -194,7 +195,7 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 				f := files[i]
 				shown, flagged := showPath(f.Path)
 				ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).Children(func() {
-					ui.Text(c, string(rune(f.Status))).Font("monospace").TextColor(th.TextMuted).Width(16)
+					ui.Text(c, string(rune(f.Status))).Font("monospace").TextColor(fileStatusColor(plainInk(th), byte(f.Status))).Width(statusLetterW)
 					fileIcon(c, f.Path)
 					name := pathLabel(c, shown).Grow(1)
 					if flagged != "" {
@@ -205,7 +206,10 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 			ui.Row(c).Gap(spaceM).Justify(ui.End).Children(func() {
 				ro := t.s.Queue == nil
 				n := ss.picked.Len()
-				if ui.Button(c, locales.SnapshotsRestoreSelected(n)).Disabled(ro || n == 0).Clicked() {
+				// Restore Selected is there once something is selected: until
+				// then it would be a button that cannot be pressed beside the
+				// one that can.
+				if n > 0 && ui.Button(c, locales.SnapshotsRestoreSelected(n)).Disabled(ro).Clicked() {
 					var paths []string
 					for _, f := range files {
 						if ss.picked.Has(f.Path) {
