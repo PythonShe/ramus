@@ -126,7 +126,7 @@ func TestPaletteBranchesReadAlike(t *testing.T) {
 	r.Git("branch", "topic​")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.until("the refs", func() bool { return tb.s.State.Refs != nil && len(tb.sideRefs.build(tb).heads) == 3 })
 	h.app.palette.open = true

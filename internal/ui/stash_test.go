@@ -16,7 +16,7 @@ func TestStashKeyAndPop(t *testing.T) {
 	r := h.repoWith()
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	readme := func() string {
 		t.Helper()

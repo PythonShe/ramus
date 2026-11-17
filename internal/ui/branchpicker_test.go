@@ -20,7 +20,7 @@ func TestBranchPickerByDate(t *testing.T) {
 	r.Git("branch", "alpha", "HEAD~1")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	order := func(want ...string) func() bool {
 		return func() bool {
@@ -168,7 +168,7 @@ func TestBranchPickerAsks(t *testing.T) {
 	r.Git("branch", "other")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.app.setSidebar(false)
 	h.click("Branch main")
 	tb := h.app.current()
@@ -203,7 +203,7 @@ func TestBranchPickerCountsAfterFetch(t *testing.T) {
 	r.Git("reset", "-q", "--hard", "origin/main")
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.app.setSidebar(false)
 	tb := h.app.current()
 	h.click("Branch main")

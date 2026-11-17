@@ -18,7 +18,7 @@ func TestSidebarNewWorktreeKeepsPage(t *testing.T) {
 	r.Git("worktree", "add", "-q", "-b", "second", filepath.Join(base, "second"))
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("History")
 	h.until("history", func() bool { return tb.sel == "history" })

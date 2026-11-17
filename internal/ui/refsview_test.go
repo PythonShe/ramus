@@ -158,7 +158,7 @@ func TestRefsRowMenuButton(t *testing.T) {
 	r.Git("remote", "add", "origin", up.Dir)
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("the repository", h.shows("No changes"))
+	h.until("the repository", h.shows("No local changes"))
 	h.click("Branches and Tags")
 	h.app.setSidebar(false)
 	h.until("the branches", func() bool { return hasExact(h, "other") })
