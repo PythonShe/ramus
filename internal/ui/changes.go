@@ -919,21 +919,21 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, d discardSet) {
 				message: message,
 				button:  locales.ChangesDiscard(),
 				run: func() {
-					discard := func() { a.discardPaths(t, w, tracked, untracked, expect(trackedFiles), expect(untrackedFiles)) }
 					if len(unstage) == 0 {
-						discard()
+						a.discardPaths(t, w, tracked, untracked, expect(trackedFiles), expect(untrackedFiles))
 						return
 					}
-					j, err := t.s.Submit(write.Unstage(w, unstage, len(head.OID) == 0))
+					// What is staged goes with the rest in one write, which
+					// keeps it in its snapshot first and checks every file
+					// before it unstages any.
+					op, err := write.DiscardStaged(w, unstage, tracked, untracked, len(head.OID) == 0)
+					if err == nil {
+						op.Expect = expect(slices.Concat(trackedFiles, untrackedFiles))
+						_, err = t.s.Submit(op)
+					}
 					if err != nil {
 						a.notice = errText(err)
-						return
 					}
-					t.s.Then(j, func(err error) {
-						if err == nil {
-							discard()
-						}
-					})
 				},
 			}
 		})

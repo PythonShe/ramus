@@ -172,3 +172,38 @@ func TestDiscardStagedFile(t *testing.T) {
 		t.Errorf("a.txt is %q", b)
 	}
 }
+
+// Discarding a file staged and changed again keeps both versions in one
+// snapshot, which Undo puts back: what was staged is not lost.
+func TestDiscardStagedKeepsTheIndex(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("f.txt", "base\n")
+	r.Commit("base")
+	r.Write("f.txt", "staged only\n")
+	r.Git("add", "f.txt")
+	r.Write("f.txt", "work tree\n")
+	blob := strings.TrimSpace(r.Git("rev-parse", ":f.txt"))
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("staged", h.shows("Staged (1)"))
+	tb := h.app.current()
+	logged := len(tb.s.Log)
+	h.menu("f.txt", "Discard Changes to File…")
+	h.until("the question", h.shows("Discard 1 file?"))
+	h.click("Discard")
+	h.until("nothing changed", func() bool { return r.Git("--no-optional-locks", "status", "--porcelain") == "" })
+	h.idle(tb, "the discard done")
+	writes := len(tb.s.Log) - logged
+	h.app.undo(tb, false)
+	h.idle(tb, "the undo done")
+	if out, _ := r.Run(nil, "rev-parse", ":f.txt"); strings.TrimSpace(out) != blob {
+		t.Errorf("staged %s, want %s", out, blob)
+	}
+	if b, _ := os.ReadFile(filepath.Join(r.Dir, "f.txt")); string(b) != "work tree\n" {
+		t.Errorf("f.txt is %q", b)
+	}
+	if writes != 1 {
+		t.Errorf("%d writes, want one", writes)
+	}
+}

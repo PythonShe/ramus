@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"ramus/internal/git/pathsafe"
@@ -116,21 +117,49 @@ func Delete(w Where, paths []string) (Op, error) {
 		return Op{}, errors.New("write: no files chosen")
 	}
 	name := "Delete " + count(len(paths), paths[0])
+	cmds := argCmds(w.cmd, []string{"clean", "-f", "-d", "-q", "--"}, paths)
+	return Op{Name: name, Cmd: cmds[0], More: cmds[1:],
+		Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Undo: FilesOnly}, nil
+}
+
+// argCmds runs args with paths after them, as many runs of mk as keep
+// each command line short enough.
+func argCmds(mk func(...string) run.Cmd, args, paths []string) []run.Cmd {
 	var cmds []run.Cmd
 	for rest := paths; len(rest) > 0; {
-		args := []string{"clean", "-f", "-d", "-q", "--"}
-		head, n := len(args), 0
+		a := slices.Clone(args)
+		head, n := len(a), 0
 		for i, p := range rest {
 			if i > 0 && n+len(p)+1 > maxArgBytes {
 				break
 			}
-			args, n = append(args, p), n+len(p)+1
+			a, n = append(a, p), n+len(p)+1
 		}
-		rest = rest[len(args)-head:]
-		cmds = append(cmds, w.cmd(args...))
+		rest = rest[len(a)-head:]
+		cmds = append(cmds, mk(a...))
 	}
-	return Op{Name: name, Cmd: cmds[0], More: cmds[1:],
-		Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Undo: FilesOnly}, nil
+	return cmds
+}
+
+// DiscardStaged discards changes staged and not: it unstages the paths
+// of unstage, puts tracked back as they are in the index then, and
+// deletes untracked, as Unstage, Discard and Delete do, in one write
+// that keeps every path in a snapshot first, the index with them: what
+// was staged is kept too, and undo puts it back. unborn is a repository
+// with no commit yet.
+func DiscardStaged(w Where, unstage, tracked, untracked []string, unborn bool) (Op, error) {
+	all := slices.Compact(slices.Sorted(slices.Values(slices.Concat(unstage, tracked, untracked))))
+	if len(unstage) == 0 || len(all) == 0 {
+		return Op{}, errors.New("write: no files chosen")
+	}
+	name := "Discard changes to " + count(len(all), all[0])
+	op := Unstage(w, unstage, unborn)
+	op.Name = name
+	op.More = append(argCmds(w.slow, []string{"restore", "--worktree", noRecurse, "--"}, tracked),
+		argCmds(w.cmd, []string{"clean", "-f", "-d", "-q", "--"}, untracked)...)
+	op.Snapshot = &snapshot.Options{Reason: name, Paths: all}
+	op.Undo = FilesOnly
+	return op, nil
 }
 
 // Partial is a patch made by diff.Parsed.Select, and what to do with it.
