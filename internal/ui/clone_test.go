@@ -91,3 +91,22 @@ func TestCloneFolderTyped(t *testing.T) {
 		t.Fatalf("folder typed replaced by %q", h.app.clone.dir)
 	}
 }
+
+// A URL is named by its last part whatever separates it, so that a
+// Windows path or file URL does not name the whole path.
+func TestDefaultCloneDir(t *testing.T) {
+	for url, want := range map[string]string{
+		"https://example.com/owner/repo.git": "repo",
+		"git@example.com:owner/repo.git":     "repo",
+		"git@example.com:repo":               "repo",
+		"file:///tmp/repos/ramus/":           "ramus",
+		`C:\Users\me\repos\ramus`:            "ramus",
+		`file://C:\Users\RUNNER~1\Temp\002`:  "002",
+		`\\server\share\project.git\`:        "project",
+		"https://example.com/":               "example.com",
+	} {
+		if got := defaultCloneDir(url); got != want {
+			t.Errorf("defaultCloneDir(%q) = %q, want %q", url, got, want)
+		}
+	}
+}

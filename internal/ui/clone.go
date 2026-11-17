@@ -109,14 +109,18 @@ func (a *App) cloneDialog(c *ui.Context) {
 }
 
 // defaultCloneDir is the folder a URL clones into, named as git would;
-// "" while the URL names none.
+// "" while the URL names none. A backslash separates folders too, as git
+// takes it on Windows, where a path or a file URL is written with them;
+// else the whole path would be the name and land inside the parent.
 func defaultCloneDir(url string) string {
-	name := strings.TrimSuffix(path.Base(strings.TrimRight(strings.ReplaceAll(strings.TrimSpace(url), ":", "/"), "/")), ".git")
+	name := strings.TrimSuffix(path.Base(strings.TrimRight(cloneURLSeparators.Replace(strings.TrimSpace(url)), "/")), ".git")
 	if name == "." || name == "/" {
 		return ""
 	}
 	return name
 }
+
+var cloneURLSeparators = strings.NewReplacer(":", "/", "\\", "/")
 
 // cloneParents are the folders of projects in the home a clone goes
 // into, the first there is, until the user picks one; else the home.
