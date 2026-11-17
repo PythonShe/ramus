@@ -51,11 +51,11 @@ func (a *App) managerView(c *ui.Context) {
 			l := ui.List(c, &m.list, len(repos), func(i int) {
 				r := repos[i]
 				ui.Row(c).Padding(rowTallPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-					star := "☆"
+					star := glyphs().star
 					if r.Favourite {
-						star = "★"
+						star = glyphs().starFill
 					}
-					if ui.Button(c, star).Label(favLabel(r)).Padding(0, spaceXS).Clicked() {
+					if iconButton(c, star, favLabel(r)).Padding(0, spaceXS).Clicked() {
 						path, on := r.Path, !r.Favourite
 						act = func() { a.libraryWrite(func(l *library.Library) error { return l.SetFavourite(path, on) }) }
 					}

@@ -330,11 +330,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 			ui.Row(c).Grow(1).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Width(float32(r.depth) * treeIndent)
 				fk := prefix + r.folder
-				arrow := pickIcons().chevron
-				if rs.closed[fk] && rs.filter == "" {
-					arrow = wtIcons().right
-				}
-				if ui.Icon(c, arrow).FontSize(iconSmall).TextColor(k.Muted).Width(iconMedium).Label(locales.RefsFolderToggle(openState(!rs.closed[fk] || rs.filter != ""))).RowClicked() {
+				if ui.Icon(c, disclosure(!rs.closed[fk] || rs.filter != "")).FontSize(iconSmall).TextColor(k.Muted).Width(iconMedium).Label(locales.RefsFolderToggle(openState(!rs.closed[fk] || rs.filter != ""))).RowClicked() {
 					act = func() { rs.closed[fk] = !rs.closed[fk]; rs.closedGen++ }
 				}
 				ui.Text(c, redact.Control(r.label)+"/").SingleLine().Grow(1)
@@ -389,12 +385,9 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					} else {
 						tr.TextColor(k.Muted)
 					}
-					// The counts apart from the name, each in its colour.
-					if b.Ahead > 0 && !b.Gone {
-						ui.Text(c, locales.RepoPickerAhead(b.Ahead)).FontSize(textSmall).TextColor(k.Accent).SingleLine().Description(locales.RepoPickerAheadLabel(b.Ahead))
-					}
-					if b.Behind > 0 && !b.Gone {
-						ui.Text(c, locales.RepoPickerBehind(b.Behind)).FontSize(textSmall).TextColor(k.Warning).SingleLine().Description(locales.RepoPickerBehindLabel(b.Behind))
+					// The counts apart from the name.
+					if !b.Gone {
+						aheadBehind(c, k, b.Ahead, b.Behind, strings.TrimPrefix(b.Upstream, "refs/remotes/"))
 					}
 				})
 			case 2:

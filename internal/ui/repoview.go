@@ -503,9 +503,18 @@ func fileIcon(c *ui.Context, path string, k ink) {
 
 // pathLabel shows path shown, from showPath, in a list's row on one line.
 // Cut, it loses its start and keeps its end, the file's name and the
-// folders nearest it, and the pointer resting on it shows it whole.
+// folders nearest it, and the pointer resting on it shows it whole. A
+// path flagged comes after a warning glyph.
 func pathLabel(c *ui.Context, shown string) ui.Element {
-	return ui.Text(c, shown).SingleLine().TruncateStart().Tooltip(shown)
+	if !flaggedShown(shown) {
+		return ui.Text(c, shown).SingleLine().TruncateStart().Tooltip(shown)
+	}
+	// A warning before the quoted path, in the colour the caller gives
+	// the text, which the row passes down to both.
+	return ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Shrink(1).Tooltip(shown).Children(func() {
+		ui.Icon(c, glyphs().warning).FontSize(iconMedium).Shrink(0)
+		ui.Text(c, shown).SingleLine().TruncateStart().Shrink(1)
+	})
 }
 
 // showPath is how a path from git is shown: as it is, unless it holds
@@ -537,5 +546,19 @@ func showPath(p string) (shown, why string) {
 	if f&pathsafe.Absolute != 0 {
 		reasons = append(reasons, locales.RepoPathAbsolute())
 	}
-	return "⚠ " + strconv.Quote(p), locales.RepoPathFlagged(strings.Join(reasons, ", "))
+	return strconv.Quote(p), locales.RepoPathFlagged(strings.Join(reasons, ", "))
+}
+
+// flaggedShown reports whether shown is a path showPath quoted and
+// flagged: a path whose own name starts with a quote is not.
+func flaggedShown(shown string) bool {
+	if !strings.HasPrefix(shown, `"`) {
+		return false
+	}
+	p, err := strconv.Unquote(shown)
+	if err != nil {
+		return false
+	}
+	again, why := showPath(p)
+	return why != "" && again == shown
 }

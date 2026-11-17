@@ -6,7 +6,6 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -74,9 +73,9 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 		b = ui.Button(c, "").Label(label).Tooltip(locales.BranchPickerTooltip())
 		b.Children(func() {
 			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, pickIcons().branch).FontSize(iconMedium).TextColor(th.TextMuted)
+				ui.Icon(c, glyphs().branch).FontSize(iconMedium).TextColor(th.TextMuted)
 				ui.Text(c, name).SingleLine().TruncateMiddle().MaxWidth(220)
-				ui.Icon(c, pickIcons().chevron).FontSize(iconSmall).TextColor(th.TextMuted)
+				ui.Icon(c, glyphs().chevronDown).FontSize(iconSmall).TextColor(th.TextMuted)
 			})
 		})
 		if b.Clicked() {
@@ -187,7 +186,7 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 			if canCreate {
 				ui.Divider(c)
 				// Its text starts where the branches' names do, past the check.
-				nb := ui.ButtonBase(c).Padding(rowPadY, spaceS, rowPadY, spaceS+12+spaceS).Radius(th.Radius).FillWidth().Justify(ui.Start)
+				nb := ui.ButtonBase(c).Padding(rowPadY, spaceS, rowPadY, spaceS+markW+spaceS).Radius(th.Radius).FillWidth().Justify(ui.Start)
 				if nb.Hovered() {
 					nb.Background(th.SurfaceHover)
 				}
@@ -267,30 +266,29 @@ func pickRowView(c *ui.Context, t *tab, p *branchPick, r pickRow, hi bool) ui.El
 	}
 	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(shortRef(r.ref))
-	fg, muted := th.Text, th.TextMuted
+	fg, k := th.Text, pickInk(th, hi)
 	if hi {
 		row.Background(th.Accent)
-		fg, muted = th.AccentText, th.AccentText
+		fg = th.AccentText
 	}
 	row.Children(func() {
-		check := ""
 		if r.ref == t.s.State.Head.Target && !t.s.State.Head.Detached {
-			check = "✓"
+			row.Description(locales.BranchPickerCurrent())
+			ui.Icon(c, glyphs().check).FontSize(iconMedium).Width(markW).TextColor(fg)
+		} else {
+			ui.Box(c).Width(markW)
 		}
-		ui.Text(c, check).Width(12).TextColor(fg)
 		ui.Text(c, shortRef(r.ref)).SingleLine().TruncateMiddle().Shrink(1).Grow(1).TextColor(fg)
 		b, ok := p.info[r.ref]
 		if !ok {
 			return
 		}
 		if b.Worktree != "" {
-			ui.Text(c, locales.RefsInWorktree(filepath.Base(b.Worktree))).FontSize(textSmall).TextColor(muted).SingleLine().Description(locales.RefsCheckedOutIn(b.Worktree))
+			ui.Text(c, locales.RefsInWorktree(filepath.Base(b.Worktree))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(locales.RefsCheckedOutIn(b.Worktree))
 		}
-		if b.Ahead > 0 {
-			ui.Text(c, locales.RepoPickerAhead(b.Ahead)).FontSize(textSmall).TextColor(muted).Description(locales.RepoPickerAheadLabel(b.Ahead))
-		}
-		if b.Behind > 0 {
-			ui.Text(c, locales.RepoPickerBehind(b.Behind)).FontSize(textSmall).TextColor(muted).Description(locales.RepoPickerBehindLabel(b.Behind))
+		if b.Upstream != "" && !b.Gone {
+			describeAheadBehind(row, b.Ahead, b.Behind)
+			aheadBehind(c, k, b.Ahead, b.Behind, "")
 		}
 	})
 	return row
@@ -400,12 +398,3 @@ func (a *App) switchTo(t *tab, ref string) {
 	}
 	a.checkOut(t, b)
 }
-
-// pickIcons are the branch picker's icons, parsed once.
-var pickIcons = sync.OnceValue(func() (icons struct{ branch, chevron *ui.SVG }) {
-	// A branch: a line from a commit below to one above, and one off it
-	// to the side.
-	icons.branch = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="7" cy="5.5" r="2.25"/><circle cx="7" cy="18.5" r="2.25"/><circle cx="17" cy="7" r="2.25"/><path d="M7 7.75v8.5M17 9.25c0 4.5-10 3-10 7"/></svg>`))
-	icons.chevron = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5l6 6 6-6"/></svg>`))
-	return icons
-})

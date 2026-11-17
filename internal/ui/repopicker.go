@@ -67,11 +67,11 @@ const (
 func (a *App) repoButton(c *ui.Context, t *tab) {
 	th := c.Theme()
 	p := &a.repoPick
-	name, icon := "", repoIcons().repo
+	name, icon := "", glyphs().repo
 	if t != nil {
 		name = a.title(t)
 		if p.briefs[t.s.Path].Fork {
-			icon = repoIcons().fork
+			icon = glyphs().fork
 		}
 	}
 	label := locales.RepoPickerLabel(name)
@@ -82,7 +82,7 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, icon).FontSize(iconMedium).TextColor(th.TextMuted)
 				ui.Text(c, name).Bold().SingleLine().TruncateMiddle().MaxWidth(220)
-				ui.Icon(c, pickIcons().chevron).FontSize(iconSmall).TextColor(th.TextMuted)
+				ui.Icon(c, glyphs().chevronDown).FontSize(iconSmall).TextColor(th.TextMuted)
 			})
 		})
 		if b.Clicked() {
@@ -424,42 +424,31 @@ func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 	b := a.repoPick.briefs[r.path]
 	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(r.name).Tooltip(r.path)
-	fg, muted := th.Text, th.TextMuted
+	fg, k := th.Text, pickInk(th, hi)
 	if hi {
 		row.Background(th.Accent)
-		fg, muted = th.AccentText, th.AccentText
+		fg = th.AccentText
 	}
 	row.Children(func() {
 		// A check by the repository shown, a dot by the others open.
-		check := ""
-		if a.Has(r.path) {
-			check = "•"
+		switch {
+		case a.current() != nil && a.current().s.Path == r.path:
+			row.Description(locales.RepoPickerShown())
+			ui.Icon(c, glyphs().check).FontSize(iconMedium).Width(markW).TextColor(fg)
+		case a.Has(r.path):
+			row.Description(locales.RepoPickerOpen())
+			ui.Icon(c, glyphs().dot).FontSize(iconMedium).Width(markW).TextColor(fg)
+		default:
+			ui.Box(c).Width(markW)
 		}
-		if t := a.current(); t != nil && t.s.Path == r.path {
-			check = "✓"
-		}
-		ui.Text(c, check).Width(12).TextColor(fg)
-		icon := repoIcons().repo
+		icon := glyphs().repo
 		if b.Fork {
-			icon = repoIcons().fork
+			icon = glyphs().fork
 		}
-		ui.Icon(c, icon).FontSize(iconMedium).TextColor(muted)
+		ui.Icon(c, icon).FontSize(iconMedium).TextColor(k.Muted)
 		ui.Text(c, r.name).SingleLine().TruncateMiddle().Shrink(1).Grow(1).TextColor(fg)
-		if b.Ahead > 0 {
-			ui.Text(c, locales.RepoPickerAhead(b.Ahead)).FontSize(textSmall).TextColor(muted).Description(locales.RepoPickerAheadLabel(b.Ahead))
-		}
-		if b.Behind > 0 {
-			ui.Text(c, locales.RepoPickerBehind(b.Behind)).FontSize(textSmall).TextColor(muted).Description(locales.RepoPickerBehindLabel(b.Behind))
-		}
+		describeAheadBehind(row, b.Ahead, b.Behind)
+		aheadBehind(c, k, b.Ahead, b.Behind, "")
 	})
 	return row
 }
-
-// repoIcons are the picker's icons, parsed once.
-var repoIcons = sync.OnceValue(func() (icons struct{ repo, fork *ui.SVG }) {
-	// A repository: a book, its spine down the left.
-	icons.repo = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18.5V5.5A2.5 2.5 0 0 1 7.5 3H19v13H7.5A2.5 2.5 0 0 0 5 18.5zm0 0A2.5 2.5 0 0 0 7.5 21H19"/><path d="M9 7h6"/></svg>`))
-	// A fork: two commits above joining into one below.
-	icons.fork = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="6.5" cy="5.5" r="2.25"/><circle cx="17.5" cy="5.5" r="2.25"/><circle cx="12" cy="18.5" r="2.25"/><path d="M6.5 7.75v1.5c0 2 1.5 3 3 3h5c1.5 0 3-1 3-3v-1.5M12 12.25v4"/></svg>`))
-	return icons
-})

@@ -34,7 +34,7 @@ func TestRepoPicker(t *testing.T) {
 	h.until("the owners", func() bool {
 		return h.tt.HasText("alice") && h.tt.HasText("bob") && h.tt.HasText("Other")
 	})
-	h.until("the commit to push", h.shows("↑1"))
+	h.until("the commit to push", h.describes("1 commit to push"))
 	if p := h.app.repoPick.briefs[library.Clean(fork.Dir)]; !p.Fork || p.Behind != 0 {
 		t.Fatalf("fork brief %+v", p)
 	}

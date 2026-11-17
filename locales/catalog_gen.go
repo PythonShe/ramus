@@ -12955,6 +12955,22 @@ func (msgs Messages) BranchPickerDetached() string {
 	return Catalog.Format(msgs.locale, "branchPickerDetached", nil)
 }
 
+// BranchPickerCurrent says "Checked out"
+// in the language the app shows.
+//
+// Read aloud for the check beside the branch checked out, in the branch
+// picker.
+func BranchPickerCurrent() string { return In(i18n.Locale()).BranchPickerCurrent() }
+
+// BranchPickerCurrent says "Checked out"
+// in the language of msgs.
+//
+// Read aloud for the check beside the branch checked out, in the branch
+// picker.
+func (msgs Messages) BranchPickerCurrent() string {
+	return Catalog.Format(msgs.locale, "branchPickerCurrent", nil)
+}
+
 // BranchPickerSearch says "Search branches"
 // in the language the app shows.
 func BranchPickerSearch() string { return In(i18n.Locale()).BranchPickerSearch() }
@@ -13971,32 +13987,36 @@ func (msgs Messages) RepoPickerOther() string {
 	return Catalog.Format(msgs.locale, "repoPickerOther", nil)
 }
 
-// RepoPickerAhead says "↑{count}"
+// RepoPickerShown says "Shown in this window"
 // in the language the app shows.
 //
-// Commits the branch has to push, beside a repository.
-func RepoPickerAhead(count int) string { return In(i18n.Locale()).RepoPickerAhead(count) }
+// Read aloud for the check beside the repository the window shows, in the
+// repository picker.
+func RepoPickerShown() string { return In(i18n.Locale()).RepoPickerShown() }
 
-// RepoPickerAhead says "↑{count}"
+// RepoPickerShown says "Shown in this window"
 // in the language of msgs.
 //
-// Commits the branch has to push, beside a repository.
-func (msgs Messages) RepoPickerAhead(count int) string {
-	return Catalog.Format(msgs.locale, "repoPickerAhead", map[string]any{"count": count})
+// Read aloud for the check beside the repository the window shows, in the
+// repository picker.
+func (msgs Messages) RepoPickerShown() string {
+	return Catalog.Format(msgs.locale, "repoPickerShown", nil)
 }
 
-// RepoPickerBehind says "↓{count}"
+// RepoPickerOpen says "Open in a tab"
 // in the language the app shows.
 //
-// Commits the branch has to pull, beside a repository.
-func RepoPickerBehind(count int) string { return In(i18n.Locale()).RepoPickerBehind(count) }
+// Read aloud for the dot beside a repository open in another tab, in the
+// repository picker.
+func RepoPickerOpen() string { return In(i18n.Locale()).RepoPickerOpen() }
 
-// RepoPickerBehind says "↓{count}"
+// RepoPickerOpen says "Open in a tab"
 // in the language of msgs.
 //
-// Commits the branch has to pull, beside a repository.
-func (msgs Messages) RepoPickerBehind(count int) string {
-	return Catalog.Format(msgs.locale, "repoPickerBehind", map[string]any{"count": count})
+// Read aloud for the dot beside a repository open in another tab, in the
+// repository picker.
+func (msgs Messages) RepoPickerOpen() string {
+	return Catalog.Format(msgs.locale, "repoPickerOpen", nil)
 }
 
 // RepoPickerAheadLabel says "{count, plural, one {# commit to push} other {# commits to push}}"

@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/egoist/mygo/ui"
 
@@ -471,14 +470,10 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 			// The chevron takes the status letter's column and the folder
 			// the file icon's, so names line up with the files'.
 			key := openKey{r.sec, m.dir(r.sec, r.idx)}
-			chevron := pickIcons().chevron
-			if cv.closed[key] {
-				chevron = wtIcons().right
-			}
-			if ui.Icon(c, chevron).FontSize(iconSmall).Width(statusLetterW).TextColor(k.Muted).RowClicked() {
+			if ui.Icon(c, disclosure(!cv.closed[key])).FontSize(iconSmall).Width(statusLetterW).TextColor(k.Muted).RowClicked() {
 				*act = func() { cv.toggleFolder(key) }
 			}
-			ui.Icon(c, changeIcons().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Muted)
+			ui.Icon(c, glyphs().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Muted)
 			ui.Text(c, m.name(r)).SingleLine().Grow(1)
 			tot := cv.folderLines(m, r.sec, key.path)
 			inkLineCounts(c, k, int(tot.added), int(tot.deleted))
@@ -488,7 +483,7 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 		letter := entryLetter(m.st, i, r.sec)
 		ui.Text(c, letter).Font("monospace").TextColor(entryColor(k, m.st, i, letter)).Width(statusLetterW).Description(entryWords(m.st, i, r.sec))
 		if untrackedFolder(m.st, i) {
-			ui.Icon(c, changeIcons().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Muted)
+			ui.Icon(c, glyphs().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Muted)
 		} else {
 			fileIcon(c, string(m.st.Path(i)), k)
 		}
@@ -1012,9 +1007,3 @@ func entryColor(k ink, st *status.Status, i int, letter string) ui.Color {
 	}
 	return fileStatusColor(k, letter[0])
 }
-
-// changeIcons are the change list's own icons, parsed once.
-var changeIcons = sync.OnceValue(func() (icons struct{ folder *ui.SVG }) {
-	icons.folder = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>`))
-	return icons
-})

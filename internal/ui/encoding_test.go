@@ -35,7 +35,7 @@ func TestEncodings(t *testing.T) {
 	}
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
-	h.until("open", h.shows(`⚠ "caf\xe9.txt"`))
+	h.until("open", h.shows(`"caf\xe9.txt"`))
 	tb := h.app.current()
 	h.until("the commit setup", func() bool { return tb.commit.setup != nil })
 	tb.commit.subject = "déjà vu"

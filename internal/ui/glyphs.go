@@ -131,12 +131,27 @@ func smallIconButton(c *ui.Context, g *ui.SVG, label string) ui.Element {
 	return b
 }
 
+// disclosure is the chevron of a folder or a section that opens: down
+// while open, to the right while closed. It is thick, for iconSmall.
+func disclosure(open bool) *ui.SVG {
+	if open {
+		return glyphs().chevronDown
+	}
+	return glyphs().chevronRight
+}
+
 // aheadBehind is how a branch stands with its upstream as glyphs and
 // counts: up for the commits to push, down for those to pull, each left
 // out at 0, so a branch even with its upstream shows nothing. Figures are
-// tabular so that the width holds as the counts change.
+// tabular so that the width holds as the counts change. upstream is ""
+// inside a control, as a picker's row, which assistive technology reads
+// as one: the control then says the counts with describeAheadBehind.
 func aheadBehind(c *ui.Context, k ink, ahead, behind int, upstream string) ui.Element {
-	return ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Description(locales.WorktreeAheadBehind(ahead, behind, upstream)).Children(func() {
+	row := ui.Row(c).Gap(spaceM).AlignItems(ui.Center)
+	if upstream != "" {
+		row.Description(locales.WorktreeAheadBehind(ahead, behind, upstream))
+	}
+	return row.Children(func() {
 		for _, p := range []struct {
 			n int
 			g *ui.SVG
@@ -151,4 +166,23 @@ func aheadBehind(c *ui.Context, k ink, ahead, behind int, upstream string) ui.El
 			})
 		}
 	})
+}
+
+// describeAheadBehind tells assistive technology through e the commits
+// to push and to pull that aheadBehind draws inside it.
+func describeAheadBehind(e ui.Element, ahead, behind int) {
+	if ahead > 0 {
+		e.Description(locales.RepoPickerAheadLabel(ahead))
+	}
+	if behind > 0 {
+		e.Description(locales.RepoPickerBehindLabel(behind))
+	}
+}
+
+// pickInk is the colours of a picker's row, in the accent while hi.
+func pickInk(th *ui.Theme, hi bool) ink {
+	if hi {
+		return chosenInk(th)
+	}
+	return plainInk(th)
 }

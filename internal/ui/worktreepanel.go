@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -149,8 +148,7 @@ func (a *App) worktreeButton(c *ui.Context, t *tab) {
 	label := locales.WorktreePanel()
 	var b ui.Element
 	ui.Toolbar(c, func() {
-		b = ui.Button(c, "").Label(label).Tooltip(label)
-		b.Children(func() { ui.Icon(c, wtIcons().stack).FontSize(iconLarge) })
+		b = iconButton(c, glyphs().worktrees, label)
 		if b.Clicked() {
 			p.open = !p.open
 		}
@@ -231,11 +229,7 @@ func wtWorktreeRow(c *ui.Context, w repo.Worktree, sum session.WorktreeSummary, 
 		row.Background(th.SurfaceHover)
 	}
 	row.Children(func() {
-		chevron := wtIcons().right
-		if expanded {
-			chevron = pickIcons().chevron
-		}
-		ui.Icon(c, chevron).FontSize(iconSmall).TextColor(th.TextMuted).Width(12)
+		ui.Icon(c, disclosure(expanded)).FontSize(iconSmall).TextColor(th.TextMuted).Width(markW)
 		n := ui.Text(c, name).SingleLine().TruncateMiddle().Shrink(1)
 		if w.Current {
 			n.Bold()
@@ -272,7 +266,7 @@ func wtWorktreeRow(c *ui.Context, w repo.Worktree, sum session.WorktreeSummary, 
 			// In a toolbar: no face until the pointer is on it.
 			ui.Toolbar(c, func() {
 				b := ui.Button(c, "").Label(locales.WorktreePanelOpenLabel(name)).Tooltip(locales.WorktreePanelOpenInTab()).Padding(0, spaceXS)
-				b.Children(func() { ui.Icon(c, wtIcons().open).FontSize(iconMedium).TextColor(th.TextMuted) })
+				b.Children(func() { ui.Icon(c, glyphs().external).FontSize(iconMedium).TextColor(th.TextMuted) })
 				open = b.Clicked()
 			}).Label(locales.WorktreePanelOpenLabel(name))
 		}
@@ -292,7 +286,7 @@ func wtFileRow(c *ui.Context, f session.WorktreeFile) ui.Element {
 		st = 'D'
 	}
 	lines := diff.Lines{Added: uint32(f.Added), Deleted: uint32(f.Removed), Binary: f.Binary, Known: true}
-	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS, 0, spaceS+12+spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
+	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS, 0, spaceS+markW+spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(fileLabel(fileStatusWord(st), shown, lines))
 	if row.Hovered() {
 		row.Background(th.SurfaceHover)
@@ -315,7 +309,7 @@ func (a *App) wtPatchView(c *ui.Context, p *wtPanel) {
 		back := false
 		ui.Toolbar(c, func() {
 			b := ui.Button(c, "").Label(locales.WorktreePanelBack()).Tooltip(locales.WorktreePanelBack()).Padding(0, spaceXS)
-			b.Children(func() { ui.Icon(c, wtIcons().left).FontSize(iconMedium).TextColor(th.TextMuted) })
+			b.Children(func() { ui.Icon(c, glyphs().chevronLeft).FontSize(iconMedium).TextColor(th.TextMuted) })
 			back = b.Clicked()
 		}).Label(locales.WorktreePanelBack())
 		if back {
@@ -334,14 +328,3 @@ func (a *App) wtPatchView(c *ui.Context, p *wtPanel) {
 		a.patchBody(c, nil, &p.pv, p.patch, nil)
 	})
 }
-
-// wtIcons are the worktree panel's icons, parsed once.
-var wtIcons = sync.OnceValue(func() (icons struct{ stack, right, left, open *ui.SVG }) {
-	// Worktrees: three folders' tops, one behind the other.
-	icons.stack = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="9" width="18" height="11" rx="2.5"/><path d="M5.5 6h13M8 3h8"/></svg>`))
-	icons.right = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6l6 6-6 6"/></svg>`))
-	icons.left = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6l-6 6 6 6"/></svg>`))
-	// Open in a tab: a box with an arrow leaving it.
-	icons.open = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/><path d="M15 4h5v5M20 4l-9 9"/></svg>`))
-	return icons
-})

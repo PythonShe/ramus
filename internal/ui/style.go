@@ -62,6 +62,10 @@ const (
 // statusLetterW is the width of a file's status letter, M or A, in a list.
 const statusLetterW = spaceXL
 
+// markW is the column of a mark before a row's name, as the check by the
+// branch checked out, which rows without one keep empty to line up.
+const markW = iconMedium
+
 // treeIndent is the indent of each level of a tree or a list of folders.
 const treeIndent = spaceXL
 
@@ -206,7 +210,7 @@ func infoButton(c *ui.Context, open *bool, label, text string, color ui.Color) {
 	})
 }
 
-// closeButton is the × that closes a tab or a pane, named label for
+// closeButton is the x that closes a tab or a pane, named label for
 // assistive technology: without a face until hovered, so that it does not
 // box in what it sits on.
 func closeButton(c *ui.Context, label string) ui.Element {

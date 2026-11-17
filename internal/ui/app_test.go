@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -100,6 +101,14 @@ func (h *harness) until(what string, ok func() bool) {
 }
 
 func (h *harness) shows(s string) func() bool { return func() bool { return h.tt.HasText(s) } }
+
+// describes reports whether an element tells assistive technology s, as
+// a glyph standing for a word does, as a line of a description.
+func (h *harness) describes(s string) func() bool {
+	return func() bool {
+		return slices.ContainsFunc(h.tt.AccessAll(), func(a ui.AccessInfo) bool { return slices.Contains(strings.Split(a.Description, "\n"), s) })
+	}
+}
 
 // patchHas reports whether the viewer of pv is built and its new side
 // holds added and its old side removed.
@@ -270,8 +279,8 @@ func TestTabs(t *testing.T) {
 		_, okB := h.tt.AccessByRole(ui.RoleButton, nameB)
 		return okA && okB
 	})
-	if !h.tt.HasText("✓") || !h.tt.HasText("•") {
-		t.Fatalf("marks: %q", h.tt.Texts())
+	if !h.describes("Shown in this window")() || !h.describes("Open in a tab")() {
+		t.Fatalf("marks: %v", h.tt.AccessAll())
 	}
 	row, _ := h.tt.AccessByRole(ui.RoleButton, nameB)
 	h.tt.ClickAt(row.Bounds.X+row.Bounds.W/2, row.Bounds.Y+row.Bounds.H/2)
@@ -493,9 +502,9 @@ func TestActionsAndLog(t *testing.T) {
 }
 
 func TestShowPath(t *testing.T) {
-	for p, flagged := range map[string]bool{"src/a.go": false, "a\nb": true, ".GIT/config": true, "x/../y": true, "dir/git~1/x": true, "\x1b[31mred": true} {
+	for p, flagged := range map[string]bool{"src/a.go": false, "a\nb": true, ".GIT/config": true, "x/../y": true, "dir/git~1/x": true, "\x1b[31mred": true, `"quoted".txt`: false} {
 		shown, why := showPath(p)
-		if (why != "") != flagged || (flagged && shown == p) {
+		if (why != "") != flagged || (flagged && shown == p) || flaggedShown(shown) != flagged {
 			t.Errorf("showPath(%q) = %q, %q", p, shown, why)
 		}
 	}

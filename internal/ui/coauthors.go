@@ -4,7 +4,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/egoist/mygo/ui"
 
@@ -51,8 +50,7 @@ func (a *App) coAuthorButton(c *ui.Context, t *tab) {
 	cs := &t.commit
 	p := &cs.pick
 	label := locales.CommitBoxAddCoAuthor()
-	b := ui.Button(c, "").Label(label).Tooltip(label).Disabled(cs.busy)
-	b.Children(func() { ui.Icon(c, coAuthorIcons().add).FontSize(iconMedium).TextColor(th.TextMuted) })
+	b := iconButton(c, glyphs().personAdd, label).Disabled(cs.busy)
 	if b.Clicked() {
 		if p.open {
 			p.open = false
@@ -210,10 +208,3 @@ func coAuthorChips(c *ui.Context, cs *commitState) {
 		cs.coAuthors = strings.Join(slices.Delete(people, remove, remove+1), ", ")
 	}
 }
-
-// coAuthorIcons are the picker's icons, parsed once.
-var coAuthorIcons = sync.OnceValue(func() (icons struct{ add *ui.SVG }) {
-	// A person, and a plus beside them.
-	icons.add = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.5"/><path d="M3 19.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M19 8v6M16 11h6"/></svg>`))
-	return icons
-})

@@ -2727,6 +2727,10 @@
   "@branchPickerDetached": {
     "description": "The branch button, in place of a branch name when HEAD is detached."
   },
+  "branchPickerCurrent": "Checked out",
+  "@branchPickerCurrent": {
+    "description": "Read aloud for the check beside the branch checked out, in the branch picker."
+  },
   "branchPickerSearch": "Search branches",
   "branchPickerList": "Branches",
   "branchPickerRemote": "Remote Branches",
@@ -2940,23 +2944,13 @@
   "repoPickerRecent": "Recent",
   "repoPickerFavourites": "Favorites",
   "repoPickerOther": "Other",
-  "repoPickerAhead": "↑{count}",
-  "@repoPickerAhead": {
-    "description": "Commits the branch has to push, beside a repository.",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
+  "repoPickerShown": "Shown in this window",
+  "@repoPickerShown": {
+    "description": "Read aloud for the check beside the repository the window shows, in the repository picker."
   },
-  "repoPickerBehind": "↓{count}",
-  "@repoPickerBehind": {
-    "description": "Commits the branch has to pull, beside a repository.",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
+  "repoPickerOpen": "Open in a tab",
+  "@repoPickerOpen": {
+    "description": "Read aloud for the dot beside a repository open in another tab, in the repository picker."
   },
   "repoPickerAheadLabel": "{count, plural, one {# commit to push} other {# commits to push}}",
   "@repoPickerAheadLabel": {
