@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -182,13 +183,22 @@ func DeleteRemoteBranch(w Where, remote, branch, tip string) (Op, error) {
 // branch (a full name, as refs/remotes/origin/main) is fetched from, by
 // the remotes' fetch refspecs, as git maps them; false unless exactly
 // one source maps to it, and that is a branch: a pull request's ref
-// under origin/pr/ is also where a branch pr/12 would go.
+// under origin/pr/ is also where a branch pr/12 would go. A source a
+// negative refspec of its remote matches is fetched by none, as git
+// leaves it out.
 func RemoteBranchOf(cfg *config.Config, ref string) (remote, branch string, ok bool) {
 	var from string
 	for _, r := range cfg.Subsections("remote", "fetch") {
-		for _, spec := range cfg.All("remote." + r + ".fetch") {
+		specs := cfg.All("remote." + r + ".fetch")
+		var negative []string
+		for _, spec := range specs {
+			if p, ok := strings.CutPrefix(spec, "^"); ok {
+				negative = append(negative, p)
+			}
+		}
+		for _, spec := range specs {
 			src, ok := refspecSource(spec, ref)
-			if !ok {
+			if !ok || slices.ContainsFunc(negative, func(p string) bool { return refMatches(p, src) }) {
 				continue
 			}
 			if remote != "" && (remote != r || from != src) {
@@ -224,6 +234,17 @@ func refspecSource(spec, ref string) (string, bool) {
 		return "", false
 	}
 	return strings.Replace(src, "*", mid, 1), true
+}
+
+// refMatches reports whether ref is pattern, a ref name, or matches it
+// where its one * stands for any text, slashes too, as in a refspec.
+func refMatches(pattern, ref string) bool {
+	pre, post, glob := strings.Cut(pattern, "*")
+	if !glob {
+		return pattern == ref
+	}
+	return !strings.Contains(post, "*") && len(ref) >= len(pre)+len(post) &&
+		strings.HasPrefix(ref, pre) && strings.HasSuffix(ref, post)
 }
 
 // CheckRemoteURL refuses a URL git would read as an option, one with

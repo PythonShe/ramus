@@ -308,12 +308,15 @@ func TestDeleteRemoteBranchLeased(t *testing.T) {
 
 // A remote branch maps back to its remote and branch through the fetch
 // refspecs, not its name: a remote with a slash, and a refspec of pull
-// requests, which are no branch.
+// requests, which are no branch; a branch a negative refspec leaves out,
+// by a pattern or by name, is fetched from nowhere.
 func TestRemoteBranchOf(t *testing.T) {
 	cfg, err := config.Parse([]byte(strings.Join([]string{
 		"local", "f", "remote.origin.url\nu",
 		"local", "f", "remote.origin.fetch\n+refs/heads/*:refs/remotes/origin/*",
 		"local", "f", "remote.origin.fetch\n+refs/pull/*/head:refs/remotes/origin/pr/*",
+		"local", "f", "remote.origin.fetch\n^refs/heads/private/*",
+		"local", "f", "remote.origin.fetch\n^refs/heads/secret",
 		"local", "f", "remote.team/origin.url\nu",
 		"local", "f", "remote.team/origin.fetch\n+refs/heads/*:refs/remotes/team/origin/*",
 		"local", "f", "remote.one.url\nu",
@@ -329,6 +332,9 @@ func TestRemoteBranchOf(t *testing.T) {
 		{"refs/remotes/team/origin/x", "team/origin", "x"},
 		{"refs/remotes/one/trunk", "one", "main"},
 		{"refs/remotes/origin/pr/12", "", ""},
+		{"refs/remotes/origin/private/topic", "", ""},
+		{"refs/remotes/origin/secret", "", ""},
+		{"refs/remotes/origin/secretive", "origin", "secretive"},
 		{"refs/remotes/one/main", "", ""},
 		{"refs/remotes/nowhere/main", "", ""},
 	} {
