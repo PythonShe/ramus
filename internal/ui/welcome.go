@@ -33,7 +33,7 @@ func (a *App) welcomeBody(c *ui.Context) {
 	th := c.Theme()
 	ui.Column(c).Grow(1).FillWidth().Center().Children(func() {
 		ui.Column(c).Width(560).Gap(spaceXL).Children(func() {
-			ui.Text(c, "Ramus").FontSize(textDisplay).Bold()
+			ui.Text(c, locales.AboutName()).FontSize(textDisplay).Bold()
 			ui.Row(c).Gap(spaceM).Children(func() {
 				if ui.PrimaryButton(c, locales.WelcomeOpen()).Clicked() {
 					a.pickAndOpen()
@@ -45,38 +45,55 @@ func (a *App) welcomeBody(c *ui.Context) {
 					a.initAndOpen()
 				}
 			})
-			note := func(msg string, dismiss func()) {
-				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, msg).TextColor(th.Danger).Shrink(1)
-					if closeButton(c, locales.RepoDismiss()).Clicked() {
-						dismiss()
-					}
-				})
+			// The messages of the error bar a repository has, in its look.
+			note := func(n noteLine) {
+				a.noteRow(c, n).Radius(th.Radius)
 			}
 			for i, n := range a.windowNotes {
 				c.Key(windowKey(i))
-				note(n, func() { a.dropWindowNote(n) })
+				note(noteLine{text: oneLine(n), full: n, color: th.Danger, dismiss: func() { a.dropWindowNote(n) }})
 			}
 			if a.notice != "" && a.noticeBy.tab == nil && !slices.Contains(a.windowNotes, a.notice) {
 				c.Key("notice")
-				note(a.notice, a.dropNotice)
+				note(noteLine{text: oneLine(a.notice), full: a.notice, color: th.Danger, dismiss: a.dropNotice})
 			}
 			if a.gitWarning != "" {
-				ui.Text(c, a.gitWarning).TextColor(th.Warning)
+				c.Key("git")
+				note(noteLine{text: a.gitWarning, full: a.gitWarning, color: th.Warning, dismiss: func() { a.gitWarning = "" }})
 			}
 			repos := a.known()
 			if a.Library == nil || (len(repos) == 0 && a.welcome.query == "") {
 				return
 			}
-			ui.SearchField(c, &a.welcome.query).Label(locales.WelcomeFind()).Placeholder(locales.WelcomeFind())
+			w := &a.welcome
+			// Typing searches at once, unless a dialog has the keys.
+			f := ui.SearchField(c, &w.query).Label(locales.WelcomeFind()).Placeholder(locales.WelcomeFind())
+			if !a.dialogOpen() {
+				f.AutoFocus()
+			}
+			if f.Changed() {
+				w.chosen = 0
+			}
 			if len(repos) == 0 {
 				ui.Text(c, locales.WelcomeNoMatch()).TextColor(th.TextMuted)
 				return
 			}
-			a.welcome.list.Label = func(i int) string { return repos[i].Name }
-			a.welcome.list.Selected = &a.welcome.chosen
+			w.chosen = min(max(w.chosen, 0), len(repos)-1)
+			switch {
+			case f.Shortcut(0, ui.KeyDown):
+				w.chosen = min(w.chosen+1, len(repos)-1)
+				w.list.ScrollIntoView(w.chosen)
+			case f.Shortcut(0, ui.KeyUp):
+				w.chosen = max(w.chosen-1, 0)
+				w.list.ScrollIntoView(w.chosen)
+			}
 			open := ""
-			l := ui.List(c, &a.welcome.list, len(repos)).Rows(func(row ui.ListRow) {
+			if f.Submitted() {
+				open = repos[w.chosen].Path
+			}
+			w.list.Label = func(i int) string { return locales.WelcomeRepoLabel(repos[i].Name, repos[i].Path) }
+			w.list.Selected = &w.chosen
+			l := ui.List(c, &w.list, len(repos)).Rows(func(row ui.ListRow) {
 				r := repos[row.Index]
 				if ui.Column(c).Padding(rowTallPadY, insetX).FillWidth().Children(func() {
 					ui.Text(c, r.Name).SingleLine()
@@ -93,6 +110,13 @@ func (a *App) welcomeBody(c *ui.Context) {
 			}
 		})
 	})
+}
+
+// dialogOpen reports a dialog of the app's own open over the welcome
+// window, which then has the keys.
+func (a *App) dialogOpen() bool {
+	return a.clone.open || a.settingsUI.open || a.keysUI.open || a.palette.open || a.manager.open ||
+		a.libStats.open || a.diag.open || a.prompt.open || a.confirm.open
 }
 
 // known lists the library's repositories matching the search, favourites

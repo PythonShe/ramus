@@ -94,3 +94,22 @@ func TestErrorBarNoticeBelongsToItsTab(t *testing.T) {
 	h.app.active = 0
 	h.until("and in the other", h.shows("for the window"))
 }
+
+// A message longer than its line shows whole under Details, to copy,
+// in the welcome window as in a tab.
+func TestNoticeDetails(t *testing.T) {
+	h := newHarness(t)
+	h.tt.Frame()
+	const msg = "hint: run this first\nfatal: the clone broke"
+	h.app.Notify(msg)
+	h.until("the line", h.shows("the clone broke"))
+	h.click("Details")
+	if !h.tt.HasText(msg) {
+		t.Fatalf("whole message not shown: %q", h.tt.Texts())
+	}
+	h.click("Copy")
+	h.tt.Frame()
+	if got := h.tt.Clipboard(); got != msg {
+		t.Fatalf("copied %q", got)
+	}
+}

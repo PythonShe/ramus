@@ -136,33 +136,80 @@ func (a *App) errorBar(c *ui.Context, t *tab) {
 		return
 	}
 	th := c.Theme()
-	row := func(text, full string, fixes []remedy, open bool, dismiss func()) {
-		ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
-			ui.Text(c, text).FontSize(textSmall).TextColor(th.Danger).SingleLine().Shrink(1).Grow(1).Tooltip(full)
-			for _, f := range fixes {
-				if ui.Button(c, f.label).Clicked() {
-					f.run()
-				}
-			}
-			if open && ui.Button(c, locales.RepoShowInLog()).Clicked() {
-				a.showLogEntry(t, failed)
-			}
-			if closeButton(c, locales.RepoDismiss()).Clicked() {
-				dismiss()
-			}
-		})
-	}
 	for i, n := range a.windowNotes {
 		c.Key(windowKey(i))
-		row(oneLine(n), n, nil, false, func() { a.dropWindowNote(n) })
+		a.noteRow(c, noteLine{text: oneLine(n), full: n, color: th.Danger, dismiss: func() { a.dropWindowNote(n) }})
 	}
 	if notice != "" {
 		c.Key("notice")
-		row(oneLine(notice), notice, nil, false, func() { a.dropTabNotice(t) })
+		a.noteRow(c, noteLine{text: oneLine(notice), full: notice, color: th.Danger, dismiss: func() { a.dropTabNotice(t) }})
 	}
 	if failed != nil {
 		c.Key("failed")
-		row(d.text, d.full, d.fixes, true, func() { t.failSeen = failed })
+		a.noteRow(c, noteLine{text: d.text, full: d.full, color: th.Danger, fixes: d.fixes,
+			log: func() { a.showLogEntry(t, failed) }, dismiss: func() { t.failSeen = failed }})
+	}
+}
+
+// noteLine is a message in a band: text, one line of it, in color,
+// with the remedies of fixes, the whole message in full, the way to its
+// command in the log, and to dismiss it, where there are.
+type noteLine struct {
+	text, full   string
+	color        ui.Color
+	fixes        []remedy
+	log, dismiss func()
+}
+
+// noteRow is a message of the error bar, and of the welcome window: a
+// line, with Details showing the whole of a message cut to it.
+func (a *App) noteRow(c *ui.Context, n noteLine) ui.Element {
+	th := c.Theme()
+	return ui.Row(c).Padding(bannerPadY, insetX).Gap(spaceL).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+		ui.Text(c, n.text).FontSize(textSmall).TextColor(n.color).SingleLine().Shrink(1).Grow(1).Tooltip(n.full)
+		for _, f := range n.fixes {
+			if ui.Button(c, f.label).Clicked() {
+				f.run()
+			}
+		}
+		if full := strings.TrimSpace(n.full); full != "" && full != strings.TrimSpace(n.text) {
+			a.noteDetails(c, full)
+		}
+		if n.log != nil && ui.Button(c, locales.RepoShowInLog()).Clicked() {
+			n.log()
+		}
+		if n.dismiss != nil && closeButton(c, locales.RepoDismiss()).Clicked() {
+			n.dismiss()
+		}
+	})
+}
+
+// noteDetails is the button that shows the whole of message full, to
+// read, select and copy, which the line of it in a band cuts short.
+func (a *App) noteDetails(c *ui.Context, full string) {
+	b := ui.Button(c, locales.RepoNoticeDetails())
+	if b.Clicked() {
+		if a.noteShown == full {
+			a.noteShown = ""
+		} else {
+			a.noteShown = full
+		}
+	}
+	open := a.noteShown == full
+	ui.Popover(c, b, &open, func() {
+		ui.Column(c).Gap(spaceM).Padding(spaceS).MaxWidth(dialogMedium).Children(func() {
+			ui.Scroll(c).MaxHeight(320).Children(func() {
+				ui.Text(c, full).FontSize(textSmall).Selectable()
+			})
+			ui.Row(c).Justify(ui.End).Children(func() {
+				if ui.Button(c, locales.RepoNoticeCopy()).Clicked() {
+					a.clip = full
+				}
+			})
+		})
+	})
+	if !open && a.noteShown == full {
+		a.noteShown = ""
 	}
 }
 

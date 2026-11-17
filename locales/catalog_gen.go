@@ -7783,6 +7783,36 @@ func (msgs Messages) RepoShowInLog() string {
 	return Catalog.Format(msgs.locale, "repoShowInLog", nil)
 }
 
+// RepoNoticeDetails says "Details"
+// in the language the app shows.
+//
+// A button in the error bar: shows the whole message, which the bar cuts to
+// one line, to read and copy.
+func RepoNoticeDetails() string { return In(i18n.Locale()).RepoNoticeDetails() }
+
+// RepoNoticeDetails says "Details"
+// in the language of msgs.
+//
+// A button in the error bar: shows the whole message, which the bar cuts to
+// one line, to read and copy.
+func (msgs Messages) RepoNoticeDetails() string {
+	return Catalog.Format(msgs.locale, "repoNoticeDetails", nil)
+}
+
+// RepoNoticeCopy says "Copy"
+// in the language the app shows.
+//
+// A button beside a message's whole text: copies it.
+func RepoNoticeCopy() string { return In(i18n.Locale()).RepoNoticeCopy() }
+
+// RepoNoticeCopy says "Copy"
+// in the language of msgs.
+//
+// A button beside a message's whole text: copies it.
+func (msgs Messages) RepoNoticeCopy() string {
+	return Catalog.Format(msgs.locale, "repoNoticeCopy", nil)
+}
+
 // RepoDismiss says "Dismiss Message"
 // in the language the app shows.
 //
@@ -13149,13 +13179,13 @@ func (msgs Messages) WelcomeOpen() string {
 	return Catalog.Format(msgs.locale, "welcomeOpen", nil)
 }
 
-// WelcomeClone says "Clone…"
+// WelcomeClone says "Clone Repository…"
 // in the language the app shows.
 //
 // A button: clones a repository.
 func WelcomeClone() string { return In(i18n.Locale()).WelcomeClone() }
 
-// WelcomeClone says "Clone…"
+// WelcomeClone says "Clone Repository…"
 // in the language of msgs.
 //
 // A button: clones a repository.
@@ -13163,13 +13193,13 @@ func (msgs Messages) WelcomeClone() string {
 	return Catalog.Format(msgs.locale, "welcomeClone", nil)
 }
 
-// WelcomeNew says "New…"
+// WelcomeNew says "New Repository…"
 // in the language the app shows.
 //
 // A button: makes a new repository.
 func WelcomeNew() string { return In(i18n.Locale()).WelcomeNew() }
 
-// WelcomeNew says "New…"
+// WelcomeNew says "New Repository…"
 // in the language of msgs.
 //
 // A button: makes a new repository.
@@ -13177,11 +13207,11 @@ func (msgs Messages) WelcomeNew() string {
 	return Catalog.Format(msgs.locale, "welcomeNew", nil)
 }
 
-// WelcomeFind says "Find a repository"
+// WelcomeFind says "Search repositories"
 // in the language the app shows.
 func WelcomeFind() string { return In(i18n.Locale()).WelcomeFind() }
 
-// WelcomeFind says "Find a repository"
+// WelcomeFind says "Search repositories"
 // in the language of msgs.
 func (msgs Messages) WelcomeFind() string {
 	return Catalog.Format(msgs.locale, "welcomeFind", nil)
@@ -13205,6 +13235,24 @@ func WelcomeRecent() string { return In(i18n.Locale()).WelcomeRecent() }
 // in the language of msgs.
 func (msgs Messages) WelcomeRecent() string {
 	return Catalog.Format(msgs.locale, "welcomeRecent", nil)
+}
+
+// WelcomeRepoLabel says "{name}, {path}"
+// in the language the app shows.
+//
+// A repository in the welcome window's list, for assistive technology: its
+// name and its folder.
+func WelcomeRepoLabel(name string, path string) string {
+	return In(i18n.Locale()).WelcomeRepoLabel(name, path)
+}
+
+// WelcomeRepoLabel says "{name}, {path}"
+// in the language of msgs.
+//
+// A repository in the welcome window's list, for assistive technology: its
+// name and its folder.
+func (msgs Messages) WelcomeRepoLabel(name string, path string) string {
+	return Catalog.Format(msgs.locale, "welcomeRepoLabel", map[string]any{"name": name, "path": path})
 }
 
 // DiagnosticsTitle says "Diagnostics"

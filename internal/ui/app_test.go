@@ -166,7 +166,7 @@ func (h *harness) closeAll() {
 func TestWelcome(t *testing.T) {
 	h := newHarness(t)
 	h.tt.Frame()
-	for _, s := range []string{"Ramus", "Open Repository…", "Clone…"} {
+	for _, s := range []string{"Ramus", "Open Repository…", "Clone Repository…"} {
 		if !h.tt.HasText(s) {
 			t.Fatalf("missing %q in %q", s, h.tt.Texts())
 		}
@@ -176,6 +176,24 @@ func TestWelcome(t *testing.T) {
 	h.until("the recent repository", h.shows(filepath.Base(r.Dir)))
 	h.click(filepath.Base(r.Dir))
 	h.until("the opened repository", h.shows("No changes"))
+}
+
+// Typing in the welcome window searches the repositories at once; Down
+// and Enter open the one chosen.
+func TestWelcomeKeys(t *testing.T) {
+	h := newHarness(t)
+	one, two := h.repoWith(), h.repoWith()
+	h.lib.Opened(one.Dir, time.Unix(1_700_000_000, 0))
+	h.lib.Opened(two.Dir, time.Unix(1_700_000_100, 0))
+	h.until("the recent repositories", h.shows(filepath.Base(one.Dir)))
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyDown)
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("the second repository", func() bool { return len(h.app.tabs) == 1 })
+	if got := h.app.tabs[0].s.Path; got != one.Dir {
+		t.Fatalf("opened %q, want %q", got, one.Dir)
+	}
 }
 
 func TestOpenFollowsChanges(t *testing.T) {
@@ -281,7 +299,7 @@ func TestNewRepository(t *testing.T) {
 	t.Cleanup(h.closeAll)
 	h.app.PickFolder = func(string) (string, error) { return dir, nil }
 	h.tt.Frame()
-	h.click("New…")
+	h.click("New Repository…")
 	h.until("the new repository", func() bool { return len(h.app.tabs) == 1 && h.tt.HasText("No changes") })
 	if h.tt.HasText("Read-only") {
 		t.Fatal("a repository the app made asks to be trusted")

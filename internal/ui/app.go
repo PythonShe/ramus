@@ -111,6 +111,8 @@ type App struct {
 	// windowNotes are what Notify said, for every tab and the welcome,
 	// each until dismissed.
 	windowNotes []string
+	// noteShown is the message whose whole text Details shows, "" none.
+	noteShown string
 	// pending are repositories asked for before git was found.
 	pending []string
 	// restoring are the tabs Restore opens, by path, to set up when each

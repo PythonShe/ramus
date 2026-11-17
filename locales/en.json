@@ -1534,6 +1534,14 @@
   "@repoShowInLog": {
     "description": "A button in the error bar: shows the failed command's output in the Command Log."
   },
+  "repoNoticeDetails": "Details",
+  "@repoNoticeDetails": {
+    "description": "A button in the error bar: shows the whole message, which the bar cuts to one line, to read and copy."
+  },
+  "repoNoticeCopy": "Copy",
+  "@repoNoticeCopy": {
+    "description": "A button beside a message's whole text: copies it."
+  },
   "repoDismiss": "Dismiss Message",
   "@repoDismiss": {
     "description": "The error bar's close button: takes the error away."
@@ -2767,17 +2775,21 @@
   },
   "issueLinksAddRule": "Add Rule",
   "welcomeOpen": "Open Repository…",
-  "welcomeClone": "Clone…",
+  "welcomeClone": "Clone Repository…",
   "@welcomeClone": {
     "description": "A button: clones a repository."
   },
-  "welcomeNew": "New…",
+  "welcomeNew": "New Repository…",
   "@welcomeNew": {
     "description": "A button: makes a new repository."
   },
-  "welcomeFind": "Find a repository",
+  "welcomeFind": "Search repositories",
   "welcomeNoMatch": "No repository matches",
   "welcomeRecent": "Recent repositories",
+  "welcomeRepoLabel": "{name}, {path}",
+  "@welcomeRepoLabel": {
+    "description": "A repository in the welcome window's list, for assistive technology: its name and its folder."
+  },
   "diagnosticsTitle": "Diagnostics",
   "diagnosticsNote": "Copy puts exactly this on the clipboard. Nothing is sent.",
   "diagnosticsIncludeCrash": "Include the latest crash report ({file})",
