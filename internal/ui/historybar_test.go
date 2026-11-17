@@ -199,3 +199,42 @@ func TestHistoryFilterAppliesAsTypingPauses(t *testing.T) {
 	h.tt.Advance(time.Second)
 	h.until("applied", func() bool { return h.tt.HasText("1 commit") })
 }
+
+// The filter button counts what narrows history: what is typed counts
+// once applied, and closing the bar before typing pauses applies it. A
+// field typed into and cleared again applies nothing.
+func TestHistoryFilterCountsWhatApplies(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "alpha\n")
+	r.Commit("add alpha")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No changes"))
+	h.click("History")
+	h.until("the commits", h.shows("2 commits"))
+	hf := &h.app.current().hist.filter
+	h.click("Filter")
+	h.click("Message")
+	h.tt.Type("x")
+	h.tt.Frame()
+	h.tt.Key(0, ui.KeyBackspace)
+	h.tt.Frame()
+	h.tt.Advance(time.Second)
+	h.tt.Frame()
+	h.tt.Frame()
+	if hf.applied != "" || hf.message != "" {
+		t.Fatalf("the empty filter applied: %q", hf.applied)
+	}
+
+	h.tt.Type("alpha")
+	h.tt.Frame()
+	if h.tt.HasText("Filter (1)") {
+		t.Fatal("counted before it applies")
+	}
+	h.tt.Key(0, ui.KeyEscape)
+	h.until("applied as the bar closed", func() bool { return !hf.open && h.tt.HasText("1 commit") })
+	if !h.tt.HasText("Filter (1)") {
+		t.Fatalf("texts %q", h.tt.Texts())
+	}
+}

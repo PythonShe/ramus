@@ -24,8 +24,9 @@ type historyFilter struct {
 	// only is the branch history shows alone, "" for every branch.
 	only string
 	err  string
-	// applied is the filter as last applied, by its fields; typed, when
-	// set, is when a field last changed, to apply once typing pauses.
+	// applied is the filter as last applied, by its fields, "" for none;
+	// typed, when set, is when a field last changed, to apply once typing
+	// pauses.
 	applied string
 	typed   time.Time
 }
@@ -46,6 +47,20 @@ func (hf *historyFilter) key() string {
 	return strings.Join([]string{hf.author, hf.message, hf.changed, hf.path, hf.since, hf.until, hf.only,
 		flag(hf.regexp), flag(hf.firstParent), flag(hf.noMerges)}, "\x00")
 }
+
+// pending reports whether the filter as typed differs from the one
+// applied: an empty filter typed into and cleared again is none, and
+// reloads nothing.
+func (hf *historyFilter) pending() bool {
+	k := hf.key()
+	if hf.applied == "" {
+		return k != noFilterKey
+	}
+	return k != hf.applied
+}
+
+// noFilterKey is the key of the empty filter.
+var noFilterKey = (&historyFilter{}).key()
 
 // refPrefs are a repository's pinned branches and the refs hidden from
 // its history, as the library keeps them.
@@ -165,16 +180,20 @@ func (a *App) applyHistoryFilter(t *tab) {
 	t.s.SetHistoryView(v)
 }
 
-// active counts the filters set, for the button that opens them.
-func (hf *historyFilter) active() int {
-	n := 0
-	for _, s := range []string{hf.author, hf.message, hf.changed, hf.path, hf.since, hf.until, hf.only} {
-		if strings.TrimSpace(s) != "" {
-			n++
-		}
+// active counts the filters applied, for the button that opens them:
+// what is typed counts once it narrows history.
+func (hf *historyFilter) active() int { return filtersIn(hf.applied) }
+
+// filtersIn counts the filters set in key, as key writes them: the
+// fields, then the regexp flag, which narrows nothing, then the others.
+func filtersIn(key string) int {
+	if key == "" {
+		return 0
 	}
-	for _, b := range []bool{hf.firstParent, hf.noMerges} {
-		if b {
+	n := 0
+	for i, f := range strings.Split(key, "\x00") {
+		switch {
+		case i < 7 && strings.TrimSpace(f) != "", i > 7 && f == "1":
 			n++
 		}
 	}
@@ -248,6 +267,11 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 	bar.OnShortcut(0, ui.KeyEscape, func() {
 		hf.open = false
 		t.hist.focusList = true
+		if hf.pending() {
+			// Closed before typing paused: what was typed applies, as
+			// the bar no longer shows to apply it.
+			a.applyHistoryFilter(t)
+		}
 	})
 	bar.Children(func() {
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
@@ -285,7 +309,7 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 				ui.Text(c, hf.err).FontSize(textSmall).TextColor(th.Danger)
 			}
 			ui.Spacer(c)
-			if ui.Button(c, locales.HistoryFilterClear()).Disabled(hf.active() == 0).Clicked() {
+			if ui.Button(c, locales.HistoryFilterClear()).Disabled(hf.active() == 0 && filtersIn(hf.key()) == 0).Clicked() {
 				open := hf.open
 				*hf = historyFilter{open: open}
 				apply = true
@@ -296,7 +320,7 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 		// Typing paused long enough: what was typed applies, and a date
 		// left half typed says how dates are written.
 		switch wait := filterPause - c.Now().Sub(hf.typed); {
-		case hf.key() == hf.applied:
+		case !hf.pending():
 			hf.typed = time.Time{}
 		case wait > 0:
 			c.After(wait)
