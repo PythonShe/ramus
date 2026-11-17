@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/lanes"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
@@ -24,21 +25,14 @@ import (
 // several, merges counts the merges among them, which turn both off:
 // git would stop at the first merge, the commits before it applied.
 func (a *App) pickOps(m *ui.Menu, t *tab, ids func() []string, n, merges int) {
-	ro := t.s.Queue == nil
-	head := t.s.State.Head
-	onto := "HEAD"
-	if !head.Detached {
-		onto = strings.TrimPrefix(head.Target, "refs/heads/")
-	}
-	onto = redact.Control(onto)
-	off := ro || len(head.OID) == 0
+	onto, off := pickOnto(t)
 	pick := func(mainline int) {
 		list := ids()
-		slices.Reverse(list)
-		op, err := write.CherryPick(t.s.Where(), list, t.s.Seen())
-		if mainline > 0 {
-			op, err = write.CherryPickMerge(t.s.Where(), list[0], mainline, t.s.Seen())
+		if mainline == 0 {
+			a.cherryPick(t, list)
+			return
 		}
+		op, err := write.CherryPickMerge(t.s.Where(), list[0], mainline, t.s.Seen())
 		a.submitUndoable(t, op, err, locales.OpsCherryPicked(len(list), onto), false)
 	}
 	revert := func(mainline int) {
@@ -76,6 +70,28 @@ func (a *App) pickOps(m *ui.Menu, t *tab, ids func() []string, n, merges int) {
 	if m.Item(locales.OpsRevert(n)).Disabled(off || why != "").Tooltip(why).Chosen() {
 		revert(0)
 	}
+}
+
+// pickOnto names what commits are cherry-picked onto, the branch checked
+// out or HEAD, and reports whether nothing can be: a repository only
+// read, or with no commit yet.
+func pickOnto(t *tab) (onto string, off bool) {
+	head := t.s.State.Head
+	onto = "HEAD"
+	if !head.Detached {
+		onto = strings.TrimPrefix(head.Target, "refs/heads/")
+	}
+	return redact.Control(onto), t.s.Queue == nil || len(head.OID) == 0
+}
+
+// cherryPick applies commits (hex, newest first, none a merge) onto
+// HEAD, oldest first.
+func (a *App) cherryPick(t *tab, ids []string) {
+	onto, _ := pickOnto(t)
+	list := slices.Clone(ids)
+	slices.Reverse(list)
+	op, err := write.CherryPick(t.s.Where(), list, t.s.Seen())
+	a.submitUndoable(t, op, err, locales.OpsCherryPicked(len(list), onto), false)
 }
 
 // commitOps adds what else acts on commits (hex, newest first) to a
@@ -139,17 +155,71 @@ func (a *App) historyIDs(t *tab, h session.HistoryState, i int) (func() []string
 		id := hex.EncodeToString(h.OID(k))
 		return func() []string { return []string{id} }, 1
 	}
+	return func() []string { return pickedIDs(t, h) }, hv.picked.Len()
+}
+
+// pickedIDs are the commits picked in the history (hex, newest first).
+func pickedIDs(t *tab, h session.HistoryState) []string {
+	hv := &t.hist
+	snap := h.Snap
 	n := hv.picked.Len()
-	return func() []string {
-		// Rows are newest first; walk them until every pick is found.
-		var out []string
-		for r := 0; r < snap.Len() && len(out) < n; r++ {
-			if id := h.OID(snap.Commit(r)); hv.picked.Has(string(id)) {
-				out = append(out, hex.EncodeToString(id))
+	// Rows are newest first; walk them until every pick is found.
+	var out []string
+	for r := 0; snap != nil && r < snap.Len() && len(out) < n; r++ {
+		if id := h.OID(snap.Commit(r)); hv.picked.Has(string(id)) {
+			out = append(out, hex.EncodeToString(id))
+		}
+	}
+	return out
+}
+
+// pickedBar shows, over the history, how many commits are picked while
+// several are, with what acts on them all: compare two, cherry-pick
+// them, or let them go.
+func (a *App) pickedBar(c *ui.Context, t *tab, h session.HistoryState) {
+	hv := &t.hist
+	n := hv.picked.Len()
+	if n < 2 || h.Snap == nil {
+		return
+	}
+	// The merges among them, counted again as the picks or the history
+	// change, not on every frame: the walk may go far down.
+	if k := (pickedKey{h.Snap, n, string(hv.chosenID)}); k != hv.mergesFor {
+		hv.mergesFor, hv.merges = k, pickedMerges(t, h)
+	}
+	th := c.Theme()
+	_, off := pickOnto(t)
+	why := ""
+	if hv.merges > 0 {
+		why = locales.OpsPickedMerge()
+	}
+	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
+		ui.Text(c, locales.HistoryPicked(n)).Bold().SingleLine().Grow(1)
+		if n == 2 && ui.Button(c, locales.HistoryPickedCompare()).Clicked() {
+			if ids := pickedIDs(t, h); len(ids) == 2 {
+				from, _ := hex.DecodeString(ids[1])
+				to, _ := hex.DecodeString(ids[0])
+				a.compareCommits(t, from, to, ids[1][:10], ids[0][:10])
 			}
 		}
-		return out
-	}, n
+		if ui.Button(c, locales.HistoryPickedCherryPick()).Disabled(off || why != "").Tooltip(why).Clicked() {
+			// Counted afresh: a merge must never go in with the others.
+			if pickedMerges(t, h) == 0 {
+				a.cherryPick(t, pickedIDs(t, h))
+			}
+		}
+		if ui.Button(c, locales.HistoryPickedClear()).Clicked() {
+			hv.unpick()
+		}
+	})
+}
+
+// pickedKey is what the merges among the commits picked were counted
+// for.
+type pickedKey struct {
+	snap   *lanes.Snapshot
+	n      int
+	chosen string
 }
 
 // pickedMerges counts the merges among the commits picked in the

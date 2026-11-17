@@ -82,11 +82,14 @@ type historyState struct {
 	// jumpN numbers the go-to requests; only the latest is answered.
 	jumpN int
 	buf   []lanes.Edge
-	// picked are the commits chosen together, by object id.
-	picked  ui.Selection[string]
-	path    ui.Path
-	detail  commitView
-	detailW float32
+	// picked are the commits chosen together, by object id; merges is
+	// how many of them are merges, as counted for mergesFor.
+	picked    ui.Selection[string]
+	merges    int
+	mergesFor pickedKey
+	path      ui.Path
+	detail    commitView
+	detailW   float32
 	// rowW is the list's width as last laid out, 0 before, when its pane
 	// was rowPane wide; pane is its pane's width in this pass, and
 	// lastPane in the pass before, which rowW was measured in. colRoom is
@@ -208,6 +211,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 		ui.Column(c).Fill().Children(func() {
 			a.bisectBar(c, t)
 			a.historyBar(c, t, h)
+			a.pickedBar(c, t, h)
 			switch {
 			case h.Snap == nil && h.Err == nil:
 				loading(c, "")
