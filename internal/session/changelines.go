@@ -58,7 +58,10 @@ const countRecent = 2 * time.Second
 // end. Main thread only.
 type countSlot struct {
 	running bool
-	next    *countAsk
+	// cur is the count running: one of a repository since closed ends
+	// without touching the slot, which a newer count may hold.
+	cur  *countAsk
+	next *countAsk
 	// index is the key of the index the status statusFor was read with,
 	// indexOK set when it is known: counts keyed on the index's objects
 	// the status names are kept only while the index is that one.
@@ -116,14 +119,17 @@ func (s *Session) startCount(a *countAsk) {
 		c.r, c.kept = a.r, cache.New[string](countBudget, func(k keptLines) int { return k.bytes })
 	}
 	kept := c.kept
-	c.running = true
+	c.running, c.cur = true, a
 	err := a.r.Life().Go(func(context.Context) {
 		var out ChangeLines
 		ok := false
 		// Deferred, to run though the count panicked: else no count
 		// would run again.
 		defer s.update(func() {
-			c.running = false
+			if c.cur != a {
+				return
+			}
+			c.running, c.cur = false, nil
 			if ok && a.ctx.Err() == nil {
 				a.done(out)
 			}
@@ -137,7 +143,7 @@ func (s *Session) startCount(a *countAsk) {
 		out, ok = countChanged(a.ctx, a.r, a.st, a.index, a.indexOK, kept)
 	})
 	if err != nil {
-		c.running = false
+		c.running, c.cur = false, nil
 	}
 }
 

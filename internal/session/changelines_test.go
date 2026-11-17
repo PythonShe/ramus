@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,5 +147,36 @@ func TestCountsKept(t *testing.T) {
 	m.until(t, "the count again", func() bool { return out != nil })
 	if i, _ := diffRuns(logged()); i != index+2 {
 		t.Fatalf("counts of another index kept: diff-index ran %d times", i-index)
+	}
+}
+
+// A count that ends after another took the slot, one of a repository
+// since closed, leaves that one running: else a third would start beside
+// it, sharing the counts kept.
+func TestStaleCountLeavesTheSlot(t *testing.T) {
+	runner, _ := scriptRunner(t, `case "$*" in *diff-files*) sleep 1;; esac`)
+	r := gittest.Init(t)
+	r.Write("a", "1\n")
+	r.Commit("one")
+	r.Write("a", "1\n2\n")
+	m := make(mainThread, 64)
+	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "status", func() bool { return s.State.Status != nil && s.State.Status.Len() == 1 })
+	m.settle(t, s)
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	stale := &countAsk{r: s.Repo, ctx: gone, st: s.State.Status, done: func(ChangeLines) {}}
+	ended := false
+	cur := &countAsk{r: s.Repo, ctx: context.Background(), st: s.State.Status, done: func(ChangeLines) { ended = true }}
+	s.startCount(stale)
+	s.startCount(cur)
+	m.pump(300 * time.Millisecond)
+	if !s.count.running || s.count.cur != cur {
+		t.Fatalf("running %v, the current count %v", s.count.running, s.count.cur == cur)
+	}
+	m.until(t, "the count", func() bool { return ended })
+	if s.count.running {
+		t.Fatal("still running")
 	}
 }
