@@ -89,6 +89,10 @@ const (
 	leastPatchW = 300
 )
 
+// leastFieldW is the least a text field on a bar narrows to, its
+// placeholder still read whole.
+const leastFieldW = 160
+
 // fitPane is the width the first pane of a split takes of room, the
 // split's width as last laid out: size, as the user set it, cut for the
 // second pane to keep keep, but never under least. Before the split was

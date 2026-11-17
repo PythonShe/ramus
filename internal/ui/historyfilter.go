@@ -24,6 +24,27 @@ type historyFilter struct {
 	// only is the branch history shows alone, "" for every branch.
 	only string
 	err  string
+	// applied is the filter as last applied, by its fields; typed, when
+	// set, is when a field last changed, to apply once typing pauses.
+	applied string
+	typed   time.Time
+}
+
+// filterPause is how long typing in the filter bar pauses before what
+// was typed applies.
+const filterPause = 400 * time.Millisecond
+
+// key is the filter as typed, to tell whether it changed since it was
+// applied.
+func (hf *historyFilter) key() string {
+	flag := func(b bool) string {
+		if b {
+			return "1"
+		}
+		return "0"
+	}
+	return strings.Join([]string{hf.author, hf.message, hf.changed, hf.path, hf.since, hf.until, hf.only,
+		flag(hf.regexp), flag(hf.firstParent), flag(hf.noMerges)}, "\x00")
 }
 
 // refPrefs are a repository's pinned branches and the refs hidden from
@@ -136,6 +157,7 @@ func (a *App) applyHistoryFilter(t *tab) {
 	if err != "" {
 		return
 	}
+	hf.applied, hf.typed = hf.key(), time.Time{}
 	v := session.HistoryView{Filter: f, Hidden: slices.Clone(t.prefs.hidden)}
 	if hf.only != "" {
 		v.Only = []string{hf.only}
@@ -159,20 +181,47 @@ func (hf *historyFilter) active() int {
 	return n
 }
 
-// filterButton opens and closes the filter bar.
+// filterButton opens and closes the filter bar. It looks pressed while
+// the bar is open, and in the accent while a filter narrows history,
+// which the count says too.
 func (a *App) filterButton(c *ui.Context, t *tab) {
+	th := c.Theme()
 	hf := &t.hist.filter
 	label := locales.CommonFilter()
-	if n := hf.active(); n > 0 {
+	n := hf.active()
+	if n > 0 {
 		label = locales.HistoryFilterCount(n)
 	}
-	if ui.Button(c, label).Clicked() {
+	b := ui.Button(c, label)
+	if hf.open {
+		b.Background(th.SurfacePressed)
+	}
+	if n > 0 {
+		b.TextColor(th.Accent)
+	}
+	if b.Clicked() {
 		hf.open = !hf.open
 	}
 }
 
-// filterBar is the history filter: Return in a field applies it, a
-// checkbox or a branch applies at once.
+// findInMessages shows the commits whose message has text, in the
+// filter bar, open.
+func (a *App) findInMessages(t *tab, text string) {
+	hf := &t.hist.filter
+	hf.open, hf.message = true, text
+	a.applyHistoryFilter(t)
+}
+
+// clearHistoryFilter shows every commit again, the bar left as it was.
+func (a *App) clearHistoryFilter(t *tab) {
+	hf := &t.hist.filter
+	*hf = historyFilter{open: hf.open}
+	a.applyHistoryFilter(t)
+}
+
+// filterBar is the history filter: what is typed in a field applies as
+// typing pauses, or at once on Return; a checkbox or a branch applies at
+// once. Escape closes it.
 func (a *App) filterBar(c *ui.Context, t *tab) {
 	hf := &t.hist.filter
 	if !hf.open {
@@ -180,17 +229,27 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 	}
 	th := c.Theme()
 	apply := false
-	field := func(v *string, label string, grow float32) {
-		if ui.TextInput(c, v).Placeholder(label).Label(label).Grow(grow).Submitted() {
+	field := func(v *string, label, placeholder, tip string) ui.Element {
+		in := ui.TextInput(c, v).Placeholder(placeholder).Label(label).Tooltip(tip).MinWidth(leastFieldW)
+		if in.Changed() {
+			hf.typed = c.Now()
+		}
+		if in.Submitted() {
 			apply = true
 		}
+		return in
 	}
 	check := func(v *bool, label string) {
 		if ui.Checkbox(c, v, label).Changed() {
 			apply = true
 		}
 	}
-	ui.Column(c).Padding(0, insetX, spaceS, insetX).Gap(spaceS).FillWidth().Children(func() {
+	bar := ui.Column(c).Padding(0, insetX, spaceS, insetX).Gap(spaceS).FillWidth()
+	bar.OnShortcut(0, ui.KeyEscape, func() {
+		hf.open = false
+		t.hist.focusList = true
+	})
+	bar.Children(func() {
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 			label := locales.HistoryAllBranches()
 			if hf.only != "" {
@@ -207,17 +266,19 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 					}
 				}
 			})
-			field(&hf.author, locales.HistoryFilterAuthor(), 1)
-			field(&hf.message, locales.CommonMessage(), 1)
-			field(&hf.path, locales.HistoryFilterPath(), 1)
+			for _, f := range []struct {
+				v     *string
+				label string
+			}{{&hf.author, locales.HistoryFilterAuthor()}, {&hf.message, locales.CommonMessage()}, {&hf.path, locales.HistoryFilterPath()}} {
+				field(f.v, f.label, f.label, f.label).Grow(1)
+			}
 		})
-		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
-			field(&hf.changed, locales.HistoryFilterChanged(), 2)
+		// The rest on one row, which wraps only where it must.
+		ui.Row(c).GapX(spaceM).GapY(spaceS).Wrap().AlignItems(ui.Center).FillWidth().Children(func() {
+			field(&hf.changed, locales.HistoryFilterChanged(), locales.HistoryFilterChanged(), locales.HistoryFilterChangedTip()).Grow(2)
 			check(&hf.regexp, locales.HistoryFilterRegexp())
-			field(&hf.since, locales.HistoryFilterSince(), 1)
-			field(&hf.until, locales.HistoryFilterUntil(), 1)
-		})
-		ui.Row(c).Gap(spaceL).AlignItems(ui.Center).FillWidth().Children(func() {
+			field(&hf.since, locales.HistoryFilterSince(), locales.HistoryFilterSinceDay(), locales.HistoryFilterSince()).Grow(1)
+			field(&hf.until, locales.HistoryFilterUntil(), locales.HistoryFilterUntilDay(), locales.HistoryFilterUntil()).Grow(1)
 			check(&hf.firstParent, locales.HistoryFilterFirstParent())
 			check(&hf.noMerges, locales.HistoryFilterNoMerges())
 			if hf.err != "" {
@@ -231,6 +292,19 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 			}
 		})
 	})
+	if !apply && !hf.typed.IsZero() {
+		// Typing paused long enough: what was typed applies, and a date
+		// left half typed says how dates are written.
+		switch wait := filterPause - c.Now().Sub(hf.typed); {
+		case hf.key() == hf.applied:
+			hf.typed = time.Time{}
+		case wait > 0:
+			c.After(wait)
+		default:
+			hf.typed = time.Time{}
+			apply = true
+		}
+	}
 	if apply {
 		a.applyHistoryFilter(t)
 	}

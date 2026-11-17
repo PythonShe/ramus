@@ -8957,14 +8957,32 @@ func (msgs Messages) HistoryFilterPath() string {
 	return Catalog.Format(msgs.locale, "historyFilterPath", nil)
 }
 
-// HistoryFilterChanged says "Changed text"
+// HistoryFilterChanged says "Content"
 // in the language the app shows.
+//
+// Names the history filter's field for text that commits add or remove.
 func HistoryFilterChanged() string { return In(i18n.Locale()).HistoryFilterChanged() }
 
-// HistoryFilterChanged says "Changed text"
+// HistoryFilterChanged says "Content"
 // in the language of msgs.
+//
+// Names the history filter's field for text that commits add or remove.
 func (msgs Messages) HistoryFilterChanged() string {
 	return Catalog.Format(msgs.locale, "historyFilterChanged", nil)
+}
+
+// HistoryFilterChangedTip says "Commits that add or remove this text"
+// in the language the app shows.
+//
+// Tooltip of the history filter's Content field.
+func HistoryFilterChangedTip() string { return In(i18n.Locale()).HistoryFilterChangedTip() }
+
+// HistoryFilterChangedTip says "Commits that add or remove this text"
+// in the language of msgs.
+//
+// Tooltip of the history filter's Content field.
+func (msgs Messages) HistoryFilterChangedTip() string {
+	return Catalog.Format(msgs.locale, "historyFilterChangedTip", nil)
 }
 
 // HistoryFilterRegexp says "Regular expression"
@@ -8987,6 +9005,22 @@ func (msgs Messages) HistoryFilterSince() string {
 	return Catalog.Format(msgs.locale, "historyFilterSince", nil)
 }
 
+// HistoryFilterSinceDay says "Since YYYY-MM-DD"
+// in the language the app shows.
+//
+// Placeholder of the history filter's Since field, showing how a day is
+// written; keep YYYY-MM-DD as it is.
+func HistoryFilterSinceDay() string { return In(i18n.Locale()).HistoryFilterSinceDay() }
+
+// HistoryFilterSinceDay says "Since YYYY-MM-DD"
+// in the language of msgs.
+//
+// Placeholder of the history filter's Since field, showing how a day is
+// written; keep YYYY-MM-DD as it is.
+func (msgs Messages) HistoryFilterSinceDay() string {
+	return Catalog.Format(msgs.locale, "historyFilterSinceDay", nil)
+}
+
 // HistoryFilterUntil says "Until"
 // in the language the app shows.
 func HistoryFilterUntil() string { return In(i18n.Locale()).HistoryFilterUntil() }
@@ -8995,6 +9029,22 @@ func HistoryFilterUntil() string { return In(i18n.Locale()).HistoryFilterUntil()
 // in the language of msgs.
 func (msgs Messages) HistoryFilterUntil() string {
 	return Catalog.Format(msgs.locale, "historyFilterUntil", nil)
+}
+
+// HistoryFilterUntilDay says "Until YYYY-MM-DD"
+// in the language the app shows.
+//
+// Placeholder of the history filter's Until field, showing how a day is
+// written; keep YYYY-MM-DD as it is.
+func HistoryFilterUntilDay() string { return In(i18n.Locale()).HistoryFilterUntilDay() }
+
+// HistoryFilterUntilDay says "Until YYYY-MM-DD"
+// in the language of msgs.
+//
+// Placeholder of the history filter's Until field, showing how a day is
+// written; keep YYYY-MM-DD as it is.
+func (msgs Messages) HistoryFilterUntilDay() string {
+	return Catalog.Format(msgs.locale, "historyFilterUntilDay", nil)
 }
 
 // HistoryFilterFirstParent says "First parent only"
@@ -9025,6 +9075,20 @@ func HistoryFilterClear() string { return In(i18n.Locale()).HistoryFilterClear()
 // in the language of msgs.
 func (msgs Messages) HistoryFilterClear() string {
 	return Catalog.Format(msgs.locale, "historyFilterClear", nil)
+}
+
+// HistoryFilterClearAll says "Clear Filter"
+// in the language the app shows.
+//
+// Button under "No commits match" that clears the history filter.
+func HistoryFilterClearAll() string { return In(i18n.Locale()).HistoryFilterClearAll() }
+
+// HistoryFilterClearAll says "Clear Filter"
+// in the language of msgs.
+//
+// Button under "No commits match" that clears the history filter.
+func (msgs Messages) HistoryFilterClearAll() string {
+	return Catalog.Format(msgs.locale, "historyFilterClearAll", nil)
 }
 
 // ReflogLostCommits says "Lost Commits"

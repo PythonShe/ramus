@@ -975,6 +975,11 @@ func TestHistoryMailmap(t *testing.T) {
 	h.click("History")
 	h.until("the commit", h.shows("merged on the web"))
 	h.until("the name", h.shows("Full Name"))
+	// Another commit's detail open, the person is named in the rows
+	// alone. A detail open as the mailmap changes keeps the name it was
+	// read with.
+	h.click("one")
+	h.until("the other detail", func() bool { return !h.tt.HasText("me@example.com") })
 
 	r.Write(".mailmap", "handle <me@example.com>\n")
 	r.Commit("add a mailmap")

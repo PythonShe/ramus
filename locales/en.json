@@ -1805,13 +1805,32 @@
   "historyAllBranches": "All Branches",
   "historyFilterAuthor": "Author",
   "historyFilterPath": "Path",
-  "historyFilterChanged": "Changed text",
+  "historyFilterChanged": "Content",
+  "@historyFilterChanged": {
+    "description": "Names the history filter's field for text that commits add or remove."
+  },
+  "historyFilterChangedTip": "Commits that add or remove this text",
+  "@historyFilterChangedTip": {
+    "description": "Tooltip of the history filter's Content field."
+  },
   "historyFilterRegexp": "Regular expression",
   "historyFilterSince": "Since",
+  "historyFilterSinceDay": "Since YYYY-MM-DD",
+  "@historyFilterSinceDay": {
+    "description": "Placeholder of the history filter's Since field, showing how a day is written; keep YYYY-MM-DD as it is."
+  },
   "historyFilterUntil": "Until",
+  "historyFilterUntilDay": "Until YYYY-MM-DD",
+  "@historyFilterUntilDay": {
+    "description": "Placeholder of the history filter's Until field, showing how a day is written; keep YYYY-MM-DD as it is."
+  },
   "historyFilterFirstParent": "First parent only",
   "historyFilterNoMerges": "Hide merges",
   "historyFilterClear": "Clear",
+  "historyFilterClearAll": "Clear Filter",
+  "@historyFilterClearAll": {
+    "description": "Button under \"No commits match\" that clears the history filter."
+  },
   "reflogLostCommits": "Lost Commits",
   "reflogNoEntries": "No reflog entries",
   "reflogEntry": "{selector}, {message}",

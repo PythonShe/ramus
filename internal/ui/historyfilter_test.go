@@ -36,7 +36,7 @@ func TestHistoryFilter(t *testing.T) {
 	h.tt.Type("NEEDLE")
 	h.tt.Key(0, ui.KeyEnter)
 	h.until("the match", func() bool { return h.tt.HasText("1 commit") && h.tt.HasText("side needle") })
-	if !h.tt.HasText("side needle") || h.tt.HasText("main work") {
+	if !shownRow(h, "side needle") || shownRow(h, "main work") {
 		t.Fatalf("filtered rows %q", h.tt.Texts())
 	}
 	h.click("Clear")
@@ -44,7 +44,7 @@ func TestHistoryFilter(t *testing.T) {
 
 	h.click("Hide merges")
 	h.until("no merge", h.shows("4 commits"))
-	if h.tt.HasText("merge side") {
+	if shownRow(h, "merge side") {
 		t.Fatalf("merge shown: %q", h.tt.Texts())
 	}
 	h.click("Hide merges")
@@ -52,12 +52,12 @@ func TestHistoryFilter(t *testing.T) {
 
 	h.menu("side", "Hide in History")
 	h.until("side hidden", h.shows("4 commits"))
-	if h.tt.HasText("side later") {
+	if shownRow(h, "side later") {
 		t.Fatalf("hidden branch still shown: %q", h.tt.Texts())
 	}
 	h.click("First parent only")
 	h.until("main's line", h.shows("3 commits"))
-	if h.tt.HasText("side needle") {
+	if shownRow(h, "side needle") {
 		t.Fatalf("second parent followed: %q", h.tt.Texts())
 	}
 	h.click("First parent only")
@@ -86,7 +86,24 @@ func TestHistoryFilter(t *testing.T) {
 	h.until("the branch details", func() bool { return h.app.current().refs.info != nil })
 	h.menu("side", "Show Only This in History")
 	h.until("side alone", h.shows("side later"))
-	if h.tt.HasText("main work") {
+	if shownRow(h, "main work") {
 		t.Fatalf("main shown with side alone: %q", h.tt.Texts())
 	}
+}
+
+// shownRow reports whether history lists a commit with subject: in its
+// rows, not the chosen commit's detail beside them, which names its
+// parents.
+func shownRow(h *harness, subject string) bool {
+	tb := h.app.current()
+	hs := tb.s.History
+	if hs.Snap == nil {
+		return false
+	}
+	for i := range hs.Snap.Len() {
+		if s, _, _, _, ok := h.app.historyRow(tb, hs, i); ok && s == subject {
+			return true
+		}
+	}
+	return false
 }

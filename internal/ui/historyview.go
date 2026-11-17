@@ -69,6 +69,12 @@ type historyState struct {
 	wantFor *lanes.Snapshot
 	jump    string
 	jumpErr string
+	// find is the go-to field; focusFind asks it for the focus, and
+	// focusList the list, once they are built.
+	find                 ui.Handle
+	focusFind, focusList bool
+	// started is set once the history chose its first commit by itself.
+	started bool
 	// jumpN numbers the go-to requests; only the latest is answered.
 	jumpN int
 	buf   []lanes.Edge
@@ -189,6 +195,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 	default:
 		c.AnimationFrame()
 	}
+	a.startAtHead(t, h)
 	a.findWanted(t, h)
 	a.buildLabels(hv, t.s.State, h)
 	hv.lastPane, hv.pane = hv.pane, listPane(hv.detailW, &hv.detail)
@@ -201,14 +208,7 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 				loading(c, "")
 				return
 			case h.Snap == nil || h.Snap.Len() == 0:
-				msg := locales.HistoryNoCommits()
-				if h.Filtered {
-					msg = locales.HistoryNoMatch()
-				}
-				if h.Err != nil {
-					msg = errText(h.Err)
-				}
-				emptyState(c, msg)
+				a.historyEmpty(c, t, h)
 				return
 			}
 			a.historyList(c, t, h)
@@ -222,26 +222,66 @@ func (a *App) historyView(c *ui.Context, t *tab) {
 			// goes when the repository reopens.
 			hv.chosenID = slices.Clone(id)
 			hv.jumpN++
+			hv.jumpErr = ""
 		}
 	}
+}
+
+// historyEmpty says why history shows no commits, with the way out where
+// there is one: the filter cleared, or the load tried again.
+func (a *App) historyEmpty(c *ui.Context, t *tab, h session.HistoryState) {
+	msg, action := locales.HistoryNoCommits(), ""
+	var act func()
+	switch {
+	case h.Err != nil:
+		msg, action, act = errText(h.Err), locales.RepoTryAgain(), func() { a.reload(t) }
+	case h.Filtered:
+		msg, action, act = locales.HistoryNoMatch(), locales.HistoryFilterClearAll(), func() { a.clearHistoryFilter(t) }
+	}
+	ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
+		ui.Text(c, msg).TextColor(c.Theme().TextMuted).Selectable()
+		if act != nil && ui.Button(c, action).Clicked() {
+			act()
+		}
+	})
 }
 
 func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 	th := c.Theme()
 	hv := &t.hist
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-		in := ui.TextInput(c, &hv.jump).Placeholder(locales.HistoryGoTo()).Label(locales.HistoryGoTo()).Grow(1)
+		in := ui.SearchField(c, &hv.jump).Placeholder(locales.HistoryGoTo()).Label(locales.HistoryGoTo()).
+			Bind(&hv.find).Grow(1).MinWidth(leastFieldW)
+		if hv.focusFind {
+			hv.focusFind = false
+			hv.find.SelectAll(c)
+		}
+		if in.Changed() {
+			// What it said was of the text before.
+			hv.jumpErr = ""
+		}
 		if in.Submitted() && strings.TrimSpace(hv.jump) != "" {
 			a.jumpTo(t, strings.TrimSpace(hv.jump))
 		}
 		if hv.jumpErr != "" {
-			ui.Text(c, hv.jumpErr).FontSize(textSmall).TextColor(th.Danger).SingleLine()
+			ui.Text(c, hv.jumpErr).FontSize(textSmall).TextColor(th.Danger).SingleLine().Shrink(1).MinWidth(0)
 		}
-		ui.Text(c, historyStatus(h)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+		// The count gives way before the field does.
+		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Shrink(1).MinWidth(0).Children(func() {
+			status := historyStatus(h)
+			if h.Snap != nil && !h.Done {
+				ui.Spinner(c).FontSize(textSmall).Label(status)
+			}
+			ui.Text(c, status).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+		})
 		a.filterButton(c, t)
 	})
 	a.filterBar(c, t)
 }
+
+// focusHistoryFind puts the keyboard focus in history's go-to field, its
+// text chosen, once History shows.
+func (a *App) focusHistoryFind(t *tab) { t.hist.focusFind = true }
 
 // followHistory keeps the place and the choice on their commits as
 // history loads again. Commits laid on top of the history shown move its
@@ -377,12 +417,38 @@ func (a *App) jumpTo(t *tab, rev string) {
 		if n != hv.jumpN {
 			return // a newer request, or the user chose a commit meanwhile
 		}
-		if err != nil {
+		typed := strings.TrimSpace(hv.jump) == rev
+		switch {
+		case err != nil && typed && !hexish(rev):
+			// No commit by that name: words typed here are mostly
+			// looked for in the messages.
+			hv.jump = ""
+			a.findInMessages(t, rev)
+		case err != nil:
 			hv.jumpErr = errText(err)
-			return
+		default:
+			if typed {
+				// Gone to; left in the field, it would read as a search
+				// the list stays narrowed by.
+				hv.jump = ""
+			}
+			a.chooseCommit(t, id)
 		}
-		a.chooseCommit(t, id)
 	})
+}
+
+// hexish reports whether s looks like an abbreviated hash, which is
+// looked up by name alone.
+func hexish(s string) bool {
+	if len(s) < 4 {
+		return false
+	}
+	for _, r := range s {
+		if !('0' <= r && r <= '9' || 'a' <= r && r <= 'f' || 'A' <= r && r <= 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // chooseCommit goes to commit id: a page of its own, which Back returns
@@ -400,6 +466,34 @@ func (a *App) showCommit(t *tab, id []byte) {
 	hv.want, hv.wantFor = id, nil
 	hv.chosenID = id
 	hv.chosen = -1
+}
+
+// startAtHead chooses the checked-out commit as history first comes,
+// unless one is chosen already, so that its detail shows rather than an
+// empty pane.
+func (a *App) startAtHead(t *tab, h session.HistoryState) {
+	hv := &t.hist
+	if hv.started || h.Snap == nil || h.Snap.Len() == 0 {
+		return
+	}
+	hv.started = true
+	if hv.chosenID != nil || hv.want != nil {
+		return
+	}
+	top := h.OID(h.Snap.Commit(0))
+	id := t.s.State.Head.OID
+	if id != nil && !bytes.Equal(id, top) {
+		// Found further down, it is scrolled to.
+		a.showCommit(t, bytes.Clone(id))
+		return
+	}
+	// At the top, where the list is: chosen as a click chooses it, with
+	// nothing to look for, which would scroll the list back there once
+	// found. A copy: the id may point into the commit-graph's mapping.
+	hv.chosenID = bytes.Clone(top)
+	hv.list.Choose(0)
+	hv.picked.Clear()
+	hv.picked.Add(string(top))
 }
 
 // findWanted looks for the wanted commit in each new snapshot, so a
@@ -681,6 +775,15 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 	if hv.scroll.Scrolling() {
 		l.TrackScroll(&hv.scroll)
 	}
+	// Keys for the chosen commit while the list has the focus: Copy
+	// copies its hash, and Option with Up and Down goes to its child and
+	// its parent, as the arrows go to the rows above and below.
+	hv.list.OnShortcut(c, ui.Cmd, ui.KeyC, func() { a.copyChosen(t, h) })
+	hv.list.OnShortcut(c, ui.Alt, ui.KeyDown, func() { a.chooseRelative(t, false) })
+	hv.list.OnShortcut(c, ui.Alt, ui.KeyUp, func() { a.chooseRelative(t, true) })
+	if hv.focusList && hv.list.Focus(c) {
+		hv.focusList = false
+	}
 	// The list's width is known once it is laid out, after the columns
 	// were: when what sets it changes, a frame more measures it, and one
 	// more lays the columns out for it.
@@ -692,6 +795,41 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		c.AnimationFrame()
 	}
 	hv.rowW, hv.rowPane = w, hv.lastPane
+}
+
+// copyChosen copies the hash of the commit chosen, or of every commit
+// picked with it, a line each, oldest first, as they would be picked
+// onto another branch.
+func (a *App) copyChosen(t *tab, h session.HistoryState) {
+	hv := &t.hist
+	if hv.chosenID == nil {
+		return
+	}
+	ids := []string{hex.EncodeToString(hv.chosenID)}
+	if hv.chosen >= 0 && h.Snap != nil && hv.chosen < h.Snap.Len() {
+		all, _ := a.historyIDs(t, h, hv.chosen)
+		ids = all()
+		slices.Reverse(ids)
+	}
+	a.clip = strings.Join(ids, "\n")
+}
+
+// chooseRelative goes to the chosen commit's first child, or its first
+// parent, once its detail has read them.
+func (a *App) chooseRelative(t *tab, child bool) {
+	hv := &t.hist
+	cv := &hv.detail
+	var to []byte
+	switch {
+	case !bytes.Equal(cv.id, hv.chosenID):
+	case child && cv.rel != nil && len(cv.rel.Children) > 0:
+		to = cv.rel.Children[0]
+	case !child && cv.d != nil && len(cv.d.Parents) > 0:
+		to = cv.d.Parents[0]
+	}
+	if to != nil {
+		a.chooseCommit(t, bytes.Clone(to))
+	}
 }
 
 // roomW is the width the list has in this pass: as last laid out, and
