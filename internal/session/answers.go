@@ -9,6 +9,7 @@ import (
 
 	"ramus/internal/git/cache"
 	"ramus/internal/git/diff"
+	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
 )
 
@@ -22,6 +23,11 @@ type answer struct {
 	detail *CommitDetail
 	// pull is what GitHub said of a commit's pull request.
 	pull *CommitPullResult
+	// relations are a commit's relations to the refs and HEAD it was
+	// found for: an answer for others is stale.
+	relations     *CommitRelations
+	relationsRefs *refs.List
+	relationsHead []byte
 }
 
 // AnswersBudget bounds the answers a session keeps. With the history
@@ -88,6 +94,12 @@ func (a answer) bytes() int {
 			n += d.Files.Bytes()
 		}
 		n += len(d.Lines) * int(unsafe.Sizeof(diff.Lines{}))
+	}
+	if rel := a.relations; rel != nil {
+		n += len(a.relationsHead) + 64*len(rel.Children)
+		for _, name := range rel.Refs {
+			n += 16 + len(name)
+		}
 	}
 	if p := a.pull; p != nil {
 		n += 128 + len(p.Pull.Title) + len(p.Pull.URL) + len(p.Pull.Branch) + len(p.Pull.Repo.Host) + len(p.Pull.Repo.Path)
