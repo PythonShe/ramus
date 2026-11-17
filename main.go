@@ -406,8 +406,14 @@ func menu(ws *windows) *mygo.Menu {
 			// tab in it: the menu takes keys before the window does.
 			{Label: locales.MenuCloseTab(), Accelerator: key("close-tab"), Click: func(_ *mygo.MenuItem, win *mygo.Window) {
 				w := ws.of(win)
-				if w == nil {
-					w = ws.target()
+				switch {
+				case w == nil && win != nil:
+					// A window of no repositories, as About: it closes, and
+					// no tab of a window behind it does.
+					win.Close()
+					return
+				case w == nil:
+					w = ws.focused
 				}
 				if w == nil {
 					return
@@ -422,6 +428,8 @@ func menu(ws *windows) *mygo.Menu {
 			{Label: locales.MenuCloseWindow(), Accelerator: "CmdOrCtrl+Shift+W", Click: func(_ *mygo.MenuItem, win *mygo.Window) {
 				if w := ws.of(win); w != nil && w.win != nil {
 					w.win.Close()
+				} else if w == nil && win != nil {
+					win.Close()
 				}
 			}},
 		}},
