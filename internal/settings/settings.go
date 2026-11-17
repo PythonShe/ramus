@@ -73,6 +73,9 @@ type Settings struct {
 	// own: accelerators such as "CmdOrCtrl+Shift+P"; an empty list
 	// leaves a command without one.
 	Keys map[string][]string `json:"keys,omitempty"`
+	// CloneParent is the folder the last clone went into, which the next
+	// one offers.
+	CloneParent string `json:"cloneParent,omitempty"`
 }
 
 // Column is a list column as the user left it: its width, 0 for the

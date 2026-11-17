@@ -69,7 +69,7 @@ func TestSaveClearsEveryField(t *testing.T) {
 	on := Settings{Theme: "dark", Editor: []string{"e"}, Terminal: []string{"t"}, SnapshotDays: 3, RecentLimit: 4,
 		Actions: []Action{{Name: "a", Command: []string{"/bin/true"}}}, Emails: []string{"x@example.com"},
 		DiffSplit: true, DiffNoWrap: true, ReviewUnified: true, NoFocusRefresh: true, NoFetch: true, FetchMinutes: 10, PullRequests: true, HiddenSections: []string{"tags"},
-		NoSidebar: true, Keys: map[string][]string{"push": {"CmdOrCtrl+Shift+U"}},
+		NoSidebar: true, Keys: map[string][]string{"push": {"CmdOrCtrl+Shift+U"}}, CloneParent: "/projects",
 		HistoryColumns: map[string]Column{"hash": {Width: 80, Hidden: true}, "graph": {Thin: true}}, HistoryMessage: 300,
 		Tables: map[string]TableLayout{"branches": {Order: []string{"time", "name"}, Widths: map[string]float32{"name": 200}}}}
 	// Every field set: a field added later without a value here fails.

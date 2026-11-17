@@ -19,8 +19,8 @@ type cloneState struct {
 	open       bool
 	url, dir   string
 	submodules bool
-	// parent is the folder a clone goes into: the one picked last, else
-	// a folder of projects in the home. dir is parent/<the URL's name>,
+	// parent is the folder a clone goes into: the one picked last, or
+	// the last clone went into, else a folder of projects in the home. dir is parent/<the URL's name>,
 	// which auto keeps, until the user types another.
 	parent, auto string
 	looked       bool
@@ -123,15 +123,24 @@ func defaultCloneDir(url string) string {
 var cloneParents = []string{"Developer", "Projects", "projects", "src", "Code", "code", "dev"}
 
 // findCloneParent finds, off the main thread, the folder a clone goes
-// into until the user picks another.
+// into until the user picks another: the one the last clone went into
+// while it is there, else a folder of projects in the home.
 func (a *App) findCloneParent() {
 	cs := &a.clone
 	if cs.looked {
 		return
 	}
 	cs.looked = true
-	update := a.Update
+	update, last := a.Update, a.Settings.CloneParent
 	a.goWork(nil, func() {
+		if fi, err := os.Stat(last); last != "" && err == nil && fi.IsDir() {
+			update(func() {
+				if cs.parent == "" {
+					cs.parent = last
+				}
+			})
+			return
+		}
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return
@@ -242,6 +251,12 @@ func (a *App) followClone(j *write.Job, dir string, update func(func()), ts *tru
 			return
 		}
 		cs.open, cs.url, cs.dir, cs.auto, cs.submodules = false, "", "", "", false
+		// The next clone goes beside this one, after a restart too.
+		cs.parent = filepath.Dir(dir)
+		if a.Settings.CloneParent != cs.parent {
+			a.Settings.CloneParent = cs.parent
+			a.keepSettings()
+		}
 		a.Open(dir)
 	})
 }

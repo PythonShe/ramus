@@ -51,6 +51,30 @@ func TestCloneDialog(t *testing.T) {
 	if h.app.clone.open {
 		t.Fatal("the dialog stayed after the clone")
 	}
+	if h.app.Settings.CloneParent != parent {
+		t.Fatalf("the folder kept for the next clone is %q, want %q", h.app.Settings.CloneParent, parent)
+	}
+}
+
+// The folder the last clone went into is offered again after a restart,
+// while it is there.
+func TestCloneParentKept(t *testing.T) {
+	h := newHarness(t)
+	parent := t.TempDir()
+	h.app.Settings.CloneParent = parent
+	h.app.ShowClone()
+	h.until("the folder", func() bool { return h.app.clone.parent != "" })
+	if h.app.clone.parent != parent {
+		t.Fatalf("offered %q, want %q", h.app.clone.parent, parent)
+	}
+
+	h = newHarness(t)
+	h.app.Settings.CloneParent = filepath.Join(parent, "gone")
+	h.app.ShowClone()
+	h.until("the folder", func() bool { return h.app.clone.parent != "" })
+	if h.app.clone.parent == h.app.Settings.CloneParent {
+		t.Fatal("a folder no longer there was offered")
+	}
 }
 
 // A folder typed by hand stays as the URL changes.
