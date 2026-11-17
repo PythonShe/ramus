@@ -16,7 +16,8 @@ import (
 const TextChunkRows = 256
 
 // TextChunk holds the one-line text of up to TextChunkRows commits, by
-// their place k in the chunk: subject and author name, in one buffer, and
+// their place k in the chunk: subject, author name and email, in one
+// buffer, and
 // author times, with the commits' object ids. It is immutable once
 // loaded, so the goroutine that loads it hands it to the UI as it is, and
 // it is the text of its commits whichever rows they are in.
@@ -25,8 +26,8 @@ type TextChunk struct {
 	oids     []byte
 	hashSize int
 	buf      []byte
-	// ends holds, per commit, the end of its subject, of its author and of
-	// its merged parents in buf.
+	// ends holds, per commit, the end of its subject, of its author, of
+	// its merged parents and of its author's email in buf.
 	ends  []uint32
 	times []int64
 	zones []int16
@@ -51,10 +52,10 @@ func (c *TextChunk) OID(k int) []byte { return c.oids[k*c.hashSize : (k+1)*c.has
 func (c *TextChunk) Row(k int) (subject, author string, when time.Time) {
 	start := uint32(0)
 	if k > 0 {
-		start = c.ends[3*k-1]
+		start = c.ends[textParts*k-1]
 	}
-	s := c.buf[start:c.ends[3*k]]
-	a := c.buf[c.ends[3*k]:c.ends[3*k+1]]
+	s := c.buf[start:c.ends[textParts*k]]
+	a := c.buf[c.ends[textParts*k]:c.ends[textParts*k+1]]
 	loc := time.FixedZone("", int(c.zones[k])*60)
 	return string(s), string(a), time.Unix(c.times[k], 0).In(loc)
 }
@@ -66,8 +67,16 @@ func (c *TextChunk) Odd(k int) bool { return c.odd[k] }
 // Merged returns the abbreviated parents of commit k when it is a merge,
 // as "1a2b3c4 and 5d6e7f8", and "" for a commit with one parent or none.
 func (c *TextChunk) Merged(k int) string {
-	return string(c.buf[c.ends[3*k+1]:c.ends[3*k+2]])
+	return string(c.buf[c.ends[textParts*k+1]:c.ends[textParts*k+2]])
 }
+
+// Email returns the email of commit k's author, as the mailmap maps it.
+func (c *TextChunk) Email(k int) string {
+	return string(c.buf[c.ends[textParts*k+2]:c.ends[textParts*k+3]])
+}
+
+// textParts is how many ends each commit has in a chunk's buffer.
+const textParts = 4
 
 // mergedShort is how many hex digits name a merged parent.
 const mergedShort = 7
@@ -80,7 +89,7 @@ func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, er
 	n := len(ids)
 	c := &TextChunk{
 		buf:   make([]byte, 0, n*64),
-		ends:  make([]uint32, 0, 3*n),
+		ends:  make([]uint32, 0, textParts*n),
 		times: make([]int64, 0, n),
 		zones: make([]int16, 0, n),
 		odd:   make([]bool, 0, n),
@@ -100,13 +109,13 @@ func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, er
 		enc := string(cm.Encoding)
 		subject, ok1 := textenc.Decode(object.Subject(cm.Message), enc)
 		author, ok2 := textenc.Decode(cm.Author.Name, enc)
+		email, _ := textenc.Decode(cm.Author.Email, enc)
 		if mm.Len() > 0 {
-			email, _ := textenc.Decode(cm.Author.Email, enc)
-			author, _ = mm.Lookup(author, email)
+			author, email = mm.Lookup(author, email)
 		}
 		// The text is only shown: without the controls and bidi overrides
 		// a commit could carry to disguise its subject or its author.
-		subject, author = redact.Control(subject), redact.Control(author)
+		subject, author, email = redact.Control(subject), redact.Control(author), redact.Control(email)
 		c.odd = append(c.odd, !ok1 || !ok2)
 		c.buf = append(c.buf, subject...)
 		c.ends = append(c.ends, uint32(len(c.buf)))
@@ -115,6 +124,8 @@ func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, er
 		if cm.Parents > 1 {
 			c.buf = appendMerged(c.buf, o.Data, cm.Parents)
 		}
+		c.ends = append(c.ends, uint32(len(c.buf)))
+		c.buf = append(c.buf, email...)
 		c.ends = append(c.ends, uint32(len(c.buf)))
 		c.times = append(c.times, cm.Author.When)
 		c.zones = append(c.zones, cm.Author.Offset)

@@ -27,7 +27,10 @@ func TestLoadTextMerged(t *testing.T) {
 	r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
 	var ids [][]byte
 	var want []string
-	for _, line := range strings.Split(strings.TrimSpace(r.Git("log", "--format=%H %P")), "\n") {
+	var emails []string
+	for _, line := range strings.Split(strings.TrimSpace(r.Git("log", "--format=%H %P%x00%aE")), "\n") {
+		line, email, _ := strings.Cut(line, "\x00")
+		emails = append(emails, email)
 		f := strings.Fields(line)
 		id, _ := hex.DecodeString(f[0])
 		ids = append(ids, id)
@@ -53,6 +56,9 @@ func TestLoadTextMerged(t *testing.T) {
 		subject, _, _ := c.Row(i)
 		if !bytes.Equal(c.OID(i), ids[i]) {
 			t.Errorf("row %d is %x, want %x", i, c.OID(i), ids[i])
+		}
+		if got := c.Email(i); got != emails[i] {
+			t.Errorf("row %d (%s): email %q, want %q", i, subject, got, emails[i])
 		}
 		if got := c.Merged(i); got != want[i] {
 			t.Errorf("row %d (%s): merged %q, want %q", i, subject, got, want[i])
