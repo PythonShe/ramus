@@ -767,6 +767,11 @@ func TestCommitBox(t *testing.T) {
 	r.Git("add", "lf.txt")
 	h.until("staged", h.shows("Staged (1)"))
 	cs.subject, cs.body = "Not pushed", ""
+	// The amend's toast, at the foot of the window, reaches over Commit
+	// and Push or not by the fonts of the platform, as with Windows': its
+	// time ends first.
+	h.tt.Advance(10 * time.Second)
+	h.until("the amend's toast gone", func() bool { return !h.tt.HasText("Amended") })
 	h.click("Commit and Push")
 	h.until("the commit", func() bool { return !cs.busy && cs.err != "" })
 	if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); got != "Not pushed" || cs.subject != "" ||
