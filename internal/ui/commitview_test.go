@@ -211,15 +211,15 @@ func TestPickedWithMergeNotPicked(t *testing.T) {
 	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("History")
-	h.until("the history", h.shows("merge side"))
+	h.until("the history", func() bool { return tb.s.History.Done && tb.s.History.Snap != nil })
 	hs := tb.s.History
 	for k := 0; k < 2; k++ {
 		tb.hist.picked.Add(string(hs.OID(hs.Snap.Commit(k))))
 	}
-	if err := h.tt.RightClick("after"); err != nil {
-		t.Fatal(err)
-	}
-	h.tt.Frame()
+	// By the history row, its label starting with the subject: the
+	// detail of HEAD, open beside the list, shows the subject too, as
+	// text whose menu is Copy and Select All, and lists after.txt.
+	h.rightClickRow(ui.RoleListItem, "after, ")
 	for _, item := range []string{"Cherry-Pick 2 Commits onto main", "Revert 2 Commits"} {
 		if err := h.tt.ChooseMenuItem(item); err == nil || !strings.Contains(err.Error(), "disabled") {
 			t.Fatalf("%s with a merge picked: %v; menu %q", item, err, h.tt.Menu())
