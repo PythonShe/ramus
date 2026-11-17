@@ -37,6 +37,13 @@ func TestWorktreeDashboard(t *testing.T) {
 	if !h.tt.HasText("agent-work") {
 		t.Fatalf("no branch; texts %q", h.tt.Texts())
 	}
+	// A row holds its name and the path under it, clear of the next row:
+	// rows of one line squeezed the two together.
+	path, _ := h.tt.Find(r.Dir)
+	next, _ := h.tt.Find("agent")
+	if path.H == 0 || next.Y-(path.Y+path.H) < spaceS {
+		t.Fatalf("the path at %v runs into the next row's name at %v", path, next)
+	}
 
 	h.click("Compare " + filepath.Base(r.Dir))
 	h.click("Compare agent")

@@ -83,6 +83,9 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 				act = func() { a.compareWorktrees(t, picked[0], picked[1]) }
 			}
 		})
+		// Each row names the worktree over its path, or what reading it
+		// failed with.
+		d.table.RowHeight = rowTallHeight
 		tbl := a.savedTable(c, "worktrees", &d.table, cols, len(wts), func(i, col int) {
 			w := wts[i]
 			sum, read := d.sums[w.Path]
@@ -96,12 +99,16 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 						if w.Current {
 							name.Bold()
 						}
-						sub := ui.Text(c, w.Path).FontSize(textCaption).TextColor(k.Muted).SingleLine()
+						// One line under the name, which the row has room for:
+						// the path, or what reading the worktree failed with,
+						// the path then in its tooltip.
 						switch {
 						case w.Prunable:
-							sub.TextColor(k.Warning)
+							ui.Text(c, w.Path).FontSize(textCaption).TextColor(k.Warning).SingleLine()
 						case read && sum.Err != nil:
-							ui.Text(c, errText(sum.Err)).FontSize(textCaption).TextColor(k.Danger).SingleLine().Tooltip(errText(sum.Err))
+							ui.Text(c, errText(sum.Err)).FontSize(textCaption).TextColor(k.Danger).SingleLine().Tooltip(w.Path + "\n" + errText(sum.Err))
+						default:
+							ui.Text(c, w.Path).FontSize(textCaption).TextColor(k.Muted).SingleLine()
 						}
 					})
 				})

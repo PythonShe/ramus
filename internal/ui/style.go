@@ -40,6 +40,9 @@ const (
 	// rowHeight is a one-line list row: a line of text and rowPadY
 	// above and below it.
 	rowHeight = 24
+	// rowTallHeight is a list row of two lines: a line of text, a caption
+	// under it, and rowTallPadY above and below them.
+	rowTallHeight = 44
 	// controlHeight is a toolbar button's height, which what sits on a
 	// bar beside toolbar buttons, as a tab, takes too.
 	controlHeight = 28
