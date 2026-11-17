@@ -953,6 +953,10 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	h.app.Settings.HistoryColumns, h.app.Settings.HistoryMessage = nil, 0
 	hv.detailW = 800
 	settle()
+	// The rows measure their subjects as they are built, which a slow
+	// machine does frames later.
+	h.until("the subjects measured", func() bool { settle(); return hv.msgWant == historyMessageWant })
+	settle()
 	if hv.msgWant != historyMessageWant || hv.cols.shown[colAuthor] {
 		t.Fatalf("message would like %v; columns %v", hv.msgWant, hv.cols.shown)
 	}
