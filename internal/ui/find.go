@@ -6,20 +6,43 @@ import "github.com/egoist/mygo/ui"
 // view that has one; a view binds its own as it builds it.
 type findFields struct {
 	welcome, changes, refs ui.Handle
+	// frames counts down the frames a Find waits for its field to show.
+	frames int
 }
 
 // focusFind focuses the search or filter field of what the window
 // shows, with its text selected for typing anew: Find.
 func (a *App) focusFind() {
 	t := a.current()
+	var h *ui.Handle
 	switch {
 	case t == nil:
-		a.find.welcome.SelectAll()
+		h = &a.find.welcome
 	case t.sel == "changes":
-		a.find.changes.SelectAll()
+		h = &a.find.changes
 	case t.sel == "history":
 		a.focusHistoryFind(t)
 	case t.sel == "refs":
-		a.find.refs.SelectAll()
+		h = &a.find.refs
+	}
+	if h != nil {
+		h.SelectAll()
+		// Asked from a shortcut, the field takes the focus in this frame;
+		// from the menu, between frames, in the next.
+		a.find.frames = 2
+	}
+}
+
+// expire drops a Find whose field did not show in the frames after it,
+// as Remotes, which has no filter: it would otherwise wait for the field
+// and take the focus once it shows, the user typing elsewhere by then.
+func (f *findFields) expire() {
+	if f.frames == 0 {
+		return
+	}
+	if f.frames--; f.frames == 0 {
+		f.welcome.CancelFocus()
+		f.changes.CancelFocus()
+		f.refs.CancelFocus()
 	}
 }

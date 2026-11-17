@@ -48,3 +48,36 @@ func TestFindAndTabKeys(t *testing.T) {
 		t.Fatalf("told %v", told)
 	}
 }
+
+// A Find in a view whose field is not shown, as Remotes, does nothing,
+// and leaves nothing to take the focus once the field shows.
+func TestFindWithoutField(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith("a.txt")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("a.txt"))
+	tb := h.app.current()
+	tb.sel = "refs"
+	tb.refs.kind = refsRemotes
+	h.tt.Frame()
+	h.tt.Key(ui.Cmd, ui.KeyF)
+	for range 3 {
+		h.tt.Frame()
+	}
+	tb.refs.kind = refsBranches
+	h.tt.Frame()
+	h.tt.Frame()
+	h.tt.Type("zz")
+	h.tt.Frame()
+	if tb.refs.filter != "" {
+		t.Fatal("the branches' filter took the focus a Find left")
+	}
+	h.tt.Key(ui.Cmd, ui.KeyF)
+	h.tt.Frame()
+	h.tt.Type("zz")
+	h.tt.Frame()
+	if tb.refs.filter != "zz" {
+		t.Fatalf("Find did not focus the branches' filter: %q", tb.refs.filter)
+	}
+}

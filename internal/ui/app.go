@@ -543,6 +543,7 @@ func (a *App) View(c *ui.Context) {
 	a.applySettings()
 	a.themes.apply(c, a.Settings.Theme)
 	a.claimNotice()
+	a.find.expire()
 	a.shortcuts(c)
 	if a.clip != "" {
 		c.WriteClipboard(a.clip)
