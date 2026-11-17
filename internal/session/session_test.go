@@ -286,8 +286,10 @@ func TestSnapshotsRestoreAndUndo(t *testing.T) {
 		t.Fatalf("undo with nothing done: %+v", e)
 	}
 
-	s.timeNow = func() time.Time { return time.Now().Add(30 * 24 * time.Hour) }
-	s.ExpireSnapshots(14 * 24 * time.Hour)
+	// Every snapshot is older than a nanosecond by now. The clock is not
+	// moved instead: the session's goroutines read it.
+	time.Sleep(time.Millisecond)
+	s.ExpireSnapshots(time.Nanosecond)
 	deadline := time.Now().Add(20 * time.Second)
 	for strings.TrimSpace(r.Git("for-each-ref", snapshot.Prefix)) != "" {
 		if time.Now().After(deadline) {
