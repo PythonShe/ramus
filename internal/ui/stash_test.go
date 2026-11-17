@@ -52,3 +52,28 @@ func TestStashPicked(t *testing.T) {
 	h.click("Stashes (2)")
 	h.until("both stashes", func() bool { return h.tt.HasText("On main: just f") && h.tt.HasText("On main: staged g") })
 }
+
+// The stash dialog names how many files it stashes, as its choices
+// change that, and stashes none while it would take none.
+func TestStashTitleCounts(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("f.txt", "f\n")
+	r.Commit("one file")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	r.Write("new1.txt", "1\n")
+	r.Write("new2.txt", "2\n")
+	h.until("the changes", h.shows("new2.txt"))
+	h.app.openStash(h.app.current())
+	h.until("the dialog", h.shows("Stash Changes to 2 Files"))
+	h.click("Include untracked files")
+	h.until("none taken", h.shows("Stash Changes to 0 Files"))
+	if b, ok := h.tt.Access("Stash"); !ok || !b.Disabled {
+		t.Fatalf("Stash offered for no file: %+v", b)
+	}
+	h.click("Include untracked files")
+	r.Write("f.txt", "changed\n")
+	h.until("three", h.shows("Stash Changes to 3 Files"))
+}

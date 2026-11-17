@@ -10,6 +10,7 @@ import (
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
+	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
 	"ramus/locales"
@@ -73,7 +74,14 @@ func (a *App) stashDialogView(c *ui.Context) {
 	th := c.Theme()
 	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
+			staged := len(d.paths) == 0 && d.what == 1
 			title := locales.StashTitle()
+			// none is a stash of no file, which git refuses.
+			none := false
+			if st := d.t.s.State.Status; len(d.paths) == 0 && st != nil {
+				n := stashCount(st, staged, d.untracked)
+				title, none = locales.StashFilesTitle(n), n == 0
+			}
 			if n := len(d.paths); n > 0 {
 				title = locales.StashFilesTitle(n)
 				if n == 1 {
@@ -85,7 +93,6 @@ func (a *App) stashDialogView(c *ui.Context) {
 			if len(d.paths) == 0 && canStashStaged(d.t) {
 				ui.Segmented(c, &d.what, locales.StashAllChanges(), locales.StashStagedOnly())
 			}
-			staged := len(d.paths) == 0 && d.what == 1
 			if !staged {
 				ui.Checkbox(c, &d.untracked, locales.StashIncludeUntracked())
 				ui.Checkbox(c, &d.keepIndex, locales.StashKeepIndex())
@@ -98,7 +105,7 @@ func (a *App) stashDialogView(c *ui.Context) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, locales.StashStash()).Disabled(d.t.s.Queue == nil).Clicked() || in.Submitted() {
+				if (ui.PrimaryButton(c, locales.StashStash()).Disabled(d.t.s.Queue == nil || none).Clicked() || in.Submitted()) && !none {
 					op := write.Stash(d.t.s.Where(), write.StashOptions{Message: d.message, Untracked: d.untracked, KeepIndex: d.keepIndex,
 						Paths: d.paths, Staged: staged})
 					if _, err := d.t.s.Submit(op); err != nil {
@@ -110,6 +117,27 @@ func (a *App) stashDialogView(c *ui.Context) {
 			})
 		})
 	})
+}
+
+// stashCount is how many entries of st a stash takes: those staged,
+// with staged set; else every change, the untracked with untracked set.
+func stashCount(st *status.Status, staged, untracked bool) int {
+	n := 0
+	for i := range st.Len() {
+		switch {
+		case staged:
+			if inSection(st, i, secStaged) {
+				n++
+			}
+		case st.Kind(i) == status.Untracked:
+			if untracked {
+				n++
+			}
+		case st.Kind(i) != status.Ignored:
+			n++
+		}
+	}
+	return n
 }
 
 func (a *App) stashView(c *ui.Context, t *tab) {
