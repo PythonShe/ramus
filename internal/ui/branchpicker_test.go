@@ -43,7 +43,7 @@ func TestBranchPicker(t *testing.T) {
 	}
 	// The highlight follows the pointer on the frame it moves: the row
 	// under it is drawn in the accent color.
-	search, _ := h.tt.Find("Search Branches")
+	search, _ := h.tt.Find("Search branches")
 	for _, i := range []int{1, 0} {
 		x, y := search.X+40, search.Y+search.H+spaceS+float32(i*rowHeight)+rowHeight/2
 		h.tt.Move(x, y) // draws the frame
@@ -63,7 +63,7 @@ func TestBranchPicker(t *testing.T) {
 	h.click("Branch feature/beta")
 	h.tt.Type("alpha")
 	h.until("alpha", shown("refs/heads/feature/alpha"))
-	r0, _ := h.tt.Find("Search Branches")
+	r0, _ := h.tt.Find("Search branches")
 	h.tt.ClickAt(r0.X+40, r0.Y+r0.H+spaceS+rowHeight/2)
 	h.tt.Frame()
 	h.until("on alpha", func() bool { return tb.s.State.Head.Target == "refs/heads/feature/alpha" })

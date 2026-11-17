@@ -242,7 +242,7 @@ func TestReflogView(t *testing.T) {
 	if err := h.tt.RightClick("reset: moving to HEAD~1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.tt.ChooseMenuItem("Reset rescued to Here", "Hard: Drop Local Changes…"); err != nil {
+	if err := h.tt.ChooseMenuItem("Reset rescued to Here", "Hard: Discard Local Changes…"); err != nil {
 		t.Fatal(err)
 	}
 	h.until("the question", h.shows("Reset"))

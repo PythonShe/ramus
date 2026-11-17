@@ -239,7 +239,7 @@ func TestTrustBanner(t *testing.T) {
 	r := h.repoWith()
 	h.app.Open(r.Dir)
 	h.until("the banner", h.shows("Read-only"))
-	h.click("Trust")
+	h.click("Trust Repository")
 	h.until("the banner to go", func() bool { return !h.tt.HasText("Read-only") && h.tt.HasText("No changes") })
 	if !h.trust.Trusted(r.GitDir()) {
 		t.Fatal("trust not recorded")
@@ -433,7 +433,7 @@ func TestManagerAndGroups(t *testing.T) {
 	h.tt.Frame()
 	h.tt.Key(ui.Cmd|ui.Shift, ui.KeyO)
 	h.until("the manager", h.shows("Repositories"))
-	h.click("Mark " + filepath.Base(a.Dir) + " as favourite")
+	h.click("Mark " + filepath.Base(a.Dir) + " as favorite")
 	h.until("the favourite", func() bool { return len(h.lib.Favourites()) == 1 })
 	// The whole path: the base name alone may be in the temporary
 	// directory's random name too.

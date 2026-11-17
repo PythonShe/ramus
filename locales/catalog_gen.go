@@ -845,7 +845,7 @@ func (msgs Messages) RefsDeleteBranchesMessage() string {
 	return Catalog.Format(msgs.locale, "refsDeleteBranchesMessage", nil)
 }
 
-// RefsDeleteBranchesWorktreesMessage says "Each is backed up first; Undo brings the branch back. The worktree at {folders} is removed with its branch, and Undo …"
+// RefsDeleteBranchesWorktreesMessage says "Each branch is backed up first, and Undo brings it back. The worktree at {folders} goes with its branch, and Undo doe…"
 // in the language the app shows.
 //
 // folders is a comma-separated list of paths.
@@ -853,7 +853,7 @@ func RefsDeleteBranchesWorktreesMessage(folders string) string {
 	return In(i18n.Locale()).RefsDeleteBranchesWorktreesMessage(folders)
 }
 
-// RefsDeleteBranchesWorktreesMessage says "Each is backed up first; Undo brings the branch back. The worktree at {folders} is removed with its branch, and Undo …"
+// RefsDeleteBranchesWorktreesMessage says "Each branch is backed up first, and Undo brings it back. The worktree at {folders} goes with its branch, and Undo doe…"
 // in the language of msgs.
 //
 // folders is a comma-separated list of paths.
@@ -2271,11 +2271,11 @@ func (msgs Messages) MergeTakeTheirs() string {
 	return Catalog.Format(msgs.locale, "mergeTakeTheirs", nil)
 }
 
-// MergeDeleteIt says "Delete It"
+// MergeDeleteIt says "Delete File"
 // in the language the app shows.
 func MergeDeleteIt() string { return In(i18n.Locale()).MergeDeleteIt() }
 
-// MergeDeleteIt says "Delete It"
+// MergeDeleteIt says "Delete File"
 // in the language of msgs.
 func (msgs Messages) MergeDeleteIt() string {
 	return Catalog.Format(msgs.locale, "mergeDeleteIt", nil)
@@ -2291,14 +2291,14 @@ func (msgs Messages) MergeNotLineByLine(path string) string {
 	return Catalog.Format(msgs.locale, "mergeNotLineByLine", map[string]any{"path": path})
 }
 
-// MergeStopped says "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}…"
+// MergeStopped says "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Applying patches} othe…"
 // in the language the app shows.
 //
 // operation is the operation that stopped: merge, rebase, cherryPick,
 // revert or am.
 func MergeStopped(operation string) string { return In(i18n.Locale()).MergeStopped(operation) }
 
-// MergeStopped says "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}…"
+// MergeStopped says "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Applying patches} othe…"
 // in the language of msgs.
 //
 // operation is the operation that stopped: merge, rebase, cherryPick,
@@ -3051,11 +3051,11 @@ func (msgs Messages) WorktreeRemoveEllipsis() string {
 	return Catalog.Format(msgs.locale, "worktreeRemoveEllipsis", nil)
 }
 
-// WorktreeGoneMessage says "The folder {path} is gone. Pruning forgets every worktree whose folder is gone; their branches stay."
+// WorktreeGoneMessage says "The folder {path} is gone. Pruning removes the records of every worktree whose folder is gone; their branches stay."
 // in the language the app shows.
 func WorktreeGoneMessage(path string) string { return In(i18n.Locale()).WorktreeGoneMessage(path) }
 
-// WorktreeGoneMessage says "The folder {path} is gone. Pruning forgets every worktree whose folder is gone; their branches stay."
+// WorktreeGoneMessage says "The folder {path} is gone. Pruning removes the records of every worktree whose folder is gone; their branches stay."
 // in the language of msgs.
 func (msgs Messages) WorktreeGoneMessage(path string) string {
 	return Catalog.Format(msgs.locale, "worktreeGoneMessage", map[string]any{"path": path})
@@ -5765,23 +5765,23 @@ func (msgs Messages) CommitResetKeep() string {
 	return Catalog.Format(msgs.locale, "commitResetKeep", nil)
 }
 
-// CommitResetHard says "Hard: Drop Local Changes…"
+// CommitResetHard says "Hard: Discard Local Changes…"
 // in the language the app shows.
 func CommitResetHard() string { return In(i18n.Locale()).CommitResetHard() }
 
-// CommitResetHard says "Hard: Drop Local Changes…"
+// CommitResetHard says "Hard: Discard Local Changes…"
 // in the language of msgs.
 func (msgs Messages) CommitResetHard() string {
 	return Catalog.Format(msgs.locale, "commitResetHard", nil)
 }
 
-// CommitResetHardTitle says "Drop local changes and reset to {commit}?"
+// CommitResetHardTitle says "Discard local changes and reset to {commit}?"
 // in the language the app shows.
 func CommitResetHardTitle(commit string) string {
 	return In(i18n.Locale()).CommitResetHardTitle(commit)
 }
 
-// CommitResetHardTitle says "Drop local changes and reset to {commit}?"
+// CommitResetHardTitle says "Discard local changes and reset to {commit}?"
 // in the language of msgs.
 func (msgs Messages) CommitResetHardTitle(commit string) string {
 	return Catalog.Format(msgs.locale, "commitResetHardTitle", map[string]any{"commit": commit})
@@ -7229,11 +7229,11 @@ func (msgs Messages) RepoCannotOpen(path string) string {
 	return Catalog.Format(msgs.locale, "repoCannotOpen", map[string]any{"path": path})
 }
 
-// RepoTrustBanner says "Read-only: this repository's hooks, filters and config commands do not run until you trust it."
+// RepoTrustBanner says "Read-only until you trust this repository: its hooks, filters and the commands its config names do not run."
 // in the language the app shows.
 func RepoTrustBanner() string { return In(i18n.Locale()).RepoTrustBanner() }
 
-// RepoTrustBanner says "Read-only: this repository's hooks, filters and config commands do not run until you trust it."
+// RepoTrustBanner says "Read-only until you trust this repository: its hooks, filters and the commands its config names do not run."
 // in the language of msgs.
 func (msgs Messages) RepoTrustBanner() string {
 	return Catalog.Format(msgs.locale, "repoTrustBanner", nil)
@@ -7269,13 +7269,13 @@ func (msgs Messages) RepoTakeOver() string {
 	return Catalog.Format(msgs.locale, "repoTakeOver", nil)
 }
 
-// RepoTrust says "Trust"
+// RepoTrust says "Trust Repository"
 // in the language the app shows.
 //
 // Verb: trusts the repository, so its hooks and filters run.
 func RepoTrust() string { return In(i18n.Locale()).RepoTrust() }
 
-// RepoTrust says "Trust"
+// RepoTrust says "Trust Repository"
 // in the language of msgs.
 //
 // Verb: trusts the repository, so its hooks and filters run.
@@ -7877,14 +7877,14 @@ func (msgs Messages) RepoResumeFetch() string {
 	return Catalog.Format(msgs.locale, "repoResumeFetch", nil)
 }
 
-// RepoNotOwned says "This repository belongs to another user. git works in it once it is marked safe, which this command does in your git …"
+// RepoNotOwned says "This repository belongs to another user, so git refuses to work in it. This command marks it safe in your git config:"
 // in the language the app shows.
 //
 // The screen of a repository that cannot open because of git's dubious
 // ownership check; the safe.directory command follows it.
 func RepoNotOwned() string { return In(i18n.Locale()).RepoNotOwned() }
 
-// RepoNotOwned says "This repository belongs to another user. git works in it once it is marked safe, which this command does in your git …"
+// RepoNotOwned says "This repository belongs to another user, so git refuses to work in it. This command marks it safe in your git config:"
 // in the language of msgs.
 //
 // The screen of a repository that cannot open because of git's dubious
@@ -11529,21 +11529,21 @@ func (msgs Messages) ManagerTitle() string {
 	return Catalog.Format(msgs.locale, "managerTitle", nil)
 }
 
-// ManagerSearchLabel says "Search repositories"
+// ManagerSearchLabel says "Search"
 // in the language the app shows.
 func ManagerSearchLabel() string { return In(i18n.Locale()).ManagerSearchLabel() }
 
-// ManagerSearchLabel says "Search repositories"
+// ManagerSearchLabel says "Search"
 // in the language of msgs.
 func (msgs Messages) ManagerSearchLabel() string {
 	return Catalog.Format(msgs.locale, "managerSearchLabel", nil)
 }
 
-// ManagerSearchPlaceholder says "Search every known repository"
+// ManagerSearchPlaceholder says "Search repositories"
 // in the language the app shows.
 func ManagerSearchPlaceholder() string { return In(i18n.Locale()).ManagerSearchPlaceholder() }
 
-// ManagerSearchPlaceholder says "Search every known repository"
+// ManagerSearchPlaceholder says "Search repositories"
 // in the language of msgs.
 func (msgs Messages) ManagerSearchPlaceholder() string {
 	return Catalog.Format(msgs.locale, "managerSearchPlaceholder", nil)
@@ -11597,23 +11597,23 @@ func (msgs Messages) ManagerKnown() string {
 	return Catalog.Format(msgs.locale, "managerKnown", nil)
 }
 
-// ManagerMarkFavourite says "Mark {name} as favourite"
+// ManagerMarkFavourite says "Mark {name} as favorite"
 // in the language the app shows.
 func ManagerMarkFavourite(name string) string { return In(i18n.Locale()).ManagerMarkFavourite(name) }
 
-// ManagerMarkFavourite says "Mark {name} as favourite"
+// ManagerMarkFavourite says "Mark {name} as favorite"
 // in the language of msgs.
 func (msgs Messages) ManagerMarkFavourite(name string) string {
 	return Catalog.Format(msgs.locale, "managerMarkFavourite", map[string]any{"name": name})
 }
 
-// ManagerUnmarkFavourite says "Unmark {name} as favourite"
+// ManagerUnmarkFavourite says "Unmark {name} as favorite"
 // in the language the app shows.
 func ManagerUnmarkFavourite(name string) string {
 	return In(i18n.Locale()).ManagerUnmarkFavourite(name)
 }
 
-// ManagerUnmarkFavourite says "Unmark {name} as favourite"
+// ManagerUnmarkFavourite says "Unmark {name} as favorite"
 // in the language of msgs.
 func (msgs Messages) ManagerUnmarkFavourite(name string) string {
 	return Catalog.Format(msgs.locale, "managerUnmarkFavourite", map[string]any{"name": name})
@@ -12919,11 +12919,11 @@ func (msgs Messages) BranchPickerDetached() string {
 	return Catalog.Format(msgs.locale, "branchPickerDetached", nil)
 }
 
-// BranchPickerSearch says "Search Branches"
+// BranchPickerSearch says "Search branches"
 // in the language the app shows.
 func BranchPickerSearch() string { return In(i18n.Locale()).BranchPickerSearch() }
 
-// BranchPickerSearch says "Search Branches"
+// BranchPickerSearch says "Search branches"
 // in the language of msgs.
 func (msgs Messages) BranchPickerSearch() string {
 	return Catalog.Format(msgs.locale, "branchPickerSearch", nil)
@@ -13835,11 +13835,11 @@ func (msgs Messages) TabsMoveToNewWindow() string {
 	return Catalog.Format(msgs.locale, "tabsMoveToNewWindow", nil)
 }
 
-// RepoPickerSearch says "Filter"
+// RepoPickerSearch says "Search repositories"
 // in the language the app shows.
 func RepoPickerSearch() string { return In(i18n.Locale()).RepoPickerSearch() }
 
-// RepoPickerSearch says "Filter"
+// RepoPickerSearch says "Search repositories"
 // in the language of msgs.
 func (msgs Messages) RepoPickerSearch() string {
 	return Catalog.Format(msgs.locale, "repoPickerSearch", nil)
@@ -13915,11 +13915,11 @@ func (msgs Messages) RepoPickerRecent() string {
 	return Catalog.Format(msgs.locale, "repoPickerRecent", nil)
 }
 
-// RepoPickerFavourites says "Favourites"
+// RepoPickerFavourites says "Favorites"
 // in the language the app shows.
 func RepoPickerFavourites() string { return In(i18n.Locale()).RepoPickerFavourites() }
 
-// RepoPickerFavourites says "Favourites"
+// RepoPickerFavourites says "Favorites"
 // in the language of msgs.
 func (msgs Messages) RepoPickerFavourites() string {
 	return Catalog.Format(msgs.locale, "repoPickerFavourites", nil)
@@ -14165,13 +14165,13 @@ func (msgs Messages) AppGitOutdated(version string) string {
 	return Catalog.Format(msgs.locale, "appGitOutdated", map[string]any{"version": version})
 }
 
-// AppOpenRepository says "Open Repository"
+// AppOpenRepository says "Choose a repository folder"
 // in the language the app shows.
 //
 // The title of the folder picker.
 func AppOpenRepository() string { return In(i18n.Locale()).AppOpenRepository() }
 
-// AppOpenRepository says "Open Repository"
+// AppOpenRepository says "Choose a repository folder"
 // in the language of msgs.
 //
 // The title of the folder picker.
@@ -14179,13 +14179,13 @@ func (msgs Messages) AppOpenRepository() string {
 	return Catalog.Format(msgs.locale, "appOpenRepository", nil)
 }
 
-// AppNewRepository says "New Repository"
+// AppNewRepository says "Choose a folder for the new repository"
 // in the language the app shows.
 //
 // The title of the folder picker.
 func AppNewRepository() string { return In(i18n.Locale()).AppNewRepository() }
 
-// AppNewRepository says "New Repository"
+// AppNewRepository says "Choose a folder for the new repository"
 // in the language of msgs.
 //
 // The title of the folder picker.

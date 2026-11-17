@@ -85,6 +85,8 @@ func TestDifftoolSwitch(t *testing.T) {
 	}
 	h := newHarnessWith(t, run.New(g, env, 4))
 	h.app.Program = "/Applications/Ramus.app/Contents/MacOS/ramus"
+	// Tall enough for every setting, which scroll in a shorter window.
+	h.tt.SetSize(1200, 1400)
 	set := func(on bool) {
 		t.Helper()
 		h.app.openSettings()
@@ -92,7 +94,7 @@ func TestDifftoolSwitch(t *testing.T) {
 		if h.app.settingsUI.difftool == on {
 			t.Fatalf("already %v", on)
 		}
-		h.click("Use Ramus for git difftool and mergetool")
+		h.click("Use Ramus as git's diff and merge tool")
 		// Each key is a git of its own: wait for the last.
 		h.until("written", func() bool {
 			b, _ := os.ReadFile(cfg)

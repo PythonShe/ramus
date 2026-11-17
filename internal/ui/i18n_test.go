@@ -47,8 +47,7 @@ var untranslated = map[string]bool{
 	"HEAD": true, "Ramus": true, "monospace": true, "×": true, "…": true, "git": true,
 	// Examples in placeholders: a URL, paths and a pattern read the same
 	// in every language.
-	"https://github.com/owner/repo.git":          true,
-	`\bPROJ-(\d+)\b`:                             true,
+	`\bPROJ-(\d+)\b`: true,
 	"https://tracker.example.com/browse/PROJ-$1": true,
 	"/usr/local/bin/code --wait":                 true,
 	"/Applications/Ghostty.app":                  true,

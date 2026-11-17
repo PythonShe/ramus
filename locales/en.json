@@ -129,7 +129,7 @@
   "refsDeleteBranchesTitle": "{count, plural, one {Delete # branch?} other {Delete # branches?}}",
   "refsDeleteBranchTitle": "Delete branch {name} at {commit}?",
   "refsDeleteBranchesMessage": "Each is backed up first; Undo brings it back.",
-  "refsDeleteBranchesWorktreesMessage": "Each is backed up first; Undo brings the branch back. The worktree at {folders} is removed with its branch, and Undo does not bring it back; git refuses if it has changes. Its files are kept in a snapshot first, which the Snapshots view shows; ignored folders, as node_modules, are not.",
+  "refsDeleteBranchesWorktreesMessage": "Each branch is backed up first, and Undo brings it back. The worktree at {folders} goes with its branch, and Undo does not bring it back; git refuses if it has changes. Its files are kept in a snapshot first, but not ignored folders such as node_modules.",
   "@refsDeleteBranchesWorktreesMessage": {
     "description": "folders is a comma-separated list of paths."
   },
@@ -423,9 +423,9 @@
   "mergeBinaryBothSides": "Binary file changed on both sides",
   "mergeTakeOurs": "Take Ours",
   "mergeTakeTheirs": "Take Theirs",
-  "mergeDeleteIt": "Delete It",
+  "mergeDeleteIt": "Delete File",
   "mergeNotLineByLine": "{path} cannot be merged line by line",
-  "mergeStopped": "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Am} other {{operation}}} stopped",
+  "mergeStopped": "{operation, select, merge {Merge} rebase {Rebase} cherryPick {Cherry-pick} revert {Revert} am {Applying patches} other {{operation}}} stopped",
   "@mergeStopped": {
     "description": "operation is the operation that stopped: merge, rebase, cherryPick, revert or am."
   },
@@ -561,7 +561,7 @@
   "worktreeLockEllipsis": "Lock…",
   "worktreePruneEllipsis": "Prune…",
   "worktreeRemoveEllipsis": "Remove…",
-  "worktreeGoneMessage": "The folder {path} is gone. Pruning forgets every worktree whose folder is gone; their branches stay.",
+  "worktreeGoneMessage": "The folder {path} is gone. Pruning removes the records of every worktree whose folder is gone; their branches stay.",
   "worktreeGoneLockedMessage": "The folder {path} is gone, and the worktree is locked: its folder may be on a drive not connected now. Unlock it to prune it.",
   "worktreeGoneLockedReasonMessage": "The folder {path} is gone, and the worktree is locked ({reason}): its folder may be on a drive not connected now. Unlock it to prune it.",
   "worktreeMissingTitle": "Worktree {name} is missing",
@@ -1109,8 +1109,8 @@
   "commitResetSoft": "Soft: Keep Index and Files",
   "commitResetMixed": "Mixed: Keep Files",
   "commitResetKeep": "Keep: Update Files, Keep Local Changes",
-  "commitResetHard": "Hard: Drop Local Changes…",
-  "commitResetHardTitle": "Drop local changes and reset to {commit}?",
+  "commitResetHard": "Hard: Discard Local Changes…",
+  "commitResetHardTitle": "Discard local changes and reset to {commit}?",
   "commitResetHardMessage": "Changed files are kept in a snapshot first, and the branch in a backup; Undo brings both back.",
   "commitReset": "Reset",
   "@commitReset": {
@@ -1386,7 +1386,7 @@
   "opsDeleteItems": "{count, plural, one {Delete # Item} other {Delete # Items}}",
   "repoOpening": "Opening {path}",
   "repoCannotOpen": "Cannot open {path}",
-  "repoTrustBanner": "Read-only: this repository's hooks, filters and config commands do not run until you trust it.",
+  "repoTrustBanner": "Read-only until you trust this repository: its hooks, filters and the commands its config names do not run.",
   "repoHeldBanner": "Another program is working in this worktree.",
   "@repoHeldBanner": {
     "description": "Banner of a tab opened view-only on a worktree a coding agent or other program is using; nothing writes there until the user takes it over."
@@ -1395,7 +1395,7 @@
   "@repoTakeOver": {
     "description": "Verb: lets the app write in a worktree it opened view-only."
   },
-  "repoTrust": "Trust",
+  "repoTrust": "Trust Repository",
   "@repoTrust": {
     "description": "Verb: trusts the repository, so its hooks and filters run."
   },
@@ -1558,7 +1558,7 @@
   "@repoResumeFetch": {
     "description": "A button in the warning bar: lets the background fetch that stopped run again, as after logging in."
   },
-  "repoNotOwned": "This repository belongs to another user. git works in it once it is marked safe, which this command does in your git config:",
+  "repoNotOwned": "This repository belongs to another user, so git refuses to work in it. This command marks it safe in your git config:",
   "@repoNotOwned": {
     "description": "The screen of a repository that cannot open because of git's dubious ownership check; the safe.directory command follows it."
   },
@@ -2421,8 +2421,8 @@
   "@managerTitle": {
     "description": "The title of the dialog listing every known repository."
   },
-  "managerSearchLabel": "Search repositories",
-  "managerSearchPlaceholder": "Search every known repository",
+  "managerSearchLabel": "Search",
+  "managerSearchPlaceholder": "Search repositories",
   "managerOpen": "Open",
   "@managerOpen": {
     "description": "A menu item: opens the repository."
@@ -2433,8 +2433,8 @@
   },
   "managerForget": "Remove from This List",
   "managerKnown": "Known repositories",
-  "managerMarkFavourite": "Mark {name} as favourite",
-  "managerUnmarkFavourite": "Unmark {name} as favourite",
+  "managerMarkFavourite": "Mark {name} as favorite",
+  "managerUnmarkFavourite": "Unmark {name} as favorite",
   "managerGroups": "Groups",
   "managerGroupCount": "{name} ({count})",
   "@managerGroupCount": {
@@ -2719,7 +2719,7 @@
   "@branchPickerDetached": {
     "description": "The branch button, in place of a branch name when HEAD is detached."
   },
-  "branchPickerSearch": "Search Branches",
+  "branchPickerSearch": "Search branches",
   "branchPickerList": "Branches",
   "branchPickerRemote": "Remote Branches",
   "@branchPickerRemote": {
@@ -2922,7 +2922,7 @@
   "askpassConnect": "Connect",
   "askpassHide": "Hide",
   "tabsMoveToNewWindow": "Move to New Window",
-  "repoPickerSearch": "Filter",
+  "repoPickerSearch": "Search repositories",
   "repoPickerLabel": "Repository {name}",
   "repoPickerTooltip": "Switch Repository",
   "repoPickerClose": "Close",
@@ -2930,7 +2930,7 @@
   "repoPickerList": "Repositories",
   "repoPickerNone": "No repository matches",
   "repoPickerRecent": "Recent",
-  "repoPickerFavourites": "Favourites",
+  "repoPickerFavourites": "Favorites",
   "repoPickerOther": "Other",
   "repoPickerAhead": "↑{count}",
   "@repoPickerAhead": {
@@ -3011,11 +3011,11 @@
   "@appGitOutdated": {
     "description": "version is git's, as 2.39.1."
   },
-  "appOpenRepository": "Open Repository",
+  "appOpenRepository": "Choose a repository folder",
   "@appOpenRepository": {
     "description": "The title of the folder picker."
   },
-  "appNewRepository": "New Repository",
+  "appNewRepository": "Choose a folder for the new repository",
   "@appNewRepository": {
     "description": "The title of the folder picker."
   },
