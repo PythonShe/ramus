@@ -124,8 +124,8 @@ func (s *Session) AvatarsChanged() uint64 { return s.avatarsChanged }
 
 // Avatar returns the picture of the person with this address, in any
 // case, PNG or JPEG bytes, once it has been downloaded; it does no I/O.
-// The address is the one the commit gives, not the mailmap's: the host
-// knows people by it. Main thread only.
+// The host knows people by the address the commit gives; the one the
+// mailmap gives for it finds the same picture. Main thread only.
 func (s *Session) Avatar(email string) ([]byte, bool) {
 	st := s.avatars
 	if st == nil || st.r != s.Repo || s.forgeFind == nil {
@@ -293,7 +293,19 @@ func (s *Session) pumpAvatars(st *avatarStore) {
 			if ctx.Err() != nil {
 				return
 			}
-			update(func() { s.peopleArrived(st, batch, shas, got, err) })
+			// The views name people as the mailmap does: their addresses
+			// find the same pictures.
+			mapped := map[string]string{}
+			if mm := s.mailmap(ctx, r); mm.Len() > 0 {
+				for _, people := range got {
+					for _, p := range people {
+						if _, e := mm.Lookup(p.Name, p.Email); !strings.EqualFold(e, p.Email) {
+							mapped[p.Email] = strings.ToLower(e)
+						}
+					}
+				}
+			}
+			update(func() { s.peopleArrived(st, batch, shas, got, mapped, err) })
 		})
 	}
 	for len(st.fetching) < avatarDownloads && len(st.wanted) > 0 {
@@ -313,7 +325,8 @@ func (s *Session) pumpAvatars(st *avatarStore) {
 }
 
 // peopleArrived keeps what the host said of the commits of batch.
-func (s *Session) peopleArrived(st *avatarStore, batch, shas []string, got map[string][]forge.Person, err error) {
+// mapped gives the mailmap's address of those it changes.
+func (s *Session) peopleArrived(st *avatarStore, batch, shas []string, got map[string][]forge.Person, mapped map[string]string, err error) {
 	st.querying = false
 	for _, k := range batch {
 		delete(st.asking, k)
@@ -338,8 +351,10 @@ func (s *Session) peopleArrived(st *avatarStore, batch, shas []string, got map[s
 			emails = append(emails, p.Email)
 			// An address seen with an account keeps it; GitHub ties an
 			// address to one account.
-			if old, ok := st.people.Peek(p.Email); !ok || old == "" {
-				st.people.Put(p.Email, p.Avatar)
+			for _, e := range []string{p.Email, mapped[p.Email]} {
+				if old, ok := st.people.Peek(e); e != "" && (!ok || old == "") {
+					st.people.Put(e, p.Avatar)
+				}
 			}
 		}
 		st.commits.Put(k, emails)

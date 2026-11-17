@@ -16,7 +16,7 @@ func TestPeopleQuery(t *testing.T) {
 	for _, want := range []string{
 		`c0:object(oid:"` + strings.Repeat("a", 40) + `"){...p}`,
 		`c1:object(oid:"` + strings.Repeat("b", 40) + `"){...p}`,
-		"avatarUrl(size:64)", "authors(first:10)", "committer{email user{...u}}",
+		"avatarUrl(size:64)", "authors(first:10)", "committer{email name user{...u}}",
 	} {
 		if !strings.Contains(q, want) {
 			t.Errorf("query lacks %s:\n%s", want, q)

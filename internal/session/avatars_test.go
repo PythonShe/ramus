@@ -144,6 +144,34 @@ func TestAvatarsArrive(t *testing.T) {
 	}
 }
 
+// A person the mailmap names by another address has their picture by
+// that address too, as the views name them.
+func TestAvatarsByMailmap(t *testing.T) {
+	c1 := oidOf(1)
+	f := &fakeAvatars{
+		byCommit: map[string][]forge.Person{
+			hex.EncodeToString(c1): {{Email: "old@example.com", Name: "Ann", Login: "ann", Avatar: avatarURL(1)}},
+		},
+		pics: map[string][]byte{avatarURL(1): pic(1)},
+	}
+	r := gittest.Init(t)
+	r.Write(".mailmap", "Ann Lee <ann@example.com> <old@example.com>\n")
+	r.Commit("one")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the repository", func() bool { return s.Repo != nil })
+	s.avatarSourceHook = func(*repo.Repository) avatarSource { return f }
+	s.SetForgeFind(func(forge.Kind) (*forge.CLI, error) { return nil, forge.ErrNoCLI })
+	s.RequestAvatars([][]byte{c1})
+	m.until(t, "the picture", func() bool { return s.AvatarsChanged() == 1 })
+	for _, e := range []string{"old@example.com", "Ann@Example.com"} {
+		if b, ok := s.Avatar(e); !ok || !bytes.Equal(b, pic(1)) {
+			t.Errorf("%s: %v", e, ok)
+		}
+	}
+}
+
 // Asking again while the answer is coming asks nothing more.
 func TestAvatarsDedupe(t *testing.T) {
 	c1 := oidOf(1)

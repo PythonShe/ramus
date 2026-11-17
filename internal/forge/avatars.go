@@ -42,8 +42,9 @@ const (
 // Person is someone a commit names, its author, a co-author or its
 // committer, as the host knows them.
 type Person struct {
-	// Email is the address the commit gives, in lower case.
-	Email string
+	// Email is the address the commit gives, in lower case, and Name
+	// the name beside it.
+	Email, Name string
 	// Login is the account the host ties the address to, "" for none.
 	Login string
 	// Avatar is the address of the account's picture, AvatarPixels
@@ -99,12 +100,13 @@ func peopleQuery(shas []string) string {
 		fmt.Fprintf(&b, "c%d:object(oid:%q){...p}", i, sha)
 	}
 	fmt.Fprintf(&b, "}}fragment u on User{login avatarUrl(size:%d)}", AvatarPixels)
-	fmt.Fprintf(&b, "fragment p on Commit{authors(first:%d){nodes{email user{...u}}} committer{email user{...u}}}", coAuthors)
+	fmt.Fprintf(&b, "fragment p on Commit{authors(first:%d){nodes{email name user{...u}}} committer{email name user{...u}}}", coAuthors)
 	return b.String()
 }
 
 type ghActor struct {
 	Email string `json:"email"`
+	Name  string `json:"name"`
 	User  *struct {
 		Login  string `json:"login"`
 		Avatar string `json:"avatarUrl"`
@@ -151,7 +153,7 @@ func parsePeople(ans []byte, r Repo, shas []string, out map[string][]Person) err
 		}
 		people := []Person{}
 		for _, ac := range actors {
-			p := Person{Email: strings.ToLower(strings.TrimSpace(ac.Email))}
+			p := Person{Email: strings.ToLower(strings.TrimSpace(ac.Email)), Name: ac.Name}
 			if p.Email == "" {
 				continue
 			}
