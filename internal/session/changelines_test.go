@@ -127,4 +127,24 @@ func TestCountsKept(t *testing.T) {
 	if i, w := diffRuns(logged()); i != index || w != tree+1 {
 		t.Fatalf("a count after an edit ran %d and %d", i-index, w-tree)
 	}
+
+	// The index written after the status was read: git counts the new
+	// index, which is not kept under the objects the status names.
+	r.Write("d", "1\n")
+	r.Git("add", "d")
+	s.Reload()
+	m.settle(t, s)
+	st := s.State.Status
+	r.Write("d", "1\n2\n")
+	r.Git("add", "d")
+	index, tree = diffRuns(logged())
+	var out *ChangeLines
+	s.CountChanges(st, func(l ChangeLines) { out = &l })
+	m.until(t, "the count", func() bool { return out != nil })
+	out = nil
+	s.CountChanges(st, func(l ChangeLines) { out = &l })
+	m.until(t, "the count again", func() bool { return out != nil })
+	if i, _ := diffRuns(logged()); i != index+2 {
+		t.Fatalf("counts of another index kept: diff-index ran %d times", i-index)
+	}
 }

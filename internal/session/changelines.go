@@ -59,6 +59,12 @@ const countRecent = 2 * time.Second
 type countSlot struct {
 	running bool
 	next    *countAsk
+	// index is the key of the index the status statusFor was read with,
+	// indexOK set when it is known: counts keyed on the index's objects
+	// the status names are kept only while the index is that one.
+	statusFor *status.Status
+	index     repo.IndexKey
+	indexOK   bool
 	// kept holds counts by what they were counted from, for r. Only the
 	// running count reads and writes it: counts run one at a time, and
 	// each starts from the main thread after the last has ended.
@@ -71,6 +77,9 @@ type countAsk struct {
 	ctx  context.Context
 	st   *status.Status
 	done func(ChangeLines)
+	// index is the key of the index st was read with, when indexOK.
+	index   repo.IndexKey
+	indexOK bool
 }
 
 type keptLines struct {
@@ -89,6 +98,9 @@ func (s *Session) CountChanges(st *status.Status, done func(ChangeLines)) {
 		return
 	}
 	a := &countAsk{r: r, ctx: s.viewContext(r), st: st, done: done}
+	if c := &s.count; c.statusFor == st {
+		a.index, a.indexOK = c.index, c.indexOK
+	}
 	// One running for a repository since closed, whose end never came,
 	// holds up none.
 	if s.count.running && s.count.r == r {
@@ -122,7 +134,7 @@ func (s *Session) startCount(a *countAsk) {
 				}
 			}
 		})
-		out, ok = countChanged(a.ctx, a.r, a.st, kept)
+		out, ok = countChanged(a.ctx, a.r, a.st, a.index, a.indexOK, kept)
 	})
 	if err != nil {
 		c.running = false
@@ -133,7 +145,15 @@ func (s *Session) startCount(a *countAsk) {
 // before from kept where what they were counted from is the same: the
 // objects for a staged change, and the work-tree file's size and
 // modification time besides for the rest.
-func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, kept *cache.Cache[string, keptLines]) (ChangeLines, bool) {
+func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, index repo.IndexKey, indexOK bool, kept *cache.Cache[string, keptLines]) (ChangeLines, bool) {
+	// Counts of changes keyed on the index's objects as st names them
+	// are kept only when git counted from that index: one written since
+	// st was read would have them kept under objects they are not of.
+	sameIndex := func() bool {
+		k, err := repo.ReadIndexKey(r.GitDir)
+		return indexOK && err == nil && k == index
+	}
+	keepIndexed := sameIndex()
 	out := ChangeLines{For: st, Staged: make([]diff.Lines, st.Len()), Unstaged: make([]diff.Lines, st.Len())}
 	type ask struct {
 		i   int
@@ -217,6 +237,7 @@ func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, ke
 	if ctx.Err() != nil {
 		return out, false
 	}
+	keepIndexed = keepIndexed && sameIndex()
 	for _, a := range stagedAsk {
 		path := st.Path(a.i)
 		old := path
@@ -224,12 +245,16 @@ func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, ke
 			old = st.OrigPath(a.i)
 		}
 		out.Staged[a.i] = inIndex.Find(old, path)
-		keep(kept, a.key, out.Staged[a.i])
+		if keepIndexed {
+			keep(kept, a.key, out.Staged[a.i])
+		}
 	}
 	for _, a := range unstagedAsk {
 		path := st.Path(a.i)
 		out.Unstaged[a.i] = inTree.Find(path, path)
-		keep(kept, a.key, out.Unstaged[a.i])
+		if keepIndexed {
+			keep(kept, a.key, out.Unstaged[a.i])
+		}
 	}
 	out.order = make([]int32, st.Len())
 	for i := range out.order {

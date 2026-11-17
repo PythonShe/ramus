@@ -550,6 +550,10 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		readSub bool
 		err     error
 		readAt  time.Time
+		// index is the key of the index st was read with, indexOK set
+		// when it was read before a full status.
+		index   repo.IndexKey
+		indexOK bool
 		changed bool
 		monitor *status.MonitorAdvice
 		// graphMoved is the commit-graph written again, or git no longer
@@ -682,6 +686,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 				// A recheck read the work tree only; an index notice still
 				// to come must not find its key already seen.
 				seen.index, seen.indexRead = key, keyErr == nil
+				res.index, res.indexOK = key, keyErr == nil
 			}
 		}
 	}
@@ -703,6 +708,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			if res.st != st.Status {
 				st.Status, st.Refreshed = res.st, res.readAt
 			}
+			s.count.statusFor, s.count.index, s.count.indexOK = st.Status, res.index, res.indexOK
 			if st.Monitor == nil && !s.monitorAnswered.Load() {
 				// Offered once status was slow, kept while status is fast
 				// from a warm cache.
