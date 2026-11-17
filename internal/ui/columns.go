@@ -41,9 +41,9 @@ func plainInk(th *ui.Theme) ink {
 
 // chosenInk is the colours for the text of a chosen row.
 func chosenInk(th *ui.Theme) ink {
-	// Secondary text keeps a little of its quiet, and stays well above
-	// the contrast of the muted grey on the accent.
-	return ink{th.AccentText.Alpha(0.85), th.AccentText, th.AccentText, th.AccentText, th.AccentText}
+	// Secondary text in full: dimmed, it fell to about 3:1 on the dark
+	// theme's accent. Its smaller size still sets it apart.
+	return ink{th.AccentText, th.AccentText, th.AccentText, th.AccentText, th.AccentText}
 }
 
 // ink returns the colours for the cells of row.

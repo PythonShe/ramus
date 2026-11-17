@@ -239,7 +239,7 @@ func (m *model) rowView(c *ui.Context, i int) {
 				// reused by the next one.
 				var row lanes.Row
 				row, m.buf = snap.Row(i, cols, m.buf)
-				graph.Paint(p, rect, row, graph.DefaultStyle, th.Background, &m.path)
+				graph.Paint(p, rect, row, graph.DefaultStyle, graph.Ink{Dark: th.Dark, Cut: th.TextMuted}, &m.path)
 			})
 		if !ok {
 			ui.Text(c, "…").TextColor(th.TextMuted).Grow(1)

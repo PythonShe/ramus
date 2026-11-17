@@ -500,7 +500,30 @@ func labelMap(st session.State, h session.HistoryState) map[string][]refLabel {
 	for i, s := range h.Stashes {
 		add(s.Base, refLabel{"stash@{" + strconv.Itoa(i) + "}", labelStash})
 	}
+	// A row shows the first few: the current branch leads, whatever its
+	// name, and remote branches, which mostly repeat a local one, go to
+	// the count of the rest first.
+	for _, l := range labels {
+		slices.SortStableFunc(l, func(x, y refLabel) int { return labelRank(x.kind) - labelRank(y.kind) })
+	}
 	return labels
+}
+
+// labelRank orders the labels at a commit as its row shows them.
+func labelRank(k labelKind) int {
+	switch k {
+	case labelHead:
+		return 0
+	case labelCurrent:
+		return 1
+	case labelBranch:
+		return 2
+	case labelTag:
+		return 3
+	case labelRemote:
+		return 4
+	}
+	return 5
 }
 
 // historyRow returns the text of row i, asking for the text of its chunk
@@ -654,7 +677,7 @@ func (a *App) historyList(c *ui.Context, t *tab, h session.HistoryState) {
 		return out
 	}
 	a.historyHeader(c, hv, snap)
-	l := ui.List(c, &hv.list, snap.Len()).Rows(func(r ui.ListRow) { a.historyRowView(c, t, h, r.Index, rowInk(r)) }).Label(locales.HistoryCommits()).Grow(1)
+	l := ui.List(c, &hv.list, snap.Len()).Rows(func(r ui.ListRow) { a.historyRowView(c, t, h, r) }).Label(locales.HistoryCommits()).Grow(1)
 	if hv.scroll.Scrolling() {
 		l.TrackScroll(&hv.scroll)
 	}
@@ -712,9 +735,13 @@ func (a *App) keepInView(t *tab, h session.HistoryState) {
 	t.s.ShowsTop(last < first || hv.atTop(first))
 }
 
-func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i int, k ink) {
+func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, lr ui.ListRow) {
 	th := c.Theme()
 	hv := &t.hist
+	i, k, chosen := lr.Index, rowInk(lr), lr.Selected()
+	// Tooltips only on the row under the pointer, the one that can show
+	// them: the others' would be made for nothing on every frame.
+	hovered := lr.Hovered()
 	snap := h.Snap
 	subject, author, email, when, ok := a.historyRow(t, h, i)
 	id := h.OID(snap.Commit(i))
@@ -740,6 +767,7 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 	row.Children(func() {
 		var g ui.Element
 		if lay.shown[colGraph] {
+			gk := graph.Ink{Dark: th.Dark, Cut: th.TextMuted, Chosen: chosen, Solid: th.AccentText}
 			g = ui.Box(c).Width(gw).Height(historyRowHeight).Clip().Opacity(lay.fade(colGraph)).
 				Role(ui.RoleImage).Label(describeRow(r, hv.historyMerged(h, i))).
 				Draw(func(p *ui.Painter, rect ui.Rect) {
@@ -747,25 +775,34 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 					// the next row.
 					var lr lanes.Row
 					lr, hv.buf = snap.Row(i, cols, hv.buf)
-					graph.Paint(p, rect, lr, style, th.Background, &hv.path)
+					graph.Paint(p, rect, lr, style, gk, &hv.path)
 				})
 		}
 		gap(colGraph, g)
 		ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Grow(1).Shrink(1).MarginEnd(spaceM).Children(func() {
 			labels := hv.labels[string(id)]
-			for j, l := range labels {
-				if j == rowRefs {
-					ui.Text(c, "+"+strconv.Itoa(len(labels)-rowRefs)).FontSize(textCaption).TextColor(k.Muted)
-					break
+			// The refs give way to the subject, which the row is read by:
+			// as many as leave it its least, the rest counted.
+			n := rowChips(c, labels, lay.messageW(hv.roomW())-historySubjectMin)
+			for _, l := range labels[:n] {
+				rowChip(c, l, chosen).Shrink(1)
+			}
+			if more := len(labels) - n; more > 0 {
+				plus := ui.Text(c, "+"+strconv.Itoa(more)).FontSize(textCaption).TextColor(k.Muted).SingleLine()
+				if hovered {
+					plus.Tooltip(hiddenRefs(labels[n:]))
 				}
-				refChip(c, l)
 			}
 			if !ok {
 				ui.Text(c, "…").TextColor(k.Muted).Grow(1)
 				return
 			}
 			hv.wantMessage(c, subject, labels)
-			subj := ui.Text(c, subject).SingleLine().Grow(1)
+			subj := ui.Text(c, subject).SingleLine().Grow(1).Shrink(1)
+			if hovered {
+				// The column cuts a long subject short.
+				subj.Tooltip(subject)
+			}
 			if ch, j := hv.loaded(h, i); ch != nil && ch.Odd(j) {
 				subj.TextColor(k.Warning).Description(locales.HistoryBadEncoding())
 			}
@@ -791,6 +828,9 @@ func (a *App) historyRowView(c *ui.Context, t *tab, h session.HistoryState, i in
 				})
 			case colDate:
 				e = ui.Text(c, when.Format("2006-01-02 15:04"))
+				if hovered {
+					e.Tooltip(since(a.Now(), when))
+				}
 			default:
 				e = ui.Text(c, hex.EncodeToString(id)[:8]).Font("monospace").FontSize(textSmall)
 			}
@@ -819,12 +859,8 @@ func (hv *historyState) wantMessage(c *ui.Context, subject string, labels []refL
 		return
 	}
 	w, _ := c.MeasureText(0, ui.Span{Text: subject})
-	for j, l := range labels {
-		if j == 3 {
-			break
-		}
-		lw, _ := c.MeasureText(0, ui.Span{Text: l.name(), Size: textCaption})
-		w += min(lw, 160) + 2*spaceS + spaceM
+	for _, l := range labels[:min(len(labels), rowRefs)] {
+		w += chipWidth(c, l) + spaceM
 	}
 	// In steps, for a few subjects a point apart not to lay out again.
 	w = min(historyMessageWant, float32(math.Ceil(float64(w)/spaceM))*spaceM)
@@ -855,7 +891,59 @@ func describeRow(r lanes.Row, merged string) string {
 	return what
 }
 
-func refChip(c *ui.Context, l refLabel) {
+// refChipMax is the widest a ref's chip grows; a longer name is cut in
+// its middle.
+const refChipMax = 160
+
+// historySubjectMin is the least of the message's room that a row's refs
+// leave its subject.
+const historySubjectMin = 120
+
+// chipWidth is how wide refChip draws l.
+func chipWidth(c *ui.Context, l refLabel) float32 {
+	w, _ := c.MeasureText(0, ui.Span{Text: l.name(), Size: textCaption})
+	return min(w, refChipMax) + 2*spaceS
+}
+
+// rowChips is how many of labels a row shows by name in room: up to
+// rowRefs, as many as fit beside the count of the rest.
+func rowChips(c *ui.Context, labels []refLabel, room float32) int {
+	for n := min(len(labels), rowRefs); n > 0; n-- {
+		var w float32
+		for _, l := range labels[:n] {
+			w += chipWidth(c, l) + spaceM
+		}
+		if rest := len(labels) - n; rest > 0 {
+			pw, _ := c.MeasureText(0, ui.Span{Text: "+" + strconv.Itoa(rest), Size: textCaption})
+			w += pw + spaceM
+		}
+		if w <= room {
+			return n
+		}
+	}
+	return 0
+}
+
+// hiddenRefs lists the refs labels name, as the tooltip of the count of
+// those a row leaves out: up to refsNamed of them.
+func hiddenRefs(labels []refLabel) string {
+	const refsNamed = 20
+	names := make([]string, 0, min(len(labels), refsNamed))
+	for _, l := range labels[:min(len(labels), refsNamed)] {
+		names = append(names, l.name())
+	}
+	out := strings.Join(names, ", ")
+	if len(labels) > refsNamed {
+		out = locales.HistoryRefsMore(out, len(labels)-refsNamed)
+	}
+	return out
+}
+
+func refChip(c *ui.Context, l refLabel) { rowChip(c, l, false) }
+
+// rowChip is the chip of ref l; on a chosen row, drawn on the accent, in
+// AccentText, as the theme's colours there are lost.
+func rowChip(c *ui.Context, l refLabel, chosen bool) ui.Element {
 	th := c.Theme()
 	col := th.Accent
 	switch l.kind {
@@ -872,18 +960,26 @@ func refChip(c *ui.Context, l refLabel) {
 	case labelBisectSkip:
 		col = th.TextMuted
 	}
-	chip := ui.Text(c, l.name()).FontSize(textCaption).SingleLine().TruncateMiddle().MaxWidth(160).Padding(1, spaceS).Radius(radiusSmall).
+	fill := col.Alpha(0.16)
+	if chosen {
+		col, fill = th.AccentText.Alpha(0.7), th.AccentText.Alpha(0.2)
+	}
+	chip := ui.Text(c, l.name()).FontSize(textCaption).SingleLine().TruncateMiddle().MaxWidth(refChipMax).Padding(1, spaceS).Radius(radiusSmall).
 		Description(l.kind.word()).Tooltip(l.name())
+	if chosen {
+		chip.TextColor(th.AccentText)
+	}
 	switch l.kind {
 	case labelTag:
 		// Outlined, so a tag is told from a branch of the same name by
 		// more than its colour.
 		chip.Border(1, col)
 	case labelCurrent:
-		chip.Bold().Background(col.Alpha(0.16))
+		chip.Bold().Background(fill)
 	default:
-		chip.Background(col.Alpha(0.16))
+		chip.Background(fill)
 	}
+	return chip
 }
 
 // word names what a label is, for screen readers.

@@ -152,6 +152,25 @@ func columnGap(k histColumn, w float32, handle bool) float32 {
 	return min(spaceM, w)
 }
 
+// messageW is the width of the message's cell in a row room wide, as the
+// columns are in this frame: what they and the row's insets leave. Before
+// the list was laid out, room is 0, and the message has the room it would
+// like.
+func (l *histLayout) messageW(room float32) float32 {
+	if room <= 0 {
+		return historyMessageWant
+	}
+	w := room - 2*insetX - l.end - spaceM
+	for k := range histColumns {
+		if l.shown[k] {
+			w -= l.w[k] + l.gap(k)
+		} else if l.handle[k] {
+			w -= l.gap(k)
+		}
+	}
+	return w
+}
+
 // fade is how opaque column k is: it fades under its least width.
 func (l *histLayout) fade(k histColumn) float32 {
 	return min(1, l.w[k]/l.least[k])
