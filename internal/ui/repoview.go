@@ -243,16 +243,29 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 					break
 				}
 				label := strings.TrimPrefix(r, prefix)
+				shown := label
+				current := r == st.Head.Target && !st.Head.Detached
+				if current && prefix == "refs/heads/" && a.refIndex(t) {
+					// Where the branch stands with its upstream, where it is
+					// listed.
+					if i, ok := t.refs.byName[r]; ok {
+						b := t.refs.info.Branches[i]
+						shown = locales.RepoSideBranch(label, b.Ahead, b.Behind)
+					}
+				}
 				// The item cuts a long name at its end: the pointer
 				// resting on it shows it whole.
-				it := ui.SidebarItem(c, r, nil, label).Tooltip(label)
-				if r == st.Head.Target {
+				it := ui.SidebarItem(c, r, nil, shown).Tooltip(label)
+				if current {
 					it.Bold()
 				}
 				if sr.hidden[r] {
 					it.TextColor(th.TextMuted).Tooltip(locales.RepoHiddenRef(label))
 				}
 				a.sidebarRefMenu(it, t, r)
+				if it.DoubleClicked() {
+					a.sidebarSwitch(t, r)
+				}
 			}
 		}), key)
 		t.open[key] = open
@@ -286,6 +299,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 			open := t.open["worktrees"]
 			a.hideMenu(ui.SidebarSection(c, locales.RepoSectionWorktreesCount(len(st.Worktrees)), &open, func() {
 				ui.SidebarItem(c, sideWorktrees, nil, locales.RepoAllWorktrees())
+				ui.SidebarItem(c, sideNewWorktree, nil, locales.PaletteNewWorktree())
 				for i, w := range st.Worktrees {
 					it := ui.SidebarItem(c, sideWorktree+w.Path, nil, worktreeLabel(w))
 					switch {
@@ -349,6 +363,8 @@ const (
 	sideWorktrees = "worktrees"
 	sideWorktree  = "worktree:"
 	sideSubmodule = "submodule:"
+	// sideNewWorktree is an item that acts and leaves the page as it was.
+	sideNewWorktree = "newworktree:"
 )
 
 // chooseSidebar acts on a sidebar item chosen: a worktree or submodule
@@ -371,6 +387,8 @@ func (a *App) chooseSidebar(t *tab) {
 		}
 	case "submodule":
 		a.chooseSubmodule(t, path)
+	case "newworktree":
+		a.openNewWorktree(t)
 	}
 	t.sel = "changes"
 }
