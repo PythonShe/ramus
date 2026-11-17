@@ -20,6 +20,11 @@ type worktreeDialog struct {
 	// branch is the full name of the branch the worktree is for.
 	branch string
 	remote bool
+	// fresh makes the worktree of a new branch started at HEAD, named by
+	// name, and follows the branch's name with the folder's until the
+	// folder is edited; autoPath is the folder as last suggested.
+	fresh    bool
+	autoPath string
 	// name is the new branch's, for a remote branch.
 	name, path string
 	openTab    bool
@@ -58,6 +63,14 @@ func (a *App) openAddWorktree(t *tab, branch string) {
 	a.worktreeUI = d
 }
 
+// openNewWorktree starts the dialog for a worktree of a new branch.
+func (a *App) openNewWorktree(t *tab) {
+	d := worktreeDialog{open: true, t: t, fresh: true, openTab: true}
+	d.path = worktreePath(t, "")
+	d.autoPath = d.path
+	a.worktreeUI = d
+}
+
 // worktreePath is the folder suggested for a worktree of branch: beside
 // the main one, named after both.
 func worktreePath(t *tab, branch string) string {
@@ -66,6 +79,9 @@ func worktreePath(t *tab, branch string) string {
 		main = wts[0].Path
 	}
 	name := strings.NewReplacer("/", "-", `\`, "-").Replace(branch)
+	if name == "" {
+		return filepath.Join(filepath.Dir(main), filepath.Base(main)+"-")
+	}
 	return filepath.Join(filepath.Dir(main), filepath.Base(main)+"-"+name)
 }
 
@@ -76,16 +92,25 @@ func (a *App) worktreeView(c *ui.Context) {
 	}
 	th := c.Theme()
 	short := strings.TrimPrefix(strings.TrimPrefix(d.branch, "refs/heads/"), "refs/remotes/")
+	if d.fresh && d.path == d.autoPath {
+		d.autoPath = worktreePath(d.t, strings.TrimSpace(d.name))
+		d.path = d.autoPath
+	}
+	named := d.remote || d.fresh
 	ui.Modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogMedium).Children(func() {
-			ui.Text(c, locales.WorktreeNewTitle(redact.Control(short))).Bold()
+			title := locales.WorktreeNewTitle(redact.Control(short))
+			if d.fresh {
+				title = locales.WorktreeNewBranchTitle()
+			}
+			ui.Text(c, title).Bold()
 			submitted := false
-			if d.remote {
+			if named {
 				submitted = ui.TextInput(c, &d.name).Label(locales.CommonNewBranch()).Placeholder(locales.CommonBranchName()).AutoFocus().FillWidth().Submitted()
 			}
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 				p := ui.TextInput(c, &d.path).Label(locales.CommonFolder()).Placeholder(locales.CommonFolder()).Grow(1)
-				if !d.remote {
+				if !named {
 					p.AutoFocus()
 				}
 				submitted = submitted || p.Submitted()
@@ -102,7 +127,7 @@ func (a *App) worktreeView(c *ui.Context) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				ready := strings.TrimSpace(d.path) != "" && (!d.remote || strings.TrimSpace(d.name) != "")
+				ready := strings.TrimSpace(d.path) != "" && (!named || strings.TrimSpace(d.name) != "")
 				if ui.PrimaryButton(c, locales.CommonCreate()).Disabled(!ready).Clicked() || ready && submitted {
 					a.addWorktree(d)
 				}
@@ -135,7 +160,10 @@ func (a *App) addWorktree(d *worktreeDialog) {
 		path = abs
 	}
 	o := write.WorktreeOptions{Path: path, Branch: d.branch}
-	if d.remote {
+	switch {
+	case d.fresh:
+		o = write.WorktreeOptions{Path: path, NewBranch: strings.TrimSpace(d.name)}
+	case d.remote:
 		o = write.WorktreeOptions{Path: path, NewBranch: strings.TrimSpace(d.name), Start: d.branch, Track: true}
 	}
 	op, err := write.AddWorktree(t.s.Where(), o)

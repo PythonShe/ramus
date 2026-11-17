@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/git/write"
 	"ramus/internal/tools"
 	"ramus/locales"
@@ -69,7 +70,11 @@ func tail(path string, n int) string {
 	return strings.Join(parts[max(0, len(parts)-n):], "/")
 }
 
-func (a *App) commands() []command {
+// paletteBranches caps the branch commands the palette lists for one
+// query.
+const paletteBranches = 50
+
+func (a *App) commands(query string) []command {
 	cmds := []command{
 		{id: "palette", label: locales.KeysPalette(), run: func() { a.palette.open = true }, hidden: true},
 		cmd("open", a.pickAndOpen),
@@ -94,14 +99,16 @@ func (a *App) commands() []command {
 	t := a.current()
 	if t != nil {
 		cmds = append(cmds, cmd("switch-repository", a.openRepoPicker))
-		cmds = append(cmds, a.tabCommands(t)...)
+		cmds = append(cmds, a.tabCommands(t, query)...)
 	}
 	for i, other := range a.tabs {
-		cmds = append(cmds, command{label: locales.PaletteGoTo(a.paletteTitle(other)), run: func() { a.active = i }})
+		// The first nine carry the id of their shortcut, which the
+		// palette then shows beside them.
+		id := ""
 		if i < 9 {
-			id := "tab-" + strconv.Itoa(i+1)
-			cmds = append(cmds, command{id: id, label: id, run: func() { a.active = i }, hidden: true})
+			id = "tab-" + strconv.Itoa(i+1)
 		}
+		cmds = append(cmds, command{id: id, label: locales.PaletteGoTo(a.paletteTitle(other)), run: func() { a.active = i }})
 	}
 	if a.Library != nil {
 		for _, g := range a.Library.Groups() {
@@ -121,7 +128,7 @@ func (a *App) commands() []command {
 }
 
 // tabCommands are the commands on the repository of tab t.
-func (a *App) tabCommands(t *tab) []command {
+func (a *App) tabCommands(t *tab, query string) []command {
 	cmds := []command{
 		cmd("close-tab", func() { a.closeTab(a.active) }),
 		cmd("refresh", func() { a.reload(t) }),
@@ -163,8 +170,11 @@ func (a *App) tabCommands(t *tab) []command {
 		cmd("show-log", func() { t.sel = "log" }),
 		cmd("show-snapshots", func() { t.sel = "snapshots" }),
 		cmd("show-refs", func() { t.sel = "refs" }),
-		cmd("show-stashes", func() { t.sel = "stashes" }),
+		command{label: locales.PaletteShowWorktrees(), run: func() { t.sel = sideWorktrees }},
 	)
+	if st := t.s.State.Status; st != nil && st.Branch.Stashes > 0 {
+		cmds = append(cmds, cmd("show-stashes", func() { t.sel = "stashes" }))
+	}
 	if a.hasPulls(t) {
 		cmds = append(cmds, cmd("show-pulls", func() { t.sel = sidePulls }))
 	}
@@ -173,6 +183,7 @@ func (a *App) tabCommands(t *tab) []command {
 	}
 	if q := t.s.Queue; q != nil {
 		cmds = append(cmds, a.writeCommands(t)...)
+		cmds = append(cmds, a.branchCommands(t, query)...)
 		cmds = append(cmds, cmd("snapshot", func() {
 			if _, err := t.s.SnapshotNow("", false); err != nil {
 				a.notice = errText(err)
@@ -194,12 +205,45 @@ func (a *App) tabCommands(t *tab) []command {
 	return cmds
 }
 
+// branchCommands are Switch to for the local branches the query names:
+// listed only once there is a query, as a repository can have thousands.
+func (a *App) branchCommands(t *tab, query string) []command {
+	if strings.TrimSpace(query) == "" {
+		return nil
+	}
+	head := t.s.State.Head
+	var cmds []command
+	for _, ref := range t.sideRefs.build(t).heads {
+		if !head.Detached && ref == head.Target {
+			continue
+		}
+		cmds = append(cmds, command{label: locales.PaletteSwitchTo(redact.Control(strings.TrimPrefix(ref, "refs/heads/"))), run: func() { a.switchTo(t, ref) }})
+	}
+	cmds = match(cmds, query)
+	return cmds[:min(len(cmds), paletteBranches)]
+}
+
+// stashTop is the commit of the newest stash, "" when there is none.
+func stashTop(t *tab) string {
+	l := t.s.State.Refs
+	if l == nil {
+		return ""
+	}
+	for i := range l.Len() {
+		if l.Name(i) == "refs/stash" {
+			return hex.EncodeToString(l.OID(i))
+		}
+	}
+	return ""
+}
+
 // writeCommands are the commands that change the repository of tab t.
 func (a *App) writeCommands(t *tab) []command {
 	w := t.s.Where()
 	head := t.s.State.Head
 	cmds := []command{
 		cmd("stash", func() { a.openStash(t) }),
+		command{label: locales.PaletteNewWorktree(), run: func() { a.openNewWorktree(t) }},
 		cmd("clean", func() { a.openClean(t) }),
 		cmd("fetch", func() {
 			op, err := write.Fetch(w, "", t.refs.prune)
@@ -210,6 +254,12 @@ func (a *App) writeCommands(t *tab) []command {
 				a.notice = errText(err)
 			}
 		}),
+	}
+	if top := stashTop(t); top != "" {
+		cmds = append(cmds, command{label: locales.PaletteStashPop(), run: func() {
+			op, err := write.StashPop(w, write.StashEntry{N: 0, Commit: top}, false)
+			a.submit(t, op, err)
+		}})
 	}
 	if a.PickFile != nil {
 		cmds = append(cmds, cmd("apply-patch", func() { a.applyPatchFile(t) }))
@@ -280,7 +330,7 @@ func (a *App) paletteView(c *ui.Context) {
 	if !p.open {
 		return
 	}
-	cmds := match(a.commands(), p.query)
+	cmds := match(a.commands(p.query), p.query)
 	var run func()
 	ui.Modal(c, &p.open, func() {
 		cb := ui.ComboboxBase(c, &p.query)

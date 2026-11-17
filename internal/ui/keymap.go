@@ -389,7 +389,7 @@ func (a *App) shortcuts(c *ui.Context) {
 
 // runCommand runs command id if it can run now.
 func (a *App) runCommand(id string) {
-	for _, cmd := range a.commands() {
+	for _, cmd := range a.commands("") {
 		if cmd.id == id {
 			cmd.run()
 			return
