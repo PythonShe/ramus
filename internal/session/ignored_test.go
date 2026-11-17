@@ -68,3 +68,30 @@ func TestIgnoredDirsFollowGitignore(t *testing.T) {
 		}
 	}
 }
+
+// A file added with git add -f to a folder skipped makes it watched
+// again: its changes must show.
+func TestIgnoredDirsFollowForcedAdds(t *testing.T) {
+	was := perDirectory
+	perDirectory = true
+	t.Cleanup(func() { perDirectory = was })
+	r := gittest.Init(t)
+	r.Write(".gitignore", "dist/\n")
+	r.Write("a", "1")
+	r.Commit("one")
+	r.Write("dist/app.js", "x")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	d := s.ignored.Load()
+	if d == nil || !d.skip("dist") {
+		t.Fatal("dist/ is not skipped")
+	}
+	r.Git("add", "-f", "dist/app.js")
+	for deadline := time.Now().Add(20 * time.Second); d.skip("dist"); m.pump(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("dist/ is still skipped")
+		}
+	}
+}

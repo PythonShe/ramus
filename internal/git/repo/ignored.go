@@ -88,3 +88,30 @@ func (d *dirLines) Write(b []byte) (int, error) {
 	}
 	return n, nil
 }
+
+// maxTrackedArgs bounds the bytes of folders TracksUnder names to git;
+// past it, it reports they may.
+const maxTrackedArgs = 64 << 10
+
+// TracksUnder reports whether the index has a file under any of dirs, as
+// IgnoredDirs names them: a folder ignored when it was read that has one
+// since (git add -f) is no longer one to leave unwatched. It reads the
+// index only. Too many dirs to name, or an error, report that it may.
+// Off the main thread.
+func (r *Repository) TracksUnder(ctx context.Context, dirs []string) bool {
+	if len(dirs) == 0 {
+		return false
+	}
+	args := []string{"ls-files", "-z", "--"}
+	size := 0
+	for _, d := range dirs {
+		size += len(d) + 2
+		args = append(args, d+"/")
+	}
+	if size > maxTrackedArgs {
+		return true
+	}
+	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true,
+		Timeout: ignoredTimeout, MaxOutput: 4 << 10, Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: args})
+	return err != nil || len(res.Stdout) > 0
+}

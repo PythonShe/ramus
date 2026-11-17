@@ -75,3 +75,24 @@ func TestDirLines(t *testing.T) {
 		t.Fatalf("%d bytes kept in %d names", d.n, len(d.dirs))
 	}
 }
+
+func TestTracksUnder(t *testing.T) {
+	g := gittest.Init(t)
+	g.Write(".gitignore", "dist/\n")
+	g.Write("a", "1")
+	g.Commit("one")
+	g.Write("dist/app.js", "x")
+	r, err := Open(context.Background(), testrun.Runner(t), g.Dir, trustAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	ctx := context.Background()
+	if r.TracksUnder(ctx, []string{"dist"}) || r.TracksUnder(ctx, nil) {
+		t.Fatal("tracks under an ignored folder with nothing added")
+	}
+	g.Git("add", "-f", "dist/app.js")
+	if !r.TracksUnder(ctx, []string{"other", "dist"}) {
+		t.Fatal("a file added with -f not seen")
+	}
+}

@@ -331,8 +331,12 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 						})
 					}
 					s.refreshPaths(what, n.Paths)
-					if ignored != nil && changesIgnores(n) {
+					switch {
+					case ignored == nil:
+					case changesIgnores(n):
 						ignored.reread(r)
+					case n.What&repo.IndexChanged != 0:
+						ignored.indexChanged(r)
 					}
 				case <-ctx.Done():
 					return

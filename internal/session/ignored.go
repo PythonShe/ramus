@@ -97,6 +97,34 @@ func (d *ignoredDirs) reread(r *repo.Repository) {
 	}
 }
 
+// list is the directories skipped now.
+func (d *ignoredDirs) list() []string {
+	m := d.set.Load()
+	if m == nil {
+		return nil
+	}
+	out := make([]string, 0, len(*m))
+	for p := range *m {
+		out = append(out, p)
+	}
+	return out
+}
+
+// indexChanged reads the set again, in the background, when the index
+// now has a file in a directory skipped: one added there with git add
+// -f, whose changes the watcher must see.
+func (d *ignoredDirs) indexChanged(r *repo.Repository) {
+	dirs := d.list()
+	if len(dirs) == 0 {
+		return
+	}
+	r.Life().Go(func(ctx context.Context) {
+		if r.TracksUnder(ctx, dirs) && ctx.Err() == nil {
+			d.reread(r)
+		}
+	})
+}
+
 // changesIgnores reports whether a notice may change which directories
 // are ignored.
 func changesIgnores(n repo.Notice) bool {
