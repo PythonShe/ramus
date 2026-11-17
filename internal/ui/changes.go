@@ -304,7 +304,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 			changesModes(c, cv)
 			ui.SearchField(c, &cv.filter).Label(locales.ChangesFilterLabel()).Placeholder(locales.ChangesFilterPlaceholder()).Grow(1).Bind(&a.find.changes)
 			ro := t.s.Queue == nil
-			ui.PopoverMenuButton(c, locales.ChangesMore(), func(m *ui.Menu) {
+			iconButton(c, glyphs().more, locales.ChangesMore()).Menu(func(m *ui.Menu) {
 				// What there is to act on, the filter aside.
 				st := t.s.State.Status
 				var staged, unstaged []int32
@@ -409,9 +409,36 @@ const (
 	modeReview
 )
 
-// changesModes chooses among them, at the top of each.
+// changesModes chooses among them, at the top of each: as glyphs, which
+// leave the filter beside them room to type in a narrow pane. It draws
+// mygo's Segmented with a glyph in each segment, named by its mode.
 func changesModes(c *ui.Context, cv *changesState) {
-	ui.Segmented(c, &cv.mode, locales.ChangesList(), locales.ChangesTree(), locales.ChangesReview())
+	th := c.Theme()
+	modes := []struct {
+		g    *ui.SVG
+		name string
+	}{{glyphs().list, locales.ChangesList()}, {glyphs().tree, locales.ChangesTree()}, {glyphs().eye, locales.ChangesReview()}}
+	parts := ui.SegmentedBase(c, &cv.mode, len(modes))
+	parts.Track.AlignItems(ui.Stretch).Padding(th.Space(0.5)).Gap(th.Space(0.5)).Radius(th.Radius).Background(th.Surface).Border(1, th.Border).Shrink(0)
+	parts.Track.Children(func() {
+		for i, m := range modes {
+			s := parts.Segment(i).Label(m.name).Tooltip(m.name).Padding(th.Space(1), th.Space(2)).Radius(max(th.Radius-th.Space(0.5), 0)).Cursor(ui.CursorPointer)
+			switch {
+			case i == cv.mode:
+				// Raised from the track, as mygo draws the chosen segment.
+				face := th.Background
+				if th.Dark {
+					face = th.SurfacePressed
+				}
+				s.Background(face).Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.12))
+			case s.Pressed():
+				s.Background(th.SurfacePressed)
+			case s.Hovered():
+				s.Background(th.SurfaceHover)
+			}
+			s.Children(func() { ui.Icon(c, m.g).FontSize(iconMedium) })
+		}
+	})
 }
 
 func (a *App) changesPane(c *ui.Context, t *tab) {
