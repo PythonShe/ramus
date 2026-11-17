@@ -369,6 +369,14 @@ func (q *Queue) redoFiles(ctx context.Context, e Entry) (snapshot.Snapshot, erro
 	if _, err := q.r.Run(ctx, &cmd); err != nil {
 		return e.Snapshot, err
 	}
+	// A write split over several commands, as a delete of many paths,
+	// is redone whole.
+	for _, c := range e.op.More {
+		c.Read = false
+		if _, err := q.r.Run(ctx, &c); err != nil {
+			return e.Snapshot, err
+		}
+	}
 	return s, nil
 }
 

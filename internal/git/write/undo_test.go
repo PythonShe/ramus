@@ -2,6 +2,7 @@ package write
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -324,4 +325,32 @@ func TestUndoHardResetKeepsStaged(t *testing.T) {
 	f.r.Stage("a", "staged")
 	f.r.Write("a", "unstaged")
 	f.roundTrip("Reset", MovesHead, &snapshot.Options{Reason: "Reset", Paths: []string{"a"}}, "reset", "-q", "--hard", "HEAD~")
+}
+
+// Redo of a delete git runs in several cleans, for its many paths,
+// deletes them all again.
+func TestRedoDeletesEveryPath(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	var paths []string
+	for i := range 700 {
+		p := fmt.Sprintf("untracked-file-with-a-rather-long-name-%04d.txt", i)
+		h.r.Write(p, "x")
+		paths = append(paths, p)
+	}
+	op, err := Delete(h.w, paths)
+	if len(op.More) == 0 {
+		t.Fatal("one clean: the test needs more paths")
+	}
+	h.do(op, err, true)
+	h.undo()
+	if _, err := wait(t, h.q.Redo()); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range paths {
+		if _, err := os.Stat(filepath.Join(h.r.Dir, p)); err == nil {
+			t.Fatalf("%s left after redo", p)
+		}
+	}
 }
