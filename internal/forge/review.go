@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,9 @@ const (
 	MaxListed   = 100
 	maxComments = 100
 	maxThreads  = 100
+	// detailBatch is how many listed pull requests one query reads the
+	// details of (PullDetails).
+	detailBatch = 20
 )
 
 // ReviewState is a review's verdict, or the pull request's decision.
@@ -60,16 +64,22 @@ func reviewState(s string) ReviewState {
 // Listed is an open pull request as a list of them shows it.
 type Listed struct {
 	Pull
+	// ID is the host's node id, which GitHub's details are asked by.
+	ID      string
 	Author  string
 	Base    string
 	Updated time.Time
 	// Decision is what the reviews add up to, ReviewNone where the
 	// repository asks for none.
 	Decision ReviewState
+	// Detailed says Decision, the checks and the lines changed were
+	// read: GitHub's list comes without them (PullDetails).
+	Detailed bool
 }
 
 // OpenPulls lists r's open pull requests, latest updated first, up to
-// MaxListed; more says there are others.
+// MaxListed; more says there are others. GitHub's come without their
+// details, which PullDetails reads.
 func (c *CLI) OpenPulls(ctx context.Context, r Repo) (list []Listed, more bool, err error) {
 	if err := c.reviewable(r); err != nil {
 		return nil, false, err
@@ -88,12 +98,147 @@ func (c *CLI) OpenPulls(ctx context.Context, r Repo) (list []Listed, more bool, 
 func (c *CLI) githubOpenPulls(ctx context.Context, r Repo) ([]Listed, bool, error) {
 	owner, name, _ := strings.Cut(r.Path, "/")
 	q := "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(states:OPEN,first:" + strconv.Itoa(MaxListed) +
-		",orderBy:{field:UPDATED_AT,direction:DESC}){totalCount nodes{number title url isDraft state author{login} headRefName baseRefName updatedAt reviewDecision additions deletions headRepositoryOwner{login} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}}"
-	out, err := c.run(ctx, "", r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q, "-f", "owner="+owner, "-f", "name="+name)
+		",orderBy:{field:UPDATED_AT,direction:DESC}){totalCount nodes{id number title url isDraft state author{login} headRefName baseRefName updatedAt headRepositoryOwner{login}}}}}"
+	out, err := c.read(ctx, r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q, "-f", "owner="+owner, "-f", "name="+name)
 	if err != nil {
 		return nil, false, err
 	}
 	return parseOpenPulls(out)
+}
+
+// pullDetails is what GitHub is slow to say of a pull request: each of
+// them takes it seconds over a hundred pull requests it was not asked
+// about lately, and it cuts a query off at ten with 502.
+const pullDetails = "reviewDecision additions deletions commits(last:1){nodes{commit{statusCheckRollup{state}}}}"
+
+// PullDetails reads what OpenPulls left out of list's pull requests,
+// into list: a few of them a query, so that none takes the host long
+// enough to be cut off, and two queries at once. each, when not nil, is
+// called after each query answered, never twice at once nor while list
+// is written. The first failure ends it, the rest left as they were.
+func (c *CLI) PullDetails(ctx context.Context, r Repo, list []Listed, each func()) error {
+	if err := c.reviewable(r); err != nil {
+		return err
+	}
+	type batch struct {
+		at  []int
+		ids []string
+	}
+	var batches []batch
+	for i := range list {
+		if list[i].Detailed || list[i].ID == "" {
+			continue
+		}
+		if n := len(batches); n == 0 || len(batches[n-1].at) == detailBatch {
+			batches = append(batches, batch{})
+		}
+		b := &batches[len(batches)-1]
+		b.at, b.ids = append(b.at, i), append(b.ids, list[i].ID)
+	}
+	var (
+		mu    sync.Mutex
+		next  int
+		first error
+		wg    sync.WaitGroup
+	)
+	for range min(maxRunning, len(batches)) {
+		wg.Go(func() {
+			for {
+				mu.Lock()
+				if first != nil || next == len(batches) {
+					mu.Unlock()
+					return
+				}
+				b := batches[next]
+				next++
+				mu.Unlock()
+				got, err := c.githubDetails(ctx, r, b.ids)
+				mu.Lock()
+				if err != nil {
+					if first == nil {
+						first = err
+					}
+					mu.Unlock()
+					return
+				}
+				for _, i := range b.at {
+					if d, ok := got[list[i].ID]; ok {
+						l := &list[i]
+						l.Decision, l.Checks, l.Added, l.Deleted, l.Detailed = d.decision, d.checks, d.added, d.deleted, true
+					}
+				}
+				if each != nil {
+					each()
+				}
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return first
+}
+
+type pullDetail struct {
+	decision       ReviewState
+	checks         Checks
+	added, deleted int
+}
+
+// githubDetails reads the details of the pull requests whose node ids
+// are ids, by id.
+func (c *CLI) githubDetails(ctx context.Context, r Repo, ids []string) (map[string]pullDetail, error) {
+	var q strings.Builder
+	q.WriteString("query{nodes(ids:[")
+	for i, id := range ids {
+		if i > 0 {
+			q.WriteByte(',')
+		}
+		q.WriteString(literal(id))
+	}
+	q.WriteString("]){... on PullRequest{id " + pullDetails + "}}}")
+	out, err := c.read(ctx, r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q.String())
+	if err != nil {
+		return nil, err
+	}
+	return parseDetails(out)
+}
+
+func parseDetails(out []byte) (map[string]pullDetail, error) {
+	var ans struct {
+		graphQLError
+		Data struct {
+			// A node gone since it was listed is null.
+			Nodes []*struct {
+				githubPull
+				ID       string `json:"id"`
+				Decision string `json:"reviewDecision"`
+			} `json:"nodes"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(out, &ans); err != nil {
+		return nil, fmt.Errorf("gh: %w", err)
+	}
+	got := make(map[string]pullDetail, len(ans.Data.Nodes))
+	for _, n := range ans.Data.Nodes {
+		if n == nil || n.ID == "" {
+			continue
+		}
+		d := pullDetail{decision: reviewState(n.Decision), added: n.Additions, deleted: n.Deletions}
+		if ns := n.Commits.Nodes; len(ns) > 0 && ns[0].Commit.Rollup != nil {
+			d.checks = githubChecks(ns[0].Commit.Rollup.State)
+		}
+		got[n.ID] = d
+	}
+	// GitHub names each node gone as an error, beside the others' answers.
+	if len(got) == 0 {
+		if err := ans.err("gh"); err != nil {
+			return nil, err
+		}
+	}
+	return got, nil
 }
 
 type ghAuthor struct {
@@ -117,10 +262,10 @@ func parseOpenPulls(out []byte) ([]Listed, bool, error) {
 					TotalCount int `json:"totalCount"`
 					Nodes      []struct {
 						githubPull
-						Author   *ghAuthor `json:"author"`
-						Base     string    `json:"baseRefName"`
-						Updated  time.Time `json:"updatedAt"`
-						Decision string    `json:"reviewDecision"`
+						ID      string    `json:"id"`
+						Author  *ghAuthor `json:"author"`
+						Base    string    `json:"baseRefName"`
+						Updated time.Time `json:"updatedAt"`
 					} `json:"nodes"`
 				} `json:"pullRequests"`
 			} `json:"repository"`
@@ -138,11 +283,8 @@ func parseOpenPulls(out []byte) ([]Listed, bool, error) {
 	prs := ans.Data.Repository.PullRequests
 	list := make([]Listed, 0, len(prs.Nodes))
 	for _, n := range prs.Nodes {
-		p := Pull{Number: n.Number, Title: n.Title, URL: n.URL, Branch: n.Head, Draft: n.IsDraft, State: githubState(n.State), Added: n.Additions, Deleted: n.Deletions}
-		if ns := n.Commits.Nodes; len(ns) > 0 && ns[0].Commit.Rollup != nil {
-			p.Checks = githubChecks(ns[0].Commit.Rollup.State)
-		}
-		list = append(list, Listed{Pull: p, Author: n.Author.login(), Base: n.Base, Updated: n.Updated, Decision: reviewState(n.Decision)})
+		p := Pull{Number: n.Number, Title: n.Title, URL: n.URL, Branch: n.Head, Draft: n.IsDraft, State: githubState(n.State)}
+		list = append(list, Listed{Pull: p, ID: n.ID, Author: n.Author.login(), Base: n.Base, Updated: n.Updated})
 	}
 	return list, prs.TotalCount > len(list), nil
 }
@@ -262,7 +404,7 @@ func (c *CLI) githubPullReview(ctx context.Context, r Repo, n int) (Review, erro
 		"reviews" + page(maxComments) + "{totalCount nodes{author{login} state body submittedAt}} " +
 		"reviewThreads" + page(maxThreads) + "{totalCount nodes{id isResolved isOutdated path line startLine originalLine diffSide " +
 		"viewerCanResolve viewerCanUnresolve viewerCanReply comments" + page(maxComments) + "{totalCount nodes{id databaseId author{login} body createdAt}}}}}}}"
-	out, err := c.run(ctx, "", r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q,
+	out, err := c.read(ctx, r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q,
 		"-f", "owner="+owner, "-f", "name="+name, "-F", "n="+strconv.Itoa(n))
 	if err != nil {
 		return Review{}, err

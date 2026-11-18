@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -38,13 +39,20 @@ type OpenPullsResult struct {
 	Repo forge.Repo
 	List []forge.Listed
 	More bool
-	Err  error
+	// Partial says the details of some of List are still being read
+	// (forge.Listed.Detailed): the list follows again, with more of them.
+	Partial bool
+	Err     error
+	// DetailErr is why some of List stay without their details.
+	DetailErr error
 }
 
 // OpenPulls lists the open pull requests of ReviewRepo, or of the
 // repository it was forked from, off the main thread, through the tool
-// find gives, and hands them to done on it. Leaving the view drops the
-// answer.
+// find gives, and hands them to done on it: first as the host lists
+// them, then again as their details are read, each time a list of its
+// own, until one that is not Partial. Leaving the view drops the
+// answers.
 func (s *Session) OpenPulls(find func(forge.Kind) (*forge.CLI, error), done func(OpenPullsResult)) {
 	r := s.Repo
 	repo, ok := s.ReviewRepo()
@@ -65,6 +73,19 @@ func (s *Session) OpenPulls(find func(forge.Kind) (*forge.CLI, error), done func
 			}
 			if err == nil {
 				res.List, res.More, err = c.OpenPulls(ctx, res.Repo)
+			}
+			if err == nil && slices.ContainsFunc(res.List, func(l forge.Listed) bool { return !l.Detailed }) {
+				part := func() {
+					p := res
+					p.List, p.Partial = slices.Clone(res.List), true
+					update(func() {
+						if ctx.Err() == nil {
+							done(p)
+						}
+					})
+				}
+				part()
+				res.DetailErr = c.PullDetails(ctx, res.Repo, res.List, part)
 			}
 		}
 		res.Err = err

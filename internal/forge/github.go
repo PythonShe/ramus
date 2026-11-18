@@ -39,7 +39,7 @@ func (c *CLI) githubPulls(ctx context.Context, base Repo, headOwner string, bran
 	for i, br := range branches {
 		args = append(args, "-f", fmt.Sprintf("b%d=%s", i, br))
 	}
-	out, err := c.run(ctx, "", base.Host, args...)
+	out, err := c.read(ctx, base.Host, args...)
 	if err != nil {
 		return err
 	}

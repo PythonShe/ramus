@@ -259,3 +259,42 @@ func TestOpenPullsParentFailed(t *testing.T) {
 		t.Fatalf("commit pull %+v", cp)
 	}
 }
+
+// The open pull requests are handed over as the host lists them, and
+// again once their details are read: GitHub is too slow with those to
+// be asked for them with the list.
+func TestOpenPullsThenDetails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake gh is a shell script")
+	}
+	dir := t.TempDir()
+	script := `#!/bin/sh
+case "$*" in
+*"pullRequests(states"*) echo '{"data":{"repository":{"pullRequests":{"totalCount":1,"nodes":[{"id":"PR_7","number":7,"title":"Add a thing","state":"OPEN","headRefName":"thing","baseRefName":"main"}]}}}}' ;;
+*"nodes(ids"*) echo '{"data":{"nodes":[{"id":"PR_7","reviewDecision":"APPROVED","additions":12,"deletions":3,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"FAILURE"}}}]}}]}}' ;;
+*) echo '{}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := []string{"PATH=" + dir + ":/usr/bin:/bin", "GH_CONFIG_DIR=" + t.TempDir()}
+	r := gittest.Init(t)
+	r.Commit("one")
+	r.Git("remote", "add", "origin", "https://github.com/o/r.git")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	var got []OpenPullsResult
+	s.OpenPulls(func(k forge.Kind) (*forge.CLI, error) { return forge.Find(env, k) }, func(res OpenPullsResult) { got = append(got, res) })
+	m.until(t, "the list with its details", func() bool { return len(got) > 0 && !got[len(got)-1].Partial })
+	first, last := got[0], got[len(got)-1]
+	if len(got) < 2 || !first.Partial || len(first.List) != 1 || first.List[0].Number != 7 || first.List[0].Detailed || first.List[0].Added != 0 {
+		t.Fatalf("listed first %+v", got)
+	}
+	if l := last.List[0]; last.Err != nil || last.DetailErr != nil || !l.Detailed || l.Decision != forge.ReviewApproved ||
+		l.Checks != forge.ChecksFailing || l.Added != 12 || l.Deleted != 3 {
+		t.Fatalf("with details %+v", last)
+	}
+}

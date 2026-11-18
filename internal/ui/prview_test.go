@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
+	"ramus/internal/forge"
 	"ramus/internal/git/gittest"
 )
 
@@ -25,9 +26,12 @@ func reviewTool(t *testing.T, prog, listQ, reviewQ, list, review string) (env []
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "list.json"), []byte(list), 0o644)
 	os.WriteFile(filepath.Join(dir, "review.json"), []byte(review), 0o644)
+	// GitHub's list comes without the lines changed, read after it.
+	os.WriteFile(filepath.Join(dir, "details.json"), []byte(`{"data":{"nodes":[{"id":"PR_7","reviewDecision":"REVIEW_REQUIRED","additions":12,"deletions":3,"commits":{"nodes":[]}}]}}`), 0o644)
 	script := `#!/bin/sh
 case "$*" in
 *"` + listQ + `"*) cat '` + dir + `/list.json' ;;
+*"nodes(ids"*) cat '` + dir + `/details.json' ;;
 *"` + reviewQ + `"*) cat '` + dir + `/review.json' ;;
 *POST*|*PUT*|*ReviewThread*) printf '%s\n' "$*" >> '` + dir + `/log'; cat >> '` + dir + `/log'; echo >> '` + dir + `/log'; echo '{"id":1}' ;;
 *) echo '{}' ;;
@@ -61,10 +65,9 @@ func TestPullRequestReview(t *testing.T) {
 	r.Git("remote", "add", "origin", "https://github.com/o/r")
 	r.Git("config", "url."+host.Dir+".insteadOf", "https://github.com/o/r")
 
-	list := `{"data":{"repository":{"pullRequests":{"totalCount":1,"nodes":[{"number":7,"title":"Add a thing",
+	list := `{"data":{"repository":{"pullRequests":{"totalCount":1,"nodes":[{"id":"PR_7","number":7,"title":"Add a thing",
 "url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},"headRefName":"thing",
-"baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","reviewDecision":"REVIEW_REQUIRED","headRepositoryOwner":{"login":"o"},
-"additions":12,"deletions":3,"commits":{"nodes":[]}}]}}}}`
+"baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","headRepositoryOwner":{"login":"o"}}]}}}}`
 	review := `{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":{"number":7,"title":"Add a thing",
 "url":"https://github.com/o/r/pull/7","body":"<!-- template -->Why it matters","state":"OPEN","isDraft":false,"author":{"login":"ann"},
 "baseRefName":"main","headRefName":"thing","baseRefOid":"","headRefOid":"` + head + `","reviewDecision":"REVIEW_REQUIRED",
@@ -86,10 +89,8 @@ func TestPullRequestReview(t *testing.T) {
 	h.until("the pull requests in the sidebar", h.shows("Pull Requests"))
 	h.click("Pull Requests")
 	h.until("the list", h.shows("Add a thing"))
-	// The lines it changes, as GitHub counts them.
-	if !h.tt.HasText("+12") || !h.tt.HasText("−3") {
-		t.Fatalf("list %q", h.tt.Texts())
-	}
+	// The lines it changes, as GitHub counts them, read after the list.
+	h.until("its details", func() bool { return h.tt.HasText("+12") && h.tt.HasText("−3") && h.tt.HasText("Review required") })
 	h.click("Add a thing")
 	h.until("the pull request", h.shows("ann wants to merge thing into main"))
 	h.until("its files, fetched", func() bool { return h.tt.HasText("a.txt") && h.tt.HasText("b.go") })
@@ -303,5 +304,26 @@ func TestMergeRequestReview(t *testing.T) {
 	}
 	if !strings.Contains(l, "bulk_publish --input -\n{\"reviewer_state\":\"requested_changes\"}") {
 		t.Fatalf("publish %q", l)
+	}
+}
+
+// A list read again shows, until its details are read, those it showed
+// of the pull requests still in it.
+func TestKeepDetails(t *testing.T) {
+	was := []forge.Listed{
+		{Pull: forge.Pull{Number: 7, Added: 12, Deleted: 3, Checks: forge.ChecksPassing}, Decision: forge.ReviewApproved, Detailed: true},
+		{Pull: forge.Pull{Number: 5}},
+	}
+	list := []forge.Listed{
+		{Pull: forge.Pull{Number: 9}},
+		{Pull: forge.Pull{Number: 7}},
+		{Pull: forge.Pull{Number: 5, Added: 1}, Detailed: true},
+	}
+	keepDetails(list, was)
+	if l := list[1]; !l.Detailed || l.Added != 12 || l.Deleted != 3 || l.Checks != forge.ChecksPassing || l.Decision != forge.ReviewApproved {
+		t.Errorf("kept %+v", l)
+	}
+	if list[0].Detailed || list[2].Added != 1 {
+		t.Errorf("a new one %+v, one read %+v", list[0], list[2])
 	}
 }

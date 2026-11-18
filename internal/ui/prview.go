@@ -36,8 +36,10 @@ type prState struct {
 	list    []forge.Listed
 	more    bool
 	listErr string
-	table   tableState
-	chosen  int
+	// detailErr is why some of the list came without its details.
+	detailErr string
+	table     tableState
+	chosen    int
 
 	// rv is the pull request under review, nil for the list.
 	rv *prReview
@@ -212,12 +214,39 @@ func (a *App) loadPRList(t *tab) {
 	}
 	ps.listing = true
 	t.s.OpenPulls(a.findForge(), func(res session.OpenPullsResult) {
-		ps.listing, ps.listAt = false, a.Now()
-		ps.repo, ps.list, ps.more, ps.listErr = res.Repo, res.List, res.More, ""
+		if res.Partial && res.Repo == ps.repo {
+			keepDetails(res.List, ps.list)
+		}
+		ps.listing, ps.listAt = res.Partial, a.Now()
+		ps.repo, ps.list, ps.more, ps.listErr, ps.detailErr = res.Repo, res.List, res.More, "", ""
 		if res.Err != nil {
 			ps.listErr = errForge(res.Err)
 		}
+		if res.DetailErr != nil {
+			ps.detailErr = errForge(res.DetailErr)
+		}
 	})
+}
+
+// keepDetails gives the pull requests of list whose details are not
+// read yet what was shown of them, so that a list read again does not
+// go blank where it is about to say the same.
+func keepDetails(list, was []forge.Listed) {
+	if len(was) == 0 {
+		return
+	}
+	by := make(map[int]*forge.Listed, len(was))
+	for i := range was {
+		if was[i].Detailed {
+			by[was[i].Number] = &was[i]
+		}
+	}
+	for i := range list {
+		l := &list[i]
+		if o := by[l.Number]; o != nil && !l.Detailed {
+			l.Decision, l.Checks, l.Added, l.Deleted, l.Detailed = o.Decision, o.Checks, o.Added, o.Deleted, true
+		}
+	}
 }
 
 func (a *App) prListView(c *ui.Context, t *tab) {
@@ -246,6 +275,9 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 		}
 		if ps.more {
 			ui.Text(c, locales.PrsMore(kindName(ps.repo.Kind), len(list))).FontSize(textSmall).TextColor(th.TextMuted).Padding(0, insetX, spaceS, insetX)
+		}
+		if ps.detailErr != "" {
+			ui.Text(c, ps.detailErr).FontSize(textSmall).TextColor(th.Danger).Padding(0, insetX, spaceS, insetX).Selectable()
 		}
 		ps.table.Selected = &ps.chosen
 		ps.table.Label = func(i int) string {

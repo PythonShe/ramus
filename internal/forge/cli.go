@@ -51,6 +51,16 @@ var ErrTimeout = errors.New("forge: the host's command-line tool did not answer 
 // ErrTooLarge is the tool printing more than the call allows.
 var ErrTooLarge = errors.New("forge: the answer is too large")
 
+// ServerError is the host failing to answer, with a status of the 500s:
+// GitHub cuts a query off at ten seconds with 502.
+type ServerError struct {
+	Status int
+	// Msg is what the tool said, its first line.
+	Msg string
+}
+
+func (e *ServerError) Error() string { return e.Msg }
+
 // RejectedError is the host refusing a request it understood, as GitHub
 // does with 422 for a review on lines outside the diff, or a second
 // pending review: Msg is what it said.
@@ -140,6 +150,18 @@ func (c *CLI) run(ctx context.Context, dir string, host string, args ...string) 
 	return c.runWith(ctx, dir, host, nil, maxOutput, 0, args...)
 }
 
+// read is run for a question that may be asked twice: one the host
+// failed to answer (ServerError) is asked again, once. What GitHub read
+// for a query it cut off, it has at hand for the next.
+func (c *CLI) read(ctx context.Context, host string, args ...string) ([]byte, error) {
+	out, err := c.run(ctx, "", host, args...)
+	var se *ServerError
+	if errors.As(err, &se) && ctx.Err() == nil {
+		out, err = c.run(ctx, "", host, args...)
+	}
+	return out, err
+}
+
 // runInput is run with stdin on the tool's standard input.
 func (c *CLI) runInput(ctx context.Context, host string, stdin []byte, args ...string) ([]byte, error) {
 	return c.runWith(ctx, "", host, stdin, maxOutput, 0, args...)
@@ -217,7 +239,32 @@ func (c *CLI) failure(err error, host, stderr string) error {
 	if msg == "" {
 		return fmt.Errorf("forge: %s: %w", c.Kind.Program(), err)
 	}
-	return fmt.Errorf("%s: %s", c.Kind.Program(), msg)
+	// The tools begin what they say with their own name.
+	said := c.Kind.Program() + ": " + strings.TrimPrefix(msg, c.Kind.Program()+": ")
+	if st := serverStatus(low); st != 0 {
+		return &ServerError{Status: st, Msg: said}
+	}
+	return errors.New(said)
+}
+
+// serverStatus is the status of the 500s that low, what a tool printed
+// in lower case, ends a failure with, else 0: gh api says "(HTTP 502)"
+// after the host's message, and "HTTP 502" alone when it sent a page.
+func serverStatus(low string) int {
+	for rest := low; ; {
+		i := strings.Index(rest, "http 5")
+		if i < 0 {
+			return 0
+		}
+		rest = rest[i+len("http "):]
+		if len(rest) < 3 || rest[1] < '0' || rest[1] > '9' || rest[2] < '0' || rest[2] > '9' {
+			continue
+		}
+		if len(rest) > 3 && rest[3] >= '0' && rest[3] <= '9' {
+			continue
+		}
+		return int(rest[0]-'0')*100 + int(rest[1]-'0')*10 + int(rest[2]-'0')
+	}
 }
 
 // rejected is the message of a refusal gh printed, on one line: without

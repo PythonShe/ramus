@@ -487,4 +487,16 @@ func TestFailure(t *testing.T) {
 	if err := c.failure(fail, "github.com", "gh: "+strings.Repeat("é", 400)+" (HTTP 422)"); !errors.As(err, &rej) || len(rej.Msg) > 503 || !utf8.ValidString(rej.Msg) {
 		t.Fatalf("long 422: %d bytes", len(rej.Msg))
 	}
+	// A page for an answer, as from GitHub's gateway, and a message.
+	var se *ServerError
+	for said, status := range map[string]int{"gh: HTTP 502\n": 502, "gh: Server Error (HTTP 500)\n": 500, "gh: HTTP 504\n": 504} {
+		if err := c.failure(fail, "github.com", said); !errors.As(err, &se) || se.Status != status || err.Error() != strings.TrimSpace(said) {
+			t.Fatalf("%q: %#v", said, err)
+		}
+	}
+	for _, said := range []string{"gh: HTTP 5020", "gh: see http 5xx", "gh: Bad credentials (HTTP 403)", "gh: http 50"} {
+		if err := c.failure(fail, "github.com", said); errors.As(err, &se) {
+			t.Fatalf("%q is no server's failure: %#v", said, err)
+		}
+	}
 }

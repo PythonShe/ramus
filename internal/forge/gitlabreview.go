@@ -99,7 +99,7 @@ func parseGitLabOpen(out []byte, path string) ([]Listed, bool, error) {
 	list := make([]Listed, 0, len(mrs.Nodes))
 	for _, m := range mrs.Nodes {
 		if p, ok := m.pull(); ok {
-			list = append(list, Listed{Pull: p, Author: m.Author.login(), Base: m.Target, Updated: m.Updated, Decision: m.decision()})
+			list = append(list, Listed{Pull: p, Author: m.Author.login(), Base: m.Target, Updated: m.Updated, Decision: m.decision(), Detailed: true})
 		}
 	}
 	return list, mrs.Count > len(mrs.Nodes), nil

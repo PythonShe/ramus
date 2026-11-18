@@ -7,17 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
 
 const listAnswer = `{"data":{"repository":{"pullRequests":{"totalCount":3,"nodes":[
-{"number":7,"title":"Add a thing","url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},
- "headRefName":"thing","baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","reviewDecision":"CHANGES_REQUESTED","additions":120,"deletions":7,
- "headRepositoryOwner":{"login":"ann"},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}},
-{"number":5,"title":"Draft","url":"https://evil.example/x","isDraft":true,"state":"OPEN","author":null,
- "headRefName":"d","baseRefName":"main","updatedAt":"2026-11-12T10:00:00Z","reviewDecision":null,
- "headRepositoryOwner":{"login":"o"},"commits":{"nodes":[]}}]}}}}`
+{"id":"PR_7","number":7,"title":"Add a thing","url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},
+ "headRefName":"thing","baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","headRepositoryOwner":{"login":"ann"}},
+{"id":"PR_5","number":5,"title":"Draft","url":"https://evil.example/x","isDraft":true,"state":"OPEN","author":null,
+ "headRefName":"d","baseRefName":"main","updatedAt":"2026-11-12T10:00:00Z","headRepositoryOwner":{"login":"o"}}]}}}}`
 
 func TestParseOpenPulls(t *testing.T) {
 	list, more, err := parseOpenPulls([]byte(listAnswer))
@@ -25,15 +25,132 @@ func TestParseOpenPulls(t *testing.T) {
 		t.Fatalf("%+v %v %v", list, more, err)
 	}
 	a, b := list[0], list[1]
-	if a.Number != 7 || a.Author != "ann" || a.Base != "main" || a.Decision != ReviewChangesRequested || a.Checks != ChecksPassing || a.Updated.IsZero() ||
-		a.Added != 120 || a.Deleted != 7 {
+	if a.Number != 7 || a.ID != "PR_7" || a.Author != "ann" || a.Base != "main" || a.Updated.IsZero() || a.Detailed {
 		t.Errorf("first %+v", a)
 	}
-	if !b.Draft || b.Author != "ghost" || b.Decision != ReviewNone {
+	if !b.Draft || b.Author != "ghost" || b.ID != "PR_5" {
 		t.Errorf("second %+v", b)
 	}
 	if _, _, err := parseOpenPulls([]byte(`{"errors":[{"message":"Could not resolve to a Repository"}]}`)); err == nil {
 		t.Error("an error answered is taken")
+	}
+}
+
+func TestParseDetails(t *testing.T) {
+	// One gone since it was listed: null, and named among the errors.
+	got, err := parseDetails([]byte(`{"data":{"nodes":[
+{"id":"PR_7","reviewDecision":"CHANGES_REQUESTED","additions":120,"deletions":7,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}},
+null,
+{"id":"PR_5","reviewDecision":null,"additions":0,"deletions":2,"commits":{"nodes":[]}}]},
+"errors":[{"message":"Could not resolve to a node with the global id of 'PR_6'"}]}`))
+	if err != nil || len(got) != 2 {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if d := got["PR_7"]; d.decision != ReviewChangesRequested || d.checks != ChecksPassing || d.added != 120 || d.deleted != 7 {
+		t.Errorf("first %+v", d)
+	}
+	if d := got["PR_5"]; d.decision != ReviewNone || d.checks != NoChecks || d.deleted != 2 {
+		t.Errorf("second %+v", d)
+	}
+	if _, err := parseDetails([]byte(`{"data":{"nodes":[null]},"errors":[{"message":"Something went wrong"}]}`)); err == nil {
+		t.Error("an error with no answer is taken")
+	}
+}
+
+// detailsTool is a gh that answers the details of the pull requests a
+// query names, +N lines for the one whose id is PR_N, and logs each
+// query's ids on a line. When its folder holds a file named fail, it
+// fails the first query as GitHub does one it cut off.
+func detailsTool(t *testing.T) (dir string, env []string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake gh is a shell script")
+	}
+	dir = t.TempDir()
+	script := `#!/bin/sh
+d='` + dir + `'
+for a; do q=$a; done
+if [ -f "$d/fail" ] && mkdir "$d/failed" 2>/dev/null; then echo failed >> "$d/asked"; echo '<html>502 Bad Gateway</html>'; echo 'gh: HTTP 502' >&2; exit 1; fi
+ids=$(printf '%s' "$q" | tr -c 'PR_0-9' '\n' | grep '^PR_')
+echo $ids >> "$d/asked"
+printf '{"data":{"nodes":['
+sep=
+for id in $ids; do
+  printf '%s{"id":"%s","reviewDecision":"APPROVED","additions":%s,"deletions":1,"commits":{"nodes":[]}}' "$sep" "$id" "${id#PR_}"
+  sep=,
+done
+printf ']}}\n'
+`
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir, []string{"PATH=" + dir + ":/usr/bin:/bin"}
+}
+
+// The details are asked for a few pull requests a query, those already
+// read left alone, and a query the host cut off is asked again.
+func TestPullDetails(t *testing.T) {
+	dir, env := detailsTool(t)
+	c, err := Find(env, GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := Repo{GitHub, "github.com", "o/r"}
+	list := make([]Listed, 2*detailBatch+5)
+	for i := range list {
+		list[i] = Listed{Pull: Pull{Number: i + 1}, ID: "PR_" + strconv.Itoa(i+1)}
+	}
+	list[0].Detailed, list[0].Added = true, 999
+	if err := os.WriteFile(filepath.Join(dir, "fail"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	if err := c.PullDetails(context.Background(), r, list, func() { calls++ }); err != nil {
+		t.Fatal(err)
+	}
+	for i, l := range list {
+		want := i + 1
+		if i == 0 {
+			want = 999
+		}
+		if !l.Detailed || l.Added != want || i > 0 && (l.Decision != ReviewApproved || l.Deleted != 1) {
+			t.Fatalf("pull request %d: %+v", i+1, l)
+		}
+	}
+	asked, _ := os.ReadFile(filepath.Join(dir, "asked"))
+	var sizes []int
+	failed := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(asked)), "\n") {
+		if line == "failed" {
+			failed++
+			continue
+		}
+		sizes = append(sizes, len(strings.Fields(line)))
+	}
+	slices.Sort(sizes)
+	if failed != 1 || !slices.Equal(sizes, []int{4, detailBatch, detailBatch}) || calls != 3 {
+		t.Fatalf("asked %q: %d queries told of", asked, calls)
+	}
+
+	// A host that fails twice is not asked a third time, and what was
+	// read stays.
+	for i := range list {
+		list[i].Detailed = i < detailBatch
+	}
+	failing := filepath.Join(t.TempDir(), "gh")
+	if err := os.WriteFile(failing, []byte("#!/bin/sh\necho 'gh: HTTP 502' >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c, err = Find([]string{"PATH=" + filepath.Dir(failing) + ":/usr/bin:/bin"}, GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var se *ServerError
+	if err := c.PullDetails(context.Background(), r, list, nil); !errors.As(err, &se) || se.Status != 502 {
+		t.Fatalf("a host failing: %v", err)
+	}
+	if !list[0].Detailed || list[len(list)-1].Detailed {
+		t.Fatal("what was read is kept, and no more")
 	}
 }
 
