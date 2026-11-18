@@ -584,7 +584,9 @@ func githubEvents(items []ghEvent) []Event {
 			who := ""
 			if a := cm.Author; a != nil {
 				if who = a.Name; a.User != nil && a.User.Login != "" {
-					who = a.User.Login
+					// An app is dependabot where it writes, and
+					// dependabot[bot] where it commits: one name.
+					who = strings.TrimSuffix(a.User.Login, "[bot]")
 				}
 			}
 			ec := EventCommit{ID: cm.ID, Subject: cm.Subject}
