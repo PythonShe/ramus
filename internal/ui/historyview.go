@@ -73,6 +73,10 @@ type historyState struct {
 	wantFrom int
 	jump     string
 	jumpErr  string
+	// countRoom is the width the bar's count of commits can have, as
+	// last laid out, once countLaid.
+	countRoom float32
+	countLaid bool
 	// find is the go-to field; focusFind asks it for the focus, and
 	// focusList the list, once they are built.
 	find                 ui.Handle
@@ -279,15 +283,33 @@ func (a *App) historyBar(c *ui.Context, t *tab, h session.HistoryState) {
 		if hv.jumpErr != "" {
 			ui.Text(c, hv.jumpErr).FontSize(textSmall).TextColor(th.Danger).SingleLine().Shrink(1).MinWidth(0)
 		}
-		// The count gives way before the field does.
+		// The count gives way before the field does: whole while the field
+		// keeps its least width, else the number alone, said whole to the
+		// pointer and to a screen reader, and cut only past that.
+		var count ui.Element
 		ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Shrink(1).MinWidth(0).Children(func() {
-			status := historyStatus(h)
+			status, shown := historyStatus(h), historyStatusShort(h)
+			if w, _ := c.MeasureText(0, ui.Span{Text: status, Size: textSmall}); !hv.countLaid || w <= hv.countRoom {
+				shown = status
+			}
 			if h.Snap != nil && !h.Done {
 				ui.Spinner(c).FontSize(textSmall).Label(status)
 			}
-			ui.Text(c, status).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+			count = ui.Text(c, shown).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+			if shown != status {
+				count.Label(status).Tooltip(status)
+			}
 		})
 		a.filterButton(c, t)
+		// The room the count has: its own and what the field has past its
+		// least width, as last laid out. The count takes it in the next
+		// frame.
+		if fw := in.LayoutBounds().W; fw > 0 {
+			if room := max(0, fw-leastFieldW) + count.LayoutBounds().W; !hv.countLaid || room != hv.countRoom {
+				hv.countRoom, hv.countLaid = room, true
+				c.AnimationFrame()
+			}
+		}
 	})
 	a.filterBar(c, t)
 }
@@ -417,6 +439,15 @@ func historyStatus(h session.HistoryState) string {
 		return locales.HistoryCommitsSoFar(n)
 	}
 	return locales.HistoryCommitCount(n)
+}
+
+// historyStatusShort is historyStatus for a bar with no room for it: the
+// number of commits alone. A search says what it does whole.
+func historyStatusShort(h session.HistoryState) string {
+	if h.Snap == nil || h.Filtered && !h.Done {
+		return historyStatus(h)
+	}
+	return locales.HistoryCommitNumber(h.Snap.Len())
 }
 
 // jumpTo chooses the commit rev names: in the list when history reaches

@@ -1747,6 +1747,10 @@
   },
   "historyCommitsSoFar": "{count, plural, one {# commit so far} other {# commits so far}}",
   "historyCommitCount": "{count, plural, one {# commit} other {# commits}}",
+  "historyCommitNumber": "{count, number}",
+  "@historyCommitNumber": {
+    "description": "The number of commits in the history, alone, where the history's bar has no room for the words around it."
+  },
   "historyBisectBad": "bad",
   "@historyBisectBad": {
     "description": "A label on the commit a bisect marked bad."

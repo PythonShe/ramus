@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/hex"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -252,5 +253,60 @@ func TestHistoryFilterCountsWhatApplies(t *testing.T) {
 	h.until("applied as the bar closed", func() bool { return !hf.open && h.tt.HasText("1 commit") })
 	if !h.tt.HasText("Filter (1)") {
 		t.Fatalf("texts %q", h.tt.Texts())
+	}
+}
+
+// The bar's count of commits gives way before the go-to field does, and
+// as a number alone, said whole to a screen reader: in a pane too narrow
+// for the words, the number still shows uncut.
+func TestHistoryCountGivesWay(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	var stream strings.Builder
+	const n = 20000
+	for i := range n {
+		msg := fmt.Sprintf("commit %d\n", i)
+		fmt.Fprintf(&stream, "commit refs/heads/main\ncommitter A U Thor <a@example.com> %d +0000\ndata %d\n%s", 1700000000+i, len(msg), msg)
+		if i == 0 {
+			stream.WriteString("from refs/heads/main^0\n")
+		}
+		stream.WriteString("\n")
+	}
+	if out, err := r.Run([]byte(stream.String()), "fast-import", "--quiet"); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No local changes"))
+	h.click("History")
+	tb := h.app.current()
+	hv := &tb.hist
+	h.until("the whole history", func() bool { return hasExact(h, "20,001 commits") })
+	h.settle()
+	// The count is found by what it says to a screen reader, whole
+	// either way; the number alone says it whole as its tooltip too.
+	if h.describes("20,001 commits")() {
+		t.Fatal("the number alone in a wide pane")
+	}
+	whole, _ := h.tt.Find("20,001 commits")
+
+	hv.detailW = 300
+	h.settle()
+	box, _ := h.tt.Find("20,001 commits")
+	if !h.describes("20,001 commits")() || box.W >= whole.W {
+		t.Fatalf("the count %v wide, whole %v: not the number alone", box.W, whole.W)
+	}
+	// Cut, it would take all its room.
+	if box.W >= hv.countRoom-0.01 {
+		t.Fatalf("the number cut: %v wide in %v", box.W, hv.countRoom)
+	}
+	if f, _ := h.tt.Find("Go to hash or ref"); f.W < leastFieldW-0.5 {
+		t.Fatalf("the field gave way first, to %v", f.W)
+	}
+
+	hv.detailW = 600
+	h.settle()
+	if box, _ := h.tt.Find("20,001 commits"); box.W != whole.W || h.describes("20,001 commits")() {
+		t.Fatalf("the words not back: %v wide, whole %v", box.W, whole.W)
 	}
 }

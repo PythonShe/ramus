@@ -8623,6 +8623,22 @@ func (msgs Messages) HistoryCommitCount(count int) string {
 	return Catalog.Format(msgs.locale, "historyCommitCount", map[string]any{"count": count})
 }
 
+// HistoryCommitNumber says "{count, number}"
+// in the language the app shows.
+//
+// The number of commits in the history, alone, where the history's bar has
+// no room for the words around it.
+func HistoryCommitNumber(count int) string { return In(i18n.Locale()).HistoryCommitNumber(count) }
+
+// HistoryCommitNumber says "{count, number}"
+// in the language of msgs.
+//
+// The number of commits in the history, alone, where the history's bar has
+// no room for the words around it.
+func (msgs Messages) HistoryCommitNumber(count int) string {
+	return Catalog.Format(msgs.locale, "historyCommitNumber", map[string]any{"count": count})
+}
+
 // HistoryBisectBad says "bad"
 // in the language the app shows.
 //
