@@ -41,6 +41,8 @@ const (
 	// ReviewRequired is a decision only: reviews are needed and none
 	// decided yet.
 	ReviewRequired
+	// ReviewAwaited is a reviewer's only: asked, and not answered since.
+	ReviewAwaited
 )
 
 func reviewState(s string) ReviewState {
@@ -364,10 +366,23 @@ type Review struct {
 	Comments []Comment
 	Reviews  []Submitted
 	Threads  []Thread
+	// Mergeable is whether the host would merge it now.
+	Mergeable Mergeable
+	// CheckList are the checks of its head commit, as the host lists
+	// them; ChecksMore says it has others.
+	CheckList  []Check
+	ChecksMore bool
+	Labels     []Label
+	// Reviewers are those asked to review and those who did, each once.
+	Reviewers []Reviewer
+	Assignees []string
+	// Events are what happened to it beside what was said, oldest first;
+	// GitHub's only.
+	Events []Event
 	// Viewer is who the tool is logged in as.
 	Viewer string
-	// More says the host holds comments, reviews or threads past what was
-	// read.
+	// More says the host holds comments, reviews, threads or events past
+	// what was read.
 	More bool
 }
 
@@ -399,7 +414,12 @@ func (c *CLI) githubPullReview(ctx context.Context, r Repo, n int) (Review, erro
 	page := func(n int) string { return "(first:" + strconv.Itoa(n) + ")" }
 	q := "query($owner:String!,$name:String!,$n:Int!){viewer{login} repository(owner:$owner,name:$name){pullRequest(number:$n){" +
 		"number title url body state isDraft author{login} baseRefName headRefName baseRefOid headRefOid reviewDecision createdAt additions deletions " +
-		"commits(last:1){nodes{commit{statusCheckRollup{state}}}} " +
+		"mergeable mergeStateStatus labels" + page(maxPeople) + "{nodes{name color}} assignees" + page(maxPeople) + "{nodes{login}} " +
+		"reviewRequests" + page(maxPeople) + "{nodes{requestedReviewer{" + ghActorNames + "}}} latestReviews" + page(maxPeople) + "{nodes{author{login} state}} " +
+		"commits(last:1){nodes{commit{statusCheckRollup{state contexts" + page(maxChecks) + "{totalCount nodes{__typename " +
+		"... on CheckRun{name status conclusion detailsUrl startedAt completedAt isRequired(pullRequestNumber:$n) checkSuite{workflowRun{workflow{name}}}} " +
+		"... on StatusContext{context state targetUrl isRequired(pullRequestNumber:$n)}}}}}}} " +
+		"timelineItems(last:" + strconv.Itoa(maxEvents) + ",itemTypes:[" + ghEventTypes + "]){pageInfo{hasPreviousPage} nodes{__typename " + ghEventFields + "}} " +
 		"comments" + page(maxComments) + "{totalCount nodes{id databaseId author{login} body createdAt}} " +
 		"reviews" + page(maxComments) + "{totalCount nodes{author{login} state body submittedAt}} " +
 		"reviewThreads" + page(maxThreads) + "{totalCount nodes{id isResolved isOutdated path line startLine originalLine diffSide " +
@@ -410,6 +430,215 @@ func (c *CLI) githubPullReview(ctx context.Context, r Repo, n int) (Review, erro
 		return Review{}, err
 	}
 	return parseReview(out)
+}
+
+// ghActorNames names who a review is asked of: a person, or a team.
+const ghActorNames = "__typename ... on User{login} ... on Bot{login} ... on Mannequin{login} ... on Team{name}"
+
+// ghEventTypes are the timeline items read, and ghEventFields what of
+// each.
+const (
+	ghEventTypes = "PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT,MERGED_EVENT,CLOSED_EVENT,REOPENED_EVENT,READY_FOR_REVIEW_EVENT," +
+		"CONVERT_TO_DRAFT_EVENT,REVIEW_REQUESTED_EVENT,LABELED_EVENT,UNLABELED_EVENT,RENAMED_TITLE_EVENT"
+	ghEventFields = "... on PullRequestCommit{commit{abbreviatedOid messageHeadline committedDate author{name user{login}}}} " +
+		"... on HeadRefForcePushedEvent{actor{login} createdAt beforeCommit{abbreviatedOid} afterCommit{abbreviatedOid}} " +
+		"... on MergedEvent{actor{login} createdAt} ... on ClosedEvent{actor{login} createdAt} ... on ReopenedEvent{actor{login} createdAt} " +
+		"... on ReadyForReviewEvent{actor{login} createdAt} ... on ConvertToDraftEvent{actor{login} createdAt} " +
+		"... on ReviewRequestedEvent{actor{login} createdAt requestedReviewer{" + ghActorNames + "}} " +
+		"... on LabeledEvent{actor{login} createdAt label{name}} ... on UnlabeledEvent{actor{login} createdAt label{name}} " +
+		"... on RenamedTitleEvent{actor{login} createdAt previousTitle currentTitle}"
+)
+
+// ghNamed is a person or a team, as ghActorNames reads one.
+type ghNamed struct {
+	Type  string `json:"__typename"`
+	Login string `json:"login"`
+	Name  string `json:"name"`
+}
+
+// name is the login, or the team's name; "" for one the login in use
+// may not see.
+func (g *ghNamed) name() (name string, team bool) {
+	if g == nil {
+		return "", false
+	}
+	if g.Type == "Team" {
+		return g.Name, true
+	}
+	return g.Login, false
+}
+
+type ghCheck struct {
+	Type string `json:"__typename"`
+	// A check run's.
+	Name       string     `json:"name"`
+	Status     string     `json:"status"`
+	Conclusion string     `json:"conclusion"`
+	DetailsURL string     `json:"detailsUrl"`
+	Started    *time.Time `json:"startedAt"`
+	Completed  *time.Time `json:"completedAt"`
+	Suite      *struct {
+		Run *struct {
+			Workflow *struct {
+				Name string `json:"name"`
+			} `json:"workflow"`
+		} `json:"workflowRun"`
+	} `json:"checkSuite"`
+	// A status's.
+	Context   string `json:"context"`
+	State     string `json:"state"`
+	TargetURL string `json:"targetUrl"`
+
+	Required bool `json:"isRequired"`
+}
+
+func (g ghCheck) check() Check {
+	if g.Type == "StatusContext" {
+		c := Check{Name: g.Context, URL: WebURL(g.TargetURL), Required: g.Required, State: CheckWaiting}
+		switch g.State {
+		case "SUCCESS":
+			c.State = CheckPassed
+		case "FAILURE", "ERROR":
+			c.State = CheckFailed
+		case "PENDING":
+			c.State = CheckRunning
+		}
+		return c
+	}
+	c := Check{Name: g.Name, URL: WebURL(g.DetailsURL), Required: g.Required, State: CheckWaiting}
+	if s := g.Suite; s != nil && s.Run != nil && s.Run.Workflow != nil {
+		c.Group = s.Run.Workflow.Name
+	}
+	if g.Started != nil {
+		c.Started = *g.Started
+	}
+	switch g.Status {
+	case "IN_PROGRESS":
+		c.State = CheckRunning
+	case "COMPLETED":
+		if g.Completed != nil {
+			c.Ended = *g.Completed
+		}
+		switch g.Conclusion {
+		case "SUCCESS":
+			c.State = CheckPassed
+		case "CANCELLED":
+			c.State = CheckCancelled
+		case "SKIPPED", "NEUTRAL", "STALE":
+			c.State = CheckSkipped
+		default:
+			// A failure, a time out, an action required, a start failed.
+			c.State = CheckFailed
+		}
+	}
+	return c
+}
+
+type ghEvent struct {
+	Type   string     `json:"__typename"`
+	Actor  *ghAuthor  `json:"actor"`
+	At     *time.Time `json:"createdAt"`
+	Commit *struct {
+		ID      string    `json:"abbreviatedOid"`
+		Subject string    `json:"messageHeadline"`
+		At      time.Time `json:"committedDate"`
+		Author  *struct {
+			Name string    `json:"name"`
+			User *ghAuthor `json:"user"`
+		} `json:"author"`
+	} `json:"commit"`
+	Before *struct {
+		ID string `json:"abbreviatedOid"`
+	} `json:"beforeCommit"`
+	After *struct {
+		ID string `json:"abbreviatedOid"`
+	} `json:"afterCommit"`
+	Reviewer *ghNamed `json:"requestedReviewer"`
+	Label    *struct {
+		Name string `json:"name"`
+	} `json:"label"`
+	Previous string `json:"previousTitle"`
+	Current  string `json:"currentTitle"`
+}
+
+// labelsTogether is how close in time labels one actor adds or takes
+// away are one event, as a bot's that sets several at once.
+const labelsTogether = time.Minute
+
+// githubEvents reads timeline items into events: the commits that
+// follow one another, by one author, are one event, and so are the
+// labels one actor adds, or takes away, together.
+func githubEvents(items []ghEvent) []Event {
+	var out []Event
+	for _, it := range items {
+		if it.Type == "PullRequestCommit" {
+			cm := it.Commit
+			if cm == nil {
+				continue
+			}
+			who := ""
+			if a := cm.Author; a != nil {
+				if who = a.Name; a.User != nil && a.User.Login != "" {
+					who = a.User.Login
+				}
+			}
+			ec := EventCommit{ID: cm.ID, Subject: cm.Subject}
+			if n := len(out); n > 0 && out[n-1].Kind == EventCommits && out[n-1].Actor == who {
+				out[n-1].Commits = append(out[n-1].Commits, ec)
+				continue
+			}
+			out = append(out, Event{Kind: EventCommits, Actor: who, At: cm.At, Commits: []EventCommit{ec}})
+			continue
+		}
+		e := Event{Actor: it.Actor.login()}
+		if it.At != nil {
+			e.At = *it.At
+		}
+		switch it.Type {
+		case "HeadRefForcePushedEvent":
+			e.Kind = EventForcePushed
+			if it.Before != nil {
+				e.From = it.Before.ID
+			}
+			if it.After != nil {
+				e.Subject = it.After.ID
+			}
+		case "MergedEvent":
+			e.Kind = EventMerged
+		case "ClosedEvent":
+			e.Kind = EventClosed
+		case "ReopenedEvent":
+			e.Kind = EventReopened
+		case "ReadyForReviewEvent":
+			e.Kind = EventReady
+		case "ConvertToDraftEvent":
+			e.Kind = EventDrafted
+		case "ReviewRequestedEvent":
+			e.Kind = EventReviewRequested
+			if e.Subject, _ = it.Reviewer.name(); e.Subject == "" {
+				continue
+			}
+		case "LabeledEvent", "UnlabeledEvent":
+			e.Kind = EventLabeled
+			if it.Type == "UnlabeledEvent" {
+				e.Kind = EventUnlabeled
+			}
+			if it.Label == nil {
+				continue
+			}
+			if n := len(out); n > 0 && out[n-1].Kind == e.Kind && out[n-1].Actor == e.Actor && e.At.Sub(out[n-1].At) < labelsTogether {
+				out[n-1].Labels = append(out[n-1].Labels, it.Label.Name)
+				continue
+			}
+			e.Labels = []string{it.Label.Name}
+		case "RenamedTitleEvent":
+			e.Kind, e.From, e.Subject = EventRenamed, it.Previous, it.Current
+		default:
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 type ghComment struct {
@@ -437,13 +666,42 @@ func parseReview(out []byte) (Review, error) {
 			Repository *struct {
 				PullRequest *struct {
 					githubPull
-					Body     string     `json:"body"`
-					Author   *ghAuthor  `json:"author"`
-					Base     string     `json:"baseRefName"`
-					BaseOID  string     `json:"baseRefOid"`
-					HeadOID  string     `json:"headRefOid"`
-					Decision string     `json:"reviewDecision"`
-					Created  time.Time  `json:"createdAt"`
+					Body     string    `json:"body"`
+					Author   *ghAuthor `json:"author"`
+					Base     string    `json:"baseRefName"`
+					BaseOID  string    `json:"baseRefOid"`
+					HeadOID  string    `json:"headRefOid"`
+					Decision string    `json:"reviewDecision"`
+					Created  time.Time `json:"createdAt"`
+					Merge    string    `json:"mergeable"`
+					Status   string    `json:"mergeStateStatus"`
+					Labels   struct {
+						Nodes []struct {
+							Name  string `json:"name"`
+							Color string `json:"color"`
+						} `json:"nodes"`
+					} `json:"labels"`
+					Assignees struct {
+						Nodes []ghAuthor `json:"nodes"`
+					} `json:"assignees"`
+					Requests struct {
+						Nodes []struct {
+							Reviewer *ghNamed `json:"requestedReviewer"`
+						} `json:"nodes"`
+					} `json:"reviewRequests"`
+					Latest struct {
+						Nodes []struct {
+							Author *ghAuthor `json:"author"`
+							State  string    `json:"state"`
+						} `json:"nodes"`
+					} `json:"latestReviews"`
+					Timeline struct {
+						// The latest are asked for: more are before them.
+						Page struct {
+							Before bool `json:"hasPreviousPage"`
+						} `json:"pageInfo"`
+						Nodes []ghEvent `json:"nodes"`
+					} `json:"timelineItems"`
 					Comments ghComments `json:"comments"`
 					Reviews  struct {
 						TotalCount int `json:"totalCount"`
@@ -501,7 +759,37 @@ func parseReview(out []byte) (Review, error) {
 		rv.Reviews = append(rv.Reviews, Submitted{Author: s.Author.login(), State: reviewState(s.State), Body: s.Body, At: s.SubmittedAt})
 	}
 	rv.More = p.Comments.TotalCount > len(p.Comments.Nodes) || p.Reviews.TotalCount > len(p.Reviews.Nodes) ||
-		p.Threads.TotalCount > len(p.Threads.Nodes)
+		p.Threads.TotalCount > len(p.Threads.Nodes) || p.Timeline.Page.Before
+	if rv.State == PullOpen {
+		rv.Mergeable = githubMergeable(p.Merge, p.Status)
+	}
+	if ns := p.Commits.Nodes; len(ns) > 0 && ns[0].Commit.Rollup != nil {
+		cs := ns[0].Commit.Rollup.Contexts
+		for _, c := range cs.Nodes {
+			rv.CheckList = append(rv.CheckList, c.check())
+		}
+		rv.ChecksMore = cs.TotalCount > len(cs.Nodes)
+	}
+	for _, l := range p.Labels.Nodes {
+		rv.Labels = append(rv.Labels, Label{Name: l.Name, Color: hexColor(l.Color)})
+	}
+	for _, a := range p.Assignees.Nodes {
+		rv.Assignees = append(rv.Assignees, a.Login)
+	}
+	// One asked again after a verdict is awaited again.
+	awaited := map[string]bool{}
+	for _, q := range p.Requests.Nodes {
+		if name, team := q.Reviewer.name(); name != "" {
+			awaited[name] = true
+			rv.Reviewers = append(rv.Reviewers, Reviewer{Name: name, Team: team, State: ReviewAwaited})
+		}
+	}
+	for _, l := range p.Latest.Nodes {
+		if name := l.Author.login(); !awaited[name] && l.State != "PENDING" {
+			rv.Reviewers = append(rv.Reviewers, Reviewer{Name: name, State: reviewState(l.State)})
+		}
+	}
+	rv.Events = githubEvents(p.Timeline.Nodes)
 	num := func(p *int) int {
 		if p == nil {
 			return 0

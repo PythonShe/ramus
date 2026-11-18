@@ -105,21 +105,109 @@ func parseGitLabOpen(out []byte, path string) ([]Listed, bool, error) {
 	return list, mrs.Count > len(mrs.Nodes), nil
 }
 
-func (c *CLI) gitlabPullReview(ctx context.Context, r Repo, n int) (Review, error) {
+// gitlabReviewQuery asks for merge request n of r as its review shows it.
+func gitlabReviewQuery(r Repo, n int) string {
 	// Its discussions, read whole, would hold the host's own notes of
 	// pushes and labels among those written; its notes can leave them out.
 	page := "(first:" + strconv.Itoa(maxComments) + ")"
-	q := "query{currentUser{username} project(fullPath:" + literal(r.Path) + "){mergeRequest(iid:" + literal(strconv.Itoa(n)) + "){" +
+	people := "(first:" + strconv.Itoa(maxPeople) + ")"
+	return "query{currentUser{username} project(fullPath:" + literal(r.Path) + "){mergeRequest(iid:" + literal(strconv.Itoa(n)) + "){" +
 		"iid title webUrl description state draft author{username} sourceBranch targetBranch createdAt approved detailedMergeStatus " +
-		"headPipeline{status} diffStatsSummary{additions deletions} diffRefs{baseSha startSha headSha} userPermissions{createNote} approvedBy" + page + "{nodes{username}} " +
+		"conflicts labels" + people + "{nodes{title color}} assignees" + people + "{nodes{username}} " +
+		"reviewers" + people + "{nodes{username mergeRequestInteraction{reviewState approved}}} " +
+		"headPipeline{status jobs(first:" + strconv.Itoa(maxChecks) + "){count nodes{name status stage{name} webPath startedAt finishedAt allowFailure}}} " +
+		"diffStatsSummary{additions deletions} diffRefs{baseSha startSha headSha} userPermissions{createNote} approvedBy" + page + "{nodes{username}} " +
 		"notes(filter:ONLY_COMMENTS,first:" + strconv.Itoa(glMaxNotes) + "){pageInfo{hasNextPage} nodes{id author{username} body createdAt system " +
 		"discussion{id resolvable resolved userPermissions{resolveNote}} " +
 		"position{positionType filePath oldPath newPath oldLine newLine diffRefs{headSha}}}}}}}"
-	out, err := c.run(ctx, "", r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q)
+}
+
+func (c *CLI) gitlabPullReview(ctx context.Context, r Repo, n int) (Review, error) {
+	out, err := c.run(ctx, "", r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+gitlabReviewQuery(r, n))
 	if err != nil {
 		return Review{}, err
 	}
-	return parseGitLabReview(out)
+	rv, err := parseGitLabReview(out)
+	jobPages(r, rv.CheckList)
+	return rv, err
+}
+
+// jobPages makes the pages of the jobs in list, which GitLab names by
+// their paths, addresses on r's host; one that is no path there has
+// none.
+func jobPages(r Repo, list []Check) {
+	site := strings.TrimSuffix(r.Web(), "/"+r.Path)
+	for i := range list {
+		if c := &list[i]; strings.HasPrefix(c.URL, "/") && !strings.HasPrefix(c.URL, "//") {
+			c.URL = WebURL(site + c.URL)
+		} else {
+			c.URL = ""
+		}
+	}
+}
+
+// glJob is a job of a merge request's head pipeline.
+type glJob struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Stage  *struct {
+		Name string `json:"name"`
+	} `json:"stage"`
+	WebPath      string     `json:"webPath"`
+	Started      *time.Time `json:"startedAt"`
+	Finished     *time.Time `json:"finishedAt"`
+	AllowFailure bool       `json:"allowFailure"`
+}
+
+// check is the job as a check; its URL is still the path on its host.
+func (j glJob) check() Check {
+	c := Check{Name: j.Name, URL: j.WebPath, Required: !j.AllowFailure, State: CheckWaiting}
+	if j.Stage != nil {
+		c.Group = j.Stage.Name
+	}
+	if j.Started != nil {
+		c.Started = *j.Started
+	}
+	if j.Finished != nil {
+		c.Ended = *j.Finished
+	}
+	switch j.Status {
+	case "SUCCESS":
+		c.State = CheckPassed
+	case "FAILED":
+		c.State = CheckFailed
+	case "CANCELED", "CANCELING":
+		c.State = CheckCancelled
+	case "SKIPPED":
+		c.State = CheckSkipped
+	case "RUNNING":
+		c.State = CheckRunning
+	}
+	return c
+}
+
+// glReviewer is someone asked to review a merge request.
+type glReviewer struct {
+	Username    string `json:"username"`
+	Interaction *struct {
+		State    string `json:"reviewState"`
+		Approved bool   `json:"approved"`
+	} `json:"mergeRequestInteraction"`
+}
+
+func (g glReviewer) reviewer() Reviewer {
+	rv := Reviewer{Name: g.Username, State: ReviewAwaited}
+	if in := g.Interaction; in != nil {
+		switch {
+		case in.Approved || in.State == "APPROVED":
+			rv.State = ReviewApproved
+		case in.State == "REQUESTED_CHANGES":
+			rv.State = ReviewChangesRequested
+		case in.State == "REVIEWED":
+			rv.State = ReviewCommented
+		}
+	}
+	return rv
 }
 
 // glMaxNotes bounds the comments read of a merge request, its threads'
@@ -168,8 +256,21 @@ func parseGitLabReview(out []byte) (Review, error) {
 			Project *struct {
 				MR *struct {
 					glListed
-					Body     string    `json:"description"`
-					Created  time.Time `json:"createdAt"`
+					Body      string    `json:"description"`
+					Created   time.Time `json:"createdAt"`
+					Conflicts bool      `json:"conflicts"`
+					Labels    *struct {
+						Nodes []struct {
+							Title string `json:"title"`
+							Color string `json:"color"`
+						} `json:"nodes"`
+					} `json:"labels"`
+					Assignees *struct {
+						Nodes []glUser `json:"nodes"`
+					} `json:"assignees"`
+					Reviewers *struct {
+						Nodes []glReviewer `json:"nodes"`
+					} `json:"reviewers"`
 					DiffRefs *struct {
 						Base  string `json:"baseSha"`
 						Start string `json:"startSha"`
@@ -213,6 +314,30 @@ func parseGitLabReview(out []byte) (Review, error) {
 	if m.ApprovedBy != nil {
 		for _, u := range m.ApprovedBy.Nodes {
 			rv.Reviews = append(rv.Reviews, Submitted{Author: u.Username, State: ReviewApproved})
+		}
+	}
+	if rv.State == PullOpen {
+		rv.Mergeable = gitlabMergeable(m.Status, m.Conflicts)
+	}
+	if pl := m.Pipeline; pl != nil && pl.Jobs != nil {
+		for _, j := range pl.Jobs.Nodes {
+			rv.CheckList = append(rv.CheckList, j.check())
+		}
+		rv.ChecksMore = pl.Jobs.Count > len(pl.Jobs.Nodes)
+	}
+	if m.Labels != nil {
+		for _, l := range m.Labels.Nodes {
+			rv.Labels = append(rv.Labels, Label{Name: l.Title, Color: hexColor(l.Color)})
+		}
+	}
+	if m.Assignees != nil {
+		for _, u := range m.Assignees.Nodes {
+			rv.Assignees = append(rv.Assignees, u.Username)
+		}
+	}
+	if m.Reviewers != nil {
+		for _, u := range m.Reviewers.Nodes {
+			rv.Reviewers = append(rv.Reviewers, u.reviewer())
 		}
 	}
 	rv.More = m.Notes.Page.Next

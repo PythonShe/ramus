@@ -64,6 +64,11 @@ type githubPull struct {
 			Commit struct {
 				Rollup *struct {
 					State string `json:"state"`
+					// Contexts are read where a query asks for them.
+					Contexts struct {
+						TotalCount int       `json:"totalCount"`
+						Nodes      []ghCheck `json:"nodes"`
+					} `json:"contexts"`
 				} `json:"statusCheckRollup"`
 			} `json:"commit"`
 		} `json:"nodes"`

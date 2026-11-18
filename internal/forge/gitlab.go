@@ -54,6 +54,11 @@ type gitlabMR struct {
 	} `json:"sourceProject"`
 	Pipeline *struct {
 		Status string `json:"status"`
+		// Jobs are read where a query asks for them.
+		Jobs *struct {
+			Count int     `json:"count"`
+			Nodes []glJob `json:"nodes"`
+		} `json:"jobs"`
 	} `json:"headPipeline"`
 	// Stats are read where a query asks for them.
 	Stats *struct {
