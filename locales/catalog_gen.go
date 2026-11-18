@@ -14463,22 +14463,6 @@ func (msgs Messages) RepoPickerNone() string {
 	return Catalog.Format(msgs.locale, "repoPickerNone", nil)
 }
 
-// RepoPickerOpenHeading says "Open"
-// in the language the app shows.
-//
-// Heads the repositories open in the window, first in the repository
-// picker: an adjective.
-func RepoPickerOpenHeading() string { return In(i18n.Locale()).RepoPickerOpenHeading() }
-
-// RepoPickerOpenHeading says "Open"
-// in the language of msgs.
-//
-// Heads the repositories open in the window, first in the repository
-// picker: an adjective.
-func (msgs Messages) RepoPickerOpenHeading() string {
-	return Catalog.Format(msgs.locale, "repoPickerOpenHeading", nil)
-}
-
 // RepoPickerRecent says "Recent"
 // in the language the app shows.
 func RepoPickerRecent() string { return In(i18n.Locale()).RepoPickerRecent() }

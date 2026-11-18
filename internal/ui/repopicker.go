@@ -356,13 +356,9 @@ func (a *App) repoRows() []repoRow {
 			all = append(all, library.Repo{Path: t.s.Path, Name: a.title(t)})
 		}
 	}
-	// The repositories open in the window first, as their tabs are
-	// ordered; the recent ones are those not open.
-	var open []library.Repo
-	for _, t := range a.tabs {
-		open = append(open, library.Repo{Path: t.s.Path, Name: a.title(t)})
-	}
-	section(locales.RepoPickerOpenHeading(), open)
+	// The repositories open in the window are its tabs, and the button
+	// names the one shown: the recent ones are those not open, and the
+	// open ones are listed with the others, under their group or owner.
 	var recent []library.Repo
 	for _, r := range all {
 		if len(recent) == repoPickRecent {

@@ -12,10 +12,10 @@ import (
 	"ramus/internal/library"
 )
 
-// The repositories open in the window head the picker, in their own
-// group, each with its branch and a dot while it has changes; the recent
-// ones are the others.
-func TestRepoPickerOpenFirst(t *testing.T) {
+// The repositories open in the window are its tabs: the picker heads
+// with the recent ones not open, and lists the open ones with the others,
+// each with its branch and a dot while it has changes.
+func TestRepoPickerLeavesOpenToTabs(t *testing.T) {
 	h := newHarness(t)
 	one, two, closed := h.repoWith(), h.repoWith(), h.repoWith()
 	two.Git("checkout", "-q", "-b", "topic")
@@ -32,7 +32,7 @@ func TestRepoPickerOpenFirst(t *testing.T) {
 	h.until("the change", func() bool { st := h.app.tabs[0].s.State.Status; return st != nil && st.Len() > 0 })
 
 	h.click("Repository " + filepath.Base(two.Dir))
-	h.until("the open group", func() bool { return hasExact(h, "Open") && hasExact(h, "topic") })
+	h.until("the recent group", func() bool { return hasExact(h, "Recent") })
 	var names []string
 	for _, r := range h.app.repoRows() {
 		if r.heading != "" {
@@ -41,13 +41,16 @@ func TestRepoPickerOpenFirst(t *testing.T) {
 			names = append(names, filepath.Base(r.path))
 		}
 	}
-	want := []string{"# Open", filepath.Base(one.Dir), filepath.Base(two.Dir), "# Recent", filepath.Base(closed.Dir)}
+	want := []string{"# Recent", filepath.Base(closed.Dir)}
 	if len(names) < len(want) || !slices.Equal(names[:len(want)], want) {
 		t.Fatalf("rows %q", names)
 	}
-	if !h.describes("Uncommitted changes")() {
-		t.Fatal("no dot for the changes")
+	for _, r := range []*gittest.Repo{one, two} {
+		if !slices.Contains(names[len(want):], filepath.Base(r.Dir)) {
+			t.Fatalf("open %s not listed: rows %q", filepath.Base(r.Dir), names)
+		}
 	}
+	h.until("the dot for the changes", h.describes("Uncommitted changes"))
 }
 
 // The picker lists the repositories the library knows under the owners
@@ -111,8 +114,9 @@ func TestRepoPicker(t *testing.T) {
 
 	// Cmd+T opens it again under the pointer, resting where the row of
 	// another repository is drawn, which leaves Enter to the first row:
-	// the repository opened first, open, whose tab it switches to.
-	box := rowAt[filepath.Base(local.Dir)]
+	// the recent repository not open, which it opens. The open ones are
+	// the tabs'.
+	box := rowAt[filepath.Base(fork.Dir)]
 	h.tt.Move(box.X+box.W/2, box.Y+box.H/2)
 	h.tt.Key(ui.Cmd, ui.KeyT)
 	h.tt.Frame()
@@ -122,7 +126,7 @@ func TestRepoPicker(t *testing.T) {
 	h.tt.Frame()
 	h.tt.Key(0, ui.KeyEnter)
 	h.tt.Frame()
-	if len(h.app.tabs) != 2 || h.app.current().s.Path != library.Clean(shown.Dir) {
+	if len(h.app.tabs) != 3 || h.app.current().s.Path != library.Clean(local.Dir) {
 		t.Fatalf("tabs %d, current %s", len(h.app.tabs), h.app.current().s.Path)
 	}
 
@@ -133,7 +137,7 @@ func TestRepoPicker(t *testing.T) {
 	h.tt.Frame()
 	h.tt.Key(0, ui.KeyEnter)
 	h.tt.Frame()
-	if len(h.app.tabs) != 2 || h.app.current().s.Path != library.Clean(fork.Dir) {
+	if len(h.app.tabs) != 3 || h.app.current().s.Path != library.Clean(fork.Dir) {
 		t.Fatalf("tabs %d, current %s", len(h.app.tabs), h.app.current().s.Path)
 	}
 }

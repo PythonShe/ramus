@@ -3068,10 +3068,6 @@
   "repoPickerAdd": "Add",
   "repoPickerList": "Repositories",
   "repoPickerNone": "No repository matches",
-  "repoPickerOpenHeading": "Open",
-  "@repoPickerOpenHeading": {
-    "description": "Heads the repositories open in the window, first in the repository picker: an adjective."
-  },
   "repoPickerRecent": "Recent",
   "repoPickerFavourites": "Favorites",
   "repoPickerOther": "Other",
