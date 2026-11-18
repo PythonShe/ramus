@@ -272,3 +272,30 @@ func TestStall(t *testing.T) {
 		t.Fatalf("asking: %v", err)
 	}
 }
+
+// A runner from Own runs its commands with its config, which a
+// command's own config wins over, and the runner it came from without.
+func TestOwnConfig(t *testing.T) {
+	r := gittest.Init(t)
+	base := runner(t, 2)
+	own := base.Own()
+	own.SetConfig([]string{"ramus.test=own"})
+	get := func(run *Runner, config ...string) string {
+		res, _ := run.Run(context.Background(), &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Read: true, Config: config,
+			Args: []string{"config", "--get", "ramus.test"}})
+		return strings.TrimSpace(string(res.Stdout))
+	}
+	if got := get(own); got != "own" {
+		t.Fatalf("own runner: %q", got)
+	}
+	if got := get(own, "ramus.test=command"); got != "command" {
+		t.Fatalf("with the command's own: %q", got)
+	}
+	if got := get(base); got != "" {
+		t.Fatalf("the runner it came from: %q", got)
+	}
+	own.SetConfig(nil)
+	if got := get(own); got != "" {
+		t.Fatalf("cleared: %q", got)
+	}
+}

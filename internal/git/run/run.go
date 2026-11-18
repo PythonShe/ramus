@@ -51,6 +51,8 @@ type Runner struct {
 	// for a password, and asking reports a question open; see SetPrompt.
 	prompt []string
 	asking func() bool
+	// config is the -c overrides of a runner from Own; see SetConfig.
+	config atomic.Pointer[[]string]
 }
 
 // pool is shared by a runner and the hardened runners made from it.
@@ -107,6 +109,25 @@ func (r *Runner) Reharden(config []string) {
 		c := append([]string{}, config...)
 		r.hardening.Store(&c)
 	}
+}
+
+// Own returns a runner like this one, sharing its process limit and
+// journal, for one repository: SetConfig on it changes none of the
+// others'.
+func (r *Runner) Own() *Runner {
+	o := &Runner{git: r.git, env: r.env, pool: r.pool, prompt: r.prompt, asking: r.asking, hardened: r.hardened}
+	if h := r.hardening.Load(); h != nil {
+		o.hardening.Store(h)
+	}
+	return o
+}
+
+// SetConfig has every command started after it returns run with config
+// as -c overrides before its own, which win over them, as a hardened
+// runner's overrides win over both. Safe from any goroutine.
+func (r *Runner) SetConfig(config []string) {
+	c := slices.Clone(config)
+	r.config.Store(&c)
 }
 
 // IsHardened reports a runner from Hardened.
@@ -212,8 +233,14 @@ func (c *Cmd) argv() []string {
 	return append(a, c.Args...)
 }
 
-// argv adds the hardening of a runner for a repository not trusted.
+// argv adds the runner's own config, and the hardening of a runner for
+// a repository not trusted.
 func (r *Runner) argv(c *Cmd) []string {
+	if own := r.config.Load(); own != nil && len(*own) > 0 {
+		cc := *c
+		cc.Config = append(slices.Clone(*own), c.Config...)
+		c = &cc
+	}
 	a := c.argv()
 	if !r.hardened {
 		return a

@@ -39,6 +39,8 @@ type Repository struct {
 	// with nothing from the repository's own config allowed to run.
 	Restricted bool
 	life       *lifetime.Lifetime
+	// hidden is what HideFolders keeps.
+	hidden hiddenFolders
 
 	capsMu   sync.Mutex
 	replaced replaceSeen
@@ -123,7 +125,7 @@ func Open(ctx context.Context, r *run.Runner, path string, trusted func(Location
 		return nil, err
 	}
 	repo := &Repository{
-		Location: loc, Caps: Check(loc, cfg), Runner: r,
+		Location: loc, Caps: Check(loc, cfg), Runner: r.Own(),
 		life: lifetime.New(context.Background()),
 	}
 	repo.config.Store(cfg)
