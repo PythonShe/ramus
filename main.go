@@ -403,16 +403,13 @@ func menu(ws *windows) *mygo.Menu {
 			}
 		}
 	}
-	about := func(check bool) func(*mygo.MenuItem, *mygo.Window) {
-		return func(*mygo.MenuItem, *mygo.Window) { ws.showAbout(check) }
-	}
+	about := func(*mygo.MenuItem, *mygo.Window) { ws.showAbout() }
 	mac := runtime.GOOS == "darwin"
 	settingsItem := &mygo.MenuItem{Label: locales.MenuSettings(), Accelerator: key("settings"), Click: act((*ui.App).ShowSettings)}
 	// macOS has About and Settings in the app's menu, the others About in
 	// Help and Settings in File.
 	appMenu := &mygo.MenuItem{Role: mygo.RoleAppMenu, Submenu: []*mygo.MenuItem{
-		{Label: locales.MenuAbout(), Click: about(false)},
-		{Label: locales.MenuCheckForUpdates(), Click: about(true)},
+		{Label: locales.MenuAbout(), Click: about},
 		mygo.Separator(),
 		settingsItem,
 		mygo.Separator(),
@@ -425,9 +422,7 @@ func menu(ws *windows) *mygo.Menu {
 		{Role: mygo.RoleQuit},
 	}}
 	help := &mygo.MenuItem{Label: locales.MenuHelp(), Hidden: mac, Submenu: []*mygo.MenuItem{
-		{Label: locales.MenuCheckForUpdates(), Click: about(true)},
-		mygo.Separator(),
-		{Label: locales.MenuAbout(), Click: about(false)},
+		{Label: locales.MenuAbout(), Click: about},
 	}}
 	file := []*mygo.MenuItem{
 		{Label: locales.MenuNewWindow(), Accelerator: key("new-window"), Click: func(*mygo.MenuItem, *mygo.Window) { ws.open(nil) }},

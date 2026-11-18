@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -133,21 +134,23 @@ func TestReflow(t *testing.T) {
 }
 
 // The gear at the end of the bar, there before a repository is open
-// too, opens About and checks for updates from its menu.
+// too, opens About from its menu, which has one way there: the check
+// for updates is in that window.
 func TestAppButtonOpensAbout(t *testing.T) {
 	h := newHarness(t)
-	var asked []bool
-	h.app.ShowAbout = func(check bool) { asked = append(asked, check) }
+	asked := 0
+	h.app.ShowAbout = func() { asked++ }
 	h.tt.Frame()
-	for _, item := range []string{"About Ramus", "Check for Updates…"} {
-		h.tt.ClickAt(1200-insetX-14, spaceXS+14)
-		h.tt.Frame()
-		if err := h.tt.ChooseMenuItem(item); err != nil {
-			t.Fatalf("%s: %v; texts %q", item, err, h.tt.Texts())
-		}
-		h.tt.Frame()
+	h.tt.ClickAt(1200-insetX-14, spaceXS+14)
+	h.tt.Frame()
+	if items := h.tt.Menu(); slices.ContainsFunc(items, func(s string) bool { return strings.Contains(s, "Update") }) {
+		t.Fatalf("menu %q", items)
 	}
-	if len(asked) != 2 || asked[0] || !asked[1] {
-		t.Fatalf("About opened as %v", asked)
+	if err := h.tt.ChooseMenuItem("About Ramus"); err != nil {
+		t.Fatalf("%v; texts %q", err, h.tt.Texts())
+	}
+	h.tt.Frame()
+	if asked != 1 {
+		t.Fatalf("About opened %d times", asked)
 	}
 }

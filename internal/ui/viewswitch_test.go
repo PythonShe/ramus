@@ -87,7 +87,7 @@ func TestViewSwitchNarrow(t *testing.T) {
 	h.until("the repository", h.shows("No local changes"))
 	h.tt.SetSize(narrowest, 600)
 	h.settle()
-	for _, name := range []string{"Changes", "History", "Settings, Updates and About"} {
+	for _, name := range []string{"Changes", "History", "Settings and About"} {
 		box, ok := h.tt.Find(name)
 		if !ok {
 			t.Fatalf("no %q", name)

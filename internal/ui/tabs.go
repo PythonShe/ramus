@@ -68,11 +68,8 @@ func (a *App) appButton(c *ui.Context) {
 				return
 			}
 			m.Separator()
-			if item(m, locales.MenuCheckForUpdates(), "check-for-updates").Chosen() {
-				a.ShowAbout(true)
-			}
 			if item(m, locales.MenuAbout(), "about").Chosen() {
-				a.ShowAbout(false)
+				a.ShowAbout()
 			}
 		})
 	}).Label(label)

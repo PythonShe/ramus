@@ -12753,20 +12753,18 @@ func (msgs Messages) KeysSettings() string {
 	return Catalog.Format(msgs.locale, "keysSettings", nil)
 }
 
-// TabsApp says "Settings, Updates and About"
+// TabsApp says "Settings and About"
 // in the language the app shows.
 //
 // Names, for its tooltip and for a screen reader, the gear button at the
-// end of the tab bar, whose menu holds Settings, Check for Updates and
-// About.
+// end of the tab bar, whose menu holds Settings and About.
 func TabsApp() string { return In(i18n.Locale()).TabsApp() }
 
-// TabsApp says "Settings, Updates and About"
+// TabsApp says "Settings and About"
 // in the language of msgs.
 //
 // Names, for its tooltip and for a screen reader, the gear button at the
-// end of the tab bar, whose menu holds Settings, Check for Updates and
-// About.
+// end of the tab bar, whose menu holds Settings and About.
 func (msgs Messages) TabsApp() string {
 	return Catalog.Format(msgs.locale, "tabsApp", nil)
 }
@@ -15167,20 +15165,6 @@ func MenuAbout() string { return In(i18n.Locale()).MenuAbout() }
 // elsewhere in Help.
 func (msgs Messages) MenuAbout() string {
 	return Catalog.Format(msgs.locale, "menuAbout", nil)
-}
-
-// MenuCheckForUpdates says "Check for Updates…"
-// in the language the app shows.
-//
-// The menu item that opens the About window and checks for a newer version.
-func MenuCheckForUpdates() string { return In(i18n.Locale()).MenuCheckForUpdates() }
-
-// MenuCheckForUpdates says "Check for Updates…"
-// in the language of msgs.
-//
-// The menu item that opens the About window and checks for a newer version.
-func (msgs Messages) MenuCheckForUpdates() string {
-	return Catalog.Format(msgs.locale, "menuCheckForUpdates", nil)
 }
 
 // MenuHelp says "Help"

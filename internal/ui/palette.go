@@ -92,7 +92,7 @@ func (a *App) commands(query string) []command {
 	}
 	cmds = append(cmds, cmd("diagnostics", a.openDiagnostics))
 	if a.ShowAbout != nil {
-		cmds = append(cmds, cmd("about", func() { a.ShowAbout(false) }), cmd("check-for-updates", func() { a.ShowAbout(true) }))
+		cmds = append(cmds, cmd("about", a.ShowAbout))
 	}
 	if a.NewWindow != nil {
 		cmds = append(cmds, cmd("new-window", func() { a.NewWindow(nil) }))

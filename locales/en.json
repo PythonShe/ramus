@@ -2700,9 +2700,9 @@
   "keysNew": "New Repository…",
   "keysRepositories": "Repositories…",
   "keysSettings": "Settings…",
-  "tabsApp": "Settings, Updates and About",
+  "tabsApp": "Settings and About",
   "@tabsApp": {
-    "description": "Names, for its tooltip and for a screen reader, the gear button at the end of the tab bar, whose menu holds Settings, Check for Updates and About."
+    "description": "Names, for its tooltip and for a screen reader, the gear button at the end of the tab bar, whose menu holds Settings and About."
   },
   "tabsChangesCount": "{count, number}",
   "@tabsChangesCount": {
@@ -3243,10 +3243,6 @@
   "menuAbout": "About Ramus",
   "@menuAbout": {
     "description": "The menu item that opens the About window; on macOS in the app's menu, elsewhere in Help."
-  },
-  "menuCheckForUpdates": "Check for Updates…",
-  "@menuCheckForUpdates": {
-    "description": "The menu item that opens the About window and checks for a newer version."
   },
   "menuHelp": "Help",
   "@menuHelp": {

@@ -25,16 +25,11 @@ type aboutWindow struct {
 	about *ui.About
 }
 
-// showAbout opens the About window, or brings it forward; check has it
-// check for a newer version at once, as the menu's item does.
-func (ws *windows) showAbout(check bool) {
+// showAbout opens the About window, or brings it forward.
+func (ws *windows) showAbout() {
 	if a := ws.about; a != nil {
 		a.win.Restore()
 		a.win.Focus()
-		if check {
-			a.about.CheckNow()
-			a.win.Invalidate()
-		}
 		return
 	}
 	a := &aboutWindow{about: ui.NewAbout(mygo.App.Version())}
@@ -72,9 +67,6 @@ func (ws *windows) showAbout(check bool) {
 	})
 	ws.about = a
 	a.win.Focus()
-	if check {
-		ab.CheckNow()
-	}
 }
 
 // checkUpdate asks the releases on GitHub for a newer version: the one

@@ -117,7 +117,7 @@ curl -fsSL https://github.com/PythonShe/ramus/releases/latest/download/install.s
 ```
 
 Installs from the install scripts, the `.dmg` and the Windows setup update
-themselves: **Check for Updates** is in the menu. A `.deb` or `.rpm` updates
+themselves: **Check for Updates** is in the About window. A `.deb` or `.rpm` updates
 with a newer package, and an AppImage by downloading the new one.
 
 ## From the command line

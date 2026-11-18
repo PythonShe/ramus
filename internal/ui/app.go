@@ -75,9 +75,9 @@ type Deps struct {
 	// NewWindow opens a window showing the repositories at paths, none
 	// for an empty one; nil offers no other window.
 	NewWindow func(paths []string)
-	// ShowAbout opens the About window, checking for updates at once with
-	// check; nil offers none.
-	ShowAbout func(check bool)
+	// ShowAbout opens the About window, where the check for updates is;
+	// nil offers none.
+	ShowAbout func()
 	// SettingsChanged is called on the main thread with the settings this
 	// window changed, for the other windows to use them.
 	SettingsChanged func(settings.Settings)
