@@ -14,6 +14,7 @@ import (
 	"ramus/internal/crashlog"
 	"ramus/internal/drafts"
 	"ramus/internal/forge"
+	"ramus/internal/git/config"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
@@ -392,18 +393,35 @@ func (a *App) Open(path string) {
 	// Reopened at launch is not opened by the user: the library's order
 	// stays.
 	if a.Library != nil && !restored {
-		lib, now := a.Library, a.Now()
+		lib, now, runner := a.Library, a.Now(), a.Runner
 		// It reads and writes files: never on the main thread.
 		a.goWrite(func() {
 			// A worktree added to a repository is no repository of the
 			// library: its repository lists it, and it comes and goes.
-			if loc, err := repo.Discover(path); err == nil && loc.Added() {
+			if addedWorktree(runner, path) {
 				return
 			}
 			lib.Opened(path, now)
 		})
 	}
 }
+
+// addedWorktree reports whether path is a worktree added to a
+// repository that has a work tree of its own. One it cannot read is
+// none: the repository is then kept, and the picker judges it again.
+func addedWorktree(runner *run.Runner, path string) bool {
+	loc, err := repo.Discover(path)
+	if err != nil || !loc.Linked {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), addedTimeout)
+	defer cancel()
+	cfg, err := config.Read(ctx, runner, loc.GitDir)
+	return err == nil && repo.Added(loc, cfg)
+}
+
+// addedTimeout bounds the reading of one repository's config.
+const addedTimeout = 10 * time.Second
 
 // Close closes the tab at i.
 func (a *App) Close(i int) {

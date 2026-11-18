@@ -136,6 +136,20 @@ func Open(ctx context.Context, r *run.Runner, path string, trusted func(Location
 	return repo, nil
 }
 
+// Added reports a worktree added to a repository that has a work tree
+// of its own: that one is the repository, and this a part of it. The
+// worktrees of a bare repository, which has none, are each a place to
+// open it.
+func (r *Repository) Added() bool { return Added(r.Location, r.Config()) }
+
+// Added is Repository.Added of the repository at loc, whose config is
+// cfg. Whether a repository is bare is what its config says, as to git:
+// neither the name of its directory, which may be .git and bare, nor
+// where it is, which may be apart from its work tree, tells.
+func Added(loc Location, cfg *config.Config) bool {
+	return loc.Linked && cfg != nil && !cfg.Bool("core.bare", false)
+}
+
 // Config returns the repository's config as last read; safe from any
 // goroutine.
 func (r *Repository) Config() *config.Config { return r.config.Load() }

@@ -30,14 +30,6 @@ type Location struct {
 	Submodule bool
 }
 
-// Added reports a worktree added to a repository that has a work tree
-// of its own, the folder its .git directory is in: that one is the
-// repository, and this a part of it. The worktrees of a bare repository,
-// which has none, are each a place to open it.
-func (l Location) Added() bool {
-	return l.Linked && filepath.Base(l.CommonDir) == ".git"
-}
-
 // ErrNotFound means no repository contains the path.
 var ErrNotFound = errors.New("repo: not a git repository")
 
