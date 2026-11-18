@@ -290,8 +290,12 @@ func TestHistoryCountGivesWay(t *testing.T) {
 	}
 	whole, _ := h.tt.Find("20,001 commits")
 
-	hv.detailW = 300
-	h.settle()
+	// How narrow a pane the words give way in is the font's to say: it
+	// narrows until they do, where the number has room to spare.
+	for w := float32(600); w >= 200 && !h.describes("20,001 commits")(); w -= 10 {
+		hv.detailW = w
+		h.settle()
+	}
 	box, _ := h.tt.Find("20,001 commits")
 	if !h.describes("20,001 commits")() || box.W >= whole.W {
 		t.Fatalf("the count %v wide, whole %v: not the number alone", box.W, whole.W)
