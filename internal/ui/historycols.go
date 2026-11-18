@@ -43,11 +43,12 @@ import (
 // The message is what a row is read by. It would like the room its
 // subjects take, up to historyMessageWant, or the width the user gave it
 // if less: when the list is too narrow for that, the free room at the end
-// goes first, then the columns shut, the author, then the date, and then
-// the graph goes thin; they come back as the list widens. Only then does
-// the message narrow, down to historyMessageMin, short of which the hash
-// shuts too. Nor does a drag widen a column into the room the message
-// would like.
+// goes first, then the columns shut from the right, the hash, then the
+// date, and then the graph goes thin; they come back as the list widens.
+// Only then does the message narrow, down to historyMessageMin, short of
+// which the author shuts too, and the graph is whole again if that leaves
+// it room. Nor does a drag widen a column into the room the message would
+// like.
 
 type histColumn int
 
@@ -455,11 +456,12 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) colWant {
 	for k := range histColumns {
 		room -= cw.w[k] + columnGap(k, cw.w[k], handles[k])
 	}
-	// Short of room, the columns give way first, each whole: a column
-	// shows its values in full or not at all. Then the graph goes thin.
-	// The hash, which takes little and is what a commit is looked up and
-	// copied by, as beside its patch, stays while the message can narrow
-	// to keep it, down to its least.
+	// Short of room, the columns give way first, each whole, from the
+	// right: a column shows its values in full or not at all. The hash
+	// goes first, which the commit's detail beside the list shows and
+	// copies too, then the date; then the graph goes thin. The author,
+	// who tells the commits apart at a glance, stays while the message
+	// can narrow to keep them, down to its least.
 	shut := func(k histColumn) {
 		if k != dragged && cw.w[k] > 0 {
 			room += cw.w[k] + columnGap(k, cw.w[k], handles[k]) - columnGap(k, 0, handles[k])
@@ -467,18 +469,25 @@ func (a *App) columnWidths(hv *historyState, snap *lanes.Snapshot) colWant {
 			cw.gaveWay = true
 		}
 	}
-	for _, k := range [...]histColumn{colAuthor, colDate} {
+	for _, k := range [...]histColumn{colHash, colDate} {
 		if room < 0 {
 			shut(k)
 		}
 	}
-	if thin := graphThin(snap); room < 0 && dragged != colGraph && cw.w[colGraph] > thin {
-		room += cw.w[colGraph] - thin
-		cw.w[colGraph] = thin
+	full, thinned := cw.w[colGraph], false
+	if thin := graphThin(snap); room < 0 && dragged != colGraph && full > thin {
+		room += full - thin
+		cw.w[colGraph], thinned = thin, true
 		cw.gaveWay = true
 	}
 	if room+want-historyMessageMin < 0 {
-		shut(colHash)
+		shut(colAuthor)
+		// The author gone, the graph is whole again if that leaves it
+		// room.
+		if back := full - cw.w[colGraph]; thinned && room >= back {
+			room -= back
+			cw.w[colGraph] = full
+		}
 	}
 	// The message takes the room, up to the width it keeps; the rest is
 	// free at the end. With a column given way there is no room to leave

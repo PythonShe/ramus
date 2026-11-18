@@ -689,15 +689,16 @@ func TestHistoryColumns(t *testing.T) {
 	}
 
 	// Narrowed, the list gives up the room at the end first, then shuts
-	// the author, the date, the hash, each whole, and keeps the message.
+	// the columns from the right, each whole: the hash, the date, then
+	// the author, and keeps the message.
 	h.app.Settings.HistoryColumns, h.app.Settings.HistoryMessage = nil, 0
 	for _, c := range []struct {
 		w     float32
 		shown [histColumns]bool
 	}{
 		{640, [histColumns]bool{true, true, true, true}},
-		{560, [histColumns]bool{true, false, true, true}},
-		{400, [histColumns]bool{true, false, false, true}},
+		{560, [histColumns]bool{true, true, true, false}},
+		{400, [histColumns]bool{true, true, false, false}},
 		{280, [histColumns]bool{true, false, false, false}},
 	} {
 		hv.detailW = c.w
@@ -720,9 +721,9 @@ func TestHistoryColumns(t *testing.T) {
 	}
 	hv.detailW = 560
 	settle()
-	// The author shut, the hash kept: the message takes what the author
-	// left over the hash's room.
-	if want := 260 - authorPicture + histColumnWidth[colAuthor] + spaceM - histColumnWidth[colHash]; hv.cols.shown[colAuthor] || !hv.cols.shown[colHash] || hv.cols.end != 0 || at("Message").W != want {
+	// The hash shut, the author kept: the message takes what the hash
+	// left.
+	if want := 196 - authorPicture + histColumnWidth[colHash]; !hv.cols.shown[colAuthor] || hv.cols.shown[colHash] || hv.cols.end != 0 || at("Message").W != want {
 		t.Fatalf("narrowed: room at the end %v, message %v, columns %v", hv.cols.end, at("Message").W, hv.cols.shown)
 	}
 }
@@ -795,9 +796,9 @@ func TestHistoryGraphCollapses(t *testing.T) {
 		t.Fatalf("divider clicked, graph %v wide, want %v", hv.cols.w[colGraph], full)
 	}
 
-	// A list too narrow for the message, once the author, the date and
-	// the hash are shut, has the graph go thin, and full again as it
-	// widens.
+	// A list too narrow for the message, once the hash and the date are
+	// shut, has the graph go thin before the author shuts, and full again
+	// as it widens.
 	for _, c := range []struct{ w, graph float32 }{{360, full}, {260, thin}, {640, full}} {
 		hv.detailW = c.w
 		settle()
@@ -864,10 +865,10 @@ func TestHistoryGraphCollapses(t *testing.T) {
 	}
 }
 
-// The message gives way after the author and the date: as the list
+// The message gives way after the hash and the date: as the list
 // narrows, they shut and the graph goes thin while the message keeps the
 // room its long subject would like; only then does it narrow, and the
-// hash shuts only short of the message's least.
+// author shuts only short of the message's least.
 func TestHistoryMessageStaysLast(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
@@ -890,15 +891,15 @@ func TestHistoryMessageStaysLast(t *testing.T) {
 		h.tt.Frame()
 		h.tt.Advance(time.Second)
 		msg, _ := h.tt.Find("Message")
-		others := hv.cols.shown[colAuthor] || hv.cols.shown[colDate]
+		others := hv.cols.shown[colHash] || hv.cols.shown[colDate]
 		if others && msg.W < hv.msgWant-1 {
 			t.Fatalf("a list %v wide narrows the message to %v, under %v, with columns %v", w, msg.W, hv.msgWant, hv.cols.shown)
 		}
 		if msg.W < min(hv.msgWant, historyMessageMin)-1 {
 			t.Fatalf("a list %v wide leaves the message %v", w, msg.W)
 		}
-		if hash := hv.cols.shown[colHash]; !others && !hash && msg.W >= historyMessageMin+histColumnWidth[colHash] {
-			t.Fatalf("a list %v wide shuts the hash, the message %v", w, msg.W)
+		if author := hv.cols.shown[colAuthor]; !others && !author && msg.W >= historyMessageMin+histColumnWidth[colAuthor]+spaceM {
+			t.Fatalf("a list %v wide shuts the author, the message %v", w, msg.W)
 		}
 	}
 }
@@ -947,7 +948,7 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 		t.Fatalf("the hash hidden and shown from the menu: message kept at %v", m)
 	}
 
-	// The author given way, the message's divider makes too little room
+	// The hash given way, the message's divider makes too little room
 	// for it: let go, the message takes the room back. The window is as
 	// wide as the lists below need beside the commit's least.
 	h.tt.SetSize(1600, 800)
@@ -958,12 +959,12 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	// machine does frames later.
 	h.until("the subjects measured", func() bool { settle(); return hv.msgWant == historyMessageWant })
 	settle()
-	if hv.msgWant != historyMessageWant || hv.cols.shown[colAuthor] {
+	if hv.msgWant != historyMessageWant || hv.cols.shown[colHash] || !hv.cols.shown[colAuthor] {
 		t.Fatalf("message would like %v; columns %v", hv.msgWant, hv.cols.shown)
 	}
 	msg, _ := h.tt.Find("Message")
-	d, _ := h.tt.Find("Date")
-	x, y = d.X-spaceM/2, d.Y+d.H/2
+	au, _ := h.tt.Find("Author")
+	x, y = au.X-spaceM/2, au.Y+au.H/2
 	h.tt.Press(x, y)
 	h.tt.Frame()
 	h.tt.Move(x-50, y)
@@ -976,17 +977,17 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	if now, _ := h.tt.Find("Message"); h.app.Settings.HistoryMessage != 0 || now.W != msg.W {
 		t.Fatalf("message %v let go, from %v; kept at %v", now.W, msg.W, h.app.Settings.HistoryMessage)
 	}
-	// Enough room for the author, it comes back, and the message keeps
+	// Enough room for the hash, it comes back, and the message keeps
 	// the width it was given.
-	back := histColumnWidth[colAuthor] + spaceM
+	back := histColumnWidth[colHash]
 	h.tt.Press(x, y)
 	h.tt.Frame()
 	h.tt.Move(x-back, y)
 	h.tt.Frame()
 	h.tt.Release(x-back, y)
 	settle()
-	if !hasExact(h, "Author") || h.app.Settings.HistoryMessage != msg.W-back {
-		t.Fatalf("author back %v, message kept at %v", hasExact(h, "Author"), h.app.Settings.HistoryMessage)
+	if !hv.cols.shown[colHash] || h.app.Settings.HistoryMessage != msg.W-back {
+		t.Fatalf("hash back %v, message kept at %v", hv.cols.shown[colHash], h.app.Settings.HistoryMessage)
 	}
 	// Wide, the message narrows by its divider below the room its long
 	// subject would like, down to its least, every column shown.
