@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"strconv"
-
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/session"
@@ -41,7 +39,7 @@ func (a *App) viewSwitch(c *ui.Context, t *tab) {
 				ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Shrink(1).Children(func() {
 					ui.Text(c, v.name).SingleLine().Shrink(0)
 					if v.count > 0 {
-						ui.Text(c, strconv.Itoa(v.count)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Shrink(1)
+						ui.Text(c, locales.TabsChangesCount(v.count)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine().Shrink(1)
 					}
 				})
 			})

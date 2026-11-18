@@ -12595,6 +12595,22 @@ func (msgs Messages) TabsApp() string {
 	return Catalog.Format(msgs.locale, "tabsApp", nil)
 }
 
+// TabsChangesCount says "{count, number}"
+// in the language the app shows.
+//
+// The number of files changed, beside Changes in the bar's pair of Changes
+// and History.
+func TabsChangesCount(count int) string { return In(i18n.Locale()).TabsChangesCount(count) }
+
+// TabsChangesCount says "{count, number}"
+// in the language of msgs.
+//
+// The number of files changed, beside Changes in the bar's pair of Changes
+// and History.
+func (msgs Messages) TabsChangesCount(count int) string {
+	return Catalog.Format(msgs.locale, "tabsChangesCount", map[string]any{"count": count})
+}
+
 // TabsViews says "Views"
 // in the language the app shows.
 //

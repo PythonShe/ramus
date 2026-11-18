@@ -2663,6 +2663,10 @@
   "@tabsApp": {
     "description": "Names, for its tooltip and for a screen reader, the gear button at the end of the tab bar, whose menu holds Settings, Check for Updates and About."
   },
+  "tabsChangesCount": "{count, number}",
+  "@tabsChangesCount": {
+    "description": "The number of files changed, beside Changes in the bar's pair of Changes and History."
+  },
   "tabsViews": "Views",
   "@tabsViews": {
     "description": "Names, for a screen reader, the pair of buttons in the bar that show the Changes page or the History page."
