@@ -60,6 +60,8 @@ const (
 const (
 	textSmall   = 12
 	textCaption = 11
+	// textTitle heads a pane of a dialog that has several.
+	textTitle   = 15
 	textDisplay = 28
 )
 
@@ -90,7 +92,13 @@ const treeIndent = spaceXL
 const (
 	radiusSmall = 4
 	radiusLarge = 10
+	// radiusPanel rounds a dialog that holds panels, a step over theirs.
+	radiusPanel = 14
 )
+
+// hairline is the color of a line between rows of one box, or panes of
+// one dialog: fainter than the theme's Border, which outlines controls.
+func hairline(th *ui.Theme) ui.Color { return th.Text.Alpha(0.08) }
 
 // Dialog widths. A dialog whose content sets its size, a chart or a
 // table, gives its own.
@@ -236,6 +244,24 @@ func infoButton(c *ui.Context, open *bool, label, text string, color ui.Color) {
 	ui.Popover(c, b, open, func() {
 		ui.Text(c, text).FontSize(textSmall).MaxWidth(320).Selectable()
 	})
+}
+
+// dismissButton is the x that closes a dialog without buttons of its
+// own, named label for assistive technology: in a disc, as a sheet's on
+// the system, so that it is found at a corner with nothing beside it.
+func dismissButton(c *ui.Context, label string) ui.Element {
+	th := c.Theme()
+	b := ui.ButtonBase(c).Label(label).Tooltip(label).Size(controlHeight-spaceXS, controlHeight-spaceXS).Radius(controlHeight).Center().Shrink(0)
+	wash := float32(0.07)
+	switch {
+	case b.Pressed():
+		wash = 0.18
+	case b.Hovered():
+		wash = 0.12
+	}
+	b.Background(th.Text.Alpha(wash))
+	b.Children(func() { ui.Icon(c, glyphs().xThick).FontSize(iconSmall).TextColor(th.TextMuted) })
+	return b
 }
 
 // closeButton is the x that closes a tab or a pane, named label for

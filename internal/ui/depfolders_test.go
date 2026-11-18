@@ -26,6 +26,7 @@ func TestDependencyFoldersHidden(t *testing.T) {
 	}
 
 	h.app.openSettings()
+	h.app.settingsUI.pane = paneRepositories
 	h.tt.Frame()
 	sw, ok := h.tt.AccessByRole(ui.RoleSwitch, "Hide dependency folders git does not track")
 	if !ok || !sw.Checked {

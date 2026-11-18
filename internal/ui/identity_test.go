@@ -75,7 +75,7 @@ func TestIdentityUnknown(t *testing.T) {
 	h.tt.Type("Some One")
 	s.ident.Email = "some@example.com"
 	h.tt.Frame()
-	h.click("Done")
+	h.click("Close")
 	h.until("the config", func() bool {
 		b, _ := os.ReadFile(cfg)
 		return strings.Contains(string(b), "name = Some One") && strings.Contains(string(b), "email = some@example.com")
@@ -170,6 +170,7 @@ func TestIdentityInRepository(t *testing.T) {
 	h.until("the repository", h.shows("No local changes"))
 	h.app.openSettings()
 	s := &h.app.settingsUI
+	s.pane = paneGit
 	h.until("the identity", func() bool { return s.identRead })
 	if s.ident.Name != "Only Here" || s.ident.Email != "work@example.com" {
 		t.Fatalf("read %+v", s.ident)

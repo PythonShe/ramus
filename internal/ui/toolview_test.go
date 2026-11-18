@@ -90,6 +90,7 @@ func TestDifftoolSwitch(t *testing.T) {
 	set := func(on bool) {
 		t.Helper()
 		h.app.openSettings()
+		h.app.settingsUI.pane = paneTools
 		h.until("read", func() bool { return h.app.settingsUI.difftoolRead })
 		if h.app.settingsUI.difftool == on {
 			t.Fatalf("already %v", on)

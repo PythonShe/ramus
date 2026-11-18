@@ -2210,15 +2210,15 @@
   "treemapChangeCount": "{count, plural, one {# change} other {# changes}}",
   "settingsTitle": "Settings",
   "@settingsTitle": {
-    "description": "The settings dialog's title."
+    "description": "The settings dialog's title, over the names of its panes."
   },
   "settingsGeneral": "General",
   "@settingsGeneral": {
-    "description": "The heading of the first group of settings: appearance and language."
+    "description": "The first pane of the settings, in its sidebar and as its heading: appearance, language, keyboard shortcuts and the settings file."
   },
   "settingsGit": "Git",
   "@settingsGit": {
-    "description": "The heading of the settings of git itself: who commits are by, the user's other email addresses, the branch a new repository starts on."
+    "description": "The pane of the settings of git itself, in its sidebar and as its heading: who commits are by, the user's other email addresses, the branch a new repository starts on."
   },
   "settingsGitName": "Name",
   "@settingsGitName": {
@@ -2258,15 +2258,11 @@
   },
   "settingsRepositories": "Repositories",
   "@settingsRepositories": {
-    "description": "The heading of the settings for open repositories: fetching, refreshing, pull requests, the recent list, snapshots."
+    "description": "The pane of the settings for open repositories, in its sidebar and as its heading: fetching, refreshing, pull requests, the recent list, snapshots."
   },
   "settingsTools": "Tools",
   "@settingsTools": {
-    "description": "The heading of the settings naming the editor and terminal the app opens."
-  },
-  "settingsAdvanced": "Advanced",
-  "@settingsAdvanced": {
-    "description": "The heading of the last settings: the keyboard shortcuts and the settings file."
+    "description": "The pane of the settings naming the editor and terminal the app opens, in its sidebar and as its heading."
   },
   "settingsAppearance": "Appearance",
   "settingsLanguage": "Language",

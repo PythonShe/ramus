@@ -10778,13 +10778,13 @@ func (msgs Messages) TreemapChangeCount(count int) string {
 // SettingsTitle says "Settings"
 // in the language the app shows.
 //
-// The settings dialog's title.
+// The settings dialog's title, over the names of its panes.
 func SettingsTitle() string { return In(i18n.Locale()).SettingsTitle() }
 
 // SettingsTitle says "Settings"
 // in the language of msgs.
 //
-// The settings dialog's title.
+// The settings dialog's title, over the names of its panes.
 func (msgs Messages) SettingsTitle() string {
 	return Catalog.Format(msgs.locale, "settingsTitle", nil)
 }
@@ -10792,13 +10792,15 @@ func (msgs Messages) SettingsTitle() string {
 // SettingsGeneral says "General"
 // in the language the app shows.
 //
-// The heading of the first group of settings: appearance and language.
+// The first pane of the settings, in its sidebar and as its heading:
+// appearance, language, keyboard shortcuts and the settings file.
 func SettingsGeneral() string { return In(i18n.Locale()).SettingsGeneral() }
 
 // SettingsGeneral says "General"
 // in the language of msgs.
 //
-// The heading of the first group of settings: appearance and language.
+// The first pane of the settings, in its sidebar and as its heading:
+// appearance, language, keyboard shortcuts and the settings file.
 func (msgs Messages) SettingsGeneral() string {
 	return Catalog.Format(msgs.locale, "settingsGeneral", nil)
 }
@@ -10806,15 +10808,17 @@ func (msgs Messages) SettingsGeneral() string {
 // SettingsGit says "Git"
 // in the language the app shows.
 //
-// The heading of the settings of git itself: who commits are by, the user's
-// other email addresses, the branch a new repository starts on.
+// The pane of the settings of git itself, in its sidebar and as its
+// heading: who commits are by, the user's other email addresses, the branch
+// a new repository starts on.
 func SettingsGit() string { return In(i18n.Locale()).SettingsGit() }
 
 // SettingsGit says "Git"
 // in the language of msgs.
 //
-// The heading of the settings of git itself: who commits are by, the user's
-// other email addresses, the branch a new repository starts on.
+// The pane of the settings of git itself, in its sidebar and as its
+// heading: who commits are by, the user's other email addresses, the branch
+// a new repository starts on.
 func (msgs Messages) SettingsGit() string {
 	return Catalog.Format(msgs.locale, "settingsGit", nil)
 }
@@ -10972,15 +10976,15 @@ func (msgs Messages) SettingsGitReadFailed(error string) string {
 // SettingsRepositories says "Repositories"
 // in the language the app shows.
 //
-// The heading of the settings for open repositories: fetching, refreshing,
-// pull requests, the recent list, snapshots.
+// The pane of the settings for open repositories, in its sidebar and as its
+// heading: fetching, refreshing, pull requests, the recent list, snapshots.
 func SettingsRepositories() string { return In(i18n.Locale()).SettingsRepositories() }
 
 // SettingsRepositories says "Repositories"
 // in the language of msgs.
 //
-// The heading of the settings for open repositories: fetching, refreshing,
-// pull requests, the recent list, snapshots.
+// The pane of the settings for open repositories, in its sidebar and as its
+// heading: fetching, refreshing, pull requests, the recent list, snapshots.
 func (msgs Messages) SettingsRepositories() string {
 	return Catalog.Format(msgs.locale, "settingsRepositories", nil)
 }
@@ -10988,31 +10992,17 @@ func (msgs Messages) SettingsRepositories() string {
 // SettingsTools says "Tools"
 // in the language the app shows.
 //
-// The heading of the settings naming the editor and terminal the app opens.
+// The pane of the settings naming the editor and terminal the app opens, in
+// its sidebar and as its heading.
 func SettingsTools() string { return In(i18n.Locale()).SettingsTools() }
 
 // SettingsTools says "Tools"
 // in the language of msgs.
 //
-// The heading of the settings naming the editor and terminal the app opens.
+// The pane of the settings naming the editor and terminal the app opens, in
+// its sidebar and as its heading.
 func (msgs Messages) SettingsTools() string {
 	return Catalog.Format(msgs.locale, "settingsTools", nil)
-}
-
-// SettingsAdvanced says "Advanced"
-// in the language the app shows.
-//
-// The heading of the last settings: the keyboard shortcuts and the settings
-// file.
-func SettingsAdvanced() string { return In(i18n.Locale()).SettingsAdvanced() }
-
-// SettingsAdvanced says "Advanced"
-// in the language of msgs.
-//
-// The heading of the last settings: the keyboard shortcuts and the settings
-// file.
-func (msgs Messages) SettingsAdvanced() string {
-	return Catalog.Format(msgs.locale, "settingsAdvanced", nil)
 }
 
 // SettingsAppearance says "Appearance"

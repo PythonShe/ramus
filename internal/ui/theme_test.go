@@ -48,7 +48,7 @@ func TestThemeChosen(t *testing.T) {
 	h.app.openSettings()
 	h.tt.Frame()
 	h.click("Light")
-	h.click("Done")
+	h.click("Close")
 	if px, want := h.tt.Image().RGBAAt(600, 790), ivoryTheme().Background; px.R != want.R || px.G != want.G || px.B != want.B {
 		t.Errorf("Light chosen: %v, want %v", px, want)
 	}

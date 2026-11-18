@@ -409,6 +409,7 @@ func TestSettings(t *testing.T) {
 	if name := h.app.palette.auto[tools.Editor]; name != "" {
 		auto = "Automatic (" + name + ")"
 	}
+	h.click("Tools")
 	h.click(auto)
 	h.click("Other…")
 	h.until("refused", func() bool { return h.app.settingsUI.err != "" && h.app.settingsUI.editor == nil })
@@ -419,9 +420,9 @@ func TestSettings(t *testing.T) {
 	if len(h.app.Settings.Editor) != 1 || h.app.Settings.Editor[0] != exe {
 		t.Fatalf("editor %+v", h.app.Settings)
 	}
-	h.click("Done")
+	h.click("Close")
 	if h.app.settingsUI.open {
-		t.Fatal("Done left the settings open")
+		t.Fatal("Close left the settings open")
 	}
 	h.app.openSettings()
 	if h.app.settingsUI.lang != "English" {

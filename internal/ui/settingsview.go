@@ -24,8 +24,18 @@ import (
 	"ramus/locales"
 )
 
+// The panes of the settings, which its sidebar chooses among.
+const (
+	paneGeneral      = "general"
+	paneGit          = "git"
+	paneRepositories = "repositories"
+	paneTools        = "tools"
+)
+
 type settingsState struct {
 	open bool
+	// pane is the pane shown, kept from one opening to the next.
+	pane string
 	// edit is the form; what it says is in force at once (applySettings).
 	edit  settings.Settings
 	theme int
@@ -65,6 +75,9 @@ type settingsState struct {
 func (a *App) openSettings() {
 	s := &a.settingsUI
 	s.open, s.err = true, ""
+	if s.pane == "" {
+		s.pane = paneGeneral
+	}
 	a.loadSettingsForm()
 	s.difftool, s.difftoolWas, s.difftoolRead = false, false, false
 	a.readDifftool()
@@ -79,7 +92,7 @@ func (a *App) openSettings() {
 // commits with, for a commit git refused for want of it.
 func (a *App) openIdentity() {
 	a.openSettings()
-	a.settingsUI.focusName = true
+	a.settingsUI.pane, a.settingsUI.focusName = paneGit, true
 }
 
 // loadSettingsForm puts the settings in force in the form: as it opens,
@@ -122,9 +135,16 @@ func indexOf(xs []string, x string) int {
 	return -1
 }
 
-// settingsControlW is the width of the settings' menus and text
-// inputs, at the end of their rows, so that they line up.
-const settingsControlW = 220
+// The settings' sizes: the dialog's, which no pane outgrows, so that
+// choosing another moves nothing; its sidebar's; and the width of the
+// text inputs at the end of their rows, which a menu's choice stays
+// within.
+const (
+	settingsW        = 800
+	settingsH        = 500
+	settingsSideW    = 200
+	settingsControlW = 220
+)
 
 func (a *App) settingsView(c *ui.Context) {
 	s := &a.settingsUI
@@ -134,61 +154,163 @@ func (a *App) settingsView(c *ui.Context) {
 	}
 	th := c.Theme()
 	ww, wh := c.Size()
-	// A modal of the theme's look but for its padding, so that the line
-	// above the buttons runs from edge to edge.
+	// A modal of a look of its own: the panes' names down its side, as
+	// the system's settings have them, and the pane chosen beside them.
 	a.dialogBase(c, &s.open, func(back, panel ui.Element) {
 		back.Background(ui.RGBA(0, 0, 0, 0.4))
-		panel.Width(min(dialogMedium+40, ww-2*space2XL)).MaxHeight(max(wh-2*space2XL, 240)).Radius(radiusLarge).Background(th.Background).
-			Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
-		// The title and the buttons stay; what is between them scrolls
-		// when the window is too short for it.
-		ui.Column(c).FillWidth().Grow(1).Shrink(1).MinHeight(0).Children(func() {
-			ui.Text(c, locales.SettingsTitle()).Bold().Padding(dialogPad, dialogPad, spaceM, dialogPad)
-			ui.Scroll(c).Grow(1).Shrink(1).FillWidth().Children(func() {
-				ui.Column(c).Gap(space2XL).Padding(spaceM, dialogPad, dialogPad, dialogPad).Children(func() {
-					a.settingsSections(c)
+		panel.Width(min(settingsW, ww-2*space2XL)).Height(min(settingsH, wh-2*space2XL)).Radius(radiusPanel).Background(th.Background).Clip().
+			Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3)).Label(locales.SettingsTitle())
+		ui.Row(c).Fill().Children(func() {
+			a.settingsSidebar(c)
+			ui.Box(c).Width(1).FillHeight().Background(hairline(th))
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).FillHeight().Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Padding(spaceXL, dialogPad, spaceL, dialogPad).Children(func() {
+					ui.Text(c, settingsPaneName(s.pane)).FontSize(textTitle).Bold().Grow(1).Shrink(1).SingleLine()
+					if dismissButton(c, locales.CommonClose()).Clicked() {
+						s.open = false
+					}
 				})
-			})
-			if s.err != "" {
-				ui.Text(c, s.err).TextColor(th.Danger).Padding(spaceS, dialogPad)
-			}
-			ui.Divider(c)
-			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Padding(spaceL, dialogPad).Children(func() {
-				ui.Spacer(c)
-				if ui.PrimaryButton(c, locales.CommonDone()).Clicked() {
-					s.open = false
+				// The pane's name and the x stay; a pane scrolls when
+				// the window is too short for it.
+				ui.Scroll(c).Grow(1).Shrink(1).FillWidth().Children(func() {
+					ui.Column(c).Gap(spaceXL).Padding(0, dialogPad, dialogPad, dialogPad).Children(func() {
+						a.settingsPane(c)
+					})
+				})
+				if s.err != "" {
+					ui.Text(c, s.err).FontSize(textSmall).TextColor(th.Danger).Padding(spaceM, dialogPad, spaceL, dialogPad).Selectable()
 				}
 			})
 		})
 	})
 }
 
-// settingsSections are the settings, grouped as the system's are: each
-// group a box of rows under its heading, a row's name at its start and
-// its control at its end. Every value is chosen, none typed, but the
-// email addresses.
-func (a *App) settingsSections(c *ui.Context) {
+// settingsSidebar is the settings' title over the names of its panes.
+func (a *App) settingsSidebar(c *ui.Context) {
 	s := &a.settingsUI
-	settingsGroup(c, locales.SettingsGeneral(), func(row settingsRow) {
-		row(locales.SettingsAppearance(), func() ui.Element {
-			return ui.Segmented(c, &s.theme, locales.SettingsThemeSystem(), locales.SettingsThemeLight(), locales.SettingsThemeDark())
+	th := c.Theme()
+	g := glyphs()
+	ui.Column(c).Width(settingsSideW).Shrink(0).FillHeight().Background(th.Text.Alpha(0.03)).Children(func() {
+		// In line with the items' icons, which the sidebar and each
+		// item pad.
+		ui.Text(c, locales.SettingsTitle()).Bold().TextColor(th.TextMuted).FontSize(textSmall).Padding(spaceXL, spaceXL+space2XS, spaceXS, spaceXL+space2XS)
+		ui.Sidebar(c, &s.pane, func() {
+			ui.SidebarItem(c, paneGeneral, g.gear, locales.SettingsGeneral())
+			ui.SidebarItem(c, paneGit, g.branch, locales.SettingsGit())
+			ui.SidebarItem(c, paneRepositories, g.repo, locales.SettingsRepositories())
+			ui.SidebarItem(c, paneTools, g.terminal, locales.SettingsTools())
+		}).Background(ui.RGBA(0, 0, 0, 0)).FillWidth().Grow(1).Label(locales.SettingsTitle())
+	})
+}
+
+// settingsPaneName is what the sidebar calls a pane, its heading too.
+func settingsPaneName(pane string) string {
+	switch pane {
+	case paneGit:
+		return locales.SettingsGit()
+	case paneRepositories:
+		return locales.SettingsRepositories()
+	case paneTools:
+		return locales.SettingsTools()
+	}
+	return locales.SettingsGeneral()
+}
+
+// settingsPane is the pane chosen, its settings grouped as the system's
+// are: each group a box of rows, a row's name at its start and its
+// control at its end. Every value is chosen, none typed, but git's own
+// and the email addresses.
+func (a *App) settingsPane(c *ui.Context) {
+	s := &a.settingsUI
+	switch s.pane {
+	case paneGit:
+		a.settingsGit(c)
+	case paneRepositories:
+		settingsGroup(c, func(row settingsRow) {
+			row(locales.SettingsFetch(), func() ui.Element {
+				return quietSelect(c, choice(c, &s.fetchMinutes, fetchChoices, func(n int) string {
+					switch {
+					case n == 0:
+						return locales.SettingsFetchNever()
+					case n%60 == 0:
+						return locales.SettingsEveryHours(n / 60)
+					}
+					return locales.SettingsEveryMinutes(n)
+				}))
+			})
+			row(locales.SettingsFocusRefresh(), func() ui.Element { return ui.Switch(c, &s.focusRefresh) })
 		})
-		if a.SetLocale != nil {
-			row(locales.SettingsLanguage(), func() ui.Element {
-				_, names := a.languageChoices()
-				return ui.Select(c, &s.lang, names).Width(settingsControlW)
+		settingsGroup(c, func(row settingsRow) {
+			row(locales.SettingsHideDependencies(), func() ui.Element { return ui.Switch(c, &s.hideDeps) })
+			row(locales.SettingsPullRequests(), func() ui.Element { return ui.Switch(c, &s.pulls) })
+		})
+		settingsGroup(c, func(row settingsRow) {
+			row(locales.SettingsRecentLimit(), func() ui.Element {
+				return quietSelect(c, choice(c, &s.recent, []int{5, 10, 20, 50, 100}, strconv.Itoa))
+			})
+			row(locales.SettingsSnapshotDays(), func() ui.Element {
+				return quietSelect(c, choice(c, &s.days, []int{7, 14, 30, 90, 365}, locales.SettingsDays))
+			})
+		})
+	case paneTools:
+		settingsGroup(c, func(row settingsRow) {
+			row(locales.SettingsEditor(), func() ui.Element { return quietSelect(c, a.toolChoice(c, tools.Editor, &s.editor)) })
+			row(locales.SettingsTerminal(), func() ui.Element { return quietSelect(c, a.toolChoice(c, tools.Terminal, &s.terminal)) })
+		})
+		if a.Program != "" && a.Runner != nil {
+			settingsGroup(c, func(row settingsRow) {
+				row(locales.SettingsDiffTool(), func() ui.Element {
+					return ui.Switch(c, &s.difftool).Disabled(!s.difftoolRead)
+				})
 			})
 		}
-	})
-	settingsGroup(c, locales.SettingsGit(), func(row settingsRow) {
-		if a.Runner != nil {
-			field := func(v *string, from write.Origin) ui.Element {
-				in := ui.TextInput(c, v).Width(settingsControlW).Disabled(!s.identRead)
-				if in.Submitted() {
-					a.saveIdentity()
-				}
-				return identTooltip(in, from)
+	default:
+		settingsGroup(c, func(row settingsRow) {
+			row(locales.SettingsAppearance(), func() ui.Element {
+				return ui.Segmented(c, &s.theme, locales.SettingsThemeSystem(), locales.SettingsThemeLight(), locales.SettingsThemeDark())
+			})
+			if a.SetLocale != nil {
+				row(locales.SettingsLanguage(), func() ui.Element {
+					_, names := a.languageChoices()
+					return quietSelect(c, ui.Select(c, &s.lang, names))
+				})
 			}
+		})
+		settingsGroup(c, func(row settingsRow) {
+			row(locales.SettingsKeyboardShortcuts(), func() ui.Element {
+				b := ui.Button(c, locales.SettingsCustomize())
+				if b.Clicked() {
+					a.openKeys()
+				}
+				return b
+			})
+			if a.SettingsPath != "" {
+				row(locales.SettingsFile(), func() ui.Element {
+					b := ui.Button(c, locales.SettingsOpenFile())
+					if b.Clicked() {
+						p := a.SettingsPath
+						a.goWork(nil, func() { tools.OpenDefault(p) })
+					}
+					return b
+				})
+			}
+		})
+	}
+}
+
+// settingsGit is the pane of git's own settings: who commits are by,
+// and the branch a new repository starts on.
+func (a *App) settingsGit(c *ui.Context) {
+	s := &a.settingsUI
+	field := func(v *string, from write.Origin) ui.Element {
+		in := settingsField(c, v).Disabled(!s.identRead)
+		if in.Submitted() {
+			a.saveIdentity()
+		}
+		return identTooltip(in, from)
+	}
+	settingsGroup(c, func(row settingsRow) {
+		if a.Runner != nil {
 			row(locales.SettingsGitName(), func() ui.Element {
 				in := field(&s.ident.Name, s.identFrom[0]).Bind(&s.nameField)
 				if s.focusName && s.identRead {
@@ -200,70 +322,38 @@ func (a *App) settingsSections(c *ui.Context) {
 			row(locales.SettingsGitEmail(), func() ui.Element { return field(&s.ident.Email, s.identFrom[1]) })
 		}
 		row(locales.SettingsEmails(), func() ui.Element {
-			return ui.TextInput(c, &s.emails).Placeholder(locales.SettingsEmailsExample()).Width(settingsControlW)
+			return settingsField(c, &s.emails).Placeholder(locales.SettingsEmailsExample())
 		})
-		if a.Runner != nil {
+	})
+	if a.Runner != nil {
+		settingsGroup(c, func(row settingsRow) {
 			row(locales.SettingsDefaultBranch(), func() ui.Element {
-				in := ui.TextInput(c, &s.ident.DefaultBranch).Placeholder(locales.SettingsDefaultBranchGit()).Width(settingsControlW).Disabled(!s.identRead)
-				if in.Submitted() {
-					a.saveIdentity()
-				}
-				return identTooltip(in, s.identFrom[2])
+				return field(&s.ident.DefaultBranch, s.identFrom[2]).Placeholder(locales.SettingsDefaultBranchGit())
 			})
-		}
-	})
-	settingsGroup(c, locales.SettingsRepositories(), func(row settingsRow) {
-		row(locales.SettingsFetch(), func() ui.Element {
-			return choice(c, &s.fetchMinutes, fetchChoices, func(n int) string {
-				switch {
-				case n == 0:
-					return locales.SettingsFetchNever()
-				case n%60 == 0:
-					return locales.SettingsEveryHours(n / 60)
-				}
-				return locales.SettingsEveryMinutes(n)
-			}).Width(settingsControlW)
 		})
-		row(locales.SettingsFocusRefresh(), func() ui.Element { return ui.Switch(c, &s.focusRefresh) })
-		row(locales.SettingsHideDependencies(), func() ui.Element { return ui.Switch(c, &s.hideDeps) })
-		row(locales.SettingsPullRequests(), func() ui.Element { return ui.Switch(c, &s.pulls) })
-		row(locales.SettingsRecentLimit(), func() ui.Element {
-			return choice(c, &s.recent, []int{5, 10, 20, 50, 100}, strconv.Itoa).Width(settingsControlW)
-		})
-		row(locales.SettingsSnapshotDays(), func() ui.Element {
-			return choice(c, &s.days, []int{7, 14, 30, 90, 365}, locales.SettingsDays).Width(settingsControlW)
-		})
-	})
-	settingsGroup(c, locales.SettingsTools(), func(row settingsRow) {
-		row(locales.SettingsEditor(), func() ui.Element { return a.toolChoice(c, tools.Editor, &s.editor).Width(settingsControlW) })
-		row(locales.SettingsTerminal(), func() ui.Element {
-			return a.toolChoice(c, tools.Terminal, &s.terminal).Width(settingsControlW)
-		})
-		if a.Program != "" && a.Runner != nil {
-			row(locales.SettingsDiffTool(), func() ui.Element {
-				return ui.Switch(c, &s.difftool).Disabled(!s.difftoolRead)
-			})
-		}
-	})
-	settingsGroup(c, locales.SettingsAdvanced(), func(row settingsRow) {
-		row(locales.SettingsKeyboardShortcuts(), func() ui.Element {
-			b := ui.Button(c, locales.SettingsCustomize())
-			if b.Clicked() {
-				a.openKeys()
-			}
-			return b
-		})
-		if a.SettingsPath != "" {
-			row(locales.SettingsFile(), func() ui.Element {
-				b := ui.Button(c, locales.SettingsOpenFile())
-				if b.Clicked() {
-					p := a.SettingsPath
-					a.goWork(nil, func() { tools.OpenDefault(p) })
-				}
-				return b
-			})
-		}
-	})
+	}
+}
+
+// settingsField is a text input at the end of a row of settings: the
+// window's own color in the box's wash, with a line fainter than a
+// control's, which the pointer and the focus still darken and color.
+func settingsField(c *ui.Context, v *string) ui.Element {
+	th := c.Theme()
+	return ui.TextInput(c, v).Width(settingsControlW).Background(th.Background).Border(1, th.Text.Alpha(0.12))
+}
+
+// quietSelect gives a pop-up menu the look it has at the end of a row of
+// settings: its choice and its arrow alone, with a face only under the
+// pointer, so that a pane of them is not a column of boxes. Its arrow
+// lines up with the switches of the rows around it.
+func quietSelect(c *ui.Context, sel ui.Element) ui.Element {
+	th := c.Theme()
+	clear := ui.RGBA(0, 0, 0, 0)
+	sel = sel.MinWidth(0).MaxWidth(settingsControlW).Padding(spaceXS, spaceM).MarginEnd(-spaceM).Gap(spaceS).Border(1, clear).Background(clear)
+	if sel.Hovered() || sel.Pressed() {
+		sel = sel.Background(th.Text.Alpha(0.07))
+	}
+	return sel
 }
 
 // fetchChoices are the minutes between background fetches offered, 0
@@ -582,24 +672,21 @@ func (a *App) globalTool() write.GlobalTool {
 // label does, and the control, which control builds.
 type settingsRow func(label string, control func() ui.Element)
 
-// settingsGroup is a group of settings under heading: fn adds its rows,
-// with a line between them.
-func settingsGroup(c *ui.Context, heading string, fn func(row settingsRow)) {
+// settingsGroup is a group of settings: fn adds its rows, with a line
+// between them. The box is a wash of the text's color, no outline, so
+// that the controls in it are the only edges.
+func settingsGroup(c *ui.Context, fn func(row settingsRow)) {
 	th := c.Theme()
-	ui.Column(c).Gap(spaceS).FillWidth().Children(func() {
-		// In line with the rows' names.
-		ui.Text(c, heading).FontSize(textSmall).Bold().TextColor(th.TextMuted).Padding(0, spaceL)
-		ui.Column(c).FillWidth().Radius(radiusLarge).Border(1, th.Border).Children(func() {
-			first := true
-			fn(func(label string, control func() ui.Element) {
-				if !first {
-					ui.Box(c).Height(1).Background(th.Border).Margin(0, spaceL)
-				}
-				first = false
-				ui.Row(c).Gap(spaceL).AlignItems(ui.Center).MinHeight(barHeight).Padding(spaceS, spaceL).Children(func() {
-					name := ui.Text(c, label).Grow(1).Shrink(1)
-					control().LabelledBy(name)
-				})
+	ui.Column(c).FillWidth().Radius(radiusLarge).Background(th.Text.Alpha(0.04)).Children(func() {
+		first := true
+		fn(func(label string, control func() ui.Element) {
+			if !first {
+				ui.Box(c).Height(1).Background(hairline(th)).Margin(0, spaceL)
+			}
+			first = false
+			ui.Row(c).Gap(spaceL).AlignItems(ui.Center).MinHeight(barHeight).Padding(spaceS, spaceL).Children(func() {
+				name := ui.Text(c, label).Grow(1).Shrink(1)
+				control().LabelledBy(name)
 			})
 		})
 	})

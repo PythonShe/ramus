@@ -53,6 +53,7 @@ func TestFetchSettingDefault(t *testing.T) {
 		t.Fatalf("by default every %v", s.fetchMinutes)
 	}
 	h.tt.Frame()
+	h.click("Repositories")
 	h.click("Every 15 minutes")
 	h.click("Every 30 minutes")
 	if h.app.Settings.FetchEvery() != 30 {
