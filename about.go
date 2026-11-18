@@ -57,10 +57,10 @@ func (ws *windows) showAbout(check bool) {
 	ab.Relaunch = func() { mygo.App.Relaunch() }
 	a.win = mygo.NewWindow(mygo.WindowOptions{
 		Title:             locales.MenuAbout(),
-		Width:             440,
-		Height:            620,
-		MinWidth:          380,
-		MinHeight:         480,
+		Width:             380,
+		Height:            480,
+		MinWidth:          340,
+		MinHeight:         440,
 		DisableMinimize:   true,
 		DisableFullScreen: true,
 		Content:           mygoui.View(ab.View),

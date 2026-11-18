@@ -3275,11 +3275,11 @@
   "aboutInstallFailed": "Could not install the update: {error}",
   "aboutLicenses": "Licenses",
   "@aboutLicenses": {
-    "description": "Heads the About window's list of the licenses of Ramus and of what it is built from."
+    "description": "A button at the foot of the About window that shows the licenses of Ramus and of what it is built from, and the heading of that list."
   },
-  "aboutAllLicenses": "All Licenses",
-  "@aboutAllLicenses": {
-    "description": "A button that goes back from one license shown in full to the list of them."
+  "aboutBack": "Back",
+  "@aboutBack": {
+    "description": "Names, for its tooltip and for a screen reader, the arrow at the top of the About window's licenses: it goes back from one license shown in full to the list of them, and from the list to the app's name and version."
   },
   "aboutLicensesFailed": "Could not read the licenses: {error}",
   "menuFile": "File",

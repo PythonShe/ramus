@@ -23,7 +23,9 @@ func (u fakeUpdate) Install(ctx context.Context, progress func(done, total int64
 }
 
 // The About window shows the version, checks for a newer one as asked,
-// installs it and relaunches, and lists every license, each shown whole.
+// installs it and relaunches, and, behind Licenses, lists every license,
+// each shown whole; Back goes from a license to the list, and from the
+// list to the version.
 func TestAboutWindow(t *testing.T) {
 	ab := NewAbout("1.2.3")
 	posted := make(chan func(), 8)
@@ -50,7 +52,7 @@ func TestAboutWindow(t *testing.T) {
 		}
 		tt.Frame()
 	}
-	if !shows("Version 1.2.3") || !shows("Licenses") || !shows("github.com/egoist/mygo") {
+	if !shows("Version 1.2.3") || !shows("Licenses") || shows("github.com/egoist/mygo") {
 		t.Fatalf("texts %q", tt.Texts())
 	}
 
@@ -92,6 +94,13 @@ func TestAboutWindow(t *testing.T) {
 		t.Fatalf("installed %v, relaunched %v", installed, relaunched)
 	}
 
+	if e := tt.Click("Licenses"); e != nil {
+		t.Fatal(e)
+	}
+	tt.Frame()
+	if shows("Version 1.2.3") || !shows("golang.org/x/text") {
+		t.Fatalf("the licenses not listed alone: %q", tt.Texts())
+	}
 	if e := tt.Click("github.com/egoist/mygo"); e != nil {
 		t.Fatal(e)
 	}
@@ -99,12 +108,19 @@ func TestAboutWindow(t *testing.T) {
 	if !shows("Permission is hereby granted") || shows("golang.org/x/text") {
 		t.Fatalf("mygo's license not shown alone: %q", tt.Texts())
 	}
-	if e := tt.Click("All Licenses"); e != nil {
+	if e := tt.Click("Back"); e != nil {
 		t.Fatal(e)
 	}
 	tt.Frame()
 	if !shows("golang.org/x/text") {
 		t.Fatalf("not back at the list: %q", tt.Texts())
+	}
+	if e := tt.Click("Back"); e != nil {
+		t.Fatal(e)
+	}
+	tt.Frame()
+	if !shows("Version 1.2.3") || shows("golang.org/x/text") {
+		t.Fatalf("not back at the version: %q", tt.Texts())
 	}
 }
 

@@ -15332,33 +15332,35 @@ func (msgs Messages) AboutInstallFailed(error string) string {
 // AboutLicenses says "Licenses"
 // in the language the app shows.
 //
-// Heads the About window's list of the licenses of Ramus and of what it is
-// built from.
+// A button at the foot of the About window that shows the licenses of Ramus
+// and of what it is built from, and the heading of that list.
 func AboutLicenses() string { return In(i18n.Locale()).AboutLicenses() }
 
 // AboutLicenses says "Licenses"
 // in the language of msgs.
 //
-// Heads the About window's list of the licenses of Ramus and of what it is
-// built from.
+// A button at the foot of the About window that shows the licenses of Ramus
+// and of what it is built from, and the heading of that list.
 func (msgs Messages) AboutLicenses() string {
 	return Catalog.Format(msgs.locale, "aboutLicenses", nil)
 }
 
-// AboutAllLicenses says "All Licenses"
+// AboutBack says "Back"
 // in the language the app shows.
 //
-// A button that goes back from one license shown in full to the list of
-// them.
-func AboutAllLicenses() string { return In(i18n.Locale()).AboutAllLicenses() }
+// Names, for its tooltip and for a screen reader, the arrow at the top of
+// the About window's licenses: it goes back from one license shown in full
+// to the list of them, and from the list to the app's name and version.
+func AboutBack() string { return In(i18n.Locale()).AboutBack() }
 
-// AboutAllLicenses says "All Licenses"
+// AboutBack says "Back"
 // in the language of msgs.
 //
-// A button that goes back from one license shown in full to the list of
-// them.
-func (msgs Messages) AboutAllLicenses() string {
-	return Catalog.Format(msgs.locale, "aboutAllLicenses", nil)
+// Names, for its tooltip and for a screen reader, the arrow at the top of
+// the About window's licenses: it goes back from one license shown in full
+// to the list of them, and from the list to the app's name and version.
+func (msgs Messages) AboutBack() string {
+	return Catalog.Format(msgs.locale, "aboutBack", nil)
 }
 
 // AboutLicensesFailed says "Could not read the licenses: {error}"
