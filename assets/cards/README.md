@@ -31,7 +31,7 @@ app's own views at 1440x900 and twice the scale. `TestScreenshot` in
 ```bash
 RAMUS_SCREENSHOT=$PWD/assets/cards/history-dark.png \
 RAMUS_SCREENSHOT_REPO=~/Projects/ramus-fixtures/linux \
-RAMUS_SCREENSHOT_CLICK='sched_ext: Factor out drain_offline_rq()|kernel/sched/ext/ext.c' \
+RAMUS_SCREENSHOT_CLICK='arm64: suspend: Only track cpuidle context for idle tasks|arch/arm64/kernel/suspend.c' \
 go test ./internal/ui -run '^TestScreenshot$' -count=1
 ```
 
