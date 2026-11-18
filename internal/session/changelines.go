@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"ramus/internal/git/cache"
@@ -25,9 +26,31 @@ import (
 type ChangeLines struct {
 	For              *status.Status
 	Staged, Unstaged []diff.Lines
+	// Folders are the files of the untracked folders the count was asked
+	// to list, by the folder's path as the status names it ("new/"),
+	// each counted as a file git does not track is: the folder's own
+	// count in Unstaged adds theirs up. One that could not be listed, or
+	// holds nothing to list, is not among them.
+	Folders map[string]FolderFiles
 	// order holds For's entries sorted by path, for Find.
 	order []int32
 }
+
+// FolderFiles are the files git does not track in a folder status lists
+// whole: the first of them with their counts, and how many more.
+type FolderFiles struct {
+	Paths []string
+	Lines []diff.Lines
+	More  int
+}
+
+// FolderListed bounds the files of one untracked folder a count lists,
+// and maxFolderListed those of all the folders: past them, files are only
+// counted, not named.
+const (
+	FolderListed    = 1000
+	maxFolderListed = 20000
+)
 
 // Find returns the counts of the entry at path, for a status read since
 // For: the counts of that one come a little after it.
@@ -76,10 +99,11 @@ type countSlot struct {
 }
 
 type countAsk struct {
-	r    *repo.Repository
-	ctx  context.Context
-	st   *status.Status
-	done func(ChangeLines)
+	r       *repo.Repository
+	ctx     context.Context
+	st      *status.Status
+	folders []string
+	done    func(ChangeLines)
 	// index is the key of the index st was read with, when indexOK.
 	index   repo.IndexKey
 	indexOK bool
@@ -91,16 +115,17 @@ type keptLines struct {
 }
 
 // CountChanges counts the lines of the changes st lists off the main
-// thread and hands them to done on it. One asked for while another runs
+// thread and hands them to done on it, listing the files of the
+// untracked folders of st named in folders too. One asked for while another runs
 // starts once it ended, unless a newer one is asked for first, which
 // takes its place, whose done is then not called; a count whose view was
 // left is not handed over.
-func (s *Session) CountChanges(st *status.Status, done func(ChangeLines)) {
+func (s *Session) CountChanges(st *status.Status, folders []string, done func(ChangeLines)) {
 	r := s.Repo
 	if r == nil || st == nil {
 		return
 	}
-	a := &countAsk{r: r, ctx: s.viewContext(r), st: st, done: done}
+	a := &countAsk{r: r, ctx: s.viewContext(r), st: st, folders: folders, done: done}
 	if c := &s.count; c.statusFor == st {
 		a.index, a.indexOK = c.index, c.indexOK
 	}
@@ -140,18 +165,19 @@ func (s *Session) startCount(a *countAsk) {
 				}
 			}
 		})
-		out, ok = countChanged(a.ctx, a.r, a.st, a.index, a.indexOK, kept)
+		out, ok = countChanged(a.ctx, a.r, a.st, a.folders, a.index, a.indexOK, kept)
 	})
 	if err != nil {
 		c.running, c.cur = false, nil
 	}
 }
 
-// countChanged counts the lines of st's changes, taking those counted
-// before from kept where what they were counted from is the same: the
-// objects for a staged change, and the work-tree file's size and
-// modification time besides for the rest.
-func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, index repo.IndexKey, indexOK bool, kept *cache.Cache[string, keptLines]) (ChangeLines, bool) {
+// countChanged counts the lines of st's changes, and lists and counts
+// the files of its untracked folders named in folders, taking those
+// counted before from kept where what they were counted from is the
+// same: the objects for a staged change, and the work-tree file's size
+// and modification time besides for the rest.
+func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, folders []string, index repo.IndexKey, indexOK bool, kept *cache.Cache[string, keptLines]) (ChangeLines, bool) {
 	// Counts of changes keyed on the index's objects as st names them
 	// are kept only when git counted from that index: one written since
 	// st was read would have them kept under objects they are not of.
@@ -168,6 +194,8 @@ func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, in
 	var staged, unstaged []string
 	var stagedAsk, unstagedAsk []ask
 	var untracked []int
+	// folderAt is where each untracked folder is among st's entries.
+	folderAt := map[string]int{}
 	renames := false
 	now := time.Now()
 	for i := range st.Len() {
@@ -178,7 +206,9 @@ func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, in
 		path := st.Path(i)
 		switch k {
 		case status.Untracked:
-			if !bytes.HasSuffix(path, []byte("/")) {
+			if bytes.HasSuffix(path, []byte("/")) {
+				folderAt[string(path)] = i
+			} else {
 				untracked = append(untracked, i)
 			}
 			continue
@@ -209,6 +239,17 @@ func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, in
 	if base == "" {
 		base = hex.EncodeToString(emptyTree(r.Caps.HashSize))
 	}
+	// The folders are listed beside git's counts, not before them: a
+	// large one would hold them up. One that could not be listed is left
+	// out, its files unknown, as a file that could not be counted is.
+	var listed map[string]repo.UntrackedFiles
+	listing := make(chan struct{})
+	go func() {
+		defer close(listing)
+		if len(folders) > 0 {
+			listed, _ = r.UntrackedUnder(ctx, folders, FolderListed, maxFolderListed)
+		}
+	}()
 	var inIndex, inTree *diff.NumStat
 	var err error
 	if len(staged) > 0 {
@@ -222,23 +263,49 @@ func countChanged(ctx context.Context, r *repo.Repository, st *status.Status, in
 		}
 	}
 	files, read := 0, 0
-	for _, i := range untracked {
+	// countNew counts a file git does not track, whole, within the
+	// bounds: a count kept costs none of them.
+	countNew := func(path []byte, l *diff.Lines) {
 		if ctx.Err() != nil || files >= maxCountedFiles || read >= maxCountedBytes {
-			break
+			return
 		}
-		path := st.Path(i)
 		key := stampKey('n', r.WorkTree, path, nil, now)
-		if take(kept, key, &out.Unstaged[i]) {
-			continue
+		if take(kept, key, l) {
+			return
 		}
 		b, err := readWorkTreeFile(r.WorkTree, string(path), min(maxCountedFile, maxCountedBytes-read))
 		if err != nil {
-			continue
+			return
 		}
 		files++
 		read += len(b)
-		out.Unstaged[i] = diff.CountText(b)
-		keep(kept, key, out.Unstaged[i])
+		*l = diff.CountText(b)
+		keep(kept, key, *l)
+	}
+	for _, i := range untracked {
+		countNew(st.Path(i), &out.Unstaged[i])
+	}
+	<-listing
+	if len(listed) > 0 {
+		out.Folders = make(map[string]FolderFiles, len(listed))
+		for _, dir := range folders {
+			f, ok := listed[dir]
+			if !ok {
+				continue
+			}
+			ff := FolderFiles{Paths: f.Paths, Lines: make([]diff.Lines, len(f.Paths)), More: f.More}
+			var total diff.Lines
+			for k, p := range f.Paths {
+				if !strings.HasSuffix(p, "/") { // not a repository inside
+					countNew([]byte(p), &ff.Lines[k])
+				}
+				total.Add(ff.Lines[k])
+			}
+			out.Folders[dir] = ff
+			if i, ok := folderAt[dir]; ok {
+				out.Unstaged[i] = total
+			}
+		}
 	}
 	if ctx.Err() != nil {
 		return out, false

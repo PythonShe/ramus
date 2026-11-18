@@ -41,7 +41,7 @@ func sortStrings(s []string) { sort.Strings(s) }
 
 func TestBuildChanges(t *testing.T) {
 	st := fakeStatus(t, map[string]string{"b/one": "M.", "b/two": "MM", "c": ".D"}, "a", "b/new", "dir/")
-	m := buildChanges(st, "", false, nil)
+	m := buildChanges(st, "", false, nil, nil)
 	got := func(sec section) []string {
 		var out []string
 		for _, i := range m.files[sec] {
@@ -60,7 +60,7 @@ func TestBuildChanges(t *testing.T) {
 		t.Fatalf("under b: %d", n)
 	}
 
-	tree := buildChanges(st, "", true, map[openKey]bool{{secStaged, "b"}: true})
+	tree := buildChanges(st, "", true, map[openKey]bool{{secStaged, "b"}: true}, nil)
 	var names []string
 	for _, r := range tree.rows {
 		names = append(names, fmt.Sprint(r.depth)+tree.name(r))
@@ -70,7 +70,7 @@ func TestBuildChanges(t *testing.T) {
 		t.Fatalf("tree rows\n%s\nwant\n%s", s, want)
 	}
 
-	f := buildChanges(st, "TW", false, nil)
+	f := buildChanges(st, "TW", false, nil, nil)
 	if len(f.files[secStaged]) != 1 || len(f.files[secUnstaged]) != 1 {
 		t.Fatalf("filter kept %d, %d", len(f.files[secStaged]), len(f.files[secUnstaged]))
 	}
@@ -87,13 +87,13 @@ func BenchmarkBuildChanges(b *testing.B) {
 	for _, tree := range []bool{false, true} {
 		b.Run(fmt.Sprint("tree=", tree), func(b *testing.B) {
 			for b.Loop() {
-				buildChanges(st, "", tree, nil)
+				buildChanges(st, "", tree, nil, nil)
 			}
 		})
 	}
 	b.Run("filter", func(b *testing.B) {
 		for b.Loop() {
-			buildChanges(st, "mod123", false, nil)
+			buildChanges(st, "mod123", false, nil, nil)
 		}
 	})
 }
@@ -136,7 +136,7 @@ func TestFolderLines(t *testing.T) {
 		cv.lines.Unstaged[i] = diff.Lines{Added: uint32(i + 1), Deleted: 1, Known: true}
 		added[string(st.Path(i))] = uint32(i + 1)
 	}
-	m := buildChanges(st, "", true, nil)
+	m := buildChanges(st, "", true, nil, nil)
 	for dir, want := range map[string]lineSum{
 		"b":     {added["b/one"] + added["b/sub/two"], 2},
 		"b/sub": {added["b/sub/two"], 1},

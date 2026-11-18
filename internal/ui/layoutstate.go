@@ -26,7 +26,7 @@ func (a *App) Layout() layout.Window {
 			lt.Commit = hex.EncodeToString(t.hist.want) // not found yet
 		}
 		if r, ok := t.cv.chosenFile(); ok {
-			lt.File = string(t.cv.model.st.Path(int(r.idx)))
+			lt.File = t.cv.model.path(r)
 		} else {
 			lt.File = t.cv.want
 		}

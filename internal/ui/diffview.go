@@ -41,10 +41,11 @@ type diffState struct {
 
 func newDiffState() diffState { return diffState{} }
 
-// chosenFile is the file row chosen in the changes list, if any.
+// chosenFile is the file row chosen in the changes list, if any: an
+// entry's, or a file's in an untracked folder.
 func (cv *changesState) chosenFile() (changeRow, bool) {
 	m := cv.model
-	if m == nil || cv.chosen < 0 || cv.chosen >= len(m.rows) || m.rows[cv.chosen].kind != rowFile {
+	if m == nil || cv.chosen < 0 || cv.chosen >= len(m.rows) || !fileRow(m.rows[cv.chosen]) {
 		return changeRow{}, false
 	}
 	return m.rows[cv.chosen], true
@@ -53,9 +54,6 @@ func (cv *changesState) chosenFile() (changeRow, bool) {
 func (a *App) detail(c *ui.Context, t *tab) {
 	cv := &t.cv
 	r, ok := cv.chosenFile()
-	if !ok || r.sec == secConflicts || !untrackedFolder(cv.model.st, int(r.idx)) {
-		cv.folder.leave()
-	}
 	if !ok {
 		if m := cv.model; m != nil && len(m.rows) == 0 && m.filter == "" {
 			a.cleanTree(c, t)
@@ -70,22 +68,29 @@ func (a *App) detail(c *ui.Context, t *tab) {
 		a.mergeEditor(c, t, string(m.st.Path(i)))
 		return
 	}
-	if untrackedFolder(m.st, i) {
+	p := m.path(r)
+	if strings.HasSuffix(p, "/") {
 		// git diffs no folder: a patch of it would say there is no
-		// difference. Its files are listed instead.
-		a.folderFiles(c, t, m, r)
+		// difference. Its files are listed under it instead.
+		a.folderPane(c, t, m, r)
 		return
 	}
-	key := diffKey{path: string(m.st.Path(i)), src: diff.Unstaged, st: m.st, ws: diff.Whitespace(a.diffOpts().ws)}
-	switch {
-	case r.sec == secStaged:
-		key.src = diff.Staged
-	case m.st.Kind(i) == status.Untracked:
+	key := diffKey{path: p, src: diff.Unstaged, st: m.st, ws: diff.Whitespace(a.diffOpts().ws)}
+	sides := session.Sides{WorkTreePath: p}
+	if r.kind == rowFile {
+		switch {
+		case r.sec == secStaged:
+			key.src = diff.Staged
+		case m.st.Kind(i) == status.Untracked:
+			key.src = diff.Untracked
+		}
+		key.orig = renamedFrom(m.st, i, key.src)
+		sides = patchSides(m.st, i, key.src)
+	} else {
 		key.src = diff.Untracked
 	}
-	key.orig = renamedFrom(m.st, i, key.src)
 	d := &cv.diff
-	a.readPatch(t, key, patchSides(m.st, i, key.src))
+	a.readPatch(t, key, sides)
 	ui.Column(c).Fill().Children(func() {
 		a.diffHeader(c, t, m, r)
 		a.pagerNotice(c, &d.pager, d.res, d.loading, locales.PatchShownInPartNoStaging(sizeText(d.pager.max())), d.load)
@@ -220,7 +225,7 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 	d := &t.cv.diff
 	ro := t.s.Queue == nil
 	ui.Row(c).Padding(barPadY, insetX).MinHeight(barHeight).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-		shown, _ := showPath(string(m.st.Path(int(r.idx))))
+		shown, _ := showPath(m.path(r))
 		if d.key.orig != "" {
 			// A rename names where the file came from, which a patch of no
 			// differences in content would not show.
@@ -228,13 +233,13 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 			shown = locales.DiffRenamedPath(from, shown)
 		}
 		pathLabel(c, shown).Bold().Grow(1)
-		ui.Text(c, entryWords(m.st, int(r.idx), r.sec)).FontSize(textSmall).TextColor(th.TextMuted)
-		fileLines(c, t.cv.entryLines(m.st, int(r.idx), r.sec))
+		ui.Text(c, t.cv.rowWords(m, r)).FontSize(textSmall).TextColor(th.TextMuted)
+		fileLines(c, t.cv.rowLines(m, r))
 		picked, n := d.pv.selectedLines()
 		if !d.partialOK() || n == 0 {
 			// The file's own actions, which lines picked take the place of.
 			if r.sec != secStaged && ui.Button(c, locales.DiffDiscardChange()).Label(locales.ChangesDiscardFiles(1)).Disabled(ro).Clicked() {
-				a.discardIn(t, m.st, r.sec, []int32{r.idx})
+				a.discardRows(t, m, r.sec, []changeRow{r})
 			}
 			label := locales.ChangesStageFiles(1)
 			if r.sec == secStaged {

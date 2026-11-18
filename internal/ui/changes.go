@@ -26,8 +26,10 @@ type changesState struct {
 	builtFilter string
 	builtTree   bool
 	builtOpen   int
-	filter      string
-	mode        int // modeList, modeTree or modeReview
+	// builtFolders is the foldersGen the last model was built with.
+	builtFolders int
+	filter       string
+	mode         int // modeList, modeTree or modeReview
 	// closed are the folders of the tree the user closed; the others
 	// are open. openGen counts its changes.
 	closed  map[openKey]bool
@@ -44,14 +46,19 @@ type changesState struct {
 	picked  ui.Selection[rowKey]
 	confirm confirmState
 	diff    diffState
-	// folder lists the files of the untracked folder chosen.
-	folder folderState
 	// lines are the lines each change adds and deletes, counted for the
-	// status countFor asked; totals adds them up by section, for the
-	// model and the count totalsFor names.
-	lines    session.ChangeLines
-	countFor *status.Status
-	totals   [sections]diff.Lines
+	// status countFor asked, with the files of the untracked folders
+	// countDirs listed, those open at openGen countGen; asked and done
+	// number the counts asked for and the last handed over, and
+	// foldersGen counts the listings, for the model. totals adds the
+	// counts up by section, for the model and the count totalsFor names.
+	lines       session.ChangeLines
+	countFor    *status.Status
+	countGen    int
+	countDirs   []string
+	asked, done int
+	foldersGen  int
+	totals      [sections]diff.Lines
 	// sums are, per section, the running sum of the counts of its files
 	// in order, a folder's total being the difference across its range.
 	sums      [sections][]lineSum
@@ -64,20 +71,53 @@ type changesState struct {
 // leaveCount forgets a count still running when its view is left, which
 // stops it, so that it runs again when the view is shown.
 func (cv *changesState) leaveCount() {
-	if cv.countFor != cv.lines.For {
+	if cv.done != cv.asked {
 		cv.countFor = nil
 	}
 }
 
 // countLines counts the lines of the changes of the status last read,
-// once per status.
+// and lists the files of its untracked folders open: once per status,
+// and again when a folder not listed opens.
 func (cv *changesState) countLines(t *tab) {
 	st := t.s.State.Status
-	if st == nil || st == cv.countFor {
+	if st == nil {
 		return
 	}
-	cv.countFor = st
-	t.s.CountChanges(st, func(l session.ChangeLines) { cv.lines = l })
+	if st == cv.countFor && cv.countGen == cv.openGen {
+		return
+	}
+	dirs := cv.openFolders(st)
+	if st == cv.countFor {
+		cv.countGen = cv.openGen
+		if !slices.ContainsFunc(dirs, func(d string) bool { return !slices.Contains(cv.countDirs, d) }) {
+			return // a folder closed, or one listed before opened again
+		}
+	}
+	cv.countFor, cv.countGen, cv.countDirs = st, cv.openGen, dirs
+	cv.asked++
+	n := cv.asked
+	t.s.CountChanges(st, dirs, func(l session.ChangeLines) {
+		// The model is made again with the files listed, or, for a file
+		// still wanted, to look for it once more.
+		if len(l.Folders) > 0 || len(cv.lines.Folders) > 0 || cv.want != "" {
+			cv.foldersGen++
+		}
+		cv.lines, cv.done = l, n
+	})
+}
+
+// openFolders are the untracked folders of st not closed.
+func (cv *changesState) openFolders(st *status.Status) []string {
+	var out []string
+	for i := range st.Len() {
+		if untrackedFolder(st, i) {
+			if p := string(st.Path(i)); !cv.closed[openKey{secUnstaged, p}] {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
 }
 
 // entryLines is the count of entry i of st in sec: from the count of
@@ -171,39 +211,42 @@ func newChangesState() changesState {
 }
 
 // rebuildChanges makes the model again, off the main thread, when the
-// status, the filter, the mode or the folders open changed.
+// status, the filter, the mode, the folders open or the files listed of
+// the untracked ones changed.
 func (a *App) rebuildChanges(t *tab) {
 	cv := &t.cv
 	st := t.s.State.Status
 	tree := cv.mode == modeTree
-	if st == nil || cv.building || (cv.builtFor == st && cv.builtFilter == cv.filter && cv.builtTree == tree && cv.builtOpen == cv.openGen) {
+	if st == nil || cv.building || (cv.builtFor == st && cv.builtFilter == cv.filter && cv.builtTree == tree && cv.builtOpen == cv.openGen && cv.builtFolders == cv.foldersGen) {
 		return
 	}
 	cv.building = true
-	filter, gen := cv.filter, cv.openGen
+	filter, gen, folders, listing := cv.filter, cv.openGen, cv.lines.Folders, cv.foldersGen
 	closed := make(map[openKey]bool, len(cv.closed))
 	for k, v := range cv.closed {
 		closed[k] = v
 	}
 	update := a.Update
 	a.goWork(t, func() {
-		m := buildChanges(st, filter, tree, closed)
+		m := buildChanges(st, filter, tree, closed, folders)
 		update(func() {
 			cv.building = false
 			old := cv.model
-			cv.model, cv.builtFor, cv.builtFilter, cv.builtTree, cv.builtOpen = m, st, filter, tree, gen
+			cv.model, cv.builtFor, cv.builtFilter, cv.builtTree, cv.builtOpen, cv.builtFolders = m, st, filter, tree, gen, listing
 			cv.findWanted()
 			cv.placeKept(old)
 		})
 	})
 }
 
-// keptPlace is where a file chosen was in its section, the nth file
-// row there, as it left it.
+// keptPlace is where a file chosen was in its section, as it left it:
+// before the file next, the first after it that the write leaves where
+// it is, and the nth file row there, for when next is gone too.
 type keptPlace struct {
-	key rowKey
-	at  int
-	set bool
+	key  rowKey
+	at   int
+	next string
+	set  bool
 }
 
 // keepPlace remembers the place of the row chosen in m when it is among
@@ -214,16 +257,34 @@ func (cv *changesState) keepPlace(m *changeModel, rows []changeRow) {
 		return
 	}
 	r := m.rows[cv.chosen]
-	if r.kind != rowFile || !slices.ContainsFunc(rows, func(o changeRow) bool { return m.key(o) == m.key(r) }) {
+	if !fileRow(r) || !slices.ContainsFunc(rows, func(o changeRow) bool { return m.key(o) == m.key(r) }) {
 		return
 	}
 	at := 0
 	for _, o := range m.rows[:cv.chosen] {
-		if o.kind == rowFile && o.sec == r.sec {
+		if fileRow(o) && o.sec == r.sec {
 			at++
 		}
 	}
-	cv.keep = keptPlace{key: m.key(r), at: at, set: true}
+	// The next is found by path: rows before it can go with the write, as
+	// an untracked folder's does once a file of it is staged, git then
+	// listing the rest of it.
+	es, files := m.targets(rows)
+	moved := map[string]bool{}
+	for _, p := range slices.Concat(paths(m.st, es), files) {
+		moved[p] = true
+	}
+	next := ""
+	for _, o := range m.rows[cv.chosen+1:] {
+		if o.sec != r.sec {
+			break
+		}
+		if p := m.path(o); fileRow(o) && !moved[p] && !(o.kind == rowInner && moved[string(m.st.Path(int(o.idx)))]) {
+			next = p
+			break
+		}
+	}
+	cv.keep = keptPlace{key: m.key(r), at: at, next: next, set: true}
 }
 
 // keepChosen remembers the place of the row chosen, which a write on it
@@ -250,7 +311,7 @@ func (cv *changesState) placeKept(old *changeModel) {
 	}
 	var in []int
 	for i, r := range m.rows {
-		if r.kind != rowFile || r.sec != k.key.sec {
+		if !fileRow(r) || r.sec != k.key.sec {
 			continue
 		}
 		if m.key(r) == k.key {
@@ -259,11 +320,22 @@ func (cv *changesState) placeKept(old *changeModel) {
 		in = append(in, i)
 	}
 	choose := -1
-	if len(in) > 0 {
+	if k.next != "" {
+		// The next file, or the untracked folder git now lists it in.
+		for _, i := range in {
+			r := m.rows[i]
+			if p := m.path(r); p == k.next || r.kind == rowFile && untrackedFolder(m.st, int(r.idx)) && strings.HasPrefix(k.next, p) {
+				choose = i
+				break
+			}
+		}
+	}
+	if choose < 0 && len(in) > 0 {
 		choose = in[min(k.at, len(in)-1)]
-	} else {
+	}
+	if choose < 0 {
 		for i, r := range m.rows {
-			if r.kind == rowFile && string(m.st.Path(int(r.idx))) == k.key.path {
+			if fileRow(r) && m.path(r) == k.key.path {
 				choose = i
 				break
 			}
@@ -285,14 +357,29 @@ func (cv *changesState) findWanted() {
 		return
 	}
 	for i, r := range m.rows {
-		if r.kind == rowFile && string(m.st.Path(int(r.idx))) == cv.want {
+		if fileRow(r) && m.path(r) == cv.want {
 			cv.chosen = i
 			cv.list.ScrollTo(i, ui.Center)
-			break
+			cv.want = ""
+			return
+		}
+	}
+	// A file in an untracked folder open is found once the count running
+	// lists the folder's files.
+	for _, i := range m.files[secUnstaged] {
+		dir := string(m.st.Path(int(i)))
+		if cv.done != cv.asked && untrackedFolder(m.st, int(i)) && strings.HasPrefix(cv.want, dir) && !cv.closed[m.folderKey(secUnstaged, i)] {
+			if _, ok := m.listed(i); !ok {
+				return
+			}
 		}
 	}
 	cv.want = ""
 }
+
+// fileRow reports whether r is a file's, or an untracked folder's, which
+// status lists as one.
+func fileRow(r changeRow) bool { return r.kind == rowFile || r.kind == rowInner }
 
 func (a *App) changesList(c *ui.Context, t *tab) {
 	th := c.Theme()
@@ -373,14 +460,14 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 			r := rows[cv.chosen]
 			// A folder opens and closes as a tree's does: by Right and
 			// Left, and by Enter or a double click, which stage a file.
-			// Its menu stages it.
-			if r.kind == rowDir {
-				key := openKey{r.sec, m.dir(r.sec, r.idx)}
+			// Its menu stages it; an untracked folder's pane does too.
+			if r.kind == rowDir || m.isFolder(r) {
+				key := cv.openKey(m, r)
 				open := !cv.closed[key]
 				if !open && l.Shortcut(0, ui.KeyRight) || open && l.Shortcut(0, ui.KeyLeft) || l.Submitted() {
 					act = func() { cv.toggleFolder(key) }
 				}
-			} else if l.Submitted() {
+			} else if l.Submitted() && r.kind != rowMore {
 				// Enter acts on every row picked, as Delete and the menu do.
 				rows := cv.chosenRows(m, r)
 				act = func() { a.toggleStage(t, m, rows) }
@@ -389,9 +476,9 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		// Delete asks to discard what is chosen, as the menu's Discard
 		// does, with its snapshot to undo it.
 		if (cv.list.Shortcut(c, 0, ui.KeyDelete) || cv.list.Shortcut(c, 0, ui.KeyBackspace)) && cv.chosen >= 0 && cv.chosen < len(rows) && t.s.Queue != nil {
-			if r := rows[cv.chosen]; r.kind != rowHeader && r.sec != secConflicts {
-				es := m.entries(cv.chosenRows(m, r))
-				act = func() { a.discardIn(t, m.st, r.sec, es) }
+			if r := rows[cv.chosen]; r.kind != rowHeader && r.kind != rowMore && r.sec != secConflicts {
+				rows := cv.chosenRows(m, r)
+				act = func() { a.discardRows(t, m, r.sec, rows) }
 			}
 		}
 		if act != nil {
@@ -457,9 +544,34 @@ func rowLabel(cv *changesState, m *changeModel, r changeRow) string {
 		return locales.ChangesSectionLabel(r.sec.title(), len(m.files[r.sec]))
 	case rowDir:
 		return locales.ChangesFolderLabel(openState(!cv.closed[openKey{r.sec, m.dir(r.sec, r.idx)}]), m.name(r))
+	case rowInner:
+		return fileLabel(locales.ChangesState("untracked"), m.innerPath(r), m.innerLines(r))
+	case rowMore:
+		f, _ := m.listed(r.idx)
+		return locales.ChangesFolderMore(f.More)
 	}
 	i := int(r.idx)
+	if m.isFolder(r) {
+		return locales.ChangesUntrackedFolderLabel(openState(!cv.closed[m.folderKey(r.sec, r.idx)]), string(m.st.Path(i)))
+	}
 	return fileLabel(entryWords(m.st, i, r.sec), string(m.st.Path(i)), cv.entryLines(m.st, i, r.sec))
+}
+
+// openKey names the folder r opens, a tree's or an untracked one.
+func (cv *changesState) openKey(m *changeModel, r changeRow) openKey {
+	if r.kind == rowDir {
+		return openKey{r.sec, m.dir(r.sec, r.idx)}
+	}
+	return m.folderKey(r.sec, r.idx)
+}
+
+// innerLines is the count of r, a rowInner.
+func (m *changeModel) innerLines(r changeRow) diff.Lines {
+	f, _ := m.listed(r.idx)
+	if int(r.sub) < len(f.Lines) {
+		return f.Lines[r.sub]
+	}
+	return diff.Lines{}
 }
 
 func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k ink, act *func()) {
@@ -487,7 +599,10 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 			}
 			if label != "" && ui.Button(c, label).Disabled(ro).Clicked() {
 				sec := r.sec
-				*act = func() { a.stageEntries(t, m, sec, m.files[sec]) }
+				*act = func() {
+					es, files := m.sectionTargets(sec)
+					a.stagePaths(t, sec, slices.Concat(paths(m.st, es), files))
+				}
 			}
 		})
 		return
@@ -495,6 +610,43 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 	indent := float32(r.depth) * treeIndent
 	row := ui.Row(c).Padding(rowPadY, insetX).Gap(spaceS).AlignItems(ui.Center).FillWidth().Children(func() {
 		ui.Box(c).Width(indent)
+		switch {
+		case r.kind == rowMore:
+			// Under the letters, where the names of the files start.
+			ui.Box(c).Width(statusLetterW)
+			f, _ := m.listed(r.idx)
+			ui.Text(c, locales.ChangesFolderMore(f.More)).FontSize(textSmall).TextColor(k.Muted).SingleLine()
+			return
+		case r.kind == rowInner:
+			p := m.innerPath(r)
+			ui.Text(c, "U").Font("monospace").TextColor(k.Success).Width(statusLetterW).Description(locales.ChangesState("untracked"))
+			if strings.HasSuffix(p, "/") {
+				ui.Icon(c, glyphs().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Muted)
+			} else {
+				fileIcon(c, p, k)
+			}
+			shown, why := showPath(m.name(r))
+			name := pathLabel(c, shown).Grow(1)
+			if why != "" {
+				name.TextColor(k.Warning).Description(why)
+			}
+			inkFileLines(c, k, m.innerLines(r))
+			return
+		case m.isFolder(r):
+			// As a tree's folder, but new: its files' letters say how.
+			key := m.folderKey(r.sec, r.idx)
+			if ui.Icon(c, disclosure(!cv.closed[key])).FontSize(iconSmall).Width(statusLetterW).TextColor(k.Muted).RowClicked() {
+				*act = func() { cv.toggleFolder(key) }
+			}
+			ui.Icon(c, glyphs().folder).FontSize(iconLarge).Width(iconLarge).TextColor(k.Success).Description(entryWords(m.st, int(r.idx), r.sec))
+			shown, why := showPath(m.name(r))
+			name := pathLabel(c, shown).Grow(1)
+			if why != "" {
+				name.TextColor(k.Warning).Description(why)
+			}
+			inkFileLines(c, k, cv.entryLines(m.st, int(r.idx), r.sec))
+			return
+		}
 		if r.kind == rowDir {
 			// The chevron takes the status letter's column and the folder
 			// the file icon's, so names line up with the files'.
@@ -529,11 +681,13 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 		}
 		inkFileLines(c, k, cv.entryLines(m.st, i, r.sec))
 	})
-	if r.kind == rowFile && row.RowDoubleClicked() {
+	if fileRow(r) && !m.isFolder(r) && row.RowDoubleClicked() {
 		rows := cv.chosenRows(m, r)
 		*act = func() { a.toggleStage(t, m, rows) }
 	}
-	row.ContextMenu(func(menu *ui.Menu) { a.changeMenu(menu, t, m, r, act) })
+	if r.kind != rowMore {
+		row.ContextMenu(func(menu *ui.Menu) { a.changeMenu(menu, t, m, r, act) })
+	}
 }
 
 // openState is how a folder's label names whether it is open.
@@ -667,33 +821,98 @@ func (cv *changesState) chosenRows(m *changeModel, r changeRow) []changeRow {
 	}
 	var out []changeRow
 	for _, row := range m.rows {
-		if row.kind != rowHeader && row.sec == r.sec && cv.picked.Has(m.key(row)) {
+		if row.kind != rowHeader && row.kind != rowMore && row.sec == r.sec && cv.picked.Has(m.key(row)) {
 			out = append(out, row)
 		}
 	}
 	return out
 }
 
-// entries are the status entries rows cover, folders expanded.
-func (m *changeModel) entries(rows []changeRow) []int32 {
-	var out []int32
-	seen := map[int32]bool{}
+// targets are what a write on rows acts on: the status entries they
+// cover, a folder of the tree's expanded, and files of untracked folders
+// apart from them. A file of such a folder is one when the folder's own
+// row is not among rows. A folder of the tree, as a section, acts on what
+// it shows: an untracked folder in it that the filter keeps only for
+// files of it the filter matches stands for those files alone.
+func (m *changeModel) targets(rows []changeRow) (es []int32, files []string) {
+	t := targetSet{m: m, seen: map[int32]bool{}}
 	for _, r := range rows {
-		var es []int32
-		switch r.kind {
-		case rowFile:
-			es = []int32{r.idx}
-		case rowDir:
-			es = m.under(r.sec, m.dir(r.sec, r.idx), true)
+		if r.kind == rowFile {
+			t.entry(r.idx, true)
 		}
-		for _, e := range es {
-			if !seen[e] {
-				seen[e] = true
-				out = append(out, e)
+	}
+	for _, r := range rows {
+		if r.kind == rowDir {
+			for _, e := range m.under(r.sec, m.dir(r.sec, r.idx), true) {
+				t.entry(e, false)
 			}
 		}
 	}
-	return out
+	for _, r := range rows {
+		if r.kind == rowInner && !t.whole(r.idx) {
+			t.file(m.innerPath(r))
+		}
+	}
+	return t.es, t.files
+}
+
+// sectionTargets are what a write on the entries of sec shown acts on,
+// as a folder of the tree's in targets.
+func (m *changeModel) sectionTargets(sec section) (es []int32, files []string) {
+	t := targetSet{m: m, seen: map[int32]bool{}}
+	for _, e := range m.files[sec] {
+		t.entry(e, false)
+	}
+	return t.es, t.files
+}
+
+// targetSet gathers targets, each once.
+type targetSet struct {
+	m     *changeModel
+	es    []int32
+	files []string
+	seen  map[int32]bool
+	// wholes are the entries among es; taken the paths among files.
+	wholes map[int32]bool
+	taken  map[string]bool
+}
+
+// entry adds entry e, an untracked folder kept only for files of it
+// the filter matches standing for those files unless whole.
+func (t *targetSet) entry(e int32, whole bool) {
+	if t.seen[e] {
+		return
+	}
+	t.seen[e] = true
+	m := t.m
+	if !whole && len(m.q) > 0 && untrackedFolder(m.st, int(e)) && !containsFold(m.st.Path(int(e)), m.q) {
+		f, _ := m.listed(e)
+		for _, p := range f.Paths {
+			if containsFold([]byte(p), m.q) {
+				t.file(p)
+			}
+		}
+		return
+	}
+	if t.wholes == nil {
+		t.wholes = map[int32]bool{}
+	}
+	t.wholes[e] = true
+	t.es = append(t.es, e)
+}
+
+// whole reports whether untracked folder e is gathered whole.
+func (t *targetSet) whole(e int32) bool { return t.wholes[e] }
+
+func (t *targetSet) file(p string) {
+	if t.taken[p] {
+		return
+	}
+	if t.taken == nil {
+		t.taken = map[string]bool{}
+	}
+	t.taken[p] = true
+	t.files = append(t.files, p)
 }
 
 // paths are the paths a write on entries names: both of a rename.
@@ -710,23 +929,24 @@ func paths(st *status.Status, entries []int32) []string {
 
 func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act *func()) {
 	rows := t.cv.chosenRows(m, r)
-	es := m.entries(rows)
+	es, inner := m.targets(rows)
 	ro := t.s.Queue == nil
-	n := len(es)
+	ps := slices.Concat(paths(m.st, es), inner)
+	n := len(es) + len(inner)
 	switch r.sec {
 	case secStaged:
 		if menu.Item(locales.ChangesUnstageFiles(n)).Disabled(ro || n == 0).Chosen() {
-			*act = func() { a.stageEntries(t, m, r.sec, es) }
+			*act = func() { a.stagePaths(t, r.sec, ps) }
 		}
 		if menu.Item(locales.ChangesDiscardFiles(n)).Disabled(ro || n == 0).Danger().Chosen() {
-			*act = func() { a.discardIn(t, m.st, r.sec, es) }
+			*act = func() { a.discardRows(t, m, r.sec, rows) }
 		}
 	case secUnstaged:
 		if menu.Item(locales.ChangesStageFiles(n)).Disabled(ro || n == 0).Chosen() {
-			*act = func() { a.stageEntries(t, m, r.sec, es) }
+			*act = func() { a.stagePaths(t, r.sec, ps) }
 		}
 		if menu.Item(locales.ChangesDiscardFiles(n)).Disabled(ro || n == 0).Danger().Chosen() {
-			*act = func() { a.discardIn(t, m.st, r.sec, es) }
+			*act = func() { a.discardRows(t, m, r.sec, rows) }
 		}
 	case secConflicts:
 		a.conflictMenu(menu, t, m, es, act)
@@ -734,8 +954,8 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 			*act = func() { a.stageEntries(t, m, secUnstaged, es) }
 		}
 	}
-	if r.kind == rowFile && r.sec != secStaged {
-		p := string(m.st.Path(int(r.idx)))
+	if fileRow(r) && r.sec != secStaged {
+		p := m.path(r)
 		menu.Separator()
 		if menu.Item(locales.ChangesIgnorePath(p)).Disabled(ro).Chosen() {
 			*act = func() { a.ignore(t, write.IgnorePattern(p)) }
@@ -747,7 +967,6 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 		}
 	}
 	if r.sec != secConflicts && n > 0 {
-		ps := paths(m.st, es)
 		if menu.Item(locales.ChangesStashFiles(n)).Disabled(ro).Chosen() {
 			*act = func() { a.openStashPaths(t, ps) }
 		}
@@ -762,22 +981,23 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 			for _, e := range es {
 				paths = append(paths, string(m.st.Path(int(e))))
 			}
-			req := session.PatchSave{Paths: paths, Cached: r.sec == secStaged}
+			req := session.PatchSave{Paths: append(paths, inner...), Cached: r.sec == secStaged}
 			*act = func() { a.savePatch(t, req, "changes.patch") }
 		}
 	}
-	if r.kind == rowFile {
+	if fileRow(r) {
+		p := m.path(r)
 		menu.Separator()
-		if !untrackedFolder(m.st, int(r.idx)) {
-			a.fileLockMenu(menu, t, string(m.st.Path(int(r.idx))), act)
+		if !strings.HasSuffix(p, "/") {
+			a.fileLockMenu(menu, t, p, act)
 		}
-		a.fileMenu(menu, t, string(m.st.Path(int(r.idx))), act)
+		a.fileMenu(menu, t, p, act)
 	}
 }
 
 // toggleStage stages what is unstaged and unstages what is staged.
 func (a *App) toggleStage(t *tab, m *changeModel, rows []changeRow) {
-	if len(rows) == 0 || rows[0].kind == rowHeader || t.s.Queue == nil {
+	if len(rows) == 0 || rows[0].kind == rowHeader || rows[0].kind == rowMore || t.s.Queue == nil {
 		return
 	}
 	sec := rows[0].sec
@@ -785,17 +1005,23 @@ func (a *App) toggleStage(t *tab, m *changeModel, rows []changeRow) {
 		sec = secUnstaged
 	}
 	t.cv.keepPlace(m, rows)
-	a.stageEntries(t, m, sec, m.entries(rows))
+	es, inner := m.targets(rows)
+	a.stagePaths(t, sec, slices.Concat(paths(m.st, es), inner))
 }
 
 // stageEntries stages entries listed under Changes or Conflicts, and
 // unstages those listed under Staged.
 func (a *App) stageEntries(t *tab, m *changeModel, from section, es []int32) {
-	if len(es) == 0 {
+	a.stagePaths(t, from, paths(m.st, es))
+}
+
+// stagePaths stages paths listed under Changes or Conflicts, and
+// unstages those listed under Staged.
+func (a *App) stagePaths(t *tab, from section, ps []string) {
+	if len(ps) == 0 {
 		return
 	}
 	w := t.s.Where()
-	ps := paths(m.st, es)
 	op := write.Stage(w, ps)
 	if from == secStaged {
 		op = write.Unstage(w, ps, len(t.s.State.Head.OID) == 0)
@@ -815,14 +1041,18 @@ func (a *App) ignore(t *tab, pattern string) {
 	}
 }
 
-// discardIn asks before discarding the changes of entries es of st
-// listed in sec.
-func (a *App) discardIn(t *tab, st *status.Status, sec section, es []int32) {
+// discardRows asks before discarding the changes of rows of m listed in
+// sec: their entries', and the files in untracked folders among them.
+func (a *App) discardRows(t *tab, m *changeModel, sec section, rows []changeRow) {
+	es, inner := m.targets(rows)
+	var d discardSet
 	if sec == secStaged {
-		a.askDiscard(t, st, nil, es)
-		return
+		d = discardOf(t, m.st, nil, es)
+	} else {
+		d = discardOf(t, m.st, es, nil)
 	}
-	a.askDiscard(t, st, es, nil)
+	d.untracked = append(d.untracked, inner...)
+	a.askDiscardPaths(t, &t.cv.confirm, d)
 }
 
 // askDiscard asks before discarding changes to tracked entries and
@@ -831,6 +1061,11 @@ func (a *App) discardIn(t *tab, st *status.Status, sec section, es []int32) {
 // write expects to find: HEAD and the files as they are now, read off
 // the main thread.
 func (a *App) askDiscard(t *tab, st *status.Status, unstaged, staged []int32) {
+	a.askDiscardPaths(t, &t.cv.confirm, discardOf(t, st, unstaged, staged))
+}
+
+// discardOf is what discarding entries of st does, as askDiscard says.
+func discardOf(t *tab, st *status.Status, unstaged, staged []int32) discardSet {
 	var d discardSet
 	unborn := len(t.s.State.Head.OID) == 0
 	// A file staged as new is untracked once unstaged, to be deleted,
@@ -871,7 +1106,7 @@ func (a *App) askDiscard(t *tab, st *status.Status, unstaged, staged []int32) {
 		}
 		seen[p] = true
 	}
-	a.askDiscardPaths(t, &t.cv.confirm, d)
+	return d
 }
 
 // discardSet is what a discard does: unstage puts paths in the index

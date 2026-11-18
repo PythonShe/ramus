@@ -68,9 +68,9 @@ func TestHideFolders(t *testing.T) {
 			t.Fatalf("%q in\n%s", s, got)
 		}
 	}
-	files, err := r.UntrackedUnder(context.Background(), "packages/", 10)
-	if err != nil || strings.Join(files.Paths, " ") != "packages/new/a.js" {
-		t.Fatalf("under packages/: %q, %v", files.Paths, err)
+	files, err := r.UntrackedUnder(context.Background(), []string{"packages/"}, 10, 10)
+	if err != nil || strings.Join(files["packages/"].Paths, " ") != "packages/new/a.js" {
+		t.Fatalf("under packages/: %v, %v", files, err)
 	}
 	if _, err := r.Runner.Run(context.Background(), &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree,
 		Args: []string{"add", "--all", "--", "packages/"}}); err != nil {

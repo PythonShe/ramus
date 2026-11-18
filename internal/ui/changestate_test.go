@@ -32,7 +32,7 @@ func TestChangeStates(t *testing.T) {
 		"staged renamed moved.txt",
 		"deleted p.txt",
 		"untracked q.txt",
-		"untracked folder newdir/",
+		"untracked folder newdir/, open",
 	} {
 		if _, ok := h.tt.Access(name); !ok {
 			t.Errorf("no row reads %q", name)
@@ -41,7 +41,8 @@ func TestChangeStates(t *testing.T) {
 	if h.tt.HasText("?") || !h.tt.HasText("U") || !h.tt.HasText("R") || !h.tt.HasText("D") {
 		t.Errorf("letters %q", h.tt.Texts())
 	}
-	// A new folder lists its files, not a patch of no differences.
+	// A new folder lists its files under it, not a patch of no
+	// differences.
 	h.click("newdir/")
 	h.until("the folder", func() bool { return h.tt.HasText("1 file") && h.tt.HasText("x.txt") })
 }

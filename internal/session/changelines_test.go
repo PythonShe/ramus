@@ -10,6 +10,7 @@ import (
 
 	"ramus/internal/git/diff"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 )
 
 // diffRuns counts the line counts git ran: in the index, in the work tree.
@@ -42,7 +43,7 @@ func TestCountsCoalesce(t *testing.T) {
 	_, before := diffRuns(logged())
 	var got []int
 	for n := range 3 {
-		s.CountChanges(st, func(l ChangeLines) {
+		s.CountChanges(st, nil, func(l ChangeLines) {
 			if l.Unstaged[0] != (diff.Lines{Added: 1, Known: true}) {
 				t.Errorf("count %d: %+v", n, l.Unstaged[0])
 			}
@@ -89,7 +90,7 @@ func TestCountsKept(t *testing.T) {
 	count := func() ChangeLines {
 		t.Helper()
 		var out *ChangeLines
-		s.CountChanges(s.State.Status, func(l ChangeLines) { out = &l })
+		s.CountChanges(s.State.Status, nil, func(l ChangeLines) { out = &l })
 		m.until(t, "the count", func() bool { return out != nil })
 		return *out
 	}
@@ -140,10 +141,10 @@ func TestCountsKept(t *testing.T) {
 	r.Git("add", "d")
 	index, tree = diffRuns(logged())
 	var out *ChangeLines
-	s.CountChanges(st, func(l ChangeLines) { out = &l })
+	s.CountChanges(st, nil, func(l ChangeLines) { out = &l })
 	m.until(t, "the count", func() bool { return out != nil })
 	out = nil
-	s.CountChanges(st, func(l ChangeLines) { out = &l })
+	s.CountChanges(st, nil, func(l ChangeLines) { out = &l })
 	m.until(t, "the count again", func() bool { return out != nil })
 	if i, _ := diffRuns(logged()); i != index+2 {
 		t.Fatalf("counts of another index kept: diff-index ran %d times", i-index)
@@ -178,5 +179,48 @@ func TestStaleCountLeavesTheSlot(t *testing.T) {
 	m.until(t, "the count", func() bool { return ended })
 	if s.count.running {
 		t.Fatal("still running")
+	}
+}
+
+// The files of the untracked folders asked for are listed and counted,
+// a folder's count adding theirs up; the others are not listed.
+func TestCountsFolders(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1\n")
+	r.Commit("one")
+	r.Write("new/x.txt", "1\n2\n")
+	r.Write("new/deep/y.txt", "1\n2\n3\n")
+	r.Write("new/pic.bin", "\x00\x01")
+	r.Write("other/z.txt", "1\n")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "status", func() bool { return s.State.Status != nil && s.State.Status.Len() == 2 })
+	m.settle(t, s)
+	st := s.State.Status
+	var out *ChangeLines
+	s.CountChanges(st, []string{"new/"}, func(l ChangeLines) { out = &l })
+	m.until(t, "the count", func() bool { return out != nil })
+	f, ok := out.Folders["new/"]
+	if !ok || len(out.Folders) != 1 {
+		t.Fatalf("folders listed: %v", out.Folders)
+	}
+	want := map[string]uint32{"new/deep/y.txt": 3, "new/pic.bin": 0, "new/x.txt": 2}
+	if len(f.Paths) != len(want) || f.More != 0 {
+		t.Fatalf("files %q, %d more", f.Paths, f.More)
+	}
+	for k, p := range f.Paths {
+		if l := f.Lines[k]; l.Added != want[p] || !l.Known || l.Binary != (p == "new/pic.bin") {
+			t.Fatalf("%s: %+v", p, l)
+		}
+	}
+	for i := range st.Len() {
+		l := out.Unstaged[i]
+		if string(st.Path(i)) == "new/" && (l.Added != 5 || !l.Known) {
+			t.Fatalf("the folder's count: %+v", l)
+		}
+		if string(st.Path(i)) == "other/" && l.Known {
+			t.Fatalf("a folder not asked for counted: %+v", l)
+		}
 	}
 }
