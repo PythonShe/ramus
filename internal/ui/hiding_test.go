@@ -75,9 +75,9 @@ func TestHideSidebarParts(t *testing.T) {
 	h.until("tags back", func() bool { return hasExact(h, "Tags (1)") })
 
 	palette("hide sidebar")
-	h.until("no sidebar", func() bool { return !hasExact(h, "History") && h.app.Settings.NoSidebar })
+	h.until("no sidebar", func() bool { return !hasExact(h, "Reflog") && h.app.Settings.NoSidebar })
 	palette("show sidebar")
-	h.until("the sidebar", func() bool { return hasExact(h, "History") })
+	h.until("the sidebar", func() bool { return hasExact(h, "Reflog") })
 }
 
 // A section of refs with none is left out, and comes when one is made.

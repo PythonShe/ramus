@@ -12579,6 +12579,40 @@ func (msgs Messages) TabsApp() string {
 	return Catalog.Format(msgs.locale, "tabsApp", nil)
 }
 
+// TabsViews says "Views"
+// in the language the app shows.
+//
+// Names, for a screen reader, the pair of buttons in the bar that show the
+// Changes page or the History page.
+func TabsViews() string { return In(i18n.Locale()).TabsViews() }
+
+// TabsViews says "Views"
+// in the language of msgs.
+//
+// Names, for a screen reader, the pair of buttons in the bar that show the
+// Changes page or the History page.
+func (msgs Messages) TabsViews() string {
+	return Catalog.Format(msgs.locale, "tabsViews", nil)
+}
+
+// TabsViewTooltip says "{action} ({shortcut})"
+// in the language the app shows.
+//
+// Tooltip of a button in the bar's Changes and History pair: the action,
+// such as Show History, and its keyboard shortcut, such as ⇧⌘H.
+func TabsViewTooltip(action string, shortcut string) string {
+	return In(i18n.Locale()).TabsViewTooltip(action, shortcut)
+}
+
+// TabsViewTooltip says "{action} ({shortcut})"
+// in the language of msgs.
+//
+// Tooltip of a button in the bar's Changes and History pair: the action,
+// such as Show History, and its keyboard shortcut, such as ⇧⌘H.
+func (msgs Messages) TabsViewTooltip(action string, shortcut string) string {
+	return Catalog.Format(msgs.locale, "tabsViewTooltip", map[string]any{"action": action, "shortcut": shortcut})
+}
+
 // KeysKeyboardShortcuts says "Keyboard Shortcuts…"
 // in the language the app shows.
 func KeysKeyboardShortcuts() string { return In(i18n.Locale()).KeysKeyboardShortcuts() }

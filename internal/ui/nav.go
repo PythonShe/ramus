@@ -116,6 +116,8 @@ func (a *App) pageTitle(t *tab) string {
 			return redact.Control(string(subject))
 		}
 		return hex.EncodeToString(t.hist.chosenID)[:10]
+	case t.sel == "history":
+		return locales.RepoSectionHistory()
 	case strings.HasPrefix(t.sel, "refs/"):
 		return shortRef(t.sel)
 	}

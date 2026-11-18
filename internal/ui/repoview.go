@@ -286,13 +286,12 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 			a.hideMenu(ui.SidebarItem(c, key, nil, label), key)
 		}
 	}
-	// The sidebar runs from what is used all day to what is used now and
-	// then: the views of the work, the refs and what else the repository
-	// holds, then the tools, under a line between each.
+	// The sidebar holds what is used now and then; Changes and History,
+	// used all day, are in the bar (viewSwitch). It runs from the views of
+	// the refs to what else the repository holds, then the tools, under a
+	// line between each.
 	was := t.sel
 	side := ui.Sidebar(c, &t.sel, func() {
-		ui.SidebarItem(c, sideChanges, nil, changesLabel(st))
-		item("history", locales.RepoSectionHistory())
 		item("refs", locales.RepoSectionRefs())
 		if a.hasPulls(t) {
 			item(sidePulls, a.pullsSection(t))
@@ -411,10 +410,10 @@ func (a *App) chooseSidebar(t *tab, was string) {
 }
 
 func changesLabel(st session.State) string {
-	if st.Status == nil || st.Status.Len() == 0 {
-		return locales.RepoSectionChanges()
+	if n := changedFiles(st); n > 0 {
+		return locales.RepoSectionChangesCount(n)
 	}
-	return locales.RepoSectionChangesCount(st.Status.Len())
+	return locales.RepoSectionChanges()
 }
 
 // warningBar says what keeps the repository from working as it should:

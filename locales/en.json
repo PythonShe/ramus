@@ -2659,6 +2659,14 @@
   "@tabsApp": {
     "description": "Names, for its tooltip and for a screen reader, the gear button at the end of the tab bar, whose menu holds Settings, Check for Updates and About."
   },
+  "tabsViews": "Views",
+  "@tabsViews": {
+    "description": "Names, for a screen reader, the pair of buttons in the bar that show the Changes page or the History page."
+  },
+  "tabsViewTooltip": "{action} ({shortcut})",
+  "@tabsViewTooltip": {
+    "description": "Tooltip of a button in the bar's Changes and History pair: the action, such as Show History, and its keyboard shortcut, such as ⇧⌘H."
+  },
   "keysKeyboardShortcuts": "Keyboard Shortcuts…",
   "keysLibraryStats": "Library Statistics…",
   "keysCrashReports": "Show Crash Reports",
