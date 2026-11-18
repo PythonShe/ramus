@@ -17508,3 +17508,85 @@ func PrsAddComment() string { return In(i18n.Locale()).PrsAddComment() }
 func (msgs Messages) PrsAddComment() string {
 	return Catalog.Format(msgs.locale, "prsAddComment", nil)
 }
+
+// PrsImage says "Image"
+// in the language the app shows.
+//
+// Names, in a comment, a picture that has no description of its own; it is
+// a link to the picture.
+func PrsImage() string { return In(i18n.Locale()).PrsImage() }
+
+// PrsImage says "Image"
+// in the language of msgs.
+//
+// Names, in a comment, a picture that has no description of its own; it is
+// a link to the picture.
+func (msgs Messages) PrsImage() string {
+	return Catalog.Format(msgs.locale, "prsImage", nil)
+}
+
+// PrsChecksPassed says "{count, plural, one {# passed} other {# passed}}"
+// in the language the app shows.
+//
+// Counts, beside a pull request's conversation, the checks of its latest
+// commit that passed; it leads to the list of them all.
+func PrsChecksPassed(count int) string { return In(i18n.Locale()).PrsChecksPassed(count) }
+
+// PrsChecksPassed says "{count, plural, one {# passed} other {# passed}}"
+// in the language of msgs.
+//
+// Counts, beside a pull request's conversation, the checks of its latest
+// commit that passed; it leads to the list of them all.
+func (msgs Messages) PrsChecksPassed(count int) string {
+	return Catalog.Format(msgs.locale, "prsChecksPassed", map[string]any{"count": count})
+}
+
+// PrsChecksRest says "{count, plural, one {# more} other {# more}}"
+// in the language the app shows.
+//
+// Counts, beside a pull request's conversation and under the checks listed
+// there, the others that failed, run or wait; it leads to the list of them
+// all.
+func PrsChecksRest(count int) string { return In(i18n.Locale()).PrsChecksRest(count) }
+
+// PrsChecksRest says "{count, plural, one {# more} other {# more}}"
+// in the language of msgs.
+//
+// Counts, beside a pull request's conversation and under the checks listed
+// there, the others that failed, run or wait; it leads to the list of them
+// all.
+func (msgs Messages) PrsChecksRest(count int) string {
+	return Catalog.Format(msgs.locale, "prsChecksRest", map[string]any{"count": count})
+}
+
+// PrsChecksSkipped says "{count, plural, one {# skipped} other {# skipped}}"
+// in the language the app shows.
+//
+// Counts, beside a pull request's conversation, the checks of its latest
+// commit that were skipped; it leads to the list of them all.
+func PrsChecksSkipped(count int) string { return In(i18n.Locale()).PrsChecksSkipped(count) }
+
+// PrsChecksSkipped says "{count, plural, one {# skipped} other {# skipped}}"
+// in the language of msgs.
+//
+// Counts, beside a pull request's conversation, the checks of its latest
+// commit that were skipped; it leads to the list of them all.
+func (msgs Messages) PrsChecksSkipped(count int) string {
+	return Catalog.Format(msgs.locale, "prsChecksSkipped", map[string]any{"count": count})
+}
+
+// PrsFold says "Details"
+// in the language the app shows.
+//
+// Names, in a comment, a section that opens and closes and has no summary
+// of its own.
+func PrsFold() string { return In(i18n.Locale()).PrsFold() }
+
+// PrsFold says "Details"
+// in the language of msgs.
+//
+// Names, in a comment, a section that opens and closes and has no summary
+// of its own.
+func (msgs Messages) PrsFold() string {
+	return Catalog.Format(msgs.locale, "prsFold", nil)
+}

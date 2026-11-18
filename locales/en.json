@@ -3804,5 +3804,25 @@
   "prsAddComment": "Comment",
   "@prsAddComment": {
     "description": "Adds a comment to the pull request's conversation."
+  },
+  "prsImage": "Image",
+  "@prsImage": {
+    "description": "Names, in a comment, a picture that has no description of its own; it is a link to the picture."
+  },
+  "prsChecksPassed": "{count, plural, one {# passed} other {# passed}}",
+  "@prsChecksPassed": {
+    "description": "Counts, beside a pull request's conversation, the checks of its latest commit that passed; it leads to the list of them all."
+  },
+  "prsChecksRest": "{count, plural, one {# more} other {# more}}",
+  "@prsChecksRest": {
+    "description": "Counts, beside a pull request's conversation and under the checks listed there, the others that failed, run or wait; it leads to the list of them all."
+  },
+  "prsChecksSkipped": "{count, plural, one {# skipped} other {# skipped}}",
+  "@prsChecksSkipped": {
+    "description": "Counts, beside a pull request's conversation, the checks of its latest commit that were skipped; it leads to the list of them all."
+  },
+  "prsFold": "Details",
+  "@prsFold": {
+    "description": "Names, in a comment, a section that opens and closes and has no summary of its own."
   }
 }

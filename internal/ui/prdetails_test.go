@@ -53,7 +53,7 @@ func TestPullRequestDetails(t *testing.T) {
  {"__typename":"LabeledEvent","actor":{"login":"bot"},"createdAt":"2026-11-10T09:00:02Z","label":{"name":"triage"}},
  {"__typename":"HeadRefForcePushedEvent","actor":{"login":"ann"},"createdAt":"2026-11-10T13:00:00Z","beforeCommit":{"abbreviatedOid":"aaaaaaa"},"afterCommit":{"abbreviatedOid":"bbbbbbb"}},
  {"__typename":"ReviewRequestedEvent","actor":{"login":"ann"},"createdAt":"2026-11-10T13:10:00Z","requestedReviewer":{"__typename":"User","login":"bob"}}]},
-"comments":{"totalCount":1,"nodes":[{"id":"IC_1","databaseId":11,"author":{"login":"cat"},"body":"Looks *fine*","createdAt":"2026-11-10T12:00:00Z"}]},
+"comments":{"totalCount":1,"nodes":[{"id":"IC_1","databaseId":11,"author":{"login":"cat"},"body":"Looks *fine*, see <a href=\"https://example.com/run\">the run</a>\n\n<details>\n<summary>The log</summary>\n\nFolded away\n\n</details>","createdAt":"2026-11-10T12:00:00Z"}]},
 "reviews":{"totalCount":0,"nodes":[]},"reviewThreads":{"totalCount":0,"nodes":[]}}}}}`
 	env, _ := reviewTool(t, "gh", "pullRequests(states", "pullRequest(number", list, review)
 	tools := &forgeTools{env: env}
@@ -94,11 +94,72 @@ func TestPullRequestDetails(t *testing.T) {
 	if !slices.Equal(whats, want) {
 		t.Fatalf("conversation %q", whats)
 	}
-	for _, text := range []string{"added 1 commit", "aaaaaaa", "First try", "added the labels bug, triage", "Looks fine", "force-pushed, from aaaaaaa to bbbbbbb"} {
+	for _, text := range []string{"ann added 1 commit", "aaaaaaa", "First try", "bot added the labels bug, triage", "Looks fine, see the run", "ann force-pushed, from aaaaaaa to bbbbbbb"} {
 		if !h.tt.HasText(text) {
 			t.Fatalf("no %q in the conversation: %q", text, h.tt.Texts())
 		}
 	}
+	// HTML is not shown as its source: a fold is closed under its
+	// summary until it is opened.
+	for _, text := range h.tt.Texts() {
+		if strings.Contains(text, "<details>") || strings.Contains(text, "</a>") || strings.Contains(text, "Folded away") {
+			t.Fatalf("shown as written: %q", text)
+		}
+	}
+	h.click("The log")
+	h.until("the fold open", h.shows("Folded away"))
+
+	// The comment being written is in the window whole, under the
+	// conversation, however much is above them.
+	const short = 440
+	h.tt.SetSize(1200, short)
+	h.tt.Frame()
+	box, ok := h.tt.Find("Leave a comment")
+	send, ok2 := h.tt.Find("Comment")
+	if !ok || !ok2 || box.H < rowHeight || send.Y+send.H > short || box.Y+box.H > send.Y {
+		t.Fatalf("the comment box at %v, its button at %v, in a window %d high", box, send, short)
+	}
+	h.tt.SetSize(1200, 800)
+	h.tt.Frame()
+
+	// A pane with room to spare has who reviews, the labels and the
+	// checks to look at beside the conversation, and there alone; a
+	// count of the other checks leads to them all.
+	said := func(text string) (n int) {
+		for _, t := range h.tt.Texts() {
+			if t == text {
+				n++
+			}
+		}
+		return n
+	}
+	h.until("the details beside", func() bool { return rv.asideW() > 0 && said("Reviewers") == 1 })
+	side, _ := h.tt.Find("Reviewers")
+	if _, failed := h.tt.Access("test, Failed"); !failed || side.X < box.X+box.W || said("bug") != 1 || !h.tt.HasText("1 passed") {
+		t.Fatalf("the details at %v, the comment box at %v: %q", side, box, h.tt.Texts())
+	}
+	h.click("1 passed")
+	h.until("the checks, from their count", func() bool { return rv.page == 2 })
+	// There they are beside the tabs, which they do not move.
+	tabs, _ := h.tt.Find("Conversation (6)")
+	h.until("the reviewers beside the tabs", func() bool {
+		at, ok := h.tt.Find("Reviewers")
+		return ok && at.X > tabs.X && at.Y+at.H > tabs.Y && at.Y < tabs.Y+tabs.H
+	})
+	if now, _ := h.tt.Find("Conversation (6)"); now != tabs {
+		t.Fatalf("the tabs moved from %v to %v", tabs, now)
+	}
+	// A narrow pane has them on a row over the tabs, the conversation
+	// taking the pane.
+	h.click("Conversation (6)")
+	h.tt.SetSize(860, 800)
+	h.until("the details over the tabs", func() bool {
+		at, ok := h.tt.Find("Reviewers")
+		now, _ := h.tt.Find("Conversation (6)")
+		return ok && rv.asideW() == 0 && !h.tt.HasText("1 passed") && at.Y+at.H <= now.Y
+	})
+	h.tt.SetSize(1200, 800)
+	h.until("the details beside again", func() bool { return rv.asideW() > 0 })
 
 	// The checks, the failed first; one opens its page, and one whose
 	// address is no page opens nothing.

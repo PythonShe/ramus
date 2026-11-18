@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -127,6 +128,14 @@ type prReview struct {
 
 	conv    ui.ListState
 	comment string
+	// paneW is the width the page was last laid out in.
+	paneW float32
+	// bodies are the comments shown, each read once into its parts
+	// (commentParts), of the review as last read; folds is whether each
+	// fold of theirs is open, by the entry it is in (prEvent.id) and by
+	// where it is in the entry.
+	bodies map[string][]*commentPart
+	folds  map[string]map[string]*bool
 	// staleList lists the drafts on an older head in the submit dialog,
 	// unplacedList the threads the patch shown has no line for.
 	staleList, unplacedList ui.ListState
@@ -464,6 +473,9 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 			rv.verify = false
 		}
 		rv.r, rv.events, rv.checks = r, nil, sortChecks(r.CheckList)
+		// The folds stay as they are: read again, a comment opened is
+		// still being read.
+		rv.bodies = nil
 		rv.threadsOn = map[string]int{}
 		for _, th := range r.Threads {
 			if !th.Outdated && th.Line > 0 {
@@ -599,6 +611,10 @@ func (rv *prReview) timeline() []prEvent {
 			files = rv.detail.Files
 		}
 		rv.events = prTimeline(&rv.r, files)
+		// What is open in an entry that is gone goes with it.
+		maps.DeleteFunc(rv.folds, func(id string, _ map[string]*bool) bool {
+			return !slices.ContainsFunc(rv.events, func(e prEvent) bool { return e.id == id })
+		})
 	}
 	return rv.events
 }
@@ -620,7 +636,10 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 	a.loadPRReview(t, rv)
 	th := c.Theme()
 	r := &rv.r
-	ui.Column(c).Fill().Children(func() {
+	// A wide pane has the labels and the people beside the tabs, or
+	// beside the conversation, rather than on a row of their own.
+	wide := rv.paneW >= convAsideMin
+	page := ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(bannerPadY, insetX, 0, insetX).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 			// Esc leaves a comment being written to its text area.
 			if ui.Button(c, locales.PrsBackToList(kindName(rv.repo.Kind))).Clicked() || rv.compose == nil && c.Shortcut(0, ui.KeyEscape) {
@@ -666,7 +685,9 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			}
 			lineCounts(c, r.Added, r.Deleted)
 		})
-		prPeople(c, r)
+		if !wide {
+			prPeople(c, r, false)
+		}
 		if r.More {
 			ui.Text(c, locales.PrsMoreOnHost(kindName(rv.repo.Kind))).FontSize(textSmall).TextColor(th.Warning).Padding(0, insetX)
 		}
@@ -674,8 +695,11 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 		if rv.detail != nil && rv.detail.Files != nil {
 			nFiles = rv.detail.Files.Len()
 		}
-		ui.Row(c).Padding(spaceS, insetX).Children(func() {
-			ui.Segmented(c, &rv.page, locales.PrsFiles(nFiles), locales.PrsConversation(len(rv.timeline())), locales.PrsChecks(len(rv.checks)))
+		ui.Row(c).Padding(spaceS, insetX).Gap(spaceL).AlignItems(ui.Center).Children(func() {
+			ui.Segmented(c, &rv.page, locales.PrsFiles(nFiles), locales.PrsConversation(len(rv.timeline())), locales.PrsChecks(len(rv.checks))).Shrink(0)
+			if wide && !(rv.page == 1 && rv.asideW() > 0) {
+				prPeople(c, r, true)
+			}
 		})
 		switch rv.page {
 		case 1:
@@ -686,6 +710,12 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			a.prFiles(c, t, rv)
 		}
 	})
+	// The pane's width is known once it is laid out: a frame more lays
+	// the page out for it.
+	if w := page.LayoutBounds().W; w != rv.paneW {
+		rv.paneW = w
+		c.AnimationFrame()
+	}
 	a.prSubmitView(c, t, rv)
 }
 
@@ -1155,6 +1185,10 @@ func (rv *prReview) maybeSent(t *tab) {
 
 // prEvent is one entry of a pull request's conversation.
 type prEvent struct {
+	// id tells an entry with words from the others, as long as the host
+	// has it: what is open in it stays open when the pull request is
+	// read again, whatever came or went before it.
+	id     string
 	author string
 	at     time.Time
 	body   string
@@ -1175,15 +1209,23 @@ func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 	if r.Number == 0 {
 		return nil
 	}
-	ev := []prEvent{{author: r.Author, at: r.Created, body: r.Body, what: locales.PrsOpened()}}
+	// A review has no id of its own here: who submitted it and when
+	// tells it from the others.
+	id := func(kind, id, author string, at time.Time) string {
+		if id == "" {
+			id = author + "@" + at.UTC().Format(time.RFC3339Nano)
+		}
+		return kind + ":" + id
+	}
+	ev := []prEvent{{id: "description", author: r.Author, at: r.Created, body: r.Body, what: locales.PrsOpened()}}
 	for _, c := range r.Comments {
-		ev = append(ev, prEvent{author: c.Author, at: c.At, body: c.Body, what: locales.PrsCommented()})
+		ev = append(ev, prEvent{id: id("comment", c.ID, c.Author, c.At), author: c.Author, at: c.At, body: c.Body, what: locales.PrsCommented()})
 	}
 	for _, s := range r.Reviews {
 		if s.State == forge.ReviewCommented && strings.TrimSpace(s.Body) == "" || s.State == forge.ReviewPending {
 			continue
 		}
-		ev = append(ev, prEvent{author: s.Author, at: s.At, body: s.Body, what: reviewedText(s.State), state: s.State})
+		ev = append(ev, prEvent{id: id("review", "", s.Author, s.At), author: s.Author, at: s.At, body: s.Body, what: reviewedText(s.State), state: s.State})
 	}
 	var listed map[string]bool
 	if files != nil {
@@ -1204,7 +1246,7 @@ func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 			}
 			what = locales.PrsCommentOn(th.Path, th.Line)
 		}
-		ev = append(ev, prEvent{author: th.Comments[0].Author, at: th.Comments[0].At, thread: th, what: what})
+		ev = append(ev, prEvent{id: id("thread", th.ID, th.Comments[0].Author, th.Comments[0].At), author: th.Comments[0].Author, at: th.Comments[0].At, thread: th, what: what})
 	}
 	for i := range r.Events {
 		e := &r.Events[i]
@@ -1226,62 +1268,6 @@ func reviewedText(s forge.ReviewState) string {
 		return locales.PrsReviewed("dismissed")
 	}
 	return locales.PrsReviewed("other")
-}
-
-func (a *App) prConversation(c *ui.Context, t *tab, rv *prReview) {
-	th := c.Theme()
-	ev := rv.timeline()
-	now := a.Now()
-	ui.Column(c).Fill().Children(func() {
-		rv.conv.Label = func(i int) string { return ev[i].author + ", " + ev[i].what }
-		ui.List(c, &rv.conv, len(ev), func(i int) {
-			e := ev[i]
-			ui.Column(c).FillWidth().Padding(spaceM, insetX).Gap(spaceXS).Children(func() {
-				ui.Row(c).Gap(spaceM).Children(func() {
-					ui.Text(c, e.author).Bold().FontSize(textSmall)
-					col := th.TextMuted
-					switch e.state {
-					case forge.ReviewApproved:
-						col = th.Success
-					case forge.ReviewChangesRequested:
-						col = th.Danger
-					}
-					ui.Text(c, e.what).FontSize(textSmall).TextColor(col)
-					ui.Text(c, ago(now, e.at)).FontSize(textSmall).TextColor(th.TextMuted)
-				})
-				if e.event != nil {
-					eventCommits(c, e.event)
-					return
-				}
-				if e.thread != nil {
-					for _, cm := range e.thread.Comments {
-						ui.Column(c.Key(cm.ID)).Padding(0, 0, 0, spaceL).Gap(space2XS).Children(func() {
-							commentHead(c, cm.Author, cm.At, now)
-							a.markdownBody(c, rv, shownBody(cm.Body))
-						})
-					}
-					return
-				}
-				body := shownBody(e.body)
-				if body == "" && i == 0 {
-					ui.Text(c, locales.PrsNoDescription()).FontSize(noteBodySize).TextColor(th.TextMuted)
-				} else if body != "" {
-					a.markdownBody(c, rv, body)
-				}
-			})
-		}).Label(locales.PrsConversationLabel()).Grow(1)
-		ui.Column(c).Padding(spaceM, insetX).Gap(spaceS).Children(func() {
-			ui.TextArea(c, &rv.comment).Label(locales.PrsCommentPlaceholder()).Placeholder(locales.PrsCommentPlaceholder()).Lines(2, 6).FillWidth()
-			body := strings.TrimSpace(rv.comment)
-			ui.Row(c).Children(func() {
-				ui.Spacer(c)
-				if ui.Button(c, locales.PrsAddComment()).Disabled(body == "" || rv.busy()).Clicked() {
-					a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error { return cl.AddComment(ctx, rv.repo, rv.n, body) },
-						func() { rv.comment = "" })
-				}
-			})
-		})
-	})
 }
 
 func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {

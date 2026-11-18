@@ -91,8 +91,10 @@ func reviewerMark(th *ui.Theme, s forge.ReviewState) (*ui.SVG, ui.Color, string)
 
 // prPeople is the row under a pull request's title of its labels, its
 // reviewers, each with their latest verdict, and those it is assigned
-// to; nothing when it has none.
-func prPeople(c *ui.Context, r *forge.Review) {
+// to; nothing when it has none. A pane with room to spare has them
+// beside the tabs instead, on one line (inline), and beside the
+// conversation (prAside).
+func prPeople(c *ui.Context, r *forge.Review, inline bool) {
 	if len(r.Labels) == 0 && len(r.Reviewers) == 0 && len(r.Assignees) == 0 {
 		return
 	}
@@ -100,7 +102,14 @@ func prPeople(c *ui.Context, r *forge.Review) {
 	caption := func(s string) {
 		ui.Text(c, s).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 	}
-	ui.Row(c).Padding(0, insetX, spaceXS, insetX).Gap(spaceM).Wrap().AlignItems(ui.Center).FillWidth().Children(func() {
+	row := ui.Row(c).Gap(spaceM).AlignItems(ui.Center)
+	if inline {
+		// What does not fit is cut: a second line would move the tabs.
+		row.Shrink(1).MinWidth(0).Clip()
+	} else {
+		row.Padding(0, insetX, spaceXS, insetX).Wrap().FillWidth()
+	}
+	row.Children(func() {
 		if len(r.Reviewers) > 0 {
 			ui.Row(c).Gap(spaceS).AlignItems(ui.Center).Label(locales.PrsReviewers()).Children(func() {
 				caption(locales.PrsReviewers())
@@ -122,7 +131,11 @@ func prPeople(c *ui.Context, r *forge.Review) {
 			})
 		}
 		if len(r.Labels) > 0 {
-			ui.Row(c).Gap(spaceXS).Wrap().AlignItems(ui.Center).Label(locales.PrsLabels()).Children(func() {
+			labels := ui.Row(c).Gap(spaceXS).AlignItems(ui.Center).Label(locales.PrsLabels())
+			if !inline {
+				labels.Wrap()
+			}
+			labels.Children(func() {
 				for _, l := range r.Labels {
 					labelChip(c, l)
 				}
@@ -296,7 +309,7 @@ func eventText(e *forge.Event) string {
 func eventCommits(c *ui.Context, e *forge.Event) {
 	th := c.Theme()
 	for _, cm := range e.Commits {
-		ui.Row(c.Key(cm.ID)).Gap(spaceM).Padding(0, 0, 0, spaceL).Children(func() {
+		ui.Row(c.Key(cm.ID)).Gap(spaceM).Children(func() {
 			ui.Text(c, redact.Control(cm.ID)).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 			ui.Text(c, redact.Control(cm.Subject)).FontSize(textSmall).SingleLine().Shrink(1).Selectable()
 		})
@@ -321,7 +334,7 @@ func (a *App) markdownOptions(rv *prReview) *markdown.Options {
 	repo := rv.repo
 	site := strings.TrimSuffix(repo.Web(), "/"+repo.Path)
 	rv.md = &markdown.Options{
-		Theme: &markdown.Theme{FontSize: noteBodySize},
+		Theme: commentTheme(),
 		OnLink: func(dest string) {
 			if webLink(dest) {
 				a.openURL = dest
@@ -351,10 +364,4 @@ func (a *App) markdownOptions(rv *prReview) *markdown.Options {
 		},
 	}
 	return rv.md
-}
-
-// markdownBody shows body, a description or a comment, as its Markdown
-// reads.
-func (a *App) markdownBody(c *ui.Context, rv *prReview, body string) {
-	markdown.View(c, body, a.markdownOptions(rv)).FillWidth()
 }
