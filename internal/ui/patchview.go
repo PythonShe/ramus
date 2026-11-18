@@ -3,12 +3,6 @@ package ui
 import (
 	"bytes"
 	"fmt"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
-	"path/filepath"
-	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -29,6 +23,12 @@ type diffOptions struct {
 	// the user asks.
 	noWrap bool
 	ws     int // a diff.Whitespace
+	// picture is how a picture's sides compare; svg is 1 where a picture
+	// git diffs as text, as SVG, shows as one, 0 where as its text. swipe
+	// and onion are where their sliders stand, from 0, the before side,
+	// to 1, the after one.
+	picture, svg int
+	swipe, onion float64
 }
 
 // layout is the layout of the review's patches, or of the others.
@@ -50,6 +50,11 @@ func (a *App) diffOpts() *diffOptions {
 			o.reviewSplit = 1
 		}
 		o.noWrap = a.Settings.DiffNoWrap
+		o.picture = min(max(a.Settings.PictureCompare, pictureSideBySide), pictureDifference)
+		if a.Settings.SVGAsPicture {
+			o.svg = 1
+		}
+		o.swipe, o.onion = 0.5, 0.5
 	}
 	return &o.diffOptions
 }
@@ -118,15 +123,8 @@ type patchView struct {
 	// lines; -1 for none.
 	scrollTo float64
 	shown    bool
-	// images are a binary file's sides as pictures, nil where a side is
-	// none or not a picture, and what each says of itself.
-	images [2]ui.ImageSource
-	about  [2]string
-	// lfs is a picture stored in Git LFS, shown as pictures once
-	// pictured, whatever git made of its pointers; notFetched are the
-	// sides whose content was never downloaded.
-	lfs, pictured bool
-	notFetched    [2]bool
+	// pics is the file's sides as pictures, for a picture.
+	pics pictureState
 	// sub is a submodule's change, shown as the commits it moves over.
 	sub *subChange
 }
@@ -158,8 +156,7 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		pv.p.Path(0) == res.Parsed.Path(0) {
 		scroll = pv.d.ScrollY()
 	}
-	pv.d, pv.p, pv.failed, pv.images, pv.about, pv.sub = nil, res.Parsed, false, [2]ui.ImageSource{}, [2]string{}, nil
-	pv.lfs, pv.pictured, pv.notFetched = false, false, [2]bool{}
+	pv.d, pv.p, pv.failed, pv.pics, pv.sub = nil, res.Parsed, false, pictureState{}, nil
 	p := res.Parsed
 	if p == nil || len(p.Files) == 0 {
 		return
@@ -168,27 +165,23 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		pv.sub = &subChange{path: p.Path(0), old: old, new: new, dirty: dirty}
 		return
 	}
+	picture := res.HasSides && isPicture(p.Path(0))
+	if picture {
+		pv.pics.sides, pv.pics.notFetched = [2][]byte{res.Old, res.New}, res.NotFetched
+	}
 	// git diffs a picture in LFS as its pointers, as text.
-	lfsPicture := res.LFS && res.HasSides && isPicture(p.Path(0))
-	if p.Files[0].Binary || lfsPicture {
-		pv.lfs, pv.notFetched = lfsPicture, res.NotFetched
-		if res.HasSides && isPicture(p.Path(0)) {
-			a.goWork(nil, func() {
-				var imgs [2]ui.ImageSource
-				var about [2]string
-				for k, data := range [][]byte{res.Old, res.New} {
-					if !res.NotFetched[k] {
-						imgs[k], about[k] = decodePicture(data)
-					}
-				}
-				update(func() {
-					if pv.gen == gen {
-						pv.images, pv.about, pv.pictured = imgs, about, true
-					}
-				})
-			})
+	if p.Files[0].Binary || res.LFS && picture {
+		pv.pics.lfs = res.LFS && picture
+		if picture {
+			a.decodePictures(pv)
 		}
 		return
+	}
+	if picture {
+		pv.pics.text = true
+		if a.diffOpts().svg == 1 {
+			a.decodePictures(pv)
+		}
 	}
 	a.goWork(nil, func() {
 		next := patchView{p: p, d: &editor.DiffState{Indicators: editor.DiffClassic}, scrollTo: scroll}
@@ -214,7 +207,8 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		next.endings = p.LineEndings(0)
 		update(func() {
 			if pv.gen == gen {
-				next.gen = gen
+				// The pictures may have decoded first.
+				next.gen, next.pics = gen, pv.pics
 				*pv = next
 			}
 		})
@@ -287,15 +281,38 @@ func (a *App) patchBodyWith(c *ui.Context, t *tab, pv *patchView, res session.Pa
 	case pv.sub != nil && t != nil:
 		a.submoduleChange(c, t, pv.sub)
 		return ui.Element{}
-	case p.Files[0].Binary && (pv.images[0] != nil || pv.images[1] != nil), pv.lfs && pv.pictured:
-		pictures(c, pv)
+	case p.Files[0].Binary && (pv.pics.images[0] != nil || pv.pics.images[1] != nil), pv.pics.lfs && pv.pics.pictured:
+		a.pictures(c, pv, nil)
 		return ui.Element{}
-	case pv.lfs:
+	case pv.pics.lfs:
 		loading(c, "")
 		return ui.Element{}
 	case p.Files[0].Binary:
 		emptyState(c, binarySizes(res))
 		return ui.Element{}
+	}
+	// A picture git diffs as text shows as its text or as a picture, as
+	// the user chooses; not in a review, whose threads are on its lines.
+	textPicture := pv.pics.text && decorate == nil
+	if textPicture && a.diffOpts().svg == 1 {
+		a.decodePictures(pv)
+		switch ps := &pv.pics; {
+		case !ps.pictured:
+			loading(c, "")
+		case ps.images[0] == nil && ps.images[1] == nil:
+			ui.Column(c).Fill().Children(func() {
+				a.textOrPicture(c)
+				emptyState(c, locales.PatchNotAPicture())
+			})
+		default:
+			a.pictures(c, pv, func() { a.textOrPicture(c) })
+		}
+		return ui.Element{}
+	}
+	if textPicture {
+		ui.Row(c).Padding(spaceM, insetX, rowPadY, insetX).Children(func() { a.textOrPicture(c) })
+	}
+	switch {
 	case pv.failed:
 		emptyState(c, locales.PatchCannotShow())
 		return ui.Element{}
@@ -378,78 +395,14 @@ func wholeFile(p *diff.Parsed) bool {
 	return p != nil && len(p.Hunks) == 1 && (p.Hunks[0].OldCount == 0 || p.Hunks[0].NewCount == 0)
 }
 
-// isPicture reports whether a path names a picture the app can show.
-func isPicture(path string) bool {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg":
-		return true
+// textOrPicture switches a picture git diffs as text between the two,
+// for every such picture.
+func (a *App) textOrPicture(c *ui.Context) {
+	o := a.diffOpts()
+	if ui.Segmented(c, &o.svg, locales.PictureAsText(), locales.PictureAsPicture()).Label(locales.PictureShowAs()).Changed() {
+		a.Settings.SVGAsPicture = o.svg == 1
+		a.keepSettingsOr(locales.DiffSettingsNotSaved)
 	}
-	return false
-}
-
-// maxPixels bounds a picture decoded, against one that says it is huge.
-const maxPixels = 64 << 20
-
-// decodePicture decodes one side of a picture's change, and says its
-// size; nil for a side that is none or does not decode.
-func decodePicture(data []byte) (ui.ImageSource, string) {
-	if len(data) == 0 {
-		return nil, ""
-	}
-	if cfg, _, err := image.DecodeConfig(bytes.NewReader(data)); err == nil && cfg.Width*cfg.Height > maxPixels {
-		return nil, byteSize(int64(len(data)))
-	}
-	img, err := ui.DecodeImage(data)
-	if err != nil {
-		return nil, byteSize(int64(len(data)))
-	}
-	w, h := ui.ImageSize(img)
-	if b, ok := img.(*ui.Bitmap); ok && pictureScale(w, h) > 1 {
-		// Shown larger, a small picture's pixels stay sharp squares, as
-		// an icon's are meant to be seen.
-		b.Pixelated()
-	}
-	return img, fmt.Sprintf("%d × %d, %s", int(w), int(h), byteSize(int64(len(data))))
-}
-
-// pictureScale is how many times its size a picture of w by h shows: a
-// small one, as an icon, larger, by whole times, up to pictureShown.
-func pictureScale(w, h float32) float32 {
-	const pictureShown, most = 256, 8
-	side := max(w, h)
-	if side <= 0 || side*2 > pictureShown {
-		return 1
-	}
-	return min(float32(int(pictureShown/side)), most)
-}
-
-// pictures shows a picture before and after its change, side by side.
-func pictures(c *ui.Context, pv *patchView) {
-	th := c.Theme()
-	ui.Row(c).Fill().Gap(spaceXL).Padding(spaceXL).Children(func() {
-		for k, title := range []string{locales.PatchBefore(), locales.PatchAfter()} {
-			if pv.images[k] == nil && pv.about[k] == "" && !pv.notFetched[k] {
-				continue
-			}
-			ui.Column(c.Key(k)).Grow(1).Basis(0).FillHeight().Gap(spaceM).Children(func() {
-				ui.Row(c).Gap(spaceM).Children(func() {
-					ui.Text(c, title).FontSize(textSmall).Bold()
-					ui.Text(c, pv.about[k]).FontSize(textSmall).TextColor(th.TextMuted)
-				})
-				ui.Column(c).Grow(1).FillWidth().Center().Background(th.Surface).Radius(th.Radius).Padding(spaceM).Children(func() {
-					if img := pv.images[k]; img != nil {
-						w, h := ui.ImageSize(img)
-						k := pictureScale(w, h)
-						ui.Image(c, img).MaxWidth(w * k).MaxHeight(h * k).FillWidth().Label(title)
-					} else if pv.notFetched[k] {
-						ui.Text(c, locales.PatchNotFetched()).TextColor(th.TextMuted)
-					} else {
-						ui.Text(c, locales.PatchNotAPicture()).TextColor(th.TextMuted)
-					}
-				})
-			})
-		}
-	})
 }
 
 // submoduleChange shows a submodule's change as a range of its commits,

@@ -41,6 +41,12 @@ type Settings struct {
 	DiffSplit     bool `json:"diffSplit,omitempty"`
 	DiffNoWrap    bool `json:"diffNoWrap,omitempty"`
 	ReviewUnified bool `json:"reviewUnified,omitempty"`
+	// PictureCompare is how a picture's two sides compare: side by side
+	// (0), swiped (1), faded one over the other (2) or by their
+	// difference (3). SVGAsPicture shows a picture git diffs as text, as
+	// SVG, as a picture rather than as its text.
+	PictureCompare int  `json:"pictureCompare,omitempty"`
+	SVGAsPicture   bool `json:"svgAsPicture,omitempty"`
 	// NoFocusRefresh turns off reading the repository again when the
 	// window gains focus, the fallback for changes the watcher missed.
 	NoFocusRefresh bool `json:"noFocusRefresh,omitempty"`

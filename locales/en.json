@@ -1260,6 +1260,48 @@
     "description": "A picture after its change."
   },
   "patchNotAPicture": "Not a picture that can be shown",
+  "pictureCompare": "Compare Pictures",
+  "@pictureCompare": {
+    "description": "Read aloud for the choice of how a picture's sides before and after its change compare, and for the picture compared."
+  },
+  "pictureSideBySide": "Side by Side",
+  "@pictureSideBySide": {
+    "description": "A picture's sides before and after its change shown next to each other."
+  },
+  "pictureSwipe": "Swipe",
+  "@pictureSwipe": {
+    "description": "A picture after its change shown over the one before, up to a line the user drags across it."
+  },
+  "pictureOnionSkin": "Onion Skin",
+  "@pictureOnionSkin": {
+    "description": "A picture after its change faded in over the one before, as far as a slider says."
+  },
+  "pictureDifference": "Difference",
+  "@pictureDifference": {
+    "description": "A picture of what changed: black where the sides before and after are the same, brighter as they differ."
+  },
+  "picturePixelsDiffer": "{count, plural, one {# pixel differs} other {# pixels differ}}",
+  "pictureNoPixelsDiffer": "No pixels differ",
+  "@pictureNoPixelsDiffer": {
+    "description": "The sides of a changed picture are the same pixels: what changed is in the file, as its metadata."
+  },
+  "pictureTooLargeToCompare": "Too large to compare by difference",
+  "pictureNotDrawn": "Not drawn: {features}",
+  "@pictureNotDrawn": {
+    "description": "An SVG has what the app does not draw, so it may look otherwise elsewhere; features lists them as they are written in SVG, as <pattern>, filter."
+  },
+  "pictureShowAs": "Show As",
+  "@pictureShowAs": {
+    "description": "Read aloud for the choice of showing a picture that is text, as SVG, as its text or as the picture."
+  },
+  "pictureAsText": "Text",
+  "@pictureAsText": {
+    "description": "Shows an SVG's change as the lines of its text."
+  },
+  "pictureAsPicture": "Picture",
+  "@pictureAsPicture": {
+    "description": "Shows an SVG's change as the picture it draws."
+  },
   "patchSubmoduleAdded": "Submodule added at {commit}",
   "patchSubmoduleRemoved": "Submodule removed, was at {commit}",
   "patchSubmoduleAt": "Submodule at {commit}",

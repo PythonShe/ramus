@@ -6469,6 +6469,182 @@ func (msgs Messages) PatchNotAPicture() string {
 	return Catalog.Format(msgs.locale, "patchNotAPicture", nil)
 }
 
+// PictureCompare says "Compare Pictures"
+// in the language the app shows.
+//
+// Read aloud for the choice of how a picture's sides before and after its
+// change compare, and for the picture compared.
+func PictureCompare() string { return In(i18n.Locale()).PictureCompare() }
+
+// PictureCompare says "Compare Pictures"
+// in the language of msgs.
+//
+// Read aloud for the choice of how a picture's sides before and after its
+// change compare, and for the picture compared.
+func (msgs Messages) PictureCompare() string {
+	return Catalog.Format(msgs.locale, "pictureCompare", nil)
+}
+
+// PictureSideBySide says "Side by Side"
+// in the language the app shows.
+//
+// A picture's sides before and after its change shown next to each other.
+func PictureSideBySide() string { return In(i18n.Locale()).PictureSideBySide() }
+
+// PictureSideBySide says "Side by Side"
+// in the language of msgs.
+//
+// A picture's sides before and after its change shown next to each other.
+func (msgs Messages) PictureSideBySide() string {
+	return Catalog.Format(msgs.locale, "pictureSideBySide", nil)
+}
+
+// PictureSwipe says "Swipe"
+// in the language the app shows.
+//
+// A picture after its change shown over the one before, up to a line the
+// user drags across it.
+func PictureSwipe() string { return In(i18n.Locale()).PictureSwipe() }
+
+// PictureSwipe says "Swipe"
+// in the language of msgs.
+//
+// A picture after its change shown over the one before, up to a line the
+// user drags across it.
+func (msgs Messages) PictureSwipe() string {
+	return Catalog.Format(msgs.locale, "pictureSwipe", nil)
+}
+
+// PictureOnionSkin says "Onion Skin"
+// in the language the app shows.
+//
+// A picture after its change faded in over the one before, as far as a
+// slider says.
+func PictureOnionSkin() string { return In(i18n.Locale()).PictureOnionSkin() }
+
+// PictureOnionSkin says "Onion Skin"
+// in the language of msgs.
+//
+// A picture after its change faded in over the one before, as far as a
+// slider says.
+func (msgs Messages) PictureOnionSkin() string {
+	return Catalog.Format(msgs.locale, "pictureOnionSkin", nil)
+}
+
+// PictureDifference says "Difference"
+// in the language the app shows.
+//
+// A picture of what changed: black where the sides before and after are the
+// same, brighter as they differ.
+func PictureDifference() string { return In(i18n.Locale()).PictureDifference() }
+
+// PictureDifference says "Difference"
+// in the language of msgs.
+//
+// A picture of what changed: black where the sides before and after are the
+// same, brighter as they differ.
+func (msgs Messages) PictureDifference() string {
+	return Catalog.Format(msgs.locale, "pictureDifference", nil)
+}
+
+// PicturePixelsDiffer says "{count, plural, one {# pixel differs} other {# pixels differ}}"
+// in the language the app shows.
+func PicturePixelsDiffer(count int) string { return In(i18n.Locale()).PicturePixelsDiffer(count) }
+
+// PicturePixelsDiffer says "{count, plural, one {# pixel differs} other {# pixels differ}}"
+// in the language of msgs.
+func (msgs Messages) PicturePixelsDiffer(count int) string {
+	return Catalog.Format(msgs.locale, "picturePixelsDiffer", map[string]any{"count": count})
+}
+
+// PictureNoPixelsDiffer says "No pixels differ"
+// in the language the app shows.
+//
+// The sides of a changed picture are the same pixels: what changed is in
+// the file, as its metadata.
+func PictureNoPixelsDiffer() string { return In(i18n.Locale()).PictureNoPixelsDiffer() }
+
+// PictureNoPixelsDiffer says "No pixels differ"
+// in the language of msgs.
+//
+// The sides of a changed picture are the same pixels: what changed is in
+// the file, as its metadata.
+func (msgs Messages) PictureNoPixelsDiffer() string {
+	return Catalog.Format(msgs.locale, "pictureNoPixelsDiffer", nil)
+}
+
+// PictureTooLargeToCompare says "Too large to compare by difference"
+// in the language the app shows.
+func PictureTooLargeToCompare() string { return In(i18n.Locale()).PictureTooLargeToCompare() }
+
+// PictureTooLargeToCompare says "Too large to compare by difference"
+// in the language of msgs.
+func (msgs Messages) PictureTooLargeToCompare() string {
+	return Catalog.Format(msgs.locale, "pictureTooLargeToCompare", nil)
+}
+
+// PictureNotDrawn says "Not drawn: {features}"
+// in the language the app shows.
+//
+// An SVG has what the app does not draw, so it may look otherwise
+// elsewhere; features lists them as they are written in SVG, as <pattern>,
+// filter.
+func PictureNotDrawn(features string) string { return In(i18n.Locale()).PictureNotDrawn(features) }
+
+// PictureNotDrawn says "Not drawn: {features}"
+// in the language of msgs.
+//
+// An SVG has what the app does not draw, so it may look otherwise
+// elsewhere; features lists them as they are written in SVG, as <pattern>,
+// filter.
+func (msgs Messages) PictureNotDrawn(features string) string {
+	return Catalog.Format(msgs.locale, "pictureNotDrawn", map[string]any{"features": features})
+}
+
+// PictureShowAs says "Show As"
+// in the language the app shows.
+//
+// Read aloud for the choice of showing a picture that is text, as SVG, as
+// its text or as the picture.
+func PictureShowAs() string { return In(i18n.Locale()).PictureShowAs() }
+
+// PictureShowAs says "Show As"
+// in the language of msgs.
+//
+// Read aloud for the choice of showing a picture that is text, as SVG, as
+// its text or as the picture.
+func (msgs Messages) PictureShowAs() string {
+	return Catalog.Format(msgs.locale, "pictureShowAs", nil)
+}
+
+// PictureAsText says "Text"
+// in the language the app shows.
+//
+// Shows an SVG's change as the lines of its text.
+func PictureAsText() string { return In(i18n.Locale()).PictureAsText() }
+
+// PictureAsText says "Text"
+// in the language of msgs.
+//
+// Shows an SVG's change as the lines of its text.
+func (msgs Messages) PictureAsText() string {
+	return Catalog.Format(msgs.locale, "pictureAsText", nil)
+}
+
+// PictureAsPicture says "Picture"
+// in the language the app shows.
+//
+// Shows an SVG's change as the picture it draws.
+func PictureAsPicture() string { return In(i18n.Locale()).PictureAsPicture() }
+
+// PictureAsPicture says "Picture"
+// in the language of msgs.
+//
+// Shows an SVG's change as the picture it draws.
+func (msgs Messages) PictureAsPicture() string {
+	return Catalog.Format(msgs.locale, "pictureAsPicture", nil)
+}
+
 // PatchSubmoduleAdded says "Submodule added at {commit}"
 // in the language the app shows.
 func PatchSubmoduleAdded(commit string) string { return In(i18n.Locale()).PatchSubmoduleAdded(commit) }

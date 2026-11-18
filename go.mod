@@ -8,6 +8,7 @@ require (
 	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.10.0
 	github.com/klauspost/compress v1.20.4
+	golang.org/x/image v0.48.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/text v0.44.0
 )
@@ -19,6 +20,5 @@ require (
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	go.digitalxero.dev/rpm v0.3.4 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 )

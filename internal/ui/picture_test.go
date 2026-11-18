@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
 	"image/png"
@@ -10,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
+	"golang.org/x/image/tiff"
 
 	"ramus/internal/git/gittest"
 )
@@ -46,6 +50,179 @@ func TestPictureDiff(t *testing.T) {
 		if !h.tt.HasText(want) {
 			t.Fatalf("no %q in %q", want, h.tt.Texts())
 		}
+	}
+}
+
+// openPictureChange opens a repository whose file name changes from old
+// to new in the work tree, and shows the change.
+func (h *harness) openPictureChange(name, old, new string) {
+	h.t.Helper()
+	r := h.repoWith()
+	r.Write(name, old)
+	r.Commit("picture")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No local changes"))
+	r.Write(name, new)
+	h.until("the change", h.shows(name))
+	h.click(name)
+}
+
+// at is the color the last frame shows at x, y of the box of the
+// element labelled name with role.
+func (h *harness) at(role ui.Role, name string, x, y float32) color.RGBA {
+	h.t.Helper()
+	a, ok := h.tt.AccessByRole(role, name)
+	if !ok {
+		h.t.Fatalf("no %q", name)
+	}
+	img := h.tt.Image()
+	k := float32(img.Bounds().Dx()) / 1200 // newHarness.s width
+	return color.RGBAModel.Convert(img.At(int((a.Bounds.X+x*a.Bounds.W)*k), int((a.Bounds.Y+y*a.Bounds.H)*k))).(color.RGBA)
+}
+
+// A picture's sides compare side by side, swiped, one faded over the
+// other or by their difference, as last chosen.
+func TestPictureCompares(t *testing.T) {
+	h := newHarness(t)
+	red, blue := color.RGBA{255, 0, 0, 255}, color.RGBA{0, 0, 255, 255}
+	h.openPictureChange("logo.png", pngOf(t, 300, 300, red), pngOf(t, 300, 300, blue))
+	h.until("the pictures", h.shows("Side by Side"))
+	h.click("Swipe")
+	h.until("the swipe", h.labelled("Compare Pictures"))
+	h.tt.Frame()
+	if l, r := h.at(ui.RoleImage, "Compare Pictures", 0.25, 0.5), h.at(ui.RoleImage, "Compare Pictures", 0.75, 0.5); l != red || r != blue {
+		t.Fatalf("swiped halfway, %v and %v", l, r)
+	}
+	// A press on the picture moves the line to it: 100 of the picture's
+	// 300 DIPs from the left, as it shows 300 pixels a side at a scale of 1.
+	a, _ := h.tt.AccessByRole(ui.RoleImage, "Compare Pictures")
+	x, y := a.Bounds.X+a.Bounds.W/2-50, a.Bounds.Y+a.Bounds.H/2
+	h.tt.Press(x, y)
+	h.tt.Frame()
+	h.tt.Release(x, y)
+	h.tt.Frame()
+	if s := h.app.diffOpts().swipe; s < 0.3 || s > 0.36 {
+		t.Fatalf("pressed a third of the way, swiped to %v", s)
+	}
+	if c := h.at(ui.RoleImage, "Compare Pictures", 0.5, 0.5); c != blue {
+		t.Fatalf("the middle, now after the line, is %v", c)
+	}
+	h.click("Onion Skin")
+	h.tt.Frame()
+	if c := h.at(ui.RoleImage, "Compare Pictures", 0.5, 0.5); c.R < 100 || c.B < 100 || c.G > 20 {
+		t.Fatalf("faded halfway, %v", c)
+	}
+	h.click("Difference")
+	h.until("the difference", h.shows("90,000 pixels differ"))
+	if c := h.at(ui.RoleImage, "Compare Pictures", 0.5, 0.5); c != (color.RGBA{255, 0, 255, 255}) {
+		t.Fatalf("difference %v", c)
+	}
+	if h.app.Settings.PictureCompare != pictureDifference {
+		t.Fatalf("the choice is not kept: %d", h.app.Settings.PictureCompare)
+	}
+}
+
+// Pictures the same but in their files, as their metadata, have no
+// pixels that differ.
+func TestPictureDifferenceOfTheSame(t *testing.T) {
+	h := newHarness(t)
+	h.app.Settings.PictureCompare = pictureDifference
+	a := pngOf(t, 4, 4, color.RGBA{0, 200, 0, 255})
+	// The same pixels compressed less: another file.
+	img, _ := png.Decode(strings.NewReader(a))
+	var b bytes.Buffer
+	(&png.Encoder{CompressionLevel: png.NoCompression}).Encode(&b, img)
+	h.openPictureChange("same.png", a, b.String())
+	h.until("the difference", h.shows("No pixels differ"))
+}
+
+func TestDifference(t *testing.T) {
+	a := image.NewNRGBA(image.Rect(0, 0, 2, 1))
+	copy(a.Pix, []byte{10, 20, 30, 255, 0, 0, 0, 0})
+	b := image.NewNRGBA(image.Rect(5, 5, 6, 6)) // from its own origin
+	copy(b.Pix, []byte{10, 25, 20, 255})
+	d, n := difference(a, b, 2, 2)
+	want := []byte{0, 5, 10, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255}
+	if !bytes.Equal(d.Pix, want) || n != 1 {
+		t.Fatalf("%v, %d", d.Pix, n)
+	}
+	// Half transparent, against nothing: as bright as the alpha.
+	c := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	copy(c.Pix, []byte{0, 0, 0, 128})
+	if d, n := difference(c, image.NewNRGBA(c.Rect), 1, 1); d.Pix[0] != 128 || n != 1 {
+		t.Fatalf("%v, %d", d.Pix, n)
+	}
+}
+
+const (
+	svgBefore = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>` + "\n"
+	svgAfter  = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="blue"/></svg>` + "\n"
+)
+
+// An SVG, which git diffs as text, shows as its text or, when asked, as
+// a picture, as every SVG then does.
+func TestSVGAsPicture(t *testing.T) {
+	h := newHarness(t)
+	h.openPictureChange("icon.svg", svgBefore, svgAfter)
+	h.until("the text", h.shows("Picture"))
+	if h.tt.HasText("Before") {
+		t.Fatalf("shown as a picture: %q", h.tt.Texts())
+	}
+	h.click("Picture")
+	h.until("the pictures", h.shows("Before"))
+	if !h.tt.HasText("20 × 10, 111 bytes") || !h.app.Settings.SVGAsPicture {
+		t.Fatalf("texts %q, setting %v", h.tt.Texts(), h.app.Settings.SVGAsPicture)
+	}
+	h.click("Text")
+	h.until("the text again", func() bool { return !h.tt.HasText("Before") })
+}
+
+// An SVG with what is not drawn says what.
+func TestSVGNotDrawn(t *testing.T) {
+	h := newHarness(t)
+	h.app.Settings.SVGAsPicture = true
+	filtered := strings.Replace(svgAfter, `<rect`, `<filter id="f"><feGaussianBlur stdDeviation="2"/></filter><rect filter="url(#f)"`, 1)
+	h.openPictureChange("icon.svg", svgBefore, filtered)
+	h.until("the note", func() bool {
+		for _, s := range h.tt.Texts() {
+			if strings.HasPrefix(s, "Not drawn: ") {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// TIFF and Windows icons show as pictures too.
+func TestPictureFormats(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 12, 6))
+	var tf, pn bytes.Buffer
+	if err := tiff.Encode(&tf, img, nil); err != nil {
+		t.Fatal(err)
+	}
+	png.Encode(&pn, image.NewNRGBA(image.Rect(0, 0, 16, 16)))
+	// An icon of one picture, kept as PNG.
+	var ico bytes.Buffer
+	binary.Write(&ico, binary.LittleEndian, [3]uint16{0, 1, 1})
+	binary.Write(&ico, binary.LittleEndian, [4]byte{16, 16, 0, 0})
+	binary.Write(&ico, binary.LittleEndian, [2]uint16{1, 32})
+	binary.Write(&ico, binary.LittleEndian, [2]uint32{uint32(pn.Len()), 22})
+	ico.Write(pn.Bytes())
+	for _, tc := range []struct{ name, data, want string }{
+		{"scan.tiff", tf.String(), "12 × 6"},
+		{"favicon.ico", ico.String(), "16 × 16"},
+	} {
+		h := newHarness(t)
+		h.openPictureChange(tc.name, "", tc.data)
+		h.until(tc.name, func() bool {
+			for _, s := range h.tt.Texts() {
+				if strings.HasPrefix(s, tc.want+",") {
+					return true
+				}
+			}
+			return false
+		})
 	}
 }
 

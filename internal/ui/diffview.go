@@ -259,7 +259,7 @@ func (a *App) diffHeader(c *ui.Context, t *tab, m *changeModel, r changeRow) {
 			}
 		}
 	})
-	a.patchBar(c, false, !binaryPatch(d.res), func() {
+	a.patchBar(c, false, a.showsText(d.res, &d.pv), func() {
 		if ui.Button(c, locales.ActionsOpenInEditor()).Disabled(!a.canOpenInEditor(t)).Clicked() {
 			a.openInEditor(t, d.key.path)
 		}
@@ -295,6 +295,12 @@ func (a *App) whitespaceNotice(c *ui.Context, d *diffState) {
 func binaryPatch(res session.PatchResult) bool {
 	p := res.Parsed
 	return p != nil && len(p.Files) > 0 && p.Files[0].Binary
+}
+
+// showsText reports whether a patch shows lines, which the options of
+// text change: not a binary file's, nor a picture's shown as one.
+func (a *App) showsText(res session.PatchResult, pv *patchView) bool {
+	return !binaryPatch(res) && !(pv.pics.text && a.diffOpts().svg == 1)
 }
 
 // canOpenInEditor reports whether openInEditor can open a file of t: an
