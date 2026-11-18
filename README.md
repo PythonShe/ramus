@@ -45,7 +45,10 @@ repositories and runs your own git.
   including GitHub stacks, and on GitHub the pictures of commit authors. Review a pull or merge request in the app: its
   files diffed locally, with the lines each changes and the threads under
   their lines; reply, resolve,
-  comment on lines, and approve or request changes.
+  comment on lines, and approve or request changes. Its page says whether
+  it can be merged, names its labels and reviewers, lists the checks of
+  its latest commit, and shows its conversation as its Markdown reads,
+  with what happened to it in between (on GitHub).
 - **Worktrees**: every worktree's branch, changes, and how far ahead or
   behind it is.
 - **Git LFS**: see who holds a lock, lock a file before editing it, and

@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
+	"github.com/egoist/mygo/ui/markdown"
 
 	"ramus/internal/forge"
 	"ramus/internal/git/diff"
@@ -68,6 +69,11 @@ type prReview struct {
 	// each file, by path.
 	events    []prEvent
 	threadsOn map[string]int
+	// checks are the checks of the head, in the order listed.
+	checks    []forge.Check
+	checkList ui.ListState
+	// md is how its Markdown shows, kept from frame to frame.
+	md *markdown.Options
 
 	// fetchedFor is the head and base branch the commits were fetched
 	// for (fetchKey); a review read with others fetches again.
@@ -87,7 +93,7 @@ type prReview struct {
 	detail    *session.CommitDetail
 	cancelCmp func()
 
-	page  int // 0 files, 1 conversation
+	page  int // 0 files, 1 conversation, 2 checks
 	files ui.ListState
 	file  int
 	// filePath is the file chosen, chosen again in a list read anew.
@@ -455,7 +461,7 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 		if rv.read {
 			rv.verify = false
 		}
-		rv.r, rv.events = r, nil
+		rv.r, rv.events, rv.checks = r, nil, sortChecks(r.CheckList)
 		rv.threadsOn = map[string]int{}
 		for _, th := range r.Threads {
 			if !th.Outdated && th.Line > 0 {
@@ -653,8 +659,12 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			if s := prStatus(r.Decision, r.Checks); s != "" {
 				ui.Text(c, s).FontSize(textSmall).TextColor(decisionColor(plainInk(th), r.Decision)).SingleLine()
 			}
+			if s, col := mergeText(th, r); s != "" {
+				ui.Text(c, s).FontSize(textSmall).TextColor(col).SingleLine()
+			}
 			lineCounts(c, r.Added, r.Deleted)
 		})
+		prPeople(c, r)
 		if r.More {
 			ui.Text(c, locales.PrsMoreOnHost(kindName(rv.repo.Kind))).FontSize(textSmall).TextColor(th.Warning).Padding(0, insetX)
 		}
@@ -663,11 +673,14 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			nFiles = rv.detail.Files.Len()
 		}
 		ui.Row(c).Padding(spaceS, insetX).Children(func() {
-			ui.Segmented(c, &rv.page, locales.PrsFiles(nFiles), locales.PrsConversation(len(rv.timeline())))
+			ui.Segmented(c, &rv.page, locales.PrsFiles(nFiles), locales.PrsConversation(len(rv.timeline())), locales.PrsChecks(len(rv.checks)))
 		})
-		if rv.page == 1 {
+		switch rv.page {
+		case 1:
 			a.prConversation(c, t, rv)
-		} else {
+		case 2:
+			a.prChecks(c, rv)
+		default:
 			a.prFiles(c, t, rv)
 		}
 	})
@@ -1148,11 +1161,14 @@ type prEvent struct {
 	what   string
 	state  forge.ReviewState
 	thread *forge.Thread
+	// event is what happened, for an entry that is no one's words.
+	event *forge.Event
 }
 
 // prTimeline is the conversation: the description, the comments, the
-// reviews with something to say and the threads whose lines are gone
-// from the patch, or on files not among files (once read), oldest first.
+// reviews with something to say, the threads whose lines are gone from
+// the patch, or on files not among files (once read), and what happened
+// to the pull request between them, oldest first.
 func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 	if r.Number == 0 {
 		return nil
@@ -1187,6 +1203,10 @@ func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 			what = locales.PrsCommentOn(th.Path, th.Line)
 		}
 		ev = append(ev, prEvent{author: th.Comments[0].Author, at: th.Comments[0].At, thread: th, what: what})
+	}
+	for i := range r.Events {
+		e := &r.Events[i]
+		ev = append(ev, prEvent{author: e.Actor, at: e.At, what: eventText(e), event: e})
 	}
 	slices.SortStableFunc(ev[1:], func(x, y prEvent) int { return x.at.Compare(y.at) })
 	return ev
@@ -1225,11 +1245,15 @@ func (a *App) prConversation(c *ui.Context, t *tab, rv *prReview) {
 					ui.Text(c, e.what).FontSize(textSmall).TextColor(col)
 					ui.Text(c, ago(now, e.at)).FontSize(textSmall).TextColor(th.TextMuted)
 				})
+				if e.event != nil {
+					eventCommits(c, e.event)
+					return
+				}
 				if e.thread != nil {
 					for _, cm := range e.thread.Comments {
 						ui.Column(c.Key(cm.ID)).Padding(0, 0, 0, spaceL).Gap(space2XS).Children(func() {
 							commentHead(c, cm.Author, cm.At, now)
-							ui.Text(c, shownBody(cm.Body)).FontSize(noteBodySize).Selectable()
+							a.markdownBody(c, rv, shownBody(cm.Body))
 						})
 					}
 					return
@@ -1238,7 +1262,7 @@ func (a *App) prConversation(c *ui.Context, t *tab, rv *prReview) {
 				if body == "" && i == 0 {
 					ui.Text(c, locales.PrsNoDescription()).FontSize(noteBodySize).TextColor(th.TextMuted)
 				} else if body != "" {
-					ui.Text(c, body).FontSize(noteBodySize).Selectable()
+					a.markdownBody(c, rv, body)
 				}
 			})
 		}).Label(locales.PrsConversationLabel()).Grow(1)

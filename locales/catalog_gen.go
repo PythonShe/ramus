@@ -17223,6 +17223,294 @@ func (msgs Messages) PrsNoDescription() string {
 	return Catalog.Format(msgs.locale, "prsNoDescription", nil)
 }
 
+// PrsChecks says "{count, plural, one {Checks (#)} other {Checks (#)}}"
+// in the language the app shows.
+//
+// Tab of the checks of a pull request's latest commit.
+func PrsChecks(count int) string { return In(i18n.Locale()).PrsChecks(count) }
+
+// PrsChecks says "{count, plural, one {Checks (#)} other {Checks (#)}}"
+// in the language of msgs.
+//
+// Tab of the checks of a pull request's latest commit.
+func (msgs Messages) PrsChecks(count int) string {
+	return Catalog.Format(msgs.locale, "prsChecks", map[string]any{"count": count})
+}
+
+// PrsChecksLabel says "Checks"
+// in the language the app shows.
+//
+// Names the list of a pull request's checks.
+func PrsChecksLabel() string { return In(i18n.Locale()).PrsChecksLabel() }
+
+// PrsChecksLabel says "Checks"
+// in the language of msgs.
+//
+// Names the list of a pull request's checks.
+func (msgs Messages) PrsChecksLabel() string {
+	return Catalog.Format(msgs.locale, "prsChecksLabel", nil)
+}
+
+// PrsNoChecks says "No checks ran on its latest commit."
+// in the language the app shows.
+//
+// Shown for a pull request whose latest commit has no checks.
+func PrsNoChecks() string { return In(i18n.Locale()).PrsNoChecks() }
+
+// PrsNoChecks says "No checks ran on its latest commit."
+// in the language of msgs.
+//
+// Shown for a pull request whose latest commit has no checks.
+func (msgs Messages) PrsNoChecks() string {
+	return Catalog.Format(msgs.locale, "prsNoChecks", nil)
+}
+
+// PrsChecksMore says "{kind, select, gitlab {More jobs are on the pipeline's page than are shown here.} other {More checks are on the pull …"
+// in the language the app shows.
+//
+// Shown when the host holds more checks than were read.
+func PrsChecksMore(kind string) string { return In(i18n.Locale()).PrsChecksMore(kind) }
+
+// PrsChecksMore says "{kind, select, gitlab {More jobs are on the pipeline's page than are shown here.} other {More checks are on the pull …"
+// in the language of msgs.
+//
+// Shown when the host holds more checks than were read.
+func (msgs Messages) PrsChecksMore(kind string) string {
+	return Catalog.Format(msgs.locale, "prsChecksMore", map[string]any{"kind": kind})
+}
+
+// PrsCheckState says "{state, select, waiting {Waiting} running {Running} passed {Passed} failed {Failed} cancelled {Cancelled} other {Skip…"
+// in the language the app shows.
+//
+// Where one check of a pull request stands.
+func PrsCheckState(state string) string { return In(i18n.Locale()).PrsCheckState(state) }
+
+// PrsCheckState says "{state, select, waiting {Waiting} running {Running} passed {Passed} failed {Failed} cancelled {Cancelled} other {Skip…"
+// in the language of msgs.
+//
+// Where one check of a pull request stands.
+func (msgs Messages) PrsCheckState(state string) string {
+	return Catalog.Format(msgs.locale, "prsCheckState", map[string]any{"state": state})
+}
+
+// PrsCheckRow says "{name}, {state}"
+// in the language the app shows.
+//
+// A check in the list, read aloud: its name and where it stands, as Passed.
+func PrsCheckRow(name string, state string) string { return In(i18n.Locale()).PrsCheckRow(name, state) }
+
+// PrsCheckRow says "{name}, {state}"
+// in the language of msgs.
+//
+// A check in the list, read aloud: its name and where it stands, as Passed.
+func (msgs Messages) PrsCheckRow(name string, state string) string {
+	return Catalog.Format(msgs.locale, "prsCheckRow", map[string]any{"name": name, "state": state})
+}
+
+// PrsCheckRequired says "Required"
+// in the language the app shows.
+//
+// Marks a check the base branch asks for before merging.
+func PrsCheckRequired() string { return In(i18n.Locale()).PrsCheckRequired() }
+
+// PrsCheckRequired says "Required"
+// in the language of msgs.
+//
+// Marks a check the base branch asks for before merging.
+func (msgs Messages) PrsCheckRequired() string {
+	return Catalog.Format(msgs.locale, "prsCheckRequired", nil)
+}
+
+// PrsMergeable says "{state, select, ready {Ready to merge} conflicts {Conflicts with {base}} behind {Behind {base}} blocked {Merging is b…"
+// in the language the app shows.
+//
+// Whether the host would merge the pull request now; base is its base
+// branch.
+func PrsMergeable(state string, base string) string {
+	return In(i18n.Locale()).PrsMergeable(state, base)
+}
+
+// PrsMergeable says "{state, select, ready {Ready to merge} conflicts {Conflicts with {base}} behind {Behind {base}} blocked {Merging is b…"
+// in the language of msgs.
+//
+// Whether the host would merge the pull request now; base is its base
+// branch.
+func (msgs Messages) PrsMergeable(state string, base string) string {
+	return Catalog.Format(msgs.locale, "prsMergeable", map[string]any{"state": state, "base": base})
+}
+
+// PrsReviewers says "Reviewers"
+// in the language the app shows.
+//
+// Before the names of those asked to review a pull request and those who
+// did.
+func PrsReviewers() string { return In(i18n.Locale()).PrsReviewers() }
+
+// PrsReviewers says "Reviewers"
+// in the language of msgs.
+//
+// Before the names of those asked to review a pull request and those who
+// did.
+func (msgs Messages) PrsReviewers() string {
+	return Catalog.Format(msgs.locale, "prsReviewers", nil)
+}
+
+// PrsAssignees says "Assignees"
+// in the language the app shows.
+//
+// Before the names of those a pull request is assigned to.
+func PrsAssignees() string { return In(i18n.Locale()).PrsAssignees() }
+
+// PrsAssignees says "Assignees"
+// in the language of msgs.
+//
+// Before the names of those a pull request is assigned to.
+func (msgs Messages) PrsAssignees() string {
+	return Catalog.Format(msgs.locale, "prsAssignees", nil)
+}
+
+// PrsLabels says "Labels"
+// in the language the app shows.
+//
+// Names the labels of a pull request.
+func PrsLabels() string { return In(i18n.Locale()).PrsLabels() }
+
+// PrsLabels says "Labels"
+// in the language of msgs.
+//
+// Names the labels of a pull request.
+func (msgs Messages) PrsLabels() string {
+	return Catalog.Format(msgs.locale, "prsLabels", nil)
+}
+
+// PrsReviewer says "{name}, {state, select, approved {approved} changes {requested changes} commented {commented} dismissed {review dismi…"
+// in the language the app shows.
+//
+// A reviewer and their latest verdict, read aloud and as a tooltip.
+func PrsReviewer(name string, state string) string { return In(i18n.Locale()).PrsReviewer(name, state) }
+
+// PrsReviewer says "{name}, {state, select, approved {approved} changes {requested changes} commented {commented} dismissed {review dismi…"
+// in the language of msgs.
+//
+// A reviewer and their latest verdict, read aloud and as a tooltip.
+func (msgs Messages) PrsReviewer(name string, state string) string {
+	return Catalog.Format(msgs.locale, "prsReviewer", map[string]any{"name": name, "state": state})
+}
+
+// PrsEventCommits says "{count, plural, one {added # commit} other {added # commits}}"
+// in the language the app shows.
+//
+// In the conversation: commits pushed to the pull request.
+func PrsEventCommits(count int) string { return In(i18n.Locale()).PrsEventCommits(count) }
+
+// PrsEventCommits says "{count, plural, one {added # commit} other {added # commits}}"
+// in the language of msgs.
+//
+// In the conversation: commits pushed to the pull request.
+func (msgs Messages) PrsEventCommits(count int) string {
+	return Catalog.Format(msgs.locale, "prsEventCommits", map[string]any{"count": count})
+}
+
+// PrsEventForcePushed says "force-pushed, from {from} to {to}"
+// in the language the app shows.
+//
+// In the conversation: the branch was force-pushed; from and to are
+// abbreviated commit ids.
+func PrsEventForcePushed(from string, to string) string {
+	return In(i18n.Locale()).PrsEventForcePushed(from, to)
+}
+
+// PrsEventForcePushed says "force-pushed, from {from} to {to}"
+// in the language of msgs.
+//
+// In the conversation: the branch was force-pushed; from and to are
+// abbreviated commit ids.
+func (msgs Messages) PrsEventForcePushed(from string, to string) string {
+	return Catalog.Format(msgs.locale, "prsEventForcePushed", map[string]any{"from": from, "to": to})
+}
+
+// PrsEventState says "{event, select, merged {merged this} closed {closed this} reopened {reopened this} ready {marked this ready for revie…"
+// in the language the app shows.
+//
+// In the conversation: the pull request changed state.
+func PrsEventState(event string) string { return In(i18n.Locale()).PrsEventState(event) }
+
+// PrsEventState says "{event, select, merged {merged this} closed {closed this} reopened {reopened this} ready {marked this ready for revie…"
+// in the language of msgs.
+//
+// In the conversation: the pull request changed state.
+func (msgs Messages) PrsEventState(event string) string {
+	return Catalog.Format(msgs.locale, "prsEventState", map[string]any{"event": event})
+}
+
+// PrsEventReviewRequested says "requested a review from {who}"
+// in the language the app shows.
+//
+// In the conversation: someone was asked to review.
+func PrsEventReviewRequested(who string) string {
+	return In(i18n.Locale()).PrsEventReviewRequested(who)
+}
+
+// PrsEventReviewRequested says "requested a review from {who}"
+// in the language of msgs.
+//
+// In the conversation: someone was asked to review.
+func (msgs Messages) PrsEventReviewRequested(who string) string {
+	return Catalog.Format(msgs.locale, "prsEventReviewRequested", map[string]any{"who": who})
+}
+
+// PrsEventLabeled says "{count, plural, one {added the label {labels}} other {added the labels {labels}}}"
+// in the language the app shows.
+//
+// In the conversation: labels were added; labels is their names, separated
+// by commas.
+func PrsEventLabeled(count int, labels string) string {
+	return In(i18n.Locale()).PrsEventLabeled(count, labels)
+}
+
+// PrsEventLabeled says "{count, plural, one {added the label {labels}} other {added the labels {labels}}}"
+// in the language of msgs.
+//
+// In the conversation: labels were added; labels is their names, separated
+// by commas.
+func (msgs Messages) PrsEventLabeled(count int, labels string) string {
+	return Catalog.Format(msgs.locale, "prsEventLabeled", map[string]any{"count": count, "labels": labels})
+}
+
+// PrsEventUnlabeled says "{count, plural, one {removed the label {labels}} other {removed the labels {labels}}}"
+// in the language the app shows.
+//
+// In the conversation: labels were removed; labels is their names,
+// separated by commas.
+func PrsEventUnlabeled(count int, labels string) string {
+	return In(i18n.Locale()).PrsEventUnlabeled(count, labels)
+}
+
+// PrsEventUnlabeled says "{count, plural, one {removed the label {labels}} other {removed the labels {labels}}}"
+// in the language of msgs.
+//
+// In the conversation: labels were removed; labels is their names,
+// separated by commas.
+func (msgs Messages) PrsEventUnlabeled(count int, labels string) string {
+	return Catalog.Format(msgs.locale, "prsEventUnlabeled", map[string]any{"count": count, "labels": labels})
+}
+
+// PrsEventRenamed says "changed the title from {from} to {to}"
+// in the language the app shows.
+//
+// In the conversation: the title was changed.
+func PrsEventRenamed(from string, to string) string {
+	return In(i18n.Locale()).PrsEventRenamed(from, to)
+}
+
+// PrsEventRenamed says "changed the title from {from} to {to}"
+// in the language of msgs.
+//
+// In the conversation: the title was changed.
+func (msgs Messages) PrsEventRenamed(from string, to string) string {
+	return Catalog.Format(msgs.locale, "prsEventRenamed", map[string]any{"from": from, "to": to})
+}
+
 // PrsAddComment says "Comment"
 // in the language the app shows.
 //

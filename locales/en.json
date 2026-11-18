@@ -3729,6 +3729,82 @@
   "@prsNoDescription": {
     "description": "Shown for a pull request without a description."
   },
+  "prsChecks": "{count, plural, one {Checks (#)} other {Checks (#)}}",
+  "@prsChecks": {
+    "description": "Tab of the checks of a pull request's latest commit."
+  },
+  "prsChecksLabel": "Checks",
+  "@prsChecksLabel": {
+    "description": "Names the list of a pull request's checks."
+  },
+  "prsNoChecks": "No checks ran on its latest commit.",
+  "@prsNoChecks": {
+    "description": "Shown for a pull request whose latest commit has no checks."
+  },
+  "prsChecksMore": "{kind, select, gitlab {More jobs are on the pipeline's page than are shown here.} other {More checks are on the pull request's page than are shown here.}}",
+  "@prsChecksMore": {
+    "description": "Shown when the host holds more checks than were read."
+  },
+  "prsCheckState": "{state, select, waiting {Waiting} running {Running} passed {Passed} failed {Failed} cancelled {Cancelled} other {Skipped}}",
+  "@prsCheckState": {
+    "description": "Where one check of a pull request stands."
+  },
+  "prsCheckRow": "{name}, {state}",
+  "@prsCheckRow": {
+    "description": "A check in the list, read aloud: its name and where it stands, as Passed."
+  },
+  "prsCheckRequired": "Required",
+  "@prsCheckRequired": {
+    "description": "Marks a check the base branch asks for before merging."
+  },
+  "prsMergeable": "{state, select, ready {Ready to merge} conflicts {Conflicts with {base}} behind {Behind {base}} blocked {Merging is blocked} other {Checks have not passed}}",
+  "@prsMergeable": {
+    "description": "Whether the host would merge the pull request now; base is its base branch."
+  },
+  "prsReviewers": "Reviewers",
+  "@prsReviewers": {
+    "description": "Before the names of those asked to review a pull request and those who did."
+  },
+  "prsAssignees": "Assignees",
+  "@prsAssignees": {
+    "description": "Before the names of those a pull request is assigned to."
+  },
+  "prsLabels": "Labels",
+  "@prsLabels": {
+    "description": "Names the labels of a pull request."
+  },
+  "prsReviewer": "{name}, {state, select, approved {approved} changes {requested changes} commented {commented} dismissed {review dismissed} other {review requested}}",
+  "@prsReviewer": {
+    "description": "A reviewer and their latest verdict, read aloud and as a tooltip."
+  },
+  "prsEventCommits": "{count, plural, one {added # commit} other {added # commits}}",
+  "@prsEventCommits": {
+    "description": "In the conversation: commits pushed to the pull request."
+  },
+  "prsEventForcePushed": "force-pushed, from {from} to {to}",
+  "@prsEventForcePushed": {
+    "description": "In the conversation: the branch was force-pushed; from and to are abbreviated commit ids."
+  },
+  "prsEventState": "{event, select, merged {merged this} closed {closed this} reopened {reopened this} ready {marked this ready for review} other {marked this as a draft}}",
+  "@prsEventState": {
+    "description": "In the conversation: the pull request changed state."
+  },
+  "prsEventReviewRequested": "requested a review from {who}",
+  "@prsEventReviewRequested": {
+    "description": "In the conversation: someone was asked to review."
+  },
+  "prsEventLabeled": "{count, plural, one {added the label {labels}} other {added the labels {labels}}}",
+  "@prsEventLabeled": {
+    "description": "In the conversation: labels were added; labels is their names, separated by commas."
+  },
+  "prsEventUnlabeled": "{count, plural, one {removed the label {labels}} other {removed the labels {labels}}}",
+  "@prsEventUnlabeled": {
+    "description": "In the conversation: labels were removed; labels is their names, separated by commas."
+  },
+  "prsEventRenamed": "changed the title from {from} to {to}",
+  "@prsEventRenamed": {
+    "description": "In the conversation: the title was changed."
+  },
   "prsAddComment": "Comment",
   "@prsAddComment": {
     "description": "Adds a comment to the pull request's conversation."
