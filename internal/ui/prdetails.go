@@ -107,7 +107,8 @@ func prPeople(c *ui.Context, r *forge.Review) {
 				for _, rv := range r.Reviewers {
 					icon, col, word := reviewerMark(th, rv.State)
 					says := locales.PrsReviewer(redact.Control(rv.Name), word)
-					ui.Row(c.Key(rv.Name)).Gap(space2XS).AlignItems(ui.Center).Label(says).Tooltip(says).Children(func() {
+					// A team may have the name of a user who reviewed.
+					ui.Row(c.Key(forge.Reviewer{Name: rv.Name, Team: rv.Team})).Gap(space2XS).AlignItems(ui.Center).Label(says).Tooltip(says).Children(func() {
 						ui.Icon(c, icon).FontSize(iconSmall).TextColor(col)
 						ui.Text(c, redact.Control(rv.Name)).FontSize(textSmall).SingleLine()
 					})
@@ -268,7 +269,7 @@ func eventText(e *forge.Event) string {
 	case forge.EventCommits:
 		return locales.PrsEventCommits(len(e.Commits))
 	case forge.EventForcePushed:
-		return locales.PrsEventForcePushed(e.From, e.Subject)
+		return locales.PrsEventForcePushed(redact.Control(e.From), redact.Control(e.Subject))
 	case forge.EventMerged:
 		return locales.PrsEventState("merged")
 	case forge.EventClosed:
@@ -296,7 +297,7 @@ func eventCommits(c *ui.Context, e *forge.Event) {
 	th := c.Theme()
 	for _, cm := range e.Commits {
 		ui.Row(c.Key(cm.ID)).Gap(spaceM).Padding(0, 0, 0, spaceL).Children(func() {
-			ui.Text(c, cm.ID).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, redact.Control(cm.ID)).Font("monospace").FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 			ui.Text(c, redact.Control(cm.Subject)).FontSize(textSmall).SingleLine().Shrink(1).Selectable()
 		})
 	}

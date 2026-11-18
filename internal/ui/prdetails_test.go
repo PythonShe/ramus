@@ -2,6 +2,7 @@ package ui
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,4 +125,19 @@ func TestPullRequestDetails(t *testing.T) {
 	h.until("its page opened", func() bool {
 		return slices.Contains(h.tt.OpenedURLs(), "https://github.com/o/r/actions/runs/1/job/2")
 	})
+}
+
+// What a host says of an event is shown with nothing that would move
+// the text around it: the author of a commit with no account is a name
+// out of the commit.
+func TestTimelineEventsAreRedacted(t *testing.T) {
+	r := forge.Review{Pull: forge.Pull{Number: 7}, Author: "ann", Events: []forge.Event{
+		{Kind: forge.EventCommits, Actor: "Ann\x1b[31m\u202e", Commits: []forge.EventCommit{{ID: "aaaaaaa", Subject: "One"}}},
+		{Kind: forge.EventForcePushed, Actor: "ann", From: "aaa\x1b[2J", Subject: "bbb\u202e"},
+	}}
+	for _, e := range prTimeline(&r, nil) {
+		if text := e.author + e.what; strings.ContainsAny(text, "\x1b\u202e") {
+			t.Errorf("%q", text)
+		}
+	}
 }

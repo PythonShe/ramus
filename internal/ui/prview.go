@@ -220,7 +220,9 @@ func (a *App) loadPRList(t *tab) {
 	}
 	ps.listing = true
 	t.s.OpenPulls(a.findForge(), func(res session.OpenPullsResult) {
-		if res.Partial && res.Repo == ps.repo {
+		// Also of the last list, when the details of some could not be
+		// read: what was shown of them is better than nothing.
+		if res.Repo == ps.repo {
 			keepDetails(res.List, ps.list)
 		}
 		ps.listing, ps.listAt = res.Partial, a.Now()
@@ -1206,7 +1208,9 @@ func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 	}
 	for i := range r.Events {
 		e := &r.Events[i]
-		ev = append(ev, prEvent{author: e.Actor, at: e.At, what: eventText(e), event: e})
+		// The author of a commit with no account is a name out of the
+		// commit, which may hold anything.
+		ev = append(ev, prEvent{author: redact.Control(e.Actor), at: e.At, what: eventText(e), event: e})
 	}
 	slices.SortStableFunc(ev[1:], func(x, y prEvent) int { return x.at.Compare(y.at) })
 	return ev
