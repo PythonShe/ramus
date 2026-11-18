@@ -169,7 +169,8 @@ func (c *CLI) runInput(ctx context.Context, host string, stdin []byte, args ...s
 
 // runWith runs the tool; what it prints past limit bytes fails the call,
 // as does its running longer than wait, when shorter than the CLI's
-// timeout.
+// timeout. What a tool that failed printed comes with its error: gh
+// fails a query the host answered in part, and prints the answer.
 func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte, limit int, wait time.Duration, args ...string) ([]byte, error) {
 	select {
 	case c.slots <- struct{}{}:
@@ -206,7 +207,7 @@ func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte
 	case out.over:
 		return nil, fmt.Errorf("%w: %s printed more than %d bytes", ErrTooLarge, c.Kind.Program(), limit)
 	case err != nil:
-		return nil, c.failure(err, host, stderr.b.String())
+		return out.b.Bytes(), c.failure(err, host, stderr.b.String())
 	}
 	return out.b.Bytes(), nil
 }

@@ -203,6 +203,11 @@ func (c *CLI) githubDetails(ctx context.Context, r Repo, ids []string) (map[stri
 	q.WriteString("]){... on PullRequest{id " + pullDetails + "}}}")
 	out, err := c.read(ctx, r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q.String())
 	if err != nil {
+		// A pull request gone since it was listed is an error to gh,
+		// which still prints what GitHub said of the others.
+		if got, perr := parseDetails(out); perr == nil && len(got) > 0 {
+			return got, nil
+		}
 		return nil, err
 	}
 	return parseDetails(out)
@@ -776,11 +781,12 @@ func parseReview(out []byte) (Review, error) {
 	for _, a := range p.Assignees.Nodes {
 		rv.Assignees = append(rv.Assignees, a.Login)
 	}
-	// One asked again after a verdict is awaited again.
+	// One asked again after a verdict is awaited again. A team is not
+	// the user of its name.
 	awaited := map[string]bool{}
 	for _, q := range p.Requests.Nodes {
 		if name, team := q.Reviewer.name(); name != "" {
-			awaited[name] = true
+			awaited[name] = awaited[name] || !team
 			rv.Reviewers = append(rv.Reviewers, Reviewer{Name: name, Team: team, State: ReviewAwaited})
 		}
 	}

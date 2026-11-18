@@ -335,9 +335,20 @@ func parseGitLabReview(out []byte) (Review, error) {
 			rv.Assignees = append(rv.Assignees, u.Username)
 		}
 	}
+	asked := map[string]bool{}
 	if m.Reviewers != nil {
 		for _, u := range m.Reviewers.Nodes {
+			asked[u.Username] = true
 			rv.Reviewers = append(rv.Reviewers, u.reviewer())
+		}
+	}
+	// One who approved without being asked reviewed it too.
+	if m.ApprovedBy != nil {
+		for _, u := range m.ApprovedBy.Nodes {
+			if !asked[u.Username] {
+				asked[u.Username] = true
+				rv.Reviewers = append(rv.Reviewers, Reviewer{Name: u.Username, State: ReviewApproved})
+			}
 		}
 	}
 	rv.More = m.Notes.Page.Next

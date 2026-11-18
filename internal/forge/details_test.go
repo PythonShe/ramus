@@ -15,7 +15,7 @@ const detailedAnswer = `{"data":{"viewer":{"login":"me"},"repository":{"pullRequ
 "labels":{"nodes":[{"name":"bug","color":"D73A4A"},{"name":"odd","color":"red"}]},
 "assignees":{"nodes":[{"login":"ann"}]},
 "reviewRequests":{"nodes":[{"requestedReviewer":{"__typename":"User","login":"bob"}},{"requestedReviewer":{"__typename":"Team","name":"core"}},{"requestedReviewer":null}]},
-"latestReviews":{"nodes":[{"author":{"login":"bob"},"state":"CHANGES_REQUESTED"},{"author":{"login":"cat"},"state":"APPROVED"},{"author":{"login":"me"},"state":"PENDING"}]},
+"latestReviews":{"nodes":[{"author":{"login":"bob"},"state":"CHANGES_REQUESTED"},{"author":{"login":"cat"},"state":"APPROVED"},{"author":{"login":"me"},"state":"PENDING"},{"author":{"login":"core"},"state":"COMMENTED"}]},
 "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"FAILURE","contexts":{"totalCount":7,"nodes":[
  {"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://github.com/o/r/actions/runs/1/job/2",
   "startedAt":"2026-11-11T10:00:00Z","completedAt":"2026-11-11T10:02:30Z","isRequired":true,"checkSuite":{"workflowRun":{"workflow":{"name":"CI"}}}},
@@ -59,8 +59,9 @@ func TestParseReviewDetails(t *testing.T) {
 		t.Errorf("labels %+v, assignees %v", rv.Labels, rv.Assignees)
 	}
 	// Bob, asked again after asking for changes, is awaited; a review of
-	// one's own not sent is no verdict.
-	want := []Reviewer{{"bob", false, ReviewAwaited}, {"core", true, ReviewAwaited}, {"cat", false, ReviewApproved}}
+	// one's own not sent is no verdict; the team core being asked hides
+	// nothing of the user core.
+	want := []Reviewer{{"bob", false, ReviewAwaited}, {"core", true, ReviewAwaited}, {"cat", false, ReviewApproved}, {"core", false, ReviewCommented}}
 	if !slices.Equal(rv.Reviewers, want) {
 		t.Errorf("reviewers %+v", rv.Reviewers)
 	}
@@ -200,7 +201,7 @@ const glDetailedAnswer = `{"data":{"currentUser":{"username":"me"},"project":{"m
  {"name":"docs","status":"SKIPPED","stage":{"name":"build"},"webPath":"/g/p/-/jobs/6","startedAt":null,"finishedAt":null,"allowFailure":false}]}},
 "diffStatsSummary":{"additions":5,"deletions":0},
 "diffRefs":{"baseSha":"1111111111111111111111111111111111111111","startSha":"3333333333333333333333333333333333333333","headSha":"2222222222222222222222222222222222222222"},
-"userPermissions":{"createNote":true},"approvedBy":{"nodes":[]},
+"userPermissions":{"createNote":true},"approvedBy":{"nodes":[{"username":"cat"},{"username":"zed"}]},
 "notes":{"pageInfo":{"hasNextPage":false},"nodes":[]}}}}}`
 
 // A merge request's jobs, whether it can be merged, its labels and its
@@ -217,8 +218,9 @@ func TestParseGitLabReviewDetails(t *testing.T) {
 	if !slices.Equal(rv.Labels, []Label{{"type::bug", "cc0000"}}) || !slices.Equal(rv.Assignees, []string{"ann"}) {
 		t.Errorf("labels %+v, assignees %v", rv.Labels, rv.Assignees)
 	}
+	// Zed approved without being asked to review.
 	want := []Reviewer{{"bob", false, ReviewChangesRequested}, {"cat", false, ReviewApproved}, {"dan", false, ReviewCommented},
-		{"eve", false, ReviewAwaited}, {"fay", false, ReviewAwaited}}
+		{"eve", false, ReviewAwaited}, {"fay", false, ReviewAwaited}, {"zed", false, ReviewApproved}}
 	if !slices.Equal(rv.Reviewers, want) {
 		t.Errorf("reviewers %+v", rv.Reviewers)
 	}

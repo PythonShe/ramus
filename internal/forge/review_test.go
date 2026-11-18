@@ -60,7 +60,9 @@ null,
 // detailsTool is a gh that answers the details of the pull requests a
 // query names, +N lines for the one whose id is PR_N, and logs each
 // query's ids on a line. When its folder holds a file named fail, it
-// fails the first query as GitHub does one it cut off.
+// fails the first query as GitHub does one it cut off; the pull request
+// named in a file gone there it no longer knows, which to gh is a
+// failure with the others' answers printed.
 func detailsTool(t *testing.T) (dir string, env []string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -73,13 +75,22 @@ for a; do q=$a; done
 if [ -f "$d/fail" ] && mkdir "$d/failed" 2>/dev/null; then echo failed >> "$d/asked"; echo '<html>502 Bad Gateway</html>'; echo 'gh: HTTP 502' >&2; exit 1; fi
 ids=$(printf '%s' "$q" | tr -c 'PR_0-9' '\n' | grep '^PR_')
 echo $ids >> "$d/asked"
+gone=$(cat "$d/gone" 2>/dev/null)
+missed=
 printf '{"data":{"nodes":['
 sep=
 for id in $ids; do
-  printf '%s{"id":"%s","reviewDecision":"APPROVED","additions":%s,"deletions":1,"commits":{"nodes":[]}}' "$sep" "$id" "${id#PR_}"
+  if [ "$id" = "$gone" ]; then printf '%snull' "$sep"; missed=1
+  else printf '%s{"id":"%s","reviewDecision":"APPROVED","additions":%s,"deletions":1,"commits":{"nodes":[]}}' "$sep" "$id" "${id#PR_}"; fi
   sep=,
 done
-printf ']}}\n'
+printf ']}'
+if [ -n "$missed" ]; then
+  printf ',"errors":[{"type":"NOT_FOUND","message":"Could not resolve to a node with the global id of %s"}]}\n' "$gone"
+  echo "gh: Could not resolve to a node with the global id of '$gone'" >&2
+  exit 1
+fi
+printf '}\n'
 `
 	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -151,6 +162,37 @@ func TestPullDetails(t *testing.T) {
 	}
 	if !list[0].Detailed || list[len(list)-1].Detailed {
 		t.Fatal("what was read is kept, and no more")
+	}
+}
+
+// A pull request gone since it was listed costs the others of its query
+// nothing, nor the queries after it.
+func TestPullDetailsOneGone(t *testing.T) {
+	dir, env := detailsTool(t)
+	c, err := Find(env, GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gone"), []byte("PR_3"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	list := make([]Listed, detailBatch+5)
+	for i := range list {
+		list[i] = Listed{Pull: Pull{Number: i + 1}, ID: "PR_" + strconv.Itoa(i+1)}
+	}
+	if err := c.PullDetails(context.Background(), Repo{GitHub, "github.com", "o/r"}, list, nil); err != nil {
+		t.Fatal(err)
+	}
+	for i, l := range list {
+		if l.Detailed != (i != 2) || l.Detailed && l.Added != i+1 {
+			t.Fatalf("pull request %d: %+v", i+1, l)
+		}
+	}
+
+	// When it is the only one asked of, nothing was answered: the error.
+	alone := []Listed{{Pull: Pull{Number: 3}, ID: "PR_3"}}
+	if err := c.PullDetails(context.Background(), Repo{GitHub, "github.com", "o/r"}, alone, nil); err == nil || !strings.Contains(err.Error(), "Could not resolve") || alone[0].Detailed {
+		t.Fatalf("the only one gone: %v, %+v", err, alone[0])
 	}
 }
 

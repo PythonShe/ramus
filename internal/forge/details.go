@@ -70,7 +70,9 @@ const (
 	// MergeBlocked is a rule of the base branch not met: reviews, or
 	// checks it requires.
 	MergeBlocked
-	// MergeUnstable is one that can be merged while checks fail or run.
+	// MergeUnstable is checks that failed or still run, and nothing
+	// else in the way: GitHub would merge it so, GitLab, when it says
+	// so, not before they pass.
 	MergeUnstable
 	MergeDraft
 )
