@@ -378,6 +378,7 @@ func (a *App) Open(path string) {
 	a.nextID++
 	t := &tab{id: a.nextID, s: session.Open(a.Runner, a.Trust, path, a.Update), sideW: 220, listW: 420, snaps: newSnapState(), cv: newChangesState(), hist: newHistoryState(), reflog: newReflogState(), locks: newLockState(), pr: newPRState(), refs: newRefsState(), stash: newStashState(), file: newFileState(),
 		open: map[string]bool{"branches": true, "remotes": true, "worktrees": true, "submodules": true}, sel: "changes"}
+	t.s.ShowDependencyFolders(a.Settings.ShowDependencyFolders)
 	a.tabs = append(a.tabs, t)
 	r, restored := a.restoring[path]
 	if restored {

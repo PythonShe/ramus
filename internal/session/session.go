@@ -142,6 +142,9 @@ type Session struct {
 	// ignored is the open repository's ignored directories, which its
 	// watcher skips; nil where watches are not per directory.
 	ignored atomic.Pointer[ignoredDirs]
+	// showDeps lists the dependency folders git does not track as any
+	// other; off, as by default, they are hidden: see HideFolders.
+	showDeps atomic.Bool
 	// answerCache holds what views read, on the main thread; see answers.
 	answerCache *cache.Cache[string, answer]
 	stats       statsLoad
@@ -260,6 +263,24 @@ func (s *Session) start() {
 	go s.open(ctx, cancel)
 }
 
+// ShowDependencyFolders lists the dependency folders git does not track
+// (repo.DependencyFolders) as any other untracked folder when on; off,
+// as by default, they are left out of all the repository runs. Safe
+// from any goroutine.
+func (s *Session) ShowDependencyFolders(on bool) {
+	if s.showDeps.Swap(on) != on {
+		s.Refresh(repo.Rescan)
+	}
+}
+
+// hiddenFolders is what HideFolders hides, as the user chose.
+func (s *Session) hiddenFolders() []string {
+	if s.showDeps.Load() {
+		return nil
+	}
+	return repo.DependencyFolders
+}
+
 // Done is closed once the session is closed and everything it started
 // has stopped.
 func (s *Session) Done() <-chan struct{} { return s.done }
@@ -295,6 +316,9 @@ func (s *Session) open(ctx context.Context, cancel context.CancelFunc) {
 			q.Refs = r.Refs()
 		}
 	}
+	// Hidden before the watcher walks the work tree, as it leaves out
+	// what git ignores.
+	r.HideFolders(s.hiddenFolders()) // one not hidden is only listed
 	var ignored *ignoredDirs
 	var skip func(string) bool
 	if perDirectory {
@@ -653,6 +677,17 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		res.subs, res.readSub = subs, err == nil
 	}
 	needStatus := what&(repo.WorkTreeChanged|repo.IndexChanged|repo.RefsChanged) != 0
+	if needStatus {
+		// Before the status, which they change: the user's excludes
+		// file, the index or the setting may have changed what is hidden.
+		if changed, _ := r.HideFolders(s.hiddenFolders()); changed {
+			what |= repo.WorkTreeChanged
+			paths = nil // the whole work tree, not only the files that changed
+			if ig := s.ignored.Load(); ig != nil {
+				ig.reread(r)
+			}
+		}
+	}
 	if what&repo.WorkTreeChanged == 0 && refsKeep && seen.status != nil && !seen.statusFailed &&
 		keyErr == nil && seen.indexRead && key == seen.index {
 		needStatus = false

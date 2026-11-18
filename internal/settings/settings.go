@@ -47,6 +47,10 @@ type Settings struct {
 	// SVG, as a picture rather than as its text.
 	PictureCompare int  `json:"pictureCompare,omitempty"`
 	SVGAsPicture   bool `json:"svgAsPicture,omitempty"`
+	// ShowDependencyFolders lists the folders package managers and tools
+	// fill (node_modules, .venv) that git does not track among the
+	// changes; by default they are left out of all a repository runs.
+	ShowDependencyFolders bool `json:"showDependencyFolders,omitempty"`
 	// NoFocusRefresh turns off reading the repository again when the
 	// window gains focus, the fallback for changes the watcher missed.
 	NoFocusRefresh bool `json:"noFocusRefresh,omitempty"`

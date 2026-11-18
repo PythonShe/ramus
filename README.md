@@ -26,7 +26,9 @@ repositories and runs your own git.
   on disk.
 - **Changes**: the lines each change adds and deletes, staged and not,
   and the files of a new folder; stage, unstage or discard a file, a
-  change or single lines, and commit with co-authors.
+  change or single lines, and commit with co-authors. Dependency
+  folders git does not track, as node_modules or .venv, stay out of the
+  list and out of staging unless the settings ask for them.
 - **Pictures**: a changed PNG, JPEG, GIF, WebP, BMP, TIFF, ICO or SVG
   shows before and after, side by side, swiped, faded one over the other
   or as the difference of their pixels; an SVG shows as its text or as

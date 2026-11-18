@@ -36,6 +36,7 @@ type settingsState struct {
 	emails           string
 	days, recent     int
 	focusRefresh     bool
+	hideDeps         bool
 	// fetchMinutes is 0 for no fetching in the background.
 	fetchMinutes int
 	pulls        bool
@@ -92,6 +93,7 @@ func (a *App) loadSettingsForm() {
 	s.emails = strings.Join(s.edit.Emails, ", ")
 	s.days, s.recent = s.edit.SnapshotDays, s.edit.RecentLimit
 	s.focusRefresh = !s.edit.NoFocusRefresh
+	s.hideDeps = !s.edit.ShowDependencyFolders
 	s.fetchMinutes = s.edit.FetchEvery()
 	s.pulls = s.edit.PullRequests
 	if a.ChosenLocale != nil {
@@ -223,6 +225,7 @@ func (a *App) settingsSections(c *ui.Context) {
 			}).Width(settingsControlW)
 		})
 		row(locales.SettingsFocusRefresh(), func() ui.Element { return ui.Switch(c, &s.focusRefresh) })
+		row(locales.SettingsHideDependencies(), func() ui.Element { return ui.Switch(c, &s.hideDeps) })
 		row(locales.SettingsPullRequests(), func() ui.Element { return ui.Switch(c, &s.pulls) })
 		row(locales.SettingsRecentLimit(), func() ui.Element {
 			return choice(c, &s.recent, []int{5, 10, 20, 50, 100}, strconv.Itoa).Width(settingsControlW)
@@ -627,6 +630,7 @@ func (a *App) applySettings() {
 		a.ApplyTheme(next.Theme)
 	}
 	a.Settings = next.WithDefaults()
+	a.settingsToSessions()
 	if a.SettingsChanged != nil {
 		// The other windows too: one of them keeping what it had would
 		// write it back over this the next time it keeps its settings.
@@ -677,6 +681,7 @@ func (a *App) formSettings() settings.Settings {
 	next.Theme = settings.Themes[min(max(s.theme, 0), len(settings.Themes)-1)]
 	next.SnapshotDays, next.RecentLimit = s.days, s.recent
 	next.NoFocusRefresh = !s.focusRefresh
+	next.ShowDependencyFolders = !s.hideDeps
 	next.PullRequests = s.pulls
 	// The minutes stay as they were while fetching is off, and at the
 	// default they are left out, to follow it.

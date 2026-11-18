@@ -2306,6 +2306,10 @@
   "settingsSnapshotDays": "Keep snapshots for",
   "settingsRecentLimit": "Recent repositories to show",
   "settingsFocusRefresh": "Refresh when the window becomes active",
+  "settingsHideDependencies": "Hide dependency folders git does not track",
+  "@settingsHideDependencies": {
+    "description": "A switch, on by default: folders such as node_modules and .venv that git does not track are left out of the changes, and out of staging, discarding and stashing."
+  },
   "settingsFetch": "Fetch in the background",
   "settingsPullRequests": "Show pull requests (needs gh or glab)",
   "@settingsPullRequests": {

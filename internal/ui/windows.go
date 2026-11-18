@@ -12,11 +12,20 @@ import (
 func (a *App) UseSettings(s settings.Settings) {
 	tools := !slices.Equal(s.Editor, a.Settings.Editor) || !slices.Equal(s.Terminal, a.Settings.Terminal)
 	a.Settings = s
+	a.settingsToSessions()
 	if tools {
 		a.findTools()
 	}
 	if a.settingsUI.open {
 		a.loadSettingsForm()
+	}
+}
+
+// settingsToSessions gives the open repositories what of the settings
+// changes what they read.
+func (a *App) settingsToSessions() {
+	for _, t := range a.tabs {
+		t.s.ShowDependencyFolders(a.Settings.ShowDependencyFolders)
 	}
 }
 

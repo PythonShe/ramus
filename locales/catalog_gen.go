@@ -11189,6 +11189,24 @@ func (msgs Messages) SettingsFocusRefresh() string {
 	return Catalog.Format(msgs.locale, "settingsFocusRefresh", nil)
 }
 
+// SettingsHideDependencies says "Hide dependency folders git does not track"
+// in the language the app shows.
+//
+// A switch, on by default: folders such as node_modules and .venv that git
+// does not track are left out of the changes, and out of staging,
+// discarding and stashing.
+func SettingsHideDependencies() string { return In(i18n.Locale()).SettingsHideDependencies() }
+
+// SettingsHideDependencies says "Hide dependency folders git does not track"
+// in the language of msgs.
+//
+// A switch, on by default: folders such as node_modules and .venv that git
+// does not track are left out of the changes, and out of staging,
+// discarding and stashing.
+func (msgs Messages) SettingsHideDependencies() string {
+	return Catalog.Format(msgs.locale, "settingsHideDependencies", nil)
+}
+
 // SettingsFetch says "Fetch in the background"
 // in the language the app shows.
 func SettingsFetch() string { return In(i18n.Locale()).SettingsFetch() }
