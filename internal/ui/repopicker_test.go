@@ -141,3 +141,91 @@ func TestRepoPicker(t *testing.T) {
 		t.Fatalf("tabs %d, current %s", len(h.app.tabs), h.app.current().s.Path)
 	}
 }
+
+// A worktree added to a repository is not one of the library's: opened,
+// it is listed while open, and not kept. One a library written before
+// holds, and a folder gone, are left out.
+func TestRepoPickerLeavesOutWorktrees(t *testing.T) {
+	h := newHarness(t)
+	main, other := h.repoWith(), h.repoWith()
+	main.Git("remote", "add", "origin", "https://github.com/alice/main.git")
+	old := filepath.Join(t.TempDir(), "old-worktree")
+	now := filepath.Join(t.TempDir(), "new-worktree")
+	t.Cleanup(h.closeAll) // before the folders above go
+	main.Git("worktree", "add", "-q", old, "-b", "old")
+	main.Git("worktree", "add", "-q", now, "-b", "new")
+	// A folder an agent's worktree was in, gone since: inside the
+	// repository, which reading it would find instead.
+	gone := filepath.Join(main.Dir, "agents", "gone-worktree")
+	for i, p := range []string{other.Dir, gone, old, main.Dir} {
+		h.lib.Opened(p, time.Unix(1_700_000_000+int64(i), 0))
+	}
+	for _, r := range []*gittest.Repo{main, other} {
+		h.trust.Set(r.GitDir(), true)
+	}
+	h.app.Open(main.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	names := func() []string {
+		var names []string
+		for _, r := range h.app.repoRows() {
+			if r.heading == "" {
+				names = append(names, filepath.Base(r.path))
+			}
+		}
+		return names
+	}
+	read := func(paths ...string) func() bool {
+		return func() bool {
+			for _, p := range paths {
+				if _, ok := h.app.repoPick.briefs[library.Clean(p)]; !ok {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	h.click("Repository " + filepath.Base(main.Dir))
+	h.until("the briefs", read(main.Dir, other.Dir, gone, old))
+	if b := h.app.repoPick.briefs; !b[library.Clean(old)].Worktree || !b[library.Clean(gone)].Gone || b[library.Clean(gone)].Owner != "" ||
+		b[library.Clean(main.Dir)].Worktree || b[library.Clean(main.Dir)].Gone {
+		t.Fatalf("briefs %+v", b)
+	}
+	for _, name := range names() {
+		if name == "old-worktree" || name == "gone-worktree" {
+			t.Fatalf("rows %q", names())
+		}
+	}
+	if got := names(); !slices.Contains(got, filepath.Base(main.Dir)) || !slices.Contains(got, filepath.Base(other.Dir)) {
+		t.Fatalf("rows %q", got)
+	}
+	// Nor does a search find them.
+	h.tt.Type("-worktree")
+	h.tt.Frame()
+	if got := names(); len(got) != 0 {
+		t.Fatalf("found %q", got)
+	}
+	h.tt.Key(0, ui.KeyEscape)
+	h.tt.Frame()
+
+	// Opened, a worktree is a tab to switch to, under its owner, and the
+	// library is not told of it.
+	h.app.Open(now)
+	h.until("the worktree open", func() bool { return len(h.app.tabs) == 2 && h.app.tabs[1].s.State.Status != nil })
+	h.app.writes.Wait()
+	for _, r := range h.lib.Recent(100) {
+		if r.Path == library.Clean(now) {
+			t.Fatal("the library keeps a worktree opened")
+		}
+	}
+	h.app.openRepoPicker()
+	h.until("its brief", read(now))
+	h.tt.Frame()
+	if got := names(); !slices.Contains(got, "new-worktree") || slices.Contains(got, "old-worktree") {
+		t.Fatalf("rows with a worktree open %q", got)
+	}
+	at := slices.IndexFunc(h.app.repoRows(), func(r repoRow) bool { return r.path == library.Clean(now) })
+	if rows := h.app.repoRows(); rows[at-1].heading != "alice" && rows[at-2].heading != "alice" {
+		t.Fatalf("the worktree is not under its owner: %+v", rows)
+	}
+}

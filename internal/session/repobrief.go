@@ -2,6 +2,9 @@ package session
 
 import (
 	"context"
+	"errors"
+	"io/fs"
+	"os"
 	"strings"
 	"time"
 
@@ -19,6 +22,11 @@ type RepoBrief struct {
 	Owner string
 	// Fork is a repository with a remote named upstream, forked from it.
 	Fork bool
+	// Worktree is a worktree added to a repository with a work tree of
+	// its own (repo.Location.Added), where it is listed.
+	Worktree bool
+	// Gone is a folder that is no longer there.
+	Gone bool
 	// Ahead and Behind count the commits of the branch checked out and
 	// of the branch it tracks the other lacks, as of the last fetch.
 	Ahead, Behind int
@@ -36,6 +44,12 @@ const briefTimeout = 10 * time.Second
 func ReadBrief(ctx context.Context, runner *run.Runner, trusted func(commonDir string) bool, path string) (b RepoBrief) {
 	ctx, cancel := context.WithTimeout(ctx, briefTimeout)
 	defer cancel()
+	// A folder gone from inside another repository, as a worktree an
+	// agent made and took away, would be read as that repository.
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+		b.Gone, b.Err = true, err
+		return b
+	}
 	r, err := repo.Open(ctx, runner, path, func(loc repo.Location) bool {
 		return trusted != nil && trusted(loc.CommonDir)
 	})
@@ -47,6 +61,7 @@ func ReadBrief(ctx context.Context, runner *run.Runner, trusted func(commonDir s
 		r.Close()
 		<-r.Life().Done()
 	}()
+	b.Worktree = r.Added()
 	upstream, origin := RemoteURLs(r)
 	b.Fork = upstream != ""
 	b.Owner = remoteOwner(origin)

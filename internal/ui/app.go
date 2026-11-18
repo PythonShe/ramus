@@ -15,6 +15,7 @@ import (
 	"ramus/internal/drafts"
 	"ramus/internal/forge"
 	"ramus/internal/git/redact"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/internal/git/status"
 	"ramus/internal/git/trust"
@@ -392,7 +393,15 @@ func (a *App) Open(path string) {
 	// stays.
 	if a.Library != nil && !restored {
 		lib, now := a.Library, a.Now()
-		a.goWrite(func() { lib.Opened(path, now) }) // writes a file: never on the main thread
+		// It reads and writes files: never on the main thread.
+		a.goWrite(func() {
+			// A worktree added to a repository is no repository of the
+			// library: its repository lists it, and it comes and goes.
+			if loc, err := repo.Discover(path); err == nil && loc.Added() {
+				return
+			}
+			lib.Opened(path, now)
+		})
 	}
 }
 

@@ -247,15 +247,16 @@ func (a *App) openRepoPicker() {
 }
 
 // readBriefs reads, a few at a time off the main thread, the briefs of
-// the most recent repositories the library knows that are missing or
-// stale, and forgets those of repositories it no longer knows.
+// the repositories open and of the most recent the library knows that
+// are missing or stale, and forgets those of repositories it no longer
+// knows.
 func (a *App) readBriefs() {
 	p := &a.repoPick
 	if a.Library == nil || a.Runner == nil {
 		return
 	}
 	a.stopBriefs()
-	known := a.Library.Recent(maxBriefs)
+	known := a.pickerRepos()
 	keep := make(map[string]briefAt, len(known))
 	now := a.Now()
 	var stale []string
@@ -314,12 +315,36 @@ func (a *App) stopBriefs() {
 	}
 }
 
+// pickerRepos are the most recent repositories the library knows, and
+// those open that it does not: one is always there to switch to, even
+// before the library has it written, or when it is a worktree, which the
+// library does not keep.
+func (a *App) pickerRepos() []library.Repo {
+	all := a.Library.Recent(maxBriefs)
+	for _, t := range a.tabs {
+		if !slices.ContainsFunc(all, func(r library.Repo) bool { return r.Path == t.s.Path }) {
+			all = append(all, library.Repo{Path: t.s.Path, Name: a.title(t)})
+		}
+	}
+	return all
+}
+
+// unlisted reports a repository the picker leaves out while it is not
+// open: a worktree, which its repository lists, as a library written
+// before worktrees were kept out of it may hold, and a folder gone.
+func (a *App) unlisted(path string) bool {
+	b := a.repoPick.briefs[path]
+	return (b.Worktree || b.Gone) && !a.Has(path)
+}
+
 // repoRows are the picker's rows. A query lists the repositories it
 // finds, best first. Without one: those open in the window, the few
 // opened last of the others, the favourites,
 // then every repository under the group the user put it in, or else
 // under the owner of its remote, as GitHub Desktop has them; one with
-// no owner known goes under Other.
+// no owner known goes under Other. Worktrees and folders gone are left
+// out (unlisted), but of the favourites and the groups, where the user
+// put them.
 func (a *App) repoRows() []repoRow {
 	p := &a.repoPick
 	if a.Library == nil {
@@ -331,7 +356,9 @@ func (a *App) repoRows() []repoRow {
 	var rows []repoRow
 	if q := strings.TrimSpace(p.query); q != "" {
 		for _, r := range a.Library.Search(q) {
-			rows = append(rows, row("", r))
+			if !a.unlisted(r.Path) {
+				rows = append(rows, row("", r))
+			}
 		}
 		return rows
 	}
@@ -348,14 +375,7 @@ func (a *App) repoRows() []repoRow {
 	if t := a.current(); t != nil {
 		current = t.s.Path
 	}
-	all := a.Library.Recent(maxBriefs)
-	// A repository open is always there to switch to, even before the
-	// library has it written.
-	for _, t := range a.tabs {
-		if !slices.ContainsFunc(all, func(r library.Repo) bool { return r.Path == t.s.Path }) {
-			all = append(all, library.Repo{Path: t.s.Path, Name: a.title(t)})
-		}
-	}
+	all := slices.DeleteFunc(a.pickerRepos(), func(r library.Repo) bool { return a.unlisted(r.Path) })
 	// The repositories open in the window are its tabs, and the button
 	// names the one shown: the recent ones are those not open, and the
 	// open ones are listed with the others, under their group or owner.
