@@ -185,7 +185,8 @@ func TestHideFoldersRespectsTheUser(t *testing.T) {
 	if got := porcelain(t, r); got != "?? node_modules/\n" {
 		t.Fatalf("status %q", got)
 	}
-	g.Git("config", "core.excludesFile", "~nobody/ignore")
+	// Not ~someone/, which git on Windows fails on altogether.
+	g.Git("config", "core.excludesFile", "%(prefix)/ramus-test-ignore")
 	if err := r.ReloadConfig(context.Background()); err != nil {
 		t.Fatal(err)
 	}

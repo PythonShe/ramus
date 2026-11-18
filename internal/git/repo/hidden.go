@@ -278,9 +278,11 @@ func (r *Repository) trackedNames(names []string) ([]string, bool) {
 // ~/.config; "" for none. It is not ok for a path the engine does not
 // resolve as git does (~user/, %(prefix)/).
 func (r *Repository) userExcludes() (string, bool) {
+	// Of a variable set twice, a process has the last: what git reads.
 	env := func(k string) string {
-		for _, kv := range r.Runner.Environ() {
-			if v, ok := strings.CutPrefix(kv, k+"="); ok {
+		vars := r.Runner.Environ()
+		for i := len(vars) - 1; i >= 0; i-- {
+			if v, ok := strings.CutPrefix(vars[i], k+"="); ok {
 				return v
 			}
 		}
