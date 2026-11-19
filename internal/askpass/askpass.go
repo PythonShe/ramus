@@ -210,7 +210,10 @@ const staleAfter = time.Minute
 func removeStale(tmp, own string) {
 	dirs, _ := filepath.Glob(filepath.Join(tmp, "ramus-*"))
 	for _, dir := range dirs {
-		if dir == own {
+		// os.MkdirTemp names the server's folder "ramus-" and digits; the
+		// app's other temporary folders, and a user's, are not its.
+		digits := strings.TrimPrefix(filepath.Base(dir), "ramus-")
+		if dir == own || digits == "" || strings.Trim(digits, "0123456789") != "" {
 			continue
 		}
 		info, err := os.Lstat(dir)

@@ -37,17 +37,28 @@ func TestRemoveStale(t *testing.T) {
 		os.Chtimes(dir, age, age)
 		return dir
 	}
-	crashed := folder("ramus-crashed", false, old)
-	live := folder("ramus-live", true, old)
-	fresh := folder("ramus-fresh", false, time.Now())
-	other := folder("ramus-other", false, old)
+	crashed := folder("ramus-1001", false, old)
+	live := folder("ramus-1002", true, old)
+	fresh := folder("ramus-1003", false, time.Now())
+	other := folder("ramus-1004", false, old)
 	os.WriteFile(filepath.Join(other, "x"), nil, 0o600)
 	os.Chtimes(other, old, old)
+	// The app's other temporary folders, and a user's, are not the
+	// askpass's, however they look inside.
+	var others []string
+	for _, name := range []string{"ramus-preview-1005", "ramus-probe-1006", "ramus-notes"} {
+		others = append(others, folder(name, false, old))
+	}
+	empty := filepath.Join(tmp, "ramus-preview-1007")
+	if err := os.Mkdir(empty, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	os.Chtimes(empty, old, old)
 	removeStale(tmp, "")
 	if _, err := os.Stat(crashed); err == nil {
 		t.Error("the crashed app's folder stayed")
 	}
-	for _, dir := range []string{live, fresh, other} {
+	for _, dir := range append([]string{live, fresh, other, empty}, others...) {
 		if _, err := os.Stat(dir); err != nil {
 			t.Errorf("%s removed", filepath.Base(dir))
 		}
