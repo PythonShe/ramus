@@ -187,6 +187,28 @@ func TestObserveSkipsNestedRepositories(t *testing.T) {
 	}
 }
 
+// A file saved while the snapshot reads it, here by the clean filter that
+// reads it, makes the discard refuse: it would be in neither the
+// snapshot nor the file the discard leaves.
+func TestDiscardRefusesAFileSavedDuringItsSnapshot(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write(".gitattributes", "a filter=touch\n")
+	h.r.Write("a", "1\n")
+	h.r.Commit("one")
+	h.r.Git("config", "filter.touch.clean", "cat; printf saved >> %f")
+	h.r.Write("a", "work\n")
+	op := Discard(h.w, []string{"a"})
+	op.Expect = &Expect{AnyHead: true, Files: observe(t, h.r.Dir, "a")}
+	_, err := wait(t, h.q.Submit(op))
+	var se *StaleError
+	if !errors.As(err, &se) || se.What != "a" {
+		t.Fatalf("discard over a file saved meanwhile: %v", err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(h.r.Dir, "a")); string(b) != "work\nsaved" {
+		t.Fatalf("a is %q", b)
+	}
+}
+
 // A delete of a folder that holds a repository goes through the check
 // of what was seen, which leaves the repository out as Observe does,
 // and git keeps the repository.

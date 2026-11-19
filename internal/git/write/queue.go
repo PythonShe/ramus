@@ -432,6 +432,14 @@ func (q *Queue) prepare(ctx context.Context, j *Job) error {
 		j.mu.Lock()
 		j.snap = s
 		j.mu.Unlock()
+		// A file saved while git read the files, through filters that take
+		// their time, may be in neither the snapshot nor what the write
+		// leaves: the files are looked at once more.
+		if x := op.Expect; x != nil && len(x.Files) > 0 {
+			if err := checkFiles(op.Cmd.WorkTree, x.Files); err != nil {
+				return err
+			}
+		}
 	}
 	if names := branchNames(op.Refs); len(names) > 0 && op.Undo != NotUndoable && q.Refs != nil {
 		config, err := q.branchConfig(ctx, op.Cmd.WorkTree, names)

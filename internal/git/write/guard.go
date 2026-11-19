@@ -189,11 +189,17 @@ func check(ctx context.Context, r *run.Runner, gitDir, workTree string, x *Expec
 			return &StaleError{What: name, Saw: short(saw), Now: short(now)}
 		}
 	}
-	seen := make(map[string]bool, len(x.Files))
-	for _, f := range x.Files {
+	return checkFiles(workTree, x.Files)
+}
+
+// checkFiles refuses when a file seen changed, or one was added to a
+// folder seen.
+func checkFiles(workTree string, files []FileState) error {
+	seen := make(map[string]bool, len(files))
+	for _, f := range files {
 		seen[f.Path] = true
 	}
-	for _, f := range x.Files {
+	for _, f := range files {
 		if now := stat(workTree, f.Path); !now.same(f) {
 			return &StaleError{What: f.Path, Saw: describe(f), Now: describe(now)}
 		}
