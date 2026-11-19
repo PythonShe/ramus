@@ -17,12 +17,18 @@ import (
 // Store remembers which repositories the user trusts, in a file of the
 // app's own (never in a repository, where the repository could claim to
 // be trusted). A repository is named by its common git directory, so all
-// its worktrees share one answer. Safe for use by several goroutines; the
-// file is written outside the lock.
+// its worktrees share one answer, and the answer holds for the folder
+// that was there when it was given: another put at the same path later
+// (an archive extracted again) is asked about anew. Safe for use by
+// several goroutines; the file is written outside the lock.
 type Store struct {
 	path string
 	mu   sync.Mutex
 	dirs []string // sorted
+	// ids is the identity of each trusted folder when it was trusted;
+	// none, or "", for one trusted before identities were kept, which the
+	// folder found there first gives.
+	ids map[string]string
 	// broken is why the file could not be read and was left in place:
 	// Set then refuses, rather than write over the user's list.
 	broken error
@@ -33,6 +39,8 @@ type Store struct {
 
 type file struct {
 	Trusted []string `json:"trusted"`
+	// IDs are the identities of the trusted folders, by path.
+	IDs map[string]string `json:"ids,omitempty"`
 }
 
 // Load reads the store at path; a missing file is an empty store. A file
@@ -41,7 +49,7 @@ type file struct {
 // asked about again, which is the safe side. When it cannot be moved, the
 // store refuses to save over it.
 func Load(path string) (*Store, error) {
-	s := &Store{path: path}
+	s := &Store{path: path, ids: map[string]string{}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return s, nil
@@ -59,7 +67,11 @@ func Load(path string) (*Store, error) {
 		return s, fmt.Errorf("trust: %s cannot be read (%v); it was moved to %s, and every repository asks to be trusted again", path, err, bad)
 	}
 	for _, d := range f.Trusted {
-		s.dirs = append(s.dirs, clean(d))
+		c := clean(d)
+		s.dirs = append(s.dirs, c)
+		if id, ok := f.IDs[d]; ok {
+			s.ids[c] = id
+		}
 	}
 	slices.Sort(s.dirs)
 	s.dirs = slices.Compact(s.dirs)
@@ -91,18 +103,38 @@ func clean(dir string) string {
 }
 
 // Trusted reports whether the repository with this common git directory
-// is trusted.
+// is trusted: the user said so of the folder there now.
 func (s *Store) Trusted(commonDir string) bool {
 	d := clean(commonDir)
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	_, ok := slices.BinarySearch(s.dirs, d)
-	return ok
+	want := s.ids[d]
+	s.mu.Unlock()
+	if !ok {
+		return false
+	}
+	got, err := identity(d)
+	if err != nil {
+		return false
+	}
+	if want == "" {
+		s.mu.Lock()
+		if s.ids[d] == "" {
+			s.ids[d] = got
+		}
+		want = s.ids[d]
+		s.mu.Unlock()
+	}
+	return got == want
 }
 
 // Set records the user's answer and saves the store.
 func (s *Store) Set(commonDir string, trusted bool) error {
 	d := clean(commonDir)
+	id := ""
+	if trusted {
+		id, _ = identity(d)
+	}
 	s.write.Lock()
 	defer s.write.Unlock()
 	s.mu.Lock()
@@ -117,7 +149,18 @@ func (s *Store) Set(commonDir string, trusted bool) error {
 	case !trusted && ok:
 		s.dirs = slices.Delete(s.dirs, i, i+1)
 	}
-	data, err := json.MarshalIndent(file{Trusted: slices.Clone(s.dirs)}, "", "\t")
+	if trusted {
+		s.ids[d] = id
+	} else {
+		delete(s.ids, d)
+	}
+	f := file{Trusted: slices.Clone(s.dirs), IDs: map[string]string{}}
+	for _, dir := range s.dirs {
+		if id := s.ids[dir]; id != "" {
+			f.IDs[dir] = id
+		}
+	}
+	data, err := json.MarshalIndent(f, "", "\t")
 	s.mu.Unlock()
 	if err != nil {
 		return err

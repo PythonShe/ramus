@@ -40,6 +40,45 @@ func TestStore(t *testing.T) {
 	}
 }
 
+// A folder put where a trusted one was, an archive extracted again, is
+// not trusted: the answer was given of the folder, not of its path. A
+// list saved before folders were told apart still holds.
+func TestTrustHoldsForTheFolderTrusted(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "trust.json")
+	repo := filepath.Join(dir, "project", ".git")
+	os.MkdirAll(repo, 0o755)
+	s, _ := Load(path)
+	if err := s.Set(repo, true); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := Load(path); !again.Trusted(repo) {
+		t.Fatal("not trusted after loading again")
+	}
+	// Made while the first still exists, so it cannot have its identity.
+	other := filepath.Join(dir, "other")
+	os.MkdirAll(filepath.Join(other, ".git"), 0o755)
+	os.RemoveAll(filepath.Join(dir, "project"))
+	if err := os.Rename(other, filepath.Join(dir, "project")); err != nil {
+		t.Fatal(err)
+	}
+	if s.Trusted(repo) {
+		t.Error("a folder put at a trusted path is trusted")
+	}
+	if again, _ := Load(path); again.Trusted(repo) {
+		t.Error("a folder put at a trusted path is trusted after loading again")
+	}
+	if err := s.Set(repo, true); err != nil || !s.Trusted(repo) {
+		t.Errorf("trusting it anew: %v", err)
+	}
+
+	old := filepath.Join(dir, "old.json")
+	os.WriteFile(old, []byte(`{"trusted": [`+strconv.Quote(repo)+`]}`), 0o600)
+	if legacy, err := Load(old); err != nil || !legacy.Trusted(repo) {
+		t.Errorf("a list from before identities: %v", err)
+	}
+}
+
 // Answers given at once, from several tabs, are all saved: no save of an
 // older list lands after a newer one.
 func TestConcurrentSetsAllSaved(t *testing.T) {
