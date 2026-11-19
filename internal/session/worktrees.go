@@ -97,7 +97,7 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 	r.Life().Go(func(context.Context) {
 		for {
 			t0 := time.Now()
-			summarizeAll(ctx, r, wts, func(sum WorktreeSummary) {
+			summarizeAll(ctx, r, wts, true, func(sum WorktreeSummary) {
 				update(func() {
 					if ctx.Err() == nil {
 						done(sum)
@@ -121,8 +121,9 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 
 // summarizeAll summarizes the worktrees but the missing and bare ones,
 // a few at a time, handing each to emit as it comes, off the main
-// thread; it returns once all are read or ctx ends.
-func summarizeAll(ctx context.Context, r *repo.Repository, wts []repo.Worktree, emit func(WorktreeSummary)) {
+// thread; it returns once all are read or ctx ends. count counts the
+// lines changed, as summarize does.
+func summarizeAll(ctx context.Context, r *repo.Repository, wts []repo.Worktree, count bool, emit func(WorktreeSummary)) {
 	jobs := make(chan repo.Worktree)
 	ended := make(chan struct{})
 	for range dashboardWorkers {
@@ -134,7 +135,7 @@ func summarizeAll(ctx context.Context, r *repo.Repository, wts []repo.Worktree, 
 				// left waiting.
 				func() {
 					defer r.Life().Recover()
-					sum := summarize(ctx, r.Runner, r.Caps.HashSize, wt, time.Now())
+					sum := summarize(ctx, r.Runner, r.Caps.HashSize, wt, count, time.Now())
 					if ctx.Err() != nil {
 						return
 					}
@@ -168,8 +169,10 @@ func summarizeAll(ctx context.Context, r *repo.Repository, wts []repo.Worktree, 
 
 // summarize reads what changed in one worktree against its HEAD,
 // through git status and git diff run there, which take no lock, and
-// when it was last used.
-func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktree, now time.Time) (sum WorktreeSummary) {
+// when it was last used. Without count, the lines changed are not
+// counted: Busy needs none of them, and counting reads the untracked
+// files whole.
+func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktree, count bool, now time.Time) (sum WorktreeSummary) {
 	sum = WorktreeSummary{Path: wt.Path}
 	gitDir := worktreeGitDir(wt.Path)
 	if fi, err := os.Stat(filepath.Join(gitDir, "index")); err == nil {
@@ -200,7 +203,7 @@ func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktre
 	}
 	sum.Changes = st.Len()
 	var lines *diff.NumStat
-	if wt.Head != "" {
+	if wt.Head != "" && count {
 		res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: wt.Path, Discover: true, Read: true, MaxOutput: dashboardMaxOutput,
 			Config: []string{"core.quotePath=false"},
 			// diff-index, not diff, which refreshes the index (diff.Head).
@@ -224,7 +227,7 @@ func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktre
 				if f.Changed.After(sum.Active) {
 					sum.Active = f.Changed
 				}
-				if f.Untracked && fi.Mode().IsRegular() && fi.Size() <= maxCountedFile && int(fi.Size()) <= budget {
+				if count && f.Untracked && fi.Mode().IsRegular() && fi.Size() <= maxCountedFile && int(fi.Size()) <= budget {
 					budget -= int(fi.Size())
 					f.Added, f.Binary = countLines(file)
 				}
@@ -310,7 +313,7 @@ func othersBusy(ctx context.Context, r *repo.Repository) bool {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	busy := make(chan bool, len(others))
-	summarizeAll(ctx, r, others, func(sum WorktreeSummary) { busy <- sum.Busy })
+	summarizeAll(ctx, r, others, false, func(sum WorktreeSummary) { busy <- sum.Busy })
 	close(busy)
 	for b := range busy {
 		if b {

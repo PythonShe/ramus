@@ -13,6 +13,7 @@ import (
 	"ramus/internal/git/config"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 )
@@ -337,6 +338,39 @@ func TestHungBackgroundFetchesLeaveSlotsForReads(t *testing.T) {
 	defer cancel()
 	if _, err := runner.Run(ctx, &run.Cmd{GitDir: last.GitDir, Read: true, Args: []string{"rev-parse", "HEAD"}}); err != nil {
 		t.Fatalf("a read found no slot: %v", err)
+	}
+}
+
+// Whether another worktree is busy, asked before each background fetch,
+// is told from when its files were written: the lines they change are
+// not counted, nor its untracked files read.
+func TestBusyCheckCountsNoLines(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "a\n")
+	r.Commit("one")
+	wt := addWorktree(t, r, "agent")
+	old(t, wt)
+	old(t, r.GitDir())
+	runner := testrun.Runner(t)
+	ctx := context.Background()
+	rp, err := repo.Open(ctx, runner, r.Dir, func(repo.Location) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rp.Close(); <-rp.Life().Done() })
+	if othersBusy(ctx, rp) {
+		t.Fatal("busy with nothing written")
+	}
+	if err := os.WriteFile(filepath.Join(wt, "new.txt"), []byte("just saved\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !othersBusy(ctx, rp) {
+		t.Fatal("not busy with a file just saved")
+	}
+	for _, rec := range runner.Journal().For(worktreeGitDir(wt)) {
+		if strings.Contains(rec.Short, "diff-index") {
+			t.Errorf("the busy check counted lines: %s", rec.Short)
+		}
 	}
 }
 
