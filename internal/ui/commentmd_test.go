@@ -147,7 +147,8 @@ func TestLongCommentsReadInLinearTime(t *testing.T) {
 	} {
 		start := time.Now()
 		commentParts(body, "Image")
-		if d := time.Since(start); d > 2*time.Second {
+		// The race detector slows the read as it does a frame.
+		if d := time.Since(start); d > 2*time.Second*raceSlowdown {
 			t.Errorf("%s: %d bytes read in %v", name, len(body), d)
 		}
 	}
