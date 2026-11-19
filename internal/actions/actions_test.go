@@ -54,7 +54,7 @@ func TestRun(t *testing.T) {
 		t.Skip(err)
 	}
 	var lines []string
-	err = Run(context.Background(), []string{sh, "-c", "echo one; echo two >&2; pwd; exit 3"}, t.TempDir(), func(l string) { lines = append(lines, l) })
+	err = RunIn(context.Background(), []string{sh, "-c", "echo one; echo two >&2; pwd; exit 3"}, t.TempDir(), nil, func(l string) { lines = append(lines, l) })
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.ExitCode() != 3 || len(lines) != 3 || lines[0] != "one" || lines[1] != "two" {
 		t.Fatalf("lines %q err %v", lines, err)
@@ -67,7 +67,7 @@ func TestRun(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := Run(ctx, []string{sh, "-c", "sleep 30"}, t.TempDir(), func(string) {}); err == nil {
+	if err := RunIn(ctx, []string{sh, "-c", "sleep 30"}, t.TempDir(), nil, func(string) {}); err == nil {
 		t.Fatal("cancelled action ran")
 	}
 }

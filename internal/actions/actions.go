@@ -104,14 +104,9 @@ const Timeout = 10 * time.Minute
 // MaxLine bounds one line of output kept.
 const MaxLine = 16 << 10
 
-// Run runs argv in dir, calling line with each line of its output
+// RunIn runs argv in dir, calling line with each line of its output
 // (stdout and stderr together) as it comes, until it exits, ctx ends, or
-// Timeout passes.
-func Run(ctx context.Context, argv []string, dir string, line func(string)) error {
-	return RunIn(ctx, argv, dir, nil, line)
-}
-
-// RunIn is Run with env, the user's environment as git gets it: the
+// Timeout passes. env is the user's environment as git gets it: the
 // app's own, when started from the Finder or a desktop entry, lacks what
 // their shell adds to PATH, and a script needing node or the like fails.
 // Nil is the app's own.

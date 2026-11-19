@@ -23,13 +23,13 @@ func TestBatchActionGetsNoCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	var lines []string
-	if err := Run(context.Background(), argv, dir, func(l string) { lines = append(lines, l) }); err != nil {
+	if err := RunIn(context.Background(), argv, dir, nil, func(l string) { lines = append(lines, l) }); err != nil {
 		t.Fatal(err)
 	}
 	if len(lines) != 1 || lines[0] != `ARG="x&echo INJECTED"` {
 		t.Fatalf("output %q", lines)
 	}
-	if err := Run(context.Background(), []string{bat, "%PATH%"}, dir, func(string) {}); !errors.Is(err, tools.ErrBatchArgument) {
+	if err := RunIn(context.Background(), []string{bat, "%PATH%"}, dir, nil, func(string) {}); !errors.Is(err, tools.ErrBatchArgument) {
 		t.Fatalf("an argument cmd.exe expands: %v", err)
 	}
 }
@@ -49,7 +49,7 @@ func TestBatchActionGetsNoDelayedExpansion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Run(context.Background(), argv, dir, func(string) {}); !errors.Is(err, tools.ErrBatchArgument) {
+	if err := RunIn(context.Background(), argv, dir, nil, func(string) {}); !errors.Is(err, tools.ErrBatchArgument) {
 		t.Fatalf("an argument delayed expansion expands: %v", err)
 	}
 	if _, err := os.Stat(marker); err == nil {

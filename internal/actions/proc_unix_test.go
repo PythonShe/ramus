@@ -26,7 +26,7 @@ func TestCancelEndsWhatTheActionStarted(t *testing.T) {
 	pid := 0
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, []string{sh, "-c", "trap '' TERM; sleep 300 & echo $!; wait"}, t.TempDir(), func(l string) {
+		done <- RunIn(ctx, []string{sh, "-c", "trap '' TERM; sleep 300 & echo $!; wait"}, t.TempDir(), nil, func(l string) {
 			mu.Lock()
 			pid, _ = strconv.Atoi(l)
 			mu.Unlock()
