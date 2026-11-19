@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -116,6 +121,33 @@ func TestCountMatchesGit(t *testing.T) {
 	for _, bad := range [][]byte{nil, []byte("nope"), []byte(magic + "\xff\xff\xff\xff")} {
 		if _, _, err := Decode(bytes.NewReader(append(bad, data...)[:len(bad)])); err == nil {
 			t.Errorf("decoded %q", bad)
+		}
+	}
+}
+
+// A damaged records file whose count asks for more than the file holds
+// is refused before anything that size is allocated.
+func TestDecodeTrustsNoLengthPastTheFile(t *testing.T) {
+	data := []byte(magic + "\x01\x00\x00\x00k\x00\x00\xdc\x02") // 48 million records
+	path := filepath.Join(t.TempDir(), "x.activity")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	for _, rd := range []io.Reader{f, bytes.NewReader(data), bytes.NewBuffer(data)} {
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		_, _, err := Decode(rd)
+		runtime.ReadMemStats(&after)
+		if !errors.Is(err, ErrFormat) {
+			t.Errorf("%T: %v", rd, err)
+		}
+		if grew := after.TotalAlloc - before.TotalAlloc; grew > 1<<20 {
+			t.Errorf("%T: allocated %d bytes", rd, grew)
 		}
 	}
 }

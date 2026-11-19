@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 )
 
 // magic starts an encoded record set; the digit is the format version.
@@ -33,21 +34,36 @@ func (r *Records) Encode(w io.Writer, key string) error {
 var ErrFormat = errors.New("activity: not a records file")
 
 // Decode reads records Encode wrote and the key they were written with.
+// From a file, or a reader that tells its length, no length in a damaged
+// file makes it allocate more than the file holds.
 func Decode(rd io.Reader) (*Records, string, error) {
+	left := int64(maxDecoded)
+	switch f := rd.(type) {
+	case interface{ Stat() (fs.FileInfo, error) }:
+		if st, err := f.Stat(); err == nil && st.Mode().IsRegular() {
+			left = st.Size()
+		}
+	case interface{ Len() int }:
+		left = int64(f.Len())
+	}
 	br := bufio.NewReader(rd)
 	head := make([]byte, len(magic))
 	if _, err := io.ReadFull(br, head); err != nil || string(head) != magic {
 		return nil, "", ErrFormat
 	}
+	left -= int64(len(magic))
 	le := binary.LittleEndian
 	length := func(each int) (int, error) {
 		var n uint32
 		if err := binary.Read(br, le, &n); err != nil {
 			return 0, err
 		}
-		if int64(n)*int64(each) > maxDecoded {
+		left -= 4
+		size := int64(n) * int64(each)
+		if size > maxDecoded || size > left {
 			return 0, fmt.Errorf("%w: a length of %d", ErrFormat, n)
 		}
+		left -= size
 		return int(n), nil
 	}
 	n, err := length(1)
