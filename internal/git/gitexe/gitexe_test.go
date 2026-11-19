@@ -3,11 +3,13 @@ package gitexe
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -107,13 +109,62 @@ func TestShimNeedsDevTools(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("macOS's shim")
 	}
-	has := func(c []string) bool { return slices.Contains(c, shim) }
-	if c := candidates("/usr/bin:/bin", func() bool { return false }); has(c) {
-		t.Fatalf("without the tools: %v", c)
+	if c := candidates("/usr/bin:/bin"); !slices.Contains(c, shim) {
+		t.Fatalf("candidates %v", c)
 	}
-	if c := candidates("/usr/bin:/bin", func() bool { return true }); !has(c) {
-		t.Fatalf("with the tools: %v", c)
+	if _, err := os.Stat(shim); err != nil {
+		t.Skip("no shim here")
 	}
+	_, err := pick(context.Background(), []string{shim}, func() bool { return false })
+	if !errors.Is(err, ErrNotFound) || strings.Contains(err.Error(), shim) {
+		t.Fatalf("without the tools: %v", err)
+	}
+}
+
+// Whether the developer tools are there is asked only on reaching the
+// shim: a git found before it costs no xcode-select.
+func TestDevToolsAskedAtTheShim(t *testing.T) {
+	git := standIn(t, "2.50.0")
+	g, err := pick(context.Background(), []string{git, shim}, func() bool {
+		t.Error("asked about the developer tools")
+		return false
+	})
+	if err != nil || g.Path != git {
+		t.Fatalf("found %v %v", g, err)
+	}
+}
+
+// A git older than Minimum is not used: a newer one later is, and with
+// none, the error names the version found, for the app to tell.
+func TestTooOld(t *testing.T) {
+	old, newer := standIn(t, "2.30.1"), standIn(t, "2.40.0")
+	_, err := pick(context.Background(), []string{old}, func() bool { return false })
+	var e *TooOldError
+	if !errors.As(err, &e) || e.Path != old || e.Version.String() != "2.30.1" {
+		t.Fatalf("old git alone: %v", err)
+	}
+	g, err := pick(context.Background(), []string{old, newer}, func() bool { return false })
+	if err != nil || g.Path != newer {
+		t.Fatalf("old, then newer: %v %v", g, err)
+	}
+	min := standIn(t, Minimum.String())
+	if g, err := pick(context.Background(), []string{min}, func() bool { return false }); err != nil || g.Path != min {
+		t.Fatalf("the minimum: %v %v", g, err)
+	}
+}
+
+// standIn is a git, a script in a folder of its own, that answers git
+// version with version.
+func standIn(t *testing.T, version string) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("a shell script")
+	}
+	p := filepath.Join(t.TempDir(), "git")
+	if err := os.WriteFile(p, []byte("#!/bin/sh\necho git version "+version+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }
 
 // A git that is a wrapper script whose child hangs is given up on within

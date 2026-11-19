@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -25,17 +26,38 @@ var ErrNotFound = errors.New("gitexe: git not found")
 // probeTimeout bounds git version; a git that hangs on it is not usable.
 const probeTimeout = 5 * time.Second
 
+// TooOldError is a git found that is older than Minimum, and no newer one.
+type TooOldError struct {
+	Path    string
+	Version Version
+}
+
+func (e *TooOldError) Error() string {
+	return fmt.Sprintf("gitexe: %s is git %s; Ramus needs %s or later", e.Path, e.Version, Minimum)
+}
+
 // Find looks for git on path (the user's PATH, resolved by the caller) and
 // then in the places installers put it, and returns the first that answers
-// git version. It never looks in the current directory or a work tree.
+// git version and is Minimum or later; a *TooOldError when the only ones
+// that answer are older. It never looks in the current directory or a
+// work tree.
 func Find(ctx context.Context, path string) (*Git, error) {
+	return pick(ctx, candidates(path), sync.OnceValue(func() bool { return hasDevTools(ctx) }))
+}
+
+// pick probes cands in order; devTools is asked only on reaching macOS's
+// shim, so a git found before it costs no xcode-select.
+func pick(ctx context.Context, cands []string, devTools func() bool) (*Git, error) {
 	var tried []string
-	devTools := sync.OnceValue(func() bool { return hasDevTools(ctx) })
-	for _, p := range candidates(path, devTools) {
+	var old *TooOldError
+	for _, p := range cands {
 		if !filepath.IsAbs(p) {
 			continue
 		}
 		if st, err := os.Stat(p); err != nil || st.IsDir() {
+			continue
+		}
+		if runtime.GOOS == "darwin" && p == shim && !devTools() {
 			continue
 		}
 		tried = append(tried, p)
@@ -43,9 +65,18 @@ func Find(ctx context.Context, path string) (*Git, error) {
 		if err != nil {
 			continue
 		}
+		if !v.AtLeast(Minimum.Major, Minimum.Minor, Minimum.Patch) {
+			if old == nil {
+				old = &TooOldError{Path: p, Version: v}
+			}
+			continue
+		}
 		return &Git{Path: p, Version: v}, nil
 	}
-	if len(tried) == 0 {
+	switch {
+	case old != nil:
+		return nil, old
+	case len(tried) == 0:
 		return nil, ErrNotFound
 	}
 	return nil, fmt.Errorf("%w: none of %s answered git version", ErrNotFound, strings.Join(tried, ", "))
@@ -71,10 +102,10 @@ func Probe(ctx context.Context, p string) (Version, error) {
 
 // shim is macOS's /usr/bin/git, which offers to install the developer
 // tools when they are missing, a dialog on every launch: it is tried, from
-// PATH or not, only when devTools says they are there.
+// PATH or not, only when hasDevTools says they are there.
 const shim = "/usr/bin/git"
 
-func candidates(path string, devTools func() bool) []string {
+func candidates(path string) []string {
 	name := "git"
 	if runtime.GOOS == "windows" {
 		name = "git.exe"
@@ -82,17 +113,13 @@ func candidates(path string, devTools func() bool) []string {
 	var out []string
 	for _, dir := range filepath.SplitList(path) {
 		if filepath.IsAbs(dir) {
-			p := filepath.Join(dir, name)
-			if runtime.GOOS == "darwin" && p == shim && !devTools() {
-				continue
-			}
-			out = append(out, p)
+			out = append(out, filepath.Join(dir, name))
 		}
 	}
 	switch runtime.GOOS {
 	case "darwin":
 		out = append(out, "/opt/homebrew/bin/git", "/usr/local/bin/git", "/opt/local/bin/git")
-		if devTools() {
+		if !slices.Contains(out, shim) {
 			out = append(out, shim)
 		}
 	case "windows":
