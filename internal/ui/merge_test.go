@@ -97,6 +97,12 @@ func TestMergeAndResolve(t *testing.T) {
 		st := tb.s.State.Status
 		return st != nil && st.Unmerged() == 0 && h.tt.HasText("Merge stopped")
 	})
+	// The last conflict read is let go, once the list, built off the main
+	// thread, shows none.
+	h.until("the conflict let go", func() bool {
+		ms := &tb.merge
+		return ms.path == "" && ms.cf.Segments == nil && ms.shown == nil
+	})
 	h.click("Continue")
 	h.idle(tb, "the continue")
 	if l := tb.s.Log; l[len(l)-1].Err != nil || h.app.notice != "" {

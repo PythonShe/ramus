@@ -330,6 +330,18 @@ func (a *App) loadBlame(t *tab) {
 	})
 }
 
+// dropBlame stops the blame and lets go of it, as the view is left: a
+// blamed file's text can be tens of megabytes, kept for no one. It is
+// blamed again when shown.
+func (fs *fileState) dropBlame() {
+	if fs.cancel != nil {
+		fs.cancel()
+		fs.cancel = nil
+	}
+	fs.blameKey = ""
+	fs.text, fs.starts, fs.lineCommit, fs.bcommits, fs.blameDone, fs.blameErr = nil, nil, nil, nil, false, ""
+}
+
 // blameStamp is what the blame of the file shown is of: the file, HEAD
 // and the file's stat, read off the main thread as each write ends and
 // HEAD moves; not ok while it is read. A write that leaves them, as a

@@ -533,6 +533,12 @@ func (a *App) takeBoth(t *tab, path string) {
 // operationBar shows an operation that stopped part way, and what can be
 // done about it.
 func (a *App) operationBar(c *ui.Context, t *tab) {
+	if st := t.s.State.Status; st != nil && st.Unmerged() == 0 && t.merge.path != "" && t.cv.model != nil && t.cv.model.st == st {
+		// Nothing left to resolve, as the list, built off the main thread,
+		// shows too: the conflict last shown, which can be tens of
+		// megabytes, goes. gen stays, for builds still running.
+		t.merge = mergeState{gen: t.merge.gen}
+	}
 	op := t.s.State.Operation
 	switch op {
 	case repo.Merge, repo.Rebase, repo.CherryPick, repo.Revert, repo.Am:

@@ -106,12 +106,7 @@ func (a *App) leaveView(t *tab, name string) {
 		if fs.logLoading {
 			fs.logKey, fs.logLoading = "", false
 		}
-		if !fs.blameDone {
-			if fs.cancel != nil {
-				fs.cancel()
-			}
-			fs.blameKey = ""
-		}
+		fs.dropBlame()
 	case "review":
 		t.rev.leave()
 		t.cv.leaveCount()

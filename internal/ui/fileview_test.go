@@ -101,6 +101,15 @@ func TestBlameOutlivesOtherWrites(t *testing.T) {
 	h.until("blamed again", func() bool {
 		return tb.s.Writes > w && fs.blameDone && fs.text != nil && string(fs.text) == "a\nb\nc\nd\n"
 	})
+
+	// The view left, the blame is let go, and made again when shown.
+	tb.sel = "changes"
+	h.until("the changes", func() bool { return hasExact(h, "z.txt") })
+	if fs.text != nil || fs.bcommits != nil {
+		t.Fatal("the blame kept after the view was left")
+	}
+	h.app.showFile(tb, "one.txt", true)
+	h.until("blamed when shown", func() bool { return fs.blameDone && string(fs.text) == "a\nb\nc\nd\n" })
 }
 
 // The history of lines chosen in the blame follows them back through a
