@@ -101,10 +101,26 @@ func hostVars(k Kind) []string {
 	return []string{"GH_HOST"}
 }
 
+// goos is the system the tools run on, which a test may play.
+var goos = runtime.GOOS
+
+// envName reports whether k, the name of a variable in an environment,
+// is name: on Windows, whose names are not case-sensitive, in any case,
+// as the block it gives a program spells APPDATA what a program asks
+// for as AppData.
+func envName(k, name string) bool {
+	if goos == "windows" {
+		return strings.EqualFold(k, name)
+	}
+	return k == name
+}
+
+// envValue is the value of the variable name in env, the last one set;
+// ok is false for none, or one empty.
 func envValue(env []string, name string) (string, bool) {
 	val, found := "", false
 	for _, kv := range env {
-		if k, v, ok := strings.Cut(kv, "="); ok && k == name {
+		if k, v, ok := strings.Cut(kv, "="); ok && envName(k, name) {
 			val, found = v, true
 		}
 	}
@@ -115,7 +131,7 @@ func envValue(env []string, name string) (string, bool) {
 // in to, as the tool itself looks for them.
 func configFiles(env []string, k Kind) []string {
 	home, _ := envValue(env, "HOME")
-	if runtime.GOOS == "windows" {
+	if goos == "windows" {
 		if p, ok := envValue(env, "USERPROFILE"); ok {
 			home = p
 		}
@@ -129,8 +145,8 @@ func configFiles(env []string, k Kind) []string {
 			dirs = append(dirs, d)
 		case hasXDG:
 			dirs = append(dirs, filepath.Join(xdg, "gh"))
-		case runtime.GOOS == "windows":
-			if app, ok := envValue(env, "AppData"); ok {
+		case goos == "windows":
+			if app, ok := envValue(env, "APPDATA"); ok {
 				dirs = append(dirs, filepath.Join(app, "GitHub CLI"))
 			}
 		}
@@ -148,11 +164,11 @@ func configFiles(env []string, k Kind) []string {
 		if home != "" {
 			dirs = append(dirs, filepath.Join(home, ".config", "glab-cli"))
 			// Newer releases keep it in the system's config folder.
-			switch runtime.GOOS {
+			switch goos {
 			case "darwin":
 				dirs = append(dirs, filepath.Join(home, "Library", "Application Support", "glab-cli"))
 			case "windows":
-				if app, ok := envValue(env, "AppData"); ok {
+				if app, ok := envValue(env, "APPDATA"); ok {
 					dirs = append(dirs, filepath.Join(app, "glab-cli"))
 				}
 			}

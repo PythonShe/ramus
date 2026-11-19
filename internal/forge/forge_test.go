@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -421,6 +422,32 @@ func TestKnownHosts(t *testing.T) {
 	}
 	if got := configHosts(GitHub, []byte(hosts)); strings.Join(got, " ") != "github.com github.corp.example" {
 		t.Fatalf("gh hosts %q", got)
+	}
+}
+
+// On Windows the tools' config folders are found whatever the case of
+// the variables naming them: its environment block spells APPDATA, and
+// gh asks for AppData. Elsewhere names are as written.
+func TestConfigFilesOnWindows(t *testing.T) {
+	was := goos
+	t.Cleanup(func() { goos = was })
+	home := t.TempDir()
+	app := filepath.Join(home, "AppData", "Roaming")
+	env := []string{"APPDATA=" + app, "UserProfile=" + home, "gh_host=ghe.example"}
+	goos = "windows"
+	if got := configFiles(env, GitHub); len(got) != 1 || got[0] != filepath.Join(app, "GitHub CLI", "hosts.yml") {
+		t.Errorf("gh %q", got)
+	}
+	if got := configFiles(env, GitLab); !slices.Contains(got, filepath.Join(app, "glab-cli", "config.yml")) ||
+		!slices.Contains(got, filepath.Join(home, ".config", "glab-cli", "config.yml")) {
+		t.Errorf("glab %q", got)
+	}
+	if v, ok := envValue(env, "GH_HOST"); !ok || v != "ghe.example" {
+		t.Errorf("GH_HOST %q", v)
+	}
+	goos = "linux"
+	if _, ok := envValue(env, "GH_HOST"); ok {
+		t.Error("a name in another case taken off Windows")
 	}
 }
 
