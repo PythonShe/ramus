@@ -126,7 +126,7 @@ func Read(ctx context.Context, readers []stats.Reader, ids [][]byte, mm *mailmap
 			defer carry.Carry()
 			part := &Records{}
 			for ids := range work {
-				err := rd.Read(ids, func(_ int, o catfile.Object) error {
+				err := rd.ReadContext(ctx, ids, func(_ int, o catfile.Object) error {
 					if o.Type != "commit" {
 						return nil
 					}

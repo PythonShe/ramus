@@ -135,7 +135,9 @@ func TestSummarize(t *testing.T) {
 
 type panicky struct{}
 
-func (panicky) Read([][]byte, func(int, catfile.Object) error) error { panic("boom") }
+func (panicky) ReadContext(context.Context, [][]byte, func(int, catfile.Object) error) error {
+	panic("boom")
+}
 
 // A panic reading commits is raised again by Read, in its caller's
 // goroutine, where the caller's recover reaches it, and does not hang it.

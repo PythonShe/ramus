@@ -130,6 +130,100 @@ func TestEndsWhenIdle(t *testing.T) {
 	}
 }
 
+// A batch in progress keeps neither Alive nor another read's cancel
+// waiting, and cancelling it ends the batch, not the process.
+func TestCancel(t *testing.T) {
+	r := gittest.Init(t)
+	c := r.Commit("first")
+	p, err := Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	ids := [][]byte{decode(c), decode(c)}
+	ctx, cancel := context.WithCancel(context.Background())
+	inside, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error)
+	go func() {
+		done <- p.ReadContext(ctx, ids, func(i int, _ Object) error {
+			if i == 0 {
+				close(inside)
+				<-release
+			}
+			return nil
+		})
+	}()
+	<-inside
+	within := func(what string, f func()) {
+		t.Helper()
+		ok := make(chan struct{})
+		go func() { f(); close(ok) }()
+		select {
+		case <-ok:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s waits for the batch", what)
+		}
+	}
+	within("Alive", func() {
+		if !p.Alive() {
+			t.Error("not alive during a batch")
+		}
+	})
+	waiting, stop := context.WithCancel(context.Background())
+	within("a cancelled read waiting its turn", func() {
+		go stop()
+		if err := p.ReadContext(waiting, ids, func(int, Object) error { return nil }); !errors.Is(err, context.Canceled) {
+			t.Errorf("waiting read: %v", err)
+		}
+	})
+	cancel()
+	close(release)
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled batch: %v", err)
+	}
+	if !p.Alive() {
+		t.Fatal("a cancelled batch ended the process")
+	}
+	n := 0
+	if err := p.Read(ids, func(_ int, o Object) error { n++; return nil }); err != nil || n != 2 {
+		t.Fatalf("read after a cancel: %d, %v", n, err)
+	}
+}
+
+// Close does not wait for a batch blocked in its callback.
+func TestCloseDuringABatch(t *testing.T) {
+	r := gittest.Init(t)
+	c := r.Commit("first")
+	p, err := Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	inside, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error)
+	go func() {
+		done <- p.Read([][]byte{decode(c), decode(c)}, func(i int, _ Object) error {
+			if i == 0 {
+				close(inside)
+				<-release
+			}
+			return nil
+		})
+	}()
+	<-inside
+	closed := make(chan struct{})
+	go func() { p.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close waits for the batch")
+	}
+	close(release)
+	<-done
+	if err := p.Read([][]byte{decode(c)}, func(int, Object) error { return nil }); !errors.Is(err, ErrClosed) {
+		t.Fatalf("read after Close: %v", err)
+	}
+}
+
 func decode(s string) []byte {
 	b, _ := hex.DecodeString(s)
 	return b

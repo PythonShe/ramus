@@ -161,7 +161,7 @@ func (s *Source) Resolve(ctx context.Context, cat *catfile.Process, tips [][]byt
 		batchTip := wantTip[:len(batch)]
 		want, wantTip = want[len(batch):], wantTip[len(batch):]
 		var next [][]byte
-		err := cat.Read(batch, func(i int, o catfile.Object) error {
+		err := cat.ReadContext(ctx, batch, func(i int, o catfile.Object) error {
 			oid := batch[i]
 			if id, ok := s.Lookup(oid); ok && s.known(id) {
 				return nil // read already, through another child

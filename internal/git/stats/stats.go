@@ -166,7 +166,7 @@ func (c *Counter) Stats() Stats {
 
 // Reader reads objects in batches, as a cat-file process does.
 type Reader interface {
-	Read(oids [][]byte, fn func(i int, o catfile.Object) error) error
+	ReadContext(ctx context.Context, oids [][]byte, fn func(i int, o catfile.Object) error) error
 }
 
 // batch is the commits read in one cat-file round trip.
@@ -199,7 +199,7 @@ func Collect(ctx context.Context, readers []Reader, ids [][]byte, mm *mailmap.Ma
 			defer carry.Carry()
 			for ids := range work {
 				c := NewCounter(mm)
-				err := rd.Read(ids, func(_ int, o catfile.Object) error {
+				err := rd.ReadContext(ctx, ids, func(_ int, o catfile.Object) error {
 					if o.Type != "commit" {
 						return nil
 					}
