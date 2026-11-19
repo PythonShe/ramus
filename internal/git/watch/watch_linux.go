@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -119,6 +120,37 @@ func denied(err error) bool {
 	return errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM)
 }
 
+// forget removes the watches wds, of a directory moved out of the tree and
+// those under it: inotify follows a directory where it goes, and would go
+// on reporting what changes there, at its old path here, and count it
+// against the limit of watches.
+func (l *linuxWatch) forget(wds []int32) {
+	l.mu.Lock()
+	for _, wd := range wds {
+		delete(l.dirs, wd)
+	}
+	l.mu.Unlock()
+	l.onFD(func(fd int) error {
+		for _, wd := range wds {
+			syscall.InotifyRmWatch(fd, uint32(wd))
+		}
+		return nil
+	})
+}
+
+// under returns the watches of the directory rel and of those under it.
+func (l *linuxWatch) under(rel string) []int32 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var wds []int32
+	for wd, d := range l.dirs {
+		if d == rel || strings.HasPrefix(d, rel+"/") {
+			wds = append(wds, wd)
+		}
+	}
+	return wds
+}
+
 func (l *linuxWatch) read() {
 	defer l.done.Done()
 	buf := make([]byte, 256<<10)
@@ -130,6 +162,10 @@ func (l *linuxWatch) read() {
 			}
 			return
 		}
+		// Directories moved away in this read, by the move's cookie: one
+		// whose arrival in the tree is not in the same read left it. An
+		// arrival read later only watches it anew.
+		var moved map[uint32][]int32
 		for off := 0; off+syscall.SizeofInotifyEvent <= n; {
 			ev := (*syscall.InotifyEvent)(unsafe.Pointer(&buf[off]))
 			nameEnd := off + syscall.SizeofInotifyEvent + int(ev.Len)
@@ -156,7 +192,16 @@ func (l *linuxWatch) read() {
 			}
 			rel := filepath.Join(dir, string(name))
 			l.w.changed(rel)
+			if ev.Mask&syscall.IN_ISDIR != 0 && ev.Mask&syscall.IN_MOVED_FROM != 0 {
+				if moved == nil {
+					moved = map[uint32][]int32{}
+				}
+				moved[ev.Cookie] = l.under(filepath.ToSlash(rel))
+			}
 			if ev.Mask&syscall.IN_ISDIR != 0 && ev.Mask&(syscall.IN_CREATE|syscall.IN_MOVED_TO) != 0 {
+				if ev.Mask&syscall.IN_MOVED_TO != 0 {
+					delete(moved, ev.Cookie)
+				}
 				// Watch the new directory, and report what was made in it
 				// before the watch was in place.
 				if err := l.addTree(rel); err != nil {
@@ -164,6 +209,9 @@ func (l *linuxWatch) read() {
 				}
 				l.w.changed(rel)
 			}
+		}
+		for _, wds := range moved {
+			l.forget(wds)
 		}
 	}
 }

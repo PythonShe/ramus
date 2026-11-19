@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -86,6 +87,52 @@ func TestUnreadableFolder(t *testing.T) {
 	wait(t, w, "f")
 	if err := w.Err(); err != nil {
 		t.Errorf("the watcher says it stopped: %v", err)
+	}
+}
+
+// A folder moved out of the tree loses its watches, so what changes in
+// it there is not reported here; one moved within the tree is watched at
+// its new place.
+func TestMovedFolders(t *testing.T) {
+	root := t.TempDir()
+	away := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "out", "deep"), 0o755)
+	os.MkdirAll(filepath.Join(root, "in", "deep"), 0o755)
+	w, err := New(root, Options{Latency: 20 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	l := w.plat.(*linuxWatch)
+	ready(t, w, root)
+	os.Rename(filepath.Join(root, "in"), filepath.Join(root, "moved"))
+	wait(t, w, "moved")
+	if err := os.Rename(filepath.Join(root, "out"), filepath.Join(away, "out")); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, w, "out")
+	ready(t, w, root)
+	os.WriteFile(filepath.Join(away, "out", "deep", "f"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(root, "moved", "deep", "g"), []byte("y"), 0o644)
+	for seen, deadline := false, time.After(5*time.Second); !seen; {
+		select {
+		case b := <-w.Events():
+			for _, p := range b.Paths {
+				if strings.HasPrefix(p, "out") {
+					t.Errorf("a change outside the tree reported as %s", p)
+				}
+				seen = seen || p == "moved/deep/g"
+			}
+		case <-deadline:
+			t.Fatal("no event for moved/deep/g")
+		}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, rel := range l.dirs {
+		if rel == "out" || strings.HasPrefix(rel, "out/") || rel == "in" || strings.HasPrefix(rel, "in/") {
+			t.Errorf("a watch left at %s", rel)
+		}
 	}
 }
 
