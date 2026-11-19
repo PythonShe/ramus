@@ -1,11 +1,13 @@
 package osfile
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,5 +84,22 @@ func TestRefusesWhatIsNoFile(t *testing.T) {
 		case <-time.After(10 * time.Second):
 			t.Fatalf("%s: still waiting", path)
 		}
+	}
+}
+
+// A path past MAX_PATH opens, as it does with os.Open.
+func TestLongPath(t *testing.T) {
+	dir := t.TempDir()
+	deep := filepath.Join(dir, strings.Repeat("d", 100), strings.Repeat("e", 100), strings.Repeat("f", 100))
+	if err := os.MkdirAll(deep, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(deep, "HEAD")
+	want := []byte("ref: refs/heads/main\n")
+	if err := os.WriteFile(path, want, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := ReadFile(path, 1<<10); err != nil || !bytes.Equal(b, want) {
+		t.Fatalf("read %q, %v", b, err)
 	}
 }
