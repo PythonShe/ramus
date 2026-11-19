@@ -121,7 +121,7 @@ func (s Settings) FetchEvery() int {
 	if s.FetchMinutes <= 0 {
 		return DefaultFetchMinutes
 	}
-	return min(max(s.FetchMinutes, MinFetchMinutes), MaxFetchMinutes)
+	return min(max(s.FetchMinutes, MinFetchMinutes), maxFetchMinutes)
 }
 
 // Action is a command of the user's, shown in the command palette and in
@@ -149,9 +149,9 @@ var Defaults = Settings{Theme: "system", SnapshotDays: 14, RecentLimit: 20}
 // time.Duration past 106751), which could expire every snapshot of
 // dropped work at once.
 const (
-	MaxSnapshotDays = 36500
-	MaxRecentLimit  = 1000
-	MaxFetchMinutes = 7 * 24 * 60
+	maxSnapshotDays = 36500
+	maxRecentLimit  = 1000
+	maxFetchMinutes = 7 * 24 * 60
 	// maxWidth is more than any screen has.
 	maxWidth = 1 << 14
 	// pictureCompareLast is the last way pictures compare.
@@ -167,15 +167,15 @@ func (s Settings) WithDefaults() Settings {
 	if s.SnapshotDays <= 0 {
 		s.SnapshotDays = Defaults.SnapshotDays
 	}
-	s.SnapshotDays = min(s.SnapshotDays, MaxSnapshotDays)
+	s.SnapshotDays = min(s.SnapshotDays, maxSnapshotDays)
 	if s.RecentLimit <= 0 {
 		s.RecentLimit = Defaults.RecentLimit
 	}
-	s.RecentLimit = min(s.RecentLimit, MaxRecentLimit)
+	s.RecentLimit = min(s.RecentLimit, maxRecentLimit)
 	if s.FetchMinutes <= 0 {
 		s.FetchMinutes = 0
 	} else {
-		s.FetchMinutes = min(max(s.FetchMinutes, MinFetchMinutes), MaxFetchMinutes)
+		s.FetchMinutes = min(max(s.FetchMinutes, MinFetchMinutes), maxFetchMinutes)
 	}
 	if s.PictureCompare < 0 || s.PictureCompare > pictureCompareLast {
 		s.PictureCompare = 0
@@ -432,9 +432,9 @@ func saveOnce(path string, s Settings, base *Settings) (got Settings, data []byt
 	return got, data, nil
 }
 
-// Same reports whether a and b are the same settings, a field left at
+// same reports whether a and b are the same settings, a field left at
 // its default and one set to it alike.
-func Same(a, b Settings) bool {
+func same(a, b Settings) bool {
 	fa, fb := fieldsOf(a.WithDefaults()), fieldsOf(b.WithDefaults())
 	if len(fa) != len(fb) {
 		return false
@@ -447,9 +447,9 @@ func Same(a, b Settings) bool {
 	return true
 }
 
-// Merge is ours with what theirs changed since base: each field ours has
+// merge is ours with what theirs changed since base: each field ours has
 // as base had it is theirs.
-func Merge(base, ours, theirs Settings) Settings {
+func merge(base, ours, theirs Settings) Settings {
 	was, now := fieldsOf(base.WithDefaults()), fieldsOf(ours.WithDefaults())
 	out := reflect.ValueOf(&ours).Elem()
 	from := reflect.ValueOf(theirs)

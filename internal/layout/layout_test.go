@@ -75,7 +75,7 @@ func TestLayoutFormats(t *testing.T) {
 		Version int
 		Windows []Window
 	}
-	if err := json.Unmarshal(data, &f); err != nil || f.Version != Version || !reflect.DeepEqual(f.Windows, want) {
+	if err := json.Unmarshal(data, &f); err != nil || f.Version != formatVersion || !reflect.DeepEqual(f.Windows, want) {
 		t.Fatalf("written as %s", data)
 	}
 	os.WriteFile(p, []byte(`{"version": 2, "windows": [{"tabs": [{"path": "/c"}]}], "focused": 0}`), 0o600)

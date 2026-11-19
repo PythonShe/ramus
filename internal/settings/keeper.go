@@ -159,7 +159,7 @@ func (k *Keeper) write(s Settings, gen uint64) (*FromFile, error) {
 		return nil, err
 	}
 	k.base = &s
-	if Same(got, s) {
+	if same(got, s) {
 		return nil, nil
 	}
 	return &FromFile{got, k.seen, gen}, nil
@@ -258,9 +258,9 @@ func (k *Keeper) Take(f FromFile, cur Settings) (Settings, bool) {
 	if k.base == nil || f.seen != k.seen || f.wrote != k.kept {
 		return cur, false
 	}
-	s := Merge(*k.base, cur, f.s)
+	s := merge(*k.base, cur, f.s)
 	k.base = &f.s
-	return s, !Same(s, cur)
+	return s, !same(s, cur)
 }
 
 // Wait returns once what was asked for is written and told: it waits for

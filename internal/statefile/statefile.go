@@ -63,10 +63,10 @@ func asideName(path string, n int) string {
 	return path + ".broken-" + strconv.Itoa(n+1)
 }
 
-// KeepAside moves the file at path, which could not be read at all, to a
+// keepAside moves the file at path, which could not be read at all, to a
 // name beside it that no file has, so that writing path again loses
 // nothing, and returns that name.
-func KeepAside(path string) (string, error) {
+func keepAside(path string) (string, error) {
 	for n := range maxAside {
 		name := asideName(path, n)
 		if _, err := os.Lstat(name); !errors.Is(err, fs.ErrNotExist) {
@@ -80,11 +80,11 @@ func KeepAside(path string) (string, error) {
 	return "", fmt.Errorf("%s: no free name to keep it aside", path)
 }
 
-// KeepCopy keeps data, the content of the file at path, part of which
+// keepCopy keeps data, the content of the file at path, part of which
 // could not be read, in a file beside it, and returns its name: one that
 // holds the same already, else a new one. Read again at each launch
 // until a save replaces it, the same file is kept once.
-func KeepCopy(path string, data []byte) (string, error) {
+func keepCopy(path string, data []byte) (string, error) {
 	for n := range maxAside {
 		name := asideName(path, n)
 		old, err := os.ReadFile(name)
@@ -260,7 +260,7 @@ func remarshal(v any, now json.RawMessage, changed bool) (json.RawMessage, bool)
 // read at all: it is moved aside.
 func Unreadable(path string, err error) *LoadError {
 	e := &LoadError{Path: path, Err: err}
-	e.KeptAs, e.KeepErr = KeepAside(path)
+	e.KeptAs, e.KeepErr = keepAside(path)
 	return e
 }
 
@@ -268,7 +268,7 @@ func Unreadable(path string, err error) *LoadError {
 // the rest was read: a copy of it is kept aside.
 func PartlyRead(path string, data []byte, err error) *LoadError {
 	e := &LoadError{Path: path, Err: err, Partial: true}
-	e.KeptAs, e.KeepErr = KeepCopy(path, data)
+	e.KeptAs, e.KeepErr = keepCopy(path, data)
 	return e
 }
 

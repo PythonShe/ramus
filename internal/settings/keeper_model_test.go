@@ -102,7 +102,7 @@ func (m *model) agrees() {
 	m.take(m.heard()...)
 	m.focus()
 	onDisk := load(m.t, m.p)
-	if !Same(onDisk, m.app) {
+	if !same(onDisk, m.app) {
 		m.t.Fatalf("the app and the file differ:\napp  %+v\nfile %+v", m.app, onDisk)
 	}
 }

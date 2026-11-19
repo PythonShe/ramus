@@ -76,7 +76,7 @@ func read(path string) ([]byte, error) {
 	return io.ReadAll(&limited{f, maxFile})
 }
 
-// Version is the format of the file written: an object with the
+// formatVersion is the format of the file written: an object with the
 // windows under "windows", room for what a later version adds. 0.x wrote
 // the windows as a bare array, which is still read.
 //
@@ -84,7 +84,7 @@ func read(path string) ([]byte, error) {
 // and written back with the rest as it was, at every level: the keys of
 // the file, of each window and of each tab this version does not know
 // stay, and so does the file's version, never lowered.
-const Version = 1
+const formatVersion = 1
 
 // file is the layout as written.
 type file struct {
@@ -136,11 +136,11 @@ func bound(ws []Window) []Window {
 // Save writes the layout to path whole, so that a crash midway leaves the
 // old one. A file there that does not read, which Load could not keep
 // aside, is not written over. What a later version wrote in the file
-// stays (Version).
+// stays (formatVersion).
 func Save(path string, ws []Window) error {
 	old, err := read(path)
 	var extra map[string]json.RawMessage
-	version := Version
+	version := formatVersion
 	if err == nil {
 		var v int
 		_, extra, v, err = decode(old)

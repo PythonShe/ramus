@@ -134,10 +134,10 @@ func TestNumbersBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.SnapshotDays != MaxSnapshotDays || time.Duration(s.SnapshotDays)*24*time.Hour < 365*24*time.Hour {
+	if s.SnapshotDays != maxSnapshotDays || time.Duration(s.SnapshotDays)*24*time.Hour < 365*24*time.Hour {
 		t.Errorf("snapshot days %d", s.SnapshotDays)
 	}
-	if s.RecentLimit != MaxRecentLimit || s.FetchMinutes != MaxFetchMinutes || time.Duration(s.FetchEvery())*time.Minute <= 0 {
+	if s.RecentLimit != maxRecentLimit || s.FetchMinutes != maxFetchMinutes || time.Duration(s.FetchEvery())*time.Minute <= 0 {
 		t.Errorf("recent %d, fetch %d", s.RecentLimit, s.FetchMinutes)
 	}
 	if s.PictureCompare != 0 || s.HistoryMessage != 0 || s.HistoryColumns["graph"].Width != 0 ||
