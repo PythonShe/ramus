@@ -19,6 +19,7 @@ import (
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/history"
 	"ramus/internal/git/run"
+	"ramus/internal/git/signature"
 )
 
 var hooks = []string{"pre-commit", "post-checkout", "post-index-change", "reference-transaction",
@@ -36,17 +37,45 @@ func hostile(t *testing.T) (r *gittest.Repo, marks string) {
 	r.Write("a.x", "one\n")
 	r.Write("b", "plain\n")
 	r.Commit("one")
-	// A signed commit, so that showing signatures would start gpg.
+	// Commits and tags signed in each kind git checks, so that showing or
+	// checking a signature would start that kind's program; main is the
+	// OpenPGP-signed commit.
 	body := r.Git("cat-file", "commit", "HEAD")
 	tree, rest, _ := strings.Cut(body, "\n")
-	signed := tree + "\n" + strings.Replace(rest, "\n\n", "\ngpgsig -----BEGIN PGP SIGNATURE-----\n \n -----END PGP SIGNATURE-----\n\n", 1)
-	id, err := r.Run([]byte(signed), "hash-object", "-t", "commit", "-w", "--stdin")
-	if err != nil {
-		t.Fatal(err)
+	for _, s := range signedKinds {
+		armor := "-----BEGIN " + s.armor + "-----\n \n -----END " + s.armor + "-----"
+		signed := tree + "\n" + strings.Replace(rest, "\n\n", "\ngpgsig "+armor+"\n\n", 1)
+		id, err := r.Run([]byte(signed), "hash-object", "-t", "commit", "-w", "--stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id = strings.TrimSpace(id)
+		r.Git("update-ref", "refs/heads/"+s.branch, id)
+		tag := "object " + id + "\ntype commit\ntag " + s.tag + "\ntagger A U Thor <author@example.com> 1700000000 +0000\n\nsigned\n" +
+			strings.ReplaceAll(armor, "\n ", "\n") + "\n"
+		tid, err := r.Run([]byte(tag), "hash-object", "-t", "tag", "-w", "--stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Git("update-ref", "refs/tags/"+s.tag, strings.TrimSpace(tid))
 	}
-	r.Git("update-ref", "refs/heads/main", strings.TrimSpace(id))
 
 	mark := func(name string) string { return fmt.Sprintf("touch %q; ", filepath.Join(marks, name)) }
+	// git runs the signing programs without a shell: each is a file that
+	// leaves its mark, outside marks.
+	progs := t.TempDir()
+	program := func(name string) string {
+		p := filepath.Join(progs, name)
+		if err := os.WriteFile(p, []byte("#!/bin/sh\n"+mark(name)+"\nexit 1\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	// SSH signatures are checked only with allowed signers set.
+	allowed := filepath.Join(progs, "allowed")
+	if err := os.WriteFile(allowed, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	hookDir := filepath.Join(r.Dir, ".githooks")
 	for _, dir := range []string{hookDir, filepath.Join(r.GitDir(), "hooks")} {
 		os.MkdirAll(dir, 0o755)
@@ -55,23 +84,27 @@ func hostile(t *testing.T) (r *gittest.Repo, marks string) {
 		}
 	}
 	for k, v := range map[string]string{
-		"core.fsmonitor":            mark("fsmonitor") + "exit 1",
-		"core.hooksPath":            hookDir,
-		"core.pager":                mark("pager") + "cat",
-		"filter.evil.clean":         mark("clean") + "cat",
-		"filter.evil.smudge":        mark("smudge") + "cat",
-		"filter.evil.process":       mark("process") + "exit 1",
-		"filter.evil.required":      "true",
-		"diff.evil.textconv":        mark("textconv") + "cat",
-		"diff.evil.command":         mark("diffcommand"),
-		"diff.external":             mark("external"),
-		"merge.evil.driver":         mark("merge"),
-		"gpg.program":               mark("gpg") + "exit 1",
-		"gpg.ssh.program":           mark("gpgssh") + "exit 1",
-		"log.showSignature":         "true",
-		"credential.helper":         "!" + mark("credential"),
-		"core.sshCommand":           mark("ssh"),
-		"core.alternateRefsCommand": mark("alternates"),
+		"core.fsmonitor":             mark("fsmonitor") + "exit 1",
+		"core.hooksPath":             hookDir,
+		"core.pager":                 mark("pager") + "cat",
+		"filter.evil.clean":          mark("clean") + "cat",
+		"filter.evil.smudge":         mark("smudge") + "cat",
+		"filter.evil.process":        mark("process") + "exit 1",
+		"filter.evil.required":       "true",
+		"diff.evil.textconv":         mark("textconv") + "cat",
+		"diff.evil.command":          mark("diffcommand"),
+		"diff.external":              mark("external"),
+		"merge.evil.driver":          mark("merge"),
+		"gpg.program":                program("gpg"),
+		"gpg.openpgp.program":        program("gpg"),
+		"gpg.ssh.program":            program("gpgssh"),
+		"gpg.x509.program":           program("gpgsm"),
+		"gpg.ssh.allowedSignersFile": allowed,
+		"gpg.ssh.defaultKeyCommand":  program("sshkey"),
+		"log.showSignature":          "true",
+		"credential.helper":          "!" + mark("credential"),
+		"core.sshCommand":            mark("ssh"),
+		"core.alternateRefsCommand":  mark("alternates"),
 	} {
 		r.Git("config", k, v)
 	}
@@ -80,6 +113,14 @@ func hostile(t *testing.T) (r *gittest.Repo, marks string) {
 	r.Write("a.x", "two\n")
 	r.Write("new.x", "new\n")
 	return r, marks
+}
+
+// signedKinds are the kinds of signature git checks, each with the
+// program the fixture names for it.
+var signedKinds = []struct{ armor, branch, tag, program string }{
+	{"PGP SIGNATURE", "main", "v-openpgp", "gpg"},
+	{"SSH SIGNATURE", "ssh", "v-ssh", "gpgssh"},
+	{"SIGNED MESSAGE", "x509", "v-x509", "gpgsm"},
 }
 
 func ran(marks string) []string {
@@ -161,6 +202,79 @@ func TestHostileConfig(t *testing.T) {
 	for _, want := range []string{"fsmonitor", "process"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the fixture did not run %s when trusted (ran %s)", want, got)
+		}
+	}
+}
+
+// No program the repository's config names to check or make a
+// signature runs while the app works in it untrusted: not when it shows
+// or checks the signature of a commit or a tag, of any kind, and not when
+// a write would sign or check one, which is refused, and which the
+// hardening would keep from the repository's programs were it not.
+func TestHostileSignaturePrograms(t *testing.T) {
+	r, marks := hostile(t)
+	base := testrun.Runner(t)
+	ctx := context.Background()
+	cfg, err := config.Read(ctx, base, r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hard := base.Hardened(Hardening(cfg))
+	gd := r.GitDir()
+	checks := func(runner *run.Runner) {
+		for _, s := range signedKinds {
+			// The answers are no concern here, only what ran for them.
+			signature.Commit(ctx, runner, gd, s.branch)
+			signature.Tag(ctx, runner, gd, "refs/tags/"+s.tag)
+			for _, args := range [][]string{
+				{"log", "-1", "--format=%G?%GS%GK%GF%GP%GT%GG", s.branch, "--"},
+				{"log", "-1", "--show-signature", s.branch, "--"},
+				{"log", "-1", s.branch, "--"}, // log.showSignature is set
+				{"show", "--show-signature", s.branch, "--"},
+				{"show", s.tag},
+				{"verify-commit", s.branch},
+				{"verify-tag", s.tag},
+				{"tag", "-v", s.tag},
+				{"for-each-ref", "--format=%(signature:grade)", "refs/heads/" + s.branch},
+			} {
+				runner.Run(ctx, &run.Cmd{GitDir: gd, WorkTree: r.Dir, Args: args, Read: true})
+			}
+		}
+	}
+	signs := [][]string{
+		{"commit", "-S", "--allow-empty", "-m", "signed"},
+		{"commit-tree", "-S", "-m", "signed", "HEAD^{tree}"},
+		{"tag", "-s", "-m", "signed", "signed"},
+		{"merge", "--verify-signatures", "--no-edit", "ssh"},
+		{"merge", "-S", "--no-edit", "x509"},
+	}
+	checks(hard)
+	for _, args := range signs {
+		_, err := hard.Run(ctx, &run.Cmd{GitDir: gd, WorkTree: r.Dir, Args: args})
+		if !errors.Is(err, run.ErrRestricted) {
+			t.Errorf("%v ran: %v", args, err)
+		}
+	}
+	if got := ran(marks); len(got) != 0 {
+		t.Fatalf("ran from the repository's config: %v", got)
+	}
+	// Were a write let through, the hardening still keeps the
+	// repository's programs from signing and checking, in each format.
+	for _, format := range []string{"openpgp", "ssh", "x509"} {
+		for _, args := range signs {
+			hard.Run(ctx, &run.Cmd{GitDir: gd, WorkTree: r.Dir, Args: args, Read: true, Config: []string{"gpg.format=" + format}})
+		}
+	}
+	if got := ran(marks); len(got) != 0 {
+		t.Fatalf("ran from the repository's config: %v", got)
+	}
+
+	// The fixture is hostile: trusted, the same checks run each program.
+	checks(base)
+	got := strings.Join(ran(marks), " ")
+	for _, s := range signedKinds {
+		if !strings.Contains(got, s.program) {
+			t.Errorf("the fixture did not run %s when trusted (ran %s)", s.program, got)
 		}
 	}
 }

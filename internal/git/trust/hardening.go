@@ -17,7 +17,8 @@ import (
 //
 //   - core.fsmonitor and hooks (core.hooksPath at a path that holds none)
 //     run programs on reads;
-//   - log.showSignature and gpg programs run on log;
+//   - log.showSignature and gpg programs run on log, and gpg programs and
+//     an SSH default key command on signing;
 //   - diff.external, and the drivers its own config defines for filters,
 //     diffs and merges, run programs on status, diff and checkout.
 //
@@ -66,6 +67,10 @@ func Hardening(cfg *config.Config) []string {
 			add("merge." + sub + ".driver=")
 		case "gpg":
 			add("gpg." + sub + ".program=")
+			// Signing with an SSH key and no user.signingKey runs it.
+			if rest[i+1:] == "defaultkeycommand" {
+				add("gpg." + sub + ".defaultKeyCommand=")
+			}
 		}
 	}
 	return out
