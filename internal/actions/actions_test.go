@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"runtime"
 	"slices"
@@ -47,6 +48,12 @@ func TestRun(t *testing.T) {
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.ExitCode() != 3 || len(lines) != 3 || lines[0] != "one" || lines[1] != "two" {
 		t.Fatalf("lines %q err %v", lines, err)
+	}
+	// The environment given is the action's, not the app's.
+	lines = nil
+	err = RunIn(context.Background(), []string{sh, "-c", "echo $RAMUS_MARK"}, t.TempDir(), append(os.Environ(), "RAMUS_MARK=from the shell"), func(l string) { lines = append(lines, l) })
+	if err != nil || len(lines) != 1 || lines[0] != "from the shell" {
+		t.Fatalf("environment: %q %v", lines, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

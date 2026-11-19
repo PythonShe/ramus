@@ -96,10 +96,19 @@ const MaxLine = 16 << 10
 // (stdout and stderr together) as it comes, until it exits, ctx ends, or
 // Timeout passes.
 func Run(ctx context.Context, argv []string, dir string, line func(string)) error {
+	return RunIn(ctx, argv, dir, nil, line)
+}
+
+// RunIn is Run with env, the user's environment as git gets it: the
+// app's own, when started from the Finder or a desktop entry, lacks what
+// their shell adds to PATH, and a script needing node or the like fails.
+// Nil is the app's own.
+func RunIn(ctx context.Context, argv []string, dir string, env []string, line func(string)) error {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = dir
+	cmd.Env = env
 	cmd.WaitDelay = 2 * time.Second
 	// ${file} and ${branch} come from the repository: a batch file on
 	// Windows must not read them as commands.

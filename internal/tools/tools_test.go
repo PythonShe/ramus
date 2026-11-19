@@ -42,6 +42,29 @@ func TestCommand(t *testing.T) {
 	}
 }
 
+// Once the user's environment is known, tools are looked for on its
+// PATH, never in a folder that is not absolute, and start with it.
+func TestUserEnviron(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows finds tools at their installed places, not on PATH")
+	}
+	defer environ.Store(nil)
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "ramus-test-editor"), []byte("#!/bin/sh\n"), 0o755)
+	if _, ok := lookPath("ramus-test-editor"); ok {
+		t.Fatal("found before the user's PATH was known")
+	}
+	UseEnviron([]string{"HOME=/h", "PATH=relative:" + bin, "MARK=1"})
+	if p, ok := lookPath("ramus-test-editor"); !ok || p != filepath.Join(bin, "ramus-test-editor") {
+		t.Fatalf("on the user's PATH: %q %v", p, ok)
+	}
+	exe, _ := os.Executable()
+	cmd, err := Tool{Name: "t", Argv: []string{exe}}.Command(t.TempDir(), 0)
+	if err != nil || !slices.Contains(cmd.Env, "MARK=1") {
+		t.Fatalf("started with %q (%v)", cmd.Env, err)
+	}
+}
+
 func TestDetect(t *testing.T) {
 	tools := Detect()
 	for _, tl := range tools {

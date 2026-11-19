@@ -355,6 +355,11 @@ func (a *App) SetRunner(r *run.Runner, err error) {
 		return
 	}
 	a.Runner = r
+	// Editors and terminals are found on the user's PATH, which the app's
+	// own lacks when started from a desktop, and started with their
+	// environment, as git is.
+	tools.UseEnviron(r.Environ())
+	a.findTools()
 	if v := r.Git().Version; v.SecurityUpdate() {
 		a.gitWarning = locales.AppGitOutdated(v.String())
 	}

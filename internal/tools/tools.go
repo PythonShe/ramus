@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 )
 
 // Kind is what a tool opens.
@@ -45,6 +46,7 @@ func (t Tool) Command(target string, line int) (*exec.Cmd, error) {
 	}
 	argv := how(slices.Clone(t.Argv), target, line)
 	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Env = userEnv()
 	if t.Kind == Terminal {
 		cmd.Dir = target
 	}
@@ -112,14 +114,49 @@ func Custom(name string, kind Kind, argv []string) (Tool, error) {
 	return Tool{Name: name, Kind: kind, Argv: slices.Clone(argv)}, nil
 }
 
-// lookPath finds a program on PATH, refusing a match in the current
-// directory (Go returns exec.ErrDot for those).
-func lookPath(name string) (string, bool) {
-	p, err := exec.LookPath(name)
-	if err != nil || !filepath.IsAbs(p) {
-		return "", false
+// environ is the user's environment, as their login shell sets it, once
+// known (UseEnviron): the app's own, when started from the Finder or a
+// desktop entry, lacks what the shell adds to PATH.
+var environ atomic.Pointer[[]string]
+
+// UseEnviron has tools found on the PATH of env, and started with env:
+// the user's environment, which git runs with too.
+func UseEnviron(env []string) {
+	env = slices.Clone(env)
+	environ.Store(&env)
+}
+
+// userEnv is the environment tools start with, nil for the app's own.
+func userEnv() []string {
+	if p := environ.Load(); p != nil {
+		return *p
 	}
-	return p, true
+	return nil
+}
+
+// lookPath finds a program on the user's PATH, refusing a match in a
+// folder that is not absolute, the current one among them (Go returns
+// exec.ErrDot for those).
+func lookPath(name string) (string, bool) {
+	path := os.Getenv("PATH")
+	if env := userEnv(); env != nil {
+		path = ""
+		for _, kv := range env {
+			if v, ok := strings.CutPrefix(kv, "PATH="); ok {
+				path = v
+			}
+		}
+	}
+	for _, dir := range filepath.SplitList(path) {
+		if !filepath.IsAbs(dir) {
+			continue
+		}
+		p := filepath.Join(dir, name)
+		if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && st.Mode().Perm()&0o111 != 0 {
+			return p, true
+		}
+	}
+	return "", false
 }
 
 // first returns the first of paths that exists.

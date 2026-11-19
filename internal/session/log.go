@@ -226,8 +226,12 @@ func (s *Session) RunAction(name string, argv []string) *LogEntry {
 		dir = r.GitDir
 	}
 	b := &batcher{update: s.update, e: e}
+	var env []string
+	if s.runner != nil {
+		env = s.runner.Environ() // the user's, as git gets it
+	}
 	r.Life().Go(func(ctx context.Context) {
-		err := actions.Run(ctx, argv, dir, b.line)
+		err := actions.RunIn(ctx, argv, dir, env, b.line)
 		b.finish(err, s.timeNow())
 		s.refreshNow(repo.Rescan)
 	})
