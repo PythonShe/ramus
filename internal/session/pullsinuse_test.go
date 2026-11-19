@@ -59,3 +59,26 @@ func TestForgetPullsKeepsWhatAnotherSessionReviews(t *testing.T) {
 		t.Fatal("the clean-up deleted the ref of a pull request it keeps")
 	}
 }
+
+// A ref fetched again between the clean-up's reading the refs and its
+// write is left as fetched.
+func TestForgetPullsLeavesARefFetchedSince(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("one")
+	r.Git("update-ref", "refs/ramus/pulls/3/head", "HEAD")
+	r.Write("a.txt", "two\n")
+	moved := strings.TrimSpace(r.Commit("two"))
+	s, m := openSettled(t, r)
+	logged := len(s.Log)
+	s.ForgetPulls(nil)
+	// The session has settled: what comes now is the refs read, handed
+	// over for the write.
+	read := <-m
+	r.Git("update-ref", "refs/ramus/pulls/3/head", moved)
+	read()
+	m.until(t, "the clean-up", func() bool { return len(s.Log) > logged && !s.Log[len(s.Log)-1].Running })
+	if got := strings.TrimSpace(r.Git("rev-parse", "refs/ramus/pulls/3/head")); got != moved {
+		t.Fatalf("the ref fetched again is at %q", got)
+	}
+}
