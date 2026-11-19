@@ -1,51 +1,38 @@
 package session
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
-	"ramus/internal/git/run"
 )
 
 // The cat-file processes a count starts beside the repository's own are
 // bounded across the app: with none free it reads with the one it has,
 // and gives back those it took.
 func TestStatsReadersBounded(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("uses a shell script as git")
-	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
 	r := gittest.Init(t)
 	for i := range 3 {
 		r.Write("a", strings.Repeat("x", i))
 		r.Commit("c")
 	}
-	bin := t.TempDir()
-	log := filepath.Join(bin, "log")
-	// A reader given no commit is ended as soon as it starts: the script
-	// ignores that until it has logged, then git ends as its input closes.
-	script := "#!/bin/sh\ntrap '' TERM\nfor a in \"$@\"; do [ \"$a\" = cat-file ] && echo x >> " + log + "; done\nexec " + real + " \"$@\"\n"
-	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	g, err := gitexe.Find(t.Context(), bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, m := openWith(t, r, run.New(g, gittest.Env(), 8))
+	runner := testrun.Runner(t)
+	s, m := openWith(t, r, runner)
 	m.until(t, "refs", func() bool { return s.State.Refs != nil })
-	starts := func() int { b, _ := os.ReadFile(log); return strings.Count(string(b), "x") }
+	// The runner's own record of the cat-file processes it starts: a
+	// reader given no commit is ended as soon as it starts, too soon for
+	// anything it runs to say it started.
+	starts := func() int {
+		n := 0
+		for _, rec := range runner.Journal().For(s.Repo.GitDir) {
+			if rec.Long && strings.Contains(rec.Short, "cat-file") {
+				n++
+			}
+		}
+		return n
+	}
 	count := func() int {
 		t.Helper()
 		before := starts()
