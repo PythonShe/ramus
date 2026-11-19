@@ -43,8 +43,8 @@ type Store struct {
 	// write keeps saves in order, each of a list no older than the one
 	// saved before it.
 	write sync.Mutex
-	// saving counts the calls of Set under way; idle is closed when the
-	// count falls to none.
+	// saving counts the saves under way; idle is closed when the count
+	// falls to none.
 	saving int
 	idle   chan struct{}
 }
@@ -175,30 +175,61 @@ func (s *Store) Trusted(commonDir string) bool {
 	}
 	if want == "" {
 		s.mu.Lock()
-		if s.ids[d] == "" {
+		adopted := s.ids[d] == ""
+		if adopted {
 			s.ids[d] = got
 		}
 		want = s.ids[d]
 		s.mu.Unlock()
+		// Kept in memory only, the identity would be that of whatever
+		// folder is at the path at the next launch.
+		if adopted {
+			s.adopt()
+		}
 	}
 	return got == want
 }
 
-// Set records the user's answer and saves the store.
-func (s *Store) Set(commonDir string, trusted bool) error {
+// adopt saves the identities an entry trusted before they were kept
+// took from its folder. One that is not saved is taken again, from
+// the folder there then, which is the trust of before.
+func (s *Store) adopt() {
+	defer s.begin()()
+	s.write.Lock()
+	defer s.write.Unlock()
+	s.mu.Lock()
+	if s.broken != nil {
+		s.mu.Unlock()
+		return
+	}
+	data, err := s.marshal()
+	s.mu.Unlock()
+	if err == nil {
+		writeAtomic(s.path, append(data, '\n'))
+	}
+}
+
+// begin counts a save under way, for Wait, until the func it returns is
+// called.
+func (s *Store) begin() func() {
 	s.mu.Lock()
 	if s.saving == 0 {
 		s.idle = make(chan struct{})
 	}
 	s.saving++
 	s.mu.Unlock()
-	defer func() {
+	return func() {
 		s.mu.Lock()
 		if s.saving--; s.saving == 0 {
 			close(s.idle)
 		}
 		s.mu.Unlock()
-	}()
+	}
+}
+
+// Set records the user's answer and saves the store.
+func (s *Store) Set(commonDir string, trusted bool) error {
+	defer s.begin()()
 	d := clean(commonDir)
 	id := ""
 	if trusted {

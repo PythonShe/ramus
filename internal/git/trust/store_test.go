@@ -82,6 +82,34 @@ func TestTrustHoldsForTheFolderTrusted(t *testing.T) {
 	}
 }
 
+// An entry from before identities were kept takes the identity of the
+// folder it is first used with, and keeps it: a folder put at its path
+// after that is not trusted, after a restart too.
+func TestAdoptedIdentityIsSaved(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "trust.json")
+	repo := filepath.Join(dir, "project", ".git")
+	os.MkdirAll(repo, 0o755)
+	os.WriteFile(path, []byte(`{"trusted": [`+strconv.Quote(clean(repo))+`]}`), 0o600)
+	s, err := Load(path)
+	if err != nil || !s.Trusted(repo) {
+		t.Fatalf("an entry from before identities: %v", err)
+	}
+	if !s.Wait(0) {
+		t.Fatal("the identity is still being saved after Trusted returned")
+	}
+	// Made while the first still exists, so it cannot have its identity.
+	other := filepath.Join(dir, "other")
+	os.MkdirAll(filepath.Join(other, ".git"), 0o755)
+	os.RemoveAll(filepath.Join(dir, "project"))
+	if err := os.Rename(other, filepath.Join(dir, "project")); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := Load(path); err != nil || again.Trusted(repo) {
+		t.Errorf("a folder put at the path of an entry already used is trusted after a restart (%v)", err)
+	}
+}
+
 // Answers given at once, from several tabs, are all saved: no save of an
 // older list lands after a newer one.
 func TestConcurrentSetsAllSaved(t *testing.T) {
