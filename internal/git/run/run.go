@@ -445,7 +445,11 @@ func (r *Runner) command(ctx context.Context, c *Cmd) *exec.Cmd {
 	cmd.Env = append(append(append([]string(nil), r.env...), c.Env...), hardening...)
 	if c.Read {
 		cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
-		cmd.Env = append(cmd.Env, readEnv...)
+		// git config prints none of it, and would list it as the
+		// repository's config.
+		if len(c.Args) == 0 || c.Args[0] != "config" {
+			cmd.Env = append(cmd.Env, readEnv...)
+		}
 	}
 	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
 	if !c.Read {

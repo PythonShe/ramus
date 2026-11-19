@@ -513,6 +513,10 @@ func TestReadIgnoresParseBreakingConfig(t *testing.T) {
 	if strings.Contains(diff, "\x1b[") {
 		t.Errorf("diff in colour:\n%q", diff)
 	}
+	// Reading the config shows the user's, not the runner's.
+	if s := out(nil, "config", "--get", "log.showSignature"); s != "true\n" {
+		t.Errorf("config read: %q", s)
+	}
 	if s := out([]string{"log.showSignature=true"}, "log", "-1", "--format=%s", signed, "--"); !strings.Contains(s, "Good") {
 		t.Errorf("the command's own config lost: %q", s)
 	}
