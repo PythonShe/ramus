@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"sync"
@@ -73,6 +75,10 @@ type Op struct {
 	// do runs in place of Cmd, for writes the engine makes of several
 	// commands: undo and redo, snapshots.
 	do func(ctx context.Context, j *Job) (run.Result, error)
+	// leaves names a file in the git dir the write may make for a later
+	// command, as a squash merge's SQUASH_MSG: when the write made it,
+	// undo removes it, for nothing it describes is left.
+	leaves string
 }
 
 // Stream says where a line came from.
@@ -117,6 +123,8 @@ type Job struct {
 	// stash is the stash the write's Pre made of the local changes, ""
 	// for none.
 	stash string
+	// left is whether Op.leaves was there before the write ran.
+	left bool
 }
 
 // KeptError is a write that failed after keeping a snapshot of what it
@@ -405,6 +413,12 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 			return res, q.kept(j, preErr, false)
 		}
 	}
+	if j.Op.leaves != "" {
+		_, err := os.Lstat(filepath.Join(j.Op.Cmd.GitDir, j.Op.leaves))
+		j.mu.Lock()
+		j.left = err == nil
+		j.mu.Unlock()
+	}
 	res, err := execute(ctx, q.r, j, j.Op.Cmd, j.Op.Input)
 	for _, c := range j.Op.More {
 		if err != nil {
@@ -467,7 +481,7 @@ func (q *Queue) record(j *Job, before fullState) {
 	}
 	b, a := touched(before, after, j.Op.Refs)
 	j.mu.Lock()
-	snap, config, backup, stash := j.snap, j.config, j.backup, j.stash
+	snap, config, backup, stash, left := j.snap, j.config, j.backup, j.stash, j.left
 	j.mu.Unlock()
 	if j.Op.Undo == MovesHead && snap.Commit == "" && stash == "" && a.Symbolic == b.Symbolic && a.Head == b.Head && len(a.Refs) == 0 {
 		// Nothing moved, as a merge or pull already up to date: there is
@@ -475,6 +489,11 @@ func (q *Queue) record(j *Job, before fullState) {
 		return
 	}
 	e := Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op, backup: backup, stash: stash}
+	if j.Op.leaves != "" && !left {
+		if _, err := os.Lstat(filepath.Join(j.Op.Cmd.GitDir, j.Op.leaves)); err == nil {
+			e.made = j.Op.leaves
+		}
+	}
 	q.settle(&e, config)
 	id := q.History.push(e)
 	j.mu.Lock()

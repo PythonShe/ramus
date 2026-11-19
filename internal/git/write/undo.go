@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -77,6 +78,9 @@ type Entry struct {
 	// stash is the stash the write made of the local changes before it
 	// ran (a switch that stashes), which its undo pops back; "" for none.
 	stash string
+	// made is the file in the git dir the write made (Op.leaves), which
+	// its undo removes; "" for none.
+	made string
 }
 
 // History holds a repository's undoable writes, for as long as the
@@ -305,6 +309,12 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 	case undo:
 		if err = q.unchanged(ctx, e); err == nil {
 			err = q.apply(ctx, e, e.After, e.Before, true)
+		}
+		if err == nil && e.made != "" {
+			// Its message would be offered for a commit of what is gone.
+			if rerr := os.Remove(filepath.Join(e.op.Cmd.GitDir, e.made)); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
+				err = fmt.Errorf("write: undo of %s went back, but %s is left: %w", e.Name, e.made, rerr)
+			}
 		}
 		if e.stash != "" && (err == nil || moved(err)) {
 			// The changes a switch stashed come back with the branch.

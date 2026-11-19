@@ -381,6 +381,7 @@ func Merge(w Where, what string, mode MergeMode, seen Seen) (Op, error) {
 		// HEAD stays: the merged changes go to the index and files, which
 		// undo puts back as they were.
 		op.Snapshot, op.Undo = &snapshot.Options{Reason: op.Name}, FilesOnly
+		op.leaves = "SQUASH_MSG"
 	}
 	return op, nil
 }

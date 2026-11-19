@@ -3,6 +3,7 @@ package write
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -440,15 +441,38 @@ func TestUndoSquashMerge(t *testing.T) {
 	if after == before {
 		t.Fatal("the squash changed nothing")
 	}
+	msg := filepath.Join(h.w.GitDir, "SQUASH_MSG")
+	if _, err := os.Stat(msg); err != nil {
+		t.Fatal(err)
+	}
 	h.undo()
 	if got := h.r.Git("status", "--porcelain", "-uall"); got != before {
 		t.Fatalf("after undo %q, want %q", got, before)
+	}
+	// Its message would be the next commit's, for changes no longer there.
+	if _, err := os.Stat(msg); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("SQUASH_MSG after undo: %v", err)
 	}
 	if _, err := wait(t, h.q.Redo()); err != nil {
 		t.Fatal(err)
 	}
 	if got := h.r.Git("status", "--porcelain", "-uall"); got != after {
 		t.Fatalf("after redo %q, want %q", got, after)
+	}
+	h.undo()
+	if _, err := os.Stat(msg); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("SQUASH_MSG after the second undo: %v", err)
+	}
+
+	// One there before, from a squash not committed yet, is left.
+	if err := os.WriteFile(msg, []byte("earlier\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	op, err = Merge(h.w, "side", MergeSquash, h.seen())
+	h.do(op, err, true)
+	h.undo()
+	if b, err := os.ReadFile(msg); err != nil || len(b) == 0 {
+		t.Fatalf("SQUASH_MSG there before: %q %v", b, err)
 	}
 }
 
