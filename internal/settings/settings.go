@@ -258,11 +258,15 @@ func knownKeys() []string {
 }
 
 // WriteFile replaces path with data through a temporary file beside it.
+// The data reaches the disk before the rename: without that, a power cut
+// soon after can leave the file empty on file systems that order neither,
+// and an empty file is one the app cannot read.
 func WriteFile(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
 	if err != nil {
 		return err
 	}
@@ -271,13 +275,19 @@ func WriteFile(path string, data []byte) error {
 		os.Remove(tmp.Name())
 		return err
 	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		os.Remove(tmp.Name())
 		return err
 	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
+	if err := rename(tmp.Name(), path); err != nil {
 		os.Remove(tmp.Name())
 		return err
 	}
+	syncDir(dir)
 	return nil
 }
