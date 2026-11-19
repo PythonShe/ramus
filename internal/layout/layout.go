@@ -4,10 +4,12 @@
 package layout
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
+	"reflect"
 	"sync"
 
 	"ramus/internal/settings"
@@ -51,7 +53,7 @@ func Load(path string) ([]Window, error) {
 	if err != nil {
 		return nil, settings.Unreadable(path, err)
 	}
-	ws, err := decode(data)
+	ws, _, err := decode(data)
 	var partial *json.UnmarshalTypeError
 	switch {
 	case errors.As(err, &partial):
@@ -72,20 +74,38 @@ func read(path string) ([]byte, error) {
 	return io.ReadAll(&limited{f, maxFile})
 }
 
-// decode reads a layout file's content. A value of the wrong type is a
+// Version is the format of the file written: an object with the
+// windows under "windows", room for what a later version adds. 0.x wrote
+// the windows as a bare array, which is still read.
+const Version = 1
+
+// file is the layout as written.
+type file struct {
+	Version int      `json:"version"`
+	Windows []Window `json:"windows"`
+}
+
+// decode reads a layout file's content, and the keys of the file a
+// later version added. A value of the wrong type is a
 // *json.UnmarshalTypeError, with the rest read.
-func decode(data []byte) ([]Window, error) {
-	var raw []json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		var te *json.UnmarshalTypeError
-		if errors.As(err, &te) {
-			return nil, errors.New("not a layout: " + err.Error())
-		}
-		return nil, err
+func decode(data []byte) ([]Window, map[string]json.RawMessage, error) {
+	var top any
+	if err := json.Unmarshal(data, &top); err != nil {
+		return nil, nil, err
 	}
-	var ws []Window
-	err := json.Unmarshal(data, &ws)
-	return ws, err
+	switch top.(type) {
+	case nil:
+		return nil, nil, nil
+	case []any: // as 0.x wrote it
+		var ws []Window
+		err := json.Unmarshal(data, &ws)
+		return ws, nil, err
+	case map[string]any:
+		var f file
+		err := json.Unmarshal(data, &f)
+		return f.Windows, settings.Extra(data, reflect.TypeFor[file]()), err
+	}
+	return nil, nil, errors.New("not a layout")
 }
 
 func bound(ws []Window) []Window {
@@ -111,19 +131,23 @@ func bound(ws []Window) []Window {
 // aside, is not written over.
 func Save(path string, ws []Window) error {
 	old, err := read(path)
+	var extra map[string]json.RawMessage
 	if err == nil {
-		_, err = decode(old)
+		_, extra, err = decode(old)
 	}
 	// A value of the wrong type was copied aside when Load met it.
 	var partial *json.UnmarshalTypeError
 	if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.As(err, &partial) {
 		return errors.New("layout: " + path + " does not read, so it is not written over: " + err.Error())
 	}
-	data, err := json.MarshalIndent(bound(ws), "", "  ")
+	data, err := settings.WithExtra(file{Version: Version, Windows: bound(ws)}, extra)
 	if err != nil {
 		return err
 	}
-	return settings.WriteFile(path, append(data, '\n'))
+	var out bytes.Buffer
+	json.Indent(&out, data, "", "  ")
+	out.WriteByte('\n')
+	return settings.WriteFile(path, out.Bytes())
 }
 
 // Keeper writes the layout to its file off the caller's thread: only the

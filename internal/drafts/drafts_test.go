@@ -3,6 +3,7 @@ package drafts
 import (
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -61,6 +62,23 @@ func TestKeepLoad(t *testing.T) {
 	waitIdle(n)
 	if kept, _ := os.ReadFile(le.KeptAs); string(kept) != "{" {
 		t.Fatalf("kept %q", kept)
+	}
+}
+
+// A draft as 0.6.0 wrote it reads, and a draft kept keeps what a later
+// version added to the file.
+func TestDraftFormat(t *testing.T) {
+	s := New(t.TempDir())
+	os.MkdirAll(s.dir, 0o700)
+	os.WriteFile(s.name("/r"), []byte(`{"path":"/r","subject":"Fix","body":"Why","coAuthors":"A <a@x>"}`+"\n"), 0o600)
+	if got, err := s.Load("/r"); err != nil || got != (Draft{Subject: "Fix", Body: "Why", CoAuthors: "A <a@x>"}) {
+		t.Fatalf("0.6.0 draft: %+v %v", got, err)
+	}
+	os.WriteFile(s.name("/r"), []byte(`{"path":"/r","subject":"Fix","amend":true}`), 0o600)
+	s.Keep("/r", Draft{Subject: "Fix it"})
+	waitIdle(s)
+	if data, _ := os.ReadFile(s.name("/r")); !strings.Contains(string(data), `"amend":true`) || !strings.Contains(string(data), `"Fix it"`) {
+		t.Fatalf("written %s", data)
 	}
 }
 

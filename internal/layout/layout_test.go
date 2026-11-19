@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -37,6 +38,53 @@ func TestSaveLoad(t *testing.T) {
 	os.WriteFile(p, []byte("["+strings.Repeat(" ", maxFile)+"]"), 0o600)
 	if _, err := Load(p); err == nil {
 		t.Fatal("a file past the bound was read")
+	}
+}
+
+// A layout as 0.6.0 wrote it, a bare array, still reads; a save writes
+// the versioned object, which keeps what a later version adds to it.
+func TestLayoutFormats(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "layout.json")
+	os.WriteFile(p, []byte(`[
+  {
+    "tabs": [
+      {
+        "path": "/a",
+        "section": "history",
+        "commit": "abc",
+        "file": "x/y"
+      },
+      {
+        "path": "/b"
+      }
+    ],
+    "active": 1
+  }
+]
+`), 0o600)
+	want := []Window{{Tabs: []Tab{{Path: "/a", Section: "history", Commit: "abc", File: "x/y"}, {Path: "/b"}}, Active: 1}}
+	ws, err := Load(p)
+	if err != nil || !reflect.DeepEqual(ws, want) {
+		t.Fatalf("0.6.0 layout: %+v %v", ws, err)
+	}
+	if err := Save(p, ws); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(p)
+	var f struct {
+		Version int
+		Windows []Window
+	}
+	if err := json.Unmarshal(data, &f); err != nil || f.Version != Version || !reflect.DeepEqual(f.Windows, want) {
+		t.Fatalf("written as %s", data)
+	}
+	os.WriteFile(p, []byte(`{"version": 2, "windows": [{"tabs": [{"path": "/c"}]}], "focused": 0}`), 0o600)
+	if ws, err := Load(p); err != nil || len(ws) != 1 || ws[0].Tabs[0].Path != "/c" {
+		t.Fatalf("a later layout: %+v %v", ws, err)
+	}
+	Save(p, want)
+	if data, _ := os.ReadFile(p); !strings.Contains(string(data), `"focused": 0`) {
+		t.Fatalf("a later version's key lost: %s", data)
 	}
 }
 

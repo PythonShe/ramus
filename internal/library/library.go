@@ -3,11 +3,13 @@
 package library
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -38,12 +40,15 @@ type Repo struct {
 	// Editor names the editor its files open in, one of those the app
 	// finds; none is the app's own choice.
 	Editor string `json:"editor,omitempty"`
+	// extra are the keys a later version wrote, kept as they are.
+	extra map[string]json.RawMessage
 }
 
 // Group is a named set of repositories, opened together.
 type Group struct {
 	Name  string   `json:"name"`
 	Paths []string `json:"paths"`
+	extra map[string]json.RawMessage
 }
 
 // Library is the store, saved as one file. Safe for use by several
@@ -56,11 +61,20 @@ type Library struct {
 	// refuse, when set, is why the file is not written: it did not read
 	// and could not be kept aside, so writing would lose it.
 	refuse error
+	// extra are the keys of the file a later version wrote.
+	extra map[string]json.RawMessage
 }
 
 type file struct {
 	Repos  []Repo  `json:"repos"`
 	Groups []Group `json:"groups"`
+}
+
+// rawFile is the file with each entry as written, for the keys this
+// version does not know.
+type rawFile struct {
+	Repos  []json.RawMessage `json:"repos"`
+	Groups []json.RawMessage `json:"groups"`
 }
 
 // Load reads the library at path; a missing file is an empty library. A
@@ -85,6 +99,16 @@ func Load(path string) (*Library, error) {
 	// A value of the wrong type leaves its field empty and the rest
 	// decodes: encoding/json carries on past it.
 	ferr := json.Unmarshal(data, &f)
+	// What a later version added stays for its next save.
+	var raw rawFile
+	json.Unmarshal(data, &raw)
+	for i := range min(len(f.Repos), len(raw.Repos)) {
+		f.Repos[i].extra = settings.Extra(raw.Repos[i], reflect.TypeFor[Repo]())
+	}
+	for i := range min(len(f.Groups), len(raw.Groups)) {
+		f.Groups[i].extra = settings.Extra(raw.Groups[i], reflect.TypeFor[Group]())
+	}
+	l.extra = settings.Extra(data, reflect.TypeFor[file]())
 	l.repos = slices.DeleteFunc(f.Repos, func(r Repo) bool { return r.Path == "" })
 	l.groups = slices.DeleteFunc(f.Groups, func(g Group) bool { return strings.TrimSpace(g.Name) == "" })
 	if ferr != nil {
@@ -386,10 +410,37 @@ func (l *Library) save() error {
 		l.mu.Unlock()
 		return l.refuse
 	}
-	data, err := json.MarshalIndent(file{Repos: l.repos, Groups: l.groups}, "", "  ")
+	data, err := l.marshal()
 	l.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	return settings.WriteFile(l.path, append(data, '\n'))
+	var out bytes.Buffer
+	json.Indent(&out, data, "", "  ")
+	out.WriteByte('\n')
+	return settings.WriteFile(l.path, out.Bytes())
+}
+
+// marshal is the library as its file holds it, with what a later version
+// added; l.mu is held.
+func (l *Library) marshal() ([]byte, error) {
+	var f rawFile
+	for _, r := range l.repos {
+		data, err := settings.WithExtra(r, r.extra)
+		if err != nil {
+			return nil, err
+		}
+		f.Repos = append(f.Repos, data)
+	}
+	if l.groups != nil {
+		f.Groups = []json.RawMessage{}
+	}
+	for _, g := range l.groups {
+		data, err := settings.WithExtra(g, g.extra)
+		if err != nil {
+			return nil, err
+		}
+		f.Groups = append(f.Groups, data)
+	}
+	return settings.WithExtra(f, l.extra)
 }

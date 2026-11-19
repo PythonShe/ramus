@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 
 	"ramus/internal/settings"
@@ -169,7 +170,12 @@ func (s *Store) save(path string, d Draft) error {
 		}
 		return nil
 	}
-	data, err := json.Marshal(file{path, d})
+	// What a later version added to the draft stays.
+	var extra map[string]json.RawMessage
+	if old, err := read(name); err == nil {
+		extra = settings.Extra(old, reflect.TypeFor[file]())
+	}
+	data, err := settings.WithExtra(file{path, d}, extra)
 	if err != nil {
 		return err
 	}

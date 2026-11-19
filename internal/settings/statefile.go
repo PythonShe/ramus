@@ -2,11 +2,15 @@ package settings
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"reflect"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 // LoadError is a file of the app's state (the settings, the library, the
@@ -89,6 +93,71 @@ func KeepCopy(path string, data []byte) (string, error) {
 		return name, nil
 	}
 	return "", fmt.Errorf("%s: no free name to keep a copy", path)
+}
+
+// Extra returns the keys of obj, a JSON object, that no field of t (a
+// struct) names, as encoding/json matches them: those a later version of
+// the app wrote, for a save to keep. Nil when there are none or obj is
+// no object.
+func Extra(obj []byte, t reflect.Type) map[string]json.RawMessage {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(obj, &m) != nil {
+		return nil
+	}
+	names := fieldNames(t, nil)
+	for k := range m {
+		if slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(n, k) }) {
+			delete(m, k)
+		}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
+}
+
+// fieldNames appends the JSON names of t's fields to names, those of
+// embedded structs among them.
+func fieldNames(t reflect.Type, names []string) []string {
+	for i := range t.NumField() {
+		f := t.Field(i)
+		tag := f.Tag.Get("json")
+		if f.Anonymous && tag == "" && f.Type.Kind() == reflect.Struct {
+			names = fieldNames(f.Type, names)
+			continue
+		}
+		if !f.IsExported() {
+			continue
+		}
+		name, _, _ := strings.Cut(tag, ",")
+		switch name {
+		case "-":
+			continue
+		case "":
+			name = f.Name
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+// WithExtra is v as JSON with the keys of extra (Extra) added: what a
+// later version wrote, kept across a save of this one.
+func WithExtra(v any, extra map[string]json.RawMessage) (json.RawMessage, error) {
+	data, err := json.Marshal(v)
+	if err != nil || len(extra) == 0 {
+		return data, err
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	for k, x := range extra {
+		if _, ok := m[k]; !ok {
+			m[k] = x
+		}
+	}
+	return json.Marshal(m)
 }
 
 // Unreadable is the LoadError of the file at path, which could not be

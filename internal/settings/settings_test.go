@@ -119,6 +119,69 @@ func TestTablesNormalized(t *testing.T) {
 	}
 }
 
+// v060 is a settings file as Ramus 0.6.0 wrote it.
+const v060 = `{
+  "actions": [
+    {
+      "name": "Lint",
+      "command": [
+        "/usr/bin/make",
+        "lint"
+      ],
+      "on": "file"
+    }
+  ],
+  "editor": [
+    "/Applications/Zed.app"
+  ],
+  "emails": [
+    "me@example.com"
+  ],
+  "historyColumns": {
+    "graph": {
+      "thin": true
+    }
+  },
+  "keys": {
+    "push": [
+      "CmdOrCtrl+Shift+U"
+    ]
+  },
+  "recentLimit": 20,
+  "snapshotDays": 30,
+  "tables": {
+    "branches": {
+      "order": [
+        "time",
+        "name"
+      ],
+      "widths": {
+        "name": 200
+      }
+    }
+  },
+  "theme": "dark"
+}
+`
+
+// Settings 0.6.0 wrote read as they were, and a save writes them back
+// the same.
+func TestReadsTheSettingsOf060(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	os.WriteFile(p, []byte(v060), 0o600)
+	s, err := Load(p)
+	if err != nil || s.Theme != "dark" || s.SnapshotDays != 30 || len(s.Actions) != 1 || s.Actions[0].On != "file" ||
+		!s.HistoryColumns["graph"].Thin || len(s.Keys["push"]) != 1 || s.Tables["branches"].Widths["name"] != 200 {
+		t.Fatalf("read %+v %v", s, err)
+	}
+	if err := Save(p, s); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(p); string(data) != v060 {
+		t.Fatalf("written back as\n%s", data)
+	}
+}
+
 // A settings file that does not read at all is moved aside before
 // anything is written, so the first save made in the app (a column
 // dragged) cannot replace the user's actions, shortcuts and editor with
