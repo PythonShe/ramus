@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -80,9 +79,10 @@ type Entry struct {
 	// stash is the stash the write made of the local changes before it
 	// ran (a switch that stashes), which its undo pops back; "" for none.
 	stash string
-	// made is the file in the git dir the write made (Op.leaves), which
-	// its undo removes; "" for none.
-	made string
+	// states are the state files and refs of the git directory before
+	// the write, or its last redo, and after it: what undo and redo put
+	// back.
+	states [2]gitState
 }
 
 // History holds a repository's undoable writes, for as long as the
@@ -312,16 +312,16 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 		if err = q.unchanged(ctx, e); err == nil {
 			err = q.apply(ctx, e, e.After, e.Before, true)
 		}
-		if err == nil && e.made != "" {
-			// Its message would be offered for a commit of what is gone.
-			if rerr := os.Remove(filepath.Join(e.op.Cmd.GitDir, e.made)); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
-				err = fmt.Errorf("write: undo of %s went back, but %s is left: %w", e.Name, e.made, rerr)
-			}
+		if err == nil || moved(err) {
+			// A merge's message would be offered for a commit of what is
+			// gone; one there before comes back.
+			err = errors.Join(err, q.putStates(ctx, e, true))
 		}
 		if e.stash != "" && (err == nil || moved(err)) {
 			// The changes a switch stashed come back with the branch.
-			err = errors.Join(err, q.popStash(ctx, e))
-			if err == nil {
+			perr := q.popStash(ctx, e)
+			err = errors.Join(err, perr)
+			if perr == nil {
 				e.stash = ""
 			}
 		}
@@ -332,7 +332,11 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 		if err = q.verify(e.Before); err == nil {
 			var fresh snapshot.Snapshot
 			var ran bool
+			states := q.readStates(e.op.Cmd.GitDir)
 			fresh, ran, err = q.redoFiles(ctx, e)
+			if ran {
+				e.states = [2]gitState{states, q.readStates(e.op.Cmd.GitDir)}
+			}
 			if ran && fresh.Commit != "" {
 				// Run, if only in part: what it dropped is in the fresh
 				// snapshot, which the next undo puts back.
@@ -344,6 +348,9 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 		}
 	default:
 		err = q.apply(ctx, e, e.Before, e.After, false)
+		if err == nil || moved(err) {
+			err = errors.Join(err, q.putStates(ctx, e, false))
+		}
 	}
 	if err != nil && !moved(err) {
 		return run.Result{}, err
@@ -366,13 +373,15 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 // moved reports an undo or redo that failed once the repository had
 // moved, which its entry moves with, the error saying what is left: the
 // branches' settings, the rest after HEAD, the stashed changes, or a
-// redo that ran part way.
+// redo that ran part way, or git's state files.
 func moved(err error) bool {
 	var ce *configError
 	var pe *partlyError
 	var se *StashKeptError
 	var ke *KeptError
-	return errors.As(err, &ce) || errors.As(err, &pe) || errors.As(err, &se) || errors.As(err, &ke) && ke.Undo
+	var te *stateError
+	return errors.As(err, &ce) || errors.As(err, &pe) || errors.As(err, &se) || errors.As(err, &ke) && ke.Undo ||
+		errors.As(err, &te)
 }
 
 // apply moves the repository from state from to state to, refusing if it
