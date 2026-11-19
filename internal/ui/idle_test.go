@@ -28,12 +28,9 @@ func TestIdle(t *testing.T) {
 		t.Skip(err)
 	}
 	bin := t.TempDir()
-	logFile, ended := filepath.Join(bin, "log"), filepath.Join(bin, "ended")
-	// Each command is logged as it starts and, but for cat-file, which
-	// lives as long as its repository, as it ends.
-	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\n" +
-		"case \"$*\" in *cat-file*) exec " + real + " \"$@\";; esac\n" +
-		real + " \"$@\"\ns=$?\necho x >> " + ended + "\nexit $s\n"
+	logFile := filepath.Join(bin, "log")
+	// Each command is logged as it starts.
+	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -45,19 +42,11 @@ func TestIdle(t *testing.T) {
 		data, _ := os.ReadFile(logFile)
 		return strings.Count(string(data), "\n")
 	}
-	// running is the commands started and not ended, cat-file aside.
-	running := func() int {
-		started, _ := os.ReadFile(logFile)
-		done, _ := os.ReadFile(ended)
-		n := 0
-		for _, l := range strings.Split(string(started), "\n") {
-			if l != "" && !strings.Contains(l, "cat-file") {
-				n++
-			}
-		}
-		return n - strings.Count(string(done), "\n")
-	}
 	h := newHarnessWith(t, run.New(g, gittest.Env(), 8))
+	// running is the commands started and not ended, cat-file, which lives
+	// as long as its repository, aside: as the runner counts them, for a
+	// command the app stops ends before it could say so itself.
+	running := h.runner.Commands
 	other := h.repoWith()
 	r := h.repoWith()
 	for _, f := range []string{"a", "b"} {
