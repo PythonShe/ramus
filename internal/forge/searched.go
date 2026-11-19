@@ -7,9 +7,10 @@ import (
 
 // searched remembers the lists of a branch's pull requests read past
 // their first page, as far as they are ever read, without one from the
-// head asked about. Every such list is ordered newest first, by creation
-// or by update, so a pull request of the head's made or changed since is
-// on the first page, which each lookup reads: the pages after are not
+// head asked about. GitHub's lists are ordered by update, latest first;
+// GitLab's list of every state is too, which holds its open ones. So a
+// pull request of the head's made, reopened or otherwise changed since
+// is on a first page, which each lookup reads: the pages after are not
 // read again, which for a name many forks' branches share (main,
 // patch-1) would be a few calls more at every refresh.
 type searched struct {

@@ -11,11 +11,11 @@ import (
 
 // githubQuery asks for the pull requests of n head branches, each a
 // variable, in one query: for each, the open ones (bN), with their
-// checks, newest first, and the merged and closed ones, latest first
-// (cN): one of a head's made or changed since a lookup is on the first
-// page (searched). A branch of
-// a fork shares its name with every other fork's, so each asks for more
-// than one, and for where the next page starts.
+// checks, and the merged and closed ones (cN), each list the latest
+// updated first: one of a head's made, reopened or otherwise changed since
+// a lookup is on the first page (searched). A branch of a fork shares
+// its name with every other fork's, so each asks for more than one, and
+// for where the next page starts.
 func githubQuery(n int) string {
 	var b strings.Builder
 	b.WriteString("query($owner:String!,$name:String!")
@@ -24,7 +24,7 @@ func githubQuery(n int) string {
 	}
 	b.WriteString("){repository(owner:$owner,name:$name){")
 	for i := range n {
-		fmt.Fprintf(&b, "b%d:pullRequests(headRefName:$b%d,states:[OPEN],first:10,orderBy:{field:CREATED_AT,direction:DESC}){nodes{...p} %s}", i, i, ghPageInfo)
+		fmt.Fprintf(&b, "b%d:pullRequests(headRefName:$b%d,states:[OPEN],first:10,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...p} %s}", i, i, ghPageInfo)
 		fmt.Fprintf(&b, "c%d:pullRequests(headRefName:$b%d,states:[MERGED,CLOSED],first:10,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...q} %s}", i, i, ghPageInfo)
 	}
 	b.WriteString("}}" + ghPullFragments)
@@ -59,7 +59,7 @@ func githubMoreQuery(lists []ghList) string {
 	b.WriteString("){repository(owner:$owner,name:$name){")
 	for i, l := range lists {
 		if l.open {
-			fmt.Fprintf(&b, "p%d:pullRequests(headRefName:$h%d,states:[OPEN],first:100,after:$a%d,orderBy:{field:CREATED_AT,direction:DESC}){nodes{...p} %s}", i, i, i, ghPageInfo)
+			fmt.Fprintf(&b, "p%d:pullRequests(headRefName:$h%d,states:[OPEN],first:100,after:$a%d,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...p} %s}", i, i, i, ghPageInfo)
 		} else {
 			fmt.Fprintf(&b, "p%d:pullRequests(headRefName:$h%d,states:[MERGED,CLOSED],first:100,after:$a%d,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...q} %s}", i, i, i, ghPageInfo)
 		}

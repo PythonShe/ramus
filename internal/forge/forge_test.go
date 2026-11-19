@@ -308,6 +308,16 @@ func TestQueries(t *testing.T) {
 			t.Errorf("query lacks %s: %s", s, q)
 		}
 	}
+	// Every GitHub list, open ones included, is the latest updated first:
+	// a pull request of the head's closed and reopened since its list was
+	// read to the end, old by creation, is on the first page, which the
+	// lookup reads again (searched); by creation it would sit deep.
+	for _, q := range []string{githubQuery(2), githubMoreQuery([]ghList{{branch: "a", open: true, after: "x"}, {branch: "a", after: "y"}})} {
+		lists := strings.Count(q, ":pullRequests(")
+		if n := strings.Count(q, "orderBy:{field:UPDATED_AT,direction:DESC}"); lists == 0 || n != lists {
+			t.Errorf("%d of %d lists ordered by update: %s", n, lists, q)
+		}
+	}
 	// Names are written as GraphQL strings, so a quote ends nothing.
 	q = gitlabQuery("g/p", []string{`a"b`, `c\d`})
 	if strings.Count(q, `sourceBranches:["a\"b","c\\d"]`) != 2 {
