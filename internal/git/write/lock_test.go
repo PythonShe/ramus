@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -158,6 +159,56 @@ func TestRemoveLockLeavesALockTakenSince(t *testing.T) {
 	if b, err := os.ReadFile(lock); err != nil || string(b) != "new" {
 		t.Fatalf("the new lock is gone: %q %v", b, err)
 	}
+}
+
+// Every system tells a lock a process holds from one left behind, lsof
+// or not: Windows by an open with no sharing, Linux by /proc. A held one
+// is never removed; once let go and old, it is.
+func TestRemoveLockTellsAHeldLock(t *testing.T) {
+	run := func(t *testing.T) {
+		dir := t.TempDir()
+		lock := filepath.Join(dir, "index.lock")
+		if err := os.WriteFile(lock, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-LeftAfter - time.Minute)
+		if err := os.Chtimes(lock, old, old); err != nil {
+			t.Fatal(err)
+		}
+		f, err := os.Open(lock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var le *LockedError
+		if err := RemoveLock(context.Background(), dir, lock); !errors.As(err, &le) || le.Left() {
+			f.Close()
+			t.Fatalf("removed a held lock: %v", err)
+		}
+		if errors.Is(le.Unknown, errNoLsof) {
+			f.Close()
+			t.Fatal("who holds the lock cannot be told")
+		}
+		if runtime.GOOS != "windows" && (len(le.Holders) != 1 || le.Holders[0].PID != os.Getpid()) {
+			t.Errorf("holders %+v, want this process", le.Holders)
+		}
+		f.Close()
+		if err := RemoveLock(context.Background(), dir, lock); err != nil {
+			t.Fatalf("a lock let go: %v", err)
+		}
+		if _, err := os.Lstat(lock); err == nil {
+			t.Fatal("not removed")
+		}
+	}
+	t.Run("system", run)
+	t.Run("without lsof", func(t *testing.T) {
+		if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+			t.Skip("neither /proc nor Windows")
+		}
+		saved := lsofPaths
+		lsofPaths = nil
+		t.Cleanup(func() { lsofPaths = saved })
+		run(t)
+	})
 }
 
 func lsofMissing() bool {

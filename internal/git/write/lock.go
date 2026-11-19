@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -24,9 +25,11 @@ type LockedError struct {
 	Path string
 	Age  time.Duration
 	// Holders are the processes that have the lock open, where the system
-	// can tell (lsof); none means the lock was likely left by a crash.
+	// can tell (lsof, or /proc on Linux); none means the lock was likely
+	// left by a crash.
 	Holders []Holder
-	// Unknown is set when the system could not tell who holds the lock.
+	// Unknown is set when the system could not tell who holds the lock,
+	// or tells only that a process holds it, as Windows does.
 	Unknown error
 }
 
@@ -147,24 +150,33 @@ func describeLock(ctx context.Context, path string) error {
 	return e
 }
 
-// errNoLsof is a system without lsof at a known place.
+// errNoLsof is a system without lsof at a known place, nor another way
+// to tell who has a file open.
 var errNoLsof = errors.New("no lsof")
 
-// holders asks lsof who has path open. An error means it could not tell,
-// which is not the same as no one.
+// errInUse is a lock some process has open, which the system does not
+// name.
+var errInUse = errors.New("a process has it open")
+
+// lsofPaths are where lsof is looked for.
+var lsofPaths = []string{"/usr/sbin/lsof", "/usr/bin/lsof", "/bin/lsof"}
+
+// holders asks the system who has path open: lsof where there is one,
+// else what the system offers (openHolders). An error means it could not
+// tell, which is not the same as no one.
 func holders(ctx context.Context, path string) ([]Holder, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
 	var lsof string
-	for _, p := range []string{"/usr/sbin/lsof", "/usr/bin/lsof", "/bin/lsof"} {
-		if _, err := os.Stat(p); err == nil {
+	for _, p := range lsofPaths {
+		if _, err := os.Stat(p); err == nil && runtime.GOOS != "windows" {
 			lsof = p
 			break
 		}
 	}
 	if lsof == "" {
-		return nil, errNoLsof
+		return openHolders(ctx, path)
 	}
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
 	out, err := exec.CommandContext(ctx, lsof, "-Fpc", "--", path).Output()
 	var exit *exec.ExitError
 	if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1 && len(out) == 0 && ctx.Err() == nil) {
