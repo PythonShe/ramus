@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -12,8 +13,21 @@ import (
 // gitlabQuery asks for the merge requests from branches into the project
 // at path, in one query, as GitLab takes a list of source branches: the
 // open ones (o), with their pipelines, and those in every state, latest
-// first (d).
+// first (d), and where the next page of each starts.
 func gitlabQuery(path string, branches []string) string {
+	return gitlabPageQuery(path, branches, glCursor{}, glCursor{})
+}
+
+// glCursor is where a list of merge requests is read on from: after the
+// cursor End when Next; with neither, the first page.
+type glCursor struct {
+	Next bool   `json:"hasNextPage"`
+	End  string `json:"endCursor"`
+}
+
+// gitlabPageQuery is gitlabQuery for the pages after open and all: a
+// list read to its end is not asked for again.
+func gitlabPageQuery(path string, branches []string, open, all glCursor) string {
 	var list strings.Builder
 	for i, br := range branches {
 		if i > 0 {
@@ -21,25 +35,82 @@ func gitlabQuery(path string, branches []string) string {
 		}
 		list.WriteString(literal(br))
 	}
+	after := func(p glCursor) string {
+		if p.End == "" {
+			return ""
+		}
+		return ",after:" + literal(p.End)
+	}
 	var b strings.Builder
 	b.WriteString("query{project(fullPath:")
 	b.WriteString(literal(path))
-	b.WriteString("){o:mergeRequests(state:opened,first:100,sourceBranches:[")
-	b.WriteString(list.String())
-	b.WriteString("]){nodes{...m headPipeline{status}}}d:mergeRequests(sort:UPDATED_DESC,first:100,sourceBranches:[")
-	b.WriteString(list.String())
-	b.WriteString("]){nodes{...m}}}}fragment m on MergeRequest{iid title webUrl draft state sourceBranch sourceProject{fullPath}}")
+	b.WriteString("){")
+	if open.Next || open.End == "" {
+		b.WriteString("o:mergeRequests(state:opened,first:100" + after(open) + ",sourceBranches:[")
+		b.WriteString(list.String())
+		b.WriteString("]){nodes{...m headPipeline{status}} pageInfo{hasNextPage endCursor}}")
+	}
+	if all.Next || all.End == "" {
+		b.WriteString("d:mergeRequests(sort:UPDATED_DESC,first:100" + after(all) + ",sourceBranches:[")
+		b.WriteString(list.String())
+		b.WriteString("]){nodes{...m} pageInfo{hasNextPage endCursor}}")
+	}
+	b.WriteString("}}fragment m on MergeRequest{iid title webUrl draft state sourceBranch sourceProject{fullPath}}")
 	return b.String()
 }
 
+// glMorePages bounds the pages read past the first of a batch's lists.
+const glMorePages = 4
+
 // gitlabPulls asks the project base for the merge requests from branches
-// of the project at head: base itself, or the fork they came from.
+// of the project at head: base itself, or the fork they came from. The
+// branches of a batch share a page of a hundred, which other forks'
+// merge requests from branches of the same names can fill: the pages
+// after are read, a few at most, while one of the branches has none.
 func (c *CLI) gitlabPulls(ctx context.Context, base Repo, head string, branches []string, into map[string]Pull) error {
-	out, err := c.run(ctx, "", base.Host, "api", "graphql", "--hostname", base.Host, "-f", "query="+gitlabQuery(base.Path, branches))
-	if err != nil {
-		return err
+	open, all := glCursor{}, glCursor{}
+	opened, latest := map[string]Pull{}, map[string]Pull{}
+	// done is a list read to its end, or no longer needed: not asked again.
+	done := glCursor{End: "-"}
+	for page := 0; ; page++ {
+		q := gitlabPageQuery(base.Path, branches, open, all)
+		out, err := c.run(ctx, "", base.Host, "api", "graphql", "--hostname", base.Host, "-f", "query="+q)
+		var o, d *glCursor
+		if err == nil {
+			o, d, err = parseGitLabPage(out, base.Path, head, opened, latest)
+		}
+		// A page after the first that fails leaves what the first found.
+		if err != nil && (page == 0 || ctx.Err() != nil) {
+			return err
+		}
+		if err != nil {
+			break
+		}
+		lacks := func(found map[string]Pull) bool {
+			return slices.ContainsFunc(branches, func(br string) bool { _, ok := found[br]; return !ok })
+		}
+		open, all = done, done
+		if o != nil && o.Next && o.End != "" && lacks(opened) {
+			open = *o
+		}
+		if d != nil && d.Next && d.End != "" && lacks(latest) {
+			all = *d
+		}
+		if !open.Next && !all.Next || page == glMorePages {
+			break
+		}
 	}
-	return parseGitLab(out, base.Path, head, into)
+	for _, br := range branches {
+		if _, seen := into[br]; seen {
+			continue
+		}
+		if p, ok := opened[br]; ok {
+			into[br] = p
+		} else if p, ok := latest[br]; ok {
+			into[br] = p
+		}
+	}
+	return nil
 }
 
 type gitlabMR struct {
@@ -71,46 +142,72 @@ type gitlabMR struct {
 // keeping the merge requests from the project at head. An open one wins
 // over the latest merged or closed.
 func parseGitLab(out []byte, path, head string, into map[string]Pull) error {
+	opened, latest := map[string]Pull{}, map[string]Pull{}
+	if _, _, err := parseGitLabPage(out, path, head, opened, latest); err != nil {
+		return err
+	}
+	for _, m := range []map[string]Pull{opened, latest} {
+		for br, p := range m {
+			if _, seen := into[br]; !seen {
+				into[br] = p
+			}
+		}
+	}
+	return nil
+}
+
+// parseGitLabPage reads a page of the answer to gitlabPageQuery, adding
+// to opened the first open merge request of each branch from the project
+// at head, and to latest the first in any state, and returns where the
+// lists asked for go on.
+func parseGitLabPage(out []byte, path, head string, opened, latest map[string]Pull) (o, d *glCursor, err error) {
+	type list struct {
+		Nodes []gitlabMR `json:"nodes"`
+		Page  glCursor   `json:"pageInfo"`
+	}
 	var ans struct {
 		graphQLError
 		Data struct {
 			Project *struct {
-				Open struct {
-					Nodes []gitlabMR `json:"nodes"`
-				} `json:"o"`
-				All struct {
-					Nodes []gitlabMR `json:"nodes"`
-				} `json:"d"`
+				Open *list `json:"o"`
+				All  *list `json:"d"`
 			} `json:"project"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(out, &ans); err != nil {
-		return fmt.Errorf("glab: %w", err)
+		return nil, nil, fmt.Errorf("glab: %w", err)
 	}
 	if err := ans.err("glab"); err != nil {
-		return err
+		return nil, nil, err
 	}
-	if ans.Data.Project == nil {
-		return fmt.Errorf("glab: no project %s, or no access to it", path)
+	pr := ans.Data.Project
+	if pr == nil {
+		return nil, nil, fmt.Errorf("glab: no project %s, or no access to it", path)
 	}
-	for _, m := range append(ans.Data.Project.Open.Nodes, ans.Data.Project.All.Nodes...) {
-		if m.Project == nil || !strings.EqualFold(m.Project.FullPath, head) {
-			continue
+	add := func(l *list, into map[string]Pull) *glCursor {
+		if l == nil {
+			return nil
 		}
-		if _, seen := into[m.Branch]; seen {
-			continue
+		for _, m := range l.Nodes {
+			if m.Project == nil || !strings.EqualFold(m.Project.FullPath, head) {
+				continue
+			}
+			if _, seen := into[m.Branch]; seen {
+				continue
+			}
+			n, err := strconv.Atoi(m.IID)
+			if err != nil {
+				continue
+			}
+			p := Pull{Number: n, Title: m.Title, URL: m.WebURL, Branch: m.Branch, Draft: m.Draft, State: gitlabState(m.State)}
+			if m.Pipeline != nil && p.State == PullOpen {
+				p.Checks = gitlabChecks(m.Pipeline.Status)
+			}
+			into[m.Branch] = p
 		}
-		n, err := strconv.Atoi(m.IID)
-		if err != nil {
-			continue
-		}
-		p := Pull{Number: n, Title: m.Title, URL: m.WebURL, Branch: m.Branch, Draft: m.Draft, State: gitlabState(m.State)}
-		if m.Pipeline != nil && p.State == PullOpen {
-			p.Checks = gitlabChecks(m.Pipeline.Status)
-		}
-		into[m.Branch] = p
+		return &l.Page
 	}
-	return nil
+	return add(pr.Open, opened), add(pr.All, latest), nil
 }
 
 // gitlabState reads a merge request's state; a locked one is being

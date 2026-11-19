@@ -13,7 +13,7 @@ import (
 // variable, in one query: for each, the open ones (bN), with their
 // checks, and the merged and closed ones, latest first (cN). A branch of
 // a fork shares its name with every other fork's, so each asks for more
-// than one.
+// than one, and for where the next page starts.
 func githubQuery(n int) string {
 	var b strings.Builder
 	b.WriteString("query($owner:String!,$name:String!")
@@ -22,16 +22,55 @@ func githubQuery(n int) string {
 	}
 	b.WriteString("){repository(owner:$owner,name:$name){")
 	for i := range n {
-		fmt.Fprintf(&b, "b%d:pullRequests(headRefName:$b%d,states:[OPEN],first:10){nodes{...p}}", i, i)
-		fmt.Fprintf(&b, "c%d:pullRequests(headRefName:$b%d,states:[MERGED,CLOSED],first:10,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...q}}", i, i)
+		fmt.Fprintf(&b, "b%d:pullRequests(headRefName:$b%d,states:[OPEN],first:10){nodes{...p} %s}", i, i, ghPageInfo)
+		fmt.Fprintf(&b, "c%d:pullRequests(headRefName:$b%d,states:[MERGED,CLOSED],first:10,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...q} %s}", i, i, ghPageInfo)
 	}
-	b.WriteString("}}fragment q on PullRequest{number title url isDraft state headRefName headRepositoryOwner{login}}")
-	b.WriteString("fragment p on PullRequest{...q commits(last:1){nodes{commit{statusCheckRollup{state}}}}}")
+	b.WriteString("}}" + ghPullFragments)
+	return b.String()
+}
+
+const (
+	ghPageInfo      = "pageInfo{hasNextPage endCursor}"
+	ghPullFragments = "fragment q on PullRequest{number title url isDraft state headRefName headRepositoryOwner{login}}" +
+		"fragment p on PullRequest{...q commits(last:1){nodes{commit{statusCheckRollup{state}}}}}"
+	// ghMorePages bounds the pages read past the first of a branch's
+	// lists, a hundred pull requests each.
+	ghMorePages = 4
+)
+
+// ghList is a list of a branch's pull requests read on from after: its
+// open ones, or its merged and closed ones.
+type ghList struct {
+	branch string
+	open   bool
+	after  string
+}
+
+// githubMoreQuery asks for the next page of each of lists (pN), from
+// where it ended (aN).
+func githubMoreQuery(lists []ghList) string {
+	var b strings.Builder
+	b.WriteString("query($owner:String!,$name:String!")
+	for i := range lists {
+		fmt.Fprintf(&b, ",$h%d:String!,$a%d:String!", i, i)
+	}
+	b.WriteString("){repository(owner:$owner,name:$name){")
+	for i, l := range lists {
+		if l.open {
+			fmt.Fprintf(&b, "p%d:pullRequests(headRefName:$h%d,states:[OPEN],first:100,after:$a%d){nodes{...p} %s}", i, i, i, ghPageInfo)
+		} else {
+			fmt.Fprintf(&b, "p%d:pullRequests(headRefName:$h%d,states:[MERGED,CLOSED],first:100,after:$a%d,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...q} %s}", i, i, i, ghPageInfo)
+		}
+	}
+	b.WriteString("}}" + ghPullFragments)
 	return b.String()
 }
 
 // githubPulls asks base for the pull requests from branches of the
 // repository owned by headOwner: base itself, or the fork they came from.
+// A name many forks' branches share may have more pull requests than a
+// page holds, the owner's not among the first: the pages after are read,
+// a few at most, until it is found.
 func (c *CLI) githubPulls(ctx context.Context, base Repo, headOwner string, branches []string, into map[string]Pull) error {
 	owner, name, _ := strings.Cut(base.Path, "/")
 	args := []string{"api", "graphql", "--hostname", base.Host, "-f", "query=" + githubQuery(len(branches)),
@@ -43,7 +82,69 @@ func (c *CLI) githubPulls(ctx context.Context, base Repo, headOwner string, bran
 	if err != nil {
 		return err
 	}
-	return parseGitHub(out, headOwner, len(branches), into)
+	conns, err := parseGitHubLists(out)
+	if err != nil {
+		return err
+	}
+	open, closed := map[string]Pull{}, map[string]Pull{}
+	var lists []ghList
+	for i, br := range branches {
+		lists = append(lists, ghList{branch: br, open: true}, ghList{branch: br})
+		conns["l"+strconv.Itoa(2*i)], conns["l"+strconv.Itoa(2*i+1)] = conns["b"+strconv.Itoa(i)], conns["c"+strconv.Itoa(i)]
+	}
+	for page := 0; ; page++ {
+		var next []ghList
+		for i, l := range lists {
+			conn := conns["l"+strconv.Itoa(i)]
+			if conn == nil {
+				continue
+			}
+			found := closed
+			if l.open {
+				found = open
+			}
+			if p, ok := ownPull(conn.Nodes, headOwner); ok {
+				if _, seen := found[l.branch]; !seen {
+					found[l.branch] = p
+				}
+				continue
+			}
+			// An open one found, the closed ones are not looked through.
+			if _, opened := open[l.branch]; conn.Page.Next && conn.Page.End != "" && (l.open || !opened) {
+				next = append(next, ghList{branch: l.branch, open: l.open, after: conn.Page.End})
+			}
+		}
+		if len(next) == 0 || page == ghMorePages {
+			break
+		}
+		lists = next
+		args := []string{"api", "graphql", "--hostname", base.Host, "-f", "query=" + githubMoreQuery(lists),
+			"-f", "owner=" + owner, "-f", "name=" + name}
+		for i, l := range lists {
+			args = append(args, "-f", fmt.Sprintf("h%d=%s", i, l.branch), "-f", fmt.Sprintf("a%d=%s", i, l.after))
+		}
+		// A page after the first that fails leaves what the first found.
+		out, err := c.read(ctx, base.Host, args...)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		more, perr := parseGitHubLists(out)
+		if err != nil || perr != nil {
+			break
+		}
+		conns = map[string]*ghConn{}
+		for i := range lists {
+			conns["l"+strconv.Itoa(i)] = more["p"+strconv.Itoa(i)]
+		}
+	}
+	for _, br := range branches {
+		if p, ok := open[br]; ok {
+			into[br] = p
+		} else if p, ok := closed[br]; ok {
+			into[br] = p
+		}
+	}
+	return nil
 }
 
 type githubPull struct {
@@ -75,42 +176,70 @@ type githubPull struct {
 	} `json:"commits"`
 }
 
-// parseGitHub reads the answer to githubQuery, keeping the pull requests
-// whose head is in owner's repository: another fork's branch of the same
-// name is another branch. An open one wins over the latest closed.
-func parseGitHub(out []byte, owner string, n int, into map[string]Pull) error {
+// ghConn is a list of pull requests read, and whether more follow it.
+type ghConn struct {
+	Nodes []githubPull `json:"nodes"`
+	Page  struct {
+		Next bool   `json:"hasNextPage"`
+		End  string `json:"endCursor"`
+	} `json:"pageInfo"`
+}
+
+// parseGitHubLists reads the lists of pull requests an answer to
+// githubQuery or githubMoreQuery holds, by their aliases.
+func parseGitHubLists(out []byte) (map[string]*ghConn, error) {
 	var ans struct {
 		graphQLError
 		Data struct {
-			Repository map[string]*struct {
-				Nodes []githubPull `json:"nodes"`
-			} `json:"repository"`
+			Repository map[string]*ghConn `json:"repository"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(out, &ans); err != nil {
-		return fmt.Errorf("gh: %w", err)
+		return nil, fmt.Errorf("gh: %w", err)
 	}
 	if err := ans.err("gh"); err != nil {
+		return nil, err
+	}
+	if ans.Data.Repository == nil {
+		return map[string]*ghConn{}, nil
+	}
+	return ans.Data.Repository, nil
+}
+
+// ownPull is the first of nodes whose head is in owner's repository:
+// another fork's branch of the same name is another branch.
+func ownPull(nodes []githubPull, owner string) (Pull, bool) {
+	for _, p := range nodes {
+		if p.Owner == nil || !strings.EqualFold(p.Owner.Login, owner) {
+			continue
+		}
+		pull := Pull{Number: p.Number, Title: p.Title, URL: p.URL, Branch: p.Head, Draft: p.IsDraft, State: githubState(p.State)}
+		if ns := p.Commits.Nodes; pull.State == PullOpen && len(ns) > 0 && ns[0].Commit.Rollup != nil {
+			pull.Checks = githubChecks(ns[0].Commit.Rollup.State)
+		}
+		return pull, true
+	}
+	return Pull{}, false
+}
+
+// parseGitHub reads the answer to githubQuery for n branches, keeping
+// the pull requests whose head is in owner's repository. An open one
+// wins over the latest closed.
+func parseGitHub(out []byte, owner string, n int, into map[string]Pull) error {
+	conns, err := parseGitHubLists(out)
+	if err != nil {
 		return err
 	}
 	for i := range n {
 		for _, alias := range []string{"b", "c"} {
-			conn := ans.Data.Repository[alias+strconv.Itoa(i)]
+			conn := conns[alias+strconv.Itoa(i)]
 			if conn == nil {
 				continue
 			}
-			for _, p := range conn.Nodes {
-				if p.Owner == nil || !strings.EqualFold(p.Owner.Login, owner) {
-					continue
+			if p, ok := ownPull(conn.Nodes, owner); ok {
+				if _, seen := into[p.Branch]; !seen {
+					into[p.Branch] = p
 				}
-				if _, seen := into[p.Head]; seen {
-					continue
-				}
-				pull := Pull{Number: p.Number, Title: p.Title, URL: p.URL, Branch: p.Head, Draft: p.IsDraft, State: githubState(p.State)}
-				if ns := p.Commits.Nodes; pull.State == PullOpen && len(ns) > 0 && ns[0].Commit.Rollup != nil {
-					pull.Checks = githubChecks(ns[0].Commit.Rollup.State)
-				}
-				into[p.Head] = pull
 			}
 		}
 	}

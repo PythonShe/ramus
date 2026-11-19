@@ -3,6 +3,7 @@ package forge
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -116,6 +117,68 @@ func TestParseGitLab(t *testing.T) {
 	}
 	if err := parseGitLab([]byte(`{"data":{"project":null}}`), "g/p", "g/p", got); err == nil {
 		t.Fatal("no error for a project not found")
+	}
+}
+
+// fakePager writes program, which prints first to a query and, to one
+// whose arguments match more (a case pattern), more, and returns the
+// environment that finds it.
+func fakePager(t *testing.T, program, first, more, morePattern string) []string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tool is a shell script")
+	}
+	dir := t.TempDir()
+	script := "#!/bin/sh\ncase \"$*\" in\n" + morePattern + ") cat <<'EOF'\n" + more + "\nEOF\n;;\n*) cat <<'EOF'\n" + first + "\nEOF\n;;\nesac\n"
+	if err := os.WriteFile(filepath.Join(dir, program), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return []string{"PATH=" + dir + ":/usr/bin:/bin"}
+}
+
+// A fork's main has its open pull request found though other forks'
+// mains fill the first page: the pages after are read for it, and its
+// older closed one does not stand in for it.
+func TestPullsPastOtherForks(t *testing.T) {
+	var others []string
+	for i := range 10 {
+		others = append(others, fmt.Sprintf(`{"number":%d,"title":"t","url":"u","isDraft":false,"state":"OPEN","headRefName":"main","headRepositoryOwner":{"login":"other%d"},"commits":{"nodes":[]}}`, 500+i, i))
+	}
+	first := `{"data":{"repository":{"b0":{"nodes":[` + strings.Join(others, ",") + `],"pageInfo":{"hasNextPage":true,"endCursor":"C1"}},
+		"c0":{"nodes":[{"number":123,"title":"Old","url":"u","state":"CLOSED","headRefName":"main","headRepositoryOwner":{"login":"me"}}],"pageInfo":{"hasNextPage":true,"endCursor":"D1"}}}}}`
+	more := `{"data":{"repository":{"p0":{"nodes":[{"number":456,"title":"Mine","url":"u","isDraft":false,"state":"OPEN","headRefName":"main",
+		"headRepositoryOwner":{"login":"me"},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}}],"pageInfo":{"hasNextPage":false,"endCursor":"C2"}}}}}`
+	c, err := Find(fakePager(t, "gh", first, more, "*h0=main*a0=C1*"), GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, fork := Repo{GitHub, "github.com", "up/r"}, Repo{GitHub, "github.com", "me/r"}
+	got, err := c.Pulls(context.Background(), base, fork, []string{"main"})
+	if err != nil || got["main"].Number != 456 || got["main"].State != PullOpen || got["main"].Checks != ChecksPassing {
+		t.Fatalf("github: %+v, %v", got, err)
+	}
+
+	var mrs []string
+	for i := range 100 {
+		mrs = append(mrs, fmt.Sprintf(`{"iid":"%d","title":"t","webUrl":"u","state":"opened","sourceBranch":"main","sourceProject":{"fullPath":"other%d/p"}}`, 500+i, i))
+	}
+	first = `{"data":{"project":{"o":{"nodes":[` + strings.Join(mrs, ",") + `],"pageInfo":{"hasNextPage":true,"endCursor":"X1"}},
+		"d":{"nodes":[{"iid":"7","title":"Fix","webUrl":"u","state":"merged","sourceBranch":"fix","sourceProject":{"fullPath":"me/p"}},
+			{"iid":"8","title":"Main","webUrl":"u","state":"opened","sourceBranch":"main","sourceProject":{"fullPath":"me/p"}}],"pageInfo":{"hasNextPage":false,"endCursor":"Y1"}}}}}`
+	more = `{"data":{"project":{"o":{"nodes":[{"iid":"9","title":"Dev","webUrl":"u","state":"opened","sourceBranch":"dev","sourceProject":{"fullPath":"me/p"},
+		"headPipeline":{"status":"FAILED"}}],"pageInfo":{"hasNextPage":false,"endCursor":"X2"}}}}}`
+	c, err = Find(fakePager(t, "glab", first, more, `*after:\"X1\"*`), GitLab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, fork = Repo{GitLab, "gitlab.com", "g/p"}, Repo{GitLab, "gitlab.com", "me/p"}
+	got, err = c.Pulls(context.Background(), base, fork, []string{"main", "fix", "dev"})
+	if err != nil || got["dev"].Number != 9 || got["dev"].Checks != ChecksFailing || got["fix"].Number != 7 || got["main"].Number != 8 {
+		t.Fatalf("gitlab: %+v, %v", got, err)
+	}
+	// The list read to its end is not asked for again.
+	if q := gitlabPageQuery("g/p", []string{"x"}, glCursor{Next: true, End: "X1"}, glCursor{End: "-"}); !strings.Contains(q, `after:"X1"`) || strings.Contains(q, "d:") {
+		t.Errorf("query %s", q)
 	}
 }
 
