@@ -1,6 +1,7 @@
 package lanes
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"testing"
 )
@@ -58,6 +59,59 @@ func sameRows(t *testing.T, s *Snapshot, rows [][]uint32) {
 			}
 			same(i, e.Color, we.Color)
 		}
+	}
+}
+
+// Colors are stored plus one, 0 meaning no lane, so no lane may take
+// color 0xFFFF: the history of the Linux kernel opens more lanes than
+// that. Laid out at once, or over another layout.
+func TestColorsPastTheLast(t *testing.T) {
+	const fill = 0xFFFF
+	// x waits for p in column 0, past y in column 1, after a color each
+	// for fill commits.
+	var l Layout
+	for i := range fill {
+		l.Append(uint32(3+i), nil)
+	}
+	l.Append(0, []uint32{2})
+	l.Append(1, nil)
+	l.Append(2, nil)
+	connected(t, l.Snapshot())
+
+	// m merges w, which joins m's lane, laid over a layout whose colors
+	// end just short of 0xFFFF.
+	rows := make([][]uint32, 3+fill-1)
+	rows[0], rows[1], rows[2] = []uint32{2, 1}, []uint32{2}, []uint32{3}
+	base := layoutOf(rows, 3, len(rows)).Snapshot()
+	if base.colors != fill-1 {
+		t.Fatalf("base has %d colors", base.colors)
+	}
+	top, ok := layoutOf(rows, 0, 3).Above(base)
+	if !ok {
+		t.Fatal("not laid over")
+	}
+	connected(t, top)
+}
+
+// connected checks that every line arriving at a row's top left the row
+// above at its bottom, in the same column and color.
+func connected(t *testing.T, s *Snapshot) {
+	t.Helper()
+	var buf, prev []Edge
+	for i := range s.Len() {
+		var r Row
+		r, buf = s.Row(i, 0, buf)
+		above, below := map[uint16]uint16{}, map[uint16]uint16{}
+		for _, e := range prev {
+			below[e.To] = e.Color
+		}
+		for _, e := range r.Top {
+			above[e.From] = e.Color
+		}
+		if i > 0 && fmt.Sprint(above) != fmt.Sprint(below) {
+			t.Fatalf("row %d: lines arrive from %v, the row above leaves %v", i, above, below)
+		}
+		prev = append(prev[:0], r.Bottom...)
 	}
 }
 

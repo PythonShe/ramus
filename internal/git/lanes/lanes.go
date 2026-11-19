@@ -118,9 +118,13 @@ func (l *Layout) column() int {
 	return len(l.lanes) - 1
 }
 
+// numColors is how many colors lanes take, in turn: a color is stored
+// plus one, 0 meaning no lane, so 0xFFFF is never one.
+const numColors = 0xFFFF
+
 func (l *Layout) newColor() uint16 {
 	c := l.nextColor
-	l.nextColor++
+	l.nextColor = uint16((uint32(c) + 1) % numColors)
 	return c
 }
 
@@ -365,12 +369,12 @@ func (l *Layout) Above(base *Snapshot) (_ *Snapshot, ok bool) {
 		return nil, false
 	}
 	down := base.segs[0].s.rec(0).color
-	join, offset := l.laneColors[0], uint16(base.colors)
+	join, offset := l.laneColors[0], uint32(base.colors%numColors)
 	color := func(c uint16) uint16 {
 		if c == join {
 			return down
 		}
-		return offset + c
+		return uint16((offset + uint32(c)) % numColors)
 	}
 	// Exactly as long as it needs: a commit at a time, a layout each.
 	s := &l.s
@@ -404,7 +408,7 @@ func (l *Layout) Above(base *Snapshot) (_ *Snapshot, ok bool) {
 		}
 		segs = append(segs, g)
 	}
-	return &Snapshot{segs: segs, n: s.n + base.n, width: max(s.width, base.width), colors: base.colors + int(l.nextColor), at: -1}, true
+	return &Snapshot{segs: segs, n: s.n + base.n, width: max(s.width, base.width), colors: (base.colors + int(l.nextColor)) % numColors, at: -1}, true
 }
 
 // compact copies chunks to slices of their length alone.
