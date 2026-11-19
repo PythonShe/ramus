@@ -81,11 +81,6 @@ func TestStashAndTryAgain(t *testing.T) {
 // A lock a crashed git left behind can be removed from the error bar,
 // and the write runs again.
 func TestRemoveStaleLock(t *testing.T) {
-	if _, err := os.Stat("/usr/sbin/lsof"); err != nil {
-		if _, err := os.Stat("/usr/bin/lsof"); err != nil {
-			t.Skip("no lsof")
-		}
-	}
 	h := newHarness(t)
 	r := h.repoWith("a.txt")
 	h.trust.Set(r.GitDir(), true)
