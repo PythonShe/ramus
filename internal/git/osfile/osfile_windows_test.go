@@ -99,7 +99,20 @@ func TestLongPath(t *testing.T) {
 	if err := os.WriteFile(path, want, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if b, err := ReadFile(path, 1<<10); err != nil || !bytes.Equal(b, want) {
-		t.Fatalf("read %q, %v", b, err)
+	if len(path) <= 300 {
+		t.Fatalf("a path of %d characters", len(path))
+	}
+	// Spelled as the system would clean it: forward slashes, a step out
+	// and back.
+	odd := filepath.ToSlash(deep + `\..\` + filepath.Base(deep) + `\.\HEAD`)
+	for _, p := range []string{path, odd} {
+		if b, err := ReadFile(p, 1<<10); err != nil || !bytes.Equal(b, want) {
+			t.Fatalf("%s: read %q, %v", p, b, err)
+		}
+		f, err := Open(p)
+		if err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		f.Close()
 	}
 }
