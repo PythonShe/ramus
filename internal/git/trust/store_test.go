@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestStore(t *testing.T) {
@@ -203,5 +204,42 @@ func TestKeepsWhatALaterVersionAdded(t *testing.T) {
 	data, _ = os.ReadFile(path)
 	if strings.Contains(string(data), "teal") || !strings.Contains(string(data), "askEvery") {
 		t.Errorf("after the folder is no longer trusted:\n%s", data)
+	}
+}
+
+// A quit while an answer is being saved waits for the save, which the
+// next launch then finds; a save that does not end does not hold the
+// quit past its bound.
+func TestWaitHasTheAnswerSaved(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "trust.json")
+	repo := filepath.Join(t.TempDir(), ".git")
+	os.MkdirAll(repo, 0o755)
+	s, _ := Load(path)
+	if !s.Wait(0) {
+		t.Fatal("waited with nothing being saved")
+	}
+	held, release := make(chan struct{}), make(chan struct{})
+	writeHook = func() {
+		close(held)
+		<-release
+	}
+	t.Cleanup(func() { writeHook = nil })
+	saved := make(chan error, 1)
+	go func() { saved <- s.Set(repo, true) }()
+	<-held
+	if s.Wait(10 * time.Millisecond) {
+		t.Fatal("Wait returned as though saved while the save was held")
+	}
+	waited := make(chan bool, 1)
+	go func() { waited <- s.Wait(time.Minute) }()
+	close(release)
+	if !<-waited {
+		t.Fatal("Wait gave up on a save that ended")
+	}
+	if again, err := Load(path); err != nil || !again.Trusted(repo) {
+		t.Fatalf("the answer is not in the file once Wait returned: %v", err)
+	}
+	if err := <-saved; err != nil {
+		t.Fatal(err)
 	}
 }

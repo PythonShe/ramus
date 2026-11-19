@@ -85,7 +85,7 @@ func (ws *windows) layoutChanged() {
 }
 
 // flush writes the layout and the drafts, and waits for the settings,
-// the git identity typed in them and the library being written, at the
+// the git identity typed in them, the library and trust being written, at the
 // start of a quit. They are the writes the main thread waits on: the OS
 // may end the process as soon as the quit's listeners return, and the
 // files are small.
@@ -103,6 +103,11 @@ func (ws *windows) flush() {
 	deadline := time.Now().Add(stopWait)
 	for _, w := range ws.list {
 		w.app.WaitWrites(time.Until(deadline))
+	}
+	// Trust just given, by a click or for a repository the user cloned
+	// or made, holds at the next launch.
+	if ts := ws.deps.Trust; ts != nil {
+		ts.Wait(time.Until(deadline))
 	}
 	if d := ws.deps.Drafts; d != nil {
 		if err := d.Flush(); err != nil {

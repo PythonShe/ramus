@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	"ramus/internal/git/pathsafe"
 )
@@ -42,7 +43,15 @@ type Store struct {
 	// write keeps saves in order, each of a list no older than the one
 	// saved before it.
 	write sync.Mutex
+	// saving counts the calls of Set under way; idle is closed when the
+	// count falls to none.
+	saving int
+	idle   chan struct{}
 }
+
+// writeHook, when set, runs before a save's file replaces the old one:
+// a test holds a save there.
+var writeHook func()
 
 // file is the store as trust.json holds it. trusted stays a list of
 // paths, which is all the versions before 1.0 read; what is known of a
@@ -177,6 +186,19 @@ func (s *Store) Trusted(commonDir string) bool {
 
 // Set records the user's answer and saves the store.
 func (s *Store) Set(commonDir string, trusted bool) error {
+	s.mu.Lock()
+	if s.saving == 0 {
+		s.idle = make(chan struct{})
+	}
+	s.saving++
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		if s.saving--; s.saving == 0 {
+			close(s.idle)
+		}
+		s.mu.Unlock()
+	}()
 	d := clean(commonDir)
 	id := ""
 	if trusted {
@@ -216,6 +238,29 @@ func (s *Store) Set(commonDir string, trusted bool) error {
 		return err
 	}
 	return writeAtomic(s.path, append(data, '\n'))
+}
+
+// Wait waits, up to d, for the answers being saved to be in the file,
+// at a quit, after which the process may end at once; d bounds it for a
+// file on a volume that does not answer. It reports whether they were.
+func (s *Store) Wait(d time.Duration) bool {
+	s.mu.Lock()
+	idle := s.idle
+	if s.saving == 0 {
+		idle = nil
+	}
+	s.mu.Unlock()
+	if idle == nil {
+		return true
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-idle:
+		return true
+	case <-t.C:
+		return false
+	}
 }
 
 // marshal is the store as its file holds it, with what a later version
@@ -274,6 +319,9 @@ func writeAtomic(path string, data []byte) error {
 	}
 	if err := tmp.Close(); err != nil {
 		return err
+	}
+	if writeHook != nil {
+		writeHook()
 	}
 	return os.Rename(tmp.Name(), path)
 }
