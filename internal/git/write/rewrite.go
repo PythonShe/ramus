@@ -44,6 +44,30 @@ func commentChar(msg string) (string, error) {
 	return "", errors.New("write: every comment character starts a line of the message")
 }
 
+// cleanMessage is msg as git's whitespace cleanup leaves it, which is how
+// the commit box commits a message: trailing whitespace off every line,
+// blank lines at the start and end dropped and runs of them made one, a
+// final newline. Lines starting with a comment character stay.
+func cleanMessage(msg string) string {
+	var b strings.Builder
+	blank := false
+	for line := range strings.SplitSeq(msg, "\n") {
+		// git's isspace: no vertical tab or form feed.
+		line = strings.TrimRight(line, " \t\r")
+		if line == "" {
+			blank = b.Len() > 0
+			continue
+		}
+		if blank {
+			b.WriteByte('\n')
+			blank = false
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
 func (rw Rewrite) check() error {
 	if !isHex(rw.Commit) || (rw.Parent != "" && !isHex(rw.Parent)) {
 		return fmt.Errorf("write: %q is not a commit id", rw.Commit)
@@ -60,6 +84,16 @@ func (rw Rewrite) op(name string, seen Seen, cmd run.Cmd) Op {
 	}
 	return op
 }
+
+// rebasePins are the settings every rebase a rewrite runs is given,
+// whatever the user's config says. The todo is written as the edit reads
+// it: ids in full, commands in full, one line each, # for comments, so a
+// pick line is never read as a comment. The messages are stored as they
+// are: commit.cleanup=strip would take the lines starting with # out of
+// the commits replayed, and the messages the app sets are cleaned as the
+// commit box cleans them before git sees them.
+var rebasePins = []string{"core.abbrev=no", "rebase.abbreviateCommands=false", "rebase.instructionFormat=%s",
+	"core.commentChar=#", "commit.cleanup=verbatim"}
 
 // rebase is the fallback through git rebase: from the commit's parent
 // (or the root), local changes stashed around it, and the branches
@@ -83,9 +117,7 @@ func (rw Rewrite) rebase(w Where, action string, extra ...string) run.Cmd {
 		args = append(args, "--end-of-options", rw.Parent)
 	}
 	c := w.cmd(args...)
-	// The todo is written as the edit below reads it, whatever the
-	// user's config says: ids in full, commands in full, one line each.
-	c.Config = append(c.Config, "core.abbrev=no", "rebase.abbreviateCommands=false", "rebase.instructionFormat=%s", "core.commentChar=#")
+	c.Config = append(c.Config, rebasePins...)
 	editor := "true"
 	if action != "" {
 		// Both forms of pick are read, and the editor fails, which
@@ -112,11 +144,13 @@ func withMessage(c run.Cmd, msg string) (run.Cmd, []byte, error) {
 
 // Reword gives rw.Commit message msg, moving the commits and branches
 // after it, through git history reword where git has it, else a rebase.
+// The message is cleaned as the commit box cleans one.
 func Reword(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 	if err := rw.check(); err != nil {
 		return Op{}, err
 	}
-	if strings.TrimSpace(msg) == "" {
+	msg = cleanMessage(msg)
+	if msg == "" {
 		return Op{}, errors.New("write: a commit message cannot be empty")
 	}
 	var c run.Cmd
@@ -171,6 +205,11 @@ func FixupInto(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 		pre.Timeout = HookTimeout
 		op.Pre = &pre
 		return op, nil
+	}
+	if msg != "" {
+		if msg = cleanMessage(msg); msg == "" {
+			return Op{}, errors.New("write: a commit message cannot be empty")
+		}
 	}
 	args := []string{"history", "fixup", "--update-refs=branches"}
 	if msg != "" {
@@ -245,13 +284,14 @@ func EditHistory(w Where, rw Rewrite, steps []Step, seen Seen) (Op, error) {
 	if err != nil {
 		return Op{}, err
 	}
-	args := []string{"rebase", "--interactive", "--autostash", "--no-rebase-merges"}
+	args := []string{"rebase", "--interactive", "--autostash", "--no-rebase-merges", "--no-autosquash"}
 	if rw.Parent == "" {
 		args = append(args, "--root")
 	} else {
 		args = append(args, "--end-of-options", rw.Parent)
 	}
 	c := w.cmd(args...)
+	c.Config = append(c.Config, rebasePins...)
 	// The todo comes on standard input; a squash keeps the messages
 	// joined, which git's editor would otherwise be asked about.
 	c.Env = append(c.Env, "GIT_SEQUENCE_EDITOR=cat >", "GIT_EDITOR=true")
@@ -278,19 +318,17 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 		switch s.Action {
 		case DoPick, DoEdit, DoDrop:
 		case DoReword:
-			if strings.TrimSpace(s.Message) == "" {
+			if msg = cleanMessage(s.Message); msg == "" {
 				return "", errors.New("write: a commit message cannot be empty")
 			}
-			msg = s.Message
 		case DoSquash, DoFixup:
 			if !kept {
 				return "", fmt.Errorf("write: %s has no commit before it to fold into", short(s.Commit))
 			}
 			if s.Action == DoSquash && s.Message != "" {
-				if strings.TrimSpace(s.Message) == "" {
+				if msg = cleanMessage(s.Message); msg == "" {
 					return "", errors.New("write: a commit message cannot be empty")
 				}
-				msg = s.Message
 			}
 		default:
 			return "", fmt.Errorf("write: unknown %v", s.Action)
@@ -316,18 +354,16 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 			b.WriteString("exec git log -1 --no-show-signature --format=%B HEAD >\"$(git rev-parse --git-path " + stepMessage + ")\"\n")
 		}
 		fmt.Fprintf(&b, "%s %s\n", word, s.Commit)
+		// The amends clean the message as the commit box does, whatever
+		// commit.cleanup says.
 		if join {
 			fmt.Fprintf(&b, "exec %s || "+
 				"{ cat \"$(git rev-parse --git-path %s)\"; echo; git log -1 --no-show-signature --format=%%B %s; } | "+
 				"git commit --amend --only -q --allow-empty --cleanup=whitespace -F -\n", skipped(s.Commit, word == "fixup"), stepMessage, s.Commit)
 		}
 		if msg != "" {
-			cc, err := commentChar(msg)
-			if err != nil {
-				return "", err
-			}
 			fmt.Fprintf(&b, "exec %s || "+
-				"printf '%%b' '%s' | git -c core.commentChar='%s' commit --amend --only -q --allow-empty -F -\n", skipped(s.Commit, word == "fixup"), printfArg(msg), cc)
+				"printf '%%b' '%s' | git commit --amend --only -q --allow-empty --cleanup=whitespace -F -\n", skipped(s.Commit, word == "fixup"), printfArg(msg))
 		}
 		kept = kept || s.Action != DoDrop
 		if !refs {
