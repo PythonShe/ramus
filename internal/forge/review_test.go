@@ -204,13 +204,16 @@ const reviewAnswer = `{"data":{"viewer":{"login":"me"},"repository":{"pullReques
 "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"PENDING"}}}]},
 "comments":{"totalCount":1,"nodes":[{"id":"IC_1","databaseId":11,"author":{"login":"bob"},"body":"Looks fine","createdAt":"2026-11-11T09:00:00Z"}]},
 "reviews":{"totalCount":2,"nodes":[{"author":{"login":"bob"},"state":"COMMENTED","body":"","submittedAt":"2026-11-11T10:00:00Z"}]},
-"reviewThreads":{"totalCount":2,"nodes":[
+"reviewThreads":{"totalCount":3,"nodes":[
  {"id":"T1","isResolved":false,"isOutdated":false,"path":"a.go","line":12,"startLine":10,"originalLine":12,"diffSide":"RIGHT",
   "viewerCanResolve":true,"viewerCanUnresolve":false,"viewerCanReply":true,
   "comments":{"totalCount":1,"nodes":[{"id":"C1","databaseId":42,"author":{"login":"bob"},"body":"Why here?","createdAt":"2026-11-11T10:00:00Z"}]}},
  {"id":"T2","isResolved":true,"isOutdated":true,"path":"b.go","line":null,"startLine":null,"originalLine":3,"diffSide":"LEFT",
   "viewerCanResolve":false,"viewerCanUnresolve":true,"viewerCanReply":true,
-  "comments":{"totalCount":1,"nodes":[{"id":"C2","databaseId":43,"author":{"login":"me"},"body":"Gone","createdAt":"2026-11-11T11:00:00Z"}]}}]}}}}}`
+  "comments":{"totalCount":1,"nodes":[{"id":"C2","databaseId":43,"author":{"login":"me"},"body":"Gone","createdAt":"2026-11-11T11:00:00Z"}]}},
+ {"id":"T3","isResolved":false,"isOutdated":false,"path":"c.go","line":null,"startLine":null,"originalLine":null,"diffSide":"RIGHT",
+  "viewerCanResolve":true,"viewerCanUnresolve":false,"viewerCanReply":true,
+  "comments":{"totalCount":1,"nodes":[{"id":"C3","databaseId":44,"author":{"login":"bob"},"body":"Split this file","createdAt":"2026-11-11T12:00:00Z"}]}}]}}}}}`
 
 func TestParseReview(t *testing.T) {
 	rv, err := parseReview([]byte(reviewAnswer))
@@ -231,15 +234,19 @@ func TestParseReview(t *testing.T) {
 	if !rv.More {
 		t.Error("the review past those read is not told")
 	}
-	if len(rv.Threads) != 2 {
+	if len(rv.Threads) != 3 {
 		t.Fatalf("threads %+v", rv.Threads)
 	}
-	a, b := rv.Threads[0], rv.Threads[1]
-	if a.Path != "a.go" || a.Line != 12 || a.StartLine != 10 || a.Side != Right || !a.CanResolve || a.Comments[0].DatabaseID != 42 {
+	a, b, f := rv.Threads[0], rv.Threads[1], rv.Threads[2]
+	if a.Path != "a.go" || a.Line != 12 || a.StartLine != 10 || a.Side != Right || !a.CanResolve || a.Comments[0].DatabaseID != 42 || a.File {
 		t.Errorf("first thread %+v", a)
 	}
-	if !b.Outdated || !b.Resolved || b.Line != 0 || b.OriginalLine != 3 || b.Side != Left {
+	if !b.Outdated || !b.Resolved || b.Line != 0 || b.OriginalLine != 3 || b.Side != Left || b.File {
 		t.Errorf("outdated thread %+v", b)
+	}
+	// One on the whole file has no line, and is not outdated.
+	if !f.File || f.Outdated || f.Line != 0 || f.OriginalLine != 0 || f.Path != "c.go" {
+		t.Errorf("thread on a file %+v", f)
 	}
 	if _, err := parseReview([]byte(`{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":null}}}`)); !errors.Is(err, ErrNotFound) {
 		t.Errorf("no pull request: %v", err)

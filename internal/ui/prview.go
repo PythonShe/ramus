@@ -1254,7 +1254,12 @@ func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 			continue
 		}
 		what := locales.PrsOutdatedOn(th.Path, th.OriginalLine)
-		if !th.Outdated && th.Line > 0 {
+		switch {
+		case th.File && th.Outdated:
+			what = locales.PrsCommentOnFile("yes", th.Path)
+		case th.File:
+			what = locales.PrsCommentOnFile("no", th.Path)
+		case !th.Outdated && th.Line > 0:
 			if listed == nil || listed[th.Path] {
 				continue
 			}

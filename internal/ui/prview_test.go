@@ -363,6 +363,19 @@ func TestUntimedLast(t *testing.T) {
 	}
 }
 
+// A thread on a whole file says the file, not a line 0 changed since.
+func TestThreadOnAFile(t *testing.T) {
+	at := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	r := &forge.Review{Pull: forge.Pull{Number: 7}, Author: "ann", Created: at, Threads: []forge.Thread{
+		{ID: "T1", Path: "a.go", File: true, Comments: []forge.Comment{{Author: "bob", At: at}}},
+		{ID: "T2", Path: "b.go", File: true, Outdated: true, Comments: []forge.Comment{{Author: "bob", At: at}}},
+	}}
+	ev := prTimeline(r, nil)
+	if len(ev) != 3 || ev[1].what != "on a.go" || ev[2].what != "on b.go, since changed" {
+		t.Fatalf("timeline %+v", ev)
+	}
+}
+
 // A list read again shows, until its details are read, those it showed
 // of the pull requests still in it.
 func TestKeepDetails(t *testing.T) {

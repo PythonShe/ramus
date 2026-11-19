@@ -349,11 +349,13 @@ type Thread struct {
 	// first of several, 0 for one line.
 	Line, StartLine int
 	OriginalLine    int
-	Side            Side
-	CanResolve      bool
-	CanUnresolve    bool
-	CanReply        bool
-	Comments        []Comment
+	// File is a thread on the whole file, on no line.
+	File         bool
+	Side         Side
+	CanResolve   bool
+	CanUnresolve bool
+	CanReply     bool
+	Comments     []Comment
 }
 
 // Review is a pull request as its review shows it.
@@ -805,8 +807,12 @@ func parseReview(out []byte) (Review, error) {
 		return *p
 	}
 	for _, t := range p.Threads.Nodes {
+		// A thread on the whole file has no line, nor had it ever one: its
+		// subjectType, FILE, is not asked for, as servers older than it
+		// would fail the whole query.
 		th := Thread{ID: t.ID, Path: t.Path, Resolved: t.Resolved, Outdated: t.Outdated, Line: num(t.Line), StartLine: num(t.StartLine),
-			OriginalLine: num(t.OriginalLine), Side: side(t.Side), CanResolve: t.CanResolve, CanUnresolve: t.CanUnresolve, CanReply: t.CanReply}
+			OriginalLine: num(t.OriginalLine), File: t.Line == nil && t.OriginalLine == nil,
+			Side: side(t.Side), CanResolve: t.CanResolve, CanUnresolve: t.CanUnresolve, CanReply: t.CanReply}
 		for _, c := range t.Comments.Nodes {
 			th.Comments = append(th.Comments, c.comment())
 		}

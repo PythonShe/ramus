@@ -17457,6 +17457,24 @@ func (msgs Messages) PrsOutdatedOn(path string, line int) string {
 	return Catalog.Format(msgs.locale, "prsOutdatedOn", map[string]any{"path": path, "line": line})
 }
 
+// PrsCommentOnFile says "{changed, select, yes {on {path}, since changed} other {on {path}}}"
+// in the language the app shows.
+//
+// In the conversation: a review thread on a whole file, not on lines of it;
+// changed is yes when the file has changed since.
+func PrsCommentOnFile(changed string, path string) string {
+	return In(i18n.Locale()).PrsCommentOnFile(changed, path)
+}
+
+// PrsCommentOnFile says "{changed, select, yes {on {path}, since changed} other {on {path}}}"
+// in the language of msgs.
+//
+// In the conversation: a review thread on a whole file, not on lines of it;
+// changed is yes when the file has changed since.
+func (msgs Messages) PrsCommentOnFile(changed string, path string) string {
+	return Catalog.Format(msgs.locale, "prsCommentOnFile", map[string]any{"changed": changed, "path": path})
+}
+
 // PrsNoDescription says "No description."
 // in the language the app shows.
 //

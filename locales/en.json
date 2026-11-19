@@ -3776,6 +3776,10 @@
   "@prsOutdatedOn": {
     "description": "In the conversation: a review thread on lines the pull request has changed since."
   },
+  "prsCommentOnFile": "{changed, select, yes {on {path}, since changed} other {on {path}}}",
+  "@prsCommentOnFile": {
+    "description": "In the conversation: a review thread on a whole file, not on lines of it; changed is yes when the file has changed since."
+  },
   "prsNoDescription": "No description.",
   "@prsNoDescription": {
     "description": "Shown for a pull request without a description."
