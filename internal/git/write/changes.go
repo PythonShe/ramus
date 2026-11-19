@@ -107,16 +107,15 @@ func RestoreFrom(w Where, path, commit string) (Op, error) {
 		Input: pathspecs([]string{path}), Snapshot: &snapshot.Options{Reason: name, Paths: []string{path}}, Undo: FilesOnly}, nil
 }
 
-// MaxArgPaths bounds the paths a write passes as arguments in one
-// command, where git reads none from standard input.
+// MaxArgPaths bounds the paths one write on conflicted files takes.
 const MaxArgPaths = 1000
 
 // ErrTooMany is more paths than one write takes.
 var ErrTooMany = errors.New("write: too many paths at once")
 
-// maxArgBytes bounds the paths one git clean names: git clean reads no
-// paths from standard input, and Windows limits a command line to 32 K
-// characters.
+// maxArgBytes bounds the arguments of a command that names paths git
+// reads only as arguments: Windows limits a command line to 32767
+// characters, git's own path and the runner's config included.
 const maxArgBytes = 24 << 10
 
 // Delete removes untracked paths, folders included, after keeping them
@@ -135,20 +134,48 @@ func Delete(w Where, paths []string) (Op, error) {
 // argCmds runs args with paths after them, as many runs of mk as keep
 // each command line short enough.
 func argCmds(mk func(...string) run.Cmd, args, paths []string) []run.Cmd {
+	return SplitArgs(mk(args...), paths)
+}
+
+// SplitArgs is c with paths after its arguments, as many copies of it as
+// keep each command line within what every platform takes, for a git
+// command that reads no paths from standard input; none for no paths.
+// Each copy runs on its own, so a command that reads all its paths as
+// one whole (a diff that pairs renames) sees each part alone.
+func SplitArgs(c run.Cmd, paths []string) []run.Cmd {
+	base := argBytes("--git-dir="+c.GitDir) + argBytes("--work-tree="+c.WorkTree)
+	for _, kv := range c.Config {
+		base += argBytes("-c") + argBytes(kv)
+	}
+	for _, a := range c.Args {
+		base += argBytes(a)
+	}
 	var cmds []run.Cmd
 	for rest := paths; len(rest) > 0; {
-		a := slices.Clone(args)
-		head, n := len(a), 0
-		for i, p := range rest {
-			if i > 0 && n+len(p)+1 > maxArgBytes {
-				break
-			}
-			a, n = append(a, p), n+len(p)+1
+		n, k := base, 0
+		for k < len(rest) && (k == 0 || n+argBytes(rest[k]) <= maxArgBytes) {
+			n += argBytes(rest[k])
+			k++
 		}
-		rest = rest[len(a)-head:]
-		cmds = append(cmds, mk(a...))
+		part := c
+		part.Args = append(slices.Clip(c.Args), rest[:k]...)
+		cmds = append(cmds, part)
+		rest = rest[k:]
 	}
 	return cmds
+}
+
+// argBytes is what a takes of a command line, its separator included,
+// as Windows is given it: Go quotes an argument that is empty or holds a
+// space, a tab or a quote, escaping each quote and the backslashes before
+// one with a backslash. The count is over, never under: UTF-8 takes at
+// least as many bytes as UTF-16 takes characters.
+func argBytes(a string) int {
+	n := len(a) + 1
+	if a == "" || strings.ContainsAny(a, " \t\"") {
+		n += 2 + strings.Count(a, `"`) + strings.Count(a, `\`)
+	}
+	return n
 }
 
 // DiscardStaged discards changes staged and not: it unstages the paths

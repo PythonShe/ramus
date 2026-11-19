@@ -76,8 +76,10 @@ func pick(w Where, verb string, args, commits []string, mainline int, seen Seen)
 	if mainline > 0 {
 		args = append(args, "--mainline", strconv.Itoa(mainline))
 	}
+	// The commits go on standard input: a thousand of them pass what
+	// Windows takes on a command line.
 	op := Op{Name: commitsName(verb, commits), Undo: MovesHead, Expect: seen.expect(),
-		Cmd: w.cmd(append(append(args, "--end-of-options"), commits...)...)}
+		Cmd: w.cmd(append(args, "--stdin")...), Input: []byte(strings.Join(commits, "\n") + "\n")}
 	op.Cmd.Timeout = HookTimeout
 	if seen.Branch != "" {
 		op.Backup = []string{seen.Branch}
@@ -101,7 +103,8 @@ func Clean(w Where, paths []string, ignored bool, seen []FileState) (Op, error) 
 	if !ignored {
 		return op, nil
 	}
-	op.Cmd.Args = append([]string{"clean", "-f", "-d", "-x", "-q", "--"}, paths...)
+	cmds := argCmds(w.cmd, []string{"clean", "-f", "-d", "-x", "-q", "--"}, paths)
+	op.Cmd, op.More = cmds[0], cmds[1:]
 	op.Snapshot = &snapshot.Options{Reason: op.Name, Paths: paths, Ignored: true}
 	return op, nil
 }

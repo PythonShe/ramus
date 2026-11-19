@@ -76,7 +76,7 @@ func TakeSide(w Where, paths []string, side Side) (Op, error) {
 	}
 	name += count(len(paths), paths[0])
 	op := Op{Name: name, Snapshot: &snapshot.Options{Reason: name, Paths: paths},
-		Cmd: w.cmd(append([]string{"add", "--"}, paths...)...)}
+		Cmd: w.cmd(fromStdin("add")...), Input: pathspecs(paths)}
 	// The index is read in the job's turn: which paths are submodules is
 	// what the conflict holds when the write runs.
 	op.do = func(ctx context.Context, j *Job) (run.Result, error) {
@@ -89,10 +89,10 @@ func TakeSide(w Where, paths []string, side Side) (Op, error) {
 		}
 		var res run.Result
 		if len(files) > 0 {
-			if res, err = execute(ctx, j.q.r, j, w.cmd(append([]string{"checkout", flag, "--"}, files...)...), nil); err != nil {
+			if res, err = execute(ctx, j.q.r, j, w.cmd(fromStdin("checkout", flag)...), pathspecs(files)); err != nil {
 				return res, err
 			}
-			if res, err = execute(ctx, j.q.r, j, w.cmd(append([]string{"add", "--"}, files...)...), nil); err != nil {
+			if res, err = execute(ctx, j.q.r, j, w.cmd(fromStdin("add")...), pathspecs(files)); err != nil {
 				return res, err
 			}
 		}
@@ -144,7 +144,7 @@ func RemoveConflicted(w Where, paths []string) (Op, error) {
 	}
 	name := "Resolve by deleting " + count(len(paths), paths[0])
 	return Op{Name: name, Snapshot: &snapshot.Options{Reason: name, Paths: paths},
-		Cmd: w.cmd(append([]string{"rm", "-q", "--ignore-unmatch", "--"}, paths...)...)}, nil
+		Cmd: w.cmd(fromStdin("rm", "-q", "--ignore-unmatch")...), Input: pathspecs(paths)}, nil
 }
 
 // Resolve writes the merged result of a conflicted file and marks it
@@ -352,9 +352,12 @@ func MergeTool(w Where, paths []string, gui bool) (Op, error) {
 		args = append(args, "--gui")
 	}
 	name := "Merge tool for " + count(len(paths), paths[0])
-	cmd := w.cmd(append(append(args, "--"), paths...)...)
+	cmd := w.cmd(append(args, "--")...)
 	cmd.Timeout = MergeToolTime
-	return Op{Name: name, Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Cmd: cmd}, nil
+	// git mergetool reads no paths from standard input; it takes the
+	// files one at a time, so several runs do as one would.
+	cmds := SplitArgs(cmd, paths)
+	return Op{Name: name, Snapshot: &snapshot.Options{Reason: name, Paths: paths}, Cmd: cmds[0], More: cmds[1:]}, nil
 }
 
 // ObserveMerged records the MERGED file git mergetool hands over,

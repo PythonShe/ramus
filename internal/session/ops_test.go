@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -108,6 +109,39 @@ func TestLoadBisect(t *testing.T) {
 	}
 	if b := load(); b.FirstBad != commits[9] || b.Left != 0 {
 		t.Fatalf("found: %+v, want %s", b, commits[9])
+	}
+}
+
+// A patch of more files than a command line names on Windows is made in
+// several runs of git diff, one after another in the file.
+func TestSavePatchOfManyFiles(t *testing.T) {
+	r := gittest.Init(t)
+	var paths []string
+	for i := range 1500 {
+		paths = append(paths, fmt.Sprintf("src/components/feature %04d/the feature's own index.test.tsx", i))
+		r.Write(paths[i], "1\n")
+	}
+	r.Commit("one")
+	for _, p := range paths {
+		r.Write(p, "2\n")
+	}
+	s, m := openFor(t, r)
+	file := filepath.Join(t.TempDir(), "many.diff")
+	done := false
+	s.SavePatch(PatchSave{Paths: paths}, file, func(err error) {
+		if err != nil {
+			t.Error(err)
+		}
+		done = true
+	})
+	m.until(t, "the save", func() bool { return done })
+	if b, _ := os.ReadFile(file); strings.Count(string(b), "\ndiff --git ")+1 != len(paths) {
+		t.Fatalf("%d files in the patch", strings.Count(string(b), "\ndiff --git ")+1)
+	}
+	for _, rec := range s.Repo.Runner.Journal().For(r.GitDir()) {
+		if len(rec.Line) > 24<<10+1024 {
+			t.Fatalf("a command line of %d characters", len(rec.Line))
+		}
 	}
 }
 

@@ -66,10 +66,13 @@ func savePatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 		if req.Cached {
 			args = append(args, "--cached")
 		}
-		_, err = rn.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, Stdout: tmp,
-			Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: append(append(args, "--"), req.Paths...)})
-		if err != nil {
-			return err
+		// git diff reads paths only as arguments: many take several runs,
+		// one patch after another.
+		for _, c := range write.SplitArgs(run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, Stdout: tmp,
+			Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: append(args, "--")}, req.Paths) {
+			if _, err = rn.Run(ctx, &c); err != nil {
+				return err
+			}
 		}
 	default:
 		return errors.New("session: nothing to save as a patch")

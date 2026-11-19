@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ramus/internal/git/run"
+	"ramus/internal/git/write"
 	"ramus/locales"
 )
 
@@ -98,22 +99,34 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 	case req.Cached:
 		args = append(args, "--cached")
 	}
-	args = append(append(args, "--"), req.Paths...)
+	base := run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Args: append(args, "--"), Config: config,
+		Env: []string{"GIT_LITERAL_PATHSPECS=1"}}
+	// git difftool reads paths only as arguments and opens the files one
+	// at a time: many take several runs, one after another.
+	runs := write.SplitArgs(base, req.Paths)
+	if len(runs) == 0 {
+		runs = []run.Cmd{base}
+	}
 	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		defer s.tools.open.Add(-1)
 		ctx, cancel := context.WithTimeout(ctx, diffToolTime)
 		defer cancel()
-		cmd := r.Runner.Command(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Args: args, Config: config,
-			Env: []string{"GIT_LITERAL_PATHSPECS=1"}})
 		var stderr strings.Builder
-		cmd.Stderr = &limitedWriter{w: &stderr, left: 8 << 10}
-		untrack := r.Runner.Track()
-		err := r.Runner.Start(cmd)
-		if err == nil {
-			err = cmd.Wait()
+		var err error
+		for _, c := range runs {
+			cmd := r.Runner.Command(ctx, &c)
+			cmd.Stderr = &limitedWriter{w: &stderr, left: 8 << 10}
+			untrack := r.Runner.Track()
+			err = r.Runner.Start(cmd)
+			if err == nil {
+				err = cmd.Wait()
+			}
+			untrack()
+			if err != nil {
+				break
+			}
 		}
-		untrack()
 		if err != nil && ctx.Err() == nil {
 			if msg := strings.TrimSpace(stderr.String()); msg != "" {
 				err = errors.New(msg)

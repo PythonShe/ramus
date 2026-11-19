@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,5 +87,46 @@ func TestDiffTool(t *testing.T) {
 	}
 	if err := run1(open(true), DiffToolRequest{Paths: []string{"a.txt"}}); !errors.Is(err, ErrNoDiffTool) {
 		t.Fatalf("no tool: %v", err)
+	}
+}
+
+// More files than a command line names on Windows go to the tool in
+// several runs of git difftool, every file once.
+func TestDiffToolManyFiles(t *testing.T) {
+	r := gittest.Init(t)
+	r.Git("config", "core.longpaths", "true")
+	// Few files, as each opens the tool: long names fill the line.
+	long := strings.Repeat("a folder with a long name ", 8)
+	var paths []string
+	for i := range 40 {
+		paths = append(paths, fmt.Sprintf("%s/%s/%s/file %03d.txt", long, long, long, i))
+		r.Write(paths[i], "one\n")
+	}
+	r.Commit("a")
+	for _, p := range paths {
+		r.Write(p, "two\n")
+	}
+	out := filepath.Join(t.TempDir(), "seen")
+	r.Git("config", "difftool.record.cmd", `echo "$BASE" >> `+filepath.ToSlash(out))
+	r.Git("config", "diff.tool", "record")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	done := false
+	s.OpenDiffTool(DiffToolRequest{Paths: paths}, func(err error) {
+		if err != nil {
+			t.Error(err)
+		}
+		done = true
+	})
+	m.until(t, "the tool", func() bool { return done })
+	if b, _ := os.ReadFile(out); strings.Count(string(b), "\n") != len(paths) {
+		t.Fatalf("the tool saw %d files of %d", strings.Count(string(b), "\n"), len(paths))
+	}
+	for _, rec := range s.Repo.Runner.Journal().For(r.GitDir()) {
+		if len(rec.Line) > 24<<10+1024 {
+			t.Fatalf("a command line of %d characters", len(rec.Line))
+		}
 	}
 }
