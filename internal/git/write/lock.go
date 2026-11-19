@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"ramus/internal/git/osfile"
 )
 
 // LockedError is a write that could not start, or that git refused,
@@ -115,7 +117,7 @@ func inRepository(gitDir, path string) bool {
 		return false
 	}
 	dirs := []string{gitDir}
-	if b, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+	if b, err := osfile.ReadFile(filepath.Join(gitDir, "commondir"), 64<<10); err == nil {
 		common := strings.TrimSpace(string(b))
 		if !filepath.IsAbs(common) {
 			common = filepath.Join(gitDir, common)

@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"ramus/internal/git/osfile"
 	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 	"ramus/internal/git/snapshot"
@@ -219,6 +220,10 @@ func Sequence(w Where, operation string, action SequenceAction) (Op, error) {
 	return op, nil
 }
 
+// maxMessage bounds a message file of the git directory read here; git
+// writes none near it.
+const maxMessage = 16 << 20
+
 // keepMessage readies the message git prepared for the commit a continue
 // makes (MERGE_MSG, and a rebase's own copy) to keep every line: the
 // conflicts git listed in it, as comments, are taken out, and the comment
@@ -227,14 +232,15 @@ func Sequence(w Where, operation string, action SequenceAction) (Op, error) {
 // to git: in a squash, git's own comments join the messages, and the
 // character returned is the one they start with.
 func keepMessage(gitDir string) (string, error) {
-	if b, err := os.ReadFile(filepath.Join(gitDir, "rebase-merge", "current-fixups")); err == nil && len(bytes.TrimSpace(b)) > 0 {
+	if b, err := osfile.ReadFile(filepath.Join(gitDir, "rebase-merge", "current-fixups"), maxMessage); err == nil && len(bytes.TrimSpace(b)) > 0 {
 		return squashComment(gitDir), nil
 	}
 	var all strings.Builder
 	for _, name := range []string{"MERGE_MSG", filepath.Join("rebase-merge", "message")} {
 		p := filepath.Join(gitDir, name)
-		b, err := os.ReadFile(p)
-		if errors.Is(err, os.ErrNotExist) {
+		b, err := osfile.ReadFile(p, maxMessage)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, osfile.ErrTooLarge) {
+			// Past the bound, the message is left to git as it is.
 			continue
 		}
 		if err != nil {
@@ -258,7 +264,7 @@ func keepMessage(gitDir string) (string, error) {
 // editor would show it stripped: without the conflicts listed and lines
 // starting with comment, the comment string. "" when there is none.
 func PreparedMessage(gitDir, comment string) (string, error) {
-	b, err := os.ReadFile(filepath.Join(gitDir, "MERGE_MSG"))
+	b, err := osfile.ReadFile(filepath.Join(gitDir, "MERGE_MSG"), maxMessage)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
@@ -280,7 +286,7 @@ func PreparedMessage(gitDir, comment string) (string, error) {
 // same rebase, which git keeps using, strips only if given again.
 func squashComment(gitDir string) string {
 	for _, name := range []string{filepath.Join("rebase-merge", "message"), "MERGE_MSG"} {
-		b, err := os.ReadFile(filepath.Join(gitDir, name))
+		b, err := osfile.ReadFile(filepath.Join(gitDir, name), maxMessage)
 		if err != nil {
 			continue
 		}

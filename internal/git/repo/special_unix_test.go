@@ -6,12 +6,17 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"ramus/internal/git/commitgraph"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/index"
+	"ramus/internal/git/lfs"
+	"ramus/internal/git/refs"
 )
 
 // returns fails the test when fn does not return in time: a read of a
@@ -98,6 +103,76 @@ func TestNamedPipesInTheGitDirectory(t *testing.T) {
 	returns(t, "the operation in progress", func() {
 		if op := InProgress(gd); op != CherryPick {
 			t.Errorf("got %q", op)
+		}
+	})
+}
+
+// Every reader of a file in the git directory, and of the work tree's
+// .gitattributes, refuses a named pipe in its place at once.
+func TestNamedPipesForEveryReader(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("f", "x")
+	r.Commit("one")
+	gd := r.GitDir()
+	loc, err := Discover(r.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objects := filepath.Join(gd, "objects")
+	oid := strings.Repeat("ab", 32)
+	for _, p := range []string{
+		filepath.Join(gd, "index"),
+		filepath.Join(gd, "packed-refs"),
+		filepath.Join(gd, "reftable", "tables.list"),
+		filepath.Join(objects, "info", "commit-graph"),
+		filepath.Join(gd, "lfs", "objects", oid[:2], oid[2:4], oid),
+		filepath.Join(r.Dir, ".gitattributes"),
+	} {
+		fifo(t, p)
+	}
+	returns(t, "the index", func() {
+		if _, err := index.ReadFile(filepath.Join(gd, "index"), 20); err == nil {
+			t.Error("read a named pipe as the index")
+		}
+		if n := indexEntries(filepath.Join(gd, "index")); n != -1 {
+			t.Errorf("a named pipe holds %d entries", n)
+		}
+	})
+	returns(t, "packed-refs", func() {
+		if _, err := refs.New(gd, gd, 20).List(); err == nil {
+			t.Error("read a named pipe as packed-refs")
+		}
+		if !hasReplaceRefs(loc, Capabilities{RefStorage: "files"}, nil) {
+			t.Error("a packed-refs that cannot be read holds no replace refs")
+		}
+	})
+	returns(t, "the reftable stack", func() {
+		if _, err := refs.NewReftable(gd, gd, 20).List(); err == nil {
+			t.Error("read a named pipe as tables.list")
+		}
+	})
+	returns(t, "the commit-graph", func() {
+		if g, err := commitgraph.Open(objects); err == nil {
+			g.Close()
+			t.Error("mapped a named pipe as the commit-graph")
+		}
+	})
+	fifo(t, filepath.Join(objects, "info", "commit-graphs", "commit-graph-chain"))
+	returns(t, "the commit-graph chain", func() {
+		if g, err := commitgraph.Open(objects); err == nil {
+			g.Close()
+			t.Error("read a named pipe as the commit-graph chain")
+		}
+	})
+	returns(t, "an LFS object", func() {
+		if _, err := lfs.ReadObject(gd, lfs.Pointer{OID: oid, Size: 1}, 1<<20); err == nil {
+			t.Error("read a named pipe as an LFS object")
+		}
+	})
+	os.RemoveAll(filepath.Join(gd, "lfs"))
+	returns(t, ".gitattributes", func() {
+		if lfs.Uses(gd, r.Dir) {
+			t.Error("a named pipe as .gitattributes routes files through LFS")
 		}
 	})
 }

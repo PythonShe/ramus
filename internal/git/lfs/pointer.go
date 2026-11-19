@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"ramus/internal/git/osfile"
 )
 
 // Pointer is what git keeps of a file stored in LFS: the id and size of
@@ -90,7 +92,7 @@ func ReadObject(commonDir string, p Pointer, max int64) ([]byte, error) {
 	if p.Size > max {
 		return nil, ErrTooLarge
 	}
-	f, err := os.Open(filepath.Join(commonDir, "lfs", "objects", p.OID[:2], p.OID[2:4], p.OID))
+	f, err := osfile.Open(filepath.Join(commonDir, "lfs", "objects", p.OID[:2], p.OID[2:4], p.OID))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFetched
 	}

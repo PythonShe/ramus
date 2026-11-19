@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"ramus/internal/git/osfile"
 	"ramus/internal/git/run"
 )
 
@@ -48,6 +50,9 @@ const Timeout = 2 * time.Minute
 // MaxLocks bounds the locks read.
 const MaxLocks = 10000
 
+// maxAttributes is the most of .gitattributes read, git's own limit.
+const maxAttributes = 100 << 20
+
 // Uses reports whether the repository keeps files in LFS: a
 // .gitattributes at the top of the work tree routes some through its
 // filter, or git-lfs has stored objects in the git directory. It reads
@@ -59,12 +64,12 @@ func Uses(commonDir, workTree string) bool {
 	if workTree == "" {
 		return false
 	}
-	f, err := os.Open(filepath.Join(workTree, ".gitattributes"))
+	f, err := osfile.Open(filepath.Join(workTree, ".gitattributes"))
 	if err != nil {
 		return false
 	}
 	defer f.Close()
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(io.LimitReader(f, maxAttributes))
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if strings.HasPrefix(line, "#") {
