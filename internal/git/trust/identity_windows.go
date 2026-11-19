@@ -11,7 +11,10 @@ import (
 // identity names the folder at path apart from any other the path may
 // name later: its volume's serial number and its file index, which NTFS
 // does not give again while the folder exists and changes the sequence
-// part of when it reuses one.
+// part of when it reuses one. Both are written in the volume, so they
+// survive its being mounted again (where on Unix the device number
+// changes, identity_unix.go); a volume made to stand for another would
+// have to carry both, the folder's file index too.
 func identity(path string) (string, error) {
 	p, err := windows.UTF16PtrFromString(path)
 	if err != nil {
