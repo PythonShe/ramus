@@ -127,6 +127,18 @@ type patchView struct {
 	pics pictureState
 	// sub is a submodule's change, shown as the commits it moves over.
 	sub *subChange
+	// picked is selectedLines as of the viewer's selection it was worked
+	// out for: the header asks for it every frame, and a selection can
+	// hold a whole patch's lines.
+	picked pickedLines
+}
+
+// pickedLines is selectedLines of a viewer's selection.
+type pickedLines struct {
+	d      *editor.DiffState
+	r      editor.DiffLineRange
+	chosen func(int) bool
+	n      int
 }
 
 // subChange is a submodule's change: its commits before and after, and
@@ -235,6 +247,9 @@ func (pv *patchView) selectedLines() (func(int) bool, int) {
 	if !ok {
 		return nil, 0
 	}
+	if c := &pv.picked; c.d == pv.d && c.r == r && c.chosen != nil {
+		return c.chosen, c.n
+	}
 	side, kind := pv.newAt, byte('+')
 	if r.Side == editor.DiffOld {
 		side, kind = pv.oldAt, '-'
@@ -245,7 +260,9 @@ func (pv *patchView) selectedLines() (func(int) bool, int) {
 			set[int(k)] = true
 		}
 	}
-	return func(i int) bool { return set[i] }, len(set)
+	chosen := func(i int) bool { return set[i] }
+	pv.picked = pickedLines{d: pv.d, r: r, chosen: chosen, n: len(set)}
+	return chosen, len(set)
 }
 
 func (pv *patchView) clearSelection() {
