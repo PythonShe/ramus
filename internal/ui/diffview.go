@@ -33,8 +33,11 @@ type diffState struct {
 	key     diffKey
 	loading bool
 	res     session.PatchResult
-	pv      patchView
-	pager   patchPager
+	// resKey is what res was read for: res stays shown while the patch
+	// of key is read, and lines are applied only to the file they are of.
+	resKey diffKey
+	pv     patchView
+	pager  patchPager
 	// load reads the patch again for the pager's next step.
 	load func()
 }
@@ -117,6 +120,10 @@ func (a *App) readPatch(t *tab, key diffKey, sides session.Sides) {
 	if d.key.path != key.path || d.key.src != key.src {
 		d.pager = patchPager{}
 	}
+	if d.resKey.path != key.path || d.resKey.src != key.src {
+		// The lines picked are of the file shown, not of the one chosen.
+		d.pv.clearSelection()
+	}
 	d.key = key
 	var load func()
 	load = func() {
@@ -127,7 +134,7 @@ func (a *App) readPatch(t *tab, key diffKey, sides session.Sides) {
 			if d.key != key {
 				return
 			}
-			d.res = res
+			d.res, d.resKey = res, key
 			a.setPatch(&d.pv, res)
 			if d.pager.more(res) {
 				load()
@@ -185,6 +192,9 @@ func patchSides(st *status.Status, i int, src diff.Source) session.Sides {
 // changeActions are the buttons on a change of the patch shown.
 func (a *App) changeActions(c *ui.Context, t *tab, r changeRow, change int) {
 	d := &t.cv.diff
+	if !d.partialOK() {
+		return
+	}
 	ro := t.s.Queue == nil
 	lines := d.pv.changeLines(change)
 	if r.sec == secStaged {
@@ -202,8 +212,13 @@ func (a *App) changeActions(c *ui.Context, t *tab, r changeRow, change int) {
 }
 
 // partialOK reports whether lines of this patch can be staged, unstaged
-// or discarded one by one.
-func (d *diffState) partialOK() bool { return partialOK(d.res, d.key) }
+// or discarded one by one: not while the patch shown is another file's
+// or section's, kept until the one chosen is read. A newer status of the
+// same file may differ; git apply's context refuses a stale patch.
+func (d *diffState) partialOK() bool {
+	k, rk := d.key, d.resKey
+	return k.path == rk.path && k.orig == rk.orig && k.src == rk.src && k.ws == rk.ws && partialOK(d.res, rk)
+}
 
 func partialOK(res session.PatchResult, key diffKey) bool {
 	p := res.Parsed
@@ -404,7 +419,7 @@ type lineTarget struct {
 // shownLines is the target of the file shown in the changes view.
 func (t *tab) shownLines() lineTarget {
 	d := &t.cv.diff
-	return lineTarget{p: d.res.Parsed, path: d.key.path, pv: &d.pv}
+	return lineTarget{p: d.res.Parsed, path: d.resKey.path, pv: &d.pv}
 }
 
 // applyLines stages (cached, not reverse), unstages (cached, reverse) or
