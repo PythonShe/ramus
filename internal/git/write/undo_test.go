@@ -503,6 +503,38 @@ func TestUndoMixedReset(t *testing.T) {
 	}
 }
 
+// Undo of a switch that stashed the changes first brings them back.
+func TestUndoStashingSwitch(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1\n")
+	h.r.Commit("one")
+	h.r.Git("branch", "side")
+	h.r.Write("a", "work\n")
+	h.r.Write("new", "untracked\n")
+	h.do(SwitchWith(h.w, "refs/heads/side", StashChanges, h.seen()), nil, true)
+	if h.read("a") != "1\n" {
+		t.Fatal("not stashed")
+	}
+	h.undo()
+	if h.seen().Branch != "refs/heads/main" || h.read("a") != "work\n" || h.read("new") != "untracked\n" {
+		t.Fatalf("on %s, a %q", h.seen().Branch, h.read("a"))
+	}
+	if out := h.r.Git("stash", "list"); out != "" {
+		t.Fatalf("stash left: %q", out)
+	}
+	// Redo switches again, the changes coming along.
+	if _, err := wait(t, h.q.Redo()); err != nil {
+		t.Fatal(err)
+	}
+	if h.seen().Branch != "refs/heads/side" || h.read("a") != "work\n" {
+		t.Fatal("redo")
+	}
+	h.undo()
+	if h.seen().Branch != "refs/heads/main" || h.read("a") != "work\n" {
+		t.Fatal("undo after redo")
+	}
+}
+
 // A discard that fails part way, after it unstaged and before it wrote
 // the file back, can be undone, and says where its work is kept.
 func TestFailedDiscardCanBeUndone(t *testing.T) {

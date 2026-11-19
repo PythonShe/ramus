@@ -1,10 +1,47 @@
 package write
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"ramus/internal/git/run"
 )
+
+// popStash puts back the changes the write of e stashed before it ran,
+// once its undo took HEAD back: the stash found by its commit, not as
+// stash@{0}, which another may have been pushed over. When that fails,
+// the error names the stash they stay in.
+func (q *Queue) popStash(ctx context.Context, e Entry) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), unstashTimeout)
+	defer cancel()
+	workTree := e.op.Cmd.WorkTree
+	entry := ""
+	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Read: true,
+		Args: []string{"log", "-g", "--format=%H", "refs/stash", "--"}})
+	if err == nil {
+		for n, line := range strings.Split(strings.TrimSpace(string(res.Stdout)), "\n") {
+			if line == e.stash {
+				entry = "stash@{" + strconv.Itoa(n) + "}"
+				break
+			}
+		}
+		if entry == "" {
+			err = errors.New("write: the stash made is not in the stash list")
+		}
+	}
+	if err == nil {
+		_, err = q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Timeout: unstashTimeout,
+			Args: []string{"stash", "pop", "--index", entry}})
+	}
+	if err != nil {
+		return &StashKeptError{Err: fmt.Errorf("write: undo of %s went back", e.Name), Entry: entry, Commit: e.stash, Pop: err}
+	}
+	return nil
+}
 
 // Repeatable reports whether op can be submitted again as it is, after
 // it failed: one that runs a command, not one the engine makes of

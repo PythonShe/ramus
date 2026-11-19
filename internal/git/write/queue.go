@@ -114,6 +114,9 @@ type Job struct {
 	dropped int
 	// entry is the History entry the write recorded, 0 for none.
 	entry uint64
+	// stash is the stash the write's Pre made of the local changes, ""
+	// for none.
+	stash string
 }
 
 // KeptError is a write that failed after keeping a snapshot of what it
@@ -385,6 +388,11 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 				stashed, unread = nil, err
 			} else {
 				stashed.made = made
+				if made != "" && made != stashed.stash {
+					j.mu.Lock()
+					j.stash = made
+					j.mu.Unlock()
+				}
 			}
 		}
 		if preErr != nil {
@@ -443,14 +451,14 @@ func (q *Queue) record(j *Job, before fullState) {
 	}
 	b, a := touched(before, after, j.Op.Refs)
 	j.mu.Lock()
-	snap, config, backup := j.snap, j.config, j.backup
+	snap, config, backup, stash := j.snap, j.config, j.backup, j.stash
 	j.mu.Unlock()
-	if j.Op.Undo == MovesHead && snap.Commit == "" && a.Symbolic == b.Symbolic && a.Head == b.Head && len(a.Refs) == 0 {
+	if j.Op.Undo == MovesHead && snap.Commit == "" && stash == "" && a.Symbolic == b.Symbolic && a.Head == b.Head && len(a.Refs) == 0 {
 		// Nothing moved, as a merge or pull already up to date: there is
 		// nothing to undo, and an undo would only unstage.
 		return
 	}
-	e := Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op, backup: backup}
+	e := Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op, backup: backup, stash: stash}
 	q.settle(&e, config)
 	id := q.History.push(e)
 	j.mu.Lock()

@@ -74,6 +74,9 @@ type Entry struct {
 	// unknown when they could not be read, and then none is.
 	paths   []string
 	unknown bool
+	// stash is the stash the write made of the local changes before it
+	// ran (a switch that stashes), which its undo pops back; "" for none.
+	stash string
 }
 
 // History holds a repository's undoable writes, for as long as the
@@ -303,6 +306,13 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 		if err = q.unchanged(ctx, e); err == nil {
 			err = q.apply(ctx, e, e.After, e.Before, true)
 		}
+		if e.stash != "" && (err == nil || moved(err)) {
+			// The changes a switch stashed come back with the branch.
+			err = errors.Join(err, q.popStash(ctx, e))
+			if err == nil {
+				e.stash = ""
+			}
+		}
 	case e.Kind == FilesOnly || e.Kind == MovesHead && e.op.Snapshot != nil:
 		// A write that dropped work is redone by running it again, after
 		// checking nothing moved, since only it knows what it drops. Its
@@ -343,12 +353,14 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 
 // moved reports an undo or redo that failed once the repository had
 // moved, which its entry moves with, the error saying what is left: the
-// branches' settings, the rest after HEAD, or a redo that ran part way.
+// branches' settings, the rest after HEAD, the stashed changes, or a
+// redo that ran part way.
 func moved(err error) bool {
 	var ce *configError
 	var pe *partlyError
+	var se *StashKeptError
 	var ke *KeptError
-	return errors.As(err, &ce) || errors.As(err, &pe) || errors.As(err, &ke) && ke.Undo
+	return errors.As(err, &ce) || errors.As(err, &pe) || errors.As(err, &se) || errors.As(err, &ke) && ke.Undo
 }
 
 // apply moves the repository from state from to state to, refusing if it
