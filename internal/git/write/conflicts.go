@@ -346,17 +346,19 @@ func dropConflicts(msg string) string {
 // MergeToolTime bounds how long an external merge tool stays open.
 const MergeToolTime = 4 * time.Hour
 
-// MergeTool hands conflicted paths to the merge tool git's config names,
-// through git mergetool, which marks each resolved as the tool closes.
-// The queue waits for it.
-func MergeTool(w Where, paths []string, gui bool) (Op, error) {
+// MergeTool hands conflicted paths to tool, the merge tool git's config
+// names (merge.guitool or merge.tool), through git mergetool, which marks
+// each resolved as the tool closes. The queue waits for it. The tool is
+// named to git: given none, or one it does not know, git would guess
+// one, vimdiff among them, which waits unseen for a terminal.
+func MergeTool(w Where, paths []string, tool string) (Op, error) {
 	if err := checkPaths(paths); err != nil {
 		return Op{}, err
 	}
-	args := []string{"mergetool", "--no-prompt"}
-	if gui {
-		args = append(args, "--gui")
+	if tool == "" {
+		return Op{}, errors.New("write: no merge tool named")
 	}
+	args := []string{"mergetool", "--no-prompt", "--tool=" + tool}
 	name := "Merge tool for " + count(len(paths), paths[0])
 	cmd := w.cmd(append(args, "--")...)
 	cmd.Timeout = MergeToolTime

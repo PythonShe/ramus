@@ -107,7 +107,7 @@ func TestPathListsFitACommandLine(t *testing.T) {
 
 	// The commands built, a submodule's included, which this repository
 	// has none of.
-	tool, err := MergeTool(h.w, paths, false)
+	tool, err := MergeTool(h.w, paths, "fake")
 	if err != nil {
 		t.Fatal(err)
 	}

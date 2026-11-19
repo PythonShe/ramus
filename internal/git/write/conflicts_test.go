@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 )
@@ -191,10 +192,29 @@ func TestMergeTool(t *testing.T) {
 	h.r.Git("config", "mergetool.fake.cmd", `printf 'from tool\n' > "$MERGED"`)
 	h.r.Git("config", "mergetool.fake.trustExitCode", "true")
 	h.r.Git("config", "merge.tool", "fake")
-	op, err := MergeTool(h.w, []string{"a.txt"}, false)
+	op, err := MergeTool(h.w, []string{"a.txt"}, "fake")
 	h.do(op, err, true)
 	if h.read("a.txt") != "from tool\n" || strings.Contains(h.r.Git("ls-files", "-u"), "a.txt") {
 		t.Fatalf("a.txt %q, unmerged %q", h.read("a.txt"), h.r.Git("ls-files", "-u"))
+	}
+}
+
+// A merge tool git does not know, as a misspelt merge.tool or one whose
+// mergetool.<Name>.cmd differs in case, fails at once: git is not left
+// to guess one, which may be vimdiff waiting unseen for a terminal.
+func TestUnknownMergeToolFails(t *testing.T) {
+	h := conflicted(t)
+	h.r.Git("config", "mergetool.Fake.cmd", `printf 'from tool\n' > "$MERGED"`)
+	h.r.Git("config", "merge.tool", "fake")
+	op, err := MergeTool(h.w, []string{"a.txt"}, "fake")
+	// A bound on a regression only: git answers at once.
+	op.Cmd.Timeout = time.Minute
+	h.do(op, err, false)
+	if !strings.Contains(h.r.Git("ls-files", "-u"), "a.txt") {
+		t.Fatal("a.txt resolved")
+	}
+	if _, err := MergeTool(h.w, []string{"a.txt"}, ""); err == nil {
+		t.Fatal("no tool named, and git left to guess")
 	}
 }
 

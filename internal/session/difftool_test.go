@@ -223,19 +223,31 @@ func TestTerminalDiffToolRefused(t *testing.T) {
 		name    string
 		config  [][2]string
 		refused string
+		// fails is set for a tool git does not know, which git is not
+		// left to guess: its guess may be vimdiff, waiting unseen.
+		fails bool
 	}{
-		{"diff.tool", [][2]string{{"diff.tool", "vimdiff"}}, "vimdiff"},
-		{"merge.tool", [][2]string{{"merge.tool", "nvimdiff2"}}, "nvimdiff2"},
-		{"diff.guitool", [][2]string{{"diff.tool", "meld"}, {"diff.guitool", "emerge"}}, "emerge"},
-		{"own command", [][2]string{{"diff.tool", "vimdiff"}, {"difftool.vimdiff.cmd", "true"}}, ""},
+		{"diff.tool", [][2]string{{"diff.tool", "vimdiff"}}, "vimdiff", false},
+		{"merge.tool", [][2]string{{"merge.tool", "nvimdiff2"}}, "nvimdiff2", false},
+		{"diff.guitool", [][2]string{{"diff.tool", "meld"}, {"diff.guitool", "emerge"}}, "emerge", false},
+		{"own command", [][2]string{{"diff.tool", "vimdiff"}, {"difftool.vimdiff.cmd", "true"}}, "", false},
+		{"a vim with a window", [][2]string{{"diff.tool", "vimdiff"}, {"difftool.vimdiff.path", "@mvim"}}, "", false},
+		{"unknown tool", [][2]string{{"diff.tool", "nosuchtool"}}, "", true},
+		{"another case than its command's", [][2]string{{"diff.tool", "mine"}, {"difftool.Mine.cmd", "true"}}, "", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := gittest.Init(t)
 			r.Write("a.txt", "one\n")
 			r.Commit("a")
 			r.Write("a.txt", "two\n")
+			// A stand-in for a vim with a window, which exits as one
+			// closed would.
+			bin := t.TempDir()
+			if err := os.WriteFile(filepath.Join(bin, "mvim"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
 			for _, kv := range c.config {
-				r.Git("config", kv[0], kv[1])
+				r.Git("config", kv[0], strings.Replace(kv[1], "@", bin+"/", 1))
 			}
 			m := make(mainThread, 64)
 			s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
@@ -245,6 +257,12 @@ func TestTerminalDiffToolRefused(t *testing.T) {
 			done := false
 			s.OpenDiffTool(DiffToolRequest{Paths: []string{"a.txt"}}, func(err error) { got, done = err, true })
 			m.until(t, "the tool", func() bool { return done })
+			if c.fails {
+				if got == nil || strings.HasPrefix(got.Error(), "session:") {
+					t.Fatalf("got %v, want git's error", got)
+				}
+				return
+			}
 			if c.refused == "" {
 				if got != nil {
 					t.Fatalf("the tool of the user's own command failed: %v", got)

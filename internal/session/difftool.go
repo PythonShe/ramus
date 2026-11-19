@@ -108,8 +108,10 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 	// git runs a terminal tool, as vimdiff, with no terminal to show it
 	// in: it would wait unseen for its time, holding a place of the
 	// few open at once. git difftool reads a tool's command from
-	// difftool.<tool>.cmd, then mergetool.<tool>.cmd.
-	if name := cmp.Or(gui, tool); name != ownTool && write.TerminalTool(name, get("difftool."+name+".cmd", "mergetool."+name+".cmd")) {
+	// difftool.<tool>.cmd, then mergetool.<tool>.cmd, and its path
+	// likewise.
+	name := cmp.Or(gui, tool)
+	if name != ownTool && write.TerminalTool(name, get("difftool."+name+".cmd", "mergetool."+name+".cmd"), get("difftool."+name+".path", "mergetool."+name+".path")) {
 		done(errors.New(locales.SessionDiffTerminalTool(name)))
 		return
 	}
@@ -118,13 +120,10 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 		done(errors.New(locales.SessionTooManyDiffTools()))
 		return
 	}
-	args := []string{"difftool", "--no-prompt"}
-	switch {
-	case tool == ownTool:
-		args = append(args, "--tool="+ownTool)
-	case gui != "":
-		args = append(args, "--gui")
-	}
+	// The tool checked is the one git runs: given a name it does not
+	// know, git fails at once instead of guessing one, vimdiff among
+	// them.
+	args := []string{"difftool", "--no-prompt", "--tool=" + name}
 	switch {
 	case req.From != nil && req.To != nil:
 		args = append(args, hex.EncodeToString(req.From), hex.EncodeToString(req.To))

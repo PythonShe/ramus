@@ -890,18 +890,18 @@ func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, ac
 			*act = func() { a.takeBoth(t, p) }
 		}
 	}
-	gui, tool, toolCmd := "", "", ""
+	tool, toolCmd, toolPath := "", "", ""
 	if r := t.s.Repo; r != nil {
-		gui, _ = r.Config().Get("merge.guitool")
-		tool, _ = r.Config().Get("merge.tool")
-		if gui != "" {
-			tool = gui
+		tool, _ = r.Config().Get("merge.guitool")
+		if tool == "" {
+			tool, _ = r.Config().Get("merge.tool")
 		}
 		toolCmd, _ = r.Config().Get("mergetool." + tool + ".cmd")
+		toolPath, _ = r.Config().Get("mergetool." + tool + ".path")
 	}
 	if menu.Item(locales.MergeOpenInTool()).Disabled(ro || tool == "").Chosen() {
 		*act = func() {
-			if write.TerminalTool(tool, toolCmd) {
+			if write.TerminalTool(tool, toolCmd, toolPath) {
 				a.notice = locales.MergeTerminalTool(tool)
 				return
 			}
@@ -909,7 +909,7 @@ func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, ac
 			for _, e := range es {
 				paths = append(paths, string(m.st.Path(int(e))))
 			}
-			op, err := write.MergeTool(w, paths, gui != "")
+			op, err := write.MergeTool(w, paths, tool)
 			a.submit(t, op, err)
 		}
 	}

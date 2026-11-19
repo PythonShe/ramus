@@ -32,14 +32,30 @@ func TestTerminalToolsAreGits(t *testing.T) {
 		}
 		listed++
 		name, gui := f[0], strings.Contains(l, "graphical session")
-		if TerminalTool(name, "") == gui {
+		if TerminalTool(name, "", "") == gui {
 			t.Errorf("%s: terminal %v, git's help %q", name, !gui, l)
 		}
 	}
 	if listed < 10 {
 		t.Fatalf("read %d tools from %s", listed, out)
 	}
-	if TerminalTool("vimdiff", "my-merge $MERGED") {
+	if TerminalTool("vimdiff", "my-merge $MERGED", "") {
 		t.Error("a command of the user's own is refused")
+	}
+	// git's vimdiff runs the vim its path names: one with a window of its
+	// own works without a terminal, another vim does not.
+	for path, terminal := range map[string]bool{
+		"/opt/homebrew/bin/mvim":        false,
+		`C:\Program Files\Vim\gvim.exe`: false,
+		"gvim":                          false,
+		"/usr/bin/vim":                  true,
+		"nvim":                          true,
+	} {
+		if got := TerminalTool("vimdiff", "", path); got != terminal {
+			t.Errorf("vimdiff at %s: terminal %v, want %v", path, got, terminal)
+		}
+	}
+	if !TerminalTool("emerge", "", "/usr/bin/gvim") {
+		t.Error("an emerge whose path is a vim is let run")
 	}
 }
