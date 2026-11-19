@@ -9,7 +9,6 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"ramus/internal/tools"
 	"ramus/locales"
 )
 
@@ -121,7 +120,8 @@ func (a *App) diagnosticsView(c *ui.Context) {
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
 				if ui.Button(c, locales.DiagnosticsOpenIssue()).Clicked() {
-					a.goWork(nil, func() { tools.OpenDefault(issueURL) })
+					// A web page, for the browser: tools open files.
+					a.openURL = issueURL
 				}
 				ui.Spacer(c)
 				if ui.Button(c, locales.CommonClose()).Clicked() {

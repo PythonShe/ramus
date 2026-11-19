@@ -2,6 +2,7 @@ package ui
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -44,4 +45,7 @@ func TestDiagnostics(t *testing.T) {
 	if got := h.tt.Clipboard(); same(got) != same(h.app.diagnostics()) {
 		t.Fatalf("copied text differs from the text shown")
 	}
+	// The issue page opens in the browser.
+	h.click("Open Issue Page")
+	h.until("the page", func() bool { return slices.Contains(h.tt.OpenedURLs(), issueURL) })
 }
