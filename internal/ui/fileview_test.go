@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"ramus/internal/git/write"
 )
 
 // A file's history follows its rename; its blame names the commit of each
@@ -56,6 +58,49 @@ func TestFileHistoryAndBlame(t *testing.T) {
 	if len(h.app.tabs) != 1 {
 		t.Fatalf("%d tabs", len(h.app.tabs))
 	}
+}
+
+// A write that leaves the file and HEAD as they were, as a fetch or
+// another file staged, keeps the blame and the lines picked in it; one
+// that changes the file blames it again.
+func TestBlameOutlivesOtherWrites(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("one.txt", "a\nb\nc\n")
+	r.Commit("one")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	fs := &tb.file
+	r.Write("z.txt", "z\n")
+	h.until("z listed", func() bool { return hasExact(h, "z.txt") })
+	h.app.showFile(tb, "one.txt", true)
+	h.until("the blame", func() bool { return fs.blameDone && fs.text != nil && !h.tt.HasText("Blaming") })
+	text := &fs.text[0]
+	fs.bpicked.Add(1)
+
+	w := tb.s.Writes
+	if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{"z.txt"})); err != nil {
+		t.Fatal(err)
+	}
+	h.until("the write counted", func() bool { return tb.s.Writes > w })
+	h.idle(tb, "the stage")
+	for range 10 {
+		h.until("a frame", func() bool { return true })
+	}
+	if fs.text == nil || &fs.text[0] != text || !fs.bpicked.Has(1) {
+		t.Fatalf("blamed again after an unrelated write; lines picked kept %v", fs.bpicked.Has(1))
+	}
+
+	r.Write("one.txt", "a\nb\nc\nd\n")
+	w = tb.s.Writes
+	if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{"one.txt"})); err != nil {
+		t.Fatal(err)
+	}
+	h.until("blamed again", func() bool {
+		return tb.s.Writes > w && fs.blameDone && fs.text != nil && string(fs.text) == "a\nb\nc\nd\n"
+	})
 }
 
 // The history of lines chosen in the blame follows them back through a

@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/write"
@@ -47,6 +49,10 @@ type fileState struct {
 	blameList  ui.ListState
 	bpicked    ui.Selection[int] // blame rows chosen together
 	cancel     func()
+
+	// stamp is the blame's key as of stampFor, once read off the main
+	// thread: the file, HEAD and the file's stat (blameStamp).
+	stamp, stampFor string
 
 	lines lineHistory
 }
@@ -276,11 +282,11 @@ func fileCommitCell(c *ui.Context, k ink, fc session.FileCommit, path string, no
 	}
 }
 
-// loadBlame blames the file again when it, or the refs, changed.
+// loadBlame blames the file again when it, or HEAD, changed.
 func (a *App) loadBlame(t *tab) {
 	fs := &t.file
-	key := fs.path + "\x00" + strconv.Itoa(t.s.Writes)
-	if key == fs.blameKey {
+	key, ok := a.blameStamp(t)
+	if !ok || key == fs.blameKey {
 		return
 	}
 	fs.blameKey = key
@@ -322,6 +328,54 @@ func (a *App) loadBlame(t *tab) {
 			}
 		}
 	})
+}
+
+// blameStamp is what the blame of the file shown is of: the file, HEAD
+// and the file's stat, read off the main thread as each write ends and
+// HEAD moves; not ok while it is read. A write that leaves them, as a
+// fetch, keeps the blame and the lines picked in it. Another file is
+// blamed at once, none of the last one's blame showing meanwhile.
+func (a *App) blameStamp(t *tab) (string, bool) {
+	fs := &t.file
+	head := hex.EncodeToString(t.s.State.Head.OID)
+	asked := fs.path + "\x00" + head + "\x00" + strconv.Itoa(t.s.Writes)
+	if asked != fs.stampFor {
+		fs.stampFor, fs.stamp = asked, ""
+		if r := t.s.Repo; r != nil {
+			path, root, update := fs.path, r.WorkTree, a.Update
+			a.goWork(t, func() {
+				st := fileStat(root, path)
+				update(func() {
+					if fs.stampFor != asked {
+						return
+					}
+					fs.stamp = path + "\x00" + head + "\x00" + st
+					if fs.blameKey == path+"\x00" {
+						// Blamed as it was chosen, about as the stat was read.
+						fs.blameKey = fs.stamp
+					}
+				})
+			})
+		}
+	}
+	if fs.stamp == "" && !strings.HasPrefix(fs.blameKey, fs.path+"\x00") {
+		return fs.path + "\x00", true
+	}
+	return fs.stamp, fs.stamp != ""
+}
+
+// fileStat says the size, time and mode of the file at path in the work
+// tree root, "" when there is none.
+func fileStat(root, path string) string {
+	abs, err := pathsafe.Target(root, path)
+	if err != nil {
+		return ""
+	}
+	st, err := os.Lstat(abs)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprint(st.Size(), st.ModTime().UnixNano(), st.Mode())
 }
 
 func (a *App) blameView(c *ui.Context, t *tab) {
