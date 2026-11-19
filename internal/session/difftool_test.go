@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -179,5 +180,33 @@ func TestDiffToolEnvironment(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(seen); string(b) != odd+"\n" {
 		t.Fatalf("the tool saw %q", b)
+	}
+}
+
+// A tool that leaves a process of its own running, as one that hands the
+// files to a window already open does, ended well: git difftool exited
+// 0, though what it started still holds its output.
+func TestDiffToolLeavingAProcessRunning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the tool is a shell command")
+	}
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("a")
+	r.Write("a.txt", "two\n")
+	stop := filepath.Join(t.TempDir(), "stop")
+	// The leftover ends once the test has, by the file it waits for.
+	t.Cleanup(func() { os.WriteFile(stop, nil, 0o644) })
+	own := fmt.Sprintf(`while [ ! -e %q ]; do sleep 0.1; done &`, filepath.ToSlash(stop))
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	var got error
+	done := false
+	s.OpenDiffTool(DiffToolRequest{Paths: []string{"a.txt"}, Own: own}, func(err error) { got, done = err, true })
+	m.until(t, "the tool", func() bool { return done })
+	if got != nil {
+		t.Fatalf("the tool failed: %v", got)
 	}
 }

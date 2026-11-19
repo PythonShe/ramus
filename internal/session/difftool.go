@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"os/exec"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -138,6 +139,13 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 			err = r.Runner.Start(cmd)
 			if err == nil {
 				err = cmd.Wait()
+				if errors.Is(err, exec.ErrWaitDelay) && ctx.Err() == nil {
+					// git exited 0 (Wait says ErrWaitDelay only then); what
+					// still holds its stderr is a process the tool started
+					// and left running, as one handing the files to a window
+					// already open does.
+					err = nil
+				}
 			}
 			untrack()
 			if err != nil {
