@@ -121,6 +121,9 @@ type App struct {
 	// writes are the files being written off the main thread, for a quit
 	// and a test to wait for.
 	writes sync.WaitGroup
+	// refPrefsWrites orders the writes of each repository's pinned and
+	// hidden refs.
+	refPrefsWrites lastWrites
 	// keeper writes the settings when Deps has none.
 	keeper *settings.Keeper
 	// toolsGen counts the looks for tools started, the last one's result

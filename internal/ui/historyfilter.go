@@ -110,18 +110,22 @@ func (a *App) loadRefPrefs(t *tab) {
 	})
 }
 
-// saveRefPrefs keeps the pinned and hidden refs off the main thread.
+// saveRefPrefs keeps the pinned and hidden refs off the main thread,
+// the lists of the last change the ones left however the writes run.
 func (a *App) saveRefPrefs(t *tab) {
 	if a.Library == nil {
 		return
 	}
 	lib, path, update := a.Library, t.s.Path, a.Update
 	pinned, hidden := slices.Clone(t.prefs.pinned), slices.Clone(t.prefs.hidden)
+	n := a.refPrefsWrites.ask(path)
 	a.goWrite(func() func() {
-		if err := lib.SetRefPrefs(path, pinned, hidden); err != nil {
-			return func() { update(func() { a.tell(t, errText(err)) }) }
+		var err error
+		a.refPrefsWrites.do(path, n, func() { err = lib.SetRefPrefs(path, pinned, hidden) })
+		if err == nil {
+			return nil
 		}
-		return nil
+		return func() { update(func() { a.tell(t, errText(err)) }) }
 	})
 }
 

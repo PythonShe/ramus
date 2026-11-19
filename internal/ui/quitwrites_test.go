@@ -24,9 +24,6 @@ func TestQuitWaitsForRefsAndLinks(t *testing.T) {
 	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	h.app.toggleRef(tb, &tb.prefs.pinned, "refs/heads/side")
-	// Two saves of the refs at once may land in either order, as each
-	// runs on a goroutine of its own: one at a time here.
-	h.app.WaitWrites(10 * time.Second)
 	h.app.toggleRef(tb, &tb.prefs.hidden, "refs/heads/main")
 	h.app.openLinks(tb)
 	h.tt.Frame()

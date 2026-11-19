@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"ramus/internal/crashlog"
@@ -48,6 +49,57 @@ func (a *App) goWrite(fn func() (then func())) {
 			then()
 		}
 	})
+}
+
+// lastWrites has the writes of one thing, by key, land in the order
+// they were asked: each is numbered as it is asked, on the main thread,
+// and they run one at a time, a write with a later one asked behind it
+// dropped, as the later writes all it would. Without it, two writes on
+// goroutines of their own land in either order, and the older may be
+// the one left.
+type lastWrites struct {
+	// mu guards n and asked, the number of the last write asked of each
+	// key that has one not done. The main thread takes it, so it is
+	// never held across a write.
+	mu    sync.Mutex
+	n     uint64
+	asked map[string]uint64
+	// write is held across a write, never on the main thread.
+	write sync.Mutex
+}
+
+// ask numbers a write of key, to hand to do.
+func (lw *lastWrites) ask(key string) uint64 {
+	lw.mu.Lock()
+	defer lw.mu.Unlock()
+	if lw.asked == nil {
+		lw.asked = map[string]uint64{}
+	}
+	lw.n++
+	lw.asked[key] = lw.n
+	return lw.n
+}
+
+// do runs write, the write of key numbered n, after the writes running,
+// unless a later one of key was asked. It reports whether write ran.
+func (lw *lastWrites) do(key string, n uint64, write func()) bool {
+	lw.write.Lock()
+	defer lw.write.Unlock()
+	lw.mu.Lock()
+	last := lw.asked[key] == n
+	lw.mu.Unlock()
+	if !last {
+		return false
+	}
+	defer func() {
+		lw.mu.Lock()
+		if lw.asked[key] == n {
+			delete(lw.asked, key)
+		}
+		lw.mu.Unlock()
+	}()
+	write()
+	return true
 }
 
 // WaitWrites waits, up to d, for the files being written off the main
