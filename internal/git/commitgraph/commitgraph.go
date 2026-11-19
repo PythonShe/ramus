@@ -94,6 +94,10 @@ type Graph struct {
 	// bloom is the Bloom filter settings shared by every layer that has
 	// filters; zero when no layer has them or the layers disagree.
 	bloom BloomSettings
+	// scanned and walked count the commits whose dates, and whose
+	// parents, the open read, so that a test can hold it to the layers
+	// it had not seen and to graphs past the bound of generationsHold.
+	scanned, walked int
 }
 
 type layer struct {
@@ -115,6 +119,11 @@ type layer struct {
 	bdat     []byte // filters, after the settings header
 	bloom    BloomSettings
 	baseOIDs []byte
+	// latest is the latest commit date the layer holds, and bigOffset
+	// whether one of its corrected dates is more than 2^32 past its
+	// commit's date; read once, when the layer has generation data.
+	latest    uint64
+	bigOffset bool
 	// gens is whether the layer's corrected commit dates hold, checked
 	// once with the layers below it: gensUnknown, gensHold, gensBroken.
 	gens atomic.Int32
@@ -224,6 +233,9 @@ func openLayers(paths []string, prev *Graph) (_ *Graph, err error) {
 			if l, err = openLayer(p, g.n); err != nil {
 				return nil, err
 			}
+			if l.gda2 != nil {
+				g.scanned += int(l.n)
+			}
 		}
 		g.layers = append(g.layers, l)
 		if i == 0 {
@@ -289,7 +301,25 @@ func openLayer(path string, base uint32) (*layer, error) {
 // commits, so the graph then answers with its topological levels, which
 // those versions write right. Each layer is checked once, when first
 // opened: a layer kept from an earlier graph has the same layers below.
+//
+// Parents are compared only past a bound no real history reaches. git
+// sets a corrected date to max(date, the parents' greatest + 1), so none
+// exceeds the latest date plus the number of commits; below 2^32 the
+// 32-bit maximum truncates nothing. git 2.54 stores a date past 2^34 as
+// an offset over 2^32 (bigOffset); older gits write the offset from the
+// whole date where the file keeps 34 bits of it, which git itself then
+// reads as wrongly: that alone is not caught.
 func (g *Graph) generationsHold() bool {
+	var latest uint64
+	for _, l := range g.layers {
+		if l.bigOffset {
+			latest = 1 << 32
+		}
+		latest = max(latest, l.latest)
+	}
+	if latest+uint64(g.n) < 1<<32 {
+		return true
+	}
 	var parents []uint32
 	for _, l := range g.layers {
 		switch l.gens.Load() {
@@ -299,6 +329,7 @@ func (g *Graph) generationsHold() bool {
 			return false
 		}
 		state := int32(gensHold)
+		g.walked += int(l.n)
 	commits:
 		for pos := l.base; pos < l.base+l.n; pos++ {
 			gen := g.Generation(pos)
@@ -410,6 +441,17 @@ func (l *layer) parse() error {
 		l.gdo2 = chunks[chunkGenOver]
 		if len(l.gdo2)%8 != 0 {
 			return l.bad("generation overflow chunk is %d bytes", len(l.gdo2))
+		}
+		// The bound of generationsHold: 8 bytes a commit, read in order.
+		var latest uint64
+		for o := hashSize + 8; o+8 <= len(l.cdat); o += hashSize + 16 {
+			latest = max(latest, binary.BigEndian.Uint64(l.cdat[o:])&(1<<34-1))
+		}
+		l.latest = latest
+		for o := 0; o < len(l.gdo2); o += 8 {
+			if binary.BigEndian.Uint64(l.gdo2[o:]) >= 1<<32 {
+				l.bigOffset = true
+			}
 		}
 	}
 	l.edges = chunks[chunkEdges]

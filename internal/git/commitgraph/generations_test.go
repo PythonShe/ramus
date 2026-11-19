@@ -2,9 +2,12 @@ package commitgraph
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"ramus/internal/git/gittest"
 )
 
 // fakeCommit is a commit of a graph file the test writes itself, its
@@ -134,4 +137,65 @@ func TestCorrectedDatesPastTheOffsetLimit(t *testing.T) {
 			t.Errorf("generation of %d = %d, want %d", pos, got, want)
 		}
 	}
+}
+
+// git 2.54 puts a date past 34 bits into the overflow chunk, as an offset
+// from the date the file holds, but still keeps the parent's corrected
+// date in 32 bits for the child: the child's goes backwards, though every
+// date the file holds is small.
+func TestCorrectedDatesBelowADatePast34Bits(t *testing.T) {
+	g, err := Open(writeGraph(t, []fakeCommit{
+		{time: 1<<34 + 5, parent: -1, topo: 1, offset: 1 << 34},
+		{time: 100, parent: 0, topo: 2, offset: 0},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer g.Close()
+	if g.HasGenerationV2() {
+		t.Fatal("corrected dates that go backwards are used")
+	}
+}
+
+// Opening a graph reads each new layer's commit dates and nothing more
+// per commit while they stay below the bound that no history git writes
+// reaches: no parent is compared, and a layer kept from the graph opened
+// before is not read again. Past the bound the parents are compared.
+func TestOpenReadsOnlyNewDatesBelowTheBound(t *testing.T) {
+	r := gittest.Init(t)
+	write := func() {
+		r.Git("-c", "commitGraph.generationVersion=2", "commit-graph", "write", "--reachable", "--split=no-merge")
+	}
+	for i := 0; i < 5; i++ {
+		r.Commit(fmt.Sprint(i))
+	}
+	write()
+	objects := filepath.Join(r.GitDir(), "objects")
+	reopen := func(prev *Graph, layers, scanned, walked int) *Graph {
+		t.Helper()
+		g, err := OpenReusing(objects, prev)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { g.Close() })
+		if g.Layers() != layers {
+			t.Fatalf("%d layers, want %d", g.Layers(), layers)
+		}
+		if g.scanned != scanned || g.walked != walked {
+			t.Fatalf("open read the dates of %d commits and the parents of %d, want %d and %d", g.scanned, g.walked, scanned, walked)
+		}
+		return g
+	}
+	g := reopen(nil, 1, 5, 0)
+	if !g.HasGenerationV2() {
+		t.Fatal("corrected dates are not used")
+	}
+	for i := 0; i < 3; i++ {
+		r.Commit(fmt.Sprint(i))
+	}
+	write()
+	g = reopen(g, 2, 3, 0)
+	r.CommitAt("far future", 1<<32+5)
+	write()
+	reopen(g, 3, 1, 9)
 }
