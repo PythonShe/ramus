@@ -85,12 +85,26 @@ type proc struct {
 	in     *bufio.Writer
 	stdin  io.Closer
 	out    *bufio.Reader
+	stdout io.Closer
 	stderr *limitedWriter
 	cancel context.CancelFunc
 	// untrack ends the runner's count of this process.
 	untrack func()
 	ended   sync.Once
 	err     error
+	// stuck is a git the watchdog stopped: one hung on a stalled volume
+	// may never die, so no one waits for it.
+	stuck atomic.Bool
+}
+
+// letGo ends g, waiting for it unless it is stuck, which is ended in the
+// background, out of its caller's way.
+func (g *proc) letGo() error {
+	if g.stuck.Load() {
+		go g.end()
+		return nil
+	}
+	return g.end()
 }
 
 // Start runs git cat-file --batch-command for the repository at gitDir.
@@ -139,7 +153,7 @@ func (p *Process) start(again bool) (*proc, error) {
 		return nil, err
 	}
 	g.untrack = p.runner.Track()
-	g.stdin = stdin
+	g.stdin, g.stdout = stdin, stdout
 	g.in = bufio.NewWriterSize(stdin, 64<<10)
 	g.out = bufio.NewReaderSize(stdout, 256<<10)
 	return g, nil
@@ -279,6 +293,10 @@ func (p *Process) drop(g *proc) {
 		return // Close ends it
 	}
 	p.g = nil
+	if g.stuck.Load() {
+		g.letGo() // Close need not wait for it
+		return
+	}
 	p.ending.Add(1)
 	go func() {
 		defer p.ending.Done()
@@ -324,7 +342,16 @@ func (p *Process) watch(g *proc) *watchdog {
 			return
 		}
 		w.stalled = true
+		g.stuck.Store(true)
 		g.cancel()
+		// A git that cannot die, hung on a stalled volume, would hold
+		// the batch on its pipes for good: closed, they give it up. In a
+		// goroutine, as a close may wait on a read where pipes are not
+		// polled (Windows).
+		go func() {
+			g.stdout.Close()
+			g.stdin.Close()
+		}()
 	}
 	w.mu.Lock()
 	w.t = time.AfterFunc(p.stall, fire)
@@ -425,6 +452,10 @@ func (p *Process) Alive() bool {
 	return p.dead == nil
 }
 
+// closeWait bounds how long Close waits for git to end: far past what a
+// git killed takes.
+const closeWait = 10 * time.Second
+
 // Close ends the process. A batch still reading fails at once.
 func (p *Process) Close() error {
 	p.mu.Lock()
@@ -436,11 +467,26 @@ func (p *Process) Close() error {
 	}
 	g := p.g
 	p.mu.Unlock()
-	p.ending.Wait()
-	if g == nil {
-		return nil
+	// Bounded: a git that cannot die, hung on a stalled volume, must not
+	// hold its caller, which may hold the repository.
+	ended := make(chan error, 1)
+	go func() {
+		p.ending.Wait()
+		if g == nil {
+			ended <- nil
+			return
+		}
+		ended <- g.letGo()
+	}()
+	var err error
+	select {
+	case err = <-ended:
+	case <-time.After(closeWait):
+		if g != nil {
+			go func() { g.stdout.Close(); g.stdin.Close() }()
+		}
+		return fmt.Errorf("catfile: git did not end within %v", closeWait)
 	}
-	err := g.end()
 	// exec says ErrWaitDelay only when git exited 0 and something it
 	// left running still held its output: not a failure of git's.
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, exec.ErrWaitDelay) {
