@@ -53,20 +53,66 @@ func (s *Session) Reflog(ref string, done func([]ReflogEntry, error)) {
 	}
 	update := s.update
 	r.Life().Go(func(ctx context.Context) {
-		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
-			Args: []string{"log", "-g", "--no-abbrev", "--date=raw", "--max-count=" + strconv.Itoa(MaxReflog),
-				"--format=%H%x00%P%x00%gd%x00%gs", "--end-of-options", ref, "--"}})
 		var out []ReflogEntry
-		if err == nil {
-			out = parseReflog(res.Stdout, ref)
+		var err error
+		// An entry written between the two readings shifts one against
+		// the other; reading again lines them up.
+		for range 3 {
+			if out, err = readReflog(ctx, r.Runner, r.GitDir, ref); !errors.Is(err, errReflogMoved) {
+				break
+			}
 		}
 		update(func() { done(out, err) })
 	})
 }
 
+// errReflogMoved is a reflog that changed while it was read.
+var errReflogMoved = errors.New("session: the reflog changed while it was read")
+
+// readReflog reads ref's reflog twice: with raw dates, whose selectors
+// hold each entry's time, and without, whose selectors hold its number.
+// git log -g leaves out an entry whose commit is missing, so counting the
+// entries listed would number those after it wrong.
+func readReflog(ctx context.Context, rn *run.Runner, gitDir, ref string) ([]ReflogEntry, error) {
+	logArgs := func(format string, date ...string) []string {
+		return append(append([]string{"log", "-g", "--no-abbrev"}, date...), "--max-count="+strconv.Itoa(MaxReflog),
+			"--format="+format, "--end-of-options", ref, "--")
+	}
+	res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: logArgs("%H%x00%P%x00%gd%x00%gs", "--date=raw")})
+	if err != nil {
+		return nil, err
+	}
+	out := parseReflog(res.Stdout, ref)
+	res, err = rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: logArgs("%H%x00%gd")})
+	if err != nil {
+		return nil, err
+	}
+	i := 0
+	for line := range bytes.SplitSeq(bytes.TrimRight(res.Stdout, "\n"), []byte{'\n'}) {
+		id, gd, ok := bytes.Cut(line, []byte{0})
+		if !ok {
+			continue
+		}
+		if i >= len(out) || hex.EncodeToString(out[i].OID) != string(id) {
+			return nil, errReflogMoved
+		}
+		// gd is name@{<n>}.
+		if _, sel, ok := bytes.Cut(gd, []byte("@{")); ok {
+			if n, err := strconv.Atoi(string(bytes.TrimSuffix(sel, []byte("}")))); err == nil {
+				out[i].Selector = strings.TrimPrefix(ref, "refs/heads/") + "@{" + strconv.Itoa(n) + "}"
+			}
+		}
+		i++
+	}
+	if i != len(out) {
+		return nil, errReflogMoved
+	}
+	return out, nil
+}
+
 // parseReflog reads `git log -g --date=raw --format=%H%x00%P%x00%gd%x00%gs`:
 // with raw dates the selector holds the time, so entries are numbered
-// here.
+// here by their place, which readReflog then corrects.
 func parseReflog(out []byte, ref string) []ReflogEntry {
 	var entries []ReflogEntry
 	short := strings.TrimPrefix(ref, "refs/heads/")

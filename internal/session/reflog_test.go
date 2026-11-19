@@ -62,6 +62,42 @@ func TestReflogAndLostCommits(t *testing.T) {
 	}
 }
 
+// git log -g leaves out an entry whose commit is missing; the entries
+// after it keep their own numbers, as a selector typed in a terminal
+// names them.
+func TestReflogNumbersPastAMissingCommit(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	r.Write("a", "2")
+	gone := r.Commit("two")
+	r.Git("reset", "-q", "--hard", "HEAD~1")
+	r.Write("a", "3")
+	r.Commit("three")
+	if err := os.Remove(filepath.Join(r.GitDir(), "objects", gone[:2], gone[2:])); err != nil {
+		t.Fatal(err)
+	}
+	s, m := openFor(t, r)
+	var log []ReflogEntry
+	s.Reflog("HEAD", func(es []ReflogEntry, err error) {
+		if err != nil {
+			t.Error(err)
+		}
+		log = es
+	})
+	m.until(t, "the reflog", func() bool { return log != nil })
+	var got []string
+	for _, e := range log {
+		got = append(got, e.Selector)
+		if e.Time.IsZero() {
+			t.Errorf("%s has no time", e.Selector)
+		}
+	}
+	if strings.Join(got, " ") != "HEAD@{0} HEAD@{1} HEAD@{3}" {
+		t.Fatalf("selectors %q", got)
+	}
+}
+
 // A search for lost commits stopped before git ended, here cancelled, is
 // a failure, not the part it listed so far.
 func TestStoppedLostSearchFails(t *testing.T) {
