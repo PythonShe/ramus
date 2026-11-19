@@ -413,6 +413,35 @@ func TestCommitNextPreparedMessage(t *testing.T) {
 	}
 }
 
+// Amend ticked over the commit template, which the user has not written
+// in, puts HEAD's message there, which the amend keeps; unticked, the
+// template comes back.
+func TestAmendOverTemplate(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write(".tpl", "Ticket: \n\n# say why\n")
+	r.Git("config", "commit.template", ".tpl")
+	r.Write(".gitignore", ".tpl\n")
+	r.Commit("the real message")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	cs := &tb.commit
+	h.until("the template", func() bool { return strings.HasPrefix(cs.subject, "Ticket:") })
+	cs.amend = true
+	h.until("HEAD's message", func() bool { return cs.subject == "the real message" })
+	cs.amend = false
+	h.until("the template back", func() bool { return strings.HasPrefix(cs.subject, "Ticket:") })
+	cs.amend = true
+	h.until("ready", func() bool { return cs.subject == "the real message" && commitReady(tb) })
+	h.click("Amend Last Commit")
+	h.until("amended", func() bool { return !cs.busy && cs.subject != "the real message" })
+	if got := strings.TrimSpace(r.Git("log", "-1", "--format=%B")); got != "the real message" {
+		t.Fatalf("HEAD's message now %q", got)
+	}
+}
+
 // A setup read again after a commit that lands as Amend is ticked over
 // the emptied editor leaves the template out: HEAD's message goes there.
 func TestAmendBeforeTemplate(t *testing.T) {

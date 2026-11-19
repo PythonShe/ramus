@@ -747,7 +747,7 @@ func TestCommitBox(t *testing.T) {
 	h.until("recent loaded", func() bool { return cs.setup != nil && len(cs.setup.Recent) >= 3 })
 
 	// Amend takes HEAD as it is when ticked, though a terminal moved it;
-	// unticked, the message it brought goes again.
+	// unticked, the message it brought gives way to the template again.
 	h.until("the amend ended", func() bool { return !cs.busy && !cs.amend && cs.setup != nil })
 	r.Git("commit", "-q", "--allow-empty", "-m", "from a terminal")
 	cs.amend = false
@@ -758,7 +758,7 @@ func TestCommitBox(t *testing.T) {
 	h.until("the terminal's message", func() bool { return cs.subject == "from a terminal" })
 	cs.amend = false
 	h.tt.Frame()
-	if cs.subject != "" {
+	if cs.subject != "Subject line" {
 		t.Fatalf("unticked, the editor keeps %q", cs.subject)
 	}
 

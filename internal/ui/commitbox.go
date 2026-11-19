@@ -128,11 +128,12 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	a.loadDraft(t)
 	followOperation(t)
 	switch {
-	case cs.amend && !cs.wasAmend && cs.subject == "" && cs.body == "":
+	case cs.amend && !cs.wasAmend && cs.untouched():
 		// HEAD as it is now: a commit made in a terminal or a switch
-		// since the setup was read moved it.
+		// since the setup was read moved it. It takes the template's
+		// place, which an amend would otherwise make HEAD's message.
 		t.s.HeadMessage(func(msg string, err error) {
-			if err != nil || !cs.amend || cs.subject != "" || cs.body != "" {
+			if err != nil || !cs.amend || !cs.untouched() {
 				return
 			}
 			cs.subject, cs.body = message.Split(msg)
@@ -141,6 +142,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 	case !cs.amend && cs.wasAmend && cs.amendMsg != "":
 		if cs.holds(cs.amendMsg) {
 			cs.subject, cs.body = "", ""
+			cs.fillTemplate()
 		}
 		cs.amendMsg = ""
 	}
