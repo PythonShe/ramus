@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -356,5 +357,59 @@ func TestSaveRefusesUnreadableFile(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(p); string(data) != `{"theme": "dark",}` {
 		t.Fatalf("file now %q", data)
+	}
+}
+
+// Every list of objects in the settings tells its elements apart by a
+// key field (statefile:"key"): a save keeps a later version's keys of an
+// element by it, and by place without one, which hands them to another
+// element once one is removed or moved.
+func TestListsOfObjectsHaveAKey(t *testing.T) {
+	var walk func(t0 reflect.Type, at string)
+	walk = func(t0 reflect.Type, at string) {
+		for t0.Kind() == reflect.Pointer {
+			t0 = t0.Elem()
+		}
+		switch t0.Kind() {
+		case reflect.Struct:
+			for i := range t0.NumField() {
+				walk(t0.Field(i).Type, at+"."+t0.Field(i).Name)
+			}
+		case reflect.Map:
+			walk(t0.Elem(), at+"[]")
+		case reflect.Slice, reflect.Array:
+			e := t0.Elem()
+			for e.Kind() == reflect.Pointer {
+				e = e.Elem()
+			}
+			if e.Kind() == reflect.Struct && !slices.ContainsFunc(reflect.VisibleFields(e), func(f reflect.StructField) bool {
+				return f.Tag.Get("statefile") == "key"
+			}) {
+				t.Errorf("%s: a list of %s with no field tagged statefile:\"key\"", at, e)
+			}
+			walk(e, at+"[]")
+		}
+	}
+	walk(reflect.TypeFor[Settings](), "Settings")
+}
+
+// An action removed from the middle of the list, or moved, keeps a later
+// version's keys of each other action with that action.
+func TestActionKeepsItsUnknownKeys(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	os.WriteFile(p, []byte(`{"actions": [{"name": "A", "command": ["/a"], "icon": "a"}, {"name": "B", "command": ["/b"], "icon": "b"}, {"name": "C", "command": ["/c"], "icon": "c"}]}`), 0o600)
+	s, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Actions = []Action{s.Actions[2], s.Actions[1]}
+	if err := Save(p, s); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(p)
+	var f struct{ Actions []struct{ Name, Icon string } }
+	if err := json.Unmarshal(data, &f); err != nil || len(f.Actions) != 2 ||
+		f.Actions[0].Name != "C" || f.Actions[0].Icon != "c" || f.Actions[1].Name != "B" || f.Actions[1].Icon != "b" {
+		t.Fatalf("written as %s", data)
 	}
 }

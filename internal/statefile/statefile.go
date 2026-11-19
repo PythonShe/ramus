@@ -181,10 +181,16 @@ func WithExtra(v any, extra map[string]json.RawMessage) (json.RawMessage, error)
 // KeepUnknown is now, the JSON of a value of type t that replaces old,
 // with the keys of old that this version does not know added back, at
 // every level: in an object of a struct, in the entries of a map, by key,
-// and in the elements of a list, by place. What a later version added
-// inside a value this one rewrites is so kept. A key this version knows
-// is now's to leave out, as an entry of a map or an element of a list
-// is. Without such keys, now comes back as it is.
+// and in the elements of a list, by their key field where their struct
+// has one (tagged statefile:"key", as an action's name), else by place.
+// What a later version added inside a value this one rewrites is so kept.
+// A key this version knows is now's to leave out, as an entry of a map or
+// an element of a list is. Without such keys, now comes back as it is.
+//
+// By place, an element removed or moved before others hands its keys to
+// the element that takes its place: a list of structs the app rewrites
+// against what the file held needs a key field, which a test of each
+// state file's types asks for.
 func KeepUnknown(old, now json.RawMessage, t reflect.Type) json.RawMessage {
 	out, _ := keepUnknown(old, now, t)
 	return out
@@ -244,15 +250,71 @@ func keepUnknown(old, now json.RawMessage, t reflect.Type) (json.RawMessage, boo
 		if t.Elem().Kind() == reflect.Uint8 || json.Unmarshal(old, &o) != nil || json.Unmarshal(now, &n) != nil {
 			return now, false
 		}
+		key := keyField(t.Elem())
+		used := make([]bool, len(o))
 		changed := false
-		for i := range min(len(o), len(n)) {
-			if v, c := keepUnknown(o[i], n[i], t.Elem()); c {
+		for i := range n {
+			j := -1
+			switch {
+			case key == "" && i < len(o):
+				j = i
+			case key != "":
+				for m := range o {
+					if !used[m] && sameKey(o[m], n[i], key) {
+						j = m
+						break
+					}
+				}
+			}
+			if j < 0 {
+				continue
+			}
+			used[j] = true
+			if v, c := keepUnknown(o[j], n[i], t.Elem()); c {
 				n[i], changed = v, true
 			}
 		}
 		return remarshal(n, now, changed)
 	}
 	return now, false
+}
+
+// keyField is the JSON name of the field of t, a struct, tagged
+// statefile:"key", which tells its elements in a list apart; "" none.
+func keyField(t reflect.Type) string {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return ""
+	}
+	for i := range t.NumField() {
+		f := t.Field(i)
+		if f.Tag.Get("statefile") == "key" {
+			name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+			if name == "" {
+				name = f.Name
+			}
+			return name
+		}
+	}
+	return ""
+}
+
+// sameKey reports whether the objects a and b have the same value under
+// key.
+func sameKey(a, b json.RawMessage, key string) bool {
+	var oa, ob map[string]json.RawMessage
+	if json.Unmarshal(a, &oa) != nil || json.Unmarshal(b, &ob) != nil {
+		return false
+	}
+	_, ra, okA := LookupKey(oa, key)
+	_, rb, okB := LookupKey(ob, key)
+	if !okA || !okB {
+		return false
+	}
+	var va, vb any
+	return json.Unmarshal(ra, &va) == nil && json.Unmarshal(rb, &vb) == nil && reflect.DeepEqual(va, vb)
 }
 
 // remarshal is v as JSON when changed, else now.

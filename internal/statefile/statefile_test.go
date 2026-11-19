@@ -1,9 +1,11 @@
 package statefile
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -57,6 +59,39 @@ func TestLockKeepsASecondWriterOut(t *testing.T) {
 	}
 	if _, err := os.Stat(p); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("the lock made the file itself: %v", err)
+	}
+}
+
+// A later version's keys of a list's elements stay with the element they
+// were on, told apart by its key field, when elements are removed or
+// moved; with no key field they go by place.
+func TestKeepUnknownInAList(t *testing.T) {
+	type keyed struct {
+		Name string `json:"name" statefile:"key"`
+	}
+	type placed struct {
+		Name string `json:"name"`
+	}
+	old := json.RawMessage(`[{"name": "A", "icon": "a"}, {"name": "B", "icon": "b"}, {"name": "C", "icon": "c"}]`)
+	now := json.RawMessage(`[{"name":"C"},{"name":"new"},{"name":"B"}]`)
+	var got []map[string]string
+	json.Unmarshal(KeepUnknown(old, now, reflect.TypeFor[[]keyed]()), &got)
+	want := []map[string]string{{"name": "C", "icon": "c"}, {"name": "new"}, {"name": "B", "icon": "b"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("by key: %v", got)
+	}
+	got = nil
+	json.Unmarshal(KeepUnknown(old, now, reflect.TypeFor[[]placed]()), &got)
+	want = []map[string]string{{"name": "C", "icon": "a"}, {"name": "new", "icon": "b"}, {"name": "B", "icon": "c"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("by place: %v", got)
+	}
+	// Two elements of one key: each old one is taken once.
+	old = json.RawMessage(`[{"name": "A", "icon": "1"}, {"name": "A", "icon": "2"}]`)
+	got = nil
+	json.Unmarshal(KeepUnknown(old, json.RawMessage(`[{"name":"A"},{"name":"A"}]`), reflect.TypeFor[[]keyed]()), &got)
+	if got[0]["icon"] != "1" || got[1]["icon"] != "2" {
+		t.Fatalf("one key twice: %v", got)
 	}
 }
 

@@ -128,7 +128,9 @@ func (s Settings) FetchEvery() int {
 // Action is a command of the user's, shown in the command palette and in
 // the context menus of what it acts on.
 type Action struct {
-	Name string `json:"name"`
+	// Name tells it from the others, a later version's keys of it kept
+	// with it however the list is changed.
+	Name string `json:"name" statefile:"key"`
 	// Command is the program, by its full path, and its arguments. In
 	// each argument ${repo}, ${branch}, ${commit} and ${file} stand for
 	// what the action runs on, and ${prompt:Question} for what the user
