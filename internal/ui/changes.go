@@ -979,11 +979,8 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 			}
 		}
 		if menu.Item(locales.ChangesSavePatch(n)).Disabled(a.SaveFile == nil).Chosen() {
-			var paths []string
-			for _, e := range es {
-				paths = append(paths, string(m.st.Path(int(e))))
-			}
-			req := session.PatchSave{Paths: append(paths, inner...), Cached: r.sec == secStaged}
+			// Both paths of a rename: the patch removes the old one too.
+			req := session.PatchSave{Paths: ps, Cached: r.sec == secStaged}
 			*act = func() { a.savePatch(t, req, "changes.patch") }
 		}
 	}

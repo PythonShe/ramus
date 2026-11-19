@@ -62,17 +62,8 @@ func savePatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 			}
 		}
 	case len(req.Paths) > 0:
-		args := []string{"diff", "--binary", "--no-color", "--no-ext-diff"}
-		if req.Cached {
-			args = append(args, "--cached")
-		}
-		// git diff reads paths only as arguments: many take several runs,
-		// one patch after another.
-		for _, c := range write.SplitArgs(run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, Stdout: tmp,
-			Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: append(args, "--")}, req.Paths) {
-			if _, err = rn.Run(ctx, &c); err != nil {
-				return err
-			}
+		if err = diffPatch(ctx, rn, gitDir, workTree, req, tmp); err != nil {
+			return err
 		}
 	default:
 		return errors.New("session: nothing to save as a patch")
@@ -81,6 +72,115 @@ func savePatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 		return err
 	}
 	return os.Rename(tmp.Name(), file)
+}
+
+// diffPatch writes the changes to req.Paths as a patch git apply takes
+// on a checkout of the same base, whatever the user's diff config says:
+// prefixes (diff.noprefix, mnemonicPrefix, srcPrefix), diff.relative, a
+// textconv driver's text in place of the file's, a submodule's log. The
+// untracked files among the paths, which git diff leaves out, are in it
+// as new files.
+func diffPatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req PatchSave, out io.Writer) error {
+	args := []string{"diff", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "--no-relative",
+		"--src-prefix=a/", "--dst-prefix=b/", "--submodule=short"}
+	env := []string{"GIT_LITERAL_PATHSPECS=1"}
+	if req.Cached {
+		args = append(args, "--cached")
+	} else {
+		index, err := intendToAdd(ctx, rn, gitDir, workTree, req.Paths)
+		if err != nil {
+			return err
+		}
+		if index != "" {
+			defer os.Remove(index)
+			env = append(env, "GIT_INDEX_FILE="+index)
+			// Otherwise git shows a file added with -N as an empty file
+			// changed, which does not apply where the file is not.
+			args = append(args, "--ita-invisible-in-index")
+		}
+	}
+	// git diff reads paths only as arguments: many take several runs,
+	// one patch after another.
+	for _, c := range write.SplitArgs(run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, Stdout: out, Env: env,
+		Config: []string{"diff.suppressBlankEmpty=false"}, Args: append(args, "--")}, req.Paths) {
+		if _, err := rn.Run(ctx, &c); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// intendToAdd returns a copy of the index in which the untracked files
+// among paths are added with git add -N, so that git diff shows them; ""
+// when none is untracked. The repository's own index is left as it is.
+func intendToAdd(ctx context.Context, rn *run.Runner, gitDir, workTree string, paths []string) (index string, err error) {
+	var untracked []string
+	for _, c := range write.SplitArgs(run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, Env: []string{"GIT_LITERAL_PATHSPECS=1"},
+		Args: []string{"ls-files", "-z", "--others", "--exclude-standard", "--"}}, paths) {
+		res, err := rn.Run(ctx, &c)
+		if err != nil {
+			return "", err
+		}
+		for p := range bytes.SplitSeq(res.Stdout, []byte{0}) {
+			if len(p) > 0 {
+				untracked = append(untracked, string(p))
+			}
+		}
+	}
+	if len(untracked) == 0 {
+		return "", nil
+	}
+	f, err := os.CreateTemp("", "ramus-patch-*.index")
+	if err != nil {
+		return "", err
+	}
+	index = f.Name()
+	defer func() {
+		if err != nil {
+			os.Remove(index)
+			index = ""
+		}
+		os.Remove(index + ".lock")
+	}()
+	src, err := os.Open(filepath.Join(gitDir, "index"))
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		// No index yet: git starts from an empty one.
+		f.Close()
+		os.Remove(index)
+	case err != nil:
+		f.Close()
+		return "", err
+	default:
+		_, err = io.Copy(f, src)
+		st, statErr := src.Stat()
+		src.Close()
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		// git trusts an entry's stat data only when the file is older
+		// than the index; the copy keeps the index's time, so files are
+		// not all hashed again.
+		if err == nil && statErr == nil {
+			err = os.Chtimes(index, st.ModTime(), st.ModTime())
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	// It writes the copy only, so it counts as a read: the repository
+	// is not changed, trusted or not.
+	// A split index would have git write a shared index into the git
+	// directory.
+	for _, c := range write.SplitArgs(run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true,
+		Env:    []string{"GIT_LITERAL_PATHSPECS=1", "GIT_INDEX_FILE=" + index},
+		Config: []string{"core.splitIndex=false"},
+		Args:   []string{"add", "--intent-to-add", "--"}}, untracked) {
+		if _, err = rn.Run(ctx, &c); err != nil {
+			return "", err
+		}
+	}
+	return index, nil
 }
 
 // PatchFile is what a patch file holds, read before it is applied.

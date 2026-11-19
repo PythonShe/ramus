@@ -1,0 +1,83 @@
+package session
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
+)
+
+// savePatchFile saves req as a patch in a new file and returns its path.
+func savePatchFile(t *testing.T, s *Session, m mainThread, req PatchSave) (string, error) {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), "changes.patch")
+	var err error
+	done := false
+	s.SavePatch(req, file, func(e error) { err, done = e, true })
+	m.until(t, "the save", func() bool { return done })
+	return file, err
+}
+
+// A patch saved from the changes applies with git apply on a clean
+// checkout of the same base, whatever the user's diff config says, and
+// holds the untracked files picked and both sides of a staged rename.
+func TestSavedPatchApplies(t *testing.T) {
+	for _, trust := range []bool{true, false} {
+		r := gittest.Init(t)
+		r.Write(".gitattributes", "*.txt diff=up\n")
+		r.Write("a.txt", "hello\n\nend\n")
+		r.Write("old.txt", "old\n")
+		r.Commit("one")
+		for k, v := range map[string]string{
+			"diff.noprefix":           "true",
+			"diff.mnemonicPrefix":     "true",
+			"diff.relative":           "true",
+			"diff.up.textconv":        "tr a-z A-Z <",
+			"diff.suppressBlankEmpty": "true",
+		} {
+			r.Git("config", k, v)
+		}
+		r.Write("a.txt", "hello\n\nworld\nend\n")
+		r.Write("new.txt", "new\n")
+		r.Write("dir/n2.txt", "n2\n")
+		r.Git("mv", "old.txt", "moved.txt")
+		var dirs []string
+		if trust {
+			dirs = append(dirs, r.GitDir())
+		}
+		m := make(mainThread, 64)
+		s := Open(testrun.Runner(t), trusted(t, dirs...), r.Dir, m.update)
+		t.Cleanup(func() { s.Close(); <-s.Done() })
+		m.until(t, "the status", func() bool { return s.State.Status != nil })
+		before := r.Git("status", "--porcelain")
+		unstaged, err := savePatchFile(t, s, m, PatchSave{Paths: []string{"a.txt", "new.txt", "dir/n2.txt"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		staged, err := savePatchFile(t, s, m, PatchSave{Paths: []string{"moved.txt", "old.txt"}, Cached: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after := r.Git("status", "--porcelain"); after != before {
+			t.Fatalf("saving the patch changed the status from\n%s to\n%s", before, after)
+		}
+		r.Git("reset", "-q", "--hard")
+		r.Git("clean", "-q", "-f", "-d")
+		for _, p := range []string{unstaged, staged} {
+			if _, err := r.Run(nil, "apply", p); err != nil {
+				b, _ := os.ReadFile(p)
+				t.Fatalf("trusted %v: the saved patch does not apply: %v\n%s", trust, err, b)
+			}
+		}
+		for p, want := range map[string]string{"a.txt": "hello\n\nworld\nend\n", "new.txt": "new\n", "dir/n2.txt": "n2\n", "moved.txt": "old\n"} {
+			if b, err := os.ReadFile(filepath.Join(r.Dir, p)); err != nil || string(b) != want {
+				t.Errorf("trusted %v: %s after applying: %q, %v", trust, p, b, err)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(r.Dir, "old.txt")); err == nil {
+			t.Errorf("trusted %v: the rename's old path is still there", trust)
+		}
+	}
+}
