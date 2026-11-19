@@ -17,6 +17,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"ramus/internal/git/osfile"
@@ -386,6 +387,11 @@ func (s *Store) readLoose(path, name string) (raw, error) {
 			return raw{}, fmt.Errorf("refs: %s is a symlink out of refs", name)
 		}
 		return raw{name: name, symref: t}, nil
+	}
+	if st.IsDir() {
+		// refs/heads/a/b makes refs/heads/a a folder, which git reads as
+		// no loose ref named a, to be looked for in packed-refs.
+		return raw{}, &fs.PathError{Op: "read", Path: path, Err: syscall.EISDIR}
 	}
 	// Only a small regular file is a ref: opening a FIFO would block, and
 	// a huge file would be read whole.

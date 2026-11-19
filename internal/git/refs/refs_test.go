@@ -159,6 +159,33 @@ func TestHead(t *testing.T) {
 	}
 }
 
+// A branch whose loose path is a folder, as refs/heads/feature is when
+// refs/heads/feature/x exists, is looked for in packed-refs and is
+// otherwise unborn, as git reads it.
+func TestBranchNamedLikeAFolder(t *testing.T) {
+	r := gittest.Init(t)
+	c := r.Commit("one")
+	r.Git("branch", "feature/x")
+	r.Git("symbolic-ref", "HEAD", "refs/heads/feature")
+	s := store(r)
+	h, err := s.Head()
+	if err != nil || !h.Unborn || h.Target != "refs/heads/feature" {
+		t.Fatalf("unborn: %+v %v", h, err)
+	}
+	if got := r.Git("status", "--porcelain=v2", "--branch"); !strings.Contains(got, "# branch.oid (initial)") {
+		t.Fatalf("git says %q", got)
+	}
+	// packed-refs may still hold a branch of that name from before.
+	packed := filepath.Join(r.GitDir(), "packed-refs")
+	if err := os.WriteFile(packed, []byte(c+" refs/heads/feature\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h, err = s.Head()
+	if err != nil || h.Unborn || hex.EncodeToString(h.OID) != c {
+		t.Fatalf("packed: %+v %v", h, err)
+	}
+}
+
 func TestLinkedWorktree(t *testing.T) {
 	r := gittest.Init(t)
 	r.Commit("one")
