@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"math"
 	"slices"
 	"strconv"
@@ -745,6 +746,12 @@ func (a *App) gotText(t *tab, gen int, ids [][]byte, ch *history.TextChunk, name
 	}
 	if err != nil {
 		hv.text.add(gen, ids, nil, hv.frame, 0)
+		// A read of a repository opened again under it: the rows are read
+		// again from the one open now as they show, nothing went wrong.
+		if errors.Is(err, session.ErrReopened) {
+			clear(hv.asked)
+			return
+		}
 		a.tell(t, errText(err))
 		return
 	}
