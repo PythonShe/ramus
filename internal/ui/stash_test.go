@@ -130,3 +130,26 @@ func TestStashTitleCounts(t *testing.T) {
 	r.Write("f.txt", "changed\n")
 	h.until("three", h.shows("Stash Changes to 3 Files"))
 }
+
+// The dialog builds every frame; the status, which can list hundreds of
+// thousands of files, is counted again only as it or the choices change.
+func TestStashCountedOnce(t *testing.T) {
+	st := fakeStatus(t, map[string]string{"a": ".M", "b": "M."}, "c")
+	d := &stashDialog{}
+	if n := d.count(st, false, true); n != 3 {
+		t.Fatalf("counted %d", n)
+	}
+	d.counted.n = -1 // what a count again would put right
+	if n := d.count(st, false, true); n != -1 {
+		t.Fatal("counted again for the same status and choices")
+	}
+	if n := d.count(st, false, false); n != 2 {
+		t.Fatalf("untracked left out: %d", n)
+	}
+	if n := d.count(st, true, false); n != 1 {
+		t.Fatalf("staged alone: %d", n)
+	}
+	if n := d.count(fakeStatus(t, map[string]string{"a": ".M"}), true, false); n != 0 {
+		t.Fatalf("a new status: %d", n)
+	}
+}

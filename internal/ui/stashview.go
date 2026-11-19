@@ -50,6 +50,26 @@ type stashDialog struct {
 	paths []string
 	what  int
 	err   string
+	// counted is stashCount as of the status and choices it was counted
+	// for: the dialog builds every frame, and a status can list hundreds
+	// of thousands of files.
+	counted stashCounted
+}
+
+type stashCounted struct {
+	ok                bool
+	of                *status.Status
+	staged, untracked bool
+	n                 int
+}
+
+// count is stashCount, counted again only as its inputs change.
+func (d *stashDialog) count(st *status.Status, staged, untracked bool) int {
+	c := &d.counted
+	if !c.ok || c.of != st || c.staged != staged || c.untracked != untracked {
+		*c = stashCounted{ok: true, of: st, staged: staged, untracked: untracked, n: stashCount(st, staged, untracked)}
+	}
+	return c.n
 }
 
 func (a *App) openStash(t *tab) {
@@ -79,7 +99,7 @@ func (a *App) stashDialogView(c *ui.Context) {
 			// none is a stash of no file, which git refuses.
 			none := false
 			if st := d.t.s.State.Status; len(d.paths) == 0 && st != nil {
-				n := stashCount(st, staged, d.untracked)
+				n := d.count(st, staged, d.untracked)
 				title, none = locales.StashFilesTitle(n), n == 0
 			}
 			if n := len(d.paths); n > 0 {
