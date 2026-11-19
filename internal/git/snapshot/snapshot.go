@@ -156,7 +156,13 @@ func linkedWorktrees(gitDir string, fn func(admin, named string)) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	admins, err := os.ReadDir(filepath.Join(common, "worktrees"))
+	dir := filepath.Join(common, "worktrees")
+	// Looked at before it is opened: a named pipe there would hold the
+	// open until something wrote to it. git takes no such for worktrees.
+	if fi, err := os.Lstat(dir); errors.Is(err, os.ErrNotExist) || (err == nil && !fi.IsDir()) {
+		return nil
+	}
+	admins, err := os.ReadDir(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}

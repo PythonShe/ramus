@@ -272,7 +272,7 @@ func (s *Session) ReadPatchFile(file string, done func(PatchFile, error)) {
 
 func readPatchFile(ctx context.Context, rn *run.Runner, gitDir, workTree, file string) (PatchFile, error) {
 	pf := PatchFile{Path: file}
-	f, err := os.Open(file)
+	f, err := pathsafe.OpenRegular(file)
 	if err != nil {
 		return pf, err
 	}

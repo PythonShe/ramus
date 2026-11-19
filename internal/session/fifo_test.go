@@ -3,6 +3,7 @@
 package session
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/repo"
 )
 
@@ -145,5 +147,24 @@ func TestIndexCopyOfAPipe(t *testing.T) {
 	case <-time.After(20 * time.Second):
 		unblock()
 		t.Fatal("the copy waited on the pipe")
+	}
+}
+
+// A patch file chosen to apply that is a named pipe is refused, not
+// waited on for a writer that never comes.
+func TestPatchFileThatIsAPipe(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("one")
+	p := filepath.Join(t.TempDir(), "fix.patch")
+	unblock := pipeAt(t, p)
+	s, m := openFor(t, r)
+	t.Cleanup(unblock)
+	var got error
+	done := false
+	s.ReadPatchFile(p, func(_ PatchFile, err error) { got, done = err, true })
+	m.until(t, "the patch file refused", func() bool { return done })
+	if !errors.Is(got, pathsafe.ErrNotRegular) {
+		t.Fatalf("read %v", got)
 	}
 }
