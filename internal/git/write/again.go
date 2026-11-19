@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,35 +13,76 @@ import (
 )
 
 // popStash puts back the changes the write of e stashed before it ran,
-// once its undo took HEAD back: the stash found by its commit, not as
-// stash@{0}, which another may have been pushed over. When that fails,
-// the error names the stash they stay in.
+// once its undo took HEAD back: the stash is applied by its commit, then
+// dropped where the list holds it then, never as a position found
+// before, which a stash pushed meanwhile moves. When that fails, the
+// error names the stash they stay in.
 func (q *Queue) popStash(ctx context.Context, e Entry) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), unstashTimeout)
 	defer cancel()
 	workTree := e.op.Cmd.WorkTree
-	entry := ""
-	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Read: true,
-		Args: []string{"log", "-g", "--format=%H", "refs/stash", "--"}})
-	if err == nil {
-		for n, line := range strings.Split(strings.TrimSpace(string(res.Stdout)), "\n") {
-			if line == e.stash {
-				entry = "stash@{" + strconv.Itoa(n) + "}"
-				break
-			}
-		}
-		if entry == "" {
-			err = errors.New("write: the stash made is not in the stash list")
-		}
+	git := func(args ...string) (run.Result, error) {
+		return q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Timeout: unstashTimeout, Untranslated: true, Args: args})
 	}
+	entry, err := q.stashEntry(ctx, workTree, e.stash)
 	if err == nil {
-		_, err = q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Timeout: unstashTimeout,
-			Args: []string{"stash", "pop", "--index", entry}})
+		_, err = git("stash", "apply", "--index", e.stash)
 	}
 	if err != nil {
 		return &StashKeptError{Err: fmt.Errorf("write: undo of %s went back", e.Name), Entry: entry, Commit: e.stash, Pop: err}
 	}
+	// The changes are back; what is left is to drop the stash.
+	if entry, err = q.stashEntry(ctx, workTree, e.stash); err == nil {
+		var res run.Result
+		if res, err = git("stash", "drop", entry); err == nil {
+			err = q.putBack(ctx, git, e.stash, string(res.Stdout))
+		}
+	}
+	if err != nil {
+		return &StashKeptError{Err: fmt.Errorf("write: undo of %s went back and its stashed changes are back, but the stash was not dropped", e.Name),
+			Entry: entry, Commit: e.stash, Pop: err}
+	}
 	return nil
+}
+
+// stashEntry is the stash list's entry for the stash commit id.
+func (q *Queue) stashEntry(ctx context.Context, workTree, id string) (string, error) {
+	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: workTree, Read: true,
+		Args: []string{"log", "-g", "--format=%H", "refs/stash", "--"}})
+	if err != nil {
+		return "", err
+	}
+	for n, line := range strings.Split(strings.TrimSpace(string(res.Stdout)), "\n") {
+		if line == id {
+			return "stash@{" + strconv.Itoa(n) + "}", nil
+		}
+	}
+	return "", errors.New("write: the stash made is not in the stash list")
+}
+
+// dropped is git stash drop's word for what it dropped: "Dropped
+// refs/stash@{0} (<id>)".
+var dropped = regexp.MustCompile(`\(([0-9a-f]{40,64})\)\s*$`)
+
+// putBack checks that git stash drop, which said out, dropped the stash
+// id, and when another was pushed between finding id and dropping it, so
+// that the other was dropped, stores that one again.
+func (q *Queue) putBack(ctx context.Context, git func(...string) (run.Result, error), id, out string) error {
+	m := dropped.FindStringSubmatch(out)
+	if m == nil {
+		return fmt.Errorf("write: git stash drop said %q", strings.TrimSpace(out))
+	}
+	if m[1] == id {
+		return nil
+	}
+	res, err := git("log", "-1", "--no-show-signature", "--format=%s", m[1], "--")
+	if err == nil {
+		_, err = git("stash", "store", "-m", strings.TrimSpace(string(res.Stdout)), m[1])
+	}
+	if err != nil {
+		return fmt.Errorf("write: another stash, %s, was dropped and could not be stored again: %w", m[1], err)
+	}
+	return errors.New("write: another stash was pushed meanwhile; it is back in the stash list")
 }
 
 // Repeatable reports whether op can be submitted again as it is, after
