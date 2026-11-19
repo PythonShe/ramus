@@ -25,16 +25,16 @@ import (
 // larger one is skipped (its bytes drained) and reported as too large.
 const MaxObject = 64 << 20
 
-// IdleTimeout is how long git runs with nothing to read before it is
+// idleTimeout is how long git runs with nothing to read before it is
 // ended; the next Read starts it again. A running cat-file keeps the
 // repository's packs open, which on Windows stops git gc from deleting
 // them, and frees their space late everywhere.
-const IdleTimeout = 10 * time.Second
+const idleTimeout = 10 * time.Second
 
-// StallTimeout is how long a batch waits for git to take a request or
+// stallTimeout is how long a batch waits for git to take a request or
 // give an answer before git is taken to have stopped, as on a stalled
 // network file system, and ended.
-const StallTimeout = time.Minute
+const stallTimeout = time.Minute
 
 // keepBuf is the largest object buffer kept from one batch to the next:
 // a large blob read once is not held for the repository's life.
@@ -115,7 +115,7 @@ func Start(ctx context.Context, r *run.Runner, gitDir string) (*Process, error) 
 	if abs, err := filepath.Abs(gitDir); err == nil {
 		gitDir = abs
 	}
-	p := &Process{ctx: ctx, runner: r, gitDir: gitDir, batch: make(chan struct{}, 1), idle: IdleTimeout, stall: StallTimeout}
+	p := &Process{ctx: ctx, runner: r, gitDir: gitDir, batch: make(chan struct{}, 1), idle: idleTimeout, stall: stallTimeout}
 	g, err := p.start(false)
 	if err != nil {
 		return nil, err

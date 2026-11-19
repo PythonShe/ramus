@@ -2,10 +2,10 @@ package conflict
 
 import "errors"
 
-// Sides are the versions of a conflicted file git merged, as the index
-// holds them: the merge base (stage 1), ours (2) and theirs (3); nil for
-// one that does not exist.
-type Sides struct {
+// mergedSides are the versions of a conflicted file git merged, as the
+// index holds them: the merge base (stage 1), ours (2) and theirs (3);
+// nil for one that does not exist.
+type mergedSides struct {
 	Base, Ours, Theirs []byte
 }
 
@@ -15,7 +15,7 @@ var ErrAmbiguous = errors.New("conflict: text in the file looks like conflict ma
 
 // holdsMarkers reports whether a side holds a line like a conflict marker
 // of size: when none does, every marker in the merge is git's.
-func (s Sides) holdsMarkers(size int) bool {
+func (s mergedSides) holdsMarkers(size int) bool {
 	for _, side := range [][]byte{s.Base, s.Ours, s.Theirs} {
 		for pos := 0; pos < len(side); {
 			line, next := lineAt(side, pos)

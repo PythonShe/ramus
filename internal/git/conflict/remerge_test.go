@@ -83,20 +83,20 @@ func TestRemergeAgainstGit(t *testing.T) {
 		if s := rng.IntN(3); s > 0 {
 			style = []string{[]string{"", "--diff3", "--zdiff3"}[s]}
 		}
-		data, err := runMergeFile(ctx, r, paths, DefaultMarkerSize, append(style, "-L", "HEAD", "-L", "base", "-L", "topic")...)
+		data, err := runMergeFile(ctx, r, paths, defaultMarkerSize, append(style, "-L", "HEAD", "-L", "base", "-L", "topic")...)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(data, "\n=======\n") && !strings.HasPrefix(data, "=======\n") {
 			continue // no conflict, as far as can be told cheaply
 		}
-		var sides Sides
+		var sides mergedSides
 		for i, p := range []*[]byte{&sides.Ours, &sides.Base, &sides.Theirs} {
 			if *p, err = os.ReadFile(paths[i]); err != nil {
 				t.Fatal(err)
 			}
 		}
-		segs, err := remerge(ctx, r, []byte(data), DefaultMarkerSize, sides)
+		segs, err := remerge(ctx, r, []byte(data), defaultMarkerSize, sides)
 		if errors.Is(err, ErrAmbiguous) {
 			refused++
 			continue
@@ -114,7 +114,7 @@ func TestRemergeAgainstGit(t *testing.T) {
 				cs[i] = side.choice
 			}
 			got, err := Resolve(segs, cs, nil)
-			want, werr := runMergeFile(ctx, r, paths, DefaultMarkerSize, side.flag)
+			want, werr := runMergeFile(ctx, r, paths, defaultMarkerSize, side.flag)
 			if err != nil || werr != nil || string(got) != want {
 				t.Fatalf("trial %d %v, %s: %v %v\ngot\n%s\nwant\n%s\nmerged\n%s", trials, style, side.flag, err, werr, got, want, data)
 			}

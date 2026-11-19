@@ -52,10 +52,10 @@ func TestLoadTextClipsTheSubject(t *testing.T) {
 		t.Fatal(err)
 	}
 	subject, _, _ := c.Row(0)
-	if len(subject) > MaxSubject || len(subject) < MaxSubject-4 || !strings.HasPrefix(long, subject) || !utf8.ValidString(subject) {
+	if len(subject) > maxSubject || len(subject) < maxSubject-4 || !strings.HasPrefix(long, subject) || !utf8.ValidString(subject) {
 		t.Fatalf("kept %d bytes of the subject", len(subject))
 	}
-	if c.Bytes() > 2*MaxSubject+1024 {
+	if c.Bytes() > 2*maxSubject+1024 {
 		t.Fatalf("the chunk holds %d bytes", c.Bytes())
 	}
 }

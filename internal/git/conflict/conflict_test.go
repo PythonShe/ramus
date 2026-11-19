@@ -91,7 +91,7 @@ func TestParseEdges(t *testing.T) {
 // markers of another size are text.
 func TestParseSize(t *testing.T) {
 	doc := "<<<<<<< a\nx\n=======\ny\n>>>>>>> b\n<<<<<<<<<< HEAD\nours\n==========\ntheirs\n>>>>>>>>>> topic\n"
-	segs, err := ParseSize([]byte(doc), 10)
+	segs, err := parseSize([]byte(doc), 10)
 	if err != nil || Count(segs) != 1 || string(segs[0].Text) != doc[:strings.Index(doc, "<<<<<<<<<<")] {
 		t.Fatalf("%v %+v", err, segs)
 	}

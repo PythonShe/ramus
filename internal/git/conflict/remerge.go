@@ -29,7 +29,7 @@ var remergeVariants = [][]string{
 // data can be read as in two ways, or as none, as when a conflict was
 // edited by hand, is ErrAmbiguous: a guess could drop a line, once
 // resolved, that was in no conflict.
-func remerge(ctx context.Context, r *run.Runner, data []byte, size int, s Sides) ([]Segment, error) {
+func remerge(ctx context.Context, r *run.Runner, data []byte, size int, s mergedSides) ([]Segment, error) {
 	if s.Ours == nil || s.Theirs == nil {
 		// One side deleted: git leaves the other as it is, all text.
 		side := s.Ours
@@ -74,7 +74,7 @@ func remerge(ctx context.Context, r *run.Runner, data []byte, size int, s Sides)
 		default:
 			return nil, err
 		}
-		segs, err := ParseSize([]byte(out), long)
+		segs, err := parseSize([]byte(out), long)
 		if err != nil {
 			return nil, err
 		}

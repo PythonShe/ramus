@@ -76,10 +76,10 @@ func (c *TextChunk) Email(k int) string {
 	return string(c.buf[c.ends[textParts*k+2]:c.ends[textParts*k+3]])
 }
 
-// MaxSubject bounds the bytes of a subject a chunk keeps: a row shows one
+// maxSubject bounds the bytes of a subject a chunk keeps: a row shows one
 // line of it, and a message of one long paragraph would otherwise be kept
 // whole and copied for every row drawn.
-const MaxSubject = 4 << 10
+const maxSubject = 4 << 10
 
 // clip cuts s to at most n bytes, on a rune boundary.
 func clip(s string, n int) string {
@@ -133,7 +133,7 @@ func LoadText(ctx context.Context, p *catfile.Process, ids [][]byte, mm *mailmap
 		// The text is only shown: without the controls and bidi overrides
 		// a commit could carry to disguise its subject or its author.
 		subject, author, email = redact.Control(subject), redact.Control(author), redact.Control(email)
-		subject = clip(subject, MaxSubject)
+		subject = clip(subject, maxSubject)
 		c.odd = append(c.odd, !ok1 || !ok2)
 		c.buf = append(c.buf, subject...)
 		c.ends = append(c.ends, uint32(len(c.buf)))

@@ -97,11 +97,11 @@ type History struct {
 // MaxHistory bounds the entries kept; the oldest go first.
 const MaxHistory = 100
 
-// MaxHistoryBytes bounds the memory the entries hold, as a patch a
+// maxHistoryBytes bounds the memory the entries hold, as a patch a
 // discard of lines keeps to redo it, or the state of the many files a
 // delete of a large folder left; the oldest go first, the last write
 // always stays undoable.
-const MaxHistoryBytes = 64 << 20
+const maxHistoryBytes = 64 << 20
 
 // size is about the memory e holds.
 func (e *Entry) size() int {
@@ -129,7 +129,7 @@ func pathsSize(paths []string) int {
 	return n
 }
 
-// trim drops the oldest entries past MaxHistoryBytes: those to undo
+// trim drops the oldest entries past maxHistoryBytes: those to undo
 // first, then those furthest to redo, keeping the last write. h.mu is
 // held.
 func (h *History) trim() {
@@ -139,11 +139,11 @@ func (h *History) trim() {
 			total += side[i].size()
 		}
 	}
-	for total > MaxHistoryBytes && len(h.done) > 1 {
+	for total > maxHistoryBytes && len(h.done) > 1 {
 		total -= h.done[0].size()
 		h.done = slices.Delete(h.done, 0, 1)
 	}
-	for total > MaxHistoryBytes && len(h.undone) > 0 && len(h.done)+len(h.undone) > 1 {
+	for total > maxHistoryBytes && len(h.undone) > 0 && len(h.done)+len(h.undone) > 1 {
 		total -= h.undone[0].size()
 		h.undone = slices.Delete(h.undone, 0, 1)
 	}

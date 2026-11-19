@@ -24,14 +24,14 @@ func Load(ctx context.Context, r *run.Runner, gitDir, workTree, path string, dat
 		return nil, err
 	}
 	if !hasOpen(data, size) {
-		return ParseSize(data, size)
+		return parseSize(data, size)
 	}
 	s, err := readSides(ctx, r, gitDir, workTree, path)
 	if err != nil {
 		return nil, err
 	}
 	if !s.holdsMarkers(size) {
-		return ParseSize(data, size)
+		return parseSize(data, size)
 	}
 	return remerge(ctx, r, data, size, s)
 }
@@ -53,7 +53,7 @@ func markerSize(ctx context.Context, r *run.Runner, gitDir, workTree, path strin
 	if n, err := strconv.Atoi(string(f[2])); err == nil && n > 0 {
 		return n, nil
 	}
-	return DefaultMarkerSize, nil
+	return defaultMarkerSize, nil
 }
 
 func hasOpen(data []byte, size int) bool {
@@ -68,8 +68,8 @@ func hasOpen(data []byte, size int) bool {
 }
 
 // readSides reads the stages of path in the index.
-func readSides(ctx context.Context, r *run.Runner, gitDir, workTree, path string) (Sides, error) {
-	var s Sides
+func readSides(ctx context.Context, r *run.Runner, gitDir, workTree, path string) (mergedSides, error) {
+	var s mergedSides
 	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true,
 		Env:  []string{"GIT_LITERAL_PATHSPECS=1"},
 		Args: []string{"ls-files", "-u", "-z", "--", path}})

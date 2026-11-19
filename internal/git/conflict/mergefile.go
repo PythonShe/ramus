@@ -37,7 +37,7 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 	}
 	// Markers longer than any run of marker characters in the files, so
 	// that no text in them is read as one.
-	size := DefaultMarkerSize
+	size := defaultMarkerSize
 	for _, p := range []string{local, base, remote} {
 		n, err := longestRun(p)
 		if err != nil {
@@ -52,7 +52,7 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 	if err != nil {
 		return Files{}, err
 	}
-	segs, err := ParseSize([]byte(out), size)
+	segs, err := parseSize([]byte(out), size)
 	if err != nil {
 		return Files{}, err
 	}

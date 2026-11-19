@@ -701,7 +701,7 @@ func TestUndoFailingAfterHEADMoved(t *testing.T) {
 	}
 }
 
-// History holds no more than MaxHistoryBytes, as a patch each discard of
+// History holds no more than maxHistoryBytes, as a patch each discard of
 // lines keeps to redo it: the oldest entries go, the last stays though
 // it alone is past the budget.
 func TestHistoryHasAByteBudget(t *testing.T) {
@@ -716,13 +716,13 @@ func TestHistoryHasAByteBudget(t *testing.T) {
 		total += h.done[i].size()
 	}
 	h.mu.Unlock()
-	if total > MaxHistoryBytes || n == 0 {
+	if total > maxHistoryBytes || n == 0 {
 		t.Fatalf("%d entries hold %d bytes", n, total)
 	}
 	if u, _ := h.Next(); u != "Discard lines 5" {
 		t.Fatalf("next undo %q", u)
 	}
-	h.push(Entry{Name: "Huge", op: Op{Input: make([]byte, MaxHistoryBytes+1)}})
+	h.push(Entry{Name: "Huge", op: Op{Input: make([]byte, maxHistoryBytes+1)}})
 	if u, _ := h.Next(); u != "Huge" {
 		t.Fatalf("next undo %q", u)
 	}

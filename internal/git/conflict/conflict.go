@@ -57,9 +57,9 @@ const (
 	closeMark
 )
 
-// DefaultMarkerSize is the size of the markers git writes for a file with
+// defaultMarkerSize is the size of the markers git writes for a file with
 // no conflict-marker-size attribute.
-const DefaultMarkerSize = 7
+const defaultMarkerSize = 7
 
 // markerOf reports whether line is a conflict marker of size characters,
 // and of what kind: size of one character, then a space or the line's
@@ -104,19 +104,19 @@ func label(line []byte, n int) string {
 	return string(bytes.TrimSpace(line[n:]))
 }
 
-// Parse is ParseSize with git's default marker size.
+// Parse is parseSize with git's default marker size.
 func Parse(data []byte) ([]Segment, error) {
-	return ParseSize(data, DefaultMarkerSize)
+	return parseSize(data, defaultMarkerSize)
 }
 
-// ParseSize splits data into segments at conflict markers of size
+// parseSize splits data into segments at conflict markers of size
 // characters, the size git wrote them in (see Load). A marker out of place
-// is read as text of the side it is in; ParseSize fails when a conflict is
+// is read as text of the side it is in; parseSize fails when a conflict is
 // not closed, or the file is larger than MaxSize.
 //
 // Text in the file that only looks like a conflict, as an example in a
 // document, is read as one: Load tells them apart.
-func ParseSize(data []byte, size int) ([]Segment, error) {
+func parseSize(data []byte, size int) ([]Segment, error) {
 	if len(data) > MaxSize {
 		return nil, errLarge
 	}

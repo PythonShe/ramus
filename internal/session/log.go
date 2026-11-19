@@ -212,15 +212,10 @@ func (s *Session) followThen(e *LogEntry, j *write.Job, what repo.Change) {
 	}()
 }
 
-// RunAction runs one of the user's actions in the repository, logged. It
-// is called on the main thread.
-func (s *Session) RunAction(name string, argv []string) *LogEntry {
-	return s.RunActionShown(name, strings.Join(argv, " "), argv)
-}
-
-// RunActionShown is RunAction with the command shown in the log as
-// shown, which leaves out what must not be seen: the answers typed to
-// its questions, a token among them.
+// RunActionShown runs one of the user's actions in the repository,
+// logged, with the command shown in the log as shown, which leaves out
+// what must not be seen: the answers typed to its questions, a token
+// among them. It is called on the main thread.
 func (s *Session) RunActionShown(name, shown string, argv []string) *LogEntry {
 	e := s.addLog(name, shown)
 	r := s.Repo
