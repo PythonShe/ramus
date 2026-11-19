@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"ramus/internal/git/config"
 	"ramus/internal/git/lifetime"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
@@ -242,6 +243,82 @@ func (s *Session) Fetching() bool { return s.fetch.job != nil }
 // the repository opened.
 func (s *Session) Fetched() time.Time { return s.fetch.fetched }
 
+// quietEnv is the environment of a fetch no one is there to answer, over
+// user's, the environment commands run with: git, ssh and the credential
+// helpers fail rather than ask, so no dialog of the user's own (an
+// askpass, Git Credential Manager's sign-in) opens out of nowhere, again
+// at each try. A fetch failed so is one needsUser stops.
+func quietEnv(user []string, cfg *config.Config) []string {
+	env := []string{
+		// Set and empty, git asks through no askpass, neither
+		// core.askPass nor SSH_ASKPASS, and with GIT_TERMINAL_PROMPT=0
+		// it fails.
+		"GIT_ASKPASS=",
+		// OpenSSH 8.4 and later.
+		"SSH_ASKPASS_REQUIRE=never",
+		"GCM_INTERACTIVE=never",
+	}
+	if cmd, ok := batchSSH(user, cfg); ok {
+		env = append(env, "GIT_SSH_COMMAND="+cmd)
+	}
+	return env
+}
+
+// batchSSH is the ssh command git would run, with OpenSSH's BatchMode on,
+// which keeps it from asking for a passphrase, a password or a host key
+// on any version: the user's own, from GIT_SSH_COMMAND, core.sshCommand
+// or GIT_SSH, taken as git takes them, else ssh. false for a command
+// that is not OpenSSH, as PuTTY's plink, which takes no -o: it is left
+// as the user set it.
+func batchSSH(user []string, cfg *config.Config) (string, bool) {
+	get := func(key string) string {
+		if cfg == nil {
+			return ""
+		}
+		v, _ := cfg.Get(key)
+		return v
+	}
+	cmd := lookupEnv(user, "GIT_SSH_COMMAND")
+	if cmd == "" {
+		cmd = get("core.sshCommand")
+	}
+	var program string
+	switch fields := strings.Fields(cmd); {
+	case len(fields) > 0:
+		program = strings.Trim(fields[0], `"'`)
+	case lookupEnv(user, "GIT_SSH") != "":
+		// A program, not a command line: quoted for the shell git runs
+		// GIT_SSH_COMMAND with.
+		program = lookupEnv(user, "GIT_SSH")
+		cmd = "'" + strings.ReplaceAll(program, "'", `'\''`) + "'"
+	default:
+		cmd, program = "ssh", "ssh"
+	}
+	variant := lookupEnv(user, "GIT_SSH_VARIANT")
+	if variant == "" {
+		variant = get("ssh.variant")
+	}
+	if variant == "" || variant == "auto" {
+		variant = program[strings.LastIndexAny(program, `/\`)+1:]
+		variant = strings.TrimSuffix(strings.ToLower(variant), ".exe")
+	}
+	if variant != "ssh" {
+		return "", false
+	}
+	return cmd + " -o BatchMode=yes", true
+}
+
+// lookupEnv is the value of key in env, "" when it has none.
+func lookupEnv(env []string, key string) string {
+	v := ""
+	for _, kv := range env {
+		if k, val, ok := strings.Cut(kv, "="); ok && k == key {
+			v = val // the last wins, as for a process
+		}
+	}
+	return v
+}
+
 // quietFetch fetches every remote with no one to ask for a password,
 // unless a fetch is running or there is no remote; it reports whether
 // it started one.
@@ -256,7 +333,10 @@ func (s *Session) quietFetch(done func(error)) bool {
 	}
 	op.Name = locales.SessionFetchInBackground()
 	op.Cmd.Timeout = fetchTimeout
-	op.Cmd.NoPrompt = true // no one is there to answer
+	// No one is there to answer: NoPrompt leaves the app's own askpass
+	// out, quietEnv the user's.
+	op.Cmd.NoPrompt = true
+	op.Cmd.Env = append(op.Cmd.Env, quietEnv(r.Runner.Environ(), r.Config())...)
 	// needsUser reads what git said.
 	op.Cmd.Untranslated = true
 	// Quiet: no one waits on it, so its failures while offline are not told

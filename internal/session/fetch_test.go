@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"ramus/internal/git/config"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
@@ -201,6 +202,11 @@ func TestTrustStartsTheBackgroundFetch(t *testing.T) {
 	}
 	r.Git("config", "core.sshCommand", hang)
 	r.Git("remote", "set-url", "origin", "ssh://example.invalid/x")
+	// The fetch takes the ssh command from the config as last read.
+	m.until(t, "the config read", func() bool {
+		v, _ := s.Repo.Config().Get("core.sshCommand")
+		return v == hang
+	})
 	s.SetBackgroundFetch(0, nil)
 	m.until(t, "the last background fetch", func() bool { return !s.Fetching() })
 	pickerDone := false
@@ -287,6 +293,88 @@ func TestWriteDoesNotWaitForTheBackgroundFetch(t *testing.T) {
 	m.until(t, "the fetch tried again", func() bool { return fetches() > n })
 	if s.fetch.failures != 0 || s.FetchStopped() != nil || len(failed) != 0 {
 		t.Fatalf("the fetch given up counted as failed: %d, %v, %v", s.fetch.failures, s.FetchStopped(), failed)
+	}
+}
+
+// The ssh a fetch no one answers runs is the user's own, with BatchMode
+// on when it is OpenSSH, and left as the user set it when it is not.
+func TestBatchSSH(t *testing.T) {
+	cfg := func(kv ...string) *config.Config {
+		var b []byte
+		for _, x := range kv {
+			k, v, _ := strings.Cut(x, "=")
+			b = append(b, "local\x00file:config\x00"+k+"\n"+v+"\x00"...)
+		}
+		c, err := config.Parse(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	for _, c := range []struct {
+		env  []string
+		cfg  *config.Config
+		want string // "" leaves it as it is
+	}{
+		{nil, nil, "ssh -o BatchMode=yes"},
+		{[]string{"GIT_SSH_COMMAND=ssh -i ~/.ssh/k"}, cfg("core.sshcommand=other"), "ssh -i ~/.ssh/k -o BatchMode=yes"},
+		{nil, cfg("core.sshcommand=/usr/local/bin/ssh -F cfg"), "/usr/local/bin/ssh -F cfg -o BatchMode=yes"},
+		{nil, cfg(`core.sshcommand=C:\Windows\System32\OpenSSH\SSH.EXE`), `C:\Windows\System32\OpenSSH\SSH.EXE -o BatchMode=yes`},
+		{[]string{"GIT_SSH=/opt/it's/ssh"}, nil, `'/opt/it'\''s/ssh' -o BatchMode=yes`},
+		{[]string{"GIT_SSH=plink.exe"}, nil, ""},
+		{nil, cfg("core.sshcommand=plink -batch"), ""},
+		{nil, cfg("core.sshcommand=my-wrapper"), ""},
+		{nil, cfg("core.sshcommand=my-wrapper", "ssh.variant=ssh"), "my-wrapper -o BatchMode=yes"},
+		{[]string{"GIT_SSH_VARIANT=putty"}, nil, ""},
+	} {
+		got, ok := batchSSH(c.env, c.cfg)
+		if !ok {
+			got = ""
+		}
+		if got != c.want {
+			t.Errorf("%v %v: %q, want %q", c.env, c.cfg, got, c.want)
+		}
+	}
+}
+
+// A fetch no one answers asks nothing: no askpass, git's or the user's,
+// no credential helper's dialog, and ssh in BatchMode.
+func TestBackgroundFetchAsksNothing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the ssh is a shell script")
+	}
+	r := gittest.Init(t)
+	r.Commit("one")
+	dir := t.TempDir()
+	ssh := filepath.Join(dir, "ssh")
+	out := filepath.Join(dir, "out")
+	script := "#!/bin/sh\n{ echo \"args $*\"; env; } > '" + out + "'\necho 'Permission denied (publickey).' >&2\nexit 255\n"
+	if err := os.WriteFile(ssh, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.Git("config", "core.sshCommand", ssh)
+	r.Git("remote", "add", "origin", "ssh://example.invalid/x")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	var failed error
+	if !s.FetchFresh(0, func(err error) { failed = err }) {
+		t.Fatal("no fetch")
+	}
+	m.until(t, "the fetch", func() bool { return !s.Fetching() })
+	if !needsUser(failed) {
+		t.Errorf("failed with %v, not as needing the user", failed)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := "\n" + string(b)
+	for _, want := range []string{"-o BatchMode=yes", "\nGIT_ASKPASS=\n", "\nSSH_ASKPASS_REQUIRE=never\n", "\nGCM_INTERACTIVE=never\n", "\nGIT_TERMINAL_PROMPT=0\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("ssh ran without %q:\n%s", want, b)
+		}
 	}
 }
 
