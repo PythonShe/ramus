@@ -53,6 +53,18 @@ func TestDecodeKeepsBytes(t *testing.T) {
 		{"ok ü", "", "ok ü", true},
 		{"ok ü", "utf8", "ok ü", true},
 		{"\xff\xfe x", "", `\xff\xfe x`, false},
+		// Bytes invalid in the commit's encoding, which its decoder
+		// would turn into U+FFFD, eating the next byte at times.
+		{"a\x81 b", "Shift_JIS", `a\x81 b`, false},
+		{"a\xffb", "Shift_JIS", `a\xffb`, false},
+		{"a\x8eb", "EUC-JP", `a\x8eb`, false},
+		{"a\x81b", "Big5", `a\x81b`, false},
+		{"a\x00b", "UTF-16", "a\x00b", false},
+		{"a\x81b", "windows-1252", `a\x81b`, false},
+		{"a\x1b$B\xffb", "ISO-2022-JP", "a\x1b$B\\xffb", false},
+		// U+FFFD written in the encoding is text like any other.
+		{"\xff\xfd", "UTF-16BE", "�", true},
+		{"caf\xe9", "ISO-8859-1", "café", true},
 	} {
 		got, ok := Decode([]byte(tc.in), tc.enc)
 		if got != tc.want || ok != tc.ok {

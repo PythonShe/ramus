@@ -4,6 +4,7 @@
 package textenc
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -41,7 +42,7 @@ func lookup(name string) (encoding.Encoding, error) {
 func Decode(b []byte, enc string) (string, bool) {
 	if !IsUTF8(enc) {
 		if e, err := lookup(enc); err == nil {
-			if out, err := e.NewDecoder().Bytes(b); err == nil && utf8.Valid(out) {
+			if out, err := e.NewDecoder().Bytes(b); err == nil && utf8.Valid(out) && whole(e, b, out) {
 				return string(out), true
 			}
 		}
@@ -50,6 +51,20 @@ func Decode(b []byte, enc string) (string, bool) {
 		return string(b), IsUTF8(enc)
 	}
 	return Escape(b), false
+}
+
+// whole reports whether out is all of b decoded from e. Decoders do not
+// fail on bytes invalid in their encoding: they put U+FFFD in their
+// place, at times with the byte after. A text holding U+FFFD is taken as
+// decoded only when it encodes back to b, as one that held U+FFFD in the
+// first place does; other text is not re-encoded, since an encoding may
+// write the same text in more than one way.
+func whole(e encoding.Encoding, b, out []byte) bool {
+	if !bytes.ContainsRune(out, utf8.RuneError) {
+		return true
+	}
+	back, err := e.NewEncoder().Bytes(out)
+	return err == nil && bytes.Equal(back, b)
 }
 
 // Escape writes b as UTF-8, each byte that is not part of a valid UTF-8
