@@ -65,8 +65,8 @@ type Options struct {
 	// Worktree, when set, is the folder of another worktree of the
 	// repository, about to be removed: its state is kept, and its own
 	// snapshots copied, under the refs of the worktree Take is given,
-	// since its own go with it. A folder that is gone has nothing to
-	// keep: Take returns no snapshot.
+	// since its own go with it. A folder that is gone has no files to
+	// keep: Take copies its snapshots and returns none.
 	Worktree string
 }
 
@@ -128,6 +128,56 @@ func worktreeGitDir(dir string) (string, error) {
 	return gd, nil
 }
 
+// goneWorktreeGitDir is the git directory of the linked worktree whose
+// folder, dir, is gone, "" when the repository of gitDir has none there.
+// The folder's .git file is gone with it; git's own record of each
+// worktree, its gitdir file, names the .git file it had.
+func goneWorktreeGitDir(gitDir, dir string) (string, error) {
+	common := gitDir
+	if b, err := pathsafe.ReadFile(filepath.Join(gitDir, "commondir"), 64<<10); err == nil {
+		if c := strings.TrimSpace(string(b)); filepath.IsAbs(c) {
+			common = c
+		} else {
+			common = filepath.Join(gitDir, c)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	admins, err := os.ReadDir(filepath.Join(common, "worktrees"))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	want := realParent(dir)
+	for _, a := range admins {
+		admin := filepath.Join(common, "worktrees", a.Name())
+		b, err := pathsafe.ReadFile(filepath.Join(admin, "gitdir"), 64<<10)
+		if err != nil {
+			continue // not a worktree's, or one git cannot read either
+		}
+		named := strings.TrimSpace(string(b))
+		if !filepath.IsAbs(named) {
+			named = filepath.Join(admin, named) // worktree.useRelativePaths
+		}
+		if filepath.Base(named) == ".git" && realParent(filepath.Dir(named)) == want {
+			return admin, nil
+		}
+	}
+	return "", nil
+}
+
+// realParent is path with its parent folder as the system knows it: the
+// path itself is gone, the folder it was in may be named another way.
+func realParent(path string) string {
+	path = filepath.Clean(path)
+	if parent, err := pathsafe.Real(filepath.Dir(path)); err == nil {
+		return filepath.Join(parent, filepath.Base(path))
+	}
+	return path
+}
+
 // Snapshot is one kept state.
 type Snapshot struct {
 	Ref    string
@@ -158,9 +208,14 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	keep := w.GitDir
 	if opts.Worktree != "" {
 		if _, err := os.Lstat(opts.Worktree); errors.Is(err, os.ErrNotExist) {
-			// Its folder was deleted: nothing of it is left to keep,
-			// and git removes such a worktree as it is.
-			return Snapshot{}, nil
+			// Its folder was deleted: none of its files are left to keep,
+			// and git removes such a worktree as it is. Its snapshots are
+			// still in its git directory, until then.
+			gd, err := goneWorktreeGitDir(keep, opts.Worktree)
+			if err != nil || gd == "" {
+				return Snapshot{}, err
+			}
+			return Snapshot{}, adopt(ctx, r, gd, keep)
 		}
 		gd, err := worktreeGitDir(opts.Worktree)
 		if err != nil {

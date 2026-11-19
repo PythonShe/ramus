@@ -316,6 +316,44 @@ func TestRemovedWorktreeKeepsItsSnapshots(t *testing.T) {
 	}
 }
 
+// A worktree whose folder was deleted by hand has no files left to keep,
+// but its snapshots are still in its git directory until git forgets it:
+// they are kept under the worktree that removes it.
+func TestWorktreeFolderGoneKeepsItsSnapshots(t *testing.T) {
+	for _, relative := range []bool{false, true} {
+		f := setup(t)
+		f.r.Write("a", "1")
+		f.r.Commit("one")
+		main := f.w
+		wt, _ := filepath.EvalSymlinks(t.TempDir())
+		wt = filepath.Join(wt, "wt")
+		if relative {
+			// As git 2.48 and later write it with worktree.useRelativePaths.
+			f.r.Git("config", "worktree.useRelativePaths", "true")
+		}
+		f.r.Git("worktree", "add", "-q", "--detach", wt)
+		wtGit := strings.TrimSpace(f.r.Git("-C", wt, "rev-parse", "--absolute-git-dir"))
+		os.WriteFile(filepath.Join(wt, "a"), []byte("precious"), 0o644)
+		f.w = Where{GitDir: wtGit, WorkTree: wt}
+		old := f.take(Options{Reason: "Discard changes to a", Paths: []string{"a"}})
+		if err := os.RemoveAll(wt); err != nil {
+			t.Fatal(err)
+		}
+		f.w = main
+		if s := f.take(Options{Reason: "Remove worktree wt", Ignored: true, Worktree: wt}); s.Commit != "" {
+			t.Fatalf("a snapshot of a folder that is gone: %+v", s)
+		}
+		f.r.Git("worktree", "prune", "--expire=now")
+		if _, err := os.Stat(wtGit); err == nil {
+			t.Fatal("git did not forget the worktree")
+		}
+		l, _ := f.list(f.r.GitDir(), f.r.GitDir())
+		if len(l) != 1 || l[0].Commit != old.Commit || l[0].Ref != old.Ref {
+			t.Fatalf("relative %v: the worktree's snapshot is gone: %+v", relative, l)
+		}
+	}
+}
+
 // An index copy a snapshot left when the app ended in the middle of it is
 // removed by the next snapshot; one a snapshot may be using stays.
 func TestLeftIndexCopiesRemoved(t *testing.T) {

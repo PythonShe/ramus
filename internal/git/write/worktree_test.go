@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"ramus/internal/git/snapshot"
 )
 
 // git is the oracle: worktree list says what each write did.
@@ -154,12 +156,17 @@ func TestWorktreeFolderGone(t *testing.T) {
 	for _, b := range []string{"gone", "gone-too"} {
 		op, err := AddWorktree(h.w, WorktreeOptions{Path: filepath.Join(base, b), Branch: b})
 		h.do(op, err, true)
+		// A snapshot taken there, which only its git directory holds.
+		h.r.Git("-C", filepath.Join(base, b), "update-ref", snapshot.Prefix+b, "HEAD")
 		if err := os.RemoveAll(filepath.Join(base, b)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	h.do(RemoveWorktree(h.w, filepath.Join(base, "gone"), false), nil, true)
 	h.do(DeleteBranch(h.w, "refs/heads/gone-too", h.rev("HEAD"), false, filepath.Join(base, "gone-too"), h.seen()), nil, true)
+	if kept := h.r.Git("for-each-ref", "--format=%(refname)", snapshot.Prefix); kept != snapshot.Prefix+"gone\n"+snapshot.Prefix+"gone-too\n" {
+		t.Fatalf("the worktrees' snapshots are not kept: %q", kept)
+	}
 	if h.rev("refs/heads/gone-too") != "" {
 		t.Fatal("the branch is still there")
 	}
