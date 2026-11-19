@@ -27,8 +27,17 @@ jobs:
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
+      # check.sh keeps go test's events; the step after lists from them
+      # the tests this system skipped, with their reasons: a test that
+      # skips where it should run passes having tested nothing.
       - name: Check
-        run: scripts/check.sh
+        run: RAMUS_TEST_JSON="$RUNNER_TEMP/tests" scripts/check.sh
+      - name: Tests skipped
+        if: ${{ !cancelled() }}
+        run: |
+          set -- "$RUNNER_TEMP"/tests/*.json
+          if [ ! -e "$1" ]; then echo "check.sh ran no tests"; exit 0; fi
+          go run ./scripts/testlog -skips "$@"
       - name: What starting git costs
         run: RAMUS_MEASURE=1 go test ./spike/spawn -run Spawn -v
       - name: Build without cgo
@@ -76,7 +85,13 @@ jobs:
       - name: Git version
         run: git --version
       - name: Check
-        run: scripts/check.sh
+        run: RAMUS_TEST_JSON="$RUNNER_TEMP/tests" scripts/check.sh
+      - name: Tests skipped
+        if: ${{ !cancelled() }}
+        run: |
+          set -- "$RUNNER_TEMP"/tests/*.json
+          if [ ! -e "$1" ]; then echo "check.sh ran no tests"; exit 0; fi
+          go run ./scripts/testlog -skips "$@"
       - name: What starting git costs
         run: RAMUS_MEASURE=1 go test ./spike/spawn -run Spawn -v
       # The runner has git-lfs; the test skips where it is missing, so
@@ -145,7 +160,13 @@ jobs:
       - name: Git version
         run: git --version
       - name: Check
-        run: scripts/check.sh
+        run: RAMUS_TEST_JSON="$RUNNER_TEMP/tests" scripts/check.sh
+      - name: Tests skipped
+        if: ${{ !cancelled() }}
+        run: |
+          set -- "$RUNNER_TEMP"/tests/*.json
+          if [ ! -e "$1" ]; then echo "check.sh ran no tests"; exit 0; fi
+          go run ./scripts/testlog -skips "$@"
       - name: What starting git costs
         run: RAMUS_MEASURE=1 go test ./spike/spawn -run Spawn -v
       - name: Build without cgo

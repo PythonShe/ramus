@@ -92,8 +92,31 @@ esac
 # go test's default timeout, and grows with every view: past it, go
 # test reports a hang.
 timeout=20m
+
+# gotest is go test of the arguments after the first. With
+# RAMUS_TEST_JSON set, a folder, go test's events are also kept there, in
+# a file named by the first argument, for CI to list the tests skipped
+# (scripts/testlog); what is printed stays go test's usual output. That
+# go test passed is kept in a file, which a pipe in sh would lose.
+gotest() {
+	name=$1
+	shift
+	if [ -z "${RAMUS_TEST_JSON:-}" ]; then
+		go test "$@"
+		return
+	fi
+	mkdir -p "$RAMUS_TEST_JSON"
+	passed=$(mktemp)
+	shown=0
+	{ go test -json "$@" && echo yes >"$passed"; } |
+		go run ./scripts/testlog -save "$RAMUS_TEST_JSON/$name.json" || shown=1
+	result=$(cat "$passed")
+	rm -f "$passed"
+	[ "$result" = yes ] && [ "$shown" = 0 ]
+}
+
 if [ -z "$race" ]; then
-	CGO_ENABLED=0 go test -timeout "$timeout" ./... || fail "go test failed: the FAIL lines above name the package and the test"
+	CGO_ENABLED=0 gotest all -timeout "$timeout" ./... || fail "go test failed: the FAIL lines above name the package and the test"
 	exit 0
 fi
 pkgs=$(go list ./...) || fail "go list failed"
@@ -108,12 +131,12 @@ rest="$rest $(echo "$pkgs" | grep -E "$ui")"
 racelog=$(mktemp)
 # One package a word.
 # shellcheck disable=SC2086
-go test -race -timeout "$timeout" $raced >"$racelog" 2>&1 &
+gotest race -race -timeout "$timeout" $raced >"$racelog" 2>&1 &
 racing=$!
 trap 'kill "$racing" 2>/dev/null || true; rm -f "$racelog"' EXIT
 failed=
 # shellcheck disable=SC2086
-CGO_ENABLED=0 go test -timeout "$timeout" $rest || failed=1
+CGO_ENABLED=0 gotest rest -timeout "$timeout" $rest || failed=1
 racefailed=
 wait "$racing" || racefailed=1
 echo "--- go test -race, the packages under internal/ but the ui's"
