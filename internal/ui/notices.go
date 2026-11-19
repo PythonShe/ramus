@@ -112,7 +112,7 @@ func failedWrite(t *tab) *session.LogEntry {
 		switch {
 		case e.Running, e.Quiet:
 			continue
-		case e.Err == nil || errors.Is(e.Err, context.Canceled) || e == t.failSeen:
+		case e.Err == nil || errors.Is(e.Err, context.Canceled) || e == t.failSeen || e == t.seq.unread(t):
 			return nil
 		}
 		return e

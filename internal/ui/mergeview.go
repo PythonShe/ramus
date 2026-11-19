@@ -568,12 +568,12 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 		ui.Text(c, what).Bold().SingleLine().Grow(1)
 		if ui.Button(c, locales.MergeContinue()).Disabled(ro || conflicts > 0).Clicked() {
 			o, err := write.Sequence(w, name, write.Continue)
-			a.submitSequence(t, o, err)
+			a.submitSequence(t, o, err, false)
 		}
 		if op != repo.Merge {
 			if ui.Button(c, locales.MergeSkip()).Disabled(ro).Clicked() {
 				o, err := write.Sequence(w, name, write.Skip)
-				a.submitSequence(t, o, err)
+				a.submitSequence(t, o, err, false)
 			}
 		}
 		if ui.Button(c, locales.MergeAbortEllipsis()).Disabled(ro).Clicked() {
@@ -584,7 +584,13 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 			}
 			a.confirm = confirmState{open: true, title: locales.MergeAbortTitle(opKey),
 				message: locales.MergeAbortMessage(),
-				button:  locales.MergeAbort(), run: func() { a.submitSequence(t, o, nil) }}
+				button:  locales.MergeAbort(), run: func() {
+					// Ended meanwhile, in a terminal: nothing is left to
+					// abort, and the bar has gone.
+					if t.s.State.Operation == op {
+						a.submitSequence(t, o, nil, true)
+					}
+				}}
 		}
 	})
 }
@@ -596,6 +602,9 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 type seqState struct {
 	// entry logs it; nil when there is none to wait for.
 	entry *session.LogEntry
+	// op is the operation it was asked of; abort marks an abort.
+	op    repo.Operation
+	abort bool
 }
 
 // busy reports whether the bar waits for the step asked last: it runs,
@@ -608,17 +617,31 @@ func (s *seqState) busy() bool {
 // settle lets the step asked last go once the state was read after it
 // ended, which a status read after then says: the state read after a
 // write ends may be handed over before or after the write's own end is,
-// so neither the order of the two nor the status changing tells.
+// so neither the order of the two nor the status changing tells. An
+// abort git refused because the operation had ended elsewhere meanwhile
+// is no failure to tell of: the bar sees it is over.
 func (s *seqState) settle(t *tab) {
 	e := s.entry
 	if e == nil || e.Running || t.s.State.Refreshed.Before(e.Ended) {
 		return
 	}
+	if e.Err != nil && s.abort && t.s.State.Operation != s.op {
+		t.failSeen = e
+	}
 	*s = seqState{}
 }
 
+// unread is an abort that failed, the state not read since: whether it
+// failed for want of an operation to abort is not known yet.
+func (s *seqState) unread(t *tab) *session.LogEntry {
+	if e := s.entry; e != nil && s.abort && !e.Running && e.Err != nil && t.s.State.Refreshed.Before(e.Ended) {
+		return e
+	}
+	return nil
+}
+
 // submitSequence submits a continue, skip or abort, one at a time.
-func (a *App) submitSequence(t *tab, op write.Op, err error) {
+func (a *App) submitSequence(t *tab, op write.Op, err error, abort bool) {
 	if err != nil {
 		a.notice = errText(err)
 		return
@@ -627,7 +650,7 @@ func (a *App) submitSequence(t *tab, op write.Op, err error) {
 		a.notice = errText(err)
 		return
 	}
-	t.seq = seqState{entry: lastEntry(t)}
+	t.seq = seqState{entry: lastEntry(t), op: t.s.State.Operation, abort: abort}
 }
 
 // mergeDialog asks how to merge a branch, after showing what it would
