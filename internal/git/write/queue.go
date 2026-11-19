@@ -407,6 +407,11 @@ func (q *Queue) record(j *Job, before fullState) {
 	j.mu.Lock()
 	snap, config, backup := j.snap, j.config, j.backup
 	j.mu.Unlock()
+	if j.Op.Undo == MovesHead && snap.Commit == "" && a.Symbolic == b.Symbolic && a.Head == b.Head && len(a.Refs) == 0 {
+		// Nothing moved, as a merge or pull already up to date: there is
+		// nothing to undo, and an undo would only unstage.
+		return
+	}
 	e := Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op, backup: backup}
 	q.settle(&e, config)
 	id := q.History.push(e)

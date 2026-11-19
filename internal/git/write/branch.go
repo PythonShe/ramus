@@ -89,8 +89,12 @@ func Reset(w Where, commit string, mode ResetMode, seen Seen) (Op, error) {
 	if seen.Branch != "" {
 		op.Backup = []string{seen.Branch}
 	}
-	if mode == ResetHard {
+	switch mode {
+	case ResetHard:
 		op.Name = "Hard reset to " + short(commit)
+		op.Snapshot = &snapshot.Options{Reason: op.Name}
+	case ResetMixed:
+		// What was staged is dropped from the index: kept for undo.
 		op.Snapshot = &snapshot.Options{Reason: op.Name}
 	}
 	return op, nil
@@ -372,6 +376,11 @@ func Merge(w Where, what string, mode MergeMode, seen Seen) (Op, error) {
 		Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: append(args, "--end-of-options", what), Timeout: HookTimeout}}
 	if seen.Branch != "" {
 		op.Backup = []string{seen.Branch}
+	}
+	if mode == MergeSquash {
+		// HEAD stays: the merged changes go to the index and files, which
+		// undo puts back as they were.
+		op.Snapshot, op.Undo = &snapshot.Options{Reason: op.Name}, FilesOnly
 	}
 	return op, nil
 }

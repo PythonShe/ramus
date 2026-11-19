@@ -70,6 +70,10 @@ type Entry struct {
 	// backup is the directory of the refs the write backed up, "" for
 	// none: kept from expiring while the entry is in the History.
 	backup string
+	// paths are what an undo puts back from Snapshot (touchedPaths);
+	// unknown when they could not be read, and then none is.
+	paths   []string
+	unknown bool
 }
 
 // History holds a repository's undoable writes, for as long as the
@@ -93,7 +97,7 @@ const MaxHistoryBytes = 64 << 20
 
 // size is about the memory e holds.
 func (e *Entry) size() int {
-	n := 512 + len(e.op.Input) + len(e.Name) + pathsSize(e.Snapshot.Paths) + pathsSize(e.op.Cmd.Args)
+	n := 512 + len(e.op.Input) + len(e.Name) + pathsSize(e.Snapshot.Paths) + pathsSize(e.op.Cmd.Args) + pathsSize(e.paths)
 	for _, c := range e.op.More {
 		n += pathsSize(c.Args)
 	}
@@ -309,14 +313,11 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 	default:
 		err = q.apply(ctx, e, e.Before, e.After, false)
 	}
-	// The refs and files moved even when the branches' settings could not
-	// follow: the entry moves with them, and the error says what is left.
-	var ce *configError
-	if err != nil && !errors.As(err, &ce) {
+	if err != nil && !moved(err) {
 		return run.Result{}, err
 	}
 	if !undo {
-		e.left = q.leftPaths(ctx, e, nil)
+		q.settlePaths(ctx, &e)
 	}
 	h.mu.Lock()
 	*from = (*from)[:len(*from)-1]
@@ -328,6 +329,15 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 	h.trim()
 	h.mu.Unlock()
 	return run.Result{}, err
+}
+
+// moved reports an undo or redo that failed once the repository had
+// moved, which its entry moves with, the error saying what is left: the
+// branches' settings, or the rest after HEAD.
+func moved(err error) bool {
+	var ce *configError
+	var pe *partlyError
+	return errors.As(err, &ce) || errors.As(err, &pe)
 }
 
 // apply moves the repository from state from to state to, refusing if it
@@ -344,27 +354,41 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 	}
 	switch e.Kind {
 	case FilesOnly:
-		return restoreFiles(ctx, q, w, e.Snapshot)
+		return restoreFiles(ctx, q, w, e)
 	case MovesHead:
 		if _, err := snapshot.Take(ctx, q.r, w, snapshot.Options{Reason: "Before " + verb(restore) + " " + e.Name}); err != nil {
 			return fmt.Errorf("write: keeping a snapshot first: %w", err)
 		}
 	}
 	// Refs that will exist are set before HEAD moves, so a checkout finds
-	// its branch; deletions and the branch HEAD leaves come after.
-	early := func(name, nu string) bool { return e.Kind == MovesHead && nu != "" && name != from.Symbolic }
+	// its branch; deletions and the branch HEAD leaves come after. HEAD's
+	// own branch, when it stays on it, moves first too, its index and
+	// files after it.
+	same := e.Kind == MovesHead && from.Symbolic != "" && from.Symbolic == to.Symbolic
+	early := func(name, nu string) bool {
+		return e.Kind == MovesHead && nu != "" && (name != from.Symbolic || same)
+	}
 	if err := q.moveRefs(ctx, from, to, early, false); err != nil {
 		return err
 	}
-	skip := ""
 	if e.Kind == MovesHead {
 		switch {
 		case from.Symbolic != to.Symbolic && to.Symbolic != "":
 			err = git("checkout", "-q", "--no-guess", strings.TrimPrefix(to.Symbolic, "refs/heads/"), "--")
-		case from.Symbolic != to.Symbolic || from.Symbolic == "":
+		case !same:
 			err = git("checkout", "-q", "--detach", to.Head, "--")
 		default:
-			err, skip = git("reset", "-q", "--keep", to.Head), to.Symbolic
+			// As a checkout does, not as git reset --keep, which also
+			// unstages every change: what was staged since stays, and a
+			// file changed since that the move would overwrite stops it.
+			// A soft reset left the index and files; a mixed one the files.
+			switch resetMode(e.op) {
+			case "soft":
+			case "mixed":
+				err = git("read-tree", "-m", "-i", from.Head, to.Head)
+			default:
+				err = git("read-tree", "-m", "-u", from.Head, to.Head)
+			}
 		}
 		if err != nil {
 			// Put back what moved early, so the history still matches,
@@ -378,18 +402,23 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 			return err
 		}
 	}
-	late := func(name, nu string) bool { return name != skip && !early(name, nu) }
+	late := func(name, nu string) bool { return !early(name, nu) }
 	if err := q.moveRefs(ctx, from, to, late, e.Kind == RefsOnly); err != nil {
+		if e.Kind == MovesHead {
+			return &partlyError{err: err, undo: restore}
+		}
 		return err
 	}
+	// From here HEAD and the refs are moved: a failure leaves the rest
+	// undone, and the entry goes with HEAD.
 	if e.Kind == RefsOnly && from.Symbolic != to.Symbolic && to.Symbolic != "" {
 		if err := git("symbolic-ref", "HEAD", to.Symbolic); err != nil {
-			return err
+			return &partlyError{err: err, undo: restore}
 		}
 	}
 	if restore && e.Kind == MovesHead && e.Snapshot.Commit != "" {
-		if err := restoreFiles(ctx, q, w, e.Snapshot); err != nil {
-			return err
+		if err := restoreFiles(ctx, q, w, e); err != nil {
+			return &partlyError{err: err, undo: restore}
 		}
 	}
 	cf, ct := e.config[1], e.config[0]
@@ -455,14 +484,112 @@ func (q *Queue) moveRefs(ctx context.Context, from, to State, pick func(name, nu
 	return err
 }
 
-// restoreFiles puts the paths a write's snapshot covers back exactly as
-// they were: index, work tree, and files that were absent.
-func restoreFiles(ctx context.Context, q *Queue, w snapshot.Where, s snapshot.Snapshot) error {
-	if s.Commit == "" {
+// resetMode is "soft" or "mixed" for a reset that left the files, or
+// the index and the files, as they were; "" for any other write.
+func resetMode(op Op) string {
+	if len(op.Cmd.Args) == 0 || op.Cmd.Args[0] != "reset" {
+		return ""
+	}
+	for _, a := range op.Cmd.Args[1:] {
+		switch a {
+		case "--soft":
+			return "soft"
+		case "--mixed":
+			return "mixed"
+		case "--":
+			return ""
+		}
+	}
+	return ""
+}
+
+// partlyError is an undo or redo that moved HEAD and the refs, then
+// failed: the entry moves with HEAD, so the other way stays open, and
+// the error says what is left.
+type partlyError struct {
+	err  error
+	undo bool
+}
+
+func (e *partlyError) Error() string {
+	if e.undo {
+		return "write: HEAD was put back, but not everything the write changed: " + e.err.Error()
+	}
+	return "write: HEAD was moved again, but not everything was redone: " + e.err.Error()
+}
+
+func (e *partlyError) Unwrap() error { return e.err }
+
+// restoreFiles puts the paths of e's snapshot back exactly as they were:
+// index, work tree, and files that were absent; only those the write
+// touched, never the whole work tree.
+func restoreFiles(ctx context.Context, q *Queue, w snapshot.Where, e Entry) error {
+	if e.Snapshot.Commit == "" {
 		return errors.New("write: the write kept no snapshot to undo from")
 	}
-	_, err := snapshot.Restore(ctx, q.r, w, s, s.Paths, snapshot.Exact)
+	if e.unknown {
+		return errUnknownPaths
+	}
+	if len(e.paths) == 0 {
+		return nil // the write dropped nothing the snapshot holds
+	}
+	_, err := snapshot.Restore(ctx, q.r, w, e.Snapshot, e.paths, snapshot.Exact)
 	return err
+}
+
+// errUnknownPaths is an undo that cannot tell which files the write
+// touched, and so does not put any back.
+var errUnknownPaths = errors.New("write: the files the write changed could not be read; its snapshot holds them")
+
+// touchedPaths are the paths an undo of e puts back from its snapshot:
+// those the snapshot names; past snapshot.MaxPaths, those the write
+// named; for a snapshot of the whole work tree, those it holds work of
+// that HEAD did not have (a hard reset, a mixed one), or those the
+// write changed (a squash merge). Never the whole work tree, which
+// would undo work done since on other files.
+func (q *Queue) touchedPaths(ctx context.Context, e Entry) ([]string, error) {
+	s := e.Snapshot
+	switch {
+	case s.Commit == "":
+		return nil, nil
+	case !s.All:
+		return s.Paths, nil
+	case e.op.Snapshot != nil && len(e.op.Snapshot.Paths) > 0:
+		return e.op.Snapshot.Paths, nil
+	}
+	index := s.Index
+	if index == "" {
+		index = s.Commit // the index had conflicts: their files are kept
+	}
+	set := map[string]bool{}
+	list := func(args ...string) error {
+		res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree, Read: true, Args: args})
+		if err != nil {
+			return err
+		}
+		for _, p := range strings.Split(string(res.Stdout), "\x00") {
+			if p != "" {
+				set[p] = true
+			}
+		}
+		return nil
+	}
+	var steps [][]string
+	switch {
+	case e.Kind == MovesHead && s.Head == "":
+		steps = [][]string{{"ls-tree", "-r", "-z", "--name-only", "--full-tree", s.Commit}, {"ls-tree", "-r", "-z", "--name-only", "--full-tree", index}}
+	case e.Kind == MovesHead:
+		// HEAD's files themselves come back with HEAD.
+		steps = [][]string{{"diff-tree", "-r", "-z", "--name-only", s.Head, s.Commit}, {"diff-tree", "-r", "-z", "--name-only", s.Head, index}}
+	default:
+		steps = [][]string{{"diff-index", "--cached", "-z", "--name-only", index, "--"}, {"diff-index", "-z", "--name-only", s.Commit, "--"}}
+	}
+	for _, args := range steps {
+		if err := list(args...); err != nil {
+			return nil, err
+		}
+	}
+	return slices.Sorted(maps.Keys(set)), nil
 }
 
 // redoFiles runs a write again, with a fresh snapshot, which it returns.
@@ -508,7 +635,18 @@ func (q *Queue) settle(e *Entry, config branchConfig) {
 			e.config = [2]branchConfig{config, after}
 		}
 	}
-	e.left = q.leftPaths(ctx, *e, nil)
+	q.settlePaths(ctx, e)
+}
+
+// settlePaths reads, once e's write or its redo ran, the paths an undo
+// of it puts back, and those paths as the write left them.
+func (q *Queue) settlePaths(ctx context.Context, e *Entry) {
+	paths, err := q.touchedPaths(ctx, *e)
+	e.paths, e.unknown = paths, err != nil
+	e.left = nil
+	if err == nil {
+		e.left = q.leftPaths(ctx, *e, nil)
+	}
 }
 
 // pathState is the paths a write's snapshot covers, as they are on disk
@@ -526,16 +664,25 @@ type pathState struct {
 // a large folder.
 const hashBudget = 64 << 20
 
-// leftPaths reads the paths the snapshot of e covers as they are now, nil
-// when e restores no paths by name, or they cannot be read. It hashes the
-// files like hashed, or within hashBudget when like is nil.
+// leftPaths reads the paths an undo of e puts back as they are now, nil
+// when it puts none back, or they cannot be read. What git ignores in
+// them is left out, as an undo leaves it, unless the snapshot kept it.
+// It hashes the files like hashed, or within hashBudget when like is
+// nil.
 func (q *Queue) leftPaths(ctx context.Context, e Entry, like *pathState) *pathState {
-	paths := e.Snapshot.Paths
-	if e.Kind != FilesOnly || e.Snapshot.All || len(paths) == 0 {
+	paths := e.paths
+	if len(paths) == 0 {
 		return nil
 	}
 	root := e.op.Cmd.WorkTree
-	files, err := Observe(root, paths)
+	var files []FileState
+	var err error
+	if e.Snapshot.Ignored {
+		files, err = Observe(root, paths)
+	} else {
+		files, err = ObserveIgnoring(ctx, q.r, Where{GitDir: q.gitDir, WorkTree: root}, paths)
+		files = slices.DeleteFunc(files, func(f FileState) bool { return f.Ignored })
+	}
 	if err != nil {
 		return nil
 	}
@@ -589,12 +736,22 @@ func (q *Queue) leftPaths(ctx context.Context, e Entry, like *pathState) *pathSt
 // since, which no redo brings back. A redo needs no such check: it keeps
 // what it drops in a fresh snapshot, which the next undo restores.
 func (q *Queue) unchanged(ctx context.Context, e Entry) error {
-	if e.left == nil {
+	if e.Snapshot.Commit == "" {
 		return nil
+	}
+	if e.unknown {
+		return errUnknownPaths
+	}
+	if len(e.paths) == 0 {
+		return nil
+	}
+	errUnread := errors.New("write: the files to put back could not be read; the write's snapshot holds them")
+	if e.left == nil {
+		return errUnread // as the write left them: what changed since cannot be told
 	}
 	now := q.leftPaths(ctx, e, e.left)
 	if now == nil {
-		return errors.New("write: the files to put back could not be read")
+		return errUnread
 	}
 	if len(now.files) != len(e.left.files) {
 		return &StaleError{What: "the files to put back", Saw: strconv.Itoa(len(e.left.files)), Now: strconv.Itoa(len(now.files))}
@@ -610,7 +767,7 @@ func (q *Queue) unchanged(ctx context.Context, e Entry) error {
 		}
 	}
 	if now.index != e.left.index {
-		return &StaleError{What: "the staged state of " + count(len(e.Snapshot.Paths), e.Snapshot.Paths[0]), Saw: "as left", Now: "changed"}
+		return &StaleError{What: "the staged state of " + count(len(e.paths), e.paths[0]), Saw: "as left", Now: "changed"}
 	}
 	return nil
 }

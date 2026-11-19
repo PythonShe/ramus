@@ -344,6 +344,201 @@ func TestUndoHardResetKeepsStaged(t *testing.T) {
 	f.roundTrip("Reset", MovesHead, &snapshot.Options{Reason: "Reset", Paths: []string{"a"}}, "reset", "-q", "--hard", "HEAD~")
 }
 
+// index is the content path has in the index, "" for none.
+func (h *harness) index(path string) string {
+	out, _ := h.r.Run(nil, "show", ":"+path)
+	return out
+}
+
+// Undo of a delete of more paths than a snapshot names, which it then
+// keeps as the whole work tree, puts back those paths alone: an edit to
+// another file, or a file staged since, stays.
+func TestUndoOfManyPathsLeavesOtherWork(t *testing.T) {
+	if testing.Short() {
+		t.Skip("writes 10,001 files")
+	}
+	h := newHarness(t)
+	h.r.Write("other", "committed\n")
+	h.r.Commit("one")
+	var paths []string
+	for i := range snapshot.MaxPaths + 1 {
+		p := fmt.Sprintf("u/%05d", i)
+		h.r.Write(p, "untracked\n")
+		paths = append(paths, p)
+	}
+	op, err := Delete(h.w, paths)
+	h.do(op, err, true)
+	h.r.Write("other", "NEW WORK after the delete\n")
+	h.r.Write("staged", "staged after\n")
+	h.r.Git("add", "staged")
+	h.undo()
+	if h.read("other") != "NEW WORK after the delete\n" {
+		t.Fatalf("other is %q", h.read("other"))
+	}
+	if h.index("staged") != "staged after\n" {
+		t.Fatal("a file staged after the delete was unstaged")
+	}
+	if h.read(paths[0]) != "untracked\n" || h.read(paths[len(paths)-1]) != "untracked\n" {
+		t.Fatal("the deleted files are not back")
+	}
+}
+
+// Undo of a hard reset brings back the work it dropped and leaves the
+// work done since alone: an edit to another file, a file staged. It
+// refuses when a file it puts back changed since.
+func TestUndoHardResetLeavesWorkDoneSince(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("other", "committed\n")
+	h.r.Write("a", "1\n")
+	one := h.r.Commit("one")
+	h.r.Write("a", "2\n")
+	two := h.r.Commit("two")
+	h.r.Write("a", "dropped work\n")
+	h.r.Stage("s", "staged before\n")
+	op, err := Reset(h.w, one, ResetHard, h.seen())
+	h.do(op, err, true)
+	h.r.Write("other", "NEW WORK after the reset\n")
+	h.r.Write("x", "staged since\n")
+	h.r.Git("add", "x")
+	h.undo()
+	if h.rev("HEAD") != two || h.read("a") != "dropped work\n" || h.index("s") != "staged before\n" {
+		t.Fatalf("HEAD %s, a %q, s staged %q", h.rev("HEAD"), h.read("a"), h.index("s"))
+	}
+	if h.read("other") != "NEW WORK after the reset\n" || h.index("x") != "staged since\n" {
+		t.Fatalf("work done since undone: other %q, x staged %q", h.read("other"), h.index("x"))
+	}
+
+	if _, err := wait(t, h.q.Redo()); err != nil {
+		t.Fatal(err)
+	}
+	h.r.Write("a", "edited since\n")
+	var se *StaleError
+	if _, err := wait(t, h.q.Undo()); !errors.As(err, &se) || se.What != "a" {
+		t.Fatalf("undo over a file it puts back, changed since: %v", err)
+	}
+	if h.rev("HEAD") != one || h.read("a") != "edited since\n" {
+		t.Fatal("undo went on")
+	}
+}
+
+// A squash merge leaves HEAD: its undo puts the index and files back as
+// they were, a file it added gone, and redo merges again.
+func TestUndoSquashMerge(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1\n")
+	h.r.Commit("one")
+	h.r.Git("switch", "-q", "-c", "side")
+	h.r.Write("b", "side\n")
+	h.r.Write("a", "side\n")
+	h.r.Commit("side")
+	h.r.Git("switch", "-q", "main")
+	h.r.Write("loose", "untracked\n")
+	before := h.r.Git("status", "--porcelain", "-uall")
+	op, err := Merge(h.w, "side", MergeSquash, h.seen())
+	h.do(op, err, true)
+	after := h.r.Git("status", "--porcelain", "-uall")
+	if after == before {
+		t.Fatal("the squash changed nothing")
+	}
+	h.undo()
+	if got := h.r.Git("status", "--porcelain", "-uall"); got != before {
+		t.Fatalf("after undo %q, want %q", got, before)
+	}
+	if _, err := wait(t, h.q.Redo()); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.r.Git("status", "--porcelain", "-uall"); got != after {
+		t.Fatalf("after redo %q, want %q", got, after)
+	}
+}
+
+// A merge that changed nothing records nothing to undo: an undo of it
+// would only unstage what was staged since.
+func TestUpToDateMergeRecordsNothing(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1\n")
+	h.r.Commit("one")
+	h.r.Git("branch", "same")
+	op, err := Merge(h.w, "same", MergeDefault, h.seen())
+	h.do(op, err, true)
+	if u, _ := h.q.History.Next(); u != "" {
+		t.Fatalf("next undo %q", u)
+	}
+}
+
+// Undo of a mixed reset over a changed file puts the branch and the
+// index back, what was staged before included, and leaves the files.
+func TestUndoMixedReset(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1\n")
+	one := h.r.Commit("one")
+	h.r.Write("a", "2\n")
+	h.r.Write("b", "2\n")
+	two := h.r.Commit("two")
+	h.r.Stage("b", "staged only\n")
+	h.r.Write("a", "work\n")
+	op, err := Reset(h.w, one, ResetMixed, h.seen())
+	h.do(op, err, true)
+	if h.index("a") != "1\n" {
+		t.Fatalf("a staged %q after the reset", h.index("a"))
+	}
+	h.undo()
+	if h.rev("HEAD") != two || h.index("a") != "2\n" || h.index("b") != "staged only\n" || h.read("a") != "work\n" {
+		t.Fatalf("HEAD %s, a staged %q, b staged %q, a %q", h.rev("HEAD"), h.index("a"), h.index("b"), h.read("a"))
+	}
+	if _, err := wait(t, h.q.Redo()); err != nil {
+		t.Fatal(err)
+	}
+	if h.rev("HEAD") != one || h.index("a") != "1\n" || h.read("a") != "work\n" {
+		t.Fatal("redo did not reset again")
+	}
+
+	// A soft reset: undo moves the branch alone.
+	h.undo()
+	op, err = Reset(h.w, one, ResetSoft, h.seen())
+	h.do(op, err, true)
+	h.undo()
+	if h.rev("HEAD") != two || h.index("b") != "staged only\n" || h.read("a") != "work\n" {
+		t.Fatal("soft reset not undone")
+	}
+}
+
+// An undo that fails once HEAD is back, putting back the work a hard
+// reset dropped, moves its entry with HEAD: Redo goes forward again,
+// rather than every later Undo refusing as HEAD moved.
+func TestUndoFailingAfterHEADMoved(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write(".gitattributes", "a filter=f\n")
+	h.r.Git("config", "filter.f.clean", "cat")
+	h.r.Git("config", "filter.f.smudge", "cat")
+	h.r.Write("a", "1\n")
+	h.r.Write("b", "1\n")
+	one := h.r.Commit("one")
+	h.r.Write("b", "2\n")
+	two := h.r.Commit("two")
+	h.r.Write("a", "dropped work\n")
+	op, err := Reset(h.w, one, ResetHard, h.seen())
+	h.do(op, err, true)
+	h.r.Git("config", "filter.f.smudge", "false")
+	h.r.Git("config", "filter.f.required", "true")
+	if _, err := wait(t, h.q.Undo()); err == nil {
+		t.Fatal("undo went through a smudge filter that fails")
+	}
+	if h.rev("HEAD") != two {
+		t.Fatal("HEAD did not move back: the test shows nothing")
+	}
+	if u, r := h.q.History.Next(); u != "" || r != op.Name {
+		t.Fatalf("next undo %q, redo %q", u, r)
+	}
+	h.r.Git("config", "filter.f.smudge", "cat")
+	if _, err := wait(t, h.q.Redo()); err != nil {
+		t.Fatal(err)
+	}
+	if h.rev("HEAD") != one {
+		t.Fatal("not redone")
+	}
+}
+
 // History holds no more than MaxHistoryBytes, as a patch each discard of
 // lines keeps to redo it: the oldest entries go, the last stays though
 // it alone is past the budget.

@@ -721,23 +721,26 @@ func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 		}
 		return before, git(ps, "restore", "--source="+s.Commit, "--worktree", "--overlay")
 	}
-	if s.Index != "" {
-		ps, err := match(s.Index, true)
-		if err != nil {
-			return before, err
-		}
-		if whole || len(ps) > 0 {
-			if err := git(ps, "restore", "--source="+s.Index, "--staged"); err != nil {
-				return before, err
-			}
-		}
-	}
+	// The files first, while the index still has those the write added:
+	// a file in neither the snapshot nor the index is not git's to
+	// remove, and stays.
 	ps, err := match(s.Commit, true)
 	if err != nil {
 		return before, err
 	}
 	if whole || len(ps) > 0 {
-		err = git(ps, "restore", "--source="+s.Commit, "--worktree", "--no-overlay")
+		if err := git(ps, "restore", "--source="+s.Commit, "--worktree", "--no-overlay"); err != nil {
+			return before, err
+		}
+	}
+	if s.Index == "" {
+		return before, nil
+	}
+	if ps, err = match(s.Index, true); err != nil {
+		return before, err
+	}
+	if whole || len(ps) > 0 {
+		err = git(ps, "restore", "--source="+s.Index, "--staged")
 	}
 	return before, err
 }
