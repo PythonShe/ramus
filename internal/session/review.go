@@ -174,7 +174,9 @@ func (s *Session) pullRemote(repo forge.Repo) string {
 
 // FetchPull fetches pull request n of repo, whose base branch is base,
 // into write.PullHead and write.PullBase, as a write in the queue;
-// deepen, above 0, that many commits deeper in a shallow clone.
+// deepen, above 0, that many commits deeper in a shallow clone. The
+// session keeps them from ForgetPulls of every session until its own
+// ForgetPulls leaves n out.
 func (s *Session) FetchPull(repo forge.Repo, n int, base string, deepen int) (*write.Job, error) {
 	if s.Repo == nil || s.Queue == nil {
 		return nil, s.noWrites()
@@ -183,6 +185,7 @@ func (s *Session) FetchPull(repo forge.Repo, n int, base string, deepen int) (*w
 	if err != nil {
 		return nil, err
 	}
+	s.usePulls(s.Repo.CommonDir, []int{n}, true)
 	return s.Submit(op)
 }
 
@@ -190,23 +193,31 @@ func (s *Session) FetchPull(repo forge.Repo, n int, base string, deepen int) (*w
 // in keep, as a quiet write in the queue: they keep each pull request's
 // commits from gc, its heads force-pushed over included, and a mirror
 // push sends them. It is called with the open ones and the one under
-// review, so they stay as many as the pull requests open.
+// review, so they stay as many as the pull requests open. The pull
+// requests another session of the repository keeps, as another window
+// reviews, are kept too; a ref fetched again since it was read is left
+// for the next call.
 func (s *Session) ForgetPulls(keep []int) {
 	r := s.Repo
 	if r == nil || r.Restricted || s.Queue == nil {
 		return
 	}
+	s.usePulls(r.CommonDir, keep, false)
 	w := s.Where()
 	rd := r.Refs()
 	if rd == nil {
 		return // refs not read here: the engine gave them to git
+	}
+	type gone struct {
+		n         int
+		name, old string
 	}
 	r.Life().Go(func(ctx context.Context) {
 		list, err := rd.List()
 		if err != nil {
 			return
 		}
-		var in strings.Builder
+		var drop []gone
 		i, _ := list.Find(write.PullPrefix)
 		for ; i < list.Len(); i++ {
 			name := list.Name(i)
@@ -215,18 +226,33 @@ func (s *Session) ForgetPulls(keep []int) {
 				break
 			}
 			num, _, _ := strings.Cut(rest, "/")
-			if n, err := strconv.Atoi(num); err == nil && slices.Contains(keep, n) {
+			n, err := strconv.Atoi(num)
+			if err == nil && slices.Contains(keep, n) {
 				continue
 			}
-			in.WriteString("delete " + name + "\n")
+			drop = append(drop, gone{n, name, hex.EncodeToString(list.OID(i))})
 		}
-		if in.Len() == 0 || ctx.Err() != nil {
+		if len(drop) == 0 || ctx.Err() != nil {
 			return
 		}
 		// Only a trusted repository asks its hosts, and one never opens
 		// again.
 		s.handOver(r, func() {
 			if s.Queue == nil {
+				return
+			}
+			// What the other sessions keep as the write is asked for: one
+			// may have fetched a pull request since the refs were read.
+			others := s.othersPulls(r.CommonDir)
+			var in strings.Builder
+			for _, g := range drop {
+				if !slices.Contains(others, g.n) {
+					// With the value read: a ref fetched again since is
+					// not deleted.
+					in.WriteString("delete " + g.name + " " + g.old + "\n")
+				}
+			}
+			if in.Len() == 0 {
 				return
 			}
 			op := write.Op{Name: locales.SessionForgetPulls(), RefsOnly: true, NoIndex: true, Input: []byte(in.String()),

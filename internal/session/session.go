@@ -78,6 +78,9 @@ type Session struct {
 	runner *run.Runner
 	trust  *trust.Store
 	update func(func())
+	// pullsDir is the git directory whose pull request refs the session
+	// keeps some of (pullsInUse); guarded by pullsInUse.mu.
+	pullsDir string
 	// people maps the names shown; any goroutine.
 	people people
 	// lfsMu keeps git-lfs's lock commands one at a time, reads and writes:
@@ -956,5 +959,6 @@ func (s *Session) Close() {
 		r.Close()
 	}
 	s.Repo = nil
+	s.dropPulls()
 	go func() { s.running.Wait(); close(s.done) }()
 }
