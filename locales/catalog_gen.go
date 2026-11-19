@@ -16063,6 +16063,24 @@ func (msgs Messages) SessionTooManyDiffTools() string {
 	return Catalog.Format(msgs.locale, "sessionTooManyDiffTools", nil)
 }
 
+// SessionDiffTerminalTool says "the diff tool {tool} runs in a terminal, which Ramus cannot show: set diff.guitool to a tool with a window"
+// in the language the app shows.
+//
+// tool is the name of the diff tool git's config names, as vimdiff;
+// diff.guitool is a git setting, kept as it is.
+func SessionDiffTerminalTool(tool string) string {
+	return In(i18n.Locale()).SessionDiffTerminalTool(tool)
+}
+
+// SessionDiffTerminalTool says "the diff tool {tool} runs in a terminal, which Ramus cannot show: set diff.guitool to a tool with a window"
+// in the language of msgs.
+//
+// tool is the name of the diff tool git's config names, as vimdiff;
+// diff.guitool is a git setting, kept as it is.
+func (msgs Messages) SessionDiffTerminalTool(tool string) string {
+	return Catalog.Format(msgs.locale, "sessionDiffTerminalTool", map[string]any{"tool": tool})
+}
+
 // SessionMergeInRange says "the commits from here to HEAD include a merge"
 // in the language the app shows.
 func SessionMergeInRange() string { return In(i18n.Locale()).SessionMergeInRange() }

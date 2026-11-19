@@ -3433,6 +3433,10 @@
     "description": "diff.tool and diff.guitool are git's settings; keep them as is."
   },
   "sessionTooManyDiffTools": "too many diff tools are open",
+  "sessionDiffTerminalTool": "the diff tool {tool} runs in a terminal, which Ramus cannot show: set diff.guitool to a tool with a window",
+  "@sessionDiffTerminalTool": {
+    "description": "tool is the name of the diff tool git's config names, as vimdiff; diff.guitool is a git setting, kept as it is."
+  },
   "sessionMergeInRange": "the commits from here to HEAD include a merge",
   "sessionNoCommitsYet": "there are no commits yet",
   "sessionTooManyCommits": "more than {n} commits from here to HEAD",

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -79,6 +80,14 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 		// The app's own compare window, for this run only: git's config
 		// is the user's, and stays as it is.
 		config, tool = []string{"difftool." + ownTool + ".cmd=" + req.Own}, ownTool
+	}
+	// git runs a terminal tool, as vimdiff, with no terminal to show it
+	// in: it would wait unseen for its time, holding a place of the
+	// few open at once. git difftool reads a tool's command from
+	// difftool.<tool>.cmd, then mergetool.<tool>.cmd.
+	if name := cmp.Or(gui, tool); name != ownTool && write.TerminalTool(name, get("difftool."+name+".cmd", "mergetool."+name+".cmd")) {
+		done(errors.New(locales.SessionDiffTerminalTool(name)))
+		return
 	}
 	if s.tools.open.Add(1) > maxDiffTools {
 		s.tools.open.Add(-1)

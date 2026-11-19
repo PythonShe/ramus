@@ -14,6 +14,7 @@ import (
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
+	"ramus/locales"
 )
 
 // git difftool runs the tool the config names on the paths asked for,
@@ -208,5 +209,54 @@ func TestDiffToolLeavingAProcessRunning(t *testing.T) {
 	m.until(t, "the tool", func() bool { return done })
 	if got != nil {
 		t.Fatalf("the tool failed: %v", got)
+	}
+}
+
+// A diff tool of git's that runs in a terminal, named for diffs or, by
+// git difftool's fallback, for merges, is refused before it starts; one
+// the user's config gives a command of its own runs as it is.
+func TestTerminalDiffToolRefused(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the tool is a shell command")
+	}
+	for _, c := range []struct {
+		name    string
+		config  [][2]string
+		refused string
+	}{
+		{"diff.tool", [][2]string{{"diff.tool", "vimdiff"}}, "vimdiff"},
+		{"merge.tool", [][2]string{{"merge.tool", "nvimdiff2"}}, "nvimdiff2"},
+		{"diff.guitool", [][2]string{{"diff.tool", "meld"}, {"diff.guitool", "emerge"}}, "emerge"},
+		{"own command", [][2]string{{"diff.tool", "vimdiff"}, {"difftool.vimdiff.cmd", "true"}}, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := gittest.Init(t)
+			r.Write("a.txt", "one\n")
+			r.Commit("a")
+			r.Write("a.txt", "two\n")
+			for _, kv := range c.config {
+				r.Git("config", kv[0], kv[1])
+			}
+			m := make(mainThread, 64)
+			s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+			t.Cleanup(func() { s.Close(); <-s.Done() })
+			m.until(t, "the status", func() bool { return s.State.Status != nil })
+			var got error
+			done := false
+			s.OpenDiffTool(DiffToolRequest{Paths: []string{"a.txt"}}, func(err error) { got, done = err, true })
+			m.until(t, "the tool", func() bool { return done })
+			if c.refused == "" {
+				if got != nil {
+					t.Fatalf("the tool of the user's own command failed: %v", got)
+				}
+				return
+			}
+			if got == nil || got.Error() != locales.SessionDiffTerminalTool(c.refused) {
+				t.Fatalf("got %v, want %s refused", got, c.refused)
+			}
+			if n := s.tools.open.Load(); n != 0 {
+				t.Fatalf("%d tools counted open", n)
+			}
+		})
 	}
 }
