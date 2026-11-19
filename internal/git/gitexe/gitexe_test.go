@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 )
@@ -97,6 +98,21 @@ func TestFindSkipsRelativeAndMissing(t *testing.T) {
 	g, err = Find(context.Background(), dir)
 	if err != nil || g.Path != fake || g.Version.String() != "9.9.9" {
 		t.Fatalf("absolute PATH entry: %v %v", g, err)
+	}
+}
+
+// On macOS without the developer tools, /usr/bin/git, a shim that offers
+// to install them, is never tried, though it is on PATH.
+func TestShimNeedsDevTools(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS's shim")
+	}
+	has := func(c []string) bool { return slices.Contains(c, shim) }
+	if c := candidates("/usr/bin:/bin", func() bool { return false }); has(c) {
+		t.Fatalf("without the tools: %v", c)
+	}
+	if c := candidates("/usr/bin:/bin", func() bool { return true }); !has(c) {
+		t.Fatalf("with the tools: %v", c)
 	}
 }
 

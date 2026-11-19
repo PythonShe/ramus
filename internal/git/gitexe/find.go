@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -29,7 +30,8 @@ const probeTimeout = 5 * time.Second
 // git version. It never looks in the current directory or a work tree.
 func Find(ctx context.Context, path string) (*Git, error) {
 	var tried []string
-	for _, p := range candidates(path) {
+	devTools := sync.OnceValue(func() bool { return hasDevTools(ctx) })
+	for _, p := range candidates(path, devTools) {
 		if !filepath.IsAbs(p) {
 			continue
 		}
@@ -67,7 +69,12 @@ func Probe(ctx context.Context, p string) (Version, error) {
 	return ParseVersion(string(out))
 }
 
-func candidates(path string) []string {
+// shim is macOS's /usr/bin/git, which offers to install the developer
+// tools when they are missing, a dialog on every launch: it is tried, from
+// PATH or not, only when devTools says they are there.
+const shim = "/usr/bin/git"
+
+func candidates(path string, devTools func() bool) []string {
 	name := "git"
 	if runtime.GOOS == "windows" {
 		name = "git.exe"
@@ -75,20 +82,18 @@ func candidates(path string) []string {
 	var out []string
 	for _, dir := range filepath.SplitList(path) {
 		if filepath.IsAbs(dir) {
-			out = append(out, filepath.Join(dir, name))
+			p := filepath.Join(dir, name)
+			if runtime.GOOS == "darwin" && p == shim && !devTools() {
+				continue
+			}
+			out = append(out, p)
 		}
 	}
 	switch runtime.GOOS {
 	case "darwin":
 		out = append(out, "/opt/homebrew/bin/git", "/usr/local/bin/git", "/opt/local/bin/git")
-		// /usr/bin/git is a shim that offers to install the developer tools
-		// when they are missing; ask only when they are there.
-		if _, err := os.Stat("/Library/Developer/CommandLineTools/usr/bin/git"); err == nil {
-			out = append(out, "/usr/bin/git")
-		} else if dev, err := exec.Command("/usr/bin/xcode-select", "-p").Output(); err == nil {
-			if _, err := os.Stat(filepath.Join(strings.TrimSpace(string(dev)), "usr", "bin", "git")); err == nil {
-				out = append(out, "/usr/bin/git")
-			}
+		if devTools() {
+			out = append(out, shim)
 		}
 	case "windows":
 		for _, env := range []string{"ProgramFiles", "ProgramW6432", "ProgramFiles(x86)", "LocalAppData"} {
@@ -105,4 +110,20 @@ func candidates(path string) []string {
 		out = append(out, "/usr/bin/git", "/usr/local/bin/git", "/bin/git")
 	}
 	return out
+}
+
+// hasDevTools reports whether macOS's developer tools, which hold the git
+// behind its shim, are installed.
+func hasDevTools(ctx context.Context) bool {
+	if _, err := os.Stat("/Library/Developer/CommandLineTools/usr/bin/git"); err == nil {
+		return true
+	}
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	dev, err := exec.CommandContext(ctx, "/usr/bin/xcode-select", "-p").Output()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(strings.TrimSpace(string(dev)), "usr", "bin", "git"))
+	return err == nil
 }
