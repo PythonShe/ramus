@@ -228,9 +228,10 @@ func within(root, p string) bool {
 }
 
 // inGitDir reports a path p in the work tree at root that is, or is under,
-// a .git of it: the repository's own git directory or a submodule's,
-// which a symlink reaches though the path names none. A hook is a file
-// there.
+// a git directory in it: the repository's own .git or a submodule's,
+// which a symlink reaches though the path names none, or one under any
+// other name (git init --separate-git-dir into the work tree), told by
+// what it holds. A hook is a file there.
 func inGitDir(root, p string) bool {
 	rel, err := filepath.Rel(root, p)
 	if err != nil {
@@ -241,7 +242,30 @@ func inGitDir(root, p string) bool {
 			return true
 		}
 	}
+	// Only below the root: the work tree itself is not one.
+	for d := p; d != root && within(root, d); d = filepath.Dir(d) {
+		if isGitDir(d) {
+			return true
+		}
+	}
 	return false
+}
+
+// isGitDir reports a folder that git takes for a git directory: a HEAD,
+// and objects and refs folders or, for a linked worktree's, a commondir.
+func isGitDir(dir string) bool {
+	if st, err := os.Lstat(filepath.Join(dir, "HEAD")); err != nil || st.IsDir() {
+		return false
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "commondir")); err == nil {
+		return true
+	}
+	for _, sub := range []string{"objects", "refs"} {
+		if st, err := os.Stat(filepath.Join(dir, sub)); err != nil || !st.IsDir() {
+			return false
+		}
+	}
+	return true
 }
 
 // Unquote reads a path as git writes one where it cannot use -z: as it is,

@@ -124,6 +124,40 @@ func TestNotIntoTheGitDirectory(t *testing.T) {
 	}
 }
 
+// A git directory in the work tree under another name than .git (git
+// init --separate-git-dir into it, a linked worktree's kept there) is as
+// closed to a symlink as .git is.
+func TestNotIntoAGitDirectoryOfAnotherName(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"gitdata/hooks", "gitdata/objects", "gitdata/refs", "wtdata"} {
+		os.MkdirAll(filepath.Join(root, d), 0o755)
+	}
+	os.WriteFile(filepath.Join(root, "gitdata", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "gitdata", "hooks", "pre-commit"), []byte("x"), 0o755)
+	os.WriteFile(filepath.Join(root, "wtdata", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "wtdata", "commondir"), []byte("../gitdata\n"), 0o644)
+	// Shaped like one in part only: a folder with a HEAD file.
+	os.MkdirAll(filepath.Join(root, "docs"), 0o755)
+	os.WriteFile(filepath.Join(root, "docs", "HEAD"), []byte("x"), 0o644)
+	if err := os.Symlink("gitdata", filepath.Join(root, "link")); err != nil {
+		t.Skip(err)
+	}
+	os.Symlink("wtdata", filepath.Join(root, "wtlink"))
+	os.Symlink(filepath.Join("gitdata", "hooks", "pre-commit"), filepath.Join(root, "hook"))
+	os.Symlink("docs", filepath.Join(root, "docslink"))
+	for _, rel := range []string{"link/hooks/pre-commit", "link/config", "wtlink/HEAD"} {
+		if p, err := InWorkTree(root, rel); !errors.Is(err, ErrUnsafe) {
+			t.Errorf("InWorkTree(%q) = %s, %v", rel, p, err)
+		}
+	}
+	if p, err := Target(root, "hook"); !errors.Is(err, ErrUnsafe) {
+		t.Errorf("Target(hook) = %s, %v", p, err)
+	}
+	if _, err := InWorkTree(root, "docslink/HEAD"); err != nil {
+		t.Errorf("a folder holding a HEAD file only: %v", err)
+	}
+}
+
 func TestTarget(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()
