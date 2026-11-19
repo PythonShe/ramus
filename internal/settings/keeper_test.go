@@ -137,6 +137,33 @@ func TestCheckReadsHandEdits(t *testing.T) {
 	}
 }
 
+// A settings file kept with the user's dotfiles and linked into place
+// stays linked through the app's saves: the file it leads to is the one
+// written, and an edit made there later is read.
+func TestKeeperWritesThroughALink(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "dotfiles-settings.json")
+	hand(t, dest, `{"emails": ["me@x"]}`)
+	p := filepath.Join(dir, "settings.json")
+	if err := os.Symlink(dest, p); err != nil {
+		t.Skipf("no symbolic links here: %v", err)
+	}
+	m := newModel(t, p)
+	m.keep(split)
+	m.k.Wait()
+	if got, err := os.Readlink(p); err != nil || got != dest {
+		t.Fatalf("the link was replaced: %q, %v", got, err)
+	}
+	if s := load(t, dest); !s.DiffSplit || len(s.Emails) != 1 {
+		t.Fatalf("the linked file holds %+v", s)
+	}
+	hand(t, dest, `{"emails": ["me@x"], "diffSplit": true, "theme": "dark"}`)
+	m.focus()
+	if m.app.Theme != "dark" {
+		t.Fatalf("an edit of the linked file not read: %+v", m.app)
+	}
+}
+
 // TestKeeperReportsFailure says why a write failed to whoever asked for
 // it.
 func TestKeeperReportsFailure(t *testing.T) {

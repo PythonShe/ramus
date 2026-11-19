@@ -65,8 +65,14 @@ func asideName(path string, n int) string {
 
 // keepAside moves the file at path, which could not be read at all, to a
 // name beside it that no file has, so that writing path again loses
-// nothing, and returns that name.
+// nothing, and returns that name. Through a symbolic link it is the file
+// the link leads to that moves, beside itself: the link stays, for the
+// next write to make that file again.
 func keepAside(path string) (string, error) {
+	path, err := target(path)
+	if err != nil {
+		return "", err
+	}
 	for n := range maxAside {
 		name := asideName(path, n)
 		if _, err := os.Lstat(name); !errors.Is(err, fs.ErrNotExist) {
@@ -83,8 +89,13 @@ func keepAside(path string) (string, error) {
 // keepCopy keeps data, the content of the file at path, part of which
 // could not be read, in a file beside it, and returns its name: one that
 // holds the same already, else a new one. Read again at each launch
-// until a save replaces it, the same file is kept once.
+// until a save replaces it, the same file is kept once. Through a
+// symbolic link it is kept beside the file the link leads to.
 func keepCopy(path string, data []byte) (string, error) {
+	path, err := target(path)
+	if err != nil {
+		return "", err
+	}
 	for n := range maxAside {
 		name := asideName(path, n)
 		old, err := os.ReadFile(name)
@@ -297,16 +308,32 @@ var ErrChanged = errors.New("changed meanwhile")
 // The data reaches the disk before the rename: without that, a power cut
 // soon after can leave the file empty on file systems that order neither,
 // and an empty file is one the app cannot read.
+//
+// A path that is a symbolic link is written through it: the file the link
+// leads to is replaced, through a temporary file beside that file, and
+// the link stays. A link that leads nowhere has its file made, in a
+// folder that must exist already; a loop of links, or a file the link
+// leads to in a folder that cannot be written, fails the write and leaves
+// everything as it was.
 func WriteFile(path string, data []byte) error { return WriteFileIf(path, data, nil) }
 
 // WriteFileIf is WriteFile, which, with unchanged, replaces the file only
 // while unchanged says it is as it was, asked before each try of the
 // rename, and fails with ErrChanged when it is not.
 func WriteFileIf(path string, data []byte, unchanged func() bool) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	to, err := target(path)
+	if err != nil {
 		return err
 	}
+	dir := filepath.Dir(to)
+	if to == path {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+	} else if _, err := os.Stat(dir); err != nil {
+		return fmt.Errorf("%s leads to %s, in a folder that cannot be reached: %w", path, to, err)
+	}
+	path = to
 	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
 	if err != nil {
 		return err
