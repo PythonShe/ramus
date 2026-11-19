@@ -106,11 +106,14 @@ func Run(ctx context.Context, argv []string, dir string, line func(string)) erro
 	if err := tools.Guard(cmd); err != nil {
 		return err
 	}
+	inGroup(cmd)
 	pr, pw := io.Pipe()
 	cmd.Stdout, cmd.Stderr = pw, pw
 	if err := cmd.Start(); err != nil {
+		ended(cmd, false)
 		return err
 	}
+	joined(cmd)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -126,6 +129,7 @@ func Run(ctx context.Context, argv []string, dir string, line func(string)) erro
 		io.Copy(io.Discard, pr)
 	}()
 	err := cmd.Wait()
+	ended(cmd, ctx.Err() != nil)
 	pw.Close()
 	<-done
 	if ctx.Err() == context.DeadlineExceeded {
