@@ -161,6 +161,34 @@ func diffPatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 	return nil
 }
 
+// copyIndex copies the index of gitDir into f, which it closes, keeping
+// the index's time; copied is false when there is no index.
+func copyIndex(gitDir string, f *os.File) (copied bool, err error) {
+	// As every file under the git directory is opened: a named pipe there
+	// would hold the open for ever.
+	src, err := pathsafe.OpenRegular(filepath.Join(gitDir, "index"))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, f.Close()
+	}
+	if err != nil {
+		f.Close()
+		return false, err
+	}
+	_, err = io.Copy(f, src)
+	st, statErr := src.Stat()
+	src.Close()
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	// git trusts an entry's stat data only when the file is older than
+	// the index; the copy keeps the index's time, so files are not all
+	// hashed again.
+	if err == nil && statErr == nil {
+		err = os.Chtimes(f.Name(), st.ModTime(), st.ModTime())
+	}
+	return err == nil, err
+}
+
 // intendToAdd returns a copy of the index in which the untracked files
 // among paths are added with git add -N, so that git diff shows them; ""
 // when none is untracked. The repository's own index is left as it is.
@@ -193,33 +221,13 @@ func intendToAdd(ctx context.Context, rn *run.Runner, gitDir, workTree string, p
 		}
 		os.Remove(index + ".lock")
 	}()
-	// As every file under the git directory is opened: a named pipe there
-	// would hold the open for ever.
-	src, err := pathsafe.OpenRegular(filepath.Join(gitDir, "index"))
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		// No index yet: git starts from an empty one.
-		f.Close()
-		os.Remove(index)
-	case err != nil:
-		f.Close()
+	copied, err := copyIndex(gitDir, f)
+	if err != nil {
 		return "", err
-	default:
-		_, err = io.Copy(f, src)
-		st, statErr := src.Stat()
-		src.Close()
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-		// git trusts an entry's stat data only when the file is older
-		// than the index; the copy keeps the index's time, so files are
-		// not all hashed again.
-		if err == nil && statErr == nil {
-			err = os.Chtimes(index, st.ModTime(), st.ModTime())
-		}
-		if err != nil {
-			return "", err
-		}
+	}
+	if !copied {
+		// No index yet: git starts from an empty one.
+		os.Remove(index)
 	}
 	// It writes the copy only, so it counts as a read: the repository
 	// is not changed, trusted or not.

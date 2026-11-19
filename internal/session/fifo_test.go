@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/repo"
@@ -77,5 +78,72 @@ func TestBlameOfAPipe(t *testing.T) {
 	m.until(t, "the text", func() bool { return done })
 	if err == nil {
 		t.Fatal("a pipe was read as the file")
+	}
+}
+
+// A conflicted file replaced by a named pipe is read as one that cannot
+// be, not waited on for ever.
+func TestConflictOfAPipe(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("one")
+	r.Git("checkout", "-q", "-b", "other")
+	r.Write("a.txt", "two\n")
+	r.Commit("two")
+	r.Git("checkout", "-q", "main")
+	r.Write("a.txt", "three\n")
+	r.Commit("three")
+	r.Run(nil, "merge", "other")
+	s, m := openFor(t, r)
+	os.Remove(filepath.Join(r.Dir, "a.txt"))
+	t.Cleanup(pipeAt(t, filepath.Join(r.Dir, "a.txt")))
+	var cf *ConflictFile
+	s.LoadConflict("a.txt", func(got ConflictFile) { cf = &got })
+	m.until(t, "the conflict", func() bool { return cf != nil })
+	if cf.Err == nil || !cf.Staged {
+		t.Fatalf("a pipe was read as the file: %+v", *cf)
+	}
+}
+
+// The terms of a bisect, read from the git directory, are not waited on
+// in a named pipe.
+func TestBisectTermsOfAPipe(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("one")
+	os.WriteFile(filepath.Join(r.GitDir(), "BISECT_START"), []byte("main\n"), 0o644)
+	unblock := pipeAt(t, filepath.Join(r.GitDir(), "BISECT_TERMS"))
+	s, m := openFor(t, r)
+	t.Cleanup(unblock)
+	var st *BisectState
+	s.LoadBisect(func(got BisectState, _ error) { st = &got })
+	m.until(t, "the bisect", func() bool { return st != nil })
+	if !st.Active || st.New != "bad" || st.Old != "good" {
+		t.Fatalf("bisect %+v", *st)
+	}
+}
+
+// An index that is a named pipe is not copied for a patch: the copy
+// fails at once.
+func TestIndexCopyOfAPipe(t *testing.T) {
+	gitDir := t.TempDir()
+	unblock := pipeAt(t, filepath.Join(gitDir, "index"))
+	f, err := os.CreateTemp(t.TempDir(), "index")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := copyIndex(gitDir, f)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a pipe was copied as the index")
+		}
+	case <-time.After(20 * time.Second):
+		unblock()
+		t.Fatal("the copy waited on the pipe")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 )
@@ -75,8 +76,9 @@ func readBisect(ctx context.Context, rn *run.Runner, gitDir string) (BisectState
 	}
 	st.Active = true
 	st.New, st.Old = "bad", "good"
-	// BISECT_TERMS holds the new term, then the old one.
-	if b, err := os.ReadFile(filepath.Join(gitDir, "BISECT_TERMS")); err == nil && len(b) < 1024 {
+	// BISECT_TERMS holds the new term, then the old one. A regular file
+	// only: a named pipe there would hold the read for ever.
+	if b, err := pathsafe.ReadFile(filepath.Join(gitDir, "BISECT_TERMS"), 1023); err == nil {
 		if lines := strings.Fields(string(b)); len(lines) == 2 {
 			st.New, st.Old = lines[0], lines[1]
 		}
