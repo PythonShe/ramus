@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"ramus/internal/git/gitexe"
+	"ramus/internal/git/gittest"
 )
 
 // Reword, drop and fixup rewrite an older commit and move the branches
@@ -25,6 +28,10 @@ func TestRewrite(t *testing.T) {
 
 func testRewrite(t *testing.T, v gitexe.Version) {
 	h := newHarness(t)
+	// Settings that change how git writes the todo the fallback edits.
+	h.r.Git("config", "rebase.abbreviateCommands", "true")
+	h.r.Git("config", "rebase.instructionFormat", "%an%n%s")
+	h.r.Git("config", "core.commentChar", ";")
 	for _, f := range []string{"f1", "f2", "f3"} {
 		h.r.Write(f, f+"\n")
 		h.r.Commit("add " + f)
@@ -214,6 +221,40 @@ func TestEditHistorySkipKeepsTheCommitBefore(t *testing.T) {
 	h.do(skip, err, true)
 	if log := strings.TrimSpace(h.r.Git("log", "--format=%s", "HEAD")); log != "two\nprev commit\nbase" {
 		t.Fatalf("log:\n%s", log)
+	}
+}
+
+// The fallback's todo editor reads pick in both forms, and fails, which
+// stops the rebase before it starts, when it changed no line: the rebase
+// would otherwise replay every commit as it was and succeed.
+func TestRewriteTodoEdit(t *testing.T) {
+	sh := gittest.Shell(t)
+	const id = "0123456789abcdef0123456789abcdef01234567"
+	editor := ""
+	for _, e := range (Rewrite{Commit: id, Git: gitexe.Version{Major: 2, Minor: 40}}).rebase(Where{}, "drop").Env {
+		if v, ok := strings.CutPrefix(e, "GIT_SEQUENCE_EDITOR="); ok {
+			editor = v
+		}
+	}
+	for todo, want := range map[string]string{
+		"pick " + id + " one\n": "drop " + id + " one\n",
+		"p " + id + " one\np 1111111111111111111111111111111111111111 two\n": "drop " + id + " one\np 1111111111111111111111111111111111111111 two\n",
+		"p " + id + "\n": "drop " + id + "\n",
+		"pick 1111111111111111111111111111111111111111 " + id + "\n": "",
+		"# pick " + id + " one\n":                                    "",
+	} {
+		file := filepath.Join(t.TempDir(), "git-rebase-todo")
+		if err := os.WriteFile(file, []byte(todo), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		err := exec.Command(sh, "-c", editor+` "$@"`, editor, file).Run()
+		got, _ := os.ReadFile(file)
+		switch {
+		case want == "" && err == nil:
+			t.Errorf("%q: the edit changed nothing and succeeded: %q", todo, got)
+		case want != "" && (err != nil || string(got) != want):
+			t.Errorf("%q: %q, %v", todo, got, err)
+		}
 	}
 }
 

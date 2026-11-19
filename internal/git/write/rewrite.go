@@ -63,11 +63,12 @@ func (rw Rewrite) op(name string, seen Seen, cmd run.Cmd) Op {
 
 // rebase is the fallback through git rebase: from the commit's parent
 // (or the root), local changes stashed around it, and the branches
-// pointing into the range moved where git can. editTodo is a sed
-// expression for the todo, whose ids are written in full. The op made of
-// it sets Expect.Replay, which refuses a commit HEAD does not have and a
-// range with a merge in it.
-func (rw Rewrite) rebase(w Where, editTodo string, extra ...string) run.Cmd {
+// pointing into the range moved where git can. action, when set, is what
+// the todo does with rw.Commit in place of pick; the rebase stops before
+// it starts unless the todo says so then. The op made of it sets
+// Expect.Replay, which refuses a commit HEAD does not have and a range
+// with a merge in it.
+func (rw Rewrite) rebase(w Where, action string, extra ...string) run.Cmd {
 	args := []string{"rebase", "--interactive", "--autostash", "--rebase-merges"}
 	if rw.Git.Has(gitexe.UpdateRefs) {
 		args = append(args, "--update-refs")
@@ -79,10 +80,16 @@ func (rw Rewrite) rebase(w Where, editTodo string, extra ...string) run.Cmd {
 		args = append(args, "--end-of-options", rw.Parent)
 	}
 	c := w.cmd(args...)
-	c.Config = append(c.Config, "core.abbrev=no")
+	// The todo is written as the edit below reads it, whatever the
+	// user's config says: ids in full, commands in full, one line each.
+	c.Config = append(c.Config, "core.abbrev=no", "rebase.abbreviateCommands=false", "rebase.instructionFormat=%s", "core.commentChar=#")
 	editor := "true"
-	if editTodo != "" {
-		editor = "sed -i.ramus -e '" + editTodo + "'"
+	if action != "" {
+		// Both forms of pick are read, and the editor fails, which
+		// stops the rebase before it starts, when no line was changed:
+		// the rebase would replay every commit as it was and succeed.
+		editor = "f() { sed -i.ramus -E -e 's/^(pick|p) " + rw.Commit + "( |$)/" + action + " " + rw.Commit + "\\2/' \"$1\" && " +
+			"grep -q '^" + action + " " + rw.Commit + "' \"$1\"; }; f"
 	}
 	c.Env = append(c.Env, "GIT_SEQUENCE_EDITOR="+editor)
 	return c
@@ -112,7 +119,7 @@ func Reword(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 	var c run.Cmd
 	fallback := !rw.Git.Has(gitexe.History)
 	if fallback {
-		c = rw.rebase(w, "s/^pick "+rw.Commit+" /reword "+rw.Commit+" /")
+		c = rw.rebase(w, "reword")
 	} else {
 		c = w.cmd("history", "reword", "--update-refs=branches", "--end-of-options", rw.Commit)
 	}
@@ -136,7 +143,7 @@ func DropCommit(w Where, rw Rewrite, seen Seen) (Op, error) {
 		return Op{}, err
 	}
 	if !rw.Git.Has(gitexe.HistoryDrop) {
-		op := rw.op("Drop", seen, rw.rebase(w, "s/^pick "+rw.Commit+" /drop "+rw.Commit+" /"))
+		op := rw.op("Drop", seen, rw.rebase(w, "drop"))
 		op.Expect.Replay = &rw
 		return op, nil
 	}
