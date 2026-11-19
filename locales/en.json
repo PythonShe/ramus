@@ -563,17 +563,13 @@
   "@worktreePickFolder": {
     "description": "Title of the folder picker."
   },
-  "worktreeDetached": "detached",
-  "@worktreeDetached": {
-    "description": "Beside a worktree in the sidebar: no branch is checked out there."
+  "worktreeLabel": "{folder}{head, select, branch {  {branch}} detached {  detached} other {}}{state, select, missing {  folder missing} locked {  locked} other {}}",
+  "@worktreeLabel": {
+    "description": "A worktree in the sidebar: its folder's name, then its branch, or detached when no branch is checked out there, then folder missing when its folder is gone, or locked when it is locked. head is branch, detached or none; state is missing, locked or none."
   },
   "worktreeFolderMissing": "folder missing",
   "@worktreeFolderMissing": {
     "description": "Beside a worktree: its folder is gone."
-  },
-  "worktreeLocked": "locked",
-  "@worktreeLocked": {
-    "description": "Beside a worktree in the sidebar: it is locked."
   },
   "worktreeOpenInNewTab": "Open in New Tab",
   "worktreeOpenInNewWindow": "Open in New Window",

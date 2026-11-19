@@ -187,20 +187,20 @@ func (a *App) addWorktree(d *worktreeDialog) {
 
 // worktreeLabel is how the sidebar lists w.
 func worktreeLabel(w repo.Worktree) string {
-	label := filepath.Base(w.Path)
+	head, state := "none", "none"
 	switch {
 	case w.Branch != "":
-		label += "  " + strings.TrimPrefix(w.Branch, "refs/heads/")
+		head = "branch"
 	case w.Detached:
-		label += "  " + locales.WorktreeDetached()
+		head = "detached"
 	}
 	switch {
 	case w.Prunable:
-		label += "  " + locales.WorktreeFolderMissing()
+		state = "missing"
 	case w.Locked:
-		label += "  " + locales.WorktreeLocked()
+		state = "locked"
 	}
-	return label
+	return locales.WorktreeLabel(filepath.Base(w.Path), head, strings.TrimPrefix(w.Branch, "refs/heads/"), state)
 }
 
 // worktreeMenu is what can be done with worktree w from the sidebar. The

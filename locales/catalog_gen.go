@@ -3031,18 +3031,26 @@ func (msgs Messages) WorktreePickFolder() string {
 	return Catalog.Format(msgs.locale, "worktreePickFolder", nil)
 }
 
-// WorktreeDetached says "detached"
+// WorktreeLabel says "{folder}{head, select, branch {  {branch}} detached {  detached} other {}}{state, select, missing {  folder missing} …"
 // in the language the app shows.
 //
-// Beside a worktree in the sidebar: no branch is checked out there.
-func WorktreeDetached() string { return In(i18n.Locale()).WorktreeDetached() }
+// A worktree in the sidebar: its folder's name, then its branch, or
+// detached when no branch is checked out there, then folder missing when
+// its folder is gone, or locked when it is locked. head is branch, detached
+// or none; state is missing, locked or none.
+func WorktreeLabel(folder string, head string, branch string, state string) string {
+	return In(i18n.Locale()).WorktreeLabel(folder, head, branch, state)
+}
 
-// WorktreeDetached says "detached"
+// WorktreeLabel says "{folder}{head, select, branch {  {branch}} detached {  detached} other {}}{state, select, missing {  folder missing} …"
 // in the language of msgs.
 //
-// Beside a worktree in the sidebar: no branch is checked out there.
-func (msgs Messages) WorktreeDetached() string {
-	return Catalog.Format(msgs.locale, "worktreeDetached", nil)
+// A worktree in the sidebar: its folder's name, then its branch, or
+// detached when no branch is checked out there, then folder missing when
+// its folder is gone, or locked when it is locked. head is branch, detached
+// or none; state is missing, locked or none.
+func (msgs Messages) WorktreeLabel(folder string, head string, branch string, state string) string {
+	return Catalog.Format(msgs.locale, "worktreeLabel", map[string]any{"folder": folder, "head": head, "branch": branch, "state": state})
 }
 
 // WorktreeFolderMissing says "folder missing"
@@ -3057,20 +3065,6 @@ func WorktreeFolderMissing() string { return In(i18n.Locale()).WorktreeFolderMis
 // Beside a worktree: its folder is gone.
 func (msgs Messages) WorktreeFolderMissing() string {
 	return Catalog.Format(msgs.locale, "worktreeFolderMissing", nil)
-}
-
-// WorktreeLocked says "locked"
-// in the language the app shows.
-//
-// Beside a worktree in the sidebar: it is locked.
-func WorktreeLocked() string { return In(i18n.Locale()).WorktreeLocked() }
-
-// WorktreeLocked says "locked"
-// in the language of msgs.
-//
-// Beside a worktree in the sidebar: it is locked.
-func (msgs Messages) WorktreeLocked() string {
-	return Catalog.Format(msgs.locale, "worktreeLocked", nil)
 }
 
 // WorktreeOpenInNewTab says "Open in New Tab"
