@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
@@ -128,5 +130,54 @@ func TestDiffToolManyFiles(t *testing.T) {
 		if len(rec.Line) > 24<<10+1024 {
 			t.Fatalf("a command line of %d characters", len(rec.Line))
 		}
+	}
+}
+
+// The tool, which may outlive the app and start terminals of its own,
+// gets none of the app's askpass, nor its literal pathspecs; a path
+// with glob characters still names only itself.
+func TestDiffToolEnvironment(t *testing.T) {
+	r := gittest.Init(t)
+	odd := "a[1].txt"
+	if !gittest.Portable(odd) {
+		t.Skip("no brackets in names here")
+	}
+	r.Write(odd, "one\n")
+	r.Write("a1.txt", "one\n")
+	r.Commit("a")
+	r.Write(odd, "two\n")
+	r.Write("a1.txt", "two\n")
+	dir := t.TempDir()
+	env, seen := filepath.Join(dir, "env"), filepath.Join(dir, "seen")
+	r.Git("config", "difftool.record.cmd", `env > `+filepath.ToSlash(env)+`; echo "$MERGED" >> `+filepath.ToSlash(seen))
+	r.Git("config", "diff.tool", "record")
+	g, err := gitexe.Find(t.Context(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	// The user's environment, as the app has it, sets no GIT_TERMINAL_PROMPT.
+	runner := run.New(g, slices.DeleteFunc(gittest.Env(), func(e string) bool { return strings.HasPrefix(e, "GIT_TERMINAL_PROMPT=") }), 8)
+	runner.SetPrompt([]string{"SSH_ASKPASS=/x/ramus", "SSH_ASKPASS_REQUIRE=force", "RAMUS_ASKPASS_TOKEN=tok"}, nil)
+	m := make(mainThread, 64)
+	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	var got error
+	done := false
+	s.OpenDiffTool(DiffToolRequest{Paths: []string{odd}}, func(err error) { got, done = err, true })
+	m.until(t, "the tool", func() bool { return done })
+	if got != nil {
+		t.Fatal(got)
+	}
+	b, _ := os.ReadFile(env)
+	for _, name := range []string{"SSH_ASKPASS", "RAMUS_ASKPASS", "GIT_LITERAL_PATHSPECS", "GIT_TERMINAL_PROMPT", "GIT_LFS_FORCE_PROGRESS"} {
+		for line := range strings.SplitSeq(string(b), "\n") {
+			if strings.HasPrefix(line, name) {
+				t.Errorf("the tool has %s", line)
+			}
+		}
+	}
+	if b, _ := os.ReadFile(seen); string(b) != odd+"\n" {
+		t.Fatalf("the tool saw %q", b)
 	}
 }

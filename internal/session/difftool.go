@@ -99,11 +99,16 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 	case req.Cached:
 		args = append(args, "--cached")
 	}
-	base := run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Args: append(args, "--"), Config: config,
-		Env: []string{"GIT_LITERAL_PATHSPECS=1"}}
+	base := run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Args: append(args, "--"), Config: config, NoPrompt: true}
+	// Literal by magic, not by GIT_LITERAL_PATHSPECS: the tool, and every
+	// terminal and git it starts, would keep that.
+	paths := make([]string, len(req.Paths))
+	for i, p := range req.Paths {
+		paths[i] = ":(literal)" + p
+	}
 	// git difftool reads paths only as arguments and opens the files one
 	// at a time: many take several runs, one after another.
-	runs := write.SplitArgs(base, req.Paths)
+	runs := write.SplitArgs(base, paths)
 	if len(runs) == 0 {
 		runs = []run.Cmd{base}
 	}
@@ -114,8 +119,20 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 		defer cancel()
 		var stderr strings.Builder
 		var err error
+		// The tool may outlive the app and start terminals of its own:
+		// it gets the user's environment, without the app's askpass,
+		// which difftool --no-prompt never needs, nor what the runner
+		// sets for its own commands.
+		own := len(r.Runner.Environ())
 		for _, c := range runs {
 			cmd := r.Runner.Command(ctx, &c)
+			env := cmd.Env[:own:own]
+			for _, e := range cmd.Env[own:] {
+				if !strings.HasPrefix(e, "GIT_TERMINAL_PROMPT=") && !strings.HasPrefix(e, "GIT_LFS_FORCE_PROGRESS=") {
+					env = append(env, e)
+				}
+			}
+			cmd.Env = env
 			cmd.Stderr = &limitedWriter{w: &stderr, left: 8 << 10}
 			untrack := r.Runner.Track()
 			err = r.Runner.Start(cmd)
