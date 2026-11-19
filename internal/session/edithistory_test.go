@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/write"
 )
 
@@ -28,7 +29,7 @@ func TestEditRange(t *testing.T) {
 		var rw write.Rewrite
 		var err error
 		done := false
-		s.EditRange(id, func(w write.Rewrite, cs []EditCommit, e error) { rw, got, err, done = w, cs, e, true })
+		s.EditRange(id, func(w write.Rewrite, _ write.Seen, cs []EditCommit, e error) { rw, got, err, done = w, cs, e, true })
 		m.until(t, "the range", func() bool { return done })
 		return got, rw, err
 	}
@@ -60,5 +61,62 @@ func TestEditRange(t *testing.T) {
 	}
 	if _, _, err := read(side); err == nil {
 		t.Fatal("a commit off the first-parent line taken")
+	}
+}
+
+// An edit of history is written against HEAD as its commits were read:
+// a commit made while the editor was open is not in the plan, so the
+// write is refused rather than replaying the plan without it.
+func TestEditHistoryRefusesAMovedHead(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "a\n")
+	r.Commit("add a")
+	r.Write("b", "b\n")
+	b := r.Commit("add b")
+	r.Write("c", "c\n")
+	r.Commit("add c")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	id, _ := hex.DecodeString(b)
+	var rw write.Rewrite
+	var seen write.Seen
+	var cs []EditCommit
+	done := false
+	s.EditRange(id, func(w write.Rewrite, sn write.Seen, got []EditCommit, err error) {
+		if err != nil {
+			t.Error(err)
+		}
+		rw, seen, cs, done = w, sn, got, true
+	})
+	m.until(t, "the range", func() bool { return done })
+	old := string(s.State.Head.OID)
+	r.Write("e", "e\n")
+	e := r.Commit("add e")
+	m.until(t, "HEAD moved", func() bool { return string(s.State.Head.OID) != old })
+	// Swap b and c.
+	steps := []write.Step{{Commit: hex.EncodeToString(cs[1].OID)}, {Commit: hex.EncodeToString(cs[0].OID)}}
+	op, err := write.EditHistory(s.Where(), rw, steps, seen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, err := s.Submit(op)
+	if err == nil {
+		m.until(t, "the write", func() bool {
+			select {
+			case <-j.Done():
+				return true
+			default:
+				return false
+			}
+		})
+		_, err = j.Result()
+	}
+	if err == nil {
+		t.Error("the edit was written over a HEAD moved since its commits were read")
+	}
+	if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != e {
+		t.Fatalf("HEAD is %s, not the commit made meanwhile", got)
 	}
 }

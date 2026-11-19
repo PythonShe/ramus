@@ -20,9 +20,12 @@ import (
 // shows them newest first, as History does, so a row is where the user
 // just saw it; chosen and the list's indexes count in that order.
 type historyEdit struct {
-	open   bool
-	t      *tab
-	rw     write.Rewrite
+	open bool
+	t    *tab
+	rw   write.Rewrite
+	// seen is HEAD as the rows were read: the write refuses a HEAD
+	// moved since, whose new commits the rows do not hold.
+	seen   write.Seen
 	rows   []editRow
 	list   ui.ListState
 	chosen int
@@ -74,7 +77,7 @@ func actionLabel(act write.Action) string {
 // editHistory opens the editor of the history from commit id to HEAD,
 // its rows as prefill makes them when it is not nil.
 func (a *App) editHistory(t *tab, id []byte, prefill func(rows []editRow) ([]editRow, error)) {
-	t.s.EditRange(id, func(rw write.Rewrite, commits []session.EditCommit, err error) {
+	t.s.EditRange(id, func(rw write.Rewrite, seen write.Seen, commits []session.EditCommit, err error) {
 		if err != nil {
 			a.tell(t, errText(err))
 			return
@@ -89,7 +92,7 @@ func (a *App) editHistory(t *tab, id []byte, prefill func(rows []editRow) ([]edi
 				return
 			}
 		}
-		a.history = historyEdit{open: true, t: t, rw: rw, rows: rows, chosen: -1}
+		a.history = historyEdit{open: true, t: t, rw: rw, seen: seen, rows: rows, chosen: -1}
 	})
 }
 
@@ -197,7 +200,7 @@ func (a *App) historyEditView(c *ui.Context) {
 				}
 				n := len(rows)
 				if ui.PrimaryButton(c, locales.RewriteCommits(n)).Disabled(!he.changed()).Clicked() {
-					op, err := write.EditHistory(t.s.Where(), he.rw, he.steps(), t.s.Seen())
+					op, err := write.EditHistory(t.s.Where(), he.rw, he.steps(), he.seen)
 					if err != nil {
 						he.err = errText(err)
 						return

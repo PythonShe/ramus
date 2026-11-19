@@ -32,15 +32,18 @@ var ErrMergeInRange error = &sayError{locales.SessionMergeInRange}
 
 // EditRange reads the commits from from (inclusive) to HEAD along its
 // first parents, oldest first, for an edit of that history, off the main
-// thread, and hands them to done on it with the rewrite they make.
-func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, commits []EditCommit, err error)) {
+// thread, and hands them to done on it with the rewrite they make and
+// the HEAD they were read at. The edit's write is to carry that seen, not
+// HEAD as it is when the user applies the plan: a commit made in between
+// is not in the plan, and replaying the plan would drop it.
+func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, seen write.Seen, commits []EditCommit, err error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
 	seen := s.Seen()
 	if seen.Head == "" {
-		done(write.Rewrite{}, nil, errors.New(locales.SessionNoCommitsYet()))
+		done(write.Rewrite{}, seen, nil, errors.New(locales.SessionNoCommitsYet()))
 		return
 	}
 	tips := map[string][]string{}
@@ -60,7 +63,7 @@ func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, commits []E
 		}
 		rw.Parent = parent
 		if ctx.Err() == nil {
-			update(func() { done(rw, commits, err) })
+			update(func() { done(rw, seen, commits, err) })
 		}
 	})
 }
