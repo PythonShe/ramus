@@ -38,12 +38,13 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 	// Markers longer than any run of marker characters in the files, so
 	// that no text in them is read as one.
 	size := defaultMarkerSize
-	for _, p := range []string{local, base, remote} {
-		n, err := longestRun(p)
+	var ends [3]ending
+	for i, p := range []string{local, base, remote} {
+		n, end, err := longestRun(p)
 		if err != nil {
 			return Files{}, err
 		}
-		size = max(size, n+1)
+		size, ends[i] = max(size, n+1), end
 	}
 	out, err := runMergeFile(ctx, r, [3]string{local, base, remote}, size, "--diff3", "-L", labels[0], "-L", labels[1], "-L", labels[2])
 	if errors.Is(err, errBinary) {
@@ -56,17 +57,20 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 	if err != nil {
 		return Files{}, err
 	}
+	trimAdded(segs, ends[0], ends[1], ends[2])
 	return Files{Segments: segs}, nil
 }
 
 // longestRun is the longest run of one of the characters conflict markers
-// are made of at the start of a line of the file at path. A path that is
-// not a regular file, as a named pipe a read would wait on for ever, is
-// refused, and so is a file past MaxSize, which no merge here resolves.
-func longestRun(path string) (int, error) {
+// are made of at the start of a line of the file at path, and how the file
+// ends. A path that is not a regular file, as a named pipe a read would
+// wait on for ever, is refused, and so is a file past MaxSize, which no
+// merge here resolves.
+func longestRun(path string) (int, ending, error) {
+	var end ending
 	f, err := pathsafe.OpenRegular(path)
 	if err != nil {
-		return 0, err
+		return 0, end, err
 	}
 	defer f.Close()
 	buf := make([]byte, 64<<10)
@@ -76,9 +80,16 @@ func longestRun(path string) (int, error) {
 	for {
 		k, err := f.Read(buf)
 		if total += k; total > MaxSize {
-			return 0, ErrTooLarge
+			return 0, end, ErrTooLarge
 		}
 		for _, b := range buf[:k] {
+			if b == '\r' {
+				end.crs++
+			} else {
+				end.crs = 0
+			}
+			end.open = b != '\n'
+
 			switch {
 			case b == '\n':
 				c, n = '\n', 0
@@ -92,10 +103,10 @@ func longestRun(path string) (int, error) {
 			longest = max(longest, n)
 		}
 		if err == io.EOF {
-			return longest, nil
+			return longest, end, nil
 		}
 		if err != nil {
-			return 0, err
+			return 0, end, err
 		}
 	}
 }

@@ -53,7 +53,7 @@ func remerge(ctx context.Context, r *run.Runner, data []byte, size int, s merged
 		if err := os.WriteFile(paths[i], b, 0o600); err != nil {
 			return nil, err
 		}
-		n, err := longestRun(paths[i])
+		n, _, err := longestRun(paths[i])
 		if err != nil {
 			return nil, err
 		}

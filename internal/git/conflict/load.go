@@ -41,7 +41,7 @@ func Load(ctx context.Context, r *run.Runner, gitDir, workTree, path string, dat
 		segs, err := l.at(size)
 		switch {
 		case err == nil && Count(segs) > 0:
-			return segs, nil
+			return l.finish(segs)
 		case err == nil:
 			if i == 0 {
 				none = segs
@@ -73,6 +73,20 @@ func (l *loader) readSides() (mergedSides, error) {
 		l.sides = &s
 	}
 	return *l.sides, nil
+}
+
+// finish takes off the sides of a conflict that ends the file the line
+// ending git added to them (see trimAdded).
+func (l *loader) finish(segs []Segment) ([]Segment, error) {
+	if len(segs) == 0 || segs[len(segs)-1].Conflict == nil {
+		return segs, nil
+	}
+	s, err := l.readSides()
+	if err != nil {
+		return nil, err
+	}
+	trimAdded(segs, endingOf(s.Ours), endingOf(s.Base), endingOf(s.Theirs))
+	return segs, nil
 }
 
 // at reads the file at markers of size, one its attributes give.
@@ -122,7 +136,7 @@ func (l *loader) other(segs []Segment, refused error, sizes []int) ([]Segment, e
 		at, err := remerge(l.ctx, l.r, l.data, n, s)
 		switch {
 		case err == nil && Count(at) > 0:
-			return at, nil
+			return l.finish(at)
 		case err == nil:
 			text[n] = true // the file is a merge with no conflict
 		case !errors.Is(err, ErrAmbiguous):
