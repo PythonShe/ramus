@@ -228,6 +228,41 @@ func TestCLI(t *testing.T) {
 	}
 }
 
+// The tools print plain text whatever the user's environment says: no
+// forced terminal, colour or links, and no pager.
+func TestToolEnvironment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tool is a shell script")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte("#!/bin/sh\nenv\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Find([]string{"PATH=" + dir + ":/usr/bin:/bin", "GH_FORCE_TTY=100%", "CLICOLOR_FORCE=1", "FORCE_HYPERLINKS=1",
+		"PAGER=less", "GH_PAGER=delta", "NO_COLOR=", "GH_TOKEN=kept"}, GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := c.run(context.Background(), "", "github.com", "api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, l := range strings.Split(string(out), "\n") {
+		if k, v, ok := strings.Cut(l, "="); ok {
+			got[k] = v
+		}
+	}
+	for _, k := range []string{"GH_FORCE_TTY", "CLICOLOR_FORCE", "FORCE_HYPERLINKS"} {
+		if v, ok := got[k]; ok {
+			t.Errorf("%s=%s kept", k, v)
+		}
+	}
+	if got["PAGER"] != "cat" || got["GH_PAGER"] != "cat" || got["GLAB_PAGER"] != "cat" || got["NO_COLOR"] != "1" || got["GH_TOKEN"] != "kept" {
+		t.Errorf("environment %v", got)
+	}
+}
+
 // fakeREST writes a gh that answers each REST path it is given by the
 // case script, and returns the environment that finds it.
 func fakeREST(t *testing.T, cases string) []string {

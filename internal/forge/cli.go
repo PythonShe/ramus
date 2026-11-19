@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 )
@@ -132,15 +133,27 @@ func lookPath(env []string, name string) (string, bool) {
 	return "", false
 }
 
-// quiet is env with the tools asking nothing and printing no notices:
-// no one answers them.
+// forced are the variables of the user's that would have the tools
+// print as to a terminal, which they are not: in colour, whatever
+// NO_COLOR says, with links marked up, through a pager.
+var forced = []string{"GH_FORCE_TTY", "CLICOLOR_FORCE", "FORCE_HYPERLINKS"}
+
+// quiet is env with the tools asking nothing and printing no notices,
+// as no one answers them, and printing what they print as plain text,
+// which is read as JSON.
 func quiet(env []string) []string {
-	out := make([]string, 0, len(env)+8)
-	out = append(out, env...)
+	out := make([]string, 0, len(env)+12)
+	for _, kv := range env {
+		k, _, _ := strings.Cut(kv, "=")
+		if !slices.ContainsFunc(forced, func(name string) bool { return envName(k, name) }) {
+			out = append(out, kv)
+		}
+	}
 	return append(out,
 		"GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "GH_NO_EXTENSION_UPDATE_NOTIFIER=1",
 		"GH_SPINNER_DISABLED=1", "NO_COLOR=1", "CLICOLOR=0",
 		"NO_PROMPT=1", "GLAB_CHECK_UPDATE=false", "GLAB_SEND_TELEMETRY=false",
+		"GH_PAGER=cat", "GLAB_PAGER=cat", "PAGER=cat",
 	)
 }
 
