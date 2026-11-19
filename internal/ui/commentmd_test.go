@@ -51,6 +51,15 @@ func TestCommentFolds(t *testing.T) {
 		{"indented code", "Example:\n\n    <details>\n\tx\n\nAfter the code block.", "[Example:\n\n    <details>\n\tx\n\nAfter the code block.]"},
 		{"indented, not code", "Text\n    <details>x</details>", "[Text]{: [x]}"},
 		{"indented, after a fold", "<details><summary>S</summary>\n\n    <details>\n\n</details>", "{S: [<details>]}"},
+		// A marker with no text after it is an empty item.
+		{"a marker alone", "-", "[-]"},
+		{"markers alone", "*\n+\n1.\n12)\ntext\n-\n- a\n-\n- b<details>x</details>", "[*\n+\n1.\n12)\ntext\n-\n- a\n-\n- b]{: [x]}"},
+		// Four columns past a paragraph go on it: no fence opens there.
+		{"a fence indented four", "Text\n    ~~~\n\n<details>x</details>", "[Text\n    ~~~]{: [x]}"},
+		{"a fence indented three", "Text\n   ~~~\n\n<details>x</details>", "[Text\n   ~~~\n\n<details>x</details>]"},
+		// Five spaces past a marker are code in the item.
+		{"code after a marker", "-     <details>x</details>", "[-     <details>x</details>]"},
+		{"text after a marker", "-    <details>x</details>", "[-]{: [x]}"},
 	} {
 		if got := shape(commentParts(c.in, "Image")); got != c.want {
 			t.Errorf("%s:\n got %s\nwant %s", c.name, got, c.want)

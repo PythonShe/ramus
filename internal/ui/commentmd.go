@@ -203,17 +203,30 @@ func codeBlocks(s string) ranges {
 			at = end
 			continue
 		}
+		// A fence is indented three columns at most from its container:
+		// one more goes on the paragraph.
+		fenceOK := ind-base <= 3
 		if marker > 0 && ind-base <= 3 {
 			items = append(items, ind+marker)
 			base = ind + marker
-			rest = strings.TrimLeft(rest[marker:], " \t")
-			para = false
-			if rest == "" {
+			// The marker's width counts a column past a marker that ends
+			// the line, which the line does not have.
+			rest = rest[min(marker, len(rest)):]
+			para, fenceOK = false, true
+			cols, n := indentOf(rest)
+			switch {
+			case rest[n:] == "":
+				at = end
+				continue
+			case cols >= 4:
+				// Indented code in the item, one column past its marker.
+				code, codeEnd = at, end
 				at = end
 				continue
 			}
+			rest = rest[n:]
 		}
-		if w := fenceWidth(rest); w >= 3 && !(rest[0] == '`' && strings.Contains(rest[w:], "`")) {
+		if w := fenceWidth(rest); w >= 3 && fenceOK && !(rest[0] == '`' && strings.Contains(rest[w:], "`")) {
 			fence, fenceW, fenceBase, start = rest[0], w, base, at
 		} else {
 			para = true
