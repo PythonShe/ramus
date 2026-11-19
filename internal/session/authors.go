@@ -69,7 +69,7 @@ func (s *Session) LoadAuthors(publish func([]Person)) {
 	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		mm := s.mailmap(ctx, r)
-		people, _ := readAuthors(ctx, r, mm, tip, AuthorCommits)
+		people, err := readAuthors(ctx, r, mm, tip, AuthorCommits)
 		me := ownEmails(ctx, r, mm)
 		people = slices.DeleteFunc(people, func(p Person) bool { return slices.Contains(me, strings.ToLower(p.Email)) })
 		update(func() {
@@ -77,6 +77,10 @@ func (s *Session) LoadAuthors(publish func([]Person)) {
 				return
 			}
 			a.people, a.done = people, true
+			if err != nil {
+				// Not kept for this HEAD: the next call reads again.
+				a.head = ""
+			}
 			if a.publish != nil {
 				a.publish(people)
 				a.publish = nil

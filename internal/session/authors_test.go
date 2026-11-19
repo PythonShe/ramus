@@ -1,11 +1,17 @@
 package session
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"testing"
 
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/run"
 )
 
 // The people are the authors git log names through the mailmap, one per
@@ -41,5 +47,51 @@ func TestLoadAuthors(t *testing.T) {
 	r.Git("commit-graph", "write", "--reachable")
 	if got := load(); !slices.Equal(got, want) {
 		t.Fatalf("with a commit-graph got %q, want %q", got, want)
+	}
+}
+
+// A read that failed is not kept as the answer for its HEAD: the next
+// call reads again.
+func TestFailedAuthorsReadAgain(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as git")
+	}
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip(err)
+	}
+	r := gittest.Init(t)
+	r.Env = []string{"GIT_AUTHOR_NAME=Bob", "GIT_AUTHOR_EMAIL=bob@example.com"}
+	r.Write("f", "1")
+	r.Commit("c")
+	r.Env = nil
+	bin := t.TempDir()
+	fail := filepath.Join(bin, "fail")
+	// While fail exists, cat-file fails.
+	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = cat-file ] && [ -e " + fail + " ] && exit 1; done\nexec " + real + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fail, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g, err := gitexe.Find(t.Context(), bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, m := openWith(t, r, run.New(g, gittest.Env(), 8))
+	load := func() []Person {
+		var got []Person
+		done := false
+		s.LoadAuthors(func(p []Person) { got, done = p, true })
+		m.until(t, "the authors", func() bool { return done })
+		return got
+	}
+	if got := load(); len(got) != 0 {
+		t.Fatalf("read with cat-file failing: %q", got)
+	}
+	os.Remove(fail)
+	if got := load(); !slices.Equal(got, []Person{{"Bob", "bob@example.com"}}) {
+		t.Fatalf("read again got %q", got)
 	}
 }
