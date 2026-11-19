@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -78,23 +79,94 @@ func (a *App) showFile(t *tab, path string, blame bool) {
 
 // ShowFile opens the repository holding abs, a file or folder, at its
 // history, or its blame when blame is set: the tab of a repository open
-// already when one holds it.
+// already when one holds it. Where abs is gets worked out off the main
+// thread, as resolving symbolic links and reading the disk would hang
+// the window on a volume that stopped answering; what an ask finds is
+// dropped once another was made after it.
 func (a *App) ShowFile(abs string, blame bool) {
-	for i, t := range a.tabs {
+	a.pendingFile.asked++
+	n := a.pendingFile.asked
+	type open struct {
+		t    *tab
+		root string
+	}
+	var tabs []open
+	for _, t := range a.tabs {
 		if r := t.s.Repo; r != nil {
-			if rel, ok := within(r.WorkTree, abs); ok {
-				a.active = i
-				a.showFile(t, rel, blame)
+			tabs = append(tabs, open{t, r.WorkTree})
+		}
+	}
+	update, real := a.Update, a.realPath()
+	a.goWork(nil, func() {
+		for _, o := range tabs {
+			if rel, ok := within(o.root, abs, real); ok {
+				update(func() {
+					if a.pendingFile.asked != n {
+						return
+					}
+					if i := slices.Index(a.tabs, o.t); i >= 0 {
+						a.active = i
+						a.showFile(o.t, rel, blame)
+						return
+					}
+					// Closed meanwhile: opened again for it.
+					dir := abs
+					if !strings.HasSuffix(rel, "/") {
+						dir = filepath.Dir(abs)
+					}
+					a.openFor(abs, dir, blame, n)
+				})
 				return
 			}
 		}
-	}
-	dir := abs
-	if st, err := statDir(abs); err != nil || !st {
-		dir = filepath.Dir(abs)
+		dir := abs
+		if isDir, err := statDir(abs); err != nil || !isDir {
+			dir = filepath.Dir(abs)
+		}
+		update(func() {
+			if a.pendingFile.asked == n {
+				a.openFor(abs, dir, blame, n)
+			}
+		})
+	})
+}
+
+// openFor opens the repository at dir to show abs, asked as ask n, once
+// it is open: here, or in the window that has it open already, which
+// Open would only bring forward.
+func (a *App) openFor(abs, dir string, blame bool, n int) {
+	clean := cleanPath(dir)
+	here := slices.ContainsFunc(a.tabs, func(t *tab) bool { return t.is(clean) })
+	if !here && a.Runner != nil && a.ShowFileOpen != nil && a.ShowFileOpen(clean, abs, blame) {
+		return
 	}
 	a.Open(dir)
-	a.pendingFile = pendingFile{abs: abs, blame: blame, dir: cleanPath(dir)}
+	a.pendingFile = pendingFile{abs: abs, blame: blame, dir: clean, asked: n}
+}
+
+// HoldsFile reports whether a repository open here has abs in its work
+// tree, as abs is spelled: it does not touch the disk.
+func (a *App) HoldsFile(abs string) bool {
+	abs = cleanPath(abs)
+	return slices.ContainsFunc(a.tabs, func(t *tab) bool {
+		r := t.s.Repo
+		if r == nil {
+			return false
+		}
+		return slices.ContainsFunc([]string{t.s.Path, t.real, r.WorkTree}, func(root string) bool {
+			rel, err := filepath.Rel(root, abs)
+			return root != "" && err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+		})
+	})
+}
+
+// realPath resolves a path's symbolic links, off the main thread:
+// pathsafe.Real, or what a test put in its place to make it slow.
+func (a *App) realPath() func(string) (string, error) {
+	if resolve := a.resolve; resolve != nil {
+		return func(p string) (string, error) { return resolve(p), nil }
+	}
+	return pathsafe.Real
 }
 
 type pendingFile struct {
@@ -104,6 +176,9 @@ type pendingFile struct {
 	// that alone can show it, which may not be open yet when git is
 	// still being looked for.
 	dir string
+	// asked counts the files asked for (ShowFile): what is found for one
+	// lands only while no other was asked since.
+	asked int
 }
 
 // resolvePending shows a file asked for before its repository was open,
@@ -116,18 +191,24 @@ func (a *App) resolvePending(t *tab) {
 	if p.abs == "" || !t.is(p.dir) || t.s.Repo == nil {
 		return
 	}
-	a.pendingFile = pendingFile{}
-	root, update := t.s.Repo.WorkTree, a.Update
+	a.pendingFile = pendingFile{asked: p.asked}
+	root, update, real := t.s.Repo.WorkTree, a.Update, a.realPath()
 	a.goWork(t, func() {
-		if rel, ok := within(root, p.abs); ok {
-			update(func() { a.showFile(t, rel, p.blame) })
+		if rel, ok := within(root, p.abs, real); ok {
+			update(func() {
+				if a.pendingFile.asked == p.asked {
+					a.showFile(t, rel, p.blame)
+				}
+			})
 		}
 	})
 }
 
-// within is abs relative to root, with "/" for a folder, when it is in it.
-func within(root, abs string) (string, bool) {
-	for _, fix := range []func(string) (string, error){func(p string) (string, error) { return p, nil }, pathsafe.Real} {
+// within is abs relative to root, with "/" for a folder, when it is in
+// it, as given or with symbolic links resolved by real. It reads the
+// disk.
+func within(root, abs string, real func(string) (string, error)) (string, bool) {
+	for _, fix := range []func(string) (string, error){func(p string) (string, error) { return p, nil }, real} {
 		r, err1 := fix(root)
 		p, err2 := fix(abs)
 		if err1 != nil || err2 != nil {

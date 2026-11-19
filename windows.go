@@ -233,6 +233,16 @@ func (ws *windows) add() *window {
 		}
 		return false
 	}
+	d.ShowFileOpen = func(dir, abs string, blame bool) bool {
+		for _, o := range ws.list {
+			if o != w && (o.app.Has(dir) || o.app.HoldsFile(abs)) {
+				o.app.ShowFile(abs, blame)
+				ws.raise(o)
+				return true
+			}
+		}
+		return false
+	}
 	d.LayoutChanged = ws.layoutChanged
 	d.Languages, d.ChosenLocale, d.SetLocale = mygo.App.Languages(), mygo.App.ChosenLocale, mygo.App.SetLocale
 	w.app = ui.NewApp(d)

@@ -160,6 +160,7 @@ func TestShowFileBeforeGit(t *testing.T) {
 	runner := h.app.Runner
 	h.app.Runner = nil
 	h.app.ShowFile(filepath.Join(r.Dir, "src", "b.go"), false)
+	h.until("the repository asked for", func() bool { return len(h.app.pending) > 0 })
 	h.app.SetRunner(runner, nil)
 	tb := h.app.current()
 	h.until("the file", func() bool { return tb.sel == "file" && tb.file.path == "src/b.go" })

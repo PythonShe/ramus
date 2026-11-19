@@ -79,6 +79,12 @@ type Deps struct {
 	// it open, bringing that window forward, and reports whether one
 	// had; nil looks in no other window. Called on the main thread.
 	ShowOpen func(path string) bool
+	// ShowFileOpen shows the file or folder abs, blamed when blame is
+	// set, in another window that has its repository open (the one at
+	// dir, or one whose work tree holds abs), bringing that window
+	// forward, and reports whether one had; nil looks in no other
+	// window. Called on the main thread.
+	ShowFileOpen func(dir, abs string, blame bool) bool
 	// ShowAbout opens the About window, where the check for updates is;
 	// nil offers none.
 	ShowAbout func()
