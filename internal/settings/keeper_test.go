@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestKeeperKeepsTheLatest has saves asked for back to back, from two
@@ -147,5 +148,62 @@ func TestKeeperReportsFailure(t *testing.T) {
 	k.Wait()
 	if got == nil {
 		t.Fatal("no error for a folder that is a file")
+	}
+}
+
+// mainThread is a stand-in for the app's main thread: run posts fn to it
+// and waits for it to return, as mygo.RunOnMain does.
+type mainThread chan func()
+
+func (m mainThread) run(fn func()) {
+	done := make(chan struct{})
+	m <- func() { fn(); close(done) }
+	<-done
+}
+
+// A quit waits on the main thread for the settings to be written, while
+// the keeper's callbacks wait for the main thread, as the app wires them:
+// the wait ends all the same, as each write and check counts as done
+// before its callbacks run, and the callbacks run once the main thread is
+// free again.
+func TestQuitWaitsNotOnCallbacks(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	Save(p, Defaults)
+	inApp, _ := Load(p)
+	k := NewKeeper(p)
+	k.Started(inApp)
+	main := make(mainThread)
+	heard := make(chan struct{}, 4)
+	k.OnFile = func(FromFile) { main.run(func() { heard <- struct{}{} }) }
+	k.Check(nil) // the first focus always reads the file
+	k.WaitWrites(time.Minute)
+	// A write that fails, its error told on the main thread too.
+	os.WriteFile(p, []byte(`{"theme": `), 0o600)
+	failed := make(chan struct{}, 1)
+	k.Keep(inApp, func(error) { main.run(func() { failed <- struct{}{} }) })
+	if !k.WaitWrites(time.Minute) {
+		t.Fatal("the wait for the writes did not end")
+	}
+	// The main thread is free again: what waited on it runs.
+	for range 2 {
+		(<-main)()
+	}
+	k.Wait()
+	if len(heard) != 1 || len(failed) != 1 {
+		t.Fatalf("heard %d readings and %d failures", len(heard), len(failed))
+	}
+}
+
+// WaitWrites gives up after the time it is given while a write runs.
+func TestWaitWritesBounded(t *testing.T) {
+	k := NewKeeper(filepath.Join(t.TempDir(), "settings.json"))
+	k.file.Lock() // a write that cannot end yet
+	k.Keep(Defaults, nil)
+	if k.WaitWrites(10 * time.Millisecond) {
+		t.Fatal("waited for a write that had not ended")
+	}
+	k.file.Unlock()
+	if !k.WaitWrites(time.Minute) {
+		t.Fatal("the write did not end")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"sync"
+	"time"
 )
 
 // Keeper writes the settings to their file off the caller's thread, one
@@ -22,8 +23,8 @@ import (
 type Keeper struct {
 	path string
 	// OnFile, when set, hears settings read from the file that are not
-	// the app's: edited by hand. It is called on a goroutine of the
-	// keeper's; Take them on the main thread.
+	// the app's: edited by hand. It is called on a goroutine of its own,
+	// which nothing waits for but Wait; Take them on the main thread.
 	OnFile func(FromFile)
 
 	mu       sync.Mutex
@@ -45,8 +46,11 @@ type Keeper struct {
 	disk      []byte
 	diskKnown bool
 	checkErr  string
-	// idle is done whenever no write or check is pending or running.
-	idle sync.WaitGroup
+	// work counts the writes and checks pending or running; told the
+	// callbacks (OnFile, onError) running. A write or check counts as done
+	// before its callbacks run, on a goroutine of their own: they may wait
+	// for the main thread, which a quit holds waiting for the writes.
+	work, told inflight
 }
 
 // FromFile is settings read from the file, to Take.
@@ -74,8 +78,8 @@ func (k *Keeper) Started(s Settings) {
 }
 
 // Keep has s written soon; a later Keep before then replaces it.
-// onError, which may be nil, hears that the write of s failed, on the
-// writing goroutine. Call it on the main thread, as Take.
+// onError, which may be nil, hears that the write of s failed, on a
+// goroutine of its own, as OnFile.
 func (k *Keeper) Keep(s Settings, onError func(error)) {
 	k.mu.Lock()
 	if !k.has {
@@ -92,13 +96,13 @@ func (k *Keeper) Keep(s Settings, onError func(error)) {
 		return
 	}
 	k.busy = true
-	k.idle.Add(1)
+	k.work.add()
 	k.mu.Unlock()
 	go k.run()
 }
 
 func (k *Keeper) run() {
-	defer k.idle.Done()
+	defer k.work.end()
 	for {
 		k.mu.Lock()
 		if !k.has {
@@ -119,13 +123,31 @@ func (k *Keeper) run() {
 			}
 		}
 		k.file.Unlock()
-		if err != nil && onError != nil {
+		k.tell(err, onError, news)
+	}
+}
+
+// tell hands err to onError and news to OnFile, on a goroutine of its own.
+func (k *Keeper) tell(err error, onError func(error), news *FromFile) {
+	if err != nil && onError == nil {
+		err = nil
+	}
+	if news != nil && k.OnFile == nil {
+		news = nil
+	}
+	if err == nil && news == nil {
+		return
+	}
+	k.told.add()
+	go func() {
+		defer k.told.end()
+		if err != nil {
 			onError(err)
 		}
-		if news != nil && k.OnFile != nil {
+		if news != nil {
 			k.OnFile(*news)
 		}
-	}
+	}()
 }
 
 // fromFile numbers settings read from the file; k.file is held, so the
@@ -148,16 +170,11 @@ func (k *Keeper) Check(onError func(error)) {
 	if !started || k.OnFile == nil {
 		return
 	}
-	k.idle.Add(1)
+	k.work.add()
 	go func() {
-		defer k.idle.Done()
+		defer k.work.end()
 		news, err := k.check()
-		if err != nil && onError != nil {
-			onError(err)
-		}
-		if news != nil {
-			k.OnFile(*news)
-		}
+		k.tell(err, onError, news)
 	}()
 }
 
@@ -210,5 +227,65 @@ func (k *Keeper) Take(f FromFile, cur Settings) (Settings, bool) {
 	return s, !Same(s, cur)
 }
 
-// Wait returns once what was asked for is written.
-func (k *Keeper) Wait() { k.idle.Wait() }
+// Wait returns once what was asked for is written and told: it waits for
+// the callbacks too, so never call it on a thread they wait for. A quit,
+// on the main thread, waits with WaitWrites.
+func (k *Keeper) Wait() {
+	k.work.wait(-1)
+	k.told.wait(-1)
+}
+
+// WaitWrites waits up to d for the writes and checks asked for to end,
+// and reports whether they did. It does not wait for their callbacks,
+// and so may be called on the main thread.
+func (k *Keeper) WaitWrites(d time.Duration) bool { return k.work.wait(d) }
+
+// inflight counts work running, and lets a wait for none be bounded,
+// which a sync.WaitGroup does not.
+type inflight struct {
+	mu sync.Mutex
+	n  int
+	// none is closed when n falls to 0.
+	none chan struct{}
+}
+
+func (f *inflight) add() {
+	f.mu.Lock()
+	if f.n == 0 {
+		f.none = make(chan struct{})
+	}
+	f.n++
+	f.mu.Unlock()
+}
+
+func (f *inflight) end() {
+	f.mu.Lock()
+	f.n--
+	if f.n == 0 {
+		close(f.none)
+	}
+	f.mu.Unlock()
+}
+
+// wait returns true once nothing runs, false after d; d < 0 waits for as
+// long as it takes.
+func (f *inflight) wait(d time.Duration) bool {
+	f.mu.Lock()
+	n, none := f.n, f.none
+	f.mu.Unlock()
+	if n == 0 {
+		return true
+	}
+	if d < 0 {
+		<-none
+		return true
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-none:
+		return true
+	case <-t.C:
+		return false
+	}
+}

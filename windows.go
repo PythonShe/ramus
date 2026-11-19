@@ -4,6 +4,7 @@ import (
 	"log"
 	"maps"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -88,37 +89,72 @@ func (ws *windows) layoutChanged() {
 // the git identity typed in them, the library and trust being written, at the
 // start of a quit. They are the writes the main thread waits on: the OS
 // may end the process as soon as the quit's listeners return, and the
-// files are small.
+// files are small. The wait is bounded, stopWait for them all: a write
+// that is not done by then is given up, which a write through
+// settings.WriteFile survives whole, the file as it was before.
 func (ws *windows) flush() {
+	var waits []func()
 	if k := ws.deps.SettingsKeeper; k != nil {
-		k.Wait()
+		waits = append(waits, func() { k.WaitWrites(-1) })
 	}
 	for _, w := range ws.list {
 		w.app.SaveIdentity()
-		w.app.WaitIdentity()
+		waits = append(waits, w.app.WaitIdentity)
 	}
 	// A repository just opened is recorded once it is found to be one,
-	// which reads its folder: bounded, as an unreachable volume would hold
-	// the quit.
-	deadline := time.Now().Add(stopWait)
+	// which reads its folder.
 	for _, w := range ws.list {
-		w.app.WaitWrites(time.Until(deadline))
+		waits = append(waits, func() { w.app.WaitWrites(stopWait) })
 	}
 	// Trust just given, by a click or for a repository the user cloned
 	// or made, holds at the next launch.
 	if ts := ws.deps.Trust; ts != nil {
-		ts.Wait(time.Until(deadline))
+		waits = append(waits, func() { ts.Wait(stopWait) })
 	}
 	if d := ws.deps.Drafts; d != nil {
-		if err := d.Flush(); err != nil {
-			log.Print(err)
-		}
+		waits = append(waits, func() {
+			if err := d.Flush(); err != nil {
+				log.Print(err)
+			}
+		})
 	}
-	if ws.keep == nil || !ws.found || ws.gitErr != nil || len(ws.list) == 0 {
-		return
+	if ws.keep != nil && ws.found && ws.gitErr == nil && len(ws.list) > 0 {
+		k, l := ws.keep, ws.layout()
+		waits = append(waits, func() {
+			if err := k.Flush(l); err != nil {
+				log.Print(err)
+			}
+		})
 	}
-	if err := ws.keep.Flush(ws.layout()); err != nil {
-		log.Print(err)
+	if !waitAll(stopWait, waits) {
+		log.Print("quit: the app's files were not all written in time")
+	}
+}
+
+// waitAll runs each of waits on a goroutine of its own and returns once
+// they have all returned, true, or after d, false. A wait joins a quit's
+// through it when it returns once what was asked of it before is on
+// disk, may run on any goroutine, and never needs the main thread to
+// return, which is held here meanwhile: a callback of its writes runs
+// after the write counts as done, or posts to the main thread without
+// waiting.
+func waitAll(d time.Duration, waits []func()) bool {
+	var wg sync.WaitGroup
+	for _, w := range waits {
+		wg.Go(w)
+	}
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-done:
+		return true
+	case <-t.C:
+		return false
 	}
 }
 
