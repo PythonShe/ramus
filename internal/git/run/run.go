@@ -494,6 +494,12 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 			lower(cmd)
 		}
 		err = cmd.Wait()
+		if errors.Is(err, exec.ErrWaitDelay) && ctx.Err() == nil {
+			// git exited 0 (Wait says ErrWaitDelay only then); what still
+			// held its output is something it started and left running, as
+			// a hook's background job. What git printed has come.
+			err = nil
+		}
 	}
 	r.running.Add(-1)
 	r.commands.Add(-1)

@@ -244,6 +244,20 @@ func TestCancelStopsChildren(t *testing.T) {
 	}
 }
 
+// A command that succeeded succeeds although something it left running,
+// as a hook's background job, still holds its output open.
+func TestBackgroundChildKeepsSuccess(t *testing.T) {
+	r := gittest.Init(t)
+	res, err := runner(t, 1).Run(context.Background(), &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir,
+		Config: []string{"alias.bg=!sleep 3 & echo done"}, Args: []string{"bg"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(res.Stdout) != "done\n" {
+		t.Fatalf("stdout %q", res.Stdout)
+	}
+}
+
 // printing is not, and a question open to the user does not count.
 func TestStall(t *testing.T) {
 	r := gittest.Init(t)
