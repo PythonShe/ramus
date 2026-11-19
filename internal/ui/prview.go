@@ -71,7 +71,10 @@ type prReview struct {
 	events    []prEvent
 	threadsOn map[string]int
 	// checks are the checks of the head, in the order listed.
-	checks    []forge.Check
+	checks []forge.Check
+	// checkKeys name checks in their list, checkKeys[i] checks[i]
+	// (setChecks).
+	checkKeys []checkKey
 	checkList ui.ListState
 	// md is how its Markdown shows, kept from frame to frame.
 	md *markdown.Options
@@ -336,7 +339,9 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 			ui.Text(c, ps.detailErr).FontSize(textSmall).TextColor(th.Danger).Padding(0, insetX, spaceS, insetX).Selectable()
 		}
 		ps.table.Selected = &ps.chosen
-		ps.table.Key = func(i int) any { return list[i].Number }
+		// Newer ones come in at the top: the list stays where it is
+		// scrolled rather than with the row it showed first.
+		ps.table.Key, ps.table.KeepOffset = func(i int) any { return list[i].Number }, true
 		ps.table.Label = func(i int) string {
 			return locales.PrsRow(list[i].Ref(ps.repo.Kind), redact.Control(list[i].Title), redact.Control(list[i].Author))
 		}
@@ -516,7 +521,8 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 		if r.Warning != "" {
 			rv.err = locales.PrsReadInPart(redact.Control(r.Warning))
 		}
-		rv.r, rv.events, rv.checks = r, nil, sortChecks(r.CheckList)
+		rv.r, rv.events = r, nil
+		rv.setChecks(sortChecks(r.CheckList))
 		// The folds stay as they are: read again, a comment opened is
 		// still being read. The comments read stay read.
 		rv.bodies.keep(&r)

@@ -156,7 +156,9 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 				return
 			}
 			hover := ""
-			p.list.Key = func(i int) any { return [2]string{rows[i].key, rows[i].heading} }
+			// Rows come in above as repositories are opened: the list stays
+			// where it is scrolled.
+			p.list.Key, p.list.KeepOffset = func(i int) any { return rows[i].key }, true
 			list := ui.List(c, &p.list, len(rows), func(i int) {
 				r := a.repoRowView(c, rows[i], rows[i].heading == "" && rows[i].key == p.hi)
 				if rows[i].heading != "" {
@@ -348,25 +350,36 @@ func (a *App) repoRows() []repoRow {
 	if a.Library == nil {
 		return nil
 	}
+	// Each row's key is its own: a section's names its kind, as a group
+	// or an owner may have the name of another section, and a library
+	// edited by hand may list a repository twice.
+	var rows []repoRow
+	seen := map[string]bool{}
+	add := func(r repoRow) {
+		if !seen[r.key] {
+			seen[r.key] = true
+			rows = append(rows, r)
+		}
+	}
 	row := func(under string, r library.Repo) repoRow {
 		return repoRow{key: under + "\x00" + r.Path, path: r.Path, name: r.Name}
 	}
-	var rows []repoRow
 	if q := strings.TrimSpace(p.query); q != "" {
 		for _, r := range a.Library.Search(q) {
 			if !a.unlisted(r.Path) {
-				rows = append(rows, row("", r))
+				add(row("", r))
 			}
 		}
 		return rows
 	}
-	section := func(heading string, repos []library.Repo) {
+	section := func(kind, heading string, repos []library.Repo) {
 		if len(repos) == 0 {
 			return
 		}
-		rows = append(rows, repoRow{heading: heading})
+		under := kind + "\x00" + heading
+		add(repoRow{key: under, heading: heading})
 		for _, r := range repos {
-			rows = append(rows, row(heading, r))
+			add(row(under, r))
 		}
 	}
 	current := ""
@@ -386,8 +399,8 @@ func (a *App) repoRows() []repoRow {
 			recent = append(recent, r)
 		}
 	}
-	section(locales.RepoPickerRecent(), recent)
-	section(locales.RepoPickerFavourites(), a.Library.Favourites())
+	section("recent", locales.RepoPickerRecent(), recent)
+	section("favourites", locales.RepoPickerFavourites(), a.Library.Favourites())
 
 	byPath := make(map[string]library.Repo, len(all))
 	for _, r := range all {
@@ -410,7 +423,7 @@ func (a *App) repoRows() []repoRow {
 			grouped[path] = true
 			in = append(in, r)
 		}
-		section(g.Name, byName(in))
+		section("group", g.Name, byName(in))
 	}
 	owners := map[string][]library.Repo{}
 	var other []library.Repo
@@ -430,9 +443,9 @@ func (a *App) repoRows() []repoRow {
 	}
 	slices.SortFunc(names, func(x, y string) int { return cmp.Compare(strings.ToLower(x), strings.ToLower(y)) })
 	for _, o := range names {
-		section(o, byName(owners[o]))
+		section("owner", o, byName(owners[o]))
 	}
-	section(locales.RepoPickerOther(), byName(other))
+	section("other", locales.RepoPickerOther(), byName(other))
 	return rows
 }
 

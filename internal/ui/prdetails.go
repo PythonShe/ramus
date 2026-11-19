@@ -164,6 +164,28 @@ func checkRank(s forge.CheckState) int {
 // sortChecks orders list as the page lists it: the failed first, then
 // those running and waiting; among those that stand alike the required
 // first, then each by its group and name.
+// checkKey names a check in the list: two runs of one job, as a workflow
+// run for a push and for the pull request, may have one group, name and
+// address (none, when the host's is refused), and are told apart by
+// their order among those.
+type checkKey struct {
+	group, name, url string
+	n                int
+}
+
+// setChecks shows list, the checks in the order listed.
+func (rv *prReview) setChecks(list []forge.Check) {
+	keys := make([]checkKey, len(list))
+	seen := make(map[checkKey]int, len(list))
+	for i, ch := range list {
+		k := checkKey{group: ch.Group, name: ch.Name, url: ch.URL}
+		keys[i] = k
+		keys[i].n = seen[k]
+		seen[k]++
+	}
+	rv.checks, rv.checkKeys = list, keys
+}
+
 func sortChecks(list []forge.Check) []forge.Check {
 	out := slices.Clone(list)
 	required := func(c forge.Check) int {
@@ -234,7 +256,9 @@ func (a *App) prChecks(c *ui.Context, rv *prReview) {
 		if rv.r.ChecksMore {
 			ui.Text(c, locales.PrsChecksMore(kindName(rv.repo.Kind))).FontSize(textSmall).TextColor(th.Warning).Padding(0, insetX, spaceS, insetX)
 		}
-		rv.checkList.Key = func(i int) any { return [3]string{list[i].Group, list[i].Name, list[i].URL} }
+		keys := rv.checkKeys
+		// Sorted again as they end: the list stays where it is scrolled.
+		rv.checkList.Key, rv.checkList.KeepOffset = func(i int) any { return keys[i] }, true
 		ui.List(c, &rv.checkList, len(list), func(i int) {
 			ch := list[i]
 			k := plainInk(th)
