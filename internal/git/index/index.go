@@ -11,7 +11,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
 
 	"ramus/internal/git/osfile"
 )
@@ -93,14 +92,10 @@ func bad(format string, args ...any) error {
 // ReadFile reads the index at path, whose object ids are hashSize bytes
 // (20 for SHA-1, 32 for SHA-256).
 func ReadFile(path string, hashSize int) (*Index, error) {
-	st, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-	if st.Size() > maxFile || !st.Mode().IsRegular() {
+	b, err := osfile.ReadFile(path, maxFile)
+	if errors.Is(err, osfile.ErrNotRegular) || errors.Is(err, osfile.ErrTooLarge) {
 		return nil, bad("%s is not a regular file under %d bytes", path, maxFile)
 	}
-	b, err := osfile.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

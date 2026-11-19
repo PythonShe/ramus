@@ -37,9 +37,6 @@ func Open(path string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("mmap: %s is not a regular file", path)
-	}
 	size := st.Size()
 	if size == 0 {
 		return &File{}, nil

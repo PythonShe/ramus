@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"ramus/internal/git/config"
-	"ramus/internal/git/pathsafe"
+	"ramus/internal/git/osfile"
 )
 
 // TrustDir is the directory the user's trust in the repository at loc,
@@ -41,7 +41,7 @@ func owned(loc Location, cfg *config.Config) bool {
 		}
 		// And it names this work tree, as git worktree add wrote it, and
 		// git worktree repair writes it again after a move.
-		b, err := pathsafe.ReadFile(filepath.Join(loc.GitDir, "gitdir"), smallFile)
+		b, err := osfile.ReadFile(filepath.Join(loc.GitDir, "gitdir"), smallFile)
 		if err != nil {
 			return false
 		}

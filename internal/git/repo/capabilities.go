@@ -11,7 +11,7 @@ import (
 
 	"ramus/internal/git/config"
 	"ramus/internal/git/index"
-	"ramus/internal/git/pathsafe"
+	"ramus/internal/git/osfile"
 	"ramus/internal/git/refs"
 )
 
@@ -234,7 +234,7 @@ func hasReplaceRefs(loc Location, c Capabilities, seen *replaceSeen) bool {
 	if seen.ok && seen.at == at && seen.base == base {
 		return seen.found
 	}
-	b, err := pathsafe.ReadFile(packed, maxPackedRefs)
+	b, err := osfile.ReadFile(packed, maxPackedRefs)
 	if err != nil {
 		found = !errors.Is(err, fs.ErrNotExist)
 	} else {

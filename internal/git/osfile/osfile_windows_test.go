@@ -1,0 +1,86 @@
+package osfile
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"golang.org/x/sys/windows"
+)
+
+// git renames a lock file over the file, then deletes it, both while it
+// is open here, as it does to an index, a ref or a commit-graph layer.
+func TestRenamedOverAndDeletedWhileOpen(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "packed-refs")
+	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if plain, err := os.Open(path); err == nil {
+		// What the opener exists for: os.Open does not share deletion.
+		if os.Rename(path, path+".moved") == nil {
+			t.Log("os.Open shares deletion on this system")
+			os.Rename(path+".moved", path)
+		}
+		plain.Close()
+	}
+	f, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	lock := path + ".lock"
+	if err := os.WriteFile(lock, []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(lock, path); err != nil {
+		t.Fatalf("rename over a file open here: %v", err)
+	}
+	g, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer g.Close()
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("delete a file open here: %v", err)
+	}
+	if b, err := io.ReadAll(f); err != nil || string(b) != "old" {
+		t.Fatalf("the first file read %q, %v", b, err)
+	}
+	if b, err := io.ReadAll(g); err != nil || string(b) != "new" {
+		t.Fatalf("the second file read %q, %v", b, err)
+	}
+}
+
+// A device or a named pipe is refused without waiting on it.
+func TestRefusesWhatIsNoFile(t *testing.T) {
+	name := fmt.Sprintf(`\\.\pipe\ramus-osfile-%d`, os.Getpid())
+	p, err := windows.UTF16PtrFromString(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := windows.CreateNamedPipe(p, windows.PIPE_ACCESS_DUPLEX,
+		windows.PIPE_TYPE_BYTE|windows.PIPE_WAIT, windows.PIPE_UNLIMITED_INSTANCES, 512, 512, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer windows.CloseHandle(h)
+	for _, path := range []string{"NUL", name} {
+		done := make(chan error, 1)
+		go func() { _, err := ReadFile(path, 1<<20); done <- err }()
+		select {
+		case err := <-done:
+			// The pipe may be refused by the system before the check
+			// sees it; what matters is that nothing is read from it.
+			if err == nil || path == "NUL" && !errors.Is(err, ErrNotRegular) {
+				t.Errorf("%s: %v", path, err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("%s: still waiting", path)
+		}
+	}
+}

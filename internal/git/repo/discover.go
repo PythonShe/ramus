@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"ramus/internal/git/osfile"
 	"ramus/internal/git/pathsafe"
 )
 
@@ -101,7 +102,7 @@ const smallFile = 64 << 10
 
 // readGitfile reads "gitdir: <path>" from a .git file.
 func readGitfile(path string) (string, error) {
-	b, err := pathsafe.ReadFile(path, smallFile)
+	b, err := osfile.ReadFile(path, smallFile)
 	if err != nil {
 		return "", err
 	}
@@ -133,7 +134,7 @@ func gitDirLocation(dir string) (Location, bool) {
 	}
 	common := dir
 	linked := false
-	if b, err := pathsafe.ReadFile(filepath.Join(dir, "commondir"), smallFile); err == nil {
+	if b, err := osfile.ReadFile(filepath.Join(dir, "commondir"), smallFile); err == nil {
 		c := strings.TrimSpace(string(b))
 		if !filepath.IsAbs(c) {
 			c = filepath.Join(dir, c)
@@ -163,7 +164,7 @@ func validHEAD(path string) bool {
 	}
 	// Not a named pipe or a device: git's validate_headref refuses those
 	// too, and a read of one would not return.
-	b, err := pathsafe.ReadFile(path, smallFile)
+	b, err := osfile.ReadFile(path, smallFile)
 	if err != nil {
 		return false
 	}

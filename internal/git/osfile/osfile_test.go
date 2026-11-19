@@ -38,7 +38,7 @@ func TestRenamedOverWhileOpen(t *testing.T) {
 	if !bytes.Equal(got, want) {
 		t.Fatal("the open file's content changed")
 	}
-	if b, err := ReadFile(path); err != nil || string(b) != "new" {
+	if b, err := ReadFile(path, 3); err != nil || string(b) != "new" {
 		t.Fatalf("ReadFile = %q, %v", b, err)
 	}
 }
@@ -51,24 +51,40 @@ func TestReadFile(t *testing.T) {
 		if err := os.WriteFile(path, want, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		got, err := ReadFile(path)
+		got, err := ReadFile(path, int64(n))
 		if err != nil || !bytes.Equal(got, want) {
 			t.Fatalf("%d bytes: read %d, %v", n, len(got), err)
 		}
 	}
-	if _, err := ReadFile(filepath.Join(dir, "missing")); !errors.Is(err, fs.ErrNotExist) {
+	if _, err := ReadFile(filepath.Join(dir, "missing"), 1); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("missing file: %v", err)
 	}
 	if _, err := Open(filepath.Join(dir, "missing", "x")); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("missing folder: %v", err)
 	}
-	f, err := Open(dir)
-	if err != nil {
-		t.Fatalf("a directory: %v", err)
+	if f, err := Open(dir); !errors.Is(err, ErrNotRegular) {
+		if f != nil {
+			f.Close()
+		}
+		t.Fatalf("a folder: %v", err)
 	}
-	st, err := f.Stat()
-	f.Close()
-	if err != nil || !st.IsDir() {
-		t.Fatalf("a directory: %v, %v", st, err)
+	if _, err := ReadFile(dir, 1<<20); !errors.Is(err, ErrNotRegular) {
+		t.Fatalf("a folder: %v", err)
+	}
+}
+
+// A file is read up to its limit, and past it refused.
+func TestReadFileLimit(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(file, []byte("0123456789"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := ReadFile(file, 10); err != nil || string(b) != "0123456789" {
+		t.Fatalf("a file of the limit: %q %v", b, err)
+	}
+	for _, limit := range []int64{9, 0} {
+		if _, err := ReadFile(file, limit); !errors.Is(err, ErrTooLarge) {
+			t.Errorf("a file past the limit %d: %v", limit, err)
+		}
 	}
 }

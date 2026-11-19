@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -265,17 +264,13 @@ func (s *Store) resolveIn(all map[string]raw, name string, depth int) ([]byte, e
 }
 
 func (s *Store) readPacked(path string) (map[string]raw, error) {
-	st, err := os.Stat(path)
+	data, err := osfile.ReadFile(path, maxPacked)
 	if errors.Is(err, fs.ErrNotExist) {
 		return map[string]raw{}, nil
 	}
-	if err != nil {
-		return nil, err
-	}
-	if !st.Mode().IsRegular() || st.Size() > maxPacked {
+	if errors.Is(err, osfile.ErrNotRegular) || errors.Is(err, osfile.ErrTooLarge) {
 		return nil, fmt.Errorf("refs: packed-refs is not a regular file under %d bytes", maxPacked)
 	}
-	data, err := osfile.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -395,15 +390,10 @@ func (s *Store) readLoose(path, name string) (raw, error) {
 	}
 	// Only a small regular file is a ref: opening a FIFO would block, and
 	// a huge file would be read whole.
-	if !st.Mode().IsRegular() || st.Size() > maxLoose {
+	b, err := osfile.ReadFile(path, maxLoose)
+	if errors.Is(err, osfile.ErrNotRegular) || errors.Is(err, osfile.ErrTooLarge) {
 		return raw{}, fmt.Errorf("refs: %s is not a ref file", name)
 	}
-	f, err := osfile.Open(path)
-	if err != nil {
-		return raw{}, err
-	}
-	b, err := io.ReadAll(io.LimitReader(f, maxLoose))
-	f.Close()
 	if err != nil {
 		return raw{}, err
 	}

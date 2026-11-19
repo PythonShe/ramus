@@ -160,13 +160,16 @@ func openOnce(objectsDir string, prev *Graph) (*Graph, error) {
 }
 
 func readChain(path string) ([]string, error) {
-	f, err := osfile.Open(path)
+	// maxLayers lines of a hash each, and room for line ends and blanks.
+	b, err := osfile.ReadFile(path, maxLayers*80)
+	if errors.Is(err, osfile.ErrTooLarge) {
+		return nil, &FormatError{path, "too many layers"}
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	var hashes []string
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
 		h := strings.TrimSpace(sc.Text())
 		if h == "" {

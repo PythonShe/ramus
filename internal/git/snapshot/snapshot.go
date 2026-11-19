@@ -23,6 +23,7 @@ import (
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/object"
+	"ramus/internal/git/osfile"
 	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
@@ -453,7 +454,7 @@ func copyIndex(gitDir string) (string, error) {
 	var b [8]byte
 	rand.Read(b[:])
 	tmp := filepath.Join(gitDir, copyPrefix+strconv.FormatInt(time.Now().UnixNano(), 10)+"-"+hex.EncodeToString(b[:])+".index")
-	src, err := pathsafe.OpenRegular(filepath.Join(gitDir, "index"))
+	src, err := osfile.Open(filepath.Join(gitDir, "index"))
 	if errors.Is(err, os.ErrNotExist) {
 		return tmp, nil // no index yet: git starts an empty one
 	}

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"ramus/internal/git/pathsafe"
+	"ramus/internal/git/osfile"
 )
 
 // Operation is a multi-step git operation left in progress in a work
@@ -59,7 +59,7 @@ func InProgress(gitDir string) Operation {
 // startsWith reports whether the regular file at path starts with prefix,
 // reading no more of it than that.
 func startsWith(path, prefix string) bool {
-	f, err := pathsafe.OpenRegular(path)
+	f, err := osfile.Open(path)
 	if err != nil {
 		return false
 	}

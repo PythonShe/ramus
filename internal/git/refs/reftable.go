@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -17,10 +16,12 @@ import (
 	"ramus/internal/git/osfile"
 )
 
-// Reftable limits: a table larger than maxTable or a name longer than
-// maxName is refused rather than read; git writes neither.
+// Reftable limits: a table larger than maxTable, a tables.list larger
+// than maxList or a name longer than maxName is refused rather than read;
+// git writes none of them, compacting its stack to a few tables.
 const (
 	maxTable = 1 << 30
+	maxList  = 1 << 20
 	maxName  = 4096
 )
 
@@ -294,7 +295,7 @@ func (r *Reftable) stack(dir string) ([]*table, error) {
 	var err error
 	for attempt := 0; attempt < 20; attempt++ {
 		var list []byte
-		list, err = osfile.ReadFile(filepath.Join(dir, "tables.list"))
+		list, err = osfile.ReadFile(filepath.Join(dir, "tables.list"), maxList)
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
@@ -336,14 +337,11 @@ func (r *Reftable) read(path string) ([]byte, error) {
 	if ok {
 		return data, nil
 	}
-	st, err := os.Stat(path)
+	data, err := osfile.ReadFile(path, maxTable)
+	if errors.Is(err, osfile.ErrTooLarge) {
+		return nil, fmt.Errorf("%w: %s is past %d bytes", ErrReftable, path, maxTable)
+	}
 	if err != nil {
-		return nil, err
-	}
-	if st.Size() > maxTable {
-		return nil, fmt.Errorf("%w: %s is %d bytes", ErrReftable, path, st.Size())
-	}
-	if data, err = osfile.ReadFile(path); err != nil {
 		return nil, err
 	}
 	r.mu.Lock()

@@ -13,7 +13,7 @@ import (
 
 	"ramus/internal/git/config"
 	"ramus/internal/git/index"
-	"ramus/internal/git/pathsafe"
+	"ramus/internal/git/osfile"
 )
 
 // DependencyFolders are the folders package managers, virtual
@@ -125,8 +125,8 @@ func (r *Repository) excludesWith(hide []string) (string, bool) {
 		// would be read without end, and a named pipe waited on for ever.
 		// git reads either as empty, or waits; given the copy, it does not.
 		var err error
-		own, err = pathsafe.ReadFile(source, maxExcludes)
-		if errors.Is(err, pathsafe.ErrTooLarge) {
+		own, err = osfile.ReadFile(source, maxExcludes)
+		if errors.Is(err, osfile.ErrTooLarge) {
 			return "", false
 		}
 		// Any other failure leaves own empty: git reads a file it cannot
@@ -212,7 +212,7 @@ func (f removeFile) Close() error {
 // indexEntries is the number of entries the index at path says it
 // holds, -1 for none or one that cannot be read.
 func indexEntries(path string) int64 {
-	f, err := pathsafe.OpenRegular(path)
+	f, err := osfile.Open(path)
 	if err != nil {
 		return -1
 	}
