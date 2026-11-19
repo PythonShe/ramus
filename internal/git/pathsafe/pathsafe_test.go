@@ -160,6 +160,56 @@ func TestNotIntoAGitDirectoryOfAnotherName(t *testing.T) {
 	}
 }
 
+// A path that passed through a symlink, to a folder above a git
+// directory, does not then walk into one; nor does any path reach the
+// repository's own git directory, named by the .git file at the root.
+// A folder merely shaped like a git directory, as a bare repository kept
+// as a test fixture, is ordinary files to a plain path, as to git.
+func TestNotIntoAGitDirectoryBelowALink(t *testing.T) {
+	root := t.TempDir()
+	repo := func(dir string) {
+		for _, d := range []string{"hooks", "objects", "refs"} {
+			os.MkdirAll(filepath.Join(root, dir, d), 0o755)
+		}
+		os.WriteFile(filepath.Join(root, dir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644)
+		os.WriteFile(filepath.Join(root, dir, "hooks", "pre-commit"), []byte("x"), 0o755)
+	}
+	repo("gitdata")
+	repo("sub/fixture.git")
+	// As git init --separate-git-dir writes it.
+	os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: "+filepath.Join(root, "gitdata")+"\n"), 0o644)
+	if err := os.Symlink(".", filepath.Join(root, "alias")); err != nil {
+		t.Skip(err)
+	}
+	os.Symlink("sub", filepath.Join(root, "sublink"))
+	for _, rel := range []string{
+		"alias/gitdata/hooks/pre-commit",
+		"alias/gitdata/hooks/new-hook",
+		"alias/gitdata",
+		"sublink/fixture.git/hooks/pre-commit",
+		"alias/sub/fixture.git/config",
+		// The repository's own, by any route.
+		"gitdata/hooks/pre-commit",
+		"gitdata/hooks/new-hook",
+		"gitdata",
+	} {
+		if p, err := InWorkTree(root, rel); !errors.Is(err, ErrUnsafe) {
+			t.Errorf("InWorkTree(%q) = %s, %v", rel, p, err)
+		}
+		if p, err := Target(root, rel); !errors.Is(err, ErrUnsafe) {
+			t.Errorf("Target(%q) = %s, %v", rel, p, err)
+		}
+	}
+	for _, rel := range []string{"sub/fixture.git/hooks/pre-commit", "sub/fixture.git/HEAD", "sub/fixture.git", "alias/sub/file", "sublink/file"} {
+		if _, err := InWorkTree(root, rel); err != nil {
+			t.Errorf("InWorkTree(%q): %v", rel, err)
+		}
+		if _, err := Target(root, rel); err != nil {
+			t.Errorf("Target(%q): %v", rel, err)
+		}
+	}
+}
+
 func TestTarget(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()

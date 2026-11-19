@@ -149,9 +149,15 @@ var ErrUnsafe = errors.New("pathsafe: path is not safe to touch")
 // InWorkTree checks a slash-separated path before the app itself creates,
 // writes or deletes it in the work tree at root (writing .gitignore,
 // removing an untracked file): it must be relative, with no ".", ".." or
-// .git component and no line break, and no directory on the way may be a
-// symlink that leads out of the work tree or into a .git in it. It
-// returns the path on disk.
+// .git component and no line break; no directory on the way may be a
+// symlink that leads out of the work tree or into a git directory in it;
+// once the path has passed through a symlink, no folder it then walks
+// into may be shaped like a git directory; and, whatever the route, it
+// may not reach the repository's own git directory where root's .git
+// file names it (git init --separate-git-dir into the work tree). A
+// folder shaped like a git directory that a plain path reaches, as a
+// bare repository kept as a test fixture, is ordinary files, as it is to
+// git. It returns the path on disk.
 func InWorkTree(root, rel string) (string, error) {
 	if rel == "" || Check(rel) != 0 {
 		return "", fmt.Errorf("%w: %q", ErrUnsafe, rel)
@@ -160,8 +166,10 @@ func InWorkTree(root, rel string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	own := ownGitDirs(realRoot)
 	parts := strings.Split(rel, "/")
 	cur := realRoot
+	linked := false
 	for i, p := range parts {
 		next := filepath.Join(cur, p)
 		st, err := os.Lstat(next)
@@ -183,7 +191,18 @@ func InWorkTree(root, rel string) (string, error) {
 			if inGitDir(realRoot, target) {
 				return "", fmt.Errorf("%w: %q leads into a git directory", ErrUnsafe, rel)
 			}
-			next = target
+			if st, err = os.Stat(target); err != nil {
+				return "", fmt.Errorf("%w: %q: %v", ErrUnsafe, rel, err)
+			}
+			next, linked = target, true
+		}
+		for _, o := range own {
+			if os.SameFile(st, o) {
+				return "", fmt.Errorf("%w: %q leads into the repository's git directory", ErrUnsafe, rel)
+			}
+		}
+		if linked && st.IsDir() && next != realRoot && isGitDir(next) {
+			return "", fmt.Errorf("%w: %q leads into a git directory", ErrUnsafe, rel)
 		}
 		cur = next
 	}
@@ -249,6 +268,41 @@ func inGitDir(root, p string) bool {
 		}
 	}
 	return false
+}
+
+// maxDotGitFile bounds the read of a .git file: one line naming a path.
+const maxDotGitFile = 64 << 10
+
+// ownGitDirs returns the folders of the repository's own git directory,
+// and of its common one for a linked worktree, when the .git at root is
+// a file naming it; none otherwise. A .git folder is refused by name.
+func ownGitDirs(root string) []os.FileInfo {
+	b, err := ReadFile(filepath.Join(root, ".git"), maxDotGitFile)
+	if err != nil {
+		return nil
+	}
+	dir, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir:")
+	if !ok {
+		return nil
+	}
+	dir = strings.TrimSpace(dir)
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(root, dir)
+	}
+	var own []os.FileInfo
+	if st, err := os.Stat(dir); err == nil && st.IsDir() {
+		own = append(own, st)
+	}
+	if c, err := ReadFile(filepath.Join(dir, "commondir"), maxDotGitFile); err == nil {
+		common := strings.TrimSpace(string(c))
+		if !filepath.IsAbs(common) {
+			common = filepath.Join(dir, common)
+		}
+		if st, err := os.Stat(common); err == nil && st.IsDir() {
+			own = append(own, st)
+		}
+	}
+	return own
 }
 
 // isGitDir reports a folder that git takes for a git directory: a HEAD,
