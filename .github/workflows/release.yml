@@ -325,6 +325,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           NOTES="$RUNNER_TEMP/notes/notes.md"
@@ -356,7 +357,16 @@ jobs:
             mv "$m.new" "$m"
           done
           gh release upload "$TAG" SHA256SUMS "${manifests[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          # Installed apps and install.sh read the manifests of the latest
+          # release, and the app never asks for prereleases: a version
+          # such as 1.0.0-rc.1 is published as a prerelease and never
+          # made the latest, or every installed app would update to it.
+          if [[ "${VERSION%%+*}" == *-* ]]; then
+            latest=(--prerelease --latest=false)
+          else
+            latest=(--prerelease=false --latest)
+          fi
           # Published only now, whole: the updater never sees a release
           # with some of its files.
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$NOTES" --draft=false --latest
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$NOTES" --draft=false "${latest[@]}"
           echo "$TAG is published."
