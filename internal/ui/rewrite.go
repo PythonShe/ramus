@@ -7,7 +7,6 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
@@ -45,7 +44,9 @@ func (a *App) rewriteActions(m *ui.Menu, t *tab, id []byte) {
 			a.submitRewrite(t, op, err)
 		})
 	}
-	if !ro && t.s.Repo.Runner.Git().Version.Has(gitexe.HistoryFixup) {
+	// Hidden rather than disabled while read-only, as it always was; every
+	// git Ramus runs on can squash, through a rebase before git history.
+	if !ro {
 		if m.Item(locales.RewriteSquashStaged()).Disabled(!staged).Chosen() {
 			a.withCommit(t, id, func(d session.CommitDetail) {
 				rw := t.s.Rewrite(d)

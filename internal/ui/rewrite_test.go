@@ -6,6 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"ramus/internal/git/gitexe"
+	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 
 	"ramus/locales"
@@ -305,4 +309,50 @@ func TestRewriteManyAndDragSquash(t *testing.T) {
 		t.Fatalf("plan: %+v", he.rows)
 	}
 	rewrite("add b")
+}
+
+// Squash into a commit is offered on every git Ramus runs on, at its
+// place in a commit's Edit Commit menu: before git history fixup it is
+// done through a rebase.
+func TestSquashIntoOnEveryGit(t *testing.T) {
+	for _, v := range []gitexe.Version{{}, {Major: 2, Minor: 50, Raw: "2.50.0"}} {
+		name := v.Raw
+		if name == "" {
+			name = "git on PATH"
+		}
+		t.Run(name, func(t *testing.T) {
+			g := testrun.Git(t)
+			if v.Raw != "" {
+				g.Version = v
+			}
+			h := newHarnessWith(t, run.New(g, gittest.Env(), 8))
+			r := h.repoWith()
+			for _, f := range []string{"a", "b"} {
+				r.Write(f+".txt", f+"\n")
+				r.Commit("add " + f)
+			}
+			r.Write("a.txt", "a squashed\n")
+			r.Git("add", "a.txt")
+			h.trust.Set(r.GitDir(), true)
+			h.app.Open(r.Dir)
+			tb := h.app.current()
+			h.until("staged", func() bool { return hasStaged(tb.s.State.Status) })
+			h.click("History")
+			h.until("history", h.shows("add a"))
+			h.menu("add a", "Edit Commit", "Squash Staged Changes into This…")
+			h.until("the dialog", func() bool { return h.app.message.open && h.app.message.message == "add a" })
+			h.app.message.message = "add a, squashed"
+			h.click("Squash")
+			h.until("squashed", func() bool {
+				if l := tb.s.Log; len(l) > 0 && l[len(l)-1].Err != nil {
+					t.Fatalf("%s: %v", l[len(l)-1].Name, l[len(l)-1].Err)
+				}
+				return strings.TrimSpace(r.Git("log", "--format=%s", "main")) == "add b\nadd a, squashed\none"
+			})
+			h.idle(tb, "the squash done")
+			if r.Git("show", "HEAD~1:a.txt") != "a squashed\n" {
+				t.Fatal("the staged change is not in the commit")
+			}
+		})
+	}
 }
