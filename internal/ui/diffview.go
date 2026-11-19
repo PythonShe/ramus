@@ -386,7 +386,7 @@ func (a *App) cleanTree(c *ui.Context, t *tab) {
 				})
 			}
 			if ui.Button(c, locales.ActionsReveal()).Clicked() {
-				a.goWork(t, func() { tools.Reveal(dir) })
+				a.goOpen(t, tools.Reveal, dir)
 			}
 		})
 	})
