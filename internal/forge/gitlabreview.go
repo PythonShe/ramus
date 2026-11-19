@@ -359,7 +359,13 @@ func parseGitLabReview(out []byte) (Review, error) {
 			continue
 		}
 		d, pos := n.Thread, n.Position
-		if d == nil || pos == nil || pos.Type != "text" {
+		// positionType is GitLab's DiffPositionType (GraphQL reference):
+		// text for lines, file for the whole file (position_type file in
+		// its discussions REST API, since GitLab 16.4), image for a point
+		// of an image. Neither of the last two has a line: they are on
+		// their file, as a GitHub comment on a file is.
+		onFile := pos != nil && (pos.Type == "file" || pos.Type == "image")
+		if d == nil || pos == nil || pos.Type != "text" && !onFile {
 			rv.Comments = append(rv.Comments, n.comment())
 			continue
 		}
@@ -372,14 +378,19 @@ func parseGitLabReview(out []byte) (Review, error) {
 		if th.Path == "" {
 			th.Path = pos.FilePath
 		}
+		th.File = onFile
 		line := 0
-		if pos.NewLine != nil {
+		switch {
+		case onFile:
+			// No line, whatever the position holds besides.
+		case pos.NewLine != nil:
 			line = *pos.NewLine
-		} else if pos.OldLine != nil {
+		case pos.OldLine != nil:
 			line, th.Side = *pos.OldLine, Left
 		}
-		// GitLab moves a discussion to each new head its line is still in;
-		// one left on an older head is on lines changed since.
+		// GitLab moves a discussion to each new head its line, or its
+		// file, is still in; one left on an older head is on lines, or a
+		// file, changed since.
 		if pos.DiffRefs.Head != rv.HeadOID {
 			th.Outdated, th.OriginalLine = true, line
 		} else {

@@ -84,6 +84,44 @@ func TestParseGitLabReview(t *testing.T) {
 	}
 }
 
+// Notes on a whole file, as GitLab gives them (positionType file, and
+// image for a point of an image, with no line), are threads on their
+// file, as a GitHub comment on a file is; one of an older head is on a
+// file changed since.
+func TestParseGitLabFileNotes(t *testing.T) {
+	const head = `"diffRefs":{"headSha":"2222222222222222222222222222222222222222"}`
+	out := `{"data":{"currentUser":{"username":"me"},"project":{"mergeRequest":{
+"iid":"12","title":"Add","state":"opened","author":{"username":"ann"},"sourceBranch":"add","targetBranch":"main",
+"diffRefs":{"baseSha":"1111111111111111111111111111111111111111","startSha":"3333333333333333333333333333333333333333","headSha":"2222222222222222222222222222222222222222"},
+"userPermissions":{"createNote":true},
+"notes":{"pageInfo":{"hasNextPage":false},"nodes":[
+ {"id":"gid://gitlab/Note/1","author":{"username":"bob"},"body":"Split this file","createdAt":"2026-11-11T09:00:00Z","system":false,
+  "discussion":{"id":"gid://gitlab/Discussion/aa","resolvable":true,"resolved":false,"userPermissions":{"resolveNote":true}},
+  "position":{"positionType":"file","filePath":"c.go","oldPath":"c.go","newPath":"c.go","oldLine":null,"newLine":null,` + head + `}},
+ {"id":"gid://gitlab/Note/2","author":{"username":"ann"},"body":"Will do","createdAt":"2026-11-11T10:00:00Z","system":false,
+  "discussion":{"id":"gid://gitlab/Discussion/aa","resolvable":true,"resolved":false,"userPermissions":{"resolveNote":true}},
+  "position":{"positionType":"file","filePath":"c.go","oldPath":"c.go","newPath":"c.go","oldLine":null,"newLine":null,` + head + `}},
+ {"id":"gid://gitlab/Note/3","author":{"username":"bob"},"body":"Too dark","createdAt":"2026-11-11T11:00:00Z","system":false,
+  "discussion":{"id":"gid://gitlab/Discussion/bb","resolvable":true,"resolved":false,"userPermissions":{"resolveNote":true}},
+  "position":{"positionType":"image","filePath":"logo.png","oldPath":"logo.png","newPath":"logo.png","oldLine":null,"newLine":null,
+   "diffRefs":{"headSha":"4444444444444444444444444444444444444444"}}}]}}}}}`
+	rv, err := parseGitLabReview([]byte(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rv.Comments) != 0 || len(rv.Threads) != 2 {
+		t.Fatalf("comments %+v threads %+v", rv.Comments, rv.Threads)
+	}
+	f, img := rv.Threads[0], rv.Threads[1]
+	if !f.File || f.Path != "c.go" || f.Line != 0 || f.OriginalLine != 0 || f.Outdated || !f.CanResolve || !f.CanReply ||
+		len(f.Comments) != 2 || f.Comments[1].Body != "Will do" {
+		t.Errorf("thread on a file %+v", f)
+	}
+	if !img.File || img.Path != "logo.png" || img.Line != 0 || img.OriginalLine != 0 || !img.Outdated {
+		t.Errorf("thread on an image of an older head %+v", img)
+	}
+}
+
 // glabLog is a glab that logs each call's arguments and input, answers
 // a draft note made with its number, and fails the call whose arguments
 // or input hold fail, with 409 Conflict or, for fail as "pattern=>message",
