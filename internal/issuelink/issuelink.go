@@ -6,9 +6,11 @@ package issuelink
 import (
 	"errors"
 	"fmt"
+	"hash/maphash"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 
 	"ramus/internal/forge"
 )
@@ -49,16 +51,42 @@ func webURL(s string) bool {
 	return err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
 }
 
-// Set is rules compiled; rules that fail Check are left out.
+// Set is rules compiled; rules that fail Check are left out. It is safe
+// for use by several goroutines.
 type Set struct {
 	res  []*regexp.Regexp
 	urls []string
+
+	// found are the references of the texts searched lately, by their
+	// hash and length (seen), as a view searches the same text frame
+	// after frame and a long one takes milliseconds; foundBytes is what
+	// they hold, within foundBudget.
+	mu         sync.Mutex
+	seed       maphash.Seed
+	found      map[seen][]Match
+	foundBytes int
 }
+
+// seen tells a text searched from the others: one with the same hash
+// and length is taken for the same, which with a seed of its own per set
+// a text cannot be written to be.
+type seen struct {
+	hash uint64
+	n    int
+}
+
+const (
+	// remembered is the shortest text whose references are kept: a
+	// shorter one is searched again sooner than it is hashed.
+	remembered = 4 << 10
+	// foundBudget bounds what the references kept hold.
+	foundBudget = 1 << 20
+)
 
 // Compile compiles rules, earlier ones first when two match at the same
 // place.
 func Compile(rules []Rule) *Set {
-	s := &Set{}
+	s := &Set{seed: maphash.MakeSeed()}
 	for _, r := range rules {
 		if re, err := compile(r); err == nil {
 			s.res, s.urls = append(s.res, re), append(s.urls, r.URL)
@@ -81,10 +109,38 @@ type Match struct {
 const maxMatches = 256
 
 // Find returns the references in text, in order and not overlapping.
+// The slice is shared with later calls for the same text: it is not to
+// be changed.
 func (s *Set) Find(text string) []Match {
 	if s == nil || len(s.res) == 0 {
 		return nil
 	}
+	if len(text) < remembered {
+		return s.find(text)
+	}
+	k := seen{maphash.String(s.seed, text), len(text)}
+	s.mu.Lock()
+	ms, ok := s.found[k]
+	s.mu.Unlock()
+	if ok {
+		return ms
+	}
+	ms = s.find(text)
+	size := 64
+	for _, m := range ms {
+		size += 32 + len(m.URL)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.found == nil || s.foundBytes+size > foundBudget {
+		s.found, s.foundBytes = map[seen][]Match{}, 0
+	}
+	s.found[k] = ms
+	s.foundBytes += size
+	return ms
+}
+
+func (s *Set) find(text string) []Match {
 	var all []Match
 	for k, re := range s.res {
 		for _, m := range re.FindAllStringSubmatchIndex(text, maxMatches) {

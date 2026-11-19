@@ -2,8 +2,33 @@ package issuelink
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
+
+// A long text, as a commit message shown frame after frame, is searched
+// once: its references are kept, within a budget, for each text.
+func TestLongTextsSearchedOnce(t *testing.T) {
+	s := Compile(FromRemote("git@github.com:o/r.git"))
+	text := strings.Repeat("lorem ipsum dolor sit amet, ", 1<<20/28) + "fixes #12"
+	first := s.Find(text)
+	again := s.Find(strings.Clone(text))
+	if len(first) != 1 || len(again) != 1 || &first[0] != &again[0] {
+		t.Fatalf("searched again: %v, %v", first, again)
+	}
+	// Another text of the same length has references of its own.
+	other := strings.Replace(text, "#12", "#34", 1)
+	if got := s.Find(other); len(got) != 1 || got[0].URL != "https://github.com/o/r/issues/34" {
+		t.Fatalf("another text %v", got)
+	}
+	many := strings.Repeat("#1 ", maxMatches)
+	for i := range 200 {
+		s.Find(many + strings.Repeat(" ", remembered+i))
+		if s.foundBytes > foundBudget {
+			t.Fatalf("%d bytes kept", s.foundBytes)
+		}
+	}
+}
 
 func links(s *Set, text string) []string {
 	var out []string
