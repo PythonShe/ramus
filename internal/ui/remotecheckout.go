@@ -24,8 +24,9 @@ type remoteCheckout struct {
 	remote string
 	local  session.BranchInfo
 	// unread is set while the branches' details, which say how local
-	// stands to remote, are read.
-	unread bool
+	// stands to remote, are read; early on a dialog opened before then,
+	// which keeps the shape it opened with as they land.
+	unread, early bool
 	// other is the name of a new branch to make instead.
 	other string
 	err   string
@@ -71,7 +72,7 @@ func (a *App) checkOutRemote(t *tab, remote string) {
 	case local.Worktree != "":
 		a.elsewhereUI = elsewhere{open: true, branch: ref, folder: local.Worktree}
 	default:
-		a.remoteUI = remoteCheckout{open: true, t: t, remote: remote, local: *local, unread: unread,
+		a.remoteUI = remoteCheckout{open: true, t: t, remote: remote, local: *local, unread: unread, early: unread,
 			other: strings.ReplaceAll(strings.TrimPrefix(remote, "refs/remotes/"), "/", "-")}
 	}
 }
@@ -83,9 +84,11 @@ func (d *remoteCheckout) relation() (text string, ff, behind bool) {
 	b := d.local
 	switch {
 	case d.unread:
-		// Laid out as a reset, which the view keeps disabled until read:
-		// the dialog keeps its shape as the most outcomes land.
-		return locales.RemoteCheckoutReading(name, short), false, true
+		return locales.RemoteCheckoutReading(name, short), false, false
+	case b.Worktree != "":
+		// Only a dialog opened before the details were read gets here: one
+		// opened after explains the other worktree instead.
+		return locales.RemoteCheckoutElsewhereMessage(b.Worktree), false, false
 	case b.Upstream != d.remote:
 		return locales.RemoteCheckoutNotTracking(name, short), false, true
 	case b.Ahead == 0 && b.Behind == 0:
@@ -115,6 +118,18 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 	short := strings.TrimPrefix(d.remote, "refs/remotes/")
 	text, ff, behind := d.relation()
 	current := !t.s.State.Head.Detached && t.s.State.Head.Target == d.local.Name
+	canSwitch, canReset := true, !d.unread
+	if d.early {
+		// Opened before the details were read, the dialog was laid out as
+		// for a branch that does not track the remote one, all it could
+		// say then; it keeps that shape as they land, so that nothing moves
+		// under the pointer. A fast-forward is a reset too, and takes the
+		// Reset button; what git would refuse, for a branch checked out in
+		// another worktree, is disabled.
+		elsewhere := d.local.Worktree != ""
+		canSwitch, canReset = !elsewhere, !d.unread && behind
+		ff, behind = false, true
+	}
 	submit := func(op write.Op, err error) {
 		if err == nil {
 			_, err = t.s.Submit(op)
@@ -131,9 +146,17 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 	a.modal(c, &d.open, func() {
 		dialogBox(c).Width(dialogNarrow).Children(func() {
 			ui.Text(c, locales.RemoteCheckoutExists(redact.Control(name))).Bold()
-			ui.Text(c, redact.Control(text)).Selectable()
+			if d.early {
+				texts := []string{redact.Control(text)}
+				if d.local.Worktree != "" {
+					texts = append(texts, locales.RemoteCheckoutElsewhereTitle(redact.Control(name)))
+				}
+				inRoomOf(c, redact.Control(locales.RemoteCheckoutNotTracking(name, short)), texts...)
+			} else {
+				ui.Text(c, redact.Control(text)).Selectable()
+			}
 			ui.Row(c).Gap(spaceM).Children(func() {
-				if !current && ui.Button(c, locales.RemoteCheckoutSwitch(redact.Control(name))).Clicked() {
+				if !current && ui.Button(c, locales.RemoteCheckoutSwitch(redact.Control(name))).Disabled(!canSwitch).Clicked() {
 					submit(write.Switch(t.s.Where(), d.local.Name, t.s.Seen()), nil)
 				}
 				switch {
@@ -142,7 +165,7 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 						reset()
 					}
 				case behind:
-					if ui.Button(c, locales.RemoteCheckoutReset(redact.Control(short))).Disabled(d.unread).Clicked() {
+					if ui.Button(c, locales.RemoteCheckoutReset(redact.Control(short))).Disabled(!canReset).Clicked() {
 						reset()
 					}
 				}
@@ -170,8 +193,34 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 	})
 }
 
+// inRoomOf shows the first of texts whose lines fit in the lines room
+// takes in the dialog, or else the last cut to them, in the room room
+// takes: what was laid out stays where it was whatever is said.
+func inRoomOf(c *ui.Context, room string, texts ...string) {
+	lines := func(s string) int {
+		_, h := c.MeasureText(dialogNarrow, ui.Span{Text: s})
+		_, line := c.MeasureText(0, ui.Span{Text: s})
+		if line <= 0 {
+			return 1
+		}
+		return max(1, int(h/line+0.5))
+	}
+	n := lines(room)
+	shown := texts[len(texts)-1]
+	for _, s := range texts {
+		if lines(s) <= n {
+			shown = s
+			break
+		}
+	}
+	ui.Column(c).Children(func() {
+		ui.Text(c, room).Invisible()
+		ui.Text(c, shown).Selectable().MaxLines(n).Absolute().Top(0).Left(0).Right(0)
+	})
+}
+
 // readLocal fills the local branch of d once the branches' details are
-// read; one checked out in another worktree is explained instead.
+// read.
 func (a *App) readLocal(d *remoteCheckout) {
 	t := d.t
 	info := t.refs.info
@@ -184,10 +233,6 @@ func (a *App) readLocal(d *remoteCheckout) {
 		if b.Name == d.local.Name {
 			d.local = b
 		}
-	}
-	if d.local.Worktree != "" {
-		d.open = false
-		a.elsewhereUI = elsewhere{open: true, branch: d.local.Name, folder: d.local.Worktree}
 	}
 }
 
