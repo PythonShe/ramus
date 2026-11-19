@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -115,6 +116,11 @@ type App struct {
 	writes sync.WaitGroup
 	// keeper writes the settings when Deps has none.
 	keeper *settings.Keeper
+	// toolsGen counts the looks for tools started, the last one's result
+	// the only one taken; toolsErr is why the settings' editor or
+	// terminal cannot be used, as last said.
+	toolsGen int
+	toolsErr string
 	// notice is the last message for the user, noticeBy whom it belongs
 	// to: a tab, or the window.
 	notice   string
@@ -292,10 +298,15 @@ func NewApp(d Deps) *App {
 // the user prefers (tools.Preferred), else the first found.
 func (a *App) findTools() {
 	editor, terminal, update := a.Settings.Editor, a.Settings.Terminal, a.Update
+	// Looks started one after the other may end in any order: only the
+	// last one's tools are those of the settings now.
+	a.toolsGen++
+	gen := a.toolsGen
 	a.goWork(nil, func() {
 		found := tools.Detect()
 		var auto [2]string
 		var mine []tools.Tool
+		var unusable []string
 		for _, k := range []struct {
 			kind tools.Kind
 			name string
@@ -319,10 +330,27 @@ func (a *App) findTools() {
 				found = append(found[:i:i], found[i+1:]...)
 			} else if tl, err := tools.Custom(k.name, k.kind, k.argv); err == nil {
 				mine = append(mine, tl)
+			} else if k.kind == tools.Editor {
+				// Another is used in its place: the user is told why.
+				unusable = append(unusable, locales.AppEditorUnusable(k.argv[0], errText(err)))
+			} else {
+				unusable = append(unusable, locales.AppTerminalUnusable(k.argv[0], errText(err)))
 			}
 		}
 		found = append(mine, found...)
-		update(func() { a.palette.tools, a.palette.found, a.palette.auto = found, true, auto })
+		update(func() {
+			if gen != a.toolsGen {
+				return
+			}
+			a.palette.tools, a.palette.found, a.palette.auto = found, true, auto
+			// Said once, not at each look for the same settings.
+			if msg := strings.Join(unusable, "\n"); msg != a.toolsErr {
+				a.toolsErr = msg
+				if msg != "" {
+					a.notice = msg
+				}
+			}
+		})
 	})
 }
 

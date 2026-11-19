@@ -720,6 +720,7 @@ func (a *App) applySettings() {
 	if next.Theme != a.Settings.Theme && a.ApplyTheme != nil {
 		a.ApplyTheme(next.Theme)
 	}
+	toolsChanged := !slices.Equal(next.Editor, a.Settings.Editor) || !slices.Equal(next.Terminal, a.Settings.Terminal)
 	a.Settings = next.WithDefaults()
 	a.settingsToSessions()
 	if a.SettingsChanged != nil {
@@ -727,7 +728,11 @@ func (a *App) applySettings() {
 		// write it back over this the next time it keeps its settings.
 		a.SettingsChanged(a.Settings)
 	}
-	a.findTools()
+	// Looking for the tools reads the disk: only when they changed, not
+	// at each key typed in another field.
+	if toolsChanged {
+		a.findTools()
+	}
 	if tag, changed := a.formLanguage(); changed {
 		a.SetLocale(tag)
 	}

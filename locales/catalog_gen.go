@@ -15179,6 +15179,40 @@ func (msgs Messages) AppFileNotWritten(file string, error string) string {
 	return Catalog.Format(msgs.locale, "appFileNotWritten", map[string]any{"file": file, "error": error})
 }
 
+// AppEditorUnusable says "The editor in the settings, {program}, cannot be used, so files open in another: {error}"
+// in the language the app shows.
+//
+// The editor the user chose is gone or is no program. program is its path.
+func AppEditorUnusable(program string, error string) string {
+	return In(i18n.Locale()).AppEditorUnusable(program, error)
+}
+
+// AppEditorUnusable says "The editor in the settings, {program}, cannot be used, so files open in another: {error}"
+// in the language of msgs.
+//
+// The editor the user chose is gone or is no program. program is its path.
+func (msgs Messages) AppEditorUnusable(program string, error string) string {
+	return Catalog.Format(msgs.locale, "appEditorUnusable", map[string]any{"program": program, "error": error})
+}
+
+// AppTerminalUnusable says "The terminal in the settings, {program}, cannot be used, so repositories open in another: {error}"
+// in the language the app shows.
+//
+// The terminal the user chose is gone or is no program. program is its
+// path.
+func AppTerminalUnusable(program string, error string) string {
+	return In(i18n.Locale()).AppTerminalUnusable(program, error)
+}
+
+// AppTerminalUnusable says "The terminal in the settings, {program}, cannot be used, so repositories open in another: {error}"
+// in the language of msgs.
+//
+// The terminal the user chose is gone or is no program. program is its
+// path.
+func (msgs Messages) AppTerminalUnusable(program string, error string) string {
+	return Catalog.Format(msgs.locale, "appTerminalUnusable", map[string]any{"program": program, "error": error})
+}
+
 // AppSettingsPartlyRead says "Some settings in {file} could not be read and are at their defaults until they are mended: {error}"
 // in the language the app shows.
 //

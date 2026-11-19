@@ -3244,6 +3244,14 @@
   "@appFileNotWritten": {
     "description": "One of the app's own files did not read and could not be moved aside, so the app leaves it alone; changes made in the app are not saved to it."
   },
+  "appEditorUnusable": "The editor in the settings, {program}, cannot be used, so files open in another: {error}",
+  "@appEditorUnusable": {
+    "description": "The editor the user chose is gone or is no program. program is its path."
+  },
+  "appTerminalUnusable": "The terminal in the settings, {program}, cannot be used, so repositories open in another: {error}",
+  "@appTerminalUnusable": {
+    "description": "The terminal the user chose is gone or is no program. program is its path."
+  },
   "appSettingsPartlyRead": "Some settings in {file} could not be read and are at their defaults until they are mended: {error}",
   "@appSettingsPartlyRead": {
     "description": "Some values in the settings file are of the wrong kind; the file keeps them as written. error names them."
