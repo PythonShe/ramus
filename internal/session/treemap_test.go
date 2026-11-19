@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
@@ -54,5 +55,28 @@ func TestTreemapWeights(t *testing.T) {
 	}
 	if got := weights(*changes); got["a/x"] != 3 || got["a.b"] != 2 || got["a/y z"] != 2 || len(got) != 3 || changes.Commits != 4 {
 		t.Fatalf("changes %v over %d commits", got, changes.Commits)
+	}
+}
+
+// Reads of a view that was left before they ended report nothing: the
+// cancelled read's error would stand on the page when it is shown again.
+func TestViewReadsLeftReportNothing(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	s, m := openFor(t, r)
+	called := []string{}
+	for name, start := range map[string]func(){
+		"sizes":   func() { s.FileSizes("", func(PathWeights) { called = append(called, "sizes") }) },
+		"changes": func() { s.ChangeCounts(StatsRequest{}, func(PathWeights) { called = append(called, "changes") }) },
+	} {
+		s.SetView("stats")
+		start()
+		s.SetView("history")
+		m.pump(time.Second)
+		if len(called) > 0 {
+			t.Errorf("%s: called back after the view was left: %v", name, called)
+			called = called[:0]
+		}
 	}
 }

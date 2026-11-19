@@ -46,7 +46,13 @@ func (s *Session) FileSizes(rev string, done func(PathWeights)) {
 	update := s.update
 	s.goView(r, func(ctx context.Context) {
 		pw := fileSizes(ctx, r, rev)
-		update(func() { done(pw) })
+		// Not once the view is left: the read was cancelled, and its
+		// error would stand for the treemap until another is asked for.
+		update(func() {
+			if ctx.Err() == nil {
+				done(pw)
+			}
+		})
 	})
 }
 
@@ -91,7 +97,11 @@ func (s *Session) ChangeCounts(req StatsRequest, done func(PathWeights)) {
 	update := s.update
 	s.goView(r, func(ctx context.Context) {
 		pw := changeCounts(ctx, r, req)
-		update(func() { done(pw) })
+		update(func() {
+			if ctx.Err() == nil {
+				done(pw)
+			}
+		})
 	})
 }
 
