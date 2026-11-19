@@ -38,6 +38,16 @@ func TestExpand(t *testing.T) {
 	}
 }
 
+// The command as the log shows it keeps each question as written, never
+// the answer typed to it.
+func TestShownLeavesOutAnswers(t *testing.T) {
+	cmd := []string{prog, "deploy", "--token=${prompt:Token}", "${branch}"}
+	got := Shown(cmd, Vars{Branch: "main"})
+	if want := prog + " deploy --token=${prompt:Token} main"; got != want {
+		t.Fatalf("shown %q", got)
+	}
+}
+
 func TestRun(t *testing.T) {
 	sh, err := exec.LookPath("sh")
 	if err != nil {

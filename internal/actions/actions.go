@@ -86,6 +86,18 @@ func Expand(command []string, v Vars, answers map[string]string) ([]string, erro
 	return out, missing
 }
 
+// Shown is command as a log shows it once filled in for v: each
+// ${prompt:...} stays as written, the answer typed to it, which may be a
+// token, left out.
+func Shown(command []string, v Vars) string {
+	answers := map[string]string{}
+	for _, q := range Prompts(command) {
+		answers[q] = "${prompt:" + q + "}"
+	}
+	argv, _ := Expand(command, v, answers)
+	return strings.Join(argv, " ")
+}
+
 // Timeout bounds an action.
 const Timeout = 10 * time.Minute
 

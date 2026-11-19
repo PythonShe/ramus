@@ -488,6 +488,11 @@ func TestActionsAndLog(t *testing.T) {
 	h.tt.Type("world")
 	h.tt.Key(0, ui.KeyEnter)
 	h.until("the output", h.shows("hello world on main"))
+	// The answer, which may be a token, is not in the command logged.
+	if log := h.app.current().s.Log; len(log) == 0 || strings.Contains(log[len(log)-1].Command, "world") ||
+		!strings.Contains(log[len(log)-1].Command, "${prompt:Who}") {
+		t.Fatalf("logged %q", log[len(log)-1].Command)
+	}
 
 	r.Write("f.txt", "12345")
 	h.until("the change", h.shows("Changes (1)"))

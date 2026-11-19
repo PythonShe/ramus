@@ -51,7 +51,7 @@ func (a *App) runAction(t *tab, act settings.Action, v actions.Vars, answers map
 		a.notice = locales.ActionsError(act.Name, errText(err))
 		return
 	}
-	t.s.RunAction(act.Name, argv)
+	t.s.RunActionShown(act.Name, actions.Shown(act.Command, v), argv)
 	t.sel = "log"
 	t.logChosen = 0 // newest first
 }
