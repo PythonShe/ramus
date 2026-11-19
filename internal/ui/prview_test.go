@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -456,6 +457,24 @@ func TestHostNamesRedacted(t *testing.T) {
 	ev := prTimeline(r, nil)
 	if len(ev) != 2 || ev[0].author != "ann" || ev[1].author != "bob" || ev[1].what != `on "a\u202egp.go", line 3, since changed` {
 		t.Fatalf("timeline %+v", ev)
+	}
+}
+
+// The commits fetched of a pull request another tab of the window
+// reviews, as another worktree of the repository whose refs are shared,
+// are kept when this tab's list no longer has it.
+func TestPullsKeptForOtherTabs(t *testing.T) {
+	a := NewApp(Deps{})
+	r, other := forge.Repo{Kind: forge.GitHub, Host: "github.com", Path: "o/r"}, forge.Repo{Kind: forge.GitHub, Host: "github.com", Path: "o/other"}
+	here, worktree, elsewhere := &tab{}, &tab{}, &tab{}
+	here.pr.rv = &prReview{n: 3, repo: r}
+	worktree.pr.rv = &prReview{n: 5, repo: r}
+	elsewhere.pr.rv = &prReview{n: 8, repo: other}
+	a.tabs = []*tab{here, worktree, elsewhere}
+	got := a.keptPulls(here, r, []forge.Listed{{Pull: forge.Pull{Number: 7}}})
+	slices.Sort(got)
+	if !slices.Equal(got, []int{3, 5, 7}) {
+		t.Fatalf("kept %v", got)
 	}
 }
 
