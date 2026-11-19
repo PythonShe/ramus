@@ -255,28 +255,33 @@ func (a *App) loadPRList(t *tab) {
 		}
 		// The commits fetched of those no longer open go, so the refs
 		// that keep them stay as many as the pull requests open.
-		if res.Err == nil && !res.Partial {
-			t.s.ForgetPulls(a.keptPulls(t, res.Repo, res.List))
+		if keep, ok := a.keptPulls(t, res); ok {
+			t.s.ForgetPulls(keep)
 		}
 	})
 }
 
-// keptPulls are the pull requests whose fetched commits tab t keeps when
-// its open list is list, of r: those open, the one t reviews, and those
-// the window's other tabs review of r, as worktrees of one repository,
-// whose refs are shared, do; one closed since their list was read would
-// otherwise have its commits deleted under its review.
-func (a *App) keptPulls(t *tab, r forge.Repo, list []forge.Listed) []int {
-	keep := make([]int, 0, len(list)+1)
-	for _, l := range list {
+// keptPulls are the pull requests whose fetched commits tab t keeps
+// after the open list res: those open, the one t reviews, and those the
+// window's other tabs review of the same repository, as worktrees of
+// one repository, whose refs are shared, do; one closed since their list
+// was read would otherwise have its commits deleted under its review.
+// ok is false when res does not tell which are no longer open: a read
+// that failed, is still under way, or lists only the first page.
+func (a *App) keptPulls(t *tab, res session.OpenPullsResult) (keep []int, ok bool) {
+	if res.Err != nil || res.Partial || res.More {
+		return nil, false
+	}
+	keep = make([]int, 0, len(res.List)+1)
+	for _, l := range res.List {
 		keep = append(keep, l.Number)
 	}
 	for _, o := range a.tabs {
-		if rv := o.pr.rv; rv != nil && (o == t || rv.repo == r) {
+		if rv := o.pr.rv; rv != nil && (o == t || rv.repo == res.Repo) {
 			keep = append(keep, rv.n)
 		}
 	}
-	return keep
+	return keep, true
 }
 
 // keepDetails gives the pull requests of list whose details are not

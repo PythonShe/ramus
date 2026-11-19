@@ -18,6 +18,7 @@ import (
 
 	"ramus/internal/forge"
 	"ramus/internal/git/gittest"
+	"ramus/internal/session"
 	"ramus/locales"
 )
 
@@ -471,10 +472,22 @@ func TestPullsKeptForOtherTabs(t *testing.T) {
 	worktree.pr.rv = &prReview{n: 5, repo: r}
 	elsewhere.pr.rv = &prReview{n: 8, repo: other}
 	a.tabs = []*tab{here, worktree, elsewhere}
-	got := a.keptPulls(here, r, []forge.Listed{{Pull: forge.Pull{Number: 7}}})
+	res := session.OpenPullsResult{Repo: r, List: []forge.Listed{{Pull: forge.Pull{Number: 7}}}}
+	got, ok := a.keptPulls(here, res)
 	slices.Sort(got)
-	if !slices.Equal(got, []int{3, 5, 7}) {
-		t.Fatalf("kept %v", got)
+	if !ok || !slices.Equal(got, []int{3, 5, 7}) {
+		t.Fatalf("kept %v, %v", got, ok)
+	}
+	// A list of the first page, one still being read or one that failed
+	// does not say which are closed: nothing is forgotten.
+	for _, res := range []session.OpenPullsResult{
+		{Repo: r, List: res.List, More: true},
+		{Repo: r, List: res.List, Partial: true},
+		{Repo: r, Err: forge.ErrTimeout},
+	} {
+		if _, ok := a.keptPulls(here, res); ok {
+			t.Errorf("forgets after %+v", res)
+		}
 	}
 }
 
