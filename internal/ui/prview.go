@@ -1268,7 +1268,17 @@ func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 		// commit, which may hold anything.
 		ev = append(ev, prEvent{author: redact.Control(e.Actor), at: e.At, what: eventText(e), event: e})
 	}
-	slices.SortStableFunc(ev[1:], func(x, y prEvent) int { return x.at.Compare(y.at) })
+	slices.SortStableFunc(ev[1:], func(x, y prEvent) int {
+		// One the host gives no time, as a GitLab approval, stands as of
+		// now: last, not first.
+		if xz, yz := x.at.IsZero(), y.at.IsZero(); xz != yz {
+			if xz {
+				return 1
+			}
+			return -1
+		}
+		return x.at.Compare(y.at)
+	})
 	return ev
 }
 

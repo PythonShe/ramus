@@ -350,6 +350,19 @@ func TestPullRequestsTurnedOff(t *testing.T) {
 	}
 }
 
+// An approval GitLab gives no time for comes after the comments, not
+// before them all.
+func TestUntimedLast(t *testing.T) {
+	at := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	r := &forge.Review{Pull: forge.Pull{Number: 12}, Author: "ann", Created: at,
+		Comments: []forge.Comment{{ID: "1", Author: "bob", At: at.Add(time.Hour)}, {ID: "2", Author: "bob", At: at.Add(2 * time.Hour)}},
+		Reviews:  []forge.Submitted{{Author: "cat", State: forge.ReviewApproved}}}
+	ev := prTimeline(r, nil)
+	if len(ev) != 4 || ev[1].author != "bob" || ev[3].author != "cat" {
+		t.Fatalf("timeline %+v", ev)
+	}
+}
+
 // A list read again shows, until its details are read, those it showed
 // of the pull requests still in it.
 func TestKeepDetails(t *testing.T) {
