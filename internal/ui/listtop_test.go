@@ -353,6 +353,7 @@ func TestWorktreePanelKeepsItsPlace(t *testing.T) {
 			t.Fatal(err)
 		}
 	}, func() bool { return len(tb.wtp.sums[aa].Files) == 21 })
+	uniqueKeys(t, &tb.wtp.list, 2+21)
 }
 
 func TestWorktreeDashboardKeepsItsPlace(t *testing.T) {
