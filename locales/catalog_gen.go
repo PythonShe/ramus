@@ -15629,6 +15629,22 @@ func (msgs Messages) SessionTrust() string {
 	return Catalog.Format(msgs.locale, "sessionTrust", nil)
 }
 
+// SessionReopened says "the repository was opened again while this was read"
+// in the language the app shows.
+//
+// Why something read of a repository is not shown: the repository closed
+// and opened again meanwhile, as when the user trusts it.
+func SessionReopened() string { return In(i18n.Locale()).SessionReopened() }
+
+// SessionReopened says "the repository was opened again while this was read"
+// in the language of msgs.
+//
+// Why something read of a repository is not shown: the repository closed
+// and opened again meanwhile, as when the user trusts it.
+func (msgs Messages) SessionReopened() string {
+	return Catalog.Format(msgs.locale, "sessionReopened", nil)
+}
+
 // SessionSnapshotNow says "Snapshot: {name}"
 // in the language the app shows.
 //

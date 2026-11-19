@@ -91,8 +91,10 @@ type refDialog struct {
 
 // cleanupState lists the branches that can go, to delete those picked.
 type cleanupState struct {
-	open    bool
-	base    string
+	open bool
+	base string
+	// stop cancels the search running.
+	stop    func()
 	loading bool
 	err     string
 	found   []session.Candidate
@@ -1142,7 +1144,7 @@ func (a *App) findCleanup(t *tab) {
 	if h := t.s.State.Head; !h.Detached {
 		current = h.Target
 	}
-	t.s.FindCleanup(base, current, info.Branches, func(found []session.Candidate, err error) {
+	cs.stop = t.s.FindCleanup(base, current, info.Branches, func(found []session.Candidate, err error) {
 		if base != cs.base {
 			return
 		}
@@ -1179,6 +1181,12 @@ func whyWords(w session.Why) string {
 func (a *App) cleanupView(c *ui.Context, t *tab) {
 	cs := &t.refs.clean
 	if !cs.open {
+		if cs.stop != nil {
+			// A search for a sheet closed runs git for each branch to no
+			// end.
+			cs.stop()
+			cs.stop = nil
+		}
 		return
 	}
 	th := c.Theme()

@@ -91,7 +91,8 @@ const maxRefOutput = 128 << 20
 
 // LoadRefInfo reads the branches with their upstreams, the tags and the
 // remotes off the main thread, and hands them to done on it. A newer call
-// cancels one still running.
+// cancels one still running, whose done is not called. A read whose
+// repository closed and opened again (Trust) is answered ErrReopened.
 func (s *Session) LoadRefInfo(done func(RefInfo)) {
 	r := s.Repo
 	if r == nil {
@@ -106,7 +107,6 @@ func (s *Session) LoadRefInfo(done func(RefInfo)) {
 	gen := s.refInfo.gen
 	s.refInfo.cancel = cancel
 	s.refInfo.mu.Unlock()
-	update := s.update
 	wts := s.State.Worktrees
 	r.Life().Go(func(context.Context) {
 		defer cancel()
@@ -118,15 +118,21 @@ func (s *Session) LoadRefInfo(done func(RefInfo)) {
 				}
 			}
 		}
-		if ctx.Err() != nil {
-			return
+		if ctx.Err() != nil && !closedUnder(r) {
+			return // a newer read took over
 		}
-		update(func() {
+		latest := func() bool {
 			s.refInfo.mu.Lock()
-			ok := s.refInfo.gen == gen
-			s.refInfo.mu.Unlock()
-			if ok {
+			defer s.refInfo.mu.Unlock()
+			return s.refInfo.gen == gen
+		}
+		s.handOver(r, func() {
+			if latest() {
 				done(info)
+			}
+		}, func() {
+			if latest() {
+				done(RefInfo{Err: ErrReopened})
 			}
 		})
 	})

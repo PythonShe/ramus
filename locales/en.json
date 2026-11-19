@@ -3338,6 +3338,10 @@
   "@sessionTrust": {
     "description": "An entry of the command log, shown when recording that the user trusts the repository failed."
   },
+  "sessionReopened": "the repository was opened again while this was read",
+  "@sessionReopened": {
+    "description": "Why something read of a repository is not shown: the repository closed and opened again meanwhile, as when the user trusts it."
+  },
   "sessionSnapshotNow": "Snapshot: {name}",
   "@sessionSnapshotNow": {
     "description": "An entry of the command log; name is the snapshot's."

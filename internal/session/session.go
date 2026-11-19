@@ -150,6 +150,7 @@ type Session struct {
 	stats       statsLoad
 	tools       diffTools
 	refInfo     refLoad
+	cleanup     refLoad
 	track       trackLoad
 	authors     authorsLoad
 	blame       blames
@@ -904,6 +905,38 @@ func (s *Session) reopenTrusted() {
 	old.Close()
 	s.start()
 }
+
+// ErrReopened is the answer of a read whose repository closed and opened
+// again before it was handed over, as Trust does: what it read is not
+// handed over, and the view asks again.
+var ErrReopened error = &sayError{say: locales.SessionReopened}
+
+// handOver runs fn on the main thread while r is still the session's
+// repository. What was read of r is not handed over once r has closed,
+// as when Trust opens it again: it may point into r's mappings, gone with
+// it, and is stale either way. reopened, when set, runs in fn's place,
+// for a view waiting on the answer to stop waiting; not once the session
+// itself has closed, as nothing waits then.
+func (s *Session) handOver(r *repo.Repository, fn, reopened func()) {
+	s.update(func() {
+		if s.Repo == r {
+			if fn != nil {
+				fn()
+			}
+			return
+		}
+		s.mu.Lock()
+		closed := s.closed
+		s.mu.Unlock()
+		if !closed && reopened != nil {
+			reopened()
+		}
+	})
+}
+
+// closedUnder reports whether a read of r whose context ended ended so
+// because r closed, rather than because it was cancelled.
+func closedUnder(r *repo.Repository) bool { return r.Life().Context().Err() != nil }
 
 // Close ends the session; the repository's goroutines and processes stop.
 func (s *Session) Close() {

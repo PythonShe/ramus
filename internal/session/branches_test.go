@@ -1,7 +1,13 @@
 package session
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
@@ -124,5 +130,101 @@ func TestFindCleanup(t *testing.T) {
 		if got[k] != v {
 			t.Errorf("%s: %b, want %b", k, got[k], v)
 		}
+	}
+}
+
+// manyBranches gives r n branches, packed, all on its one commit, so that
+// reading them takes a while.
+func manyBranches(t *testing.T, r *gittest.Repo, n int) {
+	t.Helper()
+	head := strings.TrimSpace(r.Commit("one"))
+	b := []byte("# pack-refs with: peeled fully-peeled sorted \n")
+	for i := range n {
+		b = append(b, head+" refs/heads/b"+strconv.Itoa(100000+i)+"\n"...)
+	}
+	if err := os.WriteFile(filepath.Join(r.GitDir(), "packed-refs"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// answeredAfterTrust trusts the restricted repository s has open while
+// a read started by start runs, and waits for the read's answer: one
+// that comes after the repository opened again carries ErrReopened, not
+// what was read of the closed one.
+func answeredAfterTrust(t *testing.T, m mainThread, s *Session, start func(answer func(error))) {
+	t.Helper()
+	old := s.Repo
+	answered, after := false, false
+	var err error
+	start(func(e error) { answered, after, err = true, s.Repo != old, e })
+	if e := s.Trust(); e != nil {
+		t.Fatal(e)
+	}
+	m.until(t, "the repository opened again", func() bool { return s.Repo != nil && s.Repo != old })
+	m.until(t, "the answer", func() bool { return answered })
+	t.Logf("answered after the reopen: %v", after)
+	if after && !errors.Is(err, ErrReopened) {
+		t.Errorf("answered after the reopen with %v, not ErrReopened", err)
+	}
+}
+
+// A refs read the repository closes under, as Trust opens it again,
+// still answers: the views waiting on it would wait for good.
+func TestLoadRefInfoAnswersWhenTheRepositoryOpensAgain(t *testing.T) {
+	r := gittest.Init(t)
+	manyBranches(t, r, 20000)
+	m := make(mainThread, 256)
+	s := Open(testrun.Runner(t), trusted(t), r.Dir, m.update)
+	defer func() { s.Close(); <-s.Done() }()
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	answeredAfterTrust(t, m, s, func(answer func(error)) {
+		s.LoadRefInfo(func(info RefInfo) { answer(info.Err) })
+	})
+}
+
+// So does a search for branches to clean up.
+func TestFindCleanupAnswersWhenTheRepositoryOpensAgain(t *testing.T) {
+	r := gittest.Init(t)
+	r.Commit("base")
+	var branches []BranchInfo
+	for i := range 200 {
+		name := "b" + strconv.Itoa(i)
+		r.Git("branch", name)
+		branches = append(branches, BranchInfo{Name: "refs/heads/" + name})
+	}
+	m := make(mainThread, 256)
+	s := Open(testrun.Runner(t), trusted(t), r.Dir, m.update)
+	defer func() { s.Close(); <-s.Done() }()
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	answeredAfterTrust(t, m, s, func(answer func(error)) {
+		s.FindCleanup("refs/heads/main", "", branches, func(_ []Candidate, err error) { answer(err) })
+	})
+}
+
+// A newer search for branches to clean up cancels the one running, whose
+// answer does not come; cancel stops one, whose answer does not come
+// either.
+func TestFindCleanupIsCancelled(t *testing.T) {
+	r := gittest.Init(t)
+	r.Commit("base")
+	var branches []BranchInfo
+	for i := range 200 {
+		name := "b" + strconv.Itoa(i)
+		r.Git("branch", name)
+		branches = append(branches, BranchInfo{Name: "refs/heads/" + name})
+	}
+	m := make(mainThread, 256)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	defer func() { s.Close(); <-s.Done() }()
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	first, second, third := 0, 0, 0
+	s.FindCleanup("refs/heads/main", "", branches, func([]Candidate, error) { first++ })
+	s.FindCleanup("refs/heads/main", "", branches, func([]Candidate, error) { second++ })
+	m.until(t, "the newer answer", func() bool { return second > 0 })
+	stop := s.FindCleanup("refs/heads/main", "", branches, func([]Candidate, error) { third++ })
+	stop()
+	m.pump(200 * time.Millisecond)
+	if first != 0 || third != 0 {
+		t.Fatalf("answers of searches cancelled: %d, %d", first, third)
 	}
 }

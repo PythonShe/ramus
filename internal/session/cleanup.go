@@ -41,19 +41,50 @@ const maxSquashScan = 5000
 
 // FindCleanup finds the branches that can go against base (a full ref
 // name), leaving out current, off the main thread, and hands them to done
-// on it.
-func (s *Session) FindCleanup(base, current string, branches []BranchInfo, done func([]Candidate, error)) {
+// on it. A search runs git a few times for each branch: a newer call
+// cancels one still running, and so does cancel, for a search no longer
+// shown; done is not called after either. A search whose repository
+// closed and opened again (Trust) is answered ErrReopened.
+func (s *Session) FindCleanup(base, current string, branches []BranchInfo, done func([]Candidate, error)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
-		return
+		done(nil, errors.New("session: the repository is not open"))
+		return func() {}
 	}
-	update := s.update
-	r.Life().Go(func(ctx context.Context) {
+	l := &s.cleanup
+	l.mu.Lock()
+	if l.cancel != nil {
+		l.cancel()
+	}
+	ctx, stop := context.WithCancel(r.Life().Context())
+	l.gen++
+	gen := l.gen
+	l.cancel = stop
+	l.mu.Unlock()
+	// dropped is read and written on the main thread only.
+	dropped := false
+	live := func() bool {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		return l.gen == gen && !dropped
+	}
+	r.Life().Go(func(context.Context) {
+		defer stop()
 		out, err := findCleanup(ctx, r, base, current, branches)
-		if ctx.Err() == nil {
-			update(func() { done(out, err) })
+		if ctx.Err() != nil && !closedUnder(r) {
+			return // cancelled, or a newer search took over
 		}
+		s.handOver(r, func() {
+			if live() {
+				done(out, err)
+			}
+		}, func() {
+			if live() {
+				done(nil, ErrReopened)
+			}
+		})
 	})
+	return func() { dropped = true; stop() }
 }
 
 func findCleanup(ctx context.Context, r *repo.Repository, base, current string, branches []BranchInfo) ([]Candidate, error) {
