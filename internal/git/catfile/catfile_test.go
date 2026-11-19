@@ -155,6 +155,34 @@ func TestPartialIDsAreMissing(t *testing.T) {
 	}
 }
 
+// The buffer of a large object is let go of once its batch is over.
+func TestLargeBufferNotKept(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("big", strings.Repeat("x", 4<<20))
+	r.Write("small", "x\n")
+	r.Commit("first")
+	big := decode(strings.TrimSpace(r.Git("rev-parse", "HEAD:big")))
+	small := decode(strings.TrimSpace(r.Git("rev-parse", "HEAD:small")))
+	p, err := Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	size := 0
+	if err := p.Read([][]byte{big}, func(_ int, o Object) error { size = len(o.Data); return nil }); err != nil || size != 4<<20 {
+		t.Fatalf("read %d bytes, %v", size, err)
+	}
+	if cap(p.buf) > keepBuf {
+		t.Fatalf("kept a buffer of %d bytes", cap(p.buf))
+	}
+	if err := p.Read([][]byte{small}, func(int, Object) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if cap(p.buf) == 0 {
+		t.Fatal("a small buffer is not kept")
+	}
+}
+
 // A batch in progress keeps neither Alive nor another read's cancel
 // waiting, and cancelling it ends the batch, not the process.
 func TestCancel(t *testing.T) {

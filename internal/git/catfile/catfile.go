@@ -36,6 +36,10 @@ const IdleTimeout = 10 * time.Second
 // network file system, and ended.
 const StallTimeout = time.Minute
 
+// keepBuf is the largest object buffer kept from one batch to the next:
+// a large blob read once is not held for the repository's life.
+const keepBuf = 1 << 20
+
 // ErrClosed is returned after Close, or once the process has died.
 var ErrClosed = errors.New("catfile: process closed")
 
@@ -59,7 +63,7 @@ type Process struct {
 	// batch is held by the batch running; a channel rather than a mutex,
 	// so that a read waiting for its turn can be cancelled.
 	batch chan struct{}
-	// buf is the batch's.
+	// buf is the batch's; one past keepBuf is not kept past its batch.
 	buf []byte
 
 	// mu guards what follows; it is never held while git is waited on.
@@ -178,6 +182,9 @@ func (p *Process) ReadContext(ctx context.Context, oids [][]byte, fn func(i int,
 	var broken error
 	read := false
 	defer func() {
+		if cap(p.buf) > keepBuf {
+			p.buf = nil
+		}
 		cancelled := !stopCancel()
 		stalled := w.stop()
 		switch {
