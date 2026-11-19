@@ -1,7 +1,9 @@
 package write
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -83,9 +85,23 @@ func keepWorktree(reason, path string) *snapshot.Options {
 	return &snapshot.Options{Reason: reason, Ignored: true, Worktree: path}
 }
 
-// PruneWorktrees forgets the work trees whose folders are gone.
+// PruneWorktrees forgets the work trees whose folders are gone. Their
+// snapshots, which go with their git directories, are copied into this
+// work tree's first.
 func PruneWorktrees(w Where) Op {
-	return Op{Name: "Prune worktrees", Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"worktree", "prune", "--expire=now"}}}
+	op := Op{Name: "Prune worktrees", Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"worktree", "prune", "--expire=now"}}}
+	cmd := op.Cmd
+	op.do = func(ctx context.Context, j *Job) (run.Result, error) {
+		if err := j.q.prepare(ctx, j); err != nil {
+			return run.Result{}, err
+		}
+		if err := snapshot.KeepPruned(ctx, j.q.r, snapshot.Where{GitDir: w.GitDir, WorkTree: w.WorkTree}); err != nil {
+			return run.Result{}, fmt.Errorf("write: keeping the snapshots of the worktrees first: %w", err)
+		}
+		res, err := execute(ctx, j.q.r, j, cmd, nil)
+		return res, j.q.failed(j, res, err)
+	}
+	return op
 }
 
 // LockWorktree keeps the work tree at path from being pruned, moved or

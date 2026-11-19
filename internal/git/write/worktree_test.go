@@ -144,6 +144,35 @@ func TestRemovingAWorktreeKeepsItsFiles(t *testing.T) {
 	}
 }
 
+// Pruning the worktrees whose folders were deleted keeps their
+// snapshots, which only their git directories held, and leaves a locked
+// one's where they are, as git leaves the worktree.
+func TestPruneWorktreesKeepsTheirSnapshots(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	for _, b := range []string{"gone", "locked", "there"} {
+		h.r.Git("branch", b)
+		op, err := AddWorktree(h.w, WorktreeOptions{Path: filepath.Join(base, b), Branch: b})
+		h.do(op, err, true)
+		h.r.Git("-C", filepath.Join(base, b), "update-ref", snapshot.Prefix+b, "HEAD")
+	}
+	h.r.Git("worktree", "lock", filepath.Join(base, "locked"))
+	for _, b := range []string{"gone", "locked"} {
+		if err := os.RemoveAll(filepath.Join(base, b)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.do(PruneWorktrees(h.w), nil, true)
+	if kept := h.r.Git("for-each-ref", "--format=%(refname)", snapshot.Prefix); kept != snapshot.Prefix+"gone\n" {
+		t.Fatalf("snapshots kept: %q", kept)
+	}
+	if l := h.r.Git("worktree", "list", "--porcelain"); strings.Contains(l, "/gone\n") || !strings.Contains(l, "locked") {
+		t.Fatalf("worktrees:\n%s", l)
+	}
+}
+
 // A worktree whose folder was deleted outside the app is removed, and
 // its branch deleted, as git does: there is nothing of it to keep first.
 func TestWorktreeFolderGone(t *testing.T) {

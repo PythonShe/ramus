@@ -133,6 +133,19 @@ func worktreeGitDir(dir string) (string, error) {
 // The folder's .git file is gone with it; git's own record of each
 // worktree, its gitdir file, names the .git file it had.
 func goneWorktreeGitDir(gitDir, dir string) (string, error) {
+	want := realParent(dir)
+	found := ""
+	err := linkedWorktrees(gitDir, func(admin, named string) {
+		if found == "" && filepath.Base(named) == ".git" && realParent(filepath.Dir(named)) == want {
+			found = admin
+		}
+	})
+	return found, err
+}
+
+// linkedWorktrees calls fn with the git directory of each linked worktree
+// of the repository of gitDir, and the .git file its gitdir file names.
+func linkedWorktrees(gitDir string, fn func(admin, named string)) error {
 	common := gitDir
 	if b, err := pathsafe.ReadFile(filepath.Join(gitDir, "commondir"), 64<<10); err == nil {
 		if c := strings.TrimSpace(string(b)); filepath.IsAbs(c) {
@@ -141,16 +154,15 @@ func goneWorktreeGitDir(gitDir, dir string) (string, error) {
 			common = filepath.Join(gitDir, c)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", err
+		return err
 	}
 	admins, err := os.ReadDir(filepath.Join(common, "worktrees"))
 	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
+		return nil
 	}
 	if err != nil {
-		return "", err
+		return err
 	}
-	want := realParent(dir)
 	for _, a := range admins {
 		admin := filepath.Join(common, "worktrees", a.Name())
 		b, err := pathsafe.ReadFile(filepath.Join(admin, "gitdir"), 64<<10)
@@ -161,11 +173,33 @@ func goneWorktreeGitDir(gitDir, dir string) (string, error) {
 		if !filepath.IsAbs(named) {
 			named = filepath.Join(admin, named) // worktree.useRelativePaths
 		}
-		if filepath.Base(named) == ".git" && realParent(filepath.Dir(named)) == want {
-			return admin, nil
+		fn(admin, named)
+	}
+	return nil
+}
+
+// KeepPruned copies into the worktree of w the snapshots of each linked
+// worktree whose folder is gone, not locked: those git worktree prune
+// removes, its snapshots with its git directory.
+func KeepPruned(ctx context.Context, r *run.Runner, w Where) error {
+	var gone []string
+	err := linkedWorktrees(w.GitDir, func(admin, named string) {
+		if _, err := os.Lstat(filepath.Join(admin, "locked")); err == nil {
+			return
+		}
+		if _, err := os.Lstat(named); errors.Is(err, os.ErrNotExist) {
+			gone = append(gone, admin)
+		}
+	})
+	if err != nil {
+		return err
+	}
+	for _, admin := range gone {
+		if err := adopt(ctx, r, admin, w.GitDir); err != nil {
+			return err
 		}
 	}
-	return "", nil
+	return nil
 }
 
 // realParent is path with its parent folder as the system knows it: the
