@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"golang.org/x/sys/windows"
+
+	"ramus/internal/git/gitexe"
 )
 
 // lower leaves the priority as it is: Windows has no nice.
@@ -29,6 +31,7 @@ var groups sync.Map // *exec.Cmd -> *group
 func stopGroup(cmd *exec.Cmd) {
 	g := &group{}
 	groups.Store(cmd, g)
+	gitexe.Hide(cmd)
 	cmd.Cancel = func() error {
 		g.mu.Lock()
 		g.cancelled = true

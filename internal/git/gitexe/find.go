@@ -56,6 +56,7 @@ func Probe(ctx context.Context, p string) (Version, error) {
 	cmd := exec.CommandContext(ctx, p, "version")
 	cmd.Dir = os.TempDir()
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "LC_ALL=C")
+	Hide(cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		return Version{}, err

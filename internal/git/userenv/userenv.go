@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"ramus/internal/git/gitexe"
 )
 
 // Keys are the variables taken from the login shell; the rest of the
@@ -76,6 +78,7 @@ func Resolve(ctx context.Context) Result {
 	cmd.Stdout = &out
 	cmd.Stderr = nil
 	cmd.WaitDelay = time.Second
+	gitexe.Hide(cmd)
 	err := cmd.Run()
 	if ctx.Err() != nil {
 		err = errors.New("userenv: login shell did not finish within " + Timeout.String())
