@@ -79,6 +79,10 @@ type Entry struct {
 	// stash is the stash the write made of the local changes before it
 	// ran (a switch that stashes), which its undo pops back; "" for none.
 	stash string
+	// made is what the write, or its last redo, made in the paths of
+	// Snapshot, which the snapshot does not hold: what an undo removes,
+	// and only while each is as the write left it.
+	made snapshot.Made
 	// states are the state files and refs of the git directory before
 	// the write, or its last redo, and after it: what undo and redo put
 	// back.
@@ -373,15 +377,17 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 // moved reports an undo or redo that failed once the repository had
 // moved, which its entry moves with, the error saying what is left: the
 // branches' settings, the rest after HEAD, the stashed changes, or a
-// redo that ran part way, or git's state files.
+// redo that ran part way, git's state files, or files the write made
+// that the undo left.
 func moved(err error) bool {
 	var ce *configError
 	var pe *partlyError
 	var se *StashKeptError
 	var ke *KeptError
 	var te *stateError
+	var le *leftError
 	return errors.As(err, &ce) || errors.As(err, &pe) || errors.As(err, &se) || errors.As(err, &ke) && ke.Undo ||
-		errors.As(err, &te)
+		errors.As(err, &te) || errors.As(err, &le)
 }
 
 // apply moves the repository from state from to state to, refusing if it
@@ -460,16 +466,21 @@ func (q *Queue) apply(ctx context.Context, e Entry, from, to State, restore bool
 			return &partlyError{err: err, undo: restore}
 		}
 	}
+	var left error
 	if restore && e.Kind == MovesHead && e.Snapshot.Commit != "" {
 		if err := restoreFiles(ctx, q, w, e); err != nil {
-			return &partlyError{err: err, undo: restore}
+			var le *leftError
+			if !errors.As(err, &le) {
+				return &partlyError{err: err, undo: restore}
+			}
+			left = err
 		}
 	}
 	cf, ct := e.config[1], e.config[0]
 	if !restore {
 		cf, ct = ct, cf
 	}
-	return q.setBranchConfig(ctx, w.WorkTree, cf, ct)
+	return errors.Join(left, q.setBranchConfig(ctx, w.WorkTree, cf, ct))
 }
 
 // rollbackTimeout bounds putting refs back after an undo failed part way.
@@ -577,12 +588,37 @@ func restoreFiles(ctx context.Context, q *Queue, w snapshot.Where, e Entry) erro
 	if len(e.paths) == 0 {
 		return nil // the write dropped nothing the snapshot holds
 	}
-	mode := snapshot.Exact
 	if resetMode(e.op) == "mixed" {
-		mode = snapshot.Staged // it left the files
+		_, err := snapshot.Restore(ctx, q.r, w, e.Snapshot, e.paths, snapshot.Staged) // it left the files
+		return err
 	}
-	_, err := snapshot.Restore(ctx, q.r, w, e.Snapshot, e.paths, mode)
+	_, left, err := snapshot.RestoreExact(ctx, q.r, w, e.Snapshot, e.paths, e.made)
+	if err == nil && (len(left) > 0 || !e.made.Known) {
+		err = &leftError{name: e.Name, paths: left}
+	}
 	return err
+}
+
+// leftError is an undo that put back what the write's snapshot holds but
+// left files the write made: changed since, staged, or not told from a
+// file of the user's, or, with no paths, any it made, which could not be
+// told when it ran.
+type leftError struct {
+	name  string
+	paths []string
+}
+
+func (e *leftError) Error() string {
+	if len(e.paths) == 0 {
+		return "write: " + e.name + " was undone, but the files it made could not be told from others, and any are left"
+	}
+	names := e.paths
+	more := ""
+	if len(names) > 5 {
+		names, more = names[:5], fmt.Sprintf(" and %d more", len(e.paths)-5)
+	}
+	return fmt.Sprintf("write: %s was undone, but left %s it made, changed since or not told from yours: %s%s",
+		e.name, count(len(e.paths), "a file"), strings.Join(names, ", "), more)
 }
 
 // errUnknownPaths is an undo that cannot tell which files the write
@@ -812,8 +848,17 @@ func (q *Queue) settlePaths(ctx context.Context, e *Entry) {
 	paths, err := q.touchedPaths(ctx, *e)
 	e.paths, e.unknown = paths, err != nil
 	e.left = nil
+	e.made = snapshot.Made{Known: true}
 	if err == nil {
 		e.left = q.leftPaths(ctx, *e, nil)
+		if resetMode(e.op) != "mixed" {
+			// Read now, as the write left them: what is there by the time of
+			// an undo, and was not then, is the user's.
+			w := snapshot.Where{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree}
+			if e.made, err = snapshot.FindMade(ctx, q.r, w, e.Snapshot, e.paths); err != nil {
+				e.made = snapshot.Made{}
+			}
+		}
 	}
 }
 

@@ -240,6 +240,11 @@ type Snapshot struct {
 	Paths   []string
 	All     bool
 	Ignored bool
+	// unkept are, when listed, the ignored files in Paths the snapshot
+	// did not keep, a folder ignored whole as the folder with its slash:
+	// there before whatever ran next. Only Take lists them, for paths.
+	unkept []string
+	listed bool
 }
 
 // Take keeps the work tree's state of opts.Paths (or of everything) in a
@@ -378,6 +383,16 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 			if !more {
 				return Snapshot{}, err
 			}
+		}
+	}
+	if !s.All && opts.Worktree == "" {
+		// What it leaves out, to tell later what a write made there.
+		if opts.Ignored {
+			s.listed = true
+		} else if un, err := listIgnored(ctx, r, w, s.Paths); err == nil {
+			s.unkept, s.listed = un, true
+		} else if ctx.Err() != nil {
+			return Snapshot{}, err
 		}
 	}
 	if s.Tree, err = git(nil, nil, "write-tree"); err != nil {
@@ -790,15 +805,28 @@ const (
 // Restore writes paths back as the snapshot kept them, after keeping the
 // current state of those paths in a new snapshot, which it returns.
 // Paths may be folders. With Exact and no paths, a snapshot of the whole
-// work tree is restored whole.
+// work tree is restored whole. Exact removes no file the index does not
+// hold: RestoreExact removes those a write made.
 func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []string, mode Mode) (Snapshot, error) {
+	before, _, err := restore(ctx, r, w, s, paths, mode, Made{})
+	return before, err
+}
+
+// RestoreExact is Restore with Exact that also removes what the write
+// made after s was taken, as FindMade read it, and returns the files of
+// made it leaves, changed since or no longer the write's alone.
+func RestoreExact(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []string, made Made) (Snapshot, []string, error) {
+	return restore(ctx, r, w, s, paths, Exact, made)
+}
+
+func restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []string, mode Mode, made Made) (Snapshot, []string, error) {
 	whole := len(paths) == 0
 	if whole && (mode != Exact || !s.All) {
-		return Snapshot{}, errors.New("snapshot: nothing to restore")
+		return Snapshot{}, nil, errors.New("snapshot: nothing to restore")
 	}
 	before, err := Take(ctx, r, w, Options{Reason: "Before restoring " + s.Time.Format(time.DateTime), Paths: paths})
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("snapshot: keeping the current state first: %w", err)
+		return Snapshot{}, nil, fmt.Errorf("snapshot: keeping the current state first: %w", err)
 	}
 	git := func(spec []string, args ...string) error {
 		// Out of submodules whatever submodule.recurse says: a snapshot
@@ -830,84 +858,37 @@ func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 	if mode == Overlay {
 		ps, err := match(s.Commit, false)
 		if err != nil || len(ps) == 0 {
-			return before, err
+			return before, nil, err
 		}
-		return before, git(ps, "restore", "--source="+s.Commit, "--worktree", "--overlay")
+		return before, nil, git(ps, "restore", "--source="+s.Commit, "--worktree", "--overlay")
 	}
-	var ps []string
+	var ps, left []string
 	if mode == Exact {
 		// The files first, while the index still has those the write added.
 		if ps, err = match(s.Commit, true); err != nil {
-			return before, err
+			return before, nil, err
 		}
 		if whole || len(ps) > 0 {
 			if err := git(ps, "restore", "--source="+s.Commit, "--worktree", "--no-overlay"); err != nil {
-				return before, err
+				return before, nil, err
 			}
 		}
-		if !whole {
-			if err := removeMade(ctx, r, w, s, paths); err != nil {
-				return before, err
-			}
+		// Once the snapshot's files are back, so that their .gitignore
+		// files say what git ignored then.
+		if left, err = removeMade(ctx, r, w, made); err != nil {
+			return before, left, err
 		}
 	}
 	if s.Index == "" {
-		return before, nil
+		return before, left, nil
 	}
 	if ps, err = match(s.Index, true); err != nil {
-		return before, err
+		return before, left, err
 	}
 	if whole || len(ps) > 0 {
 		err = git(ps, "restore", "--source="+s.Index, "--staged")
 	}
-	return before, err
-}
-
-// removeMade removes, of paths, the files git restore leaves that s did
-// not have: those in no index. The snapshot kept every file there that
-// git does not ignore, so such a file was not there when it was taken.
-// One git ignores may have been, unless the snapshot kept ignored files
-// too, and stays. Run once the snapshot's files are back, so their
-// .gitignore files say what was ignored then; one made since is removed
-// first, as it may stop ignoring a file that was there.
-func removeMade(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []string) error {
-	args := []string{"ls-files", "-z", "--others", "--full-name"}
-	if !s.Ignored {
-		args = append(args, "--exclude-standard")
-	}
-	for {
-		var others []string
-		err := listPaths(ctx, r, w, nil, paths, func(name string) {
-			// A folder of its own is a repository inside, which the
-			// snapshot leaves out.
-			if !strings.HasSuffix(name, "/") {
-				others = append(others, name)
-			}
-		}, args...)
-		if err != nil {
-			return err
-		}
-		had, err := known(ctx, r, w, s.Commit, false, others)
-		if err != nil {
-			return err
-		}
-		kept := make(map[string]bool, len(had))
-		for _, p := range had {
-			kept[p] = true
-		}
-		made := slices.DeleteFunc(others, func(p string) bool { return kept[p] })
-		if !s.Ignored {
-			rules := slices.DeleteFunc(slices.Clone(made), func(p string) bool { return path.Base(p) != ".gitignore" })
-			if len(rules) > 0 {
-				// The files they ignore are listed again without them.
-				if err := removeFiles(w.WorkTree, rules); err != nil {
-					return err
-				}
-				continue
-			}
-		}
-		return removeFiles(w.WorkTree, made)
-	}
+	return before, left, err
 }
 
 // removeFiles removes files and links under root, then the folders that

@@ -487,10 +487,15 @@ func TestRestoreModes(t *testing.T) {
 
 	// Exact: what a hard reset dropped comes back, staged and unstaged,
 	// a file that was deleted is deleted again, and one the snapshot did
-	// not have goes.
+	// not have, made since, goes.
 	f.r.Git("reset", "-q", "--hard")
-	if _, err := Restore(context.Background(), f.run, f.w, s, []string{"dir", "b", "gone"}, Exact); err != nil {
-		t.Fatal(err)
+	paths := []string{"dir", "b", "gone"}
+	made, err := FindMade(context.Background(), f.run, f.w, s, paths)
+	if err != nil || !made.Known || len(made.Files) != 1 || made.Files[0].Path != "dir/new" {
+		t.Fatalf("made %+v %v", made, err)
+	}
+	if _, left, err := RestoreExact(context.Background(), f.run, f.w, s, paths, made); err != nil || len(left) > 0 {
+		t.Fatal(left, err)
 	}
 	if f.r.Git("show", ":b") != "b2" || read(t, filepath.Join(f.r.Dir, "b")) != "b3" {
 		t.Fatalf("staged %q, work tree %q", f.r.Git("show", ":b"), read(t, filepath.Join(f.r.Dir, "b")))
@@ -537,12 +542,16 @@ func TestRestoreManyPathsListsOnce(t *testing.T) {
 	}
 }
 
-// An exact restore removes the files the snapshot did not have, in no
-// index, a folder of them with them, and only those: an ignored file,
-// which the snapshot did not keep, may have been there before and stays,
-// though a .gitignore made since stopped ignoring it.
+// An exact restore removes the files a write made, as FindMade read them
+// once it ran, a folder of them with them, ignored ones too, and only
+// those, each only as the write left it: an ignored file there before,
+// which the snapshot did not keep, stays though a .gitignore the write
+// made stopped ignoring it; a file made since, ignored by a rule the
+// write made or not, stays; a made file changed since stays, and is
+// named. Without what the write made, nothing is removed.
 func TestExactRemovesOnlyWhatWasNotThere(t *testing.T) {
 	f := setup(t)
+	ctx := context.Background()
 	f.r.Write(".gitignore", "*.log\n")
 	f.r.Write("dir/a", "a")
 	f.r.Commit("one")
@@ -555,20 +564,38 @@ func TestExactRemovesOnlyWhatWasNotThere(t *testing.T) {
 	f.r.Write("new", "made")
 	f.r.Write("deep/er/file", "made")
 	f.r.Write("dir/made", "made")
-	f.r.Write("dir/.gitignore", "!keep.log\n")
+	f.r.Write("dir/edited", "made")
+	f.r.Write("dir/.gitignore", "!keep.log\nsecret.env\n")
 	f.r.Write("dir/made.log", "made, ignored")
 	if err := os.Symlink("a", filepath.Join(f.r.Dir, "dir", "link")); err != nil {
 		t.Skip(err)
 	}
-	if _, err := Restore(context.Background(), f.run, f.w, s, paths, Exact); err != nil {
+	made, err := FindMade(ctx, f.run, f.w, s, paths)
+	if err != nil || !made.Known {
+		t.Fatal(made, err)
+	}
+	// What the user did since.
+	f.r.Write("dir/secret.env", "the user's, ignored by the write's rule")
+	f.r.Write("dir/mine", "the user's")
+	f.r.Write("dir/edited", "made, then edited")
+
+	if _, err := Restore(ctx, f.run, f.w, s, paths, Exact); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"new", "deep", "dir/made", "dir/.gitignore", "dir/link"} {
+	if _, err := os.Lstat(filepath.Join(f.r.Dir, "new")); err != nil {
+		t.Fatal("removed with nothing saying the write made it")
+	}
+	_, left, err := RestoreExact(ctx, f.run, f.w, s, paths, made)
+	if err != nil || !slices.Equal(left, []string{"dir/edited"}) {
+		t.Fatalf("left %q, %v", left, err)
+	}
+	for _, p := range []string{"new", "deep", "dir/made", "dir/.gitignore", "dir/link", "dir/made.log"} {
 		if _, err := os.Lstat(filepath.Join(f.r.Dir, p)); err == nil {
 			t.Errorf("%s left", p)
 		}
 	}
-	for p, want := range map[string]string{"dir/a": "a", "dir/keep.log": "ignored, there before", "dir/untracked": "there before", "dir/made.log": "made, ignored"} {
+	for p, want := range map[string]string{"dir/a": "a", "dir/keep.log": "ignored, there before", "dir/untracked": "there before",
+		"dir/secret.env": "the user's, ignored by the write's rule", "dir/mine": "the user's", "dir/edited": "made, then edited"} {
 		if got := read(t, filepath.Join(f.r.Dir, p)); got != want {
 			t.Errorf("%s: %q", p, got)
 		}
@@ -578,7 +605,10 @@ func TestExactRemovesOnlyWhatWasNotThere(t *testing.T) {
 	// was not there.
 	s = f.take(Options{Reason: "x", Paths: []string{"dir"}, Ignored: true})
 	f.r.Write("dir/later.log", "made")
-	if _, err := Restore(context.Background(), f.run, f.w, s, []string{"dir"}, Exact); err != nil {
+	if made, err = FindMade(ctx, f.run, f.w, s, []string{"dir"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := RestoreExact(ctx, f.run, f.w, s, []string{"dir"}, made); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Lstat(filepath.Join(f.r.Dir, "dir/later.log")); err == nil {
@@ -586,6 +616,50 @@ func TestExactRemovesOnlyWhatWasNotThere(t *testing.T) {
 	}
 	if read(t, filepath.Join(f.r.Dir, "dir/keep.log")) != "ignored, there before" {
 		t.Error("an ignored file kept was lost")
+	}
+}
+
+// What a write made is told from what was there by the snapshot and the
+// ignored files it listed: a file there before, ignored by a rule the
+// write took away, is not the write's; one the write made at a path
+// where nothing was, in an ignored folder, or in a folder it made and
+// ignores whole, is; an ignored file in a folder ignored whole before is
+// not the write's, and one not ignored there cannot be told, and is said
+// to be.
+func TestFindMadeIgnored(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	f.r.Write(".gitignore", "build/\ngen/\n*.key\n")
+	f.r.Write("cfg/.gitignore", "local.env\n")
+	f.r.Write("cfg/x", "x")
+	f.r.Commit("one")
+	f.r.Write("cfg/local.env", "SECRET=1")
+	f.r.Write("lib/build/old", "built")
+	f.r.Write("lib/y", "y")
+	f.r.Write("gen/old", "generated")
+	f.r.Write("keys/a.key", "key")
+	paths := []string{"cfg", "lib", "gen/new", "out", "keys"}
+	s := f.take(Options{Reason: "x", Paths: paths})
+	f.r.Git("rm", "-q", "cfg/.gitignore")
+	f.r.Write("lib/build/new", "made")
+	f.r.Write("gen/new", "made")
+	f.r.Write("out/.gitignore", "*\n")
+	f.r.Write("out/a", "made")
+	f.r.Write("keys/b.key", "made or not")
+	f.r.Write("keys/note", "made or not")
+	made, err := FindMade(ctx, f.run, f.w, s, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, m := range made.Files {
+		got = append(got, m.Path)
+	}
+	if want := []string{"gen/new", "out/.gitignore", "out/a"}; !slices.Equal(got, want) {
+		t.Fatalf("made %q, want %q", got, want)
+	}
+	if !slices.Equal(made.untold, []string{"keys/note"}) {
+		t.Fatalf("untold %q", made.untold)
 	}
 }
 
