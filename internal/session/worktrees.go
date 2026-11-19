@@ -83,7 +83,9 @@ func (s *Session) SummarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 // WatchWorktrees is SummarizeWorktrees reading them again and again
 // until stopped, for a panel that shows them live: each round waits
 // twice what the last took, at least worktreeEvery, so a slow status
-// never runs back to back.
+// never runs back to back. A watch the repository closing and opening
+// again (Trust) ended answers ErrReopened for each worktree, whatever it
+// told before: it is to be started again.
 func (s *Session) WatchWorktrees(wts []repo.Worktree, done func(WorktreeSummary)) (stop func()) {
 	return s.summarizeWorktrees(wts, done, true)
 }
@@ -110,7 +112,9 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 			return
 		}
 		for _, wt := range summarized(wts) {
-			if !told[wt.Path] {
+			// A watch, which ended with the repository whatever it told
+			// before, says so of each, for the panel to watch again.
+			if again || !told[wt.Path] {
 				told[wt.Path] = true
 				done(WorktreeSummary{Path: wt.Path, Err: ErrReopened})
 			}

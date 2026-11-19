@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/hex"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -154,4 +155,38 @@ func TestTrustMidReadShowsNoError(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The worktree panel's watch ends with the repository Trust opens again:
+// the panel watches the worktrees again, of the repository open now, and
+// shows what changes there after the Trust.
+func TestWorktreePanelWatchesAgainAfterTrust(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	t.Cleanup(h.closeAll) // before the folder above goes
+	aa := filepath.Join(base, "aa")
+	r.Git("worktree", "add", "-q", "-b", "aa-work", aa)
+	if err := os.WriteFile(filepath.Join(aa, "one.txt"), []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("the worktrees", func() bool { return len(tb.s.State.Worktrees) == 2 && h.tt.HasText("Read-only") })
+	h.click("Worktree Changes")
+	h.until("aa's file", func() bool { return len(tb.wtp.sums[aa].Files) == 1 })
+	old := tb.s.Repo
+	if err := tb.s.Trust(); err != nil {
+		t.Fatal(err)
+	}
+	if !h.trust.Wait(20 * time.Second) {
+		t.Fatal("the trust was not saved")
+	}
+	h.until("the repository open again", func() bool {
+		return tb.s.Repo != nil && tb.s.Repo != old && !tb.s.State.Restricted && tb.wtp.stop != nil
+	})
+	if err := os.WriteFile(filepath.Join(aa, "two.txt"), []byte("2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.until("the file made after the Trust", func() bool { return len(tb.wtp.sums[aa].Files) == 2 })
 }

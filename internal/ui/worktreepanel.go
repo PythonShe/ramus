@@ -75,6 +75,15 @@ func (p *wtPanel) watch(a *App, t *tab) {
 	}
 	p.watching = wts
 	p.stop = t.s.WatchWorktrees(wts, func(sum session.WorktreeSummary) {
+		if reopened(sum.Err) {
+			// The watch ended with the repository: watched again as shown
+			// next, what it read before not taken for what is now.
+			if p.stop != nil {
+				p.stop()
+				p.stop, p.watching = nil, nil
+			}
+			return
+		}
 		p.sums[sum.Path] = sum
 		p.follow(a, t, sum)
 	})
@@ -143,10 +152,13 @@ func (p *wtPanel) readPatch(a *App, t *tab) {
 }
 
 // keepPanel stops the panel of tab t reading once it is closed or its
-// tab is not the one shown.
+// tab is not the one shown. While Trust opens the repository again, which
+// ends the watch, and until it reads the worktrees again (with the
+// status), the panel stays open, to watch again once it has.
 func (a *App) keepPanel(t *tab) {
 	p := &t.wtp
-	if p.stop != nil && (!p.open || a.current() != t || len(t.s.State.Worktrees) == 0) {
+	gone := len(t.s.State.Worktrees) == 0 && t.s.State.Status != nil
+	if (p.stop != nil || p.open) && (!p.open || a.current() != t || gone) {
 		p.open = false
 		p.halt()
 	}

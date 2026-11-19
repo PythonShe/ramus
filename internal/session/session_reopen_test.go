@@ -182,3 +182,34 @@ func TestReplacedReadsAreNotAnsweredOnReopen(t *testing.T) {
 		})
 	}
 }
+
+// A worktree watch that Trust's reopen cuts after it told every worktree
+// says so of each all the same: the panel starts it again rather than
+// show what it read before the Trust.
+func TestWatchCutByReopenSaysSo(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("one")
+	addWorktree(t, r, "agent")
+	s, m := openSettled(t, r)
+	s.worktreeEvery = 10 * time.Millisecond
+	m.until(t, "the worktrees", func() bool { return len(s.State.Worktrees) == 2 })
+	wts := s.State.Worktrees
+	got := map[string]int{}
+	reopenedN := 0
+	stop := s.WatchWorktrees(wts, func(sum WorktreeSummary) {
+		if errors.Is(sum.Err, ErrReopened) {
+			reopenedN++
+			return
+		}
+		got[sum.Path]++
+	})
+	defer stop()
+	m.until(t, "a second round", func() bool { return got[wts[0].Path] >= 2 && got[wts[1].Path] >= 2 })
+	old := s.Repo
+	s.reopenTrusted()
+	m.drainClosed(t, old)
+	if reopenedN != len(wts) {
+		t.Fatalf("the cut watch said so of %d worktrees, want %d", reopenedN, len(wts))
+	}
+}
