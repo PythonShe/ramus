@@ -215,6 +215,13 @@ func kindName(k forge.Kind) string {
 }
 
 func (a *App) pullsView(c *ui.Context, t *tab) {
+	if !a.hasPulls(t) {
+		// Turned off in the settings, or its remote gone: the page goes as
+		// its sidebar item does, and leaving it stops its reads.
+		t.sel = "changes"
+		c.AnimationFrame()
+		return
+	}
 	if rv := t.pr.rv; rv != nil {
 		a.prReviewView(c, t, rv)
 		return
@@ -224,7 +231,7 @@ func (a *App) pullsView(c *ui.Context, t *tab) {
 
 func (a *App) loadPRList(t *tab) {
 	ps := &t.pr
-	if ps.listing || !ps.listAt.IsZero() && a.Now().Sub(ps.listAt) < prListMaxAge {
+	if !a.Settings.PullRequests || ps.listing || !ps.listAt.IsZero() && a.Now().Sub(ps.listAt) < prListMaxAge {
 		return
 	}
 	ps.listing = true
@@ -454,7 +461,7 @@ func (a *App) closeReview(t *tab) {
 // loadPRReview reads the pull request, and its commits when they are not
 // the ones fetched.
 func (a *App) loadPRReview(t *tab, rv *prReview) {
-	if rv.read || rv.loading {
+	if !a.Settings.PullRequests || rv.read || rv.loading {
 		return
 	}
 	rv.loading = true
@@ -501,6 +508,9 @@ func fetchKey(r forge.Review) string { return r.HeadOID + "\x00" + r.BaseOID + "
 var prDeepen = [...]int{0, 200, 2000}
 
 func (a *App) fetchReview(t *tab, rv *prReview) {
+	if !a.Settings.PullRequests {
+		return
+	}
 	rv.fetching, rv.fetchErr, rv.fetchedFor = true, "", fetchKey(rv.r)
 	rv.fetchN++
 	n := rv.fetchN
@@ -1153,6 +1163,9 @@ func (rv *prReview) revs() forge.Revs {
 // prSend runs a write to the host, then reads the pull request again;
 // ok runs once it succeeded.
 func (a *App) prSend(t *tab, rv *prReview, fn func(ctx context.Context, c *forge.CLI) error, ok func()) {
+	if !a.Settings.PullRequests {
+		return
+	}
 	rv.sending = true
 	t.s.ForgeDo(a.findForge(), rv.repo, fn, func(err error) {
 		rv.sending = false
@@ -1310,7 +1323,7 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, locales.PullsSubmit()).Disabled(empty || rv.busy()).Clicked() {
+				if ui.PrimaryButton(c, locales.PullsSubmit()).Disabled(empty || rv.busy()).Clicked() && a.Settings.PullRequests {
 					drafts, at, v := slices.Clone(rv.drafts), rv.revs(), forge.Verdict(d.verdict)
 					if len(drafts) > 0 {
 						at = rv.draftsAt

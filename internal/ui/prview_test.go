@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -304,6 +307,46 @@ func TestMergeRequestReview(t *testing.T) {
 	}
 	if !strings.Contains(l, "bulk_publish --input -\n{\"reviewer_state\":\"requested_changes\"}") {
 		t.Fatalf("publish %q", l)
+	}
+}
+
+// Pull requests turned off in the settings, the page they are shown on
+// is left, and nothing more is asked of the host: not the list, not the
+// pull request, not a write, though the page be chosen again.
+func TestPullRequestsTurnedOff(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "https://github.com/o/r")
+	list := `{"data":{"repository":{"pullRequests":{"totalCount":1,"nodes":[{"id":"PR_7","number":7,"title":"Add a thing",
+"url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},"headRefName":"thing",
+"baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","headRepositoryOwner":{"login":"o"}}]}}}}`
+	env, log := reviewTool(t, "gh", "pullRequests(states", "pullRequest(number", list, `{}`)
+	tools := &forgeTools{env: env}
+	var asked atomic.Int32
+	h.app.forgeFind = func(k forge.Kind) (*forge.CLI, error) {
+		asked.Add(1)
+		return tools.find(k)
+	}
+	h.app.Settings.PullRequests = true
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the pull requests in the sidebar", h.shows("Pull Requests"))
+	h.click("Pull Requests")
+	h.until("the list", h.shows("Add a thing"))
+	tb := h.app.current()
+
+	h.app.Settings.PullRequests = false
+	tb.pr.listAt = time.Time{}
+	before := asked.Load()
+	h.until("the page left", func() bool { return tb.sel != sidePulls && !h.tt.HasText("Add a thing") })
+	tb.sel = sidePulls
+	rv := &prReview{n: 7, repo: tb.pr.repo, replies: map[string]*string{}, opened: map[string]bool{}}
+	tb.pr.rv = rv
+	h.app.loadPRReview(tb, rv)
+	h.app.prSend(tb, rv, func(ctx context.Context, c *forge.CLI) error { return c.AddComment(ctx, rv.repo, rv.n, "x") }, nil)
+	h.pumpFor(300 * time.Millisecond)
+	if n := asked.Load(); n != before || tb.sel == sidePulls || rv.loading || rv.sending || log() != "" {
+		t.Fatalf("asked %d more times, page %q, loading %v, sending %v, log %q", n-before, tb.sel, rv.loading, rv.sending, log())
 	}
 }
 

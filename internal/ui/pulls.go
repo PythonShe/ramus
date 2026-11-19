@@ -292,7 +292,7 @@ func (a *App) stackBadge(c *ui.Context, k ink, t *tab, info *session.RefInfo, b 
 // works on the stack of the branch checked out.
 func (a *App) stackItems(m *ui.Menu, t *tab, b session.BranchInfo, repo forge.Repo, act *func()) {
 	info := t.refs.info
-	if !a.ghStack.ok || repo.Kind != forge.GitHub || info == nil {
+	if !a.Settings.PullRequests || !a.ghStack.ok || repo.Kind != forge.GitHub || info == nil {
 		return
 	}
 	ro := t.s.Queue == nil
