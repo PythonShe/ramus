@@ -18,6 +18,7 @@ gh workflow run ci.yml   # CI and soak.yml run only when started by hand
 git push origin vX.Y.Z   # release.yml: builds and publishes a release of mygo.json's version
 gh workflow run release.yml               # a dry run of main: builds and notarizes, uploads nothing
 gh workflow run release-notes.yml -f ref=main  # preview the notes Claude writes
+go run ./scripts/verifyrelease vX.Y.Z    # check a release whole: files, checksums, manifests, signatures
 RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json  # the benchmarks
 ```
 
@@ -42,7 +43,9 @@ RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json 
   which only `main` and `v*` tags may deploy to. Once every build succeeded, `release-notes.yml` writes
   the notes (a `## X.Y.Z` section of `CHANGELOG.md` written by hand
   wins), which go into the release and its update manifests, and the
-  release is published, whole. It names
+  release, checked whole by `scripts/verifyrelease`, is published: as a
+  prerelease, never the latest, when its version has a pre-release
+  suffix. It names
   the notary profile in the runner's `mygo.json` only, so local builds
   stay ad hoc.
 - `internal/ui/`: app state and views. Views are tested without a window

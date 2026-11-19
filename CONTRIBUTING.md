@@ -14,7 +14,9 @@ go tool mygo build    # package the app into build/
 scripts/check.sh      # the full gate: gofmt, vet, the engine's import boundary, no network of ours, the tests
 ```
 
-It builds for macOS, Windows and Linux, and CI runs the tests on all three.
+It builds for macOS, Windows and Linux. CI runs the tests on all three
+when a maintainer starts it and before every release; it does not run on
+pull requests by itself.
 On Windows, set `git config --global core.autocrlf false` before the tests:
 they compare files byte for byte.
 
@@ -103,6 +105,10 @@ When a change makes a doc wrong, fix the doc in the same change.
 ## Releases
 
 Maintainers release by setting the version in `mygo.json` and pushing a
-`vX.Y.Z` tag that matches it; `.github/workflows/release.yml` builds, signs
-and publishes it. A `## X.Y.Z` section in `CHANGELOG.md` replaces the
-generated release notes.
+`vX.Y.Z` tag that matches it; `.github/workflows/release.yml` builds, signs,
+checks and publishes it. A `## X.Y.Z` section in `CHANGELOG.md` replaces the
+generated release notes; once that file exists, every release needs its
+section, or mygo stops the build. A version with a pre-release suffix, as
+`1.1.0-rc.1`, is published as a prerelease, which installed apps do not
+update to. `go run ./scripts/verifyrelease vX.Y.Z` checks a published
+release whole: its files, checksums, update manifests and signatures.
