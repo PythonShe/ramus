@@ -146,6 +146,62 @@ func TestFixupFallbackFoldsOnlyTheChange(t *testing.T) {
 	}
 }
 
+// Undo of a fix up or a squash takes back the rewrite, not the edit: what
+// was staged is staged again, a file staged in part included, and the
+// files are as they were; redo folds it in again.
+func TestFixupUndoStagesTheChangeAgain(t *testing.T) {
+	for _, v := range []string{"history", "rebase"} {
+		for _, msg := range []string{"", "one, squashed\n"} {
+			t.Run(fmt.Sprintf("%s/%q", v, msg), func(t *testing.T) {
+				h := newHarness(t)
+				gv := localGit(t)
+				if v == "rebase" {
+					gv = oldGit
+				} else if !gv.Has(gitexe.HistoryDrop) {
+					t.Skip("git history fixup without --empty")
+				}
+				h.r.Write("f0", "0\n")
+				base := h.r.Commit("base")
+				h.r.Write("f1", "a\nb\nc\nd\ne\nf\ng\n")
+				one := h.r.Commit("one")
+				h.r.Write("f2", "2\n")
+				h.r.Commit("two")
+				h.r.Write("f1", "A\nb\nc\nd\ne\nf\ng\n")
+				h.r.Git("add", "f1")
+				h.r.Write("f1", "A\nb\nc\nd\ne\nf\nG\n") // not staged
+				h.r.Write("new", "new\n")
+				h.r.Git("add", "new")
+				index, files := h.r.Git("ls-files", "--stage"), h.read("f1")
+				head := h.rev("main")
+				op, err := FixupInto(h.w, Rewrite{Commit: one, Parent: base, Git: gv}, msg, h.seen())
+				h.do(op, err, true)
+				if h.r.Git("show", "main~1:f1") != "A\nb\nc\nd\ne\nf\ng\n" || h.r.Git("show", "main~1:new") != "new\n" {
+					t.Fatal("the staged change is not in the commit")
+				}
+				h.undo()
+				if h.rev("main") != head {
+					t.Fatal("main not put back")
+				}
+				if got := h.r.Git("ls-files", "--stage"); got != index {
+					t.Fatalf("index after undo:\n%s\nwant\n%s", got, index)
+				}
+				if h.read("f1") != files || h.read("new") != "new\n" {
+					t.Fatalf("f1 after undo %q", h.read("f1"))
+				}
+				if got := h.r.Git("diff", "--cached", "--name-only"); got != "f1\nnew\n" {
+					t.Fatalf("staged after undo %q", got)
+				}
+				if _, err := wait(t, h.q.Redo()); err != nil {
+					t.Fatal(err)
+				}
+				if h.r.Git("show", "main~1:f1") != "A\nb\nc\nd\ne\nf\ng\n" || h.status() != "M f1" {
+					t.Fatalf("redo: status %q", h.status())
+				}
+			})
+		}
+	}
+}
+
 // Every way of rewriting keeps the messages of the commits it does not
 // change byte for byte, whatever commit.cleanup says, and stores a message
 // it sets as the commit box stores one.

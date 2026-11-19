@@ -232,7 +232,9 @@ func DropCommit(w Where, rw Rewrite, seen Seen) (Op, error) {
 // FixupInto folds what is staged into rw.Commit, and only into it. With
 // msg set, the commit takes it as its message (a squash). Through git
 // history fixup where git has it, else a rebase that folds a commit of
-// what is staged, made without hooks, into rw.Commit by its id.
+// what is staged, made without hooks, into rw.Commit by its id. Undo
+// moves the branches back and leaves the index and files: what was
+// folded in is staged again, as it was.
 func FixupInto(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 	if err := rw.check(); err != nil {
 		return Op{}, err
@@ -262,6 +264,9 @@ func FixupInto(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 		}
 	}
 	op := rw.op(name, seen, c, rr)
+	// HEAD and the branches move, the index and the files stay: undo moves
+	// them back, and what was staged is staged again.
+	op.Undo = RefsOnly
 	op.Input = in
 	return op, nil
 }
