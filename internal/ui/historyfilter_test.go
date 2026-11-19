@@ -141,6 +141,39 @@ func TestFilterClosedAndRetyped(t *testing.T) {
 	}
 }
 
+// A branch hidden while a field of the filter has an error is hidden all
+// the same, the error kept until the field is fixed.
+func TestHideWhileFilterHasError(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("switch", "-q", "-c", "side")
+	r.Write("s.txt", "s\n")
+	r.Commit("on side")
+	r.Git("switch", "-q", "main")
+	r.Write("m.txt", "m\n")
+	r.Commit("on main")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("both branches", func() bool { return shownRow(h, "on side") && shownRow(h, "on main") })
+	hf := &tb.hist.filter
+	hf.open, hf.since = true, "2026-1"
+	h.app.applyHistoryFilter(tb)
+	if hf.err == "" {
+		t.Fatal("no error for a date half typed")
+	}
+	h.app.toggleRef(tb, &tb.prefs.hidden, "refs/heads/side")
+	h.until("side hidden", func() bool {
+		hs := tb.s.History
+		return hs.Done && !shownRow(h, "on side") && shownRow(h, "on main")
+	})
+	if hf.err == "" {
+		t.Fatal("the date's error went")
+	}
+}
+
 // Commits picked that a filter then hides are let go of: the bar counts,
 // and Cherry-Pick takes, only those the history shows.
 func TestPickedHiddenByFilter(t *testing.T) {

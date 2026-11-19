@@ -174,15 +174,22 @@ func (a *App) applyHistoryFilter(t *tab) {
 	hf := &t.hist.filter
 	f, err := hf.filter(a.Now())
 	hf.err = err
+	var only []string
+	if hf.only != "" {
+		only = []string{hf.only}
+	}
 	if err != "" {
+		// A field half typed keeps its error, and the filter applied
+		// stays; the branches hidden or shown alone apply all the same.
+		v := t.s.HistoryView()
+		if !slices.Equal(v.Hidden, t.prefs.hidden) || !slices.Equal(v.Only, only) {
+			v.Hidden, v.Only = slices.Clone(t.prefs.hidden), only
+			t.s.SetHistoryView(v)
+		}
 		return
 	}
 	hf.applied, hf.typed = hf.key(), time.Time{}
-	v := session.HistoryView{Filter: f, Hidden: slices.Clone(t.prefs.hidden)}
-	if hf.only != "" {
-		v.Only = []string{hf.only}
-	}
-	t.s.SetHistoryView(v)
+	t.s.SetHistoryView(session.HistoryView{Filter: f, Hidden: slices.Clone(t.prefs.hidden), Only: only})
 }
 
 // active counts the filters applied, for the button that opens them:
