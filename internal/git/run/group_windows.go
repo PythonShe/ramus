@@ -80,5 +80,8 @@ func joinGroup(cmd *exec.Cmd) {
 	}()
 }
 
+// watchGroup has nothing to watch: ending the job ends all of it at once.
+func watchGroup(cmd *exec.Cmd) (waited func()) { return func() {} }
+
 // leaveGroup forgets the group of a command that did not start.
 func leaveGroup(cmd *exec.Cmd) { groups.Delete(cmd) }

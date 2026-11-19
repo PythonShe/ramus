@@ -4,9 +4,15 @@ package run
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
+
+	"ramus/internal/git/gittest"
 )
 
 // git runs as the leader of a session of its own: it has no terminal to
@@ -24,6 +30,25 @@ func TestOwnSession(t *testing.T) {
 	}
 	if sid != cmd.Process.Pid {
 		t.Fatalf("git is in session %d, not its own (%d)", sid, cmd.Process.Pid)
+	}
+}
+
+// A cancelled command's hook that ignores SIGTERM is killed, not left to
+// run to its end.
+func TestCancelKillsWhatIgnoresTerm(t *testing.T) {
+	r := gittest.Init(t)
+	mark := filepath.Join(t.TempDir(), "ran")
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := runner(t, 1).Run(ctx, &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir,
+		Config: []string{fmt.Sprintf("alias.s=!trap '' TERM; sleep 3; touch %q", mark)}, Args: []string{"s"}})
+	if err == nil {
+		t.Fatal("ran to the end")
+	}
+	time.Sleep(time.Until(start.Add(4 * time.Second)))
+	if _, err := os.Stat(mark); err == nil {
+		t.Fatal("the hook outlived the cancelled command and ran to its end")
 	}
 }
 

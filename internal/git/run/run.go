@@ -491,6 +491,7 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	t0 := time.Now()
 	r.running.Add(1)
 	r.commands.Add(1)
+	waited := watchGroup(cmd)
 	err := r.Start(cmd)
 	if err == nil {
 		if c.Background {
@@ -504,6 +505,7 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 			err = nil
 		}
 	}
+	waited()
 	r.running.Add(-1)
 	r.commands.Add(-1)
 	res := Result{Stdout: stdout.buf, Stderr: stderr.String(), Duration: time.Since(t0)}
