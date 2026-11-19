@@ -3259,6 +3259,10 @@
   "@appFileNotWritten": {
     "description": "One of the app's own files did not read and could not be moved aside, so the app leaves it alone; changes made in the app are not saved to it."
   },
+  "appNotSavedAtQuit": "{count, plural, one {When Ramus last quit, {files} could not be written in time and may lack the last change made to it.} other {When Ramus last quit, {files} could not be written in time and may lack the last changes made to them.}}",
+  "@appNotSavedAtQuit": {
+    "description": "Told once at launch: the last quit gave up waiting for some of the app's own files to be written (a disk that did not answer, or was full). files is a comma-separated list of full paths, or git config --global for the git identity; count is how many."
+  },
   "appEditorUnusable": "The editor in the settings, {program}, cannot be used, so files open in another: {error}",
   "@appEditorUnusable": {
     "description": "The editor the user chose is gone or is no program. program is its path."

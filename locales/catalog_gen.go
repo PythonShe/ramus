@@ -15257,6 +15257,28 @@ func (msgs Messages) AppFileNotWritten(file string, error string) string {
 	return Catalog.Format(msgs.locale, "appFileNotWritten", map[string]any{"file": file, "error": error})
 }
 
+// AppNotSavedAtQuit says "{count, plural, one {When Ramus last quit, {files} could not be written in time and may lack the last change made to …"
+// in the language the app shows.
+//
+// Told once at launch: the last quit gave up waiting for some of the app's
+// own files to be written (a disk that did not answer, or was full). files
+// is a comma-separated list of full paths, or git config --global for the
+// git identity; count is how many.
+func AppNotSavedAtQuit(count int, files string) string {
+	return In(i18n.Locale()).AppNotSavedAtQuit(count, files)
+}
+
+// AppNotSavedAtQuit says "{count, plural, one {When Ramus last quit, {files} could not be written in time and may lack the last change made to …"
+// in the language of msgs.
+//
+// Told once at launch: the last quit gave up waiting for some of the app's
+// own files to be written (a disk that did not answer, or was full). files
+// is a comma-separated list of full paths, or git config --global for the
+// git identity; count is how many.
+func (msgs Messages) AppNotSavedAtQuit(count int, files string) string {
+	return Catalog.Format(msgs.locale, "appNotSavedAtQuit", map[string]any{"count": count, "files": files})
+}
+
 // AppEditorUnusable says "The editor in the settings, {program}, cannot be used, so files open in another: {error}"
 // in the language the app shows.
 //

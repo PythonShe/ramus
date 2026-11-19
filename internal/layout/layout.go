@@ -273,6 +273,9 @@ type Keeper struct {
 // NewKeeper keeps the layout at path.
 func NewKeeper(path string) *Keeper { return &Keeper{path: path} }
 
+// Path is the file the layout is kept in.
+func (k *Keeper) Path() string { return k.path }
+
 // Keep has ws written soon; a later Keep before then replaces it.
 func (k *Keeper) Keep(ws []Window) {
 	k.mu.Lock()

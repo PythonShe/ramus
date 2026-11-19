@@ -27,7 +27,9 @@ RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json 
 - `main.go`: starts the app and opens its windows, or, when git or ssh
   starts it as SSH_ASKPASS, runs as the askpass helper
   (`internal/askpass`) and exits; nothing else lives here. `windows.go` keeps the windows, one `ui.App` each, sharing
-  the stores, the settings and git. `probe.go` is the cold-start probe
+  the stores, the settings and git, and its quit waits for their files;
+  `unsaved.go` records those a quit gave up on, which the next launch
+  tells once. `probe.go` is the cold-start probe
   mode (`RAMUS_PROBE_STARTUP`), which `scripts/coldstart` times;
   `.github/workflows/ci.yml` runs both. `about.go` is the About window and
   the update check, the app's one use of the network of its own, made

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"maps"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,6 +56,15 @@ type windows struct {
 	// roleKeys are the shortcuts of the app menu's items with a role, as
 	// the menu last made has them (roleKeys).
 	roleKeys map[string]string
+	// dataDir is the app's data folder, "" in the probe: where a quit
+	// records the files it gave up on (unsavedFile), told unsaved when it
+	// did.
+	dataDir string
+	told    bool
+	// waiting are the waits of a quit (pendingWrite) not ended yet, by
+	// key, which the next quit waits on rather than start them again.
+	waitMu  sync.Mutex
+	waiting map[string]*waiting
 }
 
 // layoutDelay is how long changes to what is open gather before the
@@ -94,70 +106,184 @@ func (ws *windows) layoutChanged() {
 // may end the process as soon as the quit's listeners return, and the
 // files are small. The wait is bounded, stopWait for them all: a write
 // that is not done by then is given up, which a write through
-// statefile.WriteFile survives whole, the file as it was before.
+// statefile.WriteFile survives whole, the file as it was before. The
+// files given up on, or whose write failed, are recorded for the next
+// launch to tell (recordUnsaved), within unsavedWait more.
 func (ws *windows) flush() {
-	var waits []func()
+	var waits []pendingWrite
 	if k := ws.deps.SettingsKeeper; k != nil {
-		waits = append(waits, func() { k.WaitWrites(-1) })
+		// A change a write that failed left out is tried once more.
+		k.SaveNow()
+		waits = append(waits, pendingWrite{"settings", k.Path(), func() bool {
+			return k.WaitWrites(stopWait) && !k.Unsaved()
+		}})
 	}
 	for _, w := range ws.list {
 		w.app.SaveIdentity()
-		waits = append(waits, w.app.WaitIdentity)
+		// Unbounded, but git, which writes it, is time-limited.
+		waits = append(waits, pendingWrite{fmt.Sprintf("identity %p", w.app), identityFile, func() bool {
+			w.app.WaitIdentity()
+			return true
+		}})
 	}
 	// A repository just opened is recorded once it is found to be one,
 	// which reads its folder.
+	libPath := ws.dataFile("library.json")
+	if lib := ws.deps.Library; lib != nil {
+		libPath = lib.Path()
+	}
 	for _, w := range ws.list {
-		waits = append(waits, func() { w.app.WaitWrites(stopWait) })
+		waits = append(waits, pendingWrite{fmt.Sprintf("library %p", w.app), libPath, func() bool {
+			return w.app.WaitWrites(stopWait)
+		}})
 	}
 	// Trust just given, by a click or for a repository the user cloned
 	// or made, holds at the next launch.
 	if ts := ws.deps.Trust; ts != nil {
-		waits = append(waits, func() { ts.Wait(stopWait) })
+		waits = append(waits, pendingWrite{"trust", ws.dataFile("trust.json"), func() bool { return ts.Wait(stopWait) }})
 	}
 	if d := ws.deps.Drafts; d != nil {
-		waits = append(waits, func() {
-			if err := d.Flush(); err != nil {
+		waits = append(waits, pendingWrite{"drafts", ws.dataFile("drafts"), func() bool {
+			err := d.Flush()
+			if err != nil {
 				log.Print(err)
 			}
-		})
+			return err == nil
+		}})
 	}
 	if ws.keep != nil && ws.found && ws.gitErr == nil && len(ws.list) > 0 {
 		k, l := ws.keep, ws.layout()
-		waits = append(waits, func() {
-			if err := k.Flush(l); err != nil {
+		waits = append(waits, pendingWrite{"layout", k.Path(), func() bool {
+			err := k.Flush(l)
+			if err != nil {
 				log.Print(err)
 			}
-		})
+			return err == nil
+		}})
 	}
-	if !waitAll(stopWait, waits) {
-		log.Print("quit: the app's files were not all written in time")
+	left := ws.waitAll(stopWait, waits)
+	if len(left) > 0 {
+		log.Printf("quit: not written: %s", strings.Join(left, ", "))
 	}
+	ws.recordUnsaved(left)
 }
 
-// waitAll runs each of waits on a goroutine of its own and returns once
-// they have all returned, true, or after d, false. A wait joins a quit's
-// through it when it returns once what was asked of it before is on
-// disk, may run on any goroutine, and never needs the main thread to
-// return, which is held here meanwhile: a callback of its writes runs
-// after the write counts as done, or posts to the main thread without
-// waiting.
-func waitAll(d time.Duration, waits []func()) bool {
-	var wg sync.WaitGroup
-	for _, w := range waits {
-		wg.Go(w)
+// identityFile names the git identity among the files a quit gave up on:
+// git writes it, into its global config.
+const identityFile = "git config --global"
+
+// dataFile is the file name in the app's data folder.
+func (ws *windows) dataFile(name string) string {
+	if ws.dataDir == "" {
+		return name
 	}
-	done := make(chan struct{})
+	return filepath.Join(ws.dataDir, name)
+}
+
+// pendingWrite is a write a quit waits for. wait returns once what was
+// asked of it before is on disk, true, or it was given up or failed,
+// false. It may run on any goroutine and never needs the main thread to
+// return, which the quit holds meanwhile: a callback of its writes runs
+// after the write counts as done, or posts to the main thread without
+// waiting. file names it for the next launch; key tells it from the
+// others, to wait on one a quit before started.
+type pendingWrite struct {
+	key, file string
+	wait      func() bool
+}
+
+// waiting is a wait of pendingWrite's running: done is closed once it
+// returned ok.
+type waiting struct {
+	done chan struct{}
+	ok   bool
+}
+
+// start runs wait on a goroutine of its own, or returns the one of key
+// still running, started by an earlier quit: a write that hangs (a
+// volume that does not answer) holds one goroutine however many times
+// the app closes its last window, not one more each time.
+func (ws *windows) start(key string, wait func() bool) *waiting {
+	ws.waitMu.Lock()
+	defer ws.waitMu.Unlock()
+	if w := ws.waiting[key]; w != nil {
+		return w
+	}
+	if ws.waiting == nil {
+		ws.waiting = map[string]*waiting{}
+	}
+	w := &waiting{done: make(chan struct{})}
+	ws.waiting[key] = w
 	go func() {
-		wg.Wait()
-		close(done)
+		ok := wait()
+		ws.waitMu.Lock()
+		w.ok = ok
+		delete(ws.waiting, key)
+		ws.waitMu.Unlock()
+		close(w.done)
 	}()
+	return w
+}
+
+// waitAll starts waits and returns, once they have all returned or after
+// d, the files of those that did not return true, each once. Nothing it
+// started outlives d but a wait that does not return itself.
+func (ws *windows) waitAll(d time.Duration, waits []pendingWrite) []string {
+	started := make([]*waiting, len(waits))
+	for i, p := range waits {
+		started[i] = ws.start(p.key, p.wait)
+	}
 	t := time.NewTimer(d)
 	defer t.Stop()
-	select {
-	case <-done:
+	expired := false
+	var left []string
+	for i, w := range started {
+		if !expired {
+			select {
+			case <-w.done:
+			case <-t.C:
+				expired = true
+			}
+		}
+		select {
+		case <-w.done:
+			if w.ok {
+				continue
+			}
+		default:
+		}
+		if !slices.Contains(left, waits[i].file) {
+			left = append(left, waits[i].file)
+		}
+	}
+	return left
+}
+
+// unsavedWait bounds the writing of the record of the files a quit gave
+// up on, which may be on the volume that did not answer.
+const unsavedWait = 500 * time.Millisecond
+
+// recordUnsaved records files, those a quit gave up on, for the next
+// launch to tell once; none removes the record of an earlier close of
+// the last window, whose files were written since.
+func (ws *windows) recordUnsaved(files []string) {
+	if ws.dataDir == "" || (len(files) == 0 && !ws.told) {
+		return
+	}
+	ws.told = len(files) > 0
+	dir := ws.dataDir
+	w := ws.start("unsaved", func() bool {
+		if err := writeUnsaved(dir, files); err != nil {
+			log.Print(err)
+			return false
+		}
 		return true
+	})
+	t := time.NewTimer(unsavedWait)
+	defer t.Stop()
+	select {
+	case <-w.done:
 	case <-t.C:
-		return false
 	}
 }
 

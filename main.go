@@ -118,6 +118,13 @@ func main() {
 			first.app.Notify(ui.LoadNotice(e))
 		}
 	}
+	if probe == "" {
+		ws.dataDir = dir
+		if files := takeUnsaved(dir); len(files) > 0 {
+			first.app.Notify(unsavedNotice(files))
+		}
+		go removeStale(dir)
+	}
 	// handle carries out a request, made in folder wd, in the window it
 	// belongs in, and returns that window.
 	handle := func(r cli.Request, wd string) *window {
