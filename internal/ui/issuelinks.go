@@ -163,7 +163,7 @@ func (a *App) saveLinks() {
 	}
 	t, lib, update := d.t, a.Library, a.Update
 	d.open = false
-	a.goWork(nil, func() {
+	a.goWrite(func() {
 		err := lib.SetIssueLinks(t.s.Path, rules)
 		update(func() {
 			if err != nil {
