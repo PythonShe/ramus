@@ -202,3 +202,44 @@ func TestUntrackedFolderFiltered(t *testing.T) {
 		t.Fatalf("bar staged too: %q", s)
 	}
 }
+
+// The folder's own row, kept by a filter for a file of it, acts on the
+// files shown alone, as the section's header does: its menu's discard
+// and its pane's Stage Folder leave the files the filter hides.
+func TestUntrackedFolderRowFiltered(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	r.Write("new/foo.txt", "foo\n")
+	r.Write("new/bar.txt", "bar\n")
+	r.Write("other/foo.txt", "foo\n")
+	r.Write("other/baz.txt", "baz\n")
+	h.until("the files", func() bool { return hasExact(h, "bar.txt") && hasExact(h, "baz.txt") })
+	tb.cv.filter = "foo"
+	h.until("the filter", func() bool { return hasExact(h, "foo.txt") && !hasExact(h, "bar.txt") && !hasExact(h, "baz.txt") })
+	exists := func(p string) bool { _, err := os.Stat(filepath.Join(r.Dir, p)); return err == nil }
+
+	h.tt.RightClick("new/")
+	if err := h.tt.ChooseMenuItem(locales.ChangesDiscardFiles(1)); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the question", func() bool { return tb.cv.confirm.open })
+	h.click(locales.ChangesDiscard())
+	h.until("foo deleted", func() bool { return !exists("new/foo.txt") })
+	h.idle(tb, "the delete")
+	if !exists("new/bar.txt") {
+		t.Fatal("the folder's row deleted a file the filter hid")
+	}
+
+	h.until("other listed", func() bool { return h.tt.HasText("other/") })
+	h.click("other/")
+	h.click(locales.ChangesStageFolder())
+	h.until("foo staged", func() bool { return strings.Contains(r.Git("diff", "--cached", "--name-only"), "other/foo.txt") })
+	h.idle(tb, "the stage")
+	if s := r.Git("status", "--porcelain"); !strings.Contains(s, "?? other/baz.txt") {
+		t.Fatalf("the folder's pane staged a file the filter hid: %q", s)
+	}
+}

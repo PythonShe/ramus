@@ -832,20 +832,20 @@ func (cv *changesState) chosenRows(m *changeModel, r changeRow) []changeRow {
 // targets are what a write on rows acts on: the status entries they
 // cover, a folder of the tree's expanded, and files of untracked folders
 // apart from them. A file of such a folder is one when the folder's own
-// row is not among rows. A folder of the tree, as a section, acts on what
-// it shows: an untracked folder in it that the filter keeps only for
-// files of it the filter matches stands for those files alone.
+// row is not among rows. Each row, as a section, acts on what it shows:
+// an untracked folder that the filter keeps only for files of it the
+// filter matches stands for those files alone, its own row included.
 func (m *changeModel) targets(rows []changeRow) (es []int32, files []string) {
 	t := targetSet{m: m, seen: map[int32]bool{}}
 	for _, r := range rows {
 		if r.kind == rowFile {
-			t.entry(r.idx, true)
+			t.entry(r.idx)
 		}
 	}
 	for _, r := range rows {
 		if r.kind == rowDir {
 			for _, e := range m.under(r.sec, m.dir(r.sec, r.idx), true) {
-				t.entry(e, false)
+				t.entry(e)
 			}
 		}
 	}
@@ -862,7 +862,7 @@ func (m *changeModel) targets(rows []changeRow) (es []int32, files []string) {
 func (m *changeModel) sectionTargets(sec section) (es []int32, files []string) {
 	t := targetSet{m: m, seen: map[int32]bool{}}
 	for _, e := range m.files[sec] {
-		t.entry(e, false)
+		t.entry(e)
 	}
 	return t.es, t.files
 }
@@ -879,14 +879,14 @@ type targetSet struct {
 }
 
 // entry adds entry e, an untracked folder kept only for files of it
-// the filter matches standing for those files unless whole.
-func (t *targetSet) entry(e int32, whole bool) {
+// the filter matches standing for those files.
+func (t *targetSet) entry(e int32) {
 	if t.seen[e] {
 		return
 	}
 	t.seen[e] = true
 	m := t.m
-	if !whole && len(m.q) > 0 && untrackedFolder(m.st, int(e)) && !containsFold(m.st.Path(int(e)), m.q) {
+	if len(m.q) > 0 && untrackedFolder(m.st, int(e)) && !containsFold(m.st.Path(int(e)), m.q) {
 		f, _ := m.listed(e)
 		for _, p := range f.Paths {
 			if containsFold([]byte(p), m.q) {
