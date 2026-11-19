@@ -38,7 +38,10 @@ type Repository struct {
 	// Restricted is a repository the user has not trusted: git only reads,
 	// with nothing from the repository's own config allowed to run.
 	Restricted bool
-	life       *lifetime.Lifetime
+	// TrustDir is the directory the user's trust in this repository is
+	// recorded under; see Open.
+	TrustDir string
+	life     *lifetime.Lifetime
 	// hidden is what HideFolders keeps.
 	hidden hiddenFolders
 
@@ -109,6 +112,13 @@ func stamp(path string) fileStamp {
 // Open finds the repository at or above path, checks it is safe to read,
 // and reads its config. trusted says whether the user trusts a
 // repository, by its location; one not trusted opens Restricted.
+//
+// Trust is recorded under the common git directory, so a repository's
+// worktrees share it, but only for a work tree git itself made one with
+// that directory (see TrustDir). Any other folder is asked about with
+// CommonDir set to its own TrustDir: a folder whose .git file or
+// commondir names a trusted repository does not take that trust, nor
+// run the trusted config's hooks on files of its own.
 func Open(ctx context.Context, r *run.Runner, path string, trusted func(Location) bool) (*Repository, error) {
 	loc, err := Discover(path)
 	if err != nil {
@@ -129,7 +139,10 @@ func Open(ctx context.Context, r *run.Runner, path string, trusted func(Location
 		life: lifetime.New(context.Background()),
 	}
 	repo.config.Store(cfg)
-	if !trusted(loc) {
+	repo.TrustDir = TrustDir(loc, cfg)
+	asked := loc
+	asked.CommonDir = repo.TrustDir
+	if !trusted(asked) {
 		repo.Restricted = true
 		repo.Runner = r.Hardened(trust.Hardening(cfg))
 	}

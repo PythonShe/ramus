@@ -881,7 +881,7 @@ func (s *Session) Trust() error {
 				s.reopenTrusted()
 			}
 		})
-		err = ts.Set(r.CommonDir, true)
+		err = ts.Set(r.TrustDir, true)
 	})
 	if err != nil {
 		return err
