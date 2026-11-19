@@ -1131,7 +1131,6 @@
   "@commitPullRequest": {
     "description": "Labels the GitHub pull request a commit came in by."
   },
-  "commitCopyMessage": "Copy Message",
   "commitCopyPatch": "Copy Patch",
   "commitSigGood": "Good signature",
   "commitSigGoodBy": "Good signature by {signer}",
@@ -1551,7 +1550,6 @@
   "@refsFolderToggle": {
     "description": "Read aloud for the arrow before a folder of branches or tags, which opens or closes it; state is open or closed."
   },
-  "repoHiddenInHistory": "Hidden in history",
   "repoHiddenRef": "{name}, hidden in history",
   "@repoHiddenRef": {
     "description": "Tooltip of a branch or tag in the sidebar that the history leaves out: its whole name and why it is dimmed."

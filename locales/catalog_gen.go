@@ -5701,16 +5701,6 @@ func (msgs Messages) CommitPullRequest(kind string) string {
 	return Catalog.Format(msgs.locale, "commitPullRequest", map[string]any{"kind": kind})
 }
 
-// CommitCopyMessage says "Copy Message"
-// in the language the app shows.
-func CommitCopyMessage() string { return In(i18n.Locale()).CommitCopyMessage() }
-
-// CommitCopyMessage says "Copy Message"
-// in the language of msgs.
-func (msgs Messages) CommitCopyMessage() string {
-	return Catalog.Format(msgs.locale, "commitCopyMessage", nil)
-}
-
 // CommitCopyPatch says "Copy Patch"
 // in the language the app shows.
 func CommitCopyPatch() string { return In(i18n.Locale()).CommitCopyPatch() }
@@ -7921,16 +7911,6 @@ func RefsFolderToggle(state string) string { return In(i18n.Locale()).RefsFolder
 // or closes it; state is open or closed.
 func (msgs Messages) RefsFolderToggle(state string) string {
 	return Catalog.Format(msgs.locale, "refsFolderToggle", map[string]any{"state": state})
-}
-
-// RepoHiddenInHistory says "Hidden in history"
-// in the language the app shows.
-func RepoHiddenInHistory() string { return In(i18n.Locale()).RepoHiddenInHistory() }
-
-// RepoHiddenInHistory says "Hidden in history"
-// in the language of msgs.
-func (msgs Messages) RepoHiddenInHistory() string {
-	return Catalog.Format(msgs.locale, "repoHiddenInHistory", nil)
 }
 
 // RepoHiddenRef says "{name}, hidden in history"
