@@ -75,51 +75,113 @@ const maxPixels = 64 << 20
 // copies of their pixels while it is made.
 const maxDiffPixels = 16 << 20
 
-// pictureSlot lets one picture's sides decode, or one difference be
+// pictureTurn lets one picture's sides decode, or one difference be
 // made, at a time: each can take hundreds of megabytes, and arrowing
 // through a folder of pictures starts one per file shown.
-var pictureSlot = make(chan struct{}, 1)
-
-// pictureWaiters are the decodes waiting for pictureSlot, oldest first,
-// each holding its sides' bytes: at most maxPictureWaiters wait, and one
-// more sends the oldest away, whose view asks again while it shows it.
-var pictureWaiters struct {
+var pictureTurn struct {
 	sync.Mutex
-	queue []chan struct{}
+	busy bool
+	// queue are the decodes waiting for the turn, oldest first, each
+	// holding its sides' bytes: at most maxPictureWaiters wait, and one
+	// more sends the oldest away. The turn goes to the newest, the
+	// picture last shown.
+	queue []*pictureWaiter
+	// freed is closed, and replaced, as a turn ends, for the decodes
+	// sent away while it ran; nil while none waits on it.
+	freed chan struct{}
+	// sentAway counts the decodes sent away.
+	sentAway int
+}
+
+// pictureWaiter is a decode waiting for its turn: turn is closed as it
+// gets it, away as it is sent away, with the freed of then in freed.
+type pictureWaiter struct {
+	turn, away chan struct{}
+	freed      chan struct{}
 }
 
 const maxPictureWaiters = 4
 
-// waitPicture waits for pictureSlot and reports whether it took it: not
-// once the patch went stale or life ended, as the repository closing,
-// nor once a newer decode sent it away, which away reports.
+// waitPicture waits for the picture turn and reports whether it took
+// it, then to be given back with endPicture: not once the patch went
+// stale or life ended, as the repository closing, nor once a newer
+// decode sent it away, which away reports once a turn has ended since.
+// Asked again at once, a decode sent away would send away another,
+// which would ask again: the views would go round at the frame rate for
+// as long as one long decode runs.
 func waitPicture(stale *staleness, life <-chan struct{}) (took, away bool) {
 	if stale.Load() {
 		return false, false
 	}
-	sent := make(chan struct{})
-	w := &pictureWaiters
-	w.Lock()
-	if len(w.queue) == maxPictureWaiters {
-		close(w.queue[0])
-		w.queue = slices.Delete(w.queue, 0, 1)
-	}
-	w.queue = append(w.queue, sent)
-	w.Unlock()
-	defer func() {
-		w.Lock()
-		w.queue = slices.DeleteFunc(w.queue, func(c chan struct{}) bool { return c == sent })
-		w.Unlock()
-	}()
-	select {
-	case pictureSlot <- struct{}{}:
+	p := &pictureTurn
+	p.Lock()
+	if !p.busy {
+		p.busy = true
+		p.Unlock()
 		return true, false
-	case <-sent:
-		return false, true
+	}
+	me := &pictureWaiter{turn: make(chan struct{}), away: make(chan struct{})}
+	if len(p.queue) == maxPictureWaiters {
+		// The queue is full only while a turn runs, which ends.
+		old := p.queue[0]
+		p.queue = slices.Delete(p.queue, 0, 1)
+		if p.freed == nil {
+			p.freed = make(chan struct{})
+		}
+		old.freed = p.freed
+		p.sentAway++
+		close(old.away)
+	}
+	p.queue = append(p.queue, me)
+	p.Unlock()
+	select {
+	case <-me.turn:
+		return true, false
+	case <-me.away:
+		select {
+		case <-me.freed:
+			return false, true
+		case <-stale.Done():
+		case <-life:
+		}
+		return false, false
 	case <-stale.Done():
 	case <-life:
 	}
+	p.Lock()
+	if i := slices.Index(p.queue, me); i >= 0 {
+		p.queue = slices.Delete(p.queue, i, i+1)
+		p.Unlock()
+		return false, false
+	}
+	p.Unlock()
+	// Out of the queue meanwhile: given the turn, which goes on, or sent
+	// away.
+	select {
+	case <-me.turn:
+		endPicture()
+	default:
+	}
 	return false, false
+}
+
+// endPicture ends the turn waitPicture gave, handing it to the newest
+// decode waiting.
+func endPicture() {
+	p := &pictureTurn
+	p.Lock()
+	defer p.Unlock()
+	if p.freed != nil {
+		close(p.freed)
+		p.freed = nil
+	}
+	if n := len(p.queue); n > 0 {
+		next := p.queue[n-1]
+		p.queue = p.queue[:n-1]
+		close(next.turn)
+		return
+	}
+	p.busy = false
 }
 
 // decodePicture decodes one side of a picture's change, and says its
@@ -170,7 +232,7 @@ func (a *App) decodePictures(pv *patchView) {
 			}
 			return
 		}
-		defer func() { <-pictureSlot }()
+		defer endPicture()
 		var imgs [2]ui.ImageSource
 		var about [2]string
 		var notDrawn []string
@@ -409,7 +471,7 @@ func (a *App) makeDifference(c *ui.Context, pv *patchView) {
 			}
 			return
 		}
-		defer func() { <-pictureSlot }()
+		defer endPicture()
 		if stale.Load() {
 			return
 		}

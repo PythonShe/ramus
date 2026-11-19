@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -189,10 +190,10 @@ func TestPictureDecodeStopsWhenStale(t *testing.T) {
 	runtime.GC()
 	runtime.ReadMemStats(&before)
 	goroutines := runtime.NumGoroutine()
-	pictureSlot <- struct{}{} // another picture decoding
+	takePicture(t) // another picture decoding
 	h.app.decodePictures(pv)
 	h.app.setPatch(pv, session.PatchResult{}) // another file chosen
-	<-pictureSlot
+	endPicture()
 	for deadline := time.Now().Add(10 * time.Second); runtime.NumGoroutine() > goroutines; {
 		if time.Now().After(deadline) {
 			t.Fatal("the decode did not end")
@@ -208,20 +209,35 @@ func TestPictureDecodeStopsWhenStale(t *testing.T) {
 	}
 }
 
-// waitingPictures is how many decodes wait for pictureSlot.
-func waitingPictures() int {
-	pictureWaiters.Lock()
-	defer pictureWaiters.Unlock()
-	return len(pictureWaiters.queue)
+// takePicture takes the picture turn, as a long decode does, until
+// endPicture.
+func takePicture(t *testing.T) {
+	t.Helper()
+	if took, _ := waitPicture(nil, nil); !took {
+		t.Fatal("the picture turn is taken")
+	}
 }
 
-// untilWaiting waits until n decodes wait for pictureSlot: each joins
-// the queue, and leaves it, itself.
+// picturesWaiting is how many decodes wait for the picture turn, and how
+// many were sent away so far.
+func picturesWaiting() (waiting, sentAway int) {
+	p := &pictureTurn
+	p.Lock()
+	defer p.Unlock()
+	return len(p.queue), p.sentAway
+}
+
+// untilWaiting waits until n decodes wait for the picture turn: each
+// joins the queue, and leaves it, itself.
 func untilWaiting(t *testing.T, what string, n int) {
 	t.Helper()
-	for deadline := time.Now().Add(10 * time.Second); waitingPictures() != n; time.Sleep(time.Millisecond) {
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(time.Millisecond) {
+		if waiting, _ := picturesWaiting(); waiting == n {
+			return
+		}
 		if time.Now().After(deadline) {
-			t.Fatalf("%s: %d decodes wait, not %d", what, waitingPictures(), n)
+			waiting, _ := picturesWaiting()
+			t.Fatalf("%s: %d decodes wait, not %d", what, waiting, n)
 		}
 	}
 }
@@ -231,8 +247,8 @@ func untilWaiting(t *testing.T, what string, n int) {
 // decode ahead of it ends.
 func TestPictureWaitEnds(t *testing.T) {
 	h := newHarness(t)
-	pictureSlot <- struct{}{} // another picture decoding, for as long as it takes
-	defer func() { <-pictureSlot }()
+	takePicture(t) // another picture decoding, for as long as it takes
+	defer endPicture()
 
 	pv := &patchView{}
 	h.app.setPatch(pv, session.PatchResult{})
@@ -257,47 +273,84 @@ func TestPictureWaitEnds(t *testing.T) {
 
 // However many files ask for their pictures while one decodes, only a
 // few wait, holding their bytes: one more sends the oldest away, whose
-// view asks again if it still shows it.
+// view asks again, if it still shows it, once a decode has ended. Asked
+// again at once, it would send another away, which would ask again, a
+// frame's work over and over for as long as the long decode runs. Once
+// it ends, the picture asked for last, the one shown, decodes first,
+// and every one still shown gets its turn.
 func TestPictureWaitersAreBounded(t *testing.T) {
 	h := newHarness(t)
-	pictureSlot <- struct{}{}
-	defer func() { <-pictureSlot }()
-	pvs := make([]*patchView, maxPictureWaiters+2)
+	takePicture(t)
+	held := true
+	t.Cleanup(func() {
+		if held {
+			endPicture()
+		}
+	})
+	_, before := picturesWaiting()
+	pvs := make([]*patchView, maxPictureWaiters+3)
 	for i := range pvs {
 		pv := &patchView{}
 		pvs[i] = pv
 		h.app.setPatch(pv, session.PatchResult{})
 		pv.pics.sides = [2][]byte{[]byte("old"), []byte("new")}
 		h.app.decodePictures(pv)
-		untilWaiting(t, "a file shown", min(i+1, maxPictureWaiters))
+		for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(time.Millisecond) {
+			waiting, away := picturesWaiting()
+			if waiting == min(i+1, maxPictureWaiters) && away-before == max(0, i+1-maxPictureWaiters) {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("file %d shown: %d wait, %d sent away", i, waiting, away-before)
+			}
+		}
 	}
-	sentAway := func() {
-		t.Helper()
+	// Frames go by while the long decode runs, each building every view,
+	// which asks for its pictures unless it waits for them.
+	frame := func() {
+		for _, pv := range pvs {
+			h.app.decodePictures(pv)
+		}
+		for len(h.updates) > 0 {
+			(<-h.updates)()
+		}
+	}
+	for range 200 {
+		frame()
+		runtime.Gosched()
+	}
+	if waiting, away := picturesWaiting(); waiting != maxPictureWaiters || away-before != len(pvs)-maxPictureWaiters {
+		t.Fatalf("over 200 frames of one decode, %d sent away; %d wait", away-before, waiting)
+	}
+	for i, pv := range pvs {
+		if !pv.pics.asked {
+			t.Fatalf("file %d asks again while the decode runs", i)
+		}
+	}
+
+	endPicture()
+	held = false
+	var order []int
+	for len(order) < len(pvs) {
 		select {
 		case fn := <-h.updates:
 			fn()
 		case <-time.After(10 * time.Second):
-			t.Fatal("no decode sent away")
+			t.Fatalf("decoded %v of %d", order, len(pvs))
+		}
+		for i, pv := range pvs {
+			if pv.pics.pictured && !slices.Contains(order, i) {
+				order = append(order, i)
+			}
+			h.app.decodePictures(pv)
 		}
 	}
-	sentAway()
-	sentAway()
-	for i, pv := range pvs {
-		if want := i >= 2; pv.pics.asked != want {
-			t.Fatalf("file %d asked %v", i, pv.pics.asked)
-		}
+	if order[0] != len(pvs)-1 {
+		t.Fatalf("decoded in the order %v: the file shown last not first", order)
 	}
-	// Shown again, the first asks again, sending the next oldest away.
-	h.app.decodePictures(pvs[0])
-	untilWaiting(t, "asked again", maxPictureWaiters)
-	sentAway()
-	if pvs[2].pics.asked || !pvs[0].pics.asked {
-		t.Fatalf("asked: %v, %v", pvs[0].pics.asked, pvs[2].pics.asked)
+	if _, away := picturesWaiting(); away-before > len(pvs)*len(pvs) {
+		t.Fatalf("%d sent away for %d files", away-before, len(pvs))
 	}
-	for _, pv := range pvs {
-		h.app.setPatch(pv, session.PatchResult{})
-	}
-	untilWaiting(t, "all moved on", 0)
 }
 
 // A patch replaced lets go of the lines picked in the viewer before,
