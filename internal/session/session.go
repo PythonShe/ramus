@@ -871,7 +871,14 @@ func (s *Session) Trust() error {
 		return nil
 	}
 	ts, update := s.trust, s.update
+	// Counted from the click, not from when the goroutine starts: a quit
+	// right after it waits for the save (trust.Store.Wait).
+	saved := func() {}
+	if sv, ok := any(ts).(trustSaver); ok {
+		saved = sv.Saving()
+	}
 	err := r.Life().Go(func(context.Context) {
+		defer saved()
 		err := errors.New("session: recording the trust panicked")
 		// Deferred, to run though Set panicked: else Trust would never
 		// write again.
@@ -889,11 +896,16 @@ func (s *Session) Trust() error {
 		err = ts.Set(r.TrustDir, true)
 	})
 	if err != nil {
+		saved()
 		return err
 	}
 	s.trusting = true
 	return nil
 }
+
+// trustSaver is a trust store that counts a save the caller is about to
+// make as under way, until the func Saving returns is called.
+type trustSaver interface{ Saving() func() }
 
 // reopenTrusted opens the repository again once trusted.
 func (s *Session) reopenTrusted() {

@@ -159,6 +159,45 @@ func TestTrustNotRecorded(t *testing.T) {
 	}
 }
 
+// A trust given just before a quit is in the file once the quit has
+// waited for the store's saves: the save counts from the click, not from
+// when the goroutine making it starts.
+func TestTrustThenQuitIsSaved(t *testing.T) {
+	r := gittest.Init(t)
+	r.Commit("one")
+	m := make(mainThread, 64)
+	path := filepath.Join(t.TempDir(), "trust.json")
+	ts, err := trust.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, ok := any(ts).(interface {
+		trustSaver
+		Wait(time.Duration) bool
+	})
+	if !ok {
+		t.Skip("the trust store counts no saves to come")
+	}
+	s := Open(testrun.Runner(t), ts, r.Dir, m.update)
+	defer func() { s.Close(); <-s.Done() }()
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	dir := s.Repo.TrustDir
+	if err := s.Trust(); err != nil {
+		t.Fatal(err)
+	}
+	// The quit, on the main thread at once.
+	if !w.Wait(20 * time.Second) {
+		t.Fatal("the save never ended")
+	}
+	again, err := trust.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.Trusted(dir) {
+		t.Fatal("the trust given just before the quit was not saved")
+	}
+}
+
 func TestOpenErrorAndCloseWhileOpening(t *testing.T) {
 	m := make(mainThread, 64)
 	s := Open(testrun.Runner(t), nil, t.TempDir(), m.update)
