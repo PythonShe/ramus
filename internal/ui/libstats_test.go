@@ -4,6 +4,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"ramus/internal/libstats"
 )
 
 func TestLibraryStatsView(t *testing.T) {
@@ -64,5 +66,33 @@ func TestLibraryStatsView(t *testing.T) {
 	h.tt.Frame()
 	if s.loading {
 		t.Fatal("still loading once closed")
+	}
+}
+
+// The window closing stops the library statistics reading every
+// repository: no frame of it comes to find the dialog closed.
+func TestLibraryStatsStopWithTheWindow(t *testing.T) {
+	h := newHarness(t)
+	for range 3 {
+		h.lib.Opened(h.repoWith().Dir, time.Now())
+	}
+	h.app.openLibStats()
+	s := &h.app.libStats
+	if !s.loading {
+		t.Fatal("not reading")
+	}
+	h.app.CloseAll()
+	s.loader.Close() // its reading ended, every update it sent is queued
+	for {
+		select {
+		case fn := <-h.updates:
+			fn()
+			continue
+		default:
+		}
+		break
+	}
+	if s.loading || slices.ContainsFunc(s.repos, func(r libstats.Repo) bool { return r.Done }) {
+		t.Fatalf("read on after the window closed: %+v", s.repos)
 	}
 }

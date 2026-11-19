@@ -479,6 +479,12 @@ func (a *App) CloseAll() {
 	}
 	a.tabs, a.active = nil, -1
 	a.stopBriefs()
+	// No frame comes to find the library statistics closed and stop
+	// them: they would read on through the whole library.
+	if s := &a.libStats; s.loader != nil {
+		s.loader.Cancel()
+		s.loading, s.loadedAt = false, ""
+	}
 	cs := &a.clone
 	if cs.job != nil {
 		cs.job.Cancel()
