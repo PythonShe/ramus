@@ -1,6 +1,7 @@
 package write
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -9,6 +10,8 @@ import (
 	"time"
 
 	"ramus/internal/git/catfile"
+	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/lifetime"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/snapshot"
 )
@@ -117,5 +120,62 @@ func TestExpireBackups(t *testing.T) {
 	}
 	if got := backups(); got != amend {
 		t.Fatalf("a backup redo needs expired: %q", got)
+	}
+}
+
+// Backups are shared by a repository's worktrees: an expiry keeps those
+// the History of any queue open on the repository holds, another
+// worktree's or another window's, until that queue closes.
+func TestExpireBackupsKeepsThoseOfOtherQueues(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	wt := filepath.Join(t.TempDir(), "wt")
+	h.r.Git("worktree", "add", "-q", "-b", "side", wt)
+	wtGit := strings.TrimSpace(h.r.Git("-C", wt, "rev-parse", "--absolute-git-dir"))
+	backups := func() string {
+		return strings.TrimSpace(h.r.Git("for-each-ref", "--format=%(refname)", BackupPrefix))
+	}
+	amendIn := func(gitDir, workTree, branch string) *lifetime.Lifetime {
+		life := lifetime.New(context.Background())
+		t.Cleanup(func() { life.Close(); <-life.Done() })
+		q, err := NewQueue(life, testrun.Runner(t), gitDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		q.Refs = refs.New(gitDir, h.r.GitDir(), 20)
+		head := strings.TrimSpace(h.r.Git("-C", workTree, "rev-parse", "HEAD"))
+		op, err := Commit(Where{GitDir: gitDir, WorkTree: workTree}, CommitOptions{Message: "amended", Amend: true, Seen: head, Branch: branch})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := wait(t, q.Submit(op)); err != nil {
+			t.Fatal(err)
+		}
+		return life
+	}
+	// Another worktree's queue, and another on this one, as a second window.
+	others := []*lifetime.Lifetime{amendIn(wtGit, wt, "refs/heads/side"), amendIn(h.r.GitDir(), h.r.Dir, "refs/heads/main")}
+	held := backups()
+	if strings.Count(held, "\n") != 1 {
+		t.Fatalf("backups %q, want one per amend", held)
+	}
+	expire := func() {
+		t.Helper()
+		if _, err := wait(t, h.q.Expire(h.r.Dir, nil, time.Now().Add(time.Hour))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	expire()
+	if got := backups(); got != held {
+		t.Fatalf("a backup another queue's undo needs expired: %q, want %q", got, held)
+	}
+	for _, life := range others {
+		life.Close()
+		<-life.Done()
+	}
+	expire()
+	if got := backups(); got != "" {
+		t.Fatalf("backups of closed queues kept: %q", got)
 	}
 }

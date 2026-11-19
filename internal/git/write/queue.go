@@ -225,7 +225,9 @@ const DefaultLockWait = 5 * time.Second
 // lifetime; jobs still queued then are cancelled.
 func NewQueue(life *lifetime.Lifetime, r *run.Runner, gitDir string) (*Queue, error) {
 	q := &Queue{r: r, life: life, gitDir: gitDir, LockWait: DefaultLockWait, wake: make(chan struct{}, 1)}
+	q.opened(true)
 	if err := life.Go(q.loop); err != nil {
+		q.opened(false)
 		return nil, err
 	}
 	return q, nil
@@ -265,6 +267,7 @@ func (q *Queue) poke() {
 }
 
 func (q *Queue) loop(ctx context.Context) {
+	defer q.opened(false)
 	for {
 		if ctx.Err() != nil {
 			q.closeAll(lifetime.ErrClosed)

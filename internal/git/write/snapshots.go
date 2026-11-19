@@ -4,10 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 	"ramus/internal/git/snapshot"
 )
@@ -69,16 +74,72 @@ func (q *Queue) Expire(workTree string, list []snapshot.Snapshot, cutoff time.Ti
 	}})
 }
 
+// open holds the queues not yet closed. The app runs once, so they are
+// every History there is: an expiry of backups, which all the worktrees
+// of a repository share, keeps those any of them holds, another
+// worktree's, or another window's on the same repository.
+var open struct {
+	sync.Mutex
+	queues map[*Queue]bool
+}
+
+func (q *Queue) opened(yes bool) {
+	open.Lock()
+	defer open.Unlock()
+	if open.queues == nil {
+		open.queues = map[*Queue]bool{}
+	}
+	if yes {
+		open.queues[q] = true
+	} else {
+		delete(open.queues, q)
+	}
+}
+
+// heldBackups are the backup directories the History of every open
+// queue of q's repository holds.
+func (q *Queue) heldBackups() map[string]bool {
+	open.Lock()
+	queues := slices.Collect(maps.Keys(open.queues))
+	open.Unlock()
+	common := commonDir(q.gitDir)
+	keep := map[string]bool{}
+	for _, o := range queues {
+		if o == q || commonDir(o.gitDir) == common {
+			maps.Copy(keep, o.History.backups())
+		}
+	}
+	return keep
+}
+
+// commonDir is the folder of the repository's shared refs, backups
+// among them, for the git directory of any of its worktrees, as the
+// system knows it.
+func commonDir(gitDir string) string {
+	dir := gitDir
+	if b, err := pathsafe.ReadFile(filepath.Join(gitDir, "commondir"), 64<<10); err == nil {
+		if c := strings.TrimSpace(string(b)); filepath.IsAbs(c) {
+			dir = c
+		} else {
+			dir = filepath.Join(gitDir, c)
+		}
+	}
+	if real, err := pathsafe.Real(dir); err == nil {
+		return real
+	}
+	return filepath.Clean(dir)
+}
+
 // expireBackups removes the backups made before cutoff, by the time in
 // their directory's name, in one transaction, each at the value listed,
-// leaving those the History holds.
+// leaving those a History holds.
 func (q *Queue) expireBackups(ctx context.Context, cutoff time.Time) error {
 	res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, Read: true,
 		Args: []string{"for-each-ref", "--format=%(refname) %(objectname)", BackupPrefix}})
 	if err != nil {
 		return err
 	}
-	keep := q.History.backups()
+	keep := q.heldBackups()
 	var in strings.Builder
 	for line := range strings.SplitSeq(string(res.Stdout), "\n") {
 		name, oid, ok := strings.Cut(line, " ")
