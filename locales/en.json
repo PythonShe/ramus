@@ -1501,6 +1501,11 @@
   },
   "opsBisectMarkBad": "Bisecting: mark a bad commit",
   "opsBisectMarkGood": "Bisecting: mark a good commit",
+  "opsBisectOnlySkipped": "Bisecting: only skipped commits are left to test",
+  "opsBisectOwnTerms": "Bisecting with the terms {new} and {old}: mark commits in a terminal",
+  "@opsBisectOwnTerms": {
+    "description": "new and old are the words a bisect started in a terminal marks commits with, in place of bad and good; keep them as they are."
+  },
   "opsBisectShow": "Show",
   "@opsBisectShow": {
     "description": "Shows the first bad commit a bisect found."

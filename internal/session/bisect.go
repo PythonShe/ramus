@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -25,7 +26,17 @@ type BisectState struct {
 	Left, Steps int
 	// FirstBad is the commit found, once only it is left.
 	FirstBad string
+	// New and Old are the words the bisect marks commits with, for bad
+	// and good: "bad" and "good" unless it was started with others, as
+	// git bisect start --term-new=broken --term-old=fixed does, which git
+	// bisect bad and good then refuse.
+	New, Old string
+	// OnlySkipped is set when every commit left to test was skipped.
+	OnlySkipped bool
 }
+
+// OwnTerms reports a bisect marked with words other than bad and good.
+func (b BisectState) OwnTerms() bool { return b.Active && (b.New != "bad" || b.Old != "good") }
 
 // LoadBisect reads the bisect in progress off the main thread and hands it
 // to done on it.
@@ -47,6 +58,13 @@ func readBisect(ctx context.Context, rn *run.Runner, gitDir string) (BisectState
 		return st, nil
 	}
 	st.Active = true
+	st.New, st.Old = "bad", "good"
+	// BISECT_TERMS holds the new term, then the old one.
+	if b, err := os.ReadFile(filepath.Join(gitDir, "BISECT_TERMS")); err == nil && len(b) < 1024 {
+		if lines := strings.Fields(string(b)); len(lines) == 2 {
+			st.New, st.Old = lines[0], lines[1]
+		}
+	}
 	res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true,
 		Args: []string{"for-each-ref", "--format=%(refname)%00%(objectname)", "refs/bisect/"}})
 	if err != nil {
@@ -58,9 +76,9 @@ func readBisect(ctx context.Context, rn *run.Runner, gitDir string) (BisectState
 			continue
 		}
 		switch {
-		case name == "refs/bisect/bad":
+		case name == "refs/bisect/"+st.New:
 			st.Bad = id
-		case strings.HasPrefix(name, "refs/bisect/good-"):
+		case strings.HasPrefix(name, "refs/bisect/"+st.Old+"-"):
 			st.Good = append(st.Good, id)
 		case strings.HasPrefix(name, "refs/bisect/skip-"):
 			st.Skipped = append(st.Skipped, id)
@@ -90,6 +108,24 @@ func readBisect(ctx context.Context, rn *run.Runner, gitDir string) (BisectState
 	st.Left, st.Steps = left, steps
 	if all <= 1 {
 		st.FirstBad, st.Left, st.Steps = st.Bad, 0, 0
+		return st, nil
+	}
+	// rev-list knows nothing of skipped commits: when they are all that
+	// is left besides the bad one, git has nothing more to check out.
+	if all <= len(st.Skipped)+1 {
+		args := append([]string{"rev-list", st.Bad, "--not"}, st.Good...)
+		res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: append(args, "--")})
+		if err != nil {
+			return st, err
+		}
+		only := true
+		for id := range strings.FieldsSeq(string(res.Stdout)) {
+			if id != st.Bad && !slices.Contains(st.Skipped, id) {
+				only = false
+				break
+			}
+		}
+		st.OnlySkipped = only
 	}
 	return st, nil
 }

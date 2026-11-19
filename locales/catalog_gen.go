@@ -7655,6 +7655,34 @@ func (msgs Messages) OpsBisectMarkGood() string {
 	return Catalog.Format(msgs.locale, "opsBisectMarkGood", nil)
 }
 
+// OpsBisectOnlySkipped says "Bisecting: only skipped commits are left to test"
+// in the language the app shows.
+func OpsBisectOnlySkipped() string { return In(i18n.Locale()).OpsBisectOnlySkipped() }
+
+// OpsBisectOnlySkipped says "Bisecting: only skipped commits are left to test"
+// in the language of msgs.
+func (msgs Messages) OpsBisectOnlySkipped() string {
+	return Catalog.Format(msgs.locale, "opsBisectOnlySkipped", nil)
+}
+
+// OpsBisectOwnTerms says "Bisecting with the terms {new} and {old}: mark commits in a terminal"
+// in the language the app shows.
+//
+// new and old are the words a bisect started in a terminal marks commits
+// with, in place of bad and good; keep them as they are.
+func OpsBisectOwnTerms(new string, old string) string {
+	return In(i18n.Locale()).OpsBisectOwnTerms(new, old)
+}
+
+// OpsBisectOwnTerms says "Bisecting with the terms {new} and {old}: mark commits in a terminal"
+// in the language of msgs.
+//
+// new and old are the words a bisect started in a terminal marks commits
+// with, in place of bad and good; keep them as they are.
+func (msgs Messages) OpsBisectOwnTerms(new string, old string) string {
+	return Catalog.Format(msgs.locale, "opsBisectOwnTerms", map[string]any{"new": new, "old": old})
+}
+
 // OpsBisectShow says "Show"
 // in the language the app shows.
 //

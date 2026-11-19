@@ -110,6 +110,26 @@ func TestLoadBisect(t *testing.T) {
 	if b := load(); b.FirstBad != commits[9] || b.Left != 0 {
 		t.Fatalf("found: %+v, want %s", b, commits[9])
 	}
+	if b := load(); b.OwnTerms() {
+		t.Fatalf("bad and good taken for terms of its own: %+v", b)
+	}
+	r.Git("bisect", "reset")
+
+	// Started in a terminal with terms of its own.
+	r.Git("bisect", "start", "--term-old=fixed", "--term-new=broken", commits[15], commits[0])
+	if b := load(); !b.Active || b.Bad != commits[15] || len(b.Good) != 1 || b.Left < 1 || !b.OwnTerms() ||
+		b.New != "broken" || b.Old != "fixed" {
+		t.Fatalf("with its own terms: %+v", b)
+	}
+	r.Git("bisect", "reset")
+
+	// Only skipped commits left: git checks out nothing more.
+	r.Git("bisect", "start", commits[3], commits[0])
+	// git says so and exits 2.
+	r.Run(nil, "bisect", "skip", commits[1], commits[2])
+	if b := load(); !b.OnlySkipped || b.FirstBad != "" {
+		t.Fatalf("only skipped commits left: %+v", b)
+	}
 }
 
 // A patch of more files than a command line names on Windows is made in
