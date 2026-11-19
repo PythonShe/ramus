@@ -60,6 +60,9 @@ func (a *App) diagnostics() string {
 	}
 	if a.Runner != nil {
 		fmt.Fprintf(&b, "Git processes running: %d\n", a.Runner.Running())
+		if err := a.Runner.JobError(); err != nil {
+			fmt.Fprintf(&b, "Git ran without a job object: %v\n", err)
+		}
 	}
 	fmt.Fprintf(&b, "Open repositories: %d\n", len(a.tabs))
 	for i, t := range a.tabs {

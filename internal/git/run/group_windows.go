@@ -28,11 +28,13 @@ func stopGroup(cmd *exec.Cmd, dies bool) {
 
 // joinGroup puts a process just started in its job, and lets it run if
 // it was created suspended. A job that cannot be had leaves cancelling
-// to end git's process tree one by one.
-func joinGroup(cmd *exec.Cmd) {
+// to end git's process tree one by one, and the error says why; the
+// process runs all the same.
+func joinGroup(cmd *exec.Cmd) error {
 	if v, ok := groups.LoadAndDelete(cmd); ok {
-		v.(*gitexe.Job).Join(cmd)
+		return v.(*gitexe.Job).Join(cmd)
 	}
+	return nil
 }
 
 // watchGroup has cmd, one Run starts and waits on, created suspended, for

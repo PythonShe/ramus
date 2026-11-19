@@ -181,7 +181,10 @@ func resume(pid uint32) error {
 }
 
 // killTree ends the descendants of process pid, deepest first; the
-// caller ends pid itself.
+// caller ends pid itself. A process keeps the id of its parent after
+// that parent exits, and Windows gives the id to another process later:
+// one created before the process its parent id now names is not that
+// process's child, and is let be.
 func killTree(pid uint32) {
 	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
@@ -195,18 +198,42 @@ func killTree(pid uint32) {
 			children[pe.ParentProcessID] = append(children[pe.ParentProcessID], pe.ProcessID)
 		}
 	}
-	var end func(p uint32, depth int)
-	end = func(p uint32, depth int) {
+	root, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	if err != nil {
+		return
+	}
+	since, ok := created(root)
+	windows.CloseHandle(root)
+	if !ok {
+		return
+	}
+	var end func(p uint32, since int64, depth int)
+	end = func(p uint32, since int64, depth int) {
 		if depth > 64 {
 			return // a cycle of reused ids
 		}
 		for _, c := range children[p] {
-			end(c, depth+1)
-			if h, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, c); err == nil {
-				windows.TerminateProcess(h, 1)
-				windows.CloseHandle(h)
+			// Held open across its own descendants, so that its id is not
+			// given to another before it is ended.
+			h, err := windows.OpenProcess(windows.PROCESS_TERMINATE|windows.PROCESS_QUERY_LIMITED_INFORMATION, false, c)
+			if err != nil {
+				continue
 			}
+			if t, ok := created(h); ok && t >= since {
+				end(c, t, depth+1)
+				windows.TerminateProcess(h, 1)
+			}
+			windows.CloseHandle(h)
 		}
 	}
-	end(pid, 0)
+	end(pid, since, 0)
+}
+
+// created returns when the process was created.
+func created(h windows.Handle) (int64, bool) {
+	var c, exit, kernel, user windows.Filetime
+	if windows.GetProcessTimes(h, &c, &exit, &kernel, &user) != nil {
+		return 0, false
+	}
+	return c.Nanoseconds(), true
 }

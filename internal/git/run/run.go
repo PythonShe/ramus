@@ -104,6 +104,8 @@ type pool struct {
 	// quit is cancelled when the app quits; see Quit.
 	quit     context.Context
 	quitting context.CancelFunc
+	// noJob is the first error that left a git without its job.
+	noJob atomic.Pointer[error]
 }
 
 // New returns a runner for git with env (the resolved user environment)
@@ -475,7 +477,20 @@ func (r *Runner) Start(cmd *exec.Cmd) error {
 		leaveGroup(cmd)
 		return err
 	}
-	joinGroup(cmd)
+	if err := joinGroup(cmd); err != nil {
+		r.noJob.CompareAndSwap(nil, &err)
+	}
+	return nil
+}
+
+// JobError returns why a git first ran without a job of its own on
+// Windows, which cancelling it then ends one process of its tree at a
+// time, or nil when every git had one, as elsewhere always: for
+// diagnostics.
+func (r *Runner) JobError() error {
+	if e := r.noJob.Load(); e != nil {
+		return *e
+	}
 	return nil
 }
 

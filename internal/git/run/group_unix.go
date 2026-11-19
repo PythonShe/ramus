@@ -84,7 +84,7 @@ func watchGroup(cmd *exec.Cmd) (waited func()) {
 }
 
 // joinGroup has nothing to do: the session Setsid made is the group.
-func joinGroup(cmd *exec.Cmd) {}
+func joinGroup(cmd *exec.Cmd) error { return nil }
 
 // leaveGroup has nothing to forget.
 func leaveGroup(cmd *exec.Cmd) {}
