@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/repo"
@@ -69,6 +70,73 @@ func TestLoadRefInfo(t *testing.T) {
 	}
 	if len(info.Remotes) != 1 || info.Remotes[0] != (RemoteInfo{Name: "origin", URL: up.Dir, PushURL: "file:///nowhere"}) {
 		t.Fatalf("remotes: %+v", info.Remotes)
+	}
+}
+
+// How far a branch is from its upstream reads the same whatever language
+// git speaks. git branch translates "ahead", "behind" and "gone";
+// for-each-ref, which the refs, the track and the brief run, leaves them
+// as they are, as plumbing.
+func TestTrackWordsInAnyLanguage(t *testing.T) {
+	up := gittest.Init(t)
+	up.Write("a", "1")
+	up.Commit("one")
+	up.Git("branch", "gone")
+	r := gittest.Init(t)
+	r.Git("remote", "add", "origin", up.Dir)
+	r.Git("fetch", "-q", "origin")
+	r.Git("switch", "-q", "-c", "old", "--track", "origin/gone")
+	r.Git("switch", "-q", "-c", "work", "--track", "origin/main")
+	r.Write("b", "2")
+	r.Commit("mine")
+	up.Write("a", "2")
+	up.Commit("theirs")
+	up.Git("branch", "-D", "gone")
+	r.Git("fetch", "-q", "--prune", "origin")
+
+	g, err := gitexe.Find(t.Context(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	// gittest pins LC_ALL=C; this git speaks German where it can.
+	german := run.New(g, append(gittest.Env(), "LC_ALL=de_DE.UTF-8", "LANGUAGE=de"), 4)
+	res, err := german.Run(t.Context(), &run.Cmd{GitDir: r.GitDir(), Read: true,
+		Args: []string{"branch", "--list", "--format=%(upstream:track,nobracket)", "work"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(string(res.Stdout), "ahead") {
+		t.Logf("git speaks no German here (git branch says %q): the test shows nothing a C locale would not", res.Stdout)
+	}
+
+	s, m := openWith(t, r, german)
+	var info *RefInfo
+	s.LoadRefInfo(func(got RefInfo) { info = &got })
+	m.until(t, "the refs", func() bool { return info != nil })
+	if info.Err != nil {
+		t.Fatal(info.Err)
+	}
+	branches := map[string]BranchInfo{}
+	for _, b := range info.Branches {
+		branches[b.Name] = b
+	}
+	if b := branches["refs/heads/work"]; b.Ahead != 1 || b.Behind != 1 || b.Gone {
+		t.Fatalf("refs, work: %+v", b)
+	}
+	if b := branches["refs/heads/old"]; !b.Gone {
+		t.Fatalf("refs, old: %+v", b)
+	}
+
+	var track *Track
+	s.LoadTrack(func(got Track) { track = &got })
+	m.until(t, "the track", func() bool { return track != nil })
+	if track.Ahead != 1 || track.Behind != 1 || track.Gone {
+		t.Fatalf("track: %+v", track)
+	}
+
+	b := ReadBrief(t.Context(), german, func(string) bool { return true }, r.Dir)
+	if b.Err != nil || b.Ahead != 1 || b.Behind != 1 {
+		t.Fatalf("brief: %+v", b)
 	}
 }
 
