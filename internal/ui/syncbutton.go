@@ -93,16 +93,8 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 		act = func() { a.submit(t, write.Push(w, opt), nil) }
 	default:
 		upstream = redact.Control(strings.TrimPrefix(tr.Upstream, "refs/remotes/"))
-		// What a push sends, where it goes: a fork's branch to the fork,
-		// all it is ahead of upstream until it is there once.
-		pushTo = upstream
-		ahead := tr.Ahead
-		if tr.Push != "" {
-			pushTo = redact.Control(strings.TrimPrefix(tr.Push, "refs/remotes/"))
-			if !tr.PushGone {
-				ahead = tr.PushAhead
-			}
-		}
+		var ahead int
+		pushTo, ahead = pushTarget(tr)
 		if tr.Behind > 0 {
 			pairs = append(pairs, pair{g.arrowDown, locales.SyncCount(tr.Behind)})
 		}
@@ -180,6 +172,21 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 		}
 		a.syncMenu(c, t, tr)
 	}).Label(label)
+}
+
+// pushTarget is where a push of the branch tr tracks goes, as the user
+// reads it, and how many commits it sends there: a fork's branch goes to
+// the fork, with all it is ahead of upstream until it is there once.
+// The sync button and the pane of a clean work tree both offer it.
+func pushTarget(tr session.Track) (to string, ahead int) {
+	if tr.Push == "" {
+		return redact.Control(strings.TrimPrefix(tr.Upstream, "refs/remotes/")), tr.Ahead
+	}
+	ahead = tr.Ahead
+	if !tr.PushGone {
+		ahead = tr.PushAhead
+	}
+	return redact.Control(strings.TrimPrefix(tr.Push, "refs/remotes/")), ahead
 }
 
 // syncMenu is the chevron beside the sync button: every way to fetch,

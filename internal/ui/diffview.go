@@ -373,7 +373,7 @@ func (a *App) cleanTree(c *ui.Context, t *tab) {
 				if tr.Behind > 0 && ui.Button(c, locales.SyncPullLabel(tr.Behind, upstream)).Disabled(ro || t.s.Fetching()).Clicked() {
 					a.syncPull(t, "")
 				}
-				if tr.Ahead > 0 && ui.Button(c, locales.SyncPushLabel(tr.Ahead, upstream)).Disabled(ro || t.s.Fetching()).Clicked() {
+				if pushTo, ahead := pushTarget(tr); ahead > 0 && ui.Button(c, locales.SyncPushLabel(ahead, pushTo)).Disabled(ro || t.s.Fetching()).Clicked() {
 					a.submit(t, write.Push(w, write.PushOptions{Branch: head.Target}), nil)
 				}
 			}

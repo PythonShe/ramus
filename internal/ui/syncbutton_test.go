@@ -1,9 +1,13 @@
 package ui
 
 import (
+	"cmp"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/config"
 	"ramus/internal/git/gittest"
@@ -211,6 +215,61 @@ func TestSyncButtonFork(t *testing.T) {
 	r.Write("more", "x")
 	r.Commit("more")
 	h.until("one more", h.shows("Push 1 commit to fork/topic"))
+}
+
+// The pane of a clean work tree offers the push the sync button does, for
+// a fork's branch too: counted against the fork and named for it, and
+// gone once the fork has it.
+func TestCleanTreePushFork(t *testing.T) {
+	h := newHarness(t)
+	upstream := gittest.Init(t, "--bare")
+	fork := gittest.Init(t, "--bare")
+	other := h.repoWith()
+	other.Git("remote", "add", "origin", upstream.Dir)
+	other.Git("push", "-q", "origin", "HEAD:refs/heads/main")
+	r := gittest.Init(t)
+	r.Git("remote", "add", "origin", upstream.Dir)
+	r.Git("remote", "add", "fork", fork.Dir)
+	r.Git("fetch", "-q", "origin")
+	r.Git("switch", "-q", "-c", "topic", "--track", "origin/main")
+	r.Git("config", "branch.topic.pushRemote", "fork")
+	r.Write("mine", "x")
+	r.Commit("mine")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+
+	// pushes are the buttons offering a push: the sync button's, then the
+	// pane's below it.
+	pushes := func() []ui.AccessInfo {
+		var bs []ui.AccessInfo
+		for _, a := range h.tt.AccessAll() {
+			if a.Role == ui.RoleButton && strings.HasPrefix(a.Name, "Push ") {
+				bs = append(bs, a)
+			}
+		}
+		slices.SortFunc(bs, func(x, y ui.AccessInfo) int { return cmp.Compare(x.Bounds.Y, y.Bounds.Y) })
+		return bs
+	}
+	h.until("both offer the push", func() bool { return len(pushes()) == 2 })
+	for _, b := range pushes() {
+		if b.Name != "Push 1 commit to fork/topic" {
+			t.Fatalf("a button offers %q", b.Name)
+		}
+	}
+	pane := pushes()[1].Bounds
+	h.tt.ClickAt(pane.X+pane.W/2, pane.Y+pane.H/2)
+	h.until("pushed to the fork", func() bool {
+		a, _ := fork.Run(nil, "rev-parse", "topic")
+		b, _ := r.Run(nil, "rev-parse", "HEAD")
+		return strings.TrimSpace(a) == strings.TrimSpace(b)
+	})
+	h.idle(tb, "the push done")
+	h.until("nothing to push", h.labelled("Fetch"))
+	if bs := pushes(); len(bs) != 0 {
+		t.Fatalf("the fork has the branch; still offered: %q", bs[0].Name)
+	}
 }
 
 // labelled reports whether the last frame shows an element showing or
