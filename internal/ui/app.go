@@ -471,23 +471,25 @@ func (a *App) Open(path string) {
 			// What is no repository (a plain folder, a file, a typo) stays
 			// out, or it would be listed for good. A worktree added to a
 			// repository is no repository of the library either: its
-			// repository lists it, and it comes and goes.
-			if !isRepository(path) || addedWorktree(runner, path) {
+			// repository lists it, and it comes and goes. A folder inside
+			// one is the repository, or it would be listed beside it.
+			top := folderTop(path)
+			if top == "" || addedWorktree(runner, top) {
 				return nil
 			}
-			lib.Opened(path, now)
+			lib.Opened(top, now)
 			return nil
 		})
 	}
 }
 
-// isRepository reports whether path is a folder in a repository.
-func isRepository(path string) bool {
+// folderTop is the top of the repository that has the folder path
+// (repoTop), "" when path is no folder or in no repository.
+func folderTop(path string) string {
 	if st, err := os.Stat(path); err != nil || !st.IsDir() {
-		return false
+		return ""
 	}
-	_, err := repo.Discover(path)
-	return err == nil
+	return repoTop(path)
 }
 
 // addedWorktree reports whether path is a worktree added to a

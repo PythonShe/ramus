@@ -3,9 +3,11 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
+	"ramus/internal/git/gittest"
 	"ramus/internal/library"
 )
 
@@ -26,6 +28,36 @@ func TestLibraryKeepsOnlyRepositories(t *testing.T) {
 	h.app.WaitWrites(10 * time.Second)
 	if got := h.lib.Recent(10); len(got) != 1 || got[0].Path != library.Clean(r.Dir) {
 		t.Fatalf("library has %+v", got)
+	}
+}
+
+// A folder inside a repository, as the command line, a drop or a file's
+// history opens it, is recorded as the repository, not as the folder
+// that would be listed beside it; a folder inside a submodule is the
+// submodule's, which stays an entry of its own.
+func TestLibraryKeepsTheRepositoryOfAFolder(t *testing.T) {
+	h := newHarness(t)
+	t.Cleanup(h.closeAll)
+	r := h.repoWith("src/deep/a.txt")
+	sub := gittest.Init(t)
+	sub.Write("s/x.txt", "1")
+	sub.Commit("one")
+	r.Git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub.Dir, "lib")
+	r.Commit("with lib")
+	h.app.Open(filepath.Join(r.Dir, "src", "deep"))
+	h.app.Open(filepath.Join(r.Dir, "lib", "s"))
+	if !h.app.WaitWrites(10 * time.Second) {
+		t.Fatal("the library was not written in time")
+	}
+	var got []string
+	for _, e := range h.lib.Recent(10) {
+		got = append(got, e.Path)
+	}
+	slices.Sort(got)
+	want := []string{library.Clean(r.Dir), library.Clean(filepath.Join(r.Dir, "lib"))}
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("library has %q, want %q", got, want)
 	}
 }
 
