@@ -184,19 +184,20 @@ func main() {
 			ws.show(w)
 		}
 		ws.show(first)
-		findGit(ws, crash, listenAsk(ws))
+		findGit(ws, crash)
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// findGit finds git off the main thread and hands it to every window.
-// The user's PATH comes from their login shell when the app was not
-// started from a terminal; asking it takes a moment, so the window opens
-// first.
-func findGit(ws *windows, crash *crashlog.Log, ask *askpass.Server) {
+// findGit finds git off the main thread and hands it to every window,
+// with the askpass server, started there too since it makes files. The
+// user's PATH comes from their login shell when the app was not started
+// from a terminal; asking it takes a moment, so the window opens first.
+func findGit(ws *windows, crash *crashlog.Log) {
 	go func() {
+		ask := listenAsk(ws)
 		r, env, shellErr, err := lookGit()
 		// An askpass of the user's own stays theirs.
 		if err == nil && ask != nil && userenv.Lookup(env, "SSH_ASKPASS") == "" {

@@ -195,7 +195,41 @@ func Listen(ask func(*Ask)) (*Server, error) {
 	rand.Read(b)
 	s := &Server{ln: ln, dir: dir, token: hex.EncodeToString(b), ask: ask}
 	go s.accept()
+	go removeStale(filepath.Dir(dir), dir)
 	return s, nil
+}
+
+// staleAfter is how old a folder of another app's server must be before
+// it is taken for one left by an app that crashed: one just made may not
+// be listening yet.
+const staleAfter = time.Minute
+
+// removeStale removes from tmp the folders of servers whose app ended
+// without closing them, as in a crash: the user's own, older than
+// staleAfter, holding nothing but a socket no one listens on.
+func removeStale(tmp, own string) {
+	dirs, _ := filepath.Glob(filepath.Join(tmp, "ramus-*"))
+	for _, dir := range dirs {
+		if dir == own {
+			continue
+		}
+		info, err := os.Lstat(dir)
+		if err != nil || !info.IsDir() || !ownedByMe(info) || time.Since(info.ModTime()) < staleAfter {
+			continue
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) > 1 || len(entries) == 1 && (entries[0].Name() != "s" || entries[0].IsDir()) {
+			continue
+		}
+		if len(entries) == 1 {
+			c, err := net.DialTimeout("unix", filepath.Join(dir, "s"), time.Second)
+			if err == nil {
+				c.Close()
+				continue // an app is listening
+			}
+		}
+		os.RemoveAll(dir)
+	}
 }
 
 // Env is what a git that may ask runs with: program is the app's own,
@@ -220,7 +254,9 @@ func (s *Server) Asking() bool {
 	return s.open > 0
 }
 
-// Close stops listening; helpers still connected are cancelled.
+// Close stops listening and removes the socket's folder. A helper still
+// connected waits until the app ends, which closes its connection, and
+// then fails.
 func (s *Server) Close() error {
 	err := s.ln.Close()
 	os.RemoveAll(s.dir)
