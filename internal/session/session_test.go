@@ -27,9 +27,13 @@ func (m mainThread) until(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	deadline := time.After(20 * time.Second)
 	for !ok() {
+		// ok may wait on state set off the main thread after its last
+		// post, as the refresher going idle: it is looked at again
+		// without a post too.
 		select {
 		case fn := <-m:
 			fn()
+		case <-time.After(5 * time.Millisecond):
 		case <-deadline:
 			t.Fatalf("timed out waiting for %s", what)
 		}
