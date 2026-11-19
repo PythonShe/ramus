@@ -124,12 +124,12 @@ func plainText(s string) string {
 type ranges [][2]int
 
 // codeRanges are the stretches of s that are code, which is shown as
-// written: fenced blocks, and the code within a line.
+// written: code blocks, and the code within a line.
 func codeRanges(s string) ranges {
 	var out ranges
-	fenced := fencedRanges(s)
+	blocks := codeBlocks(s)
 	at := 0
-	for _, f := range append(fenced, [2]int{len(s), len(s)}) {
+	for _, f := range append(blocks, [2]int{len(s), len(s)}) {
 		out = append(out, inlineCode(s, at, f[0])...)
 		if f[1] > f[0] {
 			out = append(out, f)
@@ -139,12 +139,21 @@ func codeRanges(s string) ranges {
 	return out
 }
 
-// fencedRanges are the fenced code blocks of s, their fences included.
-// One never closed runs to the end, as in Markdown.
-func fencedRanges(s string) ranges {
+// codeBlocks are the code blocks of s as Markdown reads them: fenced,
+// their fences included, and indented, in list items too, where code is
+// indented from the item's text. A fence never closed runs to the end.
+// Of the other blocks only what tells code is read: whether a line goes
+// on a paragraph, which indented code cannot interrupt.
+func codeBlocks(s string) ranges {
 	var out ranges
+	// items are the columns the text of the list items open starts at.
+	var items []int
 	var fence byte
-	var width, start int
+	var fenceW, fenceBase, start int
+	// code is where the indented block being read starts, -1 for none,
+	// and codeEnd where its last line ends.
+	code, codeEnd := -1, 0
+	para := false
 	for at := 0; at < len(s); {
 		end := strings.IndexByte(s[at:], '\n')
 		if end < 0 {
@@ -153,27 +162,132 @@ func fencedRanges(s string) ranges {
 			end += at + 1
 		}
 		line := strings.TrimRight(s[at:end], "\r\n")
-		indent := len(line) - len(strings.TrimLeft(line, " "))
-		rest := line[indent:]
-		n := 0
-		if indent <= 3 && rest != "" && (rest[0] == '`' || rest[0] == '~') {
-			for n < len(rest) && rest[n] == rest[0] {
-				n++
+		ind, n := indentOf(line)
+		rest := line[n:]
+		if fence != 0 {
+			if w := fenceWidth(rest); ind-fenceBase <= 3 && w >= fenceW && rest[0] == fence && strings.TrimSpace(rest[w:]) == "" {
+				out = append(out, [2]int{start, end})
+				fence, para = 0, false
+			}
+			at = end
+			continue
+		}
+		if strings.TrimSpace(rest) == "" {
+			para = false
+			at = end
+			continue
+		}
+		marker := listMarker(rest)
+		// A line less indented than an item's text ends the item, but for
+		// one that goes on its paragraph as it is.
+		if !(para && marker == 0 && fenceWidth(rest) < 3) {
+			for len(items) > 0 && ind < items[len(items)-1] {
+				items = items[:len(items)-1]
 			}
 		}
-		switch {
-		case fence == 0 && n >= 3 && !(rest[0] == '`' && strings.Contains(rest[n:], "`")):
-			fence, width, start = rest[0], n, at
-		case fence != 0 && n >= width && rest[0] == fence && strings.TrimSpace(rest[n:]) == "":
-			out = append(out, [2]int{start, end})
-			fence = 0
+		base := 0
+		if len(items) > 0 {
+			base = items[len(items)-1]
+		}
+		if code >= 0 {
+			if ind-base >= 4 {
+				codeEnd = end
+				at = end
+				continue
+			}
+			out = append(out, [2]int{code, codeEnd})
+			code = -1
+		}
+		if ind-base >= 4 && !para {
+			code, codeEnd = at, end
+			at = end
+			continue
+		}
+		if marker > 0 && ind-base <= 3 {
+			items = append(items, ind+marker)
+			base = ind + marker
+			rest = strings.TrimLeft(rest[marker:], " \t")
+			para = false
+			if rest == "" {
+				at = end
+				continue
+			}
+		}
+		if w := fenceWidth(rest); w >= 3 && !(rest[0] == '`' && strings.Contains(rest[w:], "`")) {
+			fence, fenceW, fenceBase, start = rest[0], w, base, at
+		} else {
+			para = true
 		}
 		at = end
 	}
-	if fence != 0 {
+	switch {
+	case fence != 0:
 		out = append(out, [2]int{start, len(s)})
+	case code >= 0:
+		out = append(out, [2]int{code, codeEnd})
 	}
 	return out
+}
+
+// indentOf is how far line is indented, in columns, a tab to the next
+// multiple of four, and the bytes its indentation takes.
+func indentOf(line string) (cols, n int) {
+	for ; n < len(line); n++ {
+		switch line[n] {
+		case ' ':
+			cols++
+		case '\t':
+			cols += 4 - cols%4
+		default:
+			return cols, n
+		}
+	}
+	return cols, n
+}
+
+// fenceWidth is the number of backticks or tildes s starts with.
+func fenceWidth(s string) int {
+	n := 0
+	for n < len(s) && (s[n] == '`' || s[n] == '~') && s[n] == s[0] {
+		n++
+	}
+	return n
+}
+
+// listMarker is the width of the list item marker s starts with, the
+// spaces after it included, as far as the item's text; 0 for none.
+func listMarker(s string) int {
+	n := 0
+	switch {
+	case s == "":
+		return 0
+	case s[0] == '-' || s[0] == '*' || s[0] == '+':
+		n = 1
+	default:
+		for n < len(s) && n < 9 && s[n] >= '0' && s[n] <= '9' {
+			n++
+		}
+		if n == 0 || n == len(s) || s[n] != '.' && s[n] != ')' {
+			return 0
+		}
+		n++
+	}
+	if n == len(s) {
+		return n + 1
+	}
+	if s[n] != ' ' && s[n] != '\t' {
+		return 0
+	}
+	sp := 0
+	for n+sp < len(s) && s[n+sp] == ' ' {
+		sp++
+	}
+	// Text indented five or more is indented code in the item, one space
+	// past its marker.
+	if sp == 0 || sp > 4 || n+sp == len(s) {
+		sp = 1
+	}
+	return n + sp
 }
 
 // inlineCode are the code spans of s between from and to: what is
@@ -254,7 +368,7 @@ var (
 func tidyComment(s, image string) string {
 	var b strings.Builder
 	at := 0
-	for _, f := range append(fencedRanges(s), [2]int{len(s), len(s)}) {
+	for _, f := range append(codeBlocks(s), [2]int{len(s), len(s)}) {
 		b.WriteString(tidyText(s[at:f[0]], image))
 		b.WriteString(s[f[0]:f[1]])
 		at = f[1]

@@ -44,6 +44,13 @@ func TestCommentFolds(t *testing.T) {
 		{"a fence inside", "<details><summary>Log</summary>\n\n```\n</details>\n```\n\n</details>end",
 			"{Log: [```\n</details>\n```]}[end]"},
 		{"empty", "<details></details>", "{: }"},
+		{"a fence in a list item", "1. Add this:\n\n    ~~~html\n    <details>\n    <summary>More</summary>\n    ~~~\n\n2. Then run the tests.\n\nThe rest.",
+			"[1. Add this:\n\n    ~~~html\n    <details>\n    <summary>More</summary>\n    ~~~\n\n2. Then run the tests.\n\nThe rest.]"},
+		{"a fence in a nested item", "- a\n  1. b\n\n         ```\n         <details>\n         ```\n- c<details>d</details>",
+			"[- a\n  1. b\n\n         ```\n         <details>\n         ```\n- c]{: [d]}"},
+		{"indented code", "Example:\n\n    <details>\n\tx\n\nAfter the code block.", "[Example:\n\n    <details>\n\tx\n\nAfter the code block.]"},
+		{"indented, not code", "Text\n    <details>x</details>", "[Text]{: [x]}"},
+		{"indented, after a fold", "<details><summary>S</summary>\n\n    <details>\n\n</details>", "{S: [<details>]}"},
 	} {
 		if got := shape(commentParts(c.in, "Image")); got != c.want {
 			t.Errorf("%s:\n got %s\nwant %s", c.name, got, c.want)
@@ -98,6 +105,8 @@ func TestTidyComment(t *testing.T) {
 		{"table without rows", "<table></table>", "<table></table>"},
 		{"code kept", "Use `<img src=x>` or\n\n```html\n<a href=\"y\">y</a>\n![z](z)\n```\n\n<hr>", "Use `<img src=x>` or\n\n```html\n<a href=\"y\">y</a>\n![z](z)\n```\n\n\n---"},
 		{"formatting kept", "H<sub>2</sub>O, <kbd>Ctrl</kbd>", "H<sub>2</sub>O, <kbd>Ctrl</kbd>"},
+		{"code in a list item kept", "1. Run:\n\n    ~~~\n    <p>x</p>\n    ~~~\n2. <hr>", "1. Run:\n\n    ~~~\n    <p>x</p>\n    ~~~\n2. \n\n---"},
+		{"indented code kept", "Example:\n\n    <a href=\"y\">y</a>\n\n<b>b</b>", "Example:\n\n    <a href=\"y\">y</a>\n\n<b>b</b>"},
 	} {
 		if got := strings.TrimSpace(tidyComment(c.in, "Image")); got != c.want {
 			t.Errorf("%s:\n got %q\nwant %q", c.name, got, c.want)
