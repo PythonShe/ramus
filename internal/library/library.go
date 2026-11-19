@@ -54,8 +54,10 @@ type Group struct {
 // Library is the store, saved as one file. Safe for use by several
 // goroutines.
 type Library struct {
-	path   string
-	mu     sync.Mutex
+	path string
+	mu   sync.Mutex
+	// wmu serializes writing the file.
+	wmu    sync.Mutex
 	repos  []Repo
 	groups []Group
 	// refuse, when set, is why the file is not written: it did not read
@@ -116,6 +118,9 @@ func Load(path string) (*Library, error) {
 	}
 	return l, nil
 }
+
+// Path is the library's file.
+func (l *Library) Path() string { return l.path }
 
 // broken takes the error of a file that did not read: one that could not
 // be kept aside is not written.
@@ -405,6 +410,11 @@ func (l *Library) SetGroup(name string, paths []string) error {
 }
 
 func (l *Library) save() error {
+	// Held from the snapshot to the rename, so each write is of a state
+	// newer than the one before it; mu alone stays short, for readers on
+	// the main thread.
+	l.wmu.Lock()
+	defer l.wmu.Unlock()
 	l.mu.Lock()
 	if l.refuse != nil {
 		l.mu.Unlock()

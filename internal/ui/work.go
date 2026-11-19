@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"runtime/debug"
+	"time"
 
 	"ramus/internal/crashlog"
 	"ramus/internal/git/lifetime"
@@ -37,6 +38,24 @@ func (a *App) goWrite(fn func()) {
 		defer a.writes.Done()
 		fn()
 	})
+}
+
+// WaitWrites waits, up to d, for the files being written off the main
+// thread (the library's record of a repository opened, forgotten or
+// grouped) to be written, at a quit, after which the process may end at
+// once. It reports whether they were.
+func (a *App) WaitWrites(d time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		a.writes.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(d):
+		return false
+	}
 }
 
 // goRecover runs fn in a goroutine of its own and hands a panic in it to

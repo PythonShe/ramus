@@ -84,11 +84,11 @@ func (ws *windows) layoutChanged() {
 	})
 }
 
-// flush writes the layout and the drafts, and waits for the settings
-// and the git identity typed in them being written, at the start of a
-// quit. They are the writes the main
-// thread waits on: the OS may end the process as soon as the quit's
-// listeners return, and the files are small.
+// flush writes the layout and the drafts, and waits for the settings,
+// the git identity typed in them and the library being written, at the
+// start of a quit. They are the writes the main thread waits on: the OS
+// may end the process as soon as the quit's listeners return, and the
+// files are small.
 func (ws *windows) flush() {
 	if k := ws.deps.SettingsKeeper; k != nil {
 		k.Wait()
@@ -96,6 +96,13 @@ func (ws *windows) flush() {
 	for _, w := range ws.list {
 		w.app.SaveIdentity()
 		w.app.WaitIdentity()
+	}
+	// A repository just opened is recorded once it is found to be one,
+	// which reads its folder: bounded, as an unreachable volume would hold
+	// the quit.
+	deadline := time.Now().Add(stopWait)
+	for _, w := range ws.list {
+		w.app.WaitWrites(time.Until(deadline))
 	}
 	if d := ws.deps.Drafts; d != nil {
 		if err := d.Flush(); err != nil {
