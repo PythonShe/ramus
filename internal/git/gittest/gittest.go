@@ -40,10 +40,14 @@ func Env() []string {
 		"GIT_TERMINAL_PROMPT=0",
 		"LC_ALL=C",
 		"TZ=UTC",
+		// git reads git/ignore and git/attributes under XDG_CONFIG_HOME,
+		// or ~/.config, whatever GIT_CONFIG_GLOBAL says: a folder that
+		// does not exist keeps the user's out.
+		"XDG_CONFIG_HOME=" + filepath.Join(os.TempDir(), fmt.Sprintf("ramus-gittest-%d", os.Getpid()), "none"),
 	}
 	for _, kv := range os.Environ() {
 		k, _, _ := strings.Cut(kv, "=")
-		if strings.HasPrefix(k, "GIT_") || k == "LC_ALL" || k == "TZ" {
+		if strings.HasPrefix(k, "GIT_") || k == "LC_ALL" || k == "TZ" || k == "XDG_CONFIG_HOME" {
 			continue
 		}
 		env = append(env, kv)
