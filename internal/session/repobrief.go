@@ -65,18 +65,36 @@ func ReadBrief(ctx context.Context, runner *run.Runner, trusted func(commonDir s
 	upstream, origin := RemoteURLs(r)
 	b.Fork = upstream != ""
 	b.Owner = remoteOwner(origin)
-	head, err := r.Refs().Head()
-	if err != nil || head.Detached || head.Unborn || head.Target == "" {
+	branch := briefBranch(ctx, r)
+	if branch == "" {
 		return b
 	}
 	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
-		Args: []string{"for-each-ref", "--format=%(upstream:track,nobracket)", head.Target}})
+		Args: []string{"for-each-ref", "--format=%(upstream:track,nobracket)", branch}})
 	if err != nil {
 		b.Err = err
 		return b
 	}
 	b.Ahead, b.Behind, _ = parseTrack(strings.TrimSpace(string(res.Stdout)))
 	return b
+}
+
+// briefBranch is the branch HEAD is on, as refs/heads/main, "" when it
+// is detached or cannot be read: from the refs read natively, or from
+// git where the engine does not read them.
+func briefBranch(ctx context.Context, r *repo.Repository) string {
+	if rd := r.Refs(); rd != nil {
+		head, err := rd.Head()
+		if err != nil || head.Detached || head.Unborn {
+			return ""
+		}
+		return head.Target
+	}
+	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Args: []string{"symbolic-ref", "-q", "HEAD"}})
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(res.Stdout))
 }
 
 // remoteOwner is the user or group a remote URL is under: the owner a
