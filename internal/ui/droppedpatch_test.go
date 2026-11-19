@@ -22,7 +22,8 @@ func TestCommitViewDropsItsPatch(t *testing.T) {
 	h.until("open", h.shows("No local changes"))
 	tb := h.app.current()
 	h.click("History")
-	h.until("the commits", h.shows("edit readme"))
+	// Both rows: the newest commit's subject shows before the list does.
+	h.until("the commits", func() bool { return h.shows("edit readme")() && h.shows("add alpha")() })
 	h.click("add alpha")
 	h.until("the detail", h.shows("1 file changed"))
 	h.click("a.txt")
