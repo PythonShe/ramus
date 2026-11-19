@@ -13,8 +13,8 @@ import (
 // Load splits data, the work tree's text of path, a file git left
 // conflicted, into segments: it reads markers of the size git wrote them
 // in, from the file's conflict-marker-size attribute, and tells text that
-// only looks like a conflict from git's by the sides in the index (see
-// ParseSides).
+// only looks like a conflict from git's by merging the sides in the index
+// again (see remerge).
 func Load(ctx context.Context, r *run.Runner, gitDir, workTree, path string, data []byte) ([]Segment, error) {
 	if len(data) > MaxSize {
 		return nil, errLarge
@@ -30,7 +30,10 @@ func Load(ctx context.Context, r *run.Runner, gitDir, workTree, path string, dat
 	if err != nil {
 		return nil, err
 	}
-	return ParseSides(data, size, s)
+	if !s.holdsMarkers(size) {
+		return ParseSize(data, size)
+	}
+	return remerge(ctx, r, data, size, s)
 }
 
 // markerSize is the size of the conflict markers git writes for path, as

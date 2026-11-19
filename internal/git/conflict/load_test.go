@@ -32,6 +32,8 @@ func TestLoadAgainstGit(t *testing.T) {
 		// ambiguous is a merge that cannot be read without a
 		// conflict-marker-size attribute.
 		ambiguous bool
+		// edit changes the conflict by hand before it is read.
+		edit bool
 	}{
 		{name: "example both sides hold", base: "Intro\n\n" + example + "\n" + lines + "end\n",
 			ours: "Intro\n\n" + example + "\n" + lines + "end ours\n", their: "Intro\n\n" + example + "\n" + lines + "end theirs\n"},
@@ -50,9 +52,25 @@ func TestLoadAgainstGit(t *testing.T) {
 		{name: "CRLF", attrs: "README.md eol=crlf\n", base: "Intro\n" + example + lines + "end\n",
 			ours: "Intro\n" + example + lines + "end ours\n", their: "Intro\n" + example + lines + "end theirs\n"},
 		{name: "example in our side", base: lines + "end\n",
-			ours: lines + example, their: lines + "end theirs\n", ambiguous: true},
+			ours: lines + example, their: lines + "end theirs\n"},
 		{name: "close marker in their side", base: lines + "end\n",
-			ours: lines + "end ours\n", their: lines + "end theirs\n>>>>>>> quoted\nmore\n", ambiguous: true},
+			ours: lines + "end ours\n", their: lines + "end theirs\n>>>>>>> quoted\nmore\n"},
+		{name: "close marker with the merged branch's label in their side", base: lines + "end\n",
+			ours: lines + "end ours\n", their: lines + "end theirs\n>>>>>>> topic\nmore\n"},
+		{name: "example's open line edited on both sides", base: "Intro\n" + example + "end\n",
+			ours:  "Intro\n<<<<<<< HEAD\nyour change, edited by us\n=======\ntheir change\n>>>>>>> topic\nend\n",
+			their: "Intro\n<<<<<<< HEAD\nyour change, edited by them\n=======\ntheir change\n>>>>>>> topic\nend\n"},
+		{name: "example's body edited on both sides", base: "Intro\n" + example + "end\n",
+			ours:  "Intro\n<<<<<<< HEAD\nyour change\n=======\ntheir change, ours\n>>>>>>> topic\nend\n",
+			their: "Intro\n<<<<<<< HEAD\nyour change\n=======\ntheir change, theirs\n>>>>>>> topic\nend\n"},
+		{name: "underline ours adds", base: "Title\n=======\n\nSection\n=======\nold\n",
+			ours: "Title\n=======\n\nSection\n=======\nours\n=======\n", their: "Title\n=======\n\nSection\n=======\ntheirs\n"},
+		{name: "base marker last in ours", base: "a\nold\nz\n", ours: "a\nours\n||||||| note\nz\n", their: "a\ntheirs\nz\n"},
+		{name: "base marker first in ours", base: "a\nold\nz\n", ours: "a\n||||||| note\nours\nz\n", their: "a\ntheirs\nz\n"},
+		{name: "conflict like an example elsewhere", base: example + lines + "old\n",
+			ours: example + lines + "your change\n", their: example + lines + "their change\n"},
+		{name: "example in our side, edited by hand", base: lines + "end\n",
+			ours: lines + example, their: lines + "end theirs\n", edit: true, ambiguous: true},
 		{name: "example in our side, marker size", attrs: "README.md conflict-marker-size=10\n", base: lines + "end\n",
 			ours: lines + example, their: lines + "end theirs\n"},
 		{name: "example both sides hold, marker size", attrs: "README.md conflict-marker-size=10\n", base: example + lines + "end\n",
@@ -79,6 +97,9 @@ func TestLoadAgainstGit(t *testing.T) {
 				data, err := os.ReadFile(filepath.Join(r.Dir, "README.md"))
 				if err != nil {
 					t.Fatal(err)
+				}
+				if c.edit {
+					data = []byte(strings.Replace(string(data), "end theirs\n", "end, both\n", 1))
 				}
 				segs, err := Load(context.Background(), testrun.Runner(t), r.GitDir(), r.Dir, "README.md", data)
 				if c.ambiguous {

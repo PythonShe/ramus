@@ -115,7 +115,7 @@ func Parse(data []byte) ([]Segment, error) {
 // not closed, or the file is larger than MaxSize.
 //
 // Text in the file that only looks like a conflict, as an example in a
-// document, is read as one: ParseSides tells them apart.
+// document, is read as one: Load tells them apart.
 func ParseSize(data []byte, size int) ([]Segment, error) {
 	if len(data) > MaxSize {
 		return nil, errLarge

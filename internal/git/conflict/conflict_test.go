@@ -99,29 +99,3 @@ func TestParseSize(t *testing.T) {
 		t.Fatalf("longer markers read with the default size: %v %+v", err, segs)
 	}
 }
-
-func TestParseSidesEdges(t *testing.T) {
-	ours, theirs := "a\n<<<<<<< x\nb\n", "a\n<<<<<<< x\nB\n"
-	s := Sides{Base: []byte("a\n<<<<<<< x\nbase\n"), Ours: []byte(ours), Theirs: []byte(theirs)}
-	// An open marker no side holds and nothing closes is broken.
-	if _, err := ParseSides([]byte("a\n<<<<<<< HEAD\nb\n<<<<<<< x\n"), 7, s); err != ErrMarkers {
-		t.Fatalf("unclosed: %v", err)
-	}
-	// A side's own open marker line, with git's conflict after it.
-	file := "a\n<<<<<<< x\n<<<<<<< HEAD\nb\n=======\nB\n>>>>>>> topic\n"
-	segs, err := ParseSides([]byte(file), 7, s)
-	if err != nil || Count(segs) != 1 || string(segs[0].Text) != "a\n<<<<<<< x\n" || string(segs[1].Conflict.Ours) != "b\n" {
-		t.Fatalf("%v %+v", err, segs)
-	}
-	// A marker line more often than ours and theirs hold it together is
-	// one of git's, misread.
-	if _, err := ParseSides([]byte("a\n<<<<<<< x\n<<<<<<< x\n<<<<<<< x\n"), 7, s); err != ErrAmbiguous {
-		t.Fatalf("a marker the sides do not hold: %v", err)
-	}
-	// In CRLF, against sides in LF, with a last line git ended.
-	s = Sides{Ours: []byte("=======\nb"), Theirs: []byte("=======\nB")}
-	segs, err = ParseSides([]byte("=======\r\n<<<<<<< HEAD\r\nb\r\n=======\r\nB\r\n>>>>>>> topic\r\n"), 7, s)
-	if err != nil || Count(segs) != 1 || string(segs[1].Conflict.Theirs) != "B\r\n" {
-		t.Fatalf("CRLF: %v %+v", err, segs)
-	}
-}

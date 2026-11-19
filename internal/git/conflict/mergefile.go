@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 
 	"ramus/internal/git/run"
@@ -45,27 +44,14 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 		}
 		size = max(size, n+1)
 	}
-	var out strings.Builder
-	w := &limited{b: &out, max: MaxSize}
-	_, err := r.Run(ctx, &run.Cmd{
-		Outside: true, WorkTree: "/", Read: true, Untranslated: true, Stdout: w,
-		Args: []string{"merge-file", "-p", "--diff3", "--marker-size=" + strconv.Itoa(size),
-			"-L", labels[0], "-L", labels[1], "-L", labels[2], "--", local, base, remote},
-	})
-	if w.over {
-		return Files{}, ErrTooLarge
-	}
-	var e *run.Error
-	switch {
-	case err == nil:
-	case errors.As(err, &e) && e.ExitCode > 0 && e.ExitCode < 128:
-		// The number of conflicts.
-	case errors.As(err, &e) && strings.Contains(e.Stderr, "Cannot merge binary files"):
+	out, err := runMergeFile(ctx, r, [3]string{local, base, remote}, size, "--diff3", "-L", labels[0], "-L", labels[1], "-L", labels[2])
+	if errors.Is(err, errBinary) {
 		return Files{Binary: true}, nil
-	default:
+	}
+	if err != nil {
 		return Files{}, err
 	}
-	segs, err := ParseSize([]byte(out.String()), size)
+	segs, err := ParseSize([]byte(out), size)
 	if err != nil {
 		return Files{}, err
 	}
