@@ -422,6 +422,56 @@ func TestUndoHardResetLeavesWorkDoneSince(t *testing.T) {
 	}
 }
 
+// An undo checks and puts back only what the write touched: an untracked
+// file a hard reset or a squash merge left alone, edited since, does not
+// stop it, nor does a file edited since a mixed reset, which left the
+// files and whose undo puts back the index alone.
+func TestUndoLeavesWhatTheWriteDidNotTouch(t *testing.T) {
+	setup := func(t *testing.T) (*harness, string) {
+		h := newHarness(t)
+		h.r.Write("a", "1\n")
+		one := h.r.Commit("one")
+		h.r.Git("switch", "-q", "-c", "side")
+		h.r.Write("b", "side\n")
+		h.r.Commit("side")
+		h.r.Git("switch", "-q", "main")
+		h.r.Write("a", "2\n")
+		h.r.Commit("two")
+		h.r.Write("loose", "untracked\n")
+		return h, one
+	}
+	for _, c := range []struct {
+		name string
+		op   func(h *harness, one string) (Op, error)
+	}{
+		{"hard reset", func(h *harness, one string) (Op, error) { return Reset(h.w, one, ResetHard, h.seen()) }},
+		{"squash merge", func(h *harness, _ string) (Op, error) { return Merge(h.w, "side", MergeSquash, h.seen()) }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h, one := setup(t)
+			h.r.Write("a", "work\n")
+			op, err := c.op(h, one)
+			h.do(op, err, true)
+			h.r.Write("loose", "edited since\n")
+			h.undo()
+			if h.read("loose") != "edited since\n" {
+				t.Fatalf("loose %q", h.read("loose"))
+			}
+		})
+	}
+	t.Run("mixed reset", func(t *testing.T) {
+		h, one := setup(t)
+		h.r.Stage("a", "staged\n")
+		op, err := Reset(h.w, one, ResetMixed, h.seen())
+		h.do(op, err, true)
+		h.r.Write("a", "edited since\n")
+		h.undo()
+		if h.index("a") != "staged\n" || h.read("a") != "edited since\n" {
+			t.Fatalf("a staged %q, a %q", h.index("a"), h.read("a"))
+		}
+	})
+}
+
 // A squash merge leaves HEAD: its undo puts the index and files back as
 // they were, a file it added gone, and redo merges again.
 func TestUndoSquashMerge(t *testing.T) {

@@ -566,7 +566,11 @@ func restoreFiles(ctx context.Context, q *Queue, w snapshot.Where, e Entry) erro
 	if len(e.paths) == 0 {
 		return nil // the write dropped nothing the snapshot holds
 	}
-	_, err := snapshot.Restore(ctx, q.r, w, e.Snapshot, e.paths, snapshot.Exact)
+	mode := snapshot.Exact
+	if resetMode(e.op) == "mixed" {
+		mode = snapshot.Staged // it left the files
+	}
+	_, err := snapshot.Restore(ctx, q.r, w, e.Snapshot, e.paths, mode)
 	return err
 }
 
@@ -577,9 +581,10 @@ var errUnknownPaths = errors.New("write: the files the write changed could not b
 // touchedPaths are the paths an undo of e puts back from its snapshot:
 // those the snapshot names; past snapshot.MaxPaths, those the write
 // named; for a snapshot of the whole work tree, those it holds work of
-// that HEAD did not have (a hard reset, a mixed one), or those the
-// write changed (a squash merge). Never the whole work tree, which
-// would undo work done since on other files.
+// that HEAD did not have (a hard reset), or staged work of (a mixed
+// one), or those the write changed (a squash merge). Never the whole
+// work tree, which would undo work done since on other files, nor an
+// untracked file the write left untracked: git leaves those alone.
 func (q *Queue) touchedPaths(ctx context.Context, e Entry) ([]string, error) {
 	s := e.Snapshot
 	switch {
@@ -594,8 +599,7 @@ func (q *Queue) touchedPaths(ctx context.Context, e Entry) ([]string, error) {
 	if index == "" {
 		index = s.Commit // the index had conflicts: their files are kept
 	}
-	set := map[string]bool{}
-	list := func(args ...string) error {
+	list := func(set map[string]bool, args ...string) error {
 		res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree, Read: true, Args: args})
 		if err != nil {
 			return err
@@ -607,19 +611,45 @@ func (q *Queue) touchedPaths(ctx context.Context, e Entry) ([]string, error) {
 		}
 		return nil
 	}
+	mixed := resetMode(e.op) == "mixed"
 	var steps [][]string
 	switch {
 	case e.Kind == MovesHead && s.Head == "":
 		steps = [][]string{{"ls-tree", "-r", "-z", "--name-only", "--full-tree", s.Commit}, {"ls-tree", "-r", "-z", "--name-only", "--full-tree", index}}
+		if mixed {
+			steps = steps[1:]
+		}
 	case e.Kind == MovesHead:
 		// HEAD's files themselves come back with HEAD.
 		steps = [][]string{{"diff-tree", "-r", "-z", "--name-only", s.Head, s.Commit}, {"diff-tree", "-r", "-z", "--name-only", s.Head, index}}
+		if mixed {
+			steps = steps[1:]
+		}
 	default:
 		steps = [][]string{{"diff-index", "--cached", "-z", "--name-only", index, "--"}, {"diff-index", "-z", "--name-only", s.Commit, "--"}}
 	}
+	set := map[string]bool{}
 	for _, args := range steps {
-		if err := list(args...); err != nil {
+		if err := list(set, args...); err != nil {
 			return nil, err
+		}
+	}
+	if s.Index != "" && !mixed {
+		// Untracked when the snapshot was taken, and still: the write
+		// left it as it was, and work on it since is not the write's.
+		before, now := map[string]bool{}, map[string]bool{}
+		if err := list(before, "diff-tree", "-r", "-z", "--name-only", "--diff-filter=D", s.Commit, s.Index); err != nil {
+			return nil, err
+		}
+		if len(before) > 0 {
+			if err := list(now, "diff-index", "--cached", "-z", "--name-only", "--diff-filter=D", s.Commit, "--"); err != nil {
+				return nil, err
+			}
+			for p := range before {
+				if now[p] {
+					delete(set, p)
+				}
+			}
 		}
 	}
 	return slices.Sorted(maps.Keys(set)), nil
@@ -784,6 +814,14 @@ func (q *Queue) unchanged(ctx context.Context, e Entry) error {
 	now := q.leftPaths(ctx, e, e.left)
 	if now == nil {
 		return errUnread
+	}
+	if resetMode(e.op) == "mixed" {
+		// Its undo puts back the index alone: work on the files since
+		// stays as it is.
+		if now.index != e.left.index {
+			return &StaleError{What: "the staged state of " + count(len(e.paths), e.paths[0]), Saw: "as left", Now: "changed"}
+		}
+		return nil
 	}
 	if len(now.files) != len(e.left.files) {
 		return &StaleError{What: "the files to put back", Saw: strconv.Itoa(len(e.left.files)), Now: strconv.Itoa(len(now.files))}

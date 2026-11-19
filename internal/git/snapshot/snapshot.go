@@ -729,6 +729,9 @@ const (
 	// index from the snapshot's index commit, the work tree from its tree,
 	// tracked files it did not have removed. Undo uses it.
 	Exact
+	// Staged makes the paths' index entries as they were, and leaves the
+	// files: undo of a write that changed only the index, as a mixed reset.
+	Staged
 )
 
 // Restore writes paths back as the snapshot kept them, after keeping the
@@ -778,19 +781,21 @@ func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 		}
 		return before, git(ps, "restore", "--source="+s.Commit, "--worktree", "--overlay")
 	}
-	// The files first, while the index still has those the write added.
-	ps, err := match(s.Commit, true)
-	if err != nil {
-		return before, err
-	}
-	if whole || len(ps) > 0 {
-		if err := git(ps, "restore", "--source="+s.Commit, "--worktree", "--no-overlay"); err != nil {
+	var ps []string
+	if mode == Exact {
+		// The files first, while the index still has those the write added.
+		if ps, err = match(s.Commit, true); err != nil {
 			return before, err
 		}
-	}
-	if !whole {
-		if err := removeMade(ctx, r, w, s, paths); err != nil {
-			return before, err
+		if whole || len(ps) > 0 {
+			if err := git(ps, "restore", "--source="+s.Commit, "--worktree", "--no-overlay"); err != nil {
+				return before, err
+			}
+		}
+		if !whole {
+			if err := removeMade(ctx, r, w, s, paths); err != nil {
+				return before, err
+			}
 		}
 	}
 	if s.Index == "" {
