@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/session"
 	"ramus/internal/ui/pathtree"
 	"ramus/locales"
@@ -198,7 +199,7 @@ func (a *App) treemapView(c *ui.Context, ts *treemapState, unit func(int64) stri
 		}
 		for i, n := range ts.path {
 			ui.Text(c, "/").TextColor(th.TextMuted)
-			if ui.Button(c, d.tree.Name(n)).Disabled(i == len(ts.path)-1).Clicked() {
+			if ui.Button(c, redact.Control(d.tree.Name(n))).Disabled(i == len(ts.path)-1).Clicked() {
 				ts.path = ts.path[:i+1]
 			}
 		}
@@ -280,7 +281,7 @@ func (a *App) treemapTile(c *ui.Context, ts *treemapState, d *treemapData, t til
 		name = locales.RepoMore(t.other)
 		tip = locales.TreemapSmaller(t.other, unit(int64(t.w)))
 	} else {
-		name = d.tree.Name(t.node)
+		name = redact.Control(d.tree.Name(t.node))
 		dir = d.tree.IsDir(t.node)
 		if dir {
 			name += "/"

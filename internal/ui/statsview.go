@@ -199,7 +199,7 @@ func (a *App) statsBranchMenu(c *ui.Context, t *tab) {
 	ss := &t.stats
 	label := locales.StatsAllBranches()
 	if ss.branch != "" {
-		label = strings.TrimPrefix(ss.branch, "refs/heads/")
+		label = redact.Control(strings.TrimPrefix(ss.branch, "refs/heads/"))
 	}
 	ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
 		if m.Item(locales.StatsAllBranches()).Chosen() {
@@ -219,7 +219,7 @@ func (a *App) statsBranchMenu(c *ui.Context, t *tab) {
 			if n++; n > sideLimit {
 				break
 			}
-			if m.Item(strings.TrimPrefix(name, "refs/heads/")).Chosen() {
+			if m.Item(redact.Control(strings.TrimPrefix(name, "refs/heads/"))).Chosen() {
 				ss.branch = name
 				a.countStats(t)
 			}

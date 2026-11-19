@@ -259,7 +259,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 					ui.Text(c, locales.RepoMore(len(refs)-sideLimit)).Padding(rowPadY, insetX).TextColor(c.Theme().TextMuted)
 					break
 				}
-				label := strings.TrimPrefix(r, prefix)
+				label := redact.Control(strings.TrimPrefix(r, prefix))
 				shown := label
 				current := r == st.Head.Target && !st.Head.Detached
 				if current && prefix == "refs/heads/" && a.refIndex(t) {
@@ -318,7 +318,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 				ui.SidebarItem(c, sideWorktrees, nil, locales.RepoAllWorktrees())
 				ui.SidebarItem(c, sideNewWorktree, nil, locales.PaletteNewWorktree())
 				for i, w := range st.Worktrees {
-					it := ui.SidebarItem(c, sideWorktree+w.Path, nil, worktreeLabel(w))
+					it := ui.SidebarItem(c, sideWorktree+w.Path, nil, redact.Control(worktreeLabel(w)))
 					switch {
 					case w.Current:
 						it.Bold()
@@ -334,7 +334,7 @@ func (a *App) sidebar(c *ui.Context, t *tab) {
 			open := t.open["submodules"]
 			a.partMenu(ui.SidebarSection(c, locales.RepoSectionSubmodulesCount(len(st.Submodules)), &open, func() {
 				for _, m := range st.Submodules {
-					it := ui.SidebarItem(c, sideSubmodule+m.Path, nil, submoduleLabel(m))
+					it := ui.SidebarItem(c, sideSubmodule+m.Path, nil, redact.Control(submoduleLabel(m)))
 					if !m.Present {
 						it.TextColor(th.TextMuted)
 					}
