@@ -144,10 +144,20 @@ func (k chord) label() string {
 // textSafe reports a chord that typing in a text field cannot mean:
 // one with Command, Control or Option held, other than the keys a field
 // takes for itself (moving by words, deleting them, Undo, Select All and
-// the clipboard).
-func (k chord) textSafe() bool {
+// the clipboard) and those that type a character.
+func (k chord) textSafe() bool { return k.textSafeOn(runtime.GOOS) }
+
+// textSafeOn is textSafe on the system goos.
+func (k chord) textSafeOn(goos string) bool {
 	if k.mods&(ui.Ctrl|ui.Alt|ui.Super) == 0 {
 		return false
+	}
+	switch {
+	case !k.typesChar():
+	case goos == "darwin" && k.mods&(ui.Ctrl|ui.Super) == 0:
+		return false // Option types characters, as Option-S an "ß"
+	case goos == "windows" && k.mods&(ui.Ctrl|ui.Alt) == ui.Ctrl|ui.Alt && k.mods&ui.Super == 0:
+		return false // AltGr, which types characters, comes as Control and Alt
 	}
 	switch k.key {
 	case ui.KeyLeft, ui.KeyRight, ui.KeyUp, ui.KeyDown, ui.KeyHome, ui.KeyEnd, ui.KeyBackspace, ui.KeyDelete:
@@ -156,6 +166,17 @@ func (k chord) textSafe() bool {
 		return k.mods&ui.Cmd == 0
 	}
 	return true
+}
+
+// typesChar reports a key of a character, which a layout may type with
+// Option or AltGr held.
+func (k chord) typesChar() bool {
+	switch k.key {
+	case ui.KeySpace, ui.KeyMinus, ui.KeyEqual, ui.KeyComma, ui.KeyPeriod, ui.KeySlash, ui.KeySemicolon, ui.KeyQuote,
+		ui.KeyBracketLeft, ui.KeyBracketRight, ui.KeyBackslash, ui.KeyBackquote:
+		return true
+	}
+	return k.key >= ui.Key0 && k.key <= ui.Key9 || k.key >= ui.KeyA && k.key <= ui.KeyZ
 }
 
 // bindable is every command a shortcut can run, in the order the

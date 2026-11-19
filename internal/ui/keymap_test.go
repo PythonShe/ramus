@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"runtime"
 	"slices"
 	"testing"
 
@@ -58,6 +59,76 @@ func TestChords(t *testing.T) {
 	if !(chord{ui.Cmd, ui.KeyEnter}).textSafe() || !(chord{ui.Cmd | ui.Shift, ui.KeyP}).textSafe() {
 		t.Error("a shortcut withheld from a field")
 	}
+	// A chord that types a character goes to the field too: Option on
+	// macOS, AltGr on Windows, which comes as Control and Alt.
+	for _, c := range []struct {
+		goos string
+		k    chord
+		safe bool
+	}{
+		{"darwin", chord{ui.Alt, ui.KeyS}, false},
+		{"darwin", chord{ui.Alt | ui.Shift, ui.Key2}, false},
+		{"darwin", chord{ui.Alt, ui.KeyF5}, true},
+		{"darwin", chord{ui.Super | ui.Alt, ui.KeyN}, true},
+		{"darwin", chord{ui.Ctrl | ui.Alt, ui.KeyN}, true},
+		{"windows", chord{ui.Ctrl | ui.Alt, ui.KeyN}, false},
+		{"windows", chord{ui.Ctrl | ui.Alt | ui.Shift, ui.KeyQ}, false},
+		{"windows", chord{ui.Ctrl | ui.Alt, ui.KeyF5}, true},
+		{"windows", chord{ui.Alt, ui.KeyS}, true},
+		{"windows", chord{ui.Ctrl, ui.KeyP}, true},
+		{"linux", chord{ui.Ctrl | ui.Alt, ui.KeyN}, true},
+		{"linux", chord{ui.Alt, ui.KeyS}, true},
+	} {
+		if got := c.k.textSafeOn(c.goos); got != c.safe {
+			t.Errorf("%s %s: safe %v", c.goos, c.k.String(), got)
+		}
+	}
+}
+
+// A shortcut held with Option on macOS, or with what may be AltGr on
+// Windows, does not run its command while the focus takes text: it
+// types a character there. On macOS the field takes Option itself, and
+// the app menu, which takes its keys before the window, is given no such
+// chord.
+func TestShortcutTypesCharacterInField(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		if got := Accelerator(map[string][]string{"show-history": {"Alt+S"}}, "show-history"); got != "" {
+			t.Errorf("the menu takes Option-S: %q", got)
+		}
+	}
+	var k chord
+	switch runtime.GOOS {
+	case "darwin":
+		k = chord{ui.Alt, ui.KeyS}
+	case "windows":
+		k = chord{ui.Ctrl | ui.Alt, ui.KeyS}
+	default:
+		t.Skip("no chord types a character here")
+	}
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	h.app.Settings.Keys = map[string][]string{"show-history": {k.String()}}
+	h.click("Statistics")
+	h.until("the statistics", h.shows("From"))
+	if err := h.tt.Click("From"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	h.tt.Key(k.mods, k.key)
+	h.tt.Frame()
+	h.tt.Frame()
+	if tb.sel != "stats" {
+		t.Fatalf("typing in a field ran the shortcut: %q", tb.sel)
+	}
+	// Outside a field it runs.
+	h.click("Changes")
+	h.tt.Frame()
+	h.tt.Key(k.mods, k.key)
+	h.until("the history", func() bool { return tb.sel == "history" })
 }
 
 func TestKeymap(t *testing.T) {
@@ -83,7 +154,7 @@ func TestKeymap(t *testing.T) {
 	}
 	// The menu, which takes its keys before a text field, is given no
 	// chord of a field's own: typing an S stays typing.
-	if got := Accelerator(map[string][]string{"stash": {"S", "CmdOrCtrl+Alt+S"}}, "stash"); got != "CmdOrCtrl+Alt+S" {
+	if got := Accelerator(map[string][]string{"stash": {"S", "CmdOrCtrl+Shift+S"}}, "stash"); got != "CmdOrCtrl+Shift+S" {
 		t.Fatalf("stash's accelerator %q", got)
 	}
 	if got := Accelerator(nil, "stage-all"); got != "" {
