@@ -64,7 +64,12 @@ var ErrBadPatch = errors.New("diff: patch not understood")
 
 // Parse splits a patch from WorkTreePatch or CommitPatch.
 func Parse(text []byte) (*Parsed, error) {
-	p := &Parsed{Text: text}
+	// Sized once: grown by append, the copies of a large patch's arrays
+	// would add up to several times what is kept.
+	p := &Parsed{Text: text,
+		Lines: make([]Line, 0, min(bytes.Count(text, []byte{'\n'})+1, MaxLines)),
+		Hunks: make([]Hunk, 0, bytes.Count(text, []byte("\n@@ "))+1),
+	}
 	var f *File
 	var h *Hunk
 	var oldNo, newNo, oldLeft, newLeft int32

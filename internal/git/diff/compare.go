@@ -73,7 +73,7 @@ func CompareFolders(ctx context.Context, r *run.Runner, old, new string, max int
 	if err = exitOne(err); err != nil && !w.full {
 		return nil, err
 	}
-	c, err := parseCompared(w.buf, old, new)
+	c, err := parseCompared(w.text(), old, new)
 	if err != nil {
 		return nil, err
 	}
@@ -193,5 +193,5 @@ func ComparePatch(ctx context.Context, r *run.Runner, old, new string, ws Whites
 	if err = exitOne(err); err != nil {
 		return Patch{}, err
 	}
-	return Patch{Text: w.buf}, nil
+	return Patch{Text: w.text()}, nil
 }

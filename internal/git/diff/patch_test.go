@@ -2,8 +2,10 @@ package diff
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -57,6 +59,47 @@ func TestWorkTreePatch(t *testing.T) {
 	}
 	if _, err := WorkTreePatch(context.Background(), run, r.GitDir(), r.Dir, PatchRequest{Source: Untracked}); err == nil {
 		t.Error("untracked without a path")
+	}
+}
+
+// A large patch is read and parsed into arrays sized once: grown by
+// append, the copies came to about five times what is kept.
+func TestLargePatchAllocatesAboutWhatItKeeps(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("diff --git a/f b/f\n--- a/f\n+++ b/f\n")
+	for i := range 100_000 {
+		fmt.Fprintf(&b, "@@ -%d,3 +%d,3 @@\n a\n-b\n+c\n d\n", i*10+1, i*10+1)
+	}
+	text := []byte(b.String())
+	allocated := func(f func()) uint64 {
+		var m0, m1 runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&m0)
+		f()
+		runtime.ReadMemStats(&m1)
+		return m1.TotalAlloc - m0.TotalAlloc
+	}
+	var p *Parsed
+	var err error
+	got := allocated(func() { p, err = Parse(text) })
+	if err != nil || len(p.Hunks) != 100_000 {
+		t.Fatal(err)
+	}
+	if kept := uint64(p.Size()); got > kept*3/2 {
+		t.Errorf("Parse allocated %d bytes for %d kept", got, kept)
+	}
+	chunk := make([]byte, 32<<10)
+	const n = 16 << 20
+	var read []byte
+	got = allocated(func() {
+		c := &capped{max: 64 << 20, cancel: func() {}}
+		for w := 0; w < n; w += len(chunk) {
+			c.Write(chunk)
+		}
+		read = c.text()
+	})
+	if len(read) != n || got > n*5/2 {
+		t.Errorf("reading %d bytes allocated %d", len(read), got)
 	}
 }
 

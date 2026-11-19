@@ -1,6 +1,7 @@
 package diff
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strconv"
@@ -163,12 +164,15 @@ func runPatch(ctx context.Context, r *run.Runner, gitDir, workTree string, args,
 	if err != nil {
 		return Patch{}, err
 	}
-	return Patch{Text: w.buf}, nil
+	return Patch{Text: w.text()}, nil
 }
 
 // capped keeps up to max bytes and then stops git.
 type capped struct {
-	buf    []byte
+	// parts are the writes as they came, joined once at the end: one
+	// buffer grown by append would copy a large patch several times over.
+	parts  [][]byte
+	n      int
 	max    int
 	full   bool
 	cancel func()
@@ -180,22 +184,36 @@ func (c *capped) Write(b []byte) (int, error) {
 	if c.full {
 		return 0, errFull
 	}
-	if len(c.buf)+len(b) > c.max {
-		c.buf = append(c.buf, b[:c.max-len(c.buf)]...)
+	if c.n+len(b) > c.max {
+		c.add(b[:c.max-c.n])
 		c.full = true
 		c.cancel()
 		return 0, errFull
 	}
-	c.buf = append(c.buf, b...)
+	c.add(b)
 	return len(b), nil
 }
 
-// cut drops a partial last line.
+func (c *capped) add(b []byte) {
+	if len(b) > 0 {
+		c.parts = append(c.parts, bytes.Clone(b))
+		c.n += len(b)
+	}
+}
+
+// text is all that was kept, nil for nothing.
+func (c *capped) text() []byte {
+	if c.n == 0 {
+		return nil
+	}
+	return bytes.Join(c.parts, nil)
+}
+
+// cut is what was kept without a partial last line.
 func (c *capped) cut() []byte {
-	for i := len(c.buf) - 1; i >= 0; i-- {
-		if c.buf[i] == '\n' {
-			return c.buf[:i+1]
-		}
+	b := c.text()
+	if i := bytes.LastIndexByte(b, '\n'); i >= 0 {
+		return b[:i+1]
 	}
 	return nil
 }
