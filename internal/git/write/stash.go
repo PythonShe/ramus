@@ -88,7 +88,7 @@ func StashApply(w Where, s StashEntry, index bool) (Op, error) {
 	if index {
 		args = append(args, "--index")
 	}
-	return Op{Name: "Apply " + s.ref(), Expect: x, Cmd: w.cmd(append(args, s.Commit)...)}, nil
+	return Op{Name: "Apply " + s.ref(), Expect: x, Cmd: w.slow(append(args, s.Commit)...)}, nil
 }
 
 // StashPop applies a stash and drops it if that went cleanly.
@@ -101,7 +101,7 @@ func StashPop(w Where, s StashEntry, index bool) (Op, error) {
 	if index {
 		args = append(args, "--index")
 	}
-	return Op{Name: "Pop " + s.ref() + " (" + short(s.Commit) + ")", Expect: x, Cmd: w.cmd(append(args, s.ref())...)}, nil
+	return Op{Name: "Pop " + s.ref() + " (" + short(s.Commit) + ")", Expect: x, Cmd: w.slow(append(args, s.ref())...)}, nil
 }
 
 // StashDrop removes a stash from the list. Its commit stays in the
@@ -139,7 +139,7 @@ func StashBranch(w Where, s StashEntry, name string, seen Seen) (Op, error) {
 	x.Branch, x.Head = seen.Branch, seen.Head
 	x.Refs["refs/heads/"+name] = ""
 	return Op{Name: "Branch " + name + " from " + s.ref(), Expect: x, Undo: NotUndoable,
-		Cmd: w.cmd("stash", "branch", name, s.ref())}, nil
+		Cmd: w.slow("stash", "branch", name, s.ref())}, nil
 }
 
 func isHex(s string) bool {

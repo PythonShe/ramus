@@ -17,6 +17,22 @@ func (h *harness) stash(n int) StashEntry {
 
 func (h *harness) status() string { return strings.TrimSpace(h.r.Git("status", "--porcelain")) }
 
+// Applying, popping and branching from a stash check files out, running
+// smudge filters (Git LFS) and the post-checkout hook: they get the time
+// a switch gets, not the default that would stop git half way.
+func TestStashCheckoutsGetHookTime(t *testing.T) {
+	w := Where{GitDir: "/r/.git", WorkTree: "/r"}
+	s := StashEntry{N: 0, Commit: "0123456789abcdef0123456789abcdef01234567"}
+	apply, _ := StashApply(w, s, true)
+	pop, _ := StashPop(w, s, false)
+	branch, _ := StashBranch(w, s, "topic", Seen{Branch: "refs/heads/main", Head: s.Commit})
+	for _, op := range []Op{apply, pop, branch, Stash(w, StashOptions{}), Switch(w, "refs/heads/main", Seen{})} {
+		if op.Cmd.Timeout != HookTimeout {
+			t.Errorf("%s: timeout %v", op.Name, op.Cmd.Timeout)
+		}
+	}
+}
+
 func TestStash(t *testing.T) {
 	h := newHarness(t)
 	h.r.Write("a", "1")
