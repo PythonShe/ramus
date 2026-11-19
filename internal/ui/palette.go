@@ -88,7 +88,14 @@ func (a *App) commands(query string) []command {
 	}
 	if a.Crash != nil {
 		dir := a.Crash.Dir()
-		cmds = append(cmds, cmd("crash-reports", func() { a.goWork(nil, func() { tools.Reveal(dir) }) }))
+		update := a.Update
+		cmds = append(cmds, cmd("crash-reports", func() {
+			a.goWork(nil, func() {
+				if err := tools.Reveal(dir); err != nil {
+					update(func() { a.notice = errText(err) })
+				}
+			})
+		}))
 	}
 	cmds = append(cmds, cmd("diagnostics", a.openDiagnostics))
 	if a.ShowAbout != nil {
@@ -146,7 +153,7 @@ func (a *App) tabCommands(t *tab, query string) []command {
 	if t.s.State.Restricted {
 		cmds = append(cmds, cmd("trust", func() { t.s.Trust() }))
 	}
-	dir := t.s.Path
+	dir, update := t.s.Path, a.Update
 	for _, tl := range a.palette.tools {
 		cmds = append(cmds, command{id: toolID(tl.Name), label: locales.PaletteOpenIn(toolName(tl.Name)), run: func() {
 			if err := tl.Open(dir, 0); err != nil {
@@ -155,7 +162,13 @@ func (a *App) tabCommands(t *tab, query string) []command {
 		}})
 	}
 	cmds = append(cmds,
-		cmd("reveal", func() { a.goWork(t, func() { tools.Reveal(dir) }) }),
+		cmd("reveal", func() {
+			a.goWork(t, func() {
+				if err := tools.Reveal(dir); err != nil {
+					update(func() { a.tell(t, errText(err)) })
+				}
+			})
+		}),
 		cmd("show-changes", func() { t.sel = "changes" }),
 		cmd("show-history", func() { t.sel = "history" }),
 		cmd("show-reflog", func() { t.sel = "reflog" }),

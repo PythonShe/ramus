@@ -49,3 +49,18 @@ func TestDiagnostics(t *testing.T) {
 	h.click("Open Issue Page")
 	h.until("the page", func() bool { return slices.Contains(h.tt.OpenedURLs(), issueURL) })
 }
+
+// Showing the crash reports' folder or opening the settings file says
+// why when the system cannot, rather than do nothing.
+func TestOpenFailuresShown(t *testing.T) {
+	h := newHarness(t)
+	// Relative paths, which no opener takes.
+	h.app.Crash = crashlog.New("crashes", "9.9.9")
+	h.app.SettingsPath = "settings.json"
+	h.app.runCommand("crash-reports")
+	h.until("the crash reports' failure", func() bool { return h.app.notice != "" })
+	h.app.openSettings()
+	h.until("the settings", h.shows("Settings file"))
+	h.click("Open")
+	h.until("the settings file's failure", func() bool { return h.app.settingsUI.err != "" })
+}

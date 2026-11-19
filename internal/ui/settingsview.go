@@ -288,8 +288,12 @@ func (a *App) settingsPane(c *ui.Context) {
 				row(locales.SettingsFile(), func() ui.Element {
 					b := ui.Button(c, locales.SettingsOpenFile())
 					if b.Clicked() {
-						p := a.SettingsPath
-						a.goWork(nil, func() { tools.OpenDefault(p) })
+						p, update := a.SettingsPath, a.Update
+						a.goWork(nil, func() {
+							if err := tools.OpenDefault(p); err != nil {
+								update(func() { s.err = errText(err) })
+							}
+						})
 					}
 					return b
 				})
