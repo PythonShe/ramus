@@ -21,9 +21,13 @@ type statsState struct {
 	from, to string // YYYY-MM-DD, as typed
 	asked    *session.StatsRequest
 	res      session.StatsResult
-	loading  bool
-	err      string
-	authors  tableState
+	// title and bars are res's chart over time, made once per result
+	// rather than in every frame.
+	title   string
+	bars    []bar
+	loading bool
+	err     string
+	authors tableState
 	// mode shows activity, files by size or files by changes.
 	mode    int
 	sizes   treemapState
@@ -94,7 +98,7 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 		// it already.
 		ui.Column(c).Padding(spaceM, 0).Gap(spaceXL).Grow(1).Children(func() {
 			ui.Column(c).Padding(0, insetX).Gap(spaceXL).FillWidth().Children(func() {
-				statsCharts(c, st)
+				statsCharts(c, st, ss.title, ss.bars)
 			})
 			a.authorTable(c, t, st)
 		})
@@ -102,15 +106,14 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 }
 
 // statsCharts shows the counts of commits and the charts of when they
-// were made.
-func statsCharts(c *ui.Context, st stats.Stats) {
+// were made, title and bars the one over time.
+func statsCharts(c *ui.Context, st stats.Stats, title string, bars []bar) {
 	th := c.Theme()
 	ui.Row(c).Gap(space3XL).AlignItems(ui.End).Children(func() {
 		ui.Text(c, strconv.Itoa(st.Commits)).FontSize(textDisplay).Bold()
 		ui.Text(c, locales.StatsCommitsBy(st.Commits, len(st.Authors),
 			st.First.Format("2006-01-02"), st.Last.Format("2006-01-02"))).TextColor(th.TextMuted)
 	})
-	title, bars := overTime(st.Weeks)
 	barChart(c, title, bars, 140)
 	ui.Row(c).Gap(space3XL).FillWidth().Children(func() {
 		ui.Column(c).Grow(1).Children(func() {
@@ -139,9 +142,11 @@ func (a *App) countStats(t *tab) {
 		return
 	}
 	ss.err, ss.asked, ss.loading = "", &req, true
-	ss.res = session.StatsResult{Req: req}
+	ss.res, ss.title, ss.bars = session.StatsResult{Req: req}, "", nil
+	now := a.Now()
 	t.s.LoadStats(req, func(r session.StatsResult) {
 		ss.res = r
+		ss.title, ss.bars = overTime(r.Stats.Weeks, now)
 		ss.loading = !r.Done
 	})
 }
@@ -228,52 +233,85 @@ type bar struct {
 	n     int
 }
 
+// futureSlack is how far past now a commit's date still counts where it
+// says: a clock a little ahead is common; a date centuries out is a
+// broken or hostile commit, whose week the chart counts at this bound
+// rather than stretch itself out to it.
+const futureSlack = 366 * 24 * time.Hour
+
 // overTime groups the weeks into as few periods as keep the bars under
-// maxBars, with the periods no one committed in shown empty.
-func overTime(weeks []stats.Week) (string, []bar) {
+// maxBars, with the periods no one committed in shown empty; years are
+// grouped by several when even they are too many. Its work is bounded
+// by the weeks and maxBars, whatever the dates.
+func overTime(weeks []stats.Week, now time.Time) (string, []bar) {
 	if len(weeks) == 0 {
 		return "", nil
 	}
-	first, last := weeks[0].Start, weeks[len(weeks)-1].Start
+	limit := weekOf(now.Add(futureSlack))
+	at := func(w stats.Week) int64 { return min(weekOf(w.Start), limit) }
+	first, last := at(weeks[0]), at(weeks[len(weeks)-1])
+	// A period is counted from an epoch; of is the one a week falls in.
 	type period struct {
 		title string
-		start func(time.Time) time.Time
-		next  func(time.Time) time.Time
-		label func(time.Time) string
+		of    func(week int64) int64
+		label func(p int64) string
+	}
+	monthOf := func(week int64) int64 {
+		t := weekStart(week)
+		return int64(t.Year())*12 + int64(t.Month()-1)
 	}
 	periods := []period{
-		{locales.StatsPerWeek(), func(t time.Time) time.Time { return t }, func(t time.Time) time.Time { return t.AddDate(0, 0, 7) },
-			func(t time.Time) string { return locales.StatsWeekOf(t.Format("2006-01-02")) }},
-		{locales.StatsPerMonth(), func(t time.Time) time.Time { return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC) },
-			func(t time.Time) time.Time { return t.AddDate(0, 1, 0) }, func(t time.Time) string { return locales.StatsMonth(t) }},
-		{locales.StatsPerQuarter(), func(t time.Time) time.Time {
-			return time.Date(t.Year(), (t.Month()-1)/3*3+1, 1, 0, 0, 0, 0, time.UTC)
-		}, func(t time.Time) time.Time { return t.AddDate(0, 3, 0) },
-			func(t time.Time) string { return locales.StatsQuarter((int(t.Month())-1)/3+1, t.Year()) }},
-		{locales.StatsPerYear(), func(t time.Time) time.Time { return time.Date(t.Year(), 1, 1, 0, 0, 0, 0, time.UTC) },
-			func(t time.Time) time.Time { return t.AddDate(1, 0, 0) }, func(t time.Time) string { return strconv.Itoa(t.Year()) }},
+		{locales.StatsPerWeek(), func(w int64) int64 { return w },
+			func(p int64) string { return locales.StatsWeekOf(weekStart(p).Format("2006-01-02")) }},
+		{locales.StatsPerMonth(), monthOf, func(p int64) string {
+			y := floorDiv(p, 12)
+			return locales.StatsMonth(time.Date(int(y), time.Month(p-y*12+1), 1, 0, 0, 0, 0, time.UTC))
+		}},
+		{locales.StatsPerQuarter(), func(w int64) int64 { return floorDiv(monthOf(w), 3) }, func(p int64) string {
+			y := floorDiv(p, 4)
+			return locales.StatsQuarter(int(p-y*4)+1, int(y))
+		}},
+		{locales.StatsPerYear(), func(w int64) int64 { return floorDiv(monthOf(w), 12) },
+			func(p int64) string { return strconv.FormatInt(p, 10) }},
 	}
 	for k, p := range periods {
-		n := 0
-		for d := p.start(first); !d.After(last); d = p.next(d) {
-			n++
-		}
-		if n > maxBars && k < len(periods)-1 {
-			continue
-		}
-		var bars []bar
-		w := 0
-		for d := p.start(first); !d.After(last); d = p.next(d) {
-			end := p.next(d)
-			b := bar{label: p.label(d)}
-			for ; w < len(weeks) && weeks[w].Start.Before(end); w++ {
-				b.n += weeks[w].Commits
+		from, to := p.of(first), p.of(last)
+		n, step := to-from+1, int64(1)
+		if n > maxBars {
+			if k < len(periods)-1 {
+				continue
 			}
-			bars = append(bars, b)
+			step = (n + maxBars - 1) / maxBars
+		}
+		bars := make([]bar, (n+step-1)/step)
+		for i := range bars {
+			lo := from + int64(i)*step
+			bars[i].label = p.label(lo)
+			if hi := min(lo+step-1, to); hi > lo {
+				bars[i].label = locales.StatsRange(p.label(lo), p.label(hi))
+			}
+		}
+		for _, w := range weeks {
+			bars[(p.of(at(w))-from)/step].n += w.Commits
 		}
 		return p.title, bars
 	}
 	return "", nil
+}
+
+// weekOf is the week t falls in, counted from the Monday 1970-01-05, as
+// stats.Week starts them; weekStart is its first day.
+func weekOf(t time.Time) int64 { return floorDiv(floorDiv(t.Unix(), 86400)-4, 7) }
+
+func weekStart(week int64) time.Time { return time.Unix((week*7+4)*86400, 0).UTC() }
+
+// floorDiv is a/b rounded down, for dates before 1970 too.
+func floorDiv(a, b int64) int64 {
+	q := a / b
+	if a%b != 0 && (a < 0) != (b < 0) {
+		q--
+	}
+	return q
 }
 
 func weekdayBars(st stats.Stats) []bar {
