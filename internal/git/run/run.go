@@ -37,6 +37,40 @@ var localEnv = map[string]bool{
 	"GIT_SHALLOW_FILE": true, "GIT_COMMON_DIR": true,
 }
 
+// readConfig is config every command that only reads runs with, through
+// the environment (GIT_CONFIG_COUNT), so that it wins over the user's
+// files and loses to any -c, a command's own included. It undoes the
+// settings of a user's global or system config that change the bytes the
+// engine parses: signature checks printed before each commit, a one-path
+// log turned into --follow, a root commit shown with no changes, colour
+// codes, and patch paths without the a/ and b/ every patch reader and git
+// apply expect, or with blank context lines left empty. What a user
+// chooses a diff to show (algorithm, renames, context, textconv) stays
+// theirs.
+var readConfig = [][2]string{
+	{"log.showSignature", "false"},
+	{"log.follow", "false"},
+	{"log.showRoot", "true"},
+	{"color.ui", "never"},
+	{"color.diff", "never"},
+	{"diff.noprefix", "false"},
+	{"diff.mnemonicPrefix", "false"},
+	{"diff.srcPrefix", "a/"},
+	{"diff.dstPrefix", "b/"},
+	{"diff.relative", "false"},
+	{"diff.submodule", "short"},
+	{"diff.suppressBlankEmpty", "false"},
+}
+
+// readEnv is readConfig as variables.
+var readEnv = func() []string {
+	env := []string{fmt.Sprintf("GIT_CONFIG_COUNT=%d", len(readConfig))}
+	for i, kv := range readConfig {
+		env = append(env, fmt.Sprintf("GIT_CONFIG_KEY_%d=%s", i, kv[0]), fmt.Sprintf("GIT_CONFIG_VALUE_%d=%s", i, kv[1]))
+	}
+	return env
+}()
+
 // Runner runs git. One Runner serves the whole app, so its limit on
 // concurrent processes holds across every repository.
 type Runner struct {
@@ -71,7 +105,9 @@ func New(git *gitexe.Git, env []string, max int) *Runner {
 	var clean []string
 	for _, kv := range env {
 		k, _, _ := strings.Cut(kv, "=")
-		if !localEnv[k] {
+		// Without GIT_CONFIG_COUNT these do nothing, and with the count
+		// readEnv sets they would add to its entries.
+		if !localEnv[k] && !strings.HasPrefix(k, "GIT_CONFIG_KEY_") && !strings.HasPrefix(k, "GIT_CONFIG_VALUE_") {
 			clean = append(clean, kv)
 		}
 	}
@@ -212,7 +248,8 @@ type Cmd struct {
 }
 
 // Line returns the command as a user would type it, for the command log
-// and error messages.
+// and error messages. The runner's own overrides (readConfig, and a
+// hardened runner's) are not part of it.
 func (c *Cmd) Line() string { return "git " + strings.Join(c.argv(), " ") }
 
 func (c *Cmd) argv() []string {
@@ -393,6 +430,7 @@ func (r *Runner) command(ctx context.Context, c *Cmd) *exec.Cmd {
 	cmd.Env = append(append(append([]string(nil), r.env...), c.Env...), hardening...)
 	if c.Read {
 		cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
+		cmd.Env = append(cmd.Env, readEnv...)
 	}
 	cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
 	if !c.Read {

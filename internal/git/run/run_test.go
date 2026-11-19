@@ -379,3 +379,73 @@ func TestHardenedDiffLeavesSubmodules(t *testing.T) {
 		}
 	}
 }
+
+// The settings of a user's global config that change what git prints for
+// the engine to parse are undone for every read, and a command's own
+// config still wins over that.
+func TestReadIgnoresParseBreakingConfig(t *testing.T) {
+	r := gittest.Init(t)
+	gittest.SSHSigning(t, r)
+	r.Write("a", "one\n\nthree\n")
+	plain := r.Commit("plain")
+	r.Write("b", "x\n")
+	r.Git("add", "b")
+	r.Git("commit", "-q", "-S", "-m", "signed")
+	signed := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	r.Write("a", "one\n\nfour\n")
+	r.Commit("again")
+	r.Write("a", "one\n\n3\n")
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(global, []byte(`[log]
+	showSignature = true
+	follow = true
+	showRoot = false
+[color]
+	ui = always
+	diff = always
+[diff]
+	noprefix = true
+	mnemonicPrefix = true
+	srcPrefix = S/
+	dstPrefix = D/
+	suppressBlankEmpty = true
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	run := New(g, append(gittest.Env(), "GIT_CONFIG_GLOBAL="+global), 2)
+	out := func(config []string, args ...string) string {
+		t.Helper()
+		res, err := run.Run(context.Background(), &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Read: true, Config: config, Args: args})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(res.Stdout)
+	}
+	if s := out(nil, "log", "-1", "--format=%B", signed, "--"); s != "signed\n\n" {
+		t.Errorf("message of a signed commit: %q", s)
+	}
+	// Following renames, git would not rewrite the parents to the
+	// commits the filter keeps.
+	if s := out(nil, "log", "-1", "--format=%P", "--parents", "--", "a"); s != plain+"\n" {
+		t.Errorf("parent in a one-path log: %q, want %s", s, plain)
+	}
+	if s := out(nil, "log", "--format=%s", "--name-only", plain); !strings.Contains(s, "\na\n") {
+		t.Errorf("root commit: %q", s)
+	}
+	diff := out(nil, "diff")
+	for _, want := range []string{"diff --git a/a b/a\n", "--- a/a\n", "+++ b/a\n", "\n \n-four\n"} {
+		if !strings.Contains(diff, want) {
+			t.Errorf("diff has no %q:\n%s", want, diff)
+		}
+	}
+	if strings.Contains(diff, "\x1b[") {
+		t.Errorf("diff in colour:\n%q", diff)
+	}
+	if s := out([]string{"log.showSignature=true"}, "log", "-1", "--format=%s", signed, "--"); !strings.Contains(s, "Good") {
+		t.Errorf("the command's own config lost: %q", s)
+	}
+}
