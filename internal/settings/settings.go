@@ -120,7 +120,7 @@ func (s Settings) FetchEvery() int {
 	if s.FetchMinutes <= 0 {
 		return DefaultFetchMinutes
 	}
-	return max(s.FetchMinutes, MinFetchMinutes)
+	return min(max(s.FetchMinutes, MinFetchMinutes), MaxFetchMinutes)
 }
 
 // Action is a command of the user's, shown in the command palette and in
@@ -143,7 +143,22 @@ var Themes = []string{"system", "light", "dark"}
 // Defaults fill fields left out.
 var Defaults = Settings{Theme: "system", SnapshotDays: 14, RecentLimit: 20}
 
-// WithDefaults returns s with every unset or invalid field at its default.
+// Bounds on the numbers a file edited by hand may hold: past them a
+// number means nothing more, and a time made of it overflows (days as a
+// time.Duration past 106751), which could expire every snapshot of
+// dropped work at once.
+const (
+	MaxSnapshotDays = 36500
+	MaxRecentLimit  = 1000
+	MaxFetchMinutes = 7 * 24 * 60
+	// maxWidth is more than any screen has.
+	maxWidth = 1 << 14
+	// pictureCompareLast is the last way pictures compare.
+	pictureCompareLast = 3
+)
+
+// WithDefaults returns s with every unset or invalid field at its default,
+// and every number within its bounds.
 func (s Settings) WithDefaults() Settings {
 	if !slices.Contains(Themes, s.Theme) {
 		s.Theme = Defaults.Theme
@@ -151,16 +166,42 @@ func (s Settings) WithDefaults() Settings {
 	if s.SnapshotDays <= 0 {
 		s.SnapshotDays = Defaults.SnapshotDays
 	}
+	s.SnapshotDays = min(s.SnapshotDays, MaxSnapshotDays)
 	if s.RecentLimit <= 0 {
 		s.RecentLimit = Defaults.RecentLimit
 	}
+	s.RecentLimit = min(s.RecentLimit, MaxRecentLimit)
 	if s.FetchMinutes <= 0 {
 		s.FetchMinutes = 0
 	} else {
-		s.FetchMinutes = max(s.FetchMinutes, MinFetchMinutes)
+		s.FetchMinutes = min(max(s.FetchMinutes, MinFetchMinutes), MaxFetchMinutes)
 	}
+	if s.PictureCompare < 0 || s.PictureCompare > pictureCompareLast {
+		s.PictureCompare = 0
+	}
+	if !(s.HistoryMessage > 0 && s.HistoryMessage <= maxWidth) {
+		s.HistoryMessage = 0
+	}
+	s.HistoryColumns = validColumns(s.HistoryColumns)
 	s.Tables = validTables(s.Tables)
 	return s
+}
+
+// validColumns returns columns with a width no column can take at the
+// list's own. The map is new: the one given may be shared with another
+// window.
+func validColumns(cols map[string]Column) map[string]Column {
+	if cols == nil {
+		return nil
+	}
+	out := make(map[string]Column, len(cols))
+	for k, c := range cols {
+		if !(c.Width > 0 && c.Width <= maxWidth) {
+			c.Width = 0
+		}
+		out[k] = c
+	}
+	return out
 }
 
 // validTables returns tables without the widths no column can take, as a
@@ -171,7 +212,7 @@ func validTables(tables map[string]TableLayout) map[string]TableLayout {
 	for key, l := range tables {
 		var widths map[string]float32
 		for id, w := range l.Widths {
-			if w > 0 {
+			if w > 0 && w <= maxWidth {
 				if widths == nil {
 					widths = map[string]float32{}
 				}

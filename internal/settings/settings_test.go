@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadSave(t *testing.T) {
@@ -116,6 +117,30 @@ func TestTablesNormalized(t *testing.T) {
 	}
 	if back, err := Load(p); err != nil || !reflect.DeepEqual(back, s) {
 		t.Fatalf("round trip %+v %v", back, err)
+	}
+}
+
+// Every number in the file is bounded where it is read: a snapshotDays
+// that would overflow as a duration, and wrap to minutes, expired every
+// snapshot of dropped work.
+func TestNumbersBounded(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	os.WriteFile(p, []byte(`{"snapshotDays": 213504, "recentLimit": 99999999, "fetchMinutes": 1000000000000,
+		"pictureCompare": 9, "historyMessage": -5, "historyColumns": {"graph": {"width": 1000000000}, "hash": {"width": -3, "hidden": true}},
+		"tables": {"branches": {"widths": {"name": 300000}}}}`), 0o600)
+	s, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.SnapshotDays != MaxSnapshotDays || time.Duration(s.SnapshotDays)*24*time.Hour < 365*24*time.Hour {
+		t.Errorf("snapshot days %d", s.SnapshotDays)
+	}
+	if s.RecentLimit != MaxRecentLimit || s.FetchMinutes != MaxFetchMinutes || time.Duration(s.FetchEvery())*time.Minute <= 0 {
+		t.Errorf("recent %d, fetch %d", s.RecentLimit, s.FetchMinutes)
+	}
+	if s.PictureCompare != 0 || s.HistoryMessage != 0 || s.HistoryColumns["graph"].Width != 0 ||
+		s.HistoryColumns["hash"] != (Column{Hidden: true}) || s.Tables != nil {
+		t.Errorf("layout numbers %+v %v %+v %+v", s.PictureCompare, s.HistoryMessage, s.HistoryColumns, s.Tables)
 	}
 }
 
