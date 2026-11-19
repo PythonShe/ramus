@@ -63,7 +63,12 @@ func TestStoppedWriteLeavesNoLock(t *testing.T) {
 	r.Commit("one")
 	hooks := filepath.Join(r.GitDir(), "hooks")
 	os.MkdirAll(hooks, 0o755)
-	if err := os.WriteFile(filepath.Join(hooks, "pre-commit"), []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+	// The hook says when it runs: git commit -a keeps the index locked
+	// through its hooks, and by then has the lock down for removal. Stopped
+	// in the instant it makes a lock, before that, git itself leaves it.
+	running := filepath.Join(t.TempDir(), "running")
+	hook := "#!/bin/sh\n: > '" + filepath.ToSlash(running) + "'\nsleep 30\n"
+	if err := os.WriteFile(filepath.Join(hooks, "pre-commit"), []byte(hook), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	r.Write("a", "1\n")
@@ -73,14 +78,17 @@ func TestStoppedWriteLeavesNoLock(t *testing.T) {
 	defer cancel()
 	go func() {
 		for ctx.Err() == nil {
-			if _, err := os.Stat(lock); err == nil {
+			if _, err := os.Stat(running); err == nil {
+				if _, err := os.Stat(lock); err != nil {
+					t.Error("git holds no index.lock while its hook runs")
+				}
 				cancel()
 				return
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()
-	_, err := runner(t, 1).Run(ctx, &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Args: []string{"commit", "-m", "two"}, Timeout: 20 * time.Second})
+	_, err := runner(t, 1).Run(ctx, &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Args: []string{"commit", "-a", "-m", "two"}, Timeout: 20 * time.Second})
 	if err == nil {
 		t.Fatal("ran to the end")
 	}
