@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -72,7 +73,11 @@ func (l *linuxWatch) onFD(fn func(fd int) error) error {
 // it that is not skipped. A directory below the root that cannot be read
 // is left unwatched, as one gone already is: one such folder, lost+found
 // or a volume of another user's, must not turn the watcher off.
-func (l *linuxWatch) addTree(dir string) error {
+func (l *linuxWatch) addTree(dir string) error { return l.addTreeNoting(dir, nil) }
+
+// addTreeNoting is addTree, calling added with each watch it adds or
+// finds there already.
+func (l *linuxWatch) addTreeNoting(dir string, added func(wd int32)) error {
 	err := filepath.WalkDir(filepath.Join(l.w.root, dir), func(p string, d fs.DirEntry, err error) error {
 		top := p == l.w.root
 		if err != nil {
@@ -108,6 +113,9 @@ func (l *linuxWatch) addTree(dir string) error {
 		l.mu.Lock()
 		l.dirs[int32(wd)] = rel
 		l.mu.Unlock()
+		if added != nil {
+			added(int32(wd))
+		}
 		return nil
 	})
 	if errors.Is(err, os.ErrClosed) {
@@ -162,57 +170,71 @@ func (l *linuxWatch) read() {
 			}
 			return
 		}
-		// Directories moved away in this read, by the move's cookie: one
-		// whose arrival in the tree is not in the same read left it. An
-		// arrival read later only watches it anew.
-		var moved map[uint32][]int32
-		for off := 0; off+syscall.SizeofInotifyEvent <= n; {
-			ev := (*syscall.InotifyEvent)(unsafe.Pointer(&buf[off]))
-			nameEnd := off + syscall.SizeofInotifyEvent + int(ev.Len)
-			if nameEnd > n {
-				break
+		l.handle(buf[:n])
+	}
+}
+
+// handle acts on one read of events.
+func (l *linuxWatch) handle(buf []byte) {
+	n := len(buf)
+	// Directories moved away in this read, by the move's cookie: one
+	// whose arrival in the tree is not in the same read left it. An
+	// arrival read later only watches it anew.
+	var moved map[uint32][]int32
+	// A directory moved out and back within the read (two cookies) gets
+	// its old watches back from addTree: they are watched again, not
+	// gone, and leave the departure's list.
+	kept := func(wd int32) {
+		for c, wds := range moved {
+			moved[c] = slices.DeleteFunc(wds, func(w int32) bool { return w == wd })
+		}
+	}
+	for off := 0; off+syscall.SizeofInotifyEvent <= n; {
+		ev := (*syscall.InotifyEvent)(unsafe.Pointer(&buf[off]))
+		nameEnd := off + syscall.SizeofInotifyEvent + int(ev.Len)
+		if nameEnd > n {
+			break
+		}
+		name := buf[off+syscall.SizeofInotifyEvent : nameEnd]
+		for len(name) > 0 && name[len(name)-1] == 0 {
+			name = name[:len(name)-1]
+		}
+		off = nameEnd
+		if ev.Mask&syscall.IN_Q_OVERFLOW != 0 {
+			l.w.dropped()
+			continue
+		}
+		l.mu.Lock()
+		dir, ok := l.dirs[ev.Wd]
+		if ev.Mask&syscall.IN_IGNORED != 0 {
+			delete(l.dirs, ev.Wd)
+		}
+		l.mu.Unlock()
+		if !ok {
+			continue
+		}
+		rel := filepath.Join(dir, string(name))
+		l.w.changed(rel)
+		if ev.Mask&syscall.IN_ISDIR != 0 && ev.Mask&syscall.IN_MOVED_FROM != 0 {
+			if moved == nil {
+				moved = map[uint32][]int32{}
 			}
-			name := buf[off+syscall.SizeofInotifyEvent : nameEnd]
-			for len(name) > 0 && name[len(name)-1] == 0 {
-				name = name[:len(name)-1]
+			moved[ev.Cookie] = l.under(filepath.ToSlash(rel))
+		}
+		if ev.Mask&syscall.IN_ISDIR != 0 && ev.Mask&(syscall.IN_CREATE|syscall.IN_MOVED_TO) != 0 {
+			if ev.Mask&syscall.IN_MOVED_TO != 0 {
+				delete(moved, ev.Cookie)
 			}
-			off = nameEnd
-			if ev.Mask&syscall.IN_Q_OVERFLOW != 0 {
-				l.w.dropped()
-				continue
+			// Watch the new directory, and report what was made in it
+			// before the watch was in place.
+			if err := l.addTreeNoting(rel, kept); err != nil {
+				l.w.fail(err)
 			}
-			l.mu.Lock()
-			dir, ok := l.dirs[ev.Wd]
-			if ev.Mask&syscall.IN_IGNORED != 0 {
-				delete(l.dirs, ev.Wd)
-			}
-			l.mu.Unlock()
-			if !ok {
-				continue
-			}
-			rel := filepath.Join(dir, string(name))
 			l.w.changed(rel)
-			if ev.Mask&syscall.IN_ISDIR != 0 && ev.Mask&syscall.IN_MOVED_FROM != 0 {
-				if moved == nil {
-					moved = map[uint32][]int32{}
-				}
-				moved[ev.Cookie] = l.under(filepath.ToSlash(rel))
-			}
-			if ev.Mask&syscall.IN_ISDIR != 0 && ev.Mask&(syscall.IN_CREATE|syscall.IN_MOVED_TO) != 0 {
-				if ev.Mask&syscall.IN_MOVED_TO != 0 {
-					delete(moved, ev.Cookie)
-				}
-				// Watch the new directory, and report what was made in it
-				// before the watch was in place.
-				if err := l.addTree(rel); err != nil {
-					l.w.fail(err)
-				}
-				l.w.changed(rel)
-			}
 		}
-		for _, wds := range moved {
-			l.forget(wds)
-		}
+	}
+	for _, wds := range moved {
+		l.forget(wds)
 	}
 }
 
