@@ -69,7 +69,10 @@ func (rw Rewrite) op(name string, seen Seen, cmd run.Cmd) Op {
 // Expect.Replay, which refuses a commit HEAD does not have and a range
 // with a merge in it.
 func (rw Rewrite) rebase(w Where, action string, extra ...string) run.Cmd {
-	args := []string{"rebase", "--interactive", "--autostash", "--rebase-merges"}
+	// The user's rebase.autoSquash would fold every fixup! commit of the
+	// range into a commit the rewrite does not name; an --autosquash in
+	// extra, later, wins.
+	args := []string{"rebase", "--interactive", "--autostash", "--rebase-merges", "--no-autosquash"}
 	if rw.Git.Has(gitexe.UpdateRefs) {
 		args = append(args, "--update-refs")
 	}

@@ -105,6 +105,44 @@ func testRewrite(t *testing.T, v gitexe.Version) {
 	}
 }
 
+// The rebase a reword or a drop falls back to touches only the commit it
+// names: with the user's rebase.autoSquash and rebase.abbreviateCommands, a
+// fixup! commit in the range stays a commit of its own, and the reword or
+// drop is done, not replayed as a pick.
+func TestRewriteFallbackLeavesFixupCommits(t *testing.T) {
+	for _, what := range []string{"reword", "drop"} {
+		t.Run(what, func(t *testing.T) {
+			h := newHarness(t)
+			h.r.Git("config", "rebase.autoSquash", "true")
+			h.r.Git("config", "rebase.abbreviateCommands", "true")
+			h.r.Write("f1", "f1\n")
+			h.r.Commit("add f1")
+			h.r.Write("f2", "f2\n")
+			h.r.Commit("add f2")
+			h.r.Write("f1", "f1 fixed\n")
+			h.r.Commit("fixup! add f2")
+			h.r.Write("f3", "f3\n")
+			h.r.Commit("add f3")
+			// The commit rewritten is the one after the base, before the
+			// fixup! that autosquash would move up under add f2.
+			rw := Rewrite{Commit: h.rev("main~2"), Parent: h.rev("main~3"), Git: oldGit}
+			var op Op
+			var err error
+			want := "add f3\nfixup! add f2\nadd f2, reworded\nadd f1"
+			if what == "reword" {
+				op, err = Reword(h.w, rw, "add f2, reworded", h.seen())
+			} else {
+				op, err = DropCommit(h.w, rw, h.seen())
+				want = "add f3\nfixup! add f2\nadd f1"
+			}
+			h.do(op, err, true)
+			if log := strings.TrimSpace(h.r.Git("log", "--format=%s", "main")); log != want {
+				t.Fatalf("log:\n%s", log)
+			}
+		})
+	}
+}
+
 // An edit of history replays a whole todo: commits reordered, reworded,
 // squashed with a message or joined, fixed up and dropped, a branch left
 // where its step says; undo puts it all back.
