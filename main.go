@@ -413,6 +413,16 @@ func menu(ws *windows) *mygo.Menu {
 	help := &mygo.MenuItem{Label: locales.MenuHelp(), Hidden: mac, Submenu: []*mygo.MenuItem{
 		{Label: locales.MenuAbout(), Click: about},
 	}}
+	// mygo's own View menu is a web view's: Reload, Force Reload,
+	// Developer Tools and the zoom do nothing in a window of native UI,
+	// and Reload shows Refresh's key. Its Window menu off macOS holds
+	// Close Window on Close Tab's key, which the window takes first, and
+	// the item, closing every tab, while a dialog is open.
+	view := &mygo.MenuItem{Role: mygo.RoleViewMenu, Submenu: []*mygo.MenuItem{{Role: mygo.RoleToggleFullScreen}}}
+	windowMenu := &mygo.MenuItem{Role: mygo.RoleWindowMenu}
+	if !mac {
+		windowMenu.Submenu = []*mygo.MenuItem{{Role: mygo.RoleMinimize}}
+	}
 	file := []*mygo.MenuItem{
 		{Label: locales.MenuNewWindow(), Accelerator: key("new-window"), Click: func(*mygo.MenuItem, *mygo.Window) { ws.open(nil) }},
 		{Label: locales.MenuOpenRepository(), Accelerator: key("open"), Click: act((*ui.App).PickAndOpen)},
@@ -475,8 +485,8 @@ func menu(ws *windows) *mygo.Menu {
 		}...)},
 		{Role: mygo.RoleEditMenu},
 		{Label: locales.MenuRepository(), Submenu: repo},
-		{Role: mygo.RoleViewMenu},
-		{Role: mygo.RoleWindowMenu},
+		view,
+		windowMenu,
 		help,
 	})
 	ws.roleKeys = roleKeys(m)

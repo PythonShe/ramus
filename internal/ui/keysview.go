@@ -245,12 +245,7 @@ func (a *App) roleOf(k chord) string {
 	}
 	roles := a.RoleKeys()
 	for _, acc := range slices.Sorted(maps.Keys(roles)) {
-		// mygo's Plus is the key of = and +, without Shift.
-		parts := strings.Split(acc, "+")
-		if parts[len(parts)-1] == "Plus" {
-			parts[len(parts)-1] = "="
-		}
-		if rk, err := parseChord(strings.Join(parts, "+")); err == nil && rk == k {
+		if rk, err := parseChord(acc); err == nil && rk == k {
 			return roles[acc]
 		}
 	}

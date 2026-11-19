@@ -94,12 +94,13 @@ func TestChords(t *testing.T) {
 // take another's chord or one the menu has for itself.
 func TestDefaultChordsTypeNothing(t *testing.T) {
 	// What the menu takes on each system, of the roles main.go puts in
-	// it, but those a default shares on purpose (Undo, Reload and Close
-	// are the window's Undo, Refresh and Close Tab first).
+	// it and Close Window, but those a default shares on purpose: Undo
+	// and Redo, which the Edit menu hands to the window. TestMenuKeys in
+	// main checks the menu itself.
 	menu := map[string][]string{
-		"darwin":  {"Super+Shift+W", "Super+X", "Super+C", "Super+V", "Super+A", "Super+Q", "Super+H", "Super+Alt+H", "Super+M", "Ctrl+Super+F", "Super+0", "Super+-", "Super+="},
-		"windows": {"Ctrl+Shift+W", "Ctrl+X", "Ctrl+C", "Ctrl+V", "Ctrl+A", "Ctrl+Y", "Ctrl+Shift+R", "Ctrl+Shift+I", "Ctrl+M", "Ctrl+0", "Ctrl+-", "Ctrl+=", "F11"},
-		"linux":   {"Ctrl+Shift+W", "Ctrl+X", "Ctrl+C", "Ctrl+V", "Ctrl+A", "Ctrl+Q", "Ctrl+Shift+R", "Ctrl+Shift+I", "Ctrl+M", "Ctrl+0", "Ctrl+-", "Ctrl+=", "F11"},
+		"darwin":  {"Super+Shift+W", "Super+X", "Super+C", "Super+V", "Super+A", "Super+Q", "Super+H", "Super+Alt+H", "Super+M", "Ctrl+Super+F"},
+		"windows": {"Ctrl+Shift+W", "Ctrl+X", "Ctrl+C", "Ctrl+V", "Ctrl+A", "Ctrl+Y", "Ctrl+M", "F11"},
+		"linux":   {"Ctrl+Shift+W", "Ctrl+X", "Ctrl+C", "Ctrl+V", "Ctrl+A", "Ctrl+Q", "Ctrl+M", "F11"},
 	}
 	for _, goos := range []string{"darwin", "windows", "linux"} {
 		// CmdOrCtrl as that system reads it.
@@ -321,7 +322,7 @@ func TestKeysDialog(t *testing.T) {
 func TestRoleKeyTakenIsSaid(t *testing.T) {
 	h := newHarness(t)
 	h.app.RoleKeys = func() map[string]string {
-		return map[string]string{"CmdOrCtrl+M": "Minimize", "CmdOrCtrl+W": "Close Window", "CmdOrCtrl+Plus": "Zoom In", "F11": "Toggle Full Screen"}
+		return map[string]string{"CmdOrCtrl+M": "Minimize", "F11": "Toggle Full Screen", "CmdOrCtrl+A": "Select All"}
 	}
 	h.app.openKeys()
 	h.tt.Frame()
@@ -334,7 +335,7 @@ func TestRoleKeyTakenIsSaid(t *testing.T) {
 		item string
 	}{
 		{chord{ui.Cmd, ui.KeyM}, "Minimize"},
-		{chord{ui.Cmd, ui.KeyEqual}, "Zoom In"},
+		{chord{ui.Cmd, ui.KeyA}, "Select All"},
 		{chord{0, ui.KeyF11}, "Toggle Full Screen"},
 		// A command's key is told as the command's.
 		{chord{ui.Cmd, ui.KeyW}, CommandName("close-tab")},

@@ -298,6 +298,16 @@ func goToTabs() []bindableCommand {
 // defaultKeys are the shortcuts the app ships with.
 var defaultKeys = defaultKeysOn(runtime.GOOS)
 
+// DefaultKeys are the shortcuts the app ships with on this system, by
+// command, for a test of the app menu built with them.
+func DefaultKeys() map[string][]string {
+	out := make(map[string][]string, len(defaultKeys))
+	for id, keys := range defaultKeys {
+		out[id] = slices.Clone(keys)
+	}
+	return out
+}
+
 // defaultKeysOn are the shortcuts the app ships with on the system goos.
 func defaultKeysOn(goos string) map[string][]string {
 	// Control and Alt is AltGr on Windows, which types characters there:
