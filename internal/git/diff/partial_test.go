@@ -66,14 +66,49 @@ func TestParseRefusesUndercountedHunk(t *testing.T) {
 	}
 }
 
-// TestSelectAgainstGit stages and discards random choices of lines of
-// random edits through git apply, and checks the result against what the
-// choice means, line by line.
+// TestSelectAgainstGit stages, discards and unstages random choices of
+// lines of random edits through git apply, and checks the result against
+// what the choice means, line by line: with lines ending in a carriage
+// return, paths with spaces and outside ASCII, and core.autocrlf.
 func TestSelectAgainstGit(t *testing.T) {
+	for i, v := range []selectCase{
+		{name: "plain", path: "f"},
+		{name: "carriage returns", path: "a b.txt", cr: true},
+		{name: "non-ASCII path", path: "dir ü/é f.txt"},
+		{name: "unstage", path: "dir ü/é f.txt", cr: true, staged: true},
+		{name: "autocrlf", path: "a b.txt", autocrlf: true},
+	} {
+		t.Run(v.name, func(t *testing.T) {
+			t.Parallel()
+			selectAgainstGit(t, v, uint64(i))
+		})
+	}
+}
+
+type selectCase struct {
+	name, path string
+	// cr puts lines ending in a carriage return in the files.
+	cr bool
+	// staged unstages lines from the index, where the others stage and
+	// discard them.
+	staged bool
+	// autocrlf keeps the work tree in CRLF and the index in LF.
+	autocrlf bool
+}
+
+func selectAgainstGit(t *testing.T, v selectCase, seed uint64) {
 	r := gittest.Init(t)
 	rn := testrun.Runner(t)
-	rng := rand.New(rand.NewPCG(1, 2))
+	rng := rand.New(rand.NewPCG(1, 2+seed))
 	words := []string{"alpha", "beta", "", "gamma", "delta", "beta", "  indented", "}"}
+	if v.cr {
+		words = append(words, "cr\r", "\r", "mixed\r")
+	}
+	onDisk := func(s string) string { return s }
+	if v.autocrlf {
+		r.Git("config", "core.autocrlf", "true")
+		onDisk = func(s string) string { return strings.ReplaceAll(s, "\n", "\r\n") }
+	}
 	text := func(n int, eol bool) string {
 		var b strings.Builder
 		for i := range n {
@@ -115,23 +150,38 @@ func TestSelectAgainstGit(t *testing.T) {
 		}
 		return nil
 	}
+	// prepare puts old where the patch starts from and nu where it goes:
+	// the index and the work tree, or HEAD and the index to unstage.
+	prepare := func(old, nu string) {
+		r.Write(v.path, onDisk(old))
+		r.Git("add", "--", v.path)
+		if v.staged {
+			r.CommitIndex("old")
+		}
+		r.Write(v.path, onDisk(nu))
+		if v.staged {
+			r.Git("add", "--", v.path)
+		}
+	}
+	src, directions := Unstaged, []bool{false, true}
+	if v.staged {
+		src, directions = Staged, []bool{true}
+	}
 	tried := 0
-	for iter := range 60 {
+	for iter := range 40 {
 		old := text(rng.IntN(30), rng.IntN(4) != 0)
 		nu := edit(old)
 		if nu == old {
 			continue
 		}
-		r.Write("f", old)
-		r.Git("add", "f")
-		r.Write("f", nu)
+		prepare(old, nu)
 		ctxLines := 1 + rng.IntN(3)
-		pt, err := WorkTreePatch(context.Background(), rn, r.GitDir(), r.Dir, PatchRequest{Source: Unstaged, Context: ctxLines, ForApply: true})
+		pt, err := WorkTreePatch(context.Background(), rn, r.GitDir(), r.Dir, PatchRequest{Source: src, Context: ctxLines, ForApply: true})
 		if err != nil {
 			t.Fatal(err)
 		}
 		p, err := Parse(pt.Text)
-		if err != nil {
+		if err != nil || len(p.Files) != 1 || p.Path(0) != v.path {
 			t.Fatalf("iter %d: %v\n%s", iter, err, pt.Text)
 		}
 		pick := map[int]bool{}
@@ -141,7 +191,7 @@ func TestSelectAgainstGit(t *testing.T) {
 			}
 		}
 		chosen := func(i int) bool { return pick[i] }
-		for _, reverse := range []bool{false, true} {
+		for _, reverse := range directions {
 			sel, err := p.Select(0, reverse, chosen)
 			if errors.Is(err, ErrNothingChosen) {
 				continue
@@ -151,23 +201,29 @@ func TestSelectAgainstGit(t *testing.T) {
 			}
 			want := expect(p, old, nu, reverse, chosen)
 			var got string
-			if reverse {
+			switch {
+			case v.staged:
+				// Unstage the chosen lines.
+				if err := apply(sel, "-R", "--cached"); err != nil {
+					t.Fatalf("iter %d unstage: %s\nold %q\nnew %q\npatch:\n%s\nselection:\n%s", iter, err, old, nu, pt.Text, sel)
+				}
+				got = r.Git("show", ":"+v.path)
+				r.Git("add", "--", v.path)
+			case reverse:
 				// Discard the chosen lines from the work tree.
 				if err := apply(sel, "-R"); err != nil {
 					t.Fatalf("iter %d discard: %s\nold %q\nnew %q\npatch:\n%s\nselection:\n%s", iter, err, old, nu, pt.Text, sel)
 				}
-				b, _ := os.ReadFile(filepath.Join(r.Dir, "f"))
-				got = string(b)
-				r.Write("f", nu)
-			} else {
+				b, _ := os.ReadFile(filepath.Join(r.Dir, filepath.FromSlash(v.path)))
+				got, want = string(b), onDisk(want)
+				r.Write(v.path, onDisk(nu))
+			default:
 				// Stage the chosen lines.
 				if err := apply(sel, "--cached"); err != nil {
 					t.Fatalf("iter %d stage: %s\nold %q\nnew %q\npatch:\n%s\nselection:\n%s", iter, err, old, nu, pt.Text, sel)
 				}
-				got = r.Git("show", ":f")
-				r.Write("f", old)
-				r.Git("add", "f")
-				r.Write("f", nu)
+				got = r.Git("show", ":"+v.path)
+				prepare(old, nu)
 			}
 			if got != want {
 				t.Fatalf("iter %d reverse=%v:\ngot  %q\nwant %q\nold %q\nnew %q\nselection:\n%s", iter, reverse, got, want, old, nu, sel)
@@ -175,9 +231,10 @@ func TestSelectAgainstGit(t *testing.T) {
 			tried++
 		}
 	}
-	if tried < 80 {
+	if tried < 25*len(directions) {
 		t.Fatalf("only %d selections tried", tried)
 	}
+	t.Logf("%d selections", tried)
 }
 
 // expect is the file a selection makes: forward, the old side with the
