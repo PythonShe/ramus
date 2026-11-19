@@ -318,6 +318,7 @@
   "remoteCheckoutSame": "{name} is at the same commit as {remote}.",
   "remoteCheckoutBehind": "{count, plural, one {{name} is # commit behind {remote}.} other {{name} is # commits behind {remote}.}}",
   "remoteCheckoutAhead": "{count, plural, one {{name} is # commit ahead of {remote}, not pushed.} other {{name} is # commits ahead of {remote}, not pushed.}}",
+  "remoteCheckoutReading": "Reading how {name} stands against {remote}…",
   "remoteCheckoutDiverged": "{name} and {remote} have diverged: {ahead, plural, one {# commit} other {# commits}} ahead, {behind, plural, one {# commit} other {# commits}} behind.",
   "remoteCheckoutExists": "A local branch {name} already exists",
   "remoteCheckoutSwitch": "Switch to {name}",

@@ -23,6 +23,9 @@ type remoteCheckout struct {
 	// same name.
 	remote string
 	local  session.BranchInfo
+	// unread is set while the branches' details, which say how local
+	// stands to remote, are read.
+	unread bool
 	// other is the name of a new branch to make instead.
 	other string
 	err   string
@@ -48,6 +51,7 @@ func (a *App) checkOutRemote(t *tab, remote string) {
 	name := localName(remote)
 	ref := "refs/heads/" + name
 	var local *session.BranchInfo
+	unread := false
 	if info := t.refs.info; info != nil {
 		for i, b := range info.Branches {
 			if b.Name == ref {
@@ -55,7 +59,10 @@ func (a *App) checkOutRemote(t *tab, remote string) {
 			}
 		}
 	} else if slices.Contains(t.s.LocalBranches(), ref) {
-		local = &session.BranchInfo{Name: ref}
+		// Its upstream, its counts and its worktree come with the details:
+		// the dialog waits for them before it offers a reset.
+		local, unread = &session.BranchInfo{Name: ref}, true
+		a.loadRefs(t)
 	}
 	switch {
 	case local == nil:
@@ -64,7 +71,7 @@ func (a *App) checkOutRemote(t *tab, remote string) {
 	case local.Worktree != "":
 		a.elsewhereUI = elsewhere{open: true, branch: ref, folder: local.Worktree}
 	default:
-		a.remoteUI = remoteCheckout{open: true, t: t, remote: remote, local: *local,
+		a.remoteUI = remoteCheckout{open: true, t: t, remote: remote, local: *local, unread: unread,
 			other: strings.ReplaceAll(strings.TrimPrefix(remote, "refs/remotes/"), "/", "-")}
 	}
 }
@@ -75,6 +82,8 @@ func (d *remoteCheckout) relation() (text string, ff, behind bool) {
 	name := strings.TrimPrefix(d.local.Name, "refs/heads/")
 	b := d.local
 	switch {
+	case d.unread:
+		return locales.RemoteCheckoutReading(name, short), false, false
 	case b.Upstream != d.remote:
 		return locales.RemoteCheckoutNotTracking(name, short), false, true
 	case b.Ahead == 0 && b.Behind == 0:
@@ -93,6 +102,12 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 		return
 	}
 	t := d.t
+	if d.unread {
+		a.readLocal(d)
+		if !d.open {
+			return
+		}
+	}
 	th := c.Theme()
 	name := strings.TrimPrefix(d.local.Name, "refs/heads/")
 	short := strings.TrimPrefix(d.remote, "refs/remotes/")
@@ -151,6 +166,27 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 			})
 		})
 	})
+}
+
+// readLocal fills the local branch of d once the branches' details are
+// read; one checked out in another worktree is explained instead.
+func (a *App) readLocal(d *remoteCheckout) {
+	t := d.t
+	info := t.refs.info
+	if info == nil {
+		a.loadRefs(t)
+		return
+	}
+	d.unread = false
+	for _, b := range info.Branches {
+		if b.Name == d.local.Name {
+			d.local = b
+		}
+	}
+	if d.local.Worktree != "" {
+		d.open = false
+		a.elsewhereUI = elsewhere{open: true, branch: d.local.Name, folder: d.local.Worktree}
+	}
 }
 
 func (a *App) elsewhereView(c *ui.Context) {

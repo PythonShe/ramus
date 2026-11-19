@@ -1761,6 +1761,18 @@ func (msgs Messages) RemoteCheckoutAhead(count int, name string, remote string) 
 	return Catalog.Format(msgs.locale, "remoteCheckoutAhead", map[string]any{"count": count, "name": name, "remote": remote})
 }
 
+// RemoteCheckoutReading says "Reading how {name} stands against {remote}…"
+// in the language the app shows.
+func RemoteCheckoutReading(name string, remote string) string {
+	return In(i18n.Locale()).RemoteCheckoutReading(name, remote)
+}
+
+// RemoteCheckoutReading says "Reading how {name} stands against {remote}…"
+// in the language of msgs.
+func (msgs Messages) RemoteCheckoutReading(name string, remote string) string {
+	return Catalog.Format(msgs.locale, "remoteCheckoutReading", map[string]any{"name": name, "remote": remote})
+}
+
 // RemoteCheckoutDiverged says "{name} and {remote} have diverged: {ahead, plural, one {# commit} other {# commits}} ahead, {behind, plural, one {# c…"
 // in the language the app shows.
 func RemoteCheckoutDiverged(name string, remote string, ahead int, behind int) string {

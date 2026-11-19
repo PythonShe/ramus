@@ -71,3 +71,45 @@ func TestCheckOutRemote(t *testing.T) {
 	h.click("Open side")
 	h.until("its tab", func() bool { return len(h.app.tabs) == 2 })
 }
+
+// A remote branch checked out before the branches' details are read
+// waits for them to say how the local branch of its name stands, and to
+// offer what fits: never a reset its guard would refuse.
+func TestCheckOutRemoteBeforeDetails(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	one := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	r.Write("b", "2")
+	two := r.Commit("two")
+	tmp, _ := filepath.EvalSymlinks(t.TempDir())
+	t.Cleanup(h.closeAll) // before the folder above goes
+	r.Git("remote", "add", "origin", "https://example.invalid/r.git")
+	r.Git("update-ref", "refs/remotes/origin/feature", two)
+	r.Git("update-ref", "refs/remotes/origin/side", two)
+	r.Git("branch", "--no-track", "feature", one)
+	r.Git("branch", "--set-upstream-to=origin/feature", "feature")
+	r.Git("worktree", "add", "-q", "-b", "side", filepath.Join(tmp, "side"), one)
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("the branches", func() bool { return tb.refs.info != nil && !tb.refs.loading })
+	unread := func() {
+		// As right after the repository opened.
+		tb.refs.info, tb.refs.readFor = nil, nil
+	}
+
+	unread()
+	h.app.checkOutRemote(tb, "refs/remotes/origin/feature")
+	h.tt.Frame()
+	if h.tt.HasText("Reset to origin/feature") || h.tt.HasText("feature does not track origin/feature; resetting it drops what it has that origin/feature does not.") {
+		t.Fatalf("a reset offered before the branch was read: %q", h.tt.Texts())
+	}
+	h.until("the dialog", h.shows("feature is 1 commit behind origin/feature."))
+	h.click("Fast-Forward and Switch")
+	h.until("feature fast-forwarded", func() bool { return strings.TrimSpace(r.Git("rev-parse", "feature")) == two })
+
+	h.until("the branches again", func() bool { return tb.refs.info != nil && !tb.refs.loading })
+	unread()
+	h.app.checkOutRemote(tb, "refs/remotes/origin/side")
+	h.until("the explanation", h.shows("Branch side is checked out in another worktree"))
+}
