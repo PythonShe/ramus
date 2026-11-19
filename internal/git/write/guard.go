@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -98,6 +99,10 @@ type FileState struct {
 	Size    int64
 	Mode    os.FileMode
 	ModTime time.Time
+	// Ignored is a file or folder git ignores inside a folder observed,
+	// which the write leaves alone: present, its contents neither
+	// recorded nor checked.
+	Ignored bool
 }
 
 // MaxObserved bounds the files Observe records.
@@ -111,6 +116,45 @@ var ErrTooManyFiles = errors.New("write: too many files to check before the acti
 // recorded file by file, since editing a file in place leaves the
 // folder's own times alone.
 func Observe(workTree string, paths []string) ([]FileState, error) {
+	return observeExcept(workTree, paths, nil)
+}
+
+// ObserveIgnoring is Observe for a write that leaves what git ignores
+// alone, as a discard, or a delete without ignored files, does: inside
+// the folders it records, what git ignores, a dependency folder the
+// repository hides as node_modules among them, is recorded as Ignored,
+// not walked file by file. r runs git with the repository's settings,
+// the folders it hides included; nil is Observe.
+func ObserveIgnoring(ctx context.Context, r *run.Runner, w Where, paths []string) ([]FileState, error) {
+	var folders []string
+	for _, p := range paths {
+		if fs := stat(w.WorkTree, p); fs.Exists && fs.Mode.IsDir() {
+			folders = append(folders, p)
+		}
+	}
+	if r == nil || len(folders) == 0 {
+		return Observe(w.WorkTree, paths)
+	}
+	ignored := map[string]bool{}
+	// ls-files takes no pathspec file; chunks keep the arguments short.
+	for c := range slices.Chunk(folders, 256) {
+		res, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true, Env: []string{"GIT_LITERAL_PATHSPECS=1"},
+			Args: append([]string{"ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory", "--full-name", "--"}, c...)})
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range strings.Split(string(res.Stdout), "\x00") {
+			if p != "" {
+				ignored[p] = true
+			}
+		}
+	}
+	return observeExcept(w.WorkTree, paths, ignored)
+}
+
+// observeExcept is Observe; ignored are the paths git ignores, a folder's
+// with its slash, which it records as Ignored without walking them.
+func observeExcept(workTree string, paths []string, ignored map[string]bool) ([]FileState, error) {
 	var out []FileState
 	for _, p := range paths {
 		fs := stat(workTree, p)
@@ -134,7 +178,16 @@ func Observe(workTree string, paths []string) ([]FileState, error) {
 				}
 			}
 			rel, _ := filepath.Rel(workTree, path)
-			out = append(out, stat(workTree, filepath.ToSlash(rel)))
+			fs := stat(workTree, filepath.ToSlash(rel))
+			if path != root && (d.IsDir() && ignored[fs.Path+"/"] || !d.IsDir() && ignored[fs.Path]) {
+				fs.Ignored = true
+				out = append(out, fs)
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			out = append(out, fs)
 			if len(out) > MaxObserved {
 				return ErrTooManyFiles
 			}
@@ -200,6 +253,9 @@ func checkFiles(workTree string, files []FileState) error {
 		seen[f.Path] = true
 	}
 	for _, f := range files {
+		if f.Ignored {
+			continue
+		}
 		if now := stat(workTree, f.Path); !now.same(f) {
 			return &StaleError{What: f.Path, Saw: describe(f), Now: describe(now)}
 		}

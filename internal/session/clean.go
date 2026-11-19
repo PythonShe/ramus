@@ -36,7 +36,12 @@ func (s *Session) ListClean(ignored bool, done func([]string, []write.FileState,
 		var seen []write.FileState
 		if err == nil {
 			paths = parseClean(res.Stdout)
-			seen, err = write.Observe(r.WorkTree, paths)
+			if ignored {
+				seen, err = write.Observe(r.WorkTree, paths)
+			} else {
+				// A clean without -x leaves what git ignores alone.
+				seen, err = write.ObserveIgnoring(ctx, r.Runner, write.Where{GitDir: r.GitDir, WorkTree: r.WorkTree}, paths)
+			}
 		}
 		update(func() { done(paths, seen, err) })
 	})

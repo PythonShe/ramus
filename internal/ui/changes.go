@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"encoding/hex"
 	"path"
 	"slices"
@@ -1186,14 +1187,23 @@ func (a *App) askDiscardPaths(t *tab, confirm *confirmState, d discardSet) {
 	}
 	w := t.s.Where()
 	head := t.s.State.Head
+	repo := t.s.Repo
 	update := a.Update
 	a.goWork(t, func() {
+		// What git ignores the discard leaves alone, a hidden node_modules
+		// among it: not walked file by file.
+		observe := func(paths []string) ([]write.FileState, error) {
+			if repo == nil {
+				return write.Observe(w.WorkTree, paths)
+			}
+			return write.ObserveIgnoring(context.Background(), repo.Runner, w, paths)
+		}
 		// One expectation each: the discard changes the tracked files,
 		// which the delete, queued after it, must not find changed.
-		trackedFiles, err := write.Observe(w.WorkTree, tracked)
+		trackedFiles, err := observe(tracked)
 		var untrackedFiles []write.FileState
 		if err == nil {
-			untrackedFiles, err = write.Observe(w.WorkTree, untracked)
+			untrackedFiles, err = observe(untracked)
 		}
 		update(func() {
 			if err != nil {

@@ -1,7 +1,9 @@
 package write
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -184,6 +186,56 @@ func TestObserveSkipsNestedRepositories(t *testing.T) {
 	}
 	if strings.Join(paths, " ") != "d d/a" {
 		t.Fatalf("observed %q", paths)
+	}
+}
+
+// A new folder whose dependency folder the repository hides is observed
+// without walking that folder, which the delete leaves alone: a change
+// inside it, as an install makes, does not stop the delete.
+func TestObserveLeavesHiddenFoldersAlone(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	excludes := filepath.Join(t.TempDir(), "excludes")
+	if err := os.WriteFile(excludes, []byte("node_modules/\n*.log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.q.r.SetConfig([]string{"core.excludesFile=" + filepath.ToSlash(excludes)})
+	h.r.Write("app/index.js", "x")
+	h.r.Write("app/debug.log", "log")
+	for i := range 50 {
+		h.r.Write(fmt.Sprintf("app/node_modules/pkg%02d/index.js", i), "dep")
+	}
+	seen, err := ObserveIgnoring(context.Background(), h.q.r, h.w, []string{"app/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, f := range seen {
+		if f.Ignored {
+			paths = append(paths, "ignored:"+f.Path)
+		} else {
+			paths = append(paths, f.Path)
+		}
+	}
+	if got := strings.Join(paths, " "); got != "app ignored:app/debug.log app/index.js ignored:app/node_modules" {
+		t.Fatalf("observed %q", got)
+	}
+	time.Sleep(10 * time.Millisecond)
+	h.r.Write("app/node_modules/pkg00/index.js", "updated by an install")
+	h.r.Write("app/node_modules/new/index.js", "added by an install")
+	h.r.Write("app/debug.log", "more log")
+	op, err := Delete(h.w, []string{"app/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	op.Expect = &Expect{AnyHead: true, Files: seen}
+	h.do(op, nil, true)
+	if _, err := os.Stat(filepath.Join(h.r.Dir, "app", "index.js")); err == nil {
+		t.Fatal("app/index.js left")
+	}
+	if _, err := os.Stat(filepath.Join(h.r.Dir, "app", "node_modules", "new", "index.js")); err != nil {
+		t.Fatal("the hidden folder was deleted")
 	}
 }
 
