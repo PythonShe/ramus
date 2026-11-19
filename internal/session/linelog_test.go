@@ -7,6 +7,7 @@ import (
 
 	"ramus/internal/git/diff"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 )
 
 func TestToOldLines(t *testing.T) {
@@ -86,5 +87,35 @@ func TestLineLog(t *testing.T) {
 	}
 	if _, err := read("untracked", 1, 1); !errors.Is(err, ErrNotCommitted) {
 		t.Fatalf("an untracked file: %v", err)
+	}
+}
+
+// A file named HEAD at the top of the work tree makes HEAD ambiguous to
+// git where no "--" ends the revisions: line history and the worktree
+// line counts end theirs.
+func TestFileNamedHEAD(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("HEAD", "not a revision\n")
+	r.Write("a", "one\n")
+	r.Commit("one")
+	r.Write("a", "one\ntwo\n")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the worktrees", func() bool { return len(s.State.Worktrees) == 1 })
+	var l *LineLog
+	var err error
+	done := false
+	s.LineLog("a", 1, 1, func(got *LineLog, e error) { l, err, done = got, e, true })
+	m.until(t, "the line log", func() bool { return done })
+	if err != nil || len(l.Commits) != 1 {
+		t.Fatalf("line log: %v", err)
+	}
+	var sum *WorktreeSummary
+	stop := s.SummarizeWorktrees(s.State.Worktrees, func(got WorktreeSummary) { sum = &got })
+	defer stop()
+	m.until(t, "the summary", func() bool { return sum != nil })
+	if sum.Err != nil || sum.Added != 1 {
+		t.Fatalf("summary %+v", sum)
 	}
 }

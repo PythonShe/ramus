@@ -216,7 +216,7 @@ func summarize(ctx context.Context, in gitIn, hashSize int, wt repo.Worktree, co
 		res, err := r.Run(ctx, &run.Cmd{GitDir: loc.GitDir, WorkTree: loc.WorkTree, Read: true, MaxOutput: dashboardMaxOutput,
 			Config: []string{"core.quotePath=false"},
 			// diff-index, not diff, which refreshes the index (diff.Head).
-			Args: []string{"diff-index", "--numstat", "-z", "--no-renames", "--ignore-submodules=dirty", "HEAD"}})
+			Args: []string{"diff-index", "--numstat", "-z", "--no-renames", "--ignore-submodules=dirty", "HEAD", "--"}})
 		if err == nil {
 			lines, _ = diff.ParseNumStat(res.Stdout)
 		}

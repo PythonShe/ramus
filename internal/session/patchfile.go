@@ -62,7 +62,7 @@ func savePatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 		// the next commit that is not, under the merge's name.
 		var res run.Result
 		res, err = rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true,
-			Args: append([]string{"rev-list", "--no-walk", "--min-parents=2", "--end-of-options"}, req.Commits...)})
+			Args: append(append([]string{"rev-list", "--no-walk", "--min-parents=2", "--end-of-options"}, req.Commits...), "--")})
 		if err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func savePatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 		}
 		for i, c := range req.Commits {
 			_, err = rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Stdout: tmp,
-				Args: []string{"format-patch", "--stdout", "-1", "--start-number=" + strconv.Itoa(i+1), "--end-of-options", c}})
+				Args: []string{"format-patch", "--stdout", "-1", "--start-number=" + strconv.Itoa(i+1), "--end-of-options", c, "--"}})
 			if err != nil {
 				return err
 			}

@@ -103,7 +103,7 @@ func readLineLog(ctx context.Context, rn *run.Runner, gitDir, workTree, path str
 		Config: []string{"core.quotePath=false"},
 		Args: []string{"log", "--no-ext-diff", "--no-color", "--max-count=" + strconv.Itoa(MaxLineLog+1),
 			"--format=" + strings.ReplaceAll(lineMark, "\x1e", "%x1e") + "%H%x1f%P%x1f%an%x1f%at%x1f%s",
-			"-L" + strconv.Itoa(lo) + "," + strconv.Itoa(hi) + ":" + path, "HEAD"}})
+			"-L" + strconv.Itoa(lo) + "," + strconv.Itoa(hi) + ":" + path, "HEAD", "--"}})
 	if errors.Is(err, run.ErrOutputTooLarge) {
 		return nil, errors.New("session: the history of these lines is too long to show")
 	}

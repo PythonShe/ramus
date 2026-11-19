@@ -75,7 +75,7 @@ func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, seen write.
 func readEditRange(ctx context.Context, rn *run.Runner, gitDir, head string, from []byte) ([]EditCommit, string, error) {
 	res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, MaxOutput: 64 << 20,
 		Args: []string{"log", "--first-parent", "--format=%H%x1f%P%x1f%an%x1f%s%x00",
-			"--max-count=" + strconv.Itoa(MaxEdit+1), "--end-of-options", head}})
+			"--max-count=" + strconv.Itoa(MaxEdit+1), "--end-of-options", head, "--"}})
 	if err != nil {
 		return nil, "", err
 	}
