@@ -1,12 +1,20 @@
 package session
 
 import (
+	"context"
 	"encoding/hex"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/run"
 )
 
 func TestReflogAndLostCommits(t *testing.T) {
@@ -51,6 +59,40 @@ func TestReflogAndLostCommits(t *testing.T) {
 	m.until(t, "the lost commits", func() bool { return lost != nil })
 	if len(lost) != 1 || hex.EncodeToString(lost[0].OID) != lostID || lost[0].Subject != "lost work" {
 		t.Fatalf("lost %+v", lost)
+	}
+}
+
+// A search for lost commits stopped before git ended, here cancelled, is
+// a failure, not the part it listed so far.
+func TestStoppedLostSearchFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as git")
+	}
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip(err)
+	}
+	r := gittest.Init(t)
+	r.Write("a", "1")
+	r.Commit("one")
+	r.Write("a", "2")
+	lostID := r.Commit("lost work")
+	r.Git("reset", "-q", "--hard", "HEAD~1")
+	bin := t.TempDir()
+	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = fsck ] && { echo \"dangling commit " + lostID + "\"; exec sleep 30; }; done\nexec " + real + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g, err := gitexe.Find(t.Context(), bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ := openWith(t, r, run.New(g, gittest.Env(), 8))
+	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+	defer cancel()
+	lost, err := lostCommits(ctx, s.Repo)
+	if err == nil {
+		t.Fatalf("a search stopped part way listed %d commits as all", len(lost))
 	}
 }
 

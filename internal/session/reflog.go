@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -121,7 +122,13 @@ func (s *Session) LostCommits(done func([]LostCommit, error)) {
 	update := s.update
 	s.goView(r, func(ctx context.Context) {
 		lost, err := lostCommits(ctx, r)
-		update(func() { done(lost, err) })
+		// Not once the view is left: the search was cancelled, and its
+		// error would stand over a new search.
+		update(func() {
+			if ctx.Err() == nil {
+				done(lost, err)
+			}
+		})
 	})
 }
 
@@ -131,8 +138,10 @@ func lostCommits(ctx context.Context, r *repo.Repository) ([]LostCommit, error) 
 	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Timeout: FsckTimeout, MaxOutput: 256 << 20,
 		Args: []string{"fsck", "--dangling", "--no-reflogs", "--connectivity-only", "--no-progress"}})
 	// fsck exits non-zero when it finds damage, and still lists what it
-	// found; only a run that listed nothing is an error.
-	if err != nil && len(res.Stdout) == 0 {
+	// found. One stopped, by its time limit, a cancel or too much output,
+	// listed only part, which is no answer.
+	var e *run.Error
+	if err != nil && (len(res.Stdout) == 0 || !errors.As(err, &e) || e.ExitCode < 0) {
 		return nil, err
 	}
 	var ids [][]byte

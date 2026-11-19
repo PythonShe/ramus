@@ -69,6 +69,7 @@ func TestViewReadsLeftReportNothing(t *testing.T) {
 	for name, start := range map[string]func(){
 		"sizes":   func() { s.FileSizes("", func(PathWeights) { called = append(called, "sizes") }) },
 		"changes": func() { s.ChangeCounts(StatsRequest{}, func(PathWeights) { called = append(called, "changes") }) },
+		"lost":    func() { s.LostCommits(func([]LostCommit, error) { called = append(called, "lost") }) },
 	} {
 		s.SetView("stats")
 		start()
