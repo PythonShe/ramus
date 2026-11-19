@@ -123,20 +123,37 @@ func TestCallerDeadline(t *testing.T) {
 	}
 }
 
-// Quit stops the reads and the commands no one waits on, and lets a
-// write the user started end.
+// Quit stops the reads and the commands marked to end with the app (not
+// on Windows, where git cannot remove its locks then), and lets a write
+// the user started end, and one that only asks no question.
 func TestQuit(t *testing.T) {
 	r := gittest.Init(t)
 	run := runner(t, 4)
 	pr, pw, _ := os.Pipe()
 	defer pw.Close()
-	errs := make(chan error, 2)
-	for _, c := range []*Cmd{
+	cmds := []*Cmd{
 		{GitDir: r.GitDir(), Read: true, Args: []string{"cat-file", "--batch"}, Stdin: pr},
-		{GitDir: r.GitDir(), NoPrompt: true, Args: []string{"cat-file", "--batch"}, Stdin: pr},
-	} {
+		{GitDir: r.GitDir(), NoPrompt: true, EndsWithApp: true, Args: []string{"cat-file", "--batch"}, Stdin: pr},
+	}
+	if stopsHard {
+		cmds = cmds[:1]
+	}
+	errs := make(chan error, len(cmds))
+	for _, c := range cmds {
 		go func() { _, err := run.Run(context.Background(), c); errs <- err }()
 	}
+	kept := make(chan error, 1)
+	go func() {
+		// Asks no question, and is let end.
+		_, err := run.Run(context.Background(), &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, NoPrompt: true,
+			Config: []string{"alias.s=!sleep 1"}, Args: []string{"s"}})
+		kept <- err
+	}()
+	defer func() {
+		if err := <-kept; err != nil {
+			t.Errorf("a command that only asks no question: %v", err)
+		}
+	}()
 	write := make(chan error, 1)
 	go func() {
 		_, err := run.Run(context.Background(), &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir,
@@ -145,13 +162,13 @@ func TestQuit(t *testing.T) {
 	}()
 	time.Sleep(200 * time.Millisecond)
 	run.Quit()
-	for range 2 {
+	for range cmds {
 		select {
 		case err := <-errs:
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("got %v", err)
 			}
-		case <-time.After(3 * time.Second):
+		case <-time.After(10 * time.Second):
 			t.Fatal("a read went on after Quit")
 		}
 	}

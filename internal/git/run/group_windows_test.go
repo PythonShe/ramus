@@ -26,6 +26,29 @@ func TestNoConsoleWindow(t *testing.T) {
 	}
 }
 
+// Only a read ends with the app on Windows: a fetch no one waits on is
+// let end, as git stopped from outside leaves its locks, and so is a
+// diff tool the user opened.
+func TestOnlyReadsDieWithApp(t *testing.T) {
+	r := runner(t, 1)
+	for _, c := range []struct {
+		cmd  *Cmd
+		want bool
+	}{
+		{&Cmd{GitDir: t.TempDir(), Read: true, Args: []string{"version"}}, true},
+		{&Cmd{GitDir: t.TempDir(), NoPrompt: true, EndsWithApp: true, Args: []string{"fetch"}}, false},
+		{&Cmd{GitDir: t.TempDir(), NoPrompt: true, Args: []string{"difftool"}}, false},
+		{&Cmd{GitDir: t.TempDir(), Args: []string{"commit"}}, false},
+	} {
+		cmd := r.Command(context.Background(), c.cmd)
+		v, ok := groups.Load(cmd)
+		leaveGroup(cmd)
+		if !ok || v.(*group).dies != c.want {
+			t.Errorf("%v: in a group %v, dies with the app %v, want %v", c.cmd.Args, ok, ok && v.(*group).dies, c.want)
+		}
+	}
+}
+
 // A variable that points git at a repository is dropped whatever the
 // case of its name: git on Windows reads Git_Dir as GIT_DIR.
 func TestLocalEnvAnyCase(t *testing.T) {

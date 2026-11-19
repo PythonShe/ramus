@@ -349,6 +349,7 @@ func (s *Session) quietFetch(done func(error)) bool {
 	// No one is there to answer: NoPrompt leaves the app's own askpass
 	// out, quietEnv the user's.
 	op.Cmd.NoPrompt = true
+	op.Cmd.EndsWithApp = true
 	op.Cmd.Env = append(op.Cmd.Env, quietEnv(r.Runner.Environ(), r.Config())...)
 	// needsUser reads what git said.
 	op.Cmd.Untranslated = true

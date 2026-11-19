@@ -176,10 +176,11 @@ func (r *Runner) SetConfig(config []string) {
 	r.config.Store(&c)
 }
 
-// Quit stops every command Run is running that reads or that no one waits
-// on, as a quiet fetch, for an app that quits: git would go on without it,
-// a fetch hung on the network for hours. A write the user started is let
-// end. Commands Run starts later are not affected.
+// Quit stops every command Run is running that reads or is marked
+// EndsWithApp, for an app that quits: git would go on without it, a
+// fetch hung on the network for hours. A write the user started is let
+// end, and so is a process from Command. Such a command Run starts after
+// Quit is stopped at once: nothing should run once the app quits.
 func (r *Runner) Quit() { r.quitting() }
 
 // IsHardened reports a runner from Hardened.
@@ -249,9 +250,17 @@ type Cmd struct {
 	// whose stderr the engine reads. Other commands keep the user's
 	// language, since their errors are shown as they are.
 	Untranslated bool
-	// NoPrompt keeps git and ssh from asking the user, for a command no
-	// one waits on, as a background fetch: it fails instead.
+	// NoPrompt keeps git and ssh from asking the user through the app,
+	// for a command no one is there to answer, as a background fetch: it
+	// fails instead. It says nothing of when the command ends.
 	NoPrompt bool
+	// EndsWithApp stops the command when the app quits or ends, for one
+	// no one waits on, as a background fetch, which could otherwise hang
+	// on the network for hours. A read always ends with the app. On
+	// Windows, where git stopped from outside cannot remove its lock
+	// files, only a read does: the rest runs to its end, as it would
+	// from a terminal.
+	EndsWithApp bool
 	// Stall stops the command once it has printed nothing for that long,
 	// for a network command whose server or connection stopped
 	// answering; 0 never. Time a question to the user is open does not
@@ -593,10 +602,10 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	return res, nil
 }
 
-// dies reports a command that should end with the app: a read, or one no
-// one waits on. A write the user started is let end, rather than stopped
-// half way.
-func dies(c *Cmd) bool { return c.Read || c.NoPrompt }
+// dies reports a command that should end with the app: a read, or one
+// marked EndsWithApp where git removes its locks as it is stopped. A
+// write the user started, and a tool the user opened, are let end.
+func dies(c *Cmd) bool { return c.Read || c.EndsWithApp && !stopsHard }
 
 // watchStall calls stop once act has seen nothing for stall, the time a
 // question to the user is open aside, until done is closed.
