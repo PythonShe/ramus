@@ -118,17 +118,44 @@ func countStats(ctx context.Context, r *repo.Repository, req StatsRequest, list 
 		return StatsResult{}, err
 	}
 	mm := loadMailmap(ctx, r)
-	readers := []stats.Reader{cat}
-	for range statsReaders - 1 {
+	more, stop := extraReaders(ctx, r, statsReaders-1)
+	defer stop()
+	st, err := stats.Collect(ctx, append([]stats.Reader{cat}, more...), ids, mm, func(read int, st stats.Stats) { progress(read, ids.Len(), st) })
+	return StatsResult{Stats: st, Read: ids.Len(), Total: ids.Len()}, err
+}
+
+// readerSlots bounds, app-wide, the cat-file processes started beside a
+// repository's own for a long read. Those last the whole read and take no
+// slot of the runner's pool, so reads in several repositories at once
+// would start any number.
+var readerSlots = make(chan struct{}, 4)
+
+// extraReaders starts up to n cat-file processes to read with, as many as
+// readerSlots has free: a read with fewer is slower, not wrong. stop
+// ends them.
+func extraReaders(ctx context.Context, r *repo.Repository, n int) (readers []stats.Reader, stop func()) {
+	var ps []*catfile.Process
+start:
+	for range n {
+		select {
+		case readerSlots <- struct{}{}:
+		default:
+			break start
+		}
 		p, err := catfile.Start(ctx, r.Runner, r.GitDir)
 		if err != nil {
+			<-readerSlots
 			break
 		}
-		defer p.Close()
+		ps = append(ps, p)
 		readers = append(readers, p)
 	}
-	st, err := stats.Collect(ctx, readers, ids, mm, func(read int, st stats.Stats) { progress(read, ids.Len(), st) })
-	return StatsResult{Stats: st, Read: ids.Len(), Total: ids.Len()}, err
+	return readers, func() {
+		for _, p := range ps {
+			p.Close()
+			<-readerSlots
+		}
+	}
 }
 
 // statsCommits lists the commits reachable from tips with a commit time

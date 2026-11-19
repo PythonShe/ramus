@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"ramus/internal/git/activity"
-	"ramus/internal/git/catfile"
 	"ramus/internal/git/mailmap"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
@@ -110,15 +109,9 @@ func ReadActivity(ctx context.Context, r *repo.Repository, src ActivitySource, p
 	if err != nil {
 		return nil, err
 	}
-	readers := []stats.Reader{cat}
-	for range activityReaders - 1 {
-		p, err := catfile.Start(ctx, r.Runner, r.GitDir)
-		if err != nil {
-			break
-		}
-		defer p.Close()
-		readers = append(readers, p)
-	}
+	more, stop := extraReaders(ctx, r, activityReaders-1)
+	defer stop()
+	readers := append([]stats.Reader{cat}, more...)
 	var report func(int)
 	if progress != nil {
 		report = func(n int) { progress(n, ids.Len()) }
