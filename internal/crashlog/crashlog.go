@@ -249,17 +249,26 @@ func (l *Log) prune() {
 // aside, for ReportFatal to turn into a report. It costs a rename and an
 // open, so that it may run first thing at launch, before anything else
 // that could crash; the report, which reads and writes more, comes after.
-func (l *Log) CatchFatal() error {
-	if err := os.MkdirAll(l.dir, 0o700); err != nil {
+func (l *Log) CatchFatal() error { return catchFatal(l.dir, fatalFile) }
+
+// CatchFatalIn is CatchFatal for a process of the app run apart from it,
+// named mode: git's difftool or mergetool, or the askpass helper, which
+// may run while the app does. It prints a crash into a file of its own in
+// dir, the log's folder, which the app's ReportFatal reports. It builds
+// no Log, which reads more: the report is written by the app.
+func CatchFatalIn(dir, mode string) error { return catchFatal(dir, otherOutput+mode+".txt") }
+
+// otherOutput starts the names of the files CatchFatalIn prints into.
+const otherOutput = "fatal-output-"
+
+func catchFatal(dir, file string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	name := filepath.Join(l.dir, fatalFile)
-	if st, err := os.Stat(name); err == nil && st.Size() > 0 {
-		pending := filepath.Join(l.dir, fmt.Sprintf("fatal-%d%s", time.Now().UnixNano(), pendingExt))
-		if err := os.Rename(name, pending); err != nil {
-			// Not caught this time, rather than the last crash lost.
-			return err
-		}
+	name := filepath.Join(dir, file)
+	if err := setAside(dir, name); err != nil {
+		// Not caught this time, rather than the last crash lost.
+		return err
 	}
 	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
@@ -269,12 +278,29 @@ func (l *Log) CatchFatal() error {
 	return debug.SetCrashOutput(f, debug.CrashOptions{})
 }
 
+// setAside moves name, what a crash printed into dir, to a name of its own
+// for ReportFatal, when it holds anything.
+func setAside(dir, name string) error {
+	if st, err := os.Stat(name); err != nil || st.Size() == 0 {
+		return nil
+	}
+	return os.Rename(name, filepath.Join(dir, fmt.Sprintf("fatal-%d%s", time.Now().UnixNano(), pendingExt)))
+}
+
 // pendingExt names what a crash printed, set aside by CatchFatal.
 const pendingExt = ".pending"
 
 // ReportFatal turns what earlier crashes printed, which CatchFatal set
 // aside, into reports, and returns their files, oldest first.
+//
+// What another process of the app printed (CatchFatalIn) is set aside
+// first: a file of those that holds anything is of a process that
+// crashed, as one running has printed nothing.
 func (l *Log) ReportFatal() ([]string, error) {
+	others, _ := filepath.Glob(filepath.Join(l.dir, otherOutput+"*.txt"))
+	for _, name := range others {
+		setAside(l.dir, name)
+	}
 	names, err := filepath.Glob(filepath.Join(l.dir, "fatal-*"+pendingExt))
 	if err != nil {
 		return nil, err

@@ -36,7 +36,9 @@ const maxProcesses = 8
 func main() {
 	mainStart = time.Now()
 	if askpass.IsHelper(os.Args[1:]) {
-		// git or ssh asks the running app a question through this process.
+		// git or ssh asks the running app a question through this process,
+		// which waits for the user's answer.
+		catchFatal("askpass")
 		os.Exit(askpass.Helper(os.Args[1:], os.Stdout))
 	}
 	cwd, _ := os.Getwd()
@@ -50,6 +52,7 @@ func main() {
 	if req.Wait {
 		// git waits on this process, so it runs on its own instead of
 		// handing the request to a running instance.
+		catchFatal("tool")
 		runTool(req)
 		return
 	}
@@ -197,6 +200,16 @@ func main() {
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// catchFatal has a crash of this process, run apart from the app as mode,
+// kept for the app's next launch to report, before anything else that may
+// crash. It prints nothing: git reads the askpass helper's output.
+func catchFatal(mode string) {
+	mygo.App.SetName("Ramus")
+	if dir, err := mygo.App.Path(mygo.PathUserData); err == nil {
+		crashlog.CatchFatalIn(filepath.Join(dir, "crashes"), mode)
 	}
 }
 
