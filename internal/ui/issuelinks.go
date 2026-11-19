@@ -57,9 +57,13 @@ func remoteLinks(r *repo.Repository) []issuelink.Rule {
 	return issuelink.FromRemote(origin)
 }
 
-// linkedText shows text with its issue references as links, selectable.
-func linkedText(c *ui.Context, text string, set *issuelink.Set) ui.Element {
-	ms := set.Find(text)
+// findLinks is the issue references set finds in text; a test counts
+// the searches.
+var findLinks = func(set *issuelink.Set, text string) []issuelink.Match { return set.Find(text) }
+
+// linkedText shows text with its issue references ms (findLinks) as
+// links, selectable.
+func linkedText(c *ui.Context, text string, ms []issuelink.Match) ui.Element {
 	if len(ms) == 0 {
 		return ui.Text(c, text).Selectable()
 	}

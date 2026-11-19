@@ -17,6 +17,7 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/signature"
 	"ramus/internal/git/textenc"
+	"ramus/internal/issuelink"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -92,6 +93,9 @@ type commitView struct {
 	msgOf         *session.CommitDetail
 	subject, body []byte
 	coAuthors     []message.Person
+	// shown is the message as shown, made once for the detail and the
+	// issue-link rules, not in each frame.
+	shown shownMessage
 	// parentSubjects are the subjects of the commit's parents once read,
 	// in their order; parentsAsked is set once they are asked for.
 	parentSubjects []string
@@ -347,8 +351,43 @@ func (cv *commitView) fittedMessage() float32 {
 
 // commitMessage shows the subject and the body; a body taller than the
 // space it has scrolls.
-func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
+// shownMessage is a commit's subject and body as shown, cleaned of
+// control characters, the body reflowed, with the issue references in
+// each, for the subject and body (rawSubject, rawBody) and the rules
+// (links) they were made of. It holds one message and at most a few
+// hundred references of each part, and goes with the view.
+type shownMessage struct {
+	rawSubject, rawBody []byte
+	links               *issuelink.Set
+	subject, body       string
+	subjectRefs         []issuelink.Match
+	bodyRefs            []issuelink.Match
+}
+
+// shownMessage is the message of d as shown with the rules links: made
+// again only when either changed, as a search of a long message takes
+// a while and the view is built at every frame. The message is compared,
+// not the detail, which is handed over again as more of it is read.
+func (cv *commitView) shownMessage(d *session.CommitDetail, links *issuelink.Set) *shownMessage {
+	m := &cv.shown
 	subject, body, _ := cv.message(d)
+	if m.links == links && m.rawSubject != nil && bytes.Equal(m.rawSubject, subject) && bytes.Equal(m.rawBody, body) {
+		return m
+	}
+	*m = shownMessage{rawSubject: subject, rawBody: body, links: links, subject: redact.Control(string(subject))}
+	if m.rawSubject == nil {
+		m.rawSubject = []byte{}
+	}
+	m.subjectRefs = findLinks(links, m.subject)
+	if len(body) > 0 {
+		m.body = redact.Control(reflowBody(string(body)))
+		m.bodyRefs = findLinks(links, m.body)
+	}
+	return m
+}
+
+func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.CommitDetail) {
+	_, body, _ := cv.message(d)
 	col := ui.Column(c).Padding(messagePadY, insetX, 0, insetX).Gap(spaceS).FillWidth()
 	if len(body) > 0 {
 		col.Fill()
@@ -356,17 +395,17 @@ func (a *App) commitMessage(c *ui.Context, t *tab, cv *commitView, d *session.Co
 	cv.msgColH = col.LayoutBounds().H
 	col.Children(func() {
 		a.loadLinks(t)
-		links := t.links.set
+		m := cv.shownMessage(d, t.links.set)
 		// Selected and copied as any text; Copy Message in the row's
 		// menu copies the message whole.
-		s := linkedText(c, redact.Control(string(subject)), links).Bold()
+		s := linkedText(c, m.subject, m.subjectRefs).Bold()
 		cv.subjectH = s.LayoutBounds().H
 		cv.bodyH = 0
 		if len(body) > 0 {
 			// The body scrolls in its own box: text past an element's
 			// height still draws, over the rows below.
 			ui.Scroll(c.Key("message")).Grow(1).FillWidth().Children(func() {
-				b := linkedText(c, redact.Control(reflowBody(string(body))), links).FillWidth()
+				b := linkedText(c, m.body, m.bodyRefs).FillWidth()
 				cv.bodyH = max(b.LayoutBounds().H, 1)
 			})
 		}
