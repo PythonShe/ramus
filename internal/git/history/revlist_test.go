@@ -66,6 +66,45 @@ func TestRevList(t *testing.T) {
 	}
 }
 
+// git keeps commit dates unsigned and prints a negative or overflowing
+// one in forms that are not an int64; one such commit does not fail the
+// whole history, through rev-list or log.
+func TestOddDates(t *testing.T) {
+	for _, date := range []string{"-5", "99999999999999999999"} {
+		r := gittest.Init(t)
+		base := r.Commit("a")
+		tree := strings.TrimSpace(r.Git("rev-parse", "HEAD^{tree}"))
+		body := "tree " + tree + "\nparent " + base + "\nauthor A <a@x> 1 +0000\ncommitter A <a@x> " + date + " +0000\n\nodd date\n"
+		out, err := r.Run([]byte(body), "hash-object", "-t", "commit", "-w", "--literally", "--stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		odd := strings.TrimSpace(out)
+		tip, _ := hex.DecodeString(odd)
+		want := odd + " " + base + "\n" + base
+		lines := func(s *commits.Store, got *[]string) func(uint32, []uint32) error {
+			return func(id uint32, parents []uint32) error {
+				line := hex.EncodeToString(s.OID(id))
+				for _, p := range parents {
+					line += " " + hex.EncodeToString(s.OID(p))
+				}
+				*got = append(*got, line)
+				return nil
+			}
+		}
+		s := commits.New(20)
+		var got []string
+		if err := RevList(context.Background(), testrun.Runner(t), r.GitDir(), [][]byte{tip}, s, lines(s, &got)); err != nil || strings.Join(got, "\n") != want {
+			t.Errorf("date %s: rev-list %q, %v", date, got, err)
+		}
+		s = commits.New(20)
+		got = nil
+		if err := Filtered(context.Background(), testrun.Runner(t), r.GitDir(), [][]byte{tip}, Filter{Message: "odd date"}, s, lines(s, &got)); err != nil || strings.Join(got, "\n") != odd {
+			t.Errorf("date %s: filtered %q, %v", date, got, err)
+		}
+	}
+}
+
 func TestRevListStops(t *testing.T) {
 	r := gittest.Init(t)
 	for i := 0; i < 50; i++ {

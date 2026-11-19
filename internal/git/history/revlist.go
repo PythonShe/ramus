@@ -105,9 +105,18 @@ func (p *revListParser) line(line []byte) error {
 		line = rest
 		return f
 	}
-	ts, err := strconv.ParseInt(string(field()), 10, 64)
+	f := field()
+	ts, err := strconv.ParseInt(string(f), 10, 64)
 	if err != nil {
-		return fmt.Errorf("history: rev-list timestamp: %w", err)
+		// git keeps dates unsigned: rev-list prints -5 as 2^64-5 and an
+		// overflowing date as 2^64-1, log prints a negative one as
+		// nothing, or an overflowing one as written. The time only
+		// orders tips, so none of these is worth failing the history.
+		u, err := strconv.ParseUint(string(f), 10, 64)
+		ts = int64(u)
+		if err != nil {
+			ts = 0
+		}
 	}
 	id, err := p.id(field())
 	if err != nil {
