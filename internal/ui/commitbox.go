@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -83,6 +84,10 @@ type commitState struct {
 	// draftLoading meanwhile; kept is the draft last handed to the store.
 	draftRead, draftLoading bool
 	kept                    drafts.Draft
+	// draftFrom is the key of an earlier version a draft was found
+	// under, "" for the tab's own: kept again under the tab's key, the
+	// draft leaves it, so it does not come back once committed.
+	draftFrom string
 }
 
 // commitRun is how a commit goes beyond what the box says.
@@ -464,10 +469,19 @@ func (a *App) loadDraft(t *tab) {
 		cs.draftRead = true
 		return
 	}
+	if t.real == "" {
+		// Keyed as the folder is spelled on disk, which resolveTab is
+		// working out: one folder reached by two spellings has one draft.
+		return
+	}
 	cs.draftLoading = true
-	store, path, update := a.Drafts, t.s.Path, a.Update
+	store, key, given, update := a.Drafts, t.key(), t.s.Path, a.Update
 	a.goWork(t, func() {
-		d, err := store.Load(path)
+		d, err := store.Load(key)
+		from := ""
+		if err == nil && d.Empty() {
+			d, from, err = olderDraft(store, key, given)
+		}
 		update(func() {
 			cs.draftLoading, cs.draftRead = false, true
 			if err != nil {
@@ -476,10 +490,31 @@ func (a *App) loadDraft(t *tab) {
 			if cs.subject == "" && cs.body == "" && cs.coAuthors == "" {
 				cs.subject, cs.body, cs.coAuthors = d.Subject, d.Body, d.CoAuthors
 			}
-			cs.kept = d
+			cs.kept, cs.draftFrom = d, from
 			cs.fillTemplate()
 		})
 	})
+}
+
+// olderDraft looks for the draft of the repository with key, opened as
+// given, under the keys earlier versions kept it by: the path with its
+// symbolic links resolved but spelled as given (0.6), and the path as
+// given. It returns the draft and the key it was under, "" for none. It
+// reads the disk.
+func olderDraft(store *drafts.Store, key, given string) (drafts.Draft, string, error) {
+	keys := []string{given}
+	if real, err := filepath.EvalSymlinks(given); err == nil {
+		keys = append(keys, filepath.Clean(real))
+	}
+	for _, k := range keys {
+		if k == key {
+			continue
+		}
+		if d, err := store.Load(k); err != nil || !d.Empty() {
+			return d, k, err
+		}
+	}
+	return drafts.Draft{}, "", nil
 }
 
 // keepDraft hands the message to the store when it changed. The commit
@@ -502,7 +537,11 @@ func (a *App) keepDraft(t *tab) {
 		return
 	}
 	cs.kept = d
-	a.Drafts.Keep(t.s.Path, d)
+	a.Drafts.Keep(t.key(), d)
+	if cs.draftFrom != "" {
+		a.Drafts.Keep(cs.draftFrom, drafts.Draft{})
+		cs.draftFrom = ""
+	}
 }
 
 // commitReady reports whether the commit box can commit now.
