@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -38,20 +39,20 @@ func (s *Session) PreviewMerge(what string, done func(MergePreview, error)) {
 	}
 	update := s.update
 	r.Life().Go(func(ctx context.Context) {
-		p, err := previewMerge(ctx, r.Runner, r.GitDir, what)
+		p, err := previewMerge(ctx, r.Runner, r.GitDir, r.CommonDir, what)
 		if ctx.Err() == nil {
 			update(func() { done(p, err) })
 		}
 	})
 }
 
-func previewMerge(ctx context.Context, rn *run.Runner, gitDir, what string) (MergePreview, error) {
+func previewMerge(ctx context.Context, rn *run.Runner, gitDir, commonDir, what string) (MergePreview, error) {
 	var p MergePreview
 	if what == "" || strings.HasPrefix(what, "-") {
 		return p, errors.New("session: nothing to merge")
 	}
-	gitZ := func(args ...string) ([]string, error) {
-		res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, MaxOutput: 64 << 20, Args: args})
+	gitZEnv := func(env []string, args ...string) ([]string, error) {
+		res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, MaxOutput: 64 << 20, Env: env, Args: args})
 		var e *run.Error
 		if err != nil && !(errors.As(err, &e) && e.ExitCode == 1) {
 			return nil, err
@@ -62,6 +63,7 @@ func previewMerge(ctx context.Context, rn *run.Runner, gitDir, what string) (Mer
 		}
 		return out, nil
 	}
+	gitZ := func(args ...string) ([]string, error) { return gitZEnv(nil, args...) }
 	mb, err := gitZ("merge-base", "HEAD", what)
 	if err != nil {
 		return p, err
@@ -97,8 +99,18 @@ func previewMerge(ctx context.Context, rn *run.Runner, gitDir, what string) (Mer
 			}
 		}
 	}
+	// merge-tree writes the trees and blobs of the merge: into a folder of
+	// their own, the repository's objects read beside it, and removed
+	// after, so that the preview, a read, leaves nothing in a repository
+	// (one not trusted is promised git only reads).
+	objects, err := os.MkdirTemp("", "ramus-preview-*")
+	if err != nil {
+		return p, err
+	}
+	defer os.RemoveAll(objects)
+	env := []string{"GIT_OBJECT_DIRECTORY=" + objects, "GIT_ALTERNATE_OBJECT_DIRECTORIES=" + alternate(filepath.Join(commonDir, "objects"))}
 	// The tree first, then each conflicted path, then an empty entry.
-	out, err := gitZ("merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", "--allow-unrelated-histories", "HEAD", what)
+	out, err := gitZEnv(env, "merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", "--allow-unrelated-histories", "HEAD", what)
 	if err != nil {
 		return p, err
 	}
@@ -112,6 +124,15 @@ func previewMerge(ctx context.Context, rn *run.Runner, gitDir, what string) (Mer
 	}
 	slices.Sort(p.BothChanged)
 	return p, nil
+}
+
+// alternate is dir as one entry of GIT_ALTERNATE_OBJECT_DIRECTORIES:
+// quoted, as git reads it, when it holds the list's separator.
+func alternate(dir string) string {
+	if !strings.ContainsRune(dir, os.PathListSeparator) && !strings.HasPrefix(dir, `"`) {
+		return dir
+	}
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(dir) + `"`
 }
 
 // ConflictFile is a conflicted file as read for the merge editor.

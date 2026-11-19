@@ -44,12 +44,18 @@ func TestPreviewMergeAndLoadConflict(t *testing.T) {
 		m.until(t, "the preview", func() bool { return got != nil })
 		return *got
 	}
+	before := r.Git("count-objects")
 	p := preview("topic")
 	if !slices.Equal(p.BothChanged, []string{"a.txt", "b.bin", "c.txt", "d.txt"}) || !slices.Equal(p.Conflicts, []string{"a.txt", "b.bin", "c.txt"}) {
 		t.Fatalf("preview %+v", p)
 	}
 	if st := r.Git("status", "--porcelain"); st != "" {
 		t.Fatalf("the preview touched the work tree: %q", st)
+	}
+	// Nor the objects: a preview is a read, and one in a repository not
+	// trusted must write nothing to it.
+	if objects := r.Git("count-objects"); objects != before {
+		t.Fatalf("the preview wrote objects: %q, before %q", objects, before)
 	}
 	if p := preview("main~1"); !p.UpToDate {
 		t.Fatalf("up to date %+v", p)
