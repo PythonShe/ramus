@@ -412,14 +412,25 @@ func (a *App) Open(path string) {
 		lib, now, runner := a.Library, a.Now(), a.Runner
 		// It reads and writes files: never on the main thread.
 		a.goWrite(func() {
-			// A worktree added to a repository is no repository of the
-			// library: its repository lists it, and it comes and goes.
-			if addedWorktree(runner, path) {
+			// What is no repository (a plain folder, a file, a typo) stays
+			// out, or it would be listed for good. A worktree added to a
+			// repository is no repository of the library either: its
+			// repository lists it, and it comes and goes.
+			if !isRepository(path) || addedWorktree(runner, path) {
 				return
 			}
 			lib.Opened(path, now)
 		})
 	}
+}
+
+// isRepository reports whether path is a folder in a repository.
+func isRepository(path string) bool {
+	if st, err := os.Stat(path); err != nil || !st.IsDir() {
+		return false
+	}
+	_, err := repo.Discover(path)
+	return err == nil
 }
 
 // addedWorktree reports whether path is a worktree added to a
