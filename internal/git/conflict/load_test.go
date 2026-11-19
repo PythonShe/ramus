@@ -166,3 +166,53 @@ func mergeFile(t *testing.T, args ...string) (string, int) {
 	}
 	return string(out), 0
 }
+
+// The conflict-marker-size attribute is read as git reads it when it
+// merges: a number that fits in a C int and is positive, else the
+// default. At the bound, git writes markers of 2 GB each (a file of 6 GB
+// for one conflict), so the bound is checked on the value alone.
+func TestMarkerSizeAsGitReadsIt(t *testing.T) {
+	for v, want := range map[string]int{
+		"2147483647": 2147483647, "2147483648": 7, "4294967303": 7, "-2147483648": 7,
+		"0": 7, "-3": 7, "-0": 7, "+9": 9, "010": 10, "10x": 7, "x": 7, "": 7,
+		"set": 7, "unset": 7, "unspecified": 7, "0x10": 7, "1e3": 7,
+	} {
+		if got := markerSizeOf(v); got != want {
+			t.Errorf("%q: %d, want %d", v, got, want)
+		}
+	}
+	lines := "a\nb\nc\nd\ne\nf\ng\nh\n"
+	for _, v := range []string{"2147483648", "4294967303", "0", "-3", "x", "10x", "+9", "010"} {
+		t.Run(v, func(t *testing.T) {
+			r := gittest.Init(t)
+			r.Write(".gitattributes", "f.md conflict-marker-size="+v+"\n")
+			r.Write("f.md", lines+"end\n")
+			r.Commit("base")
+			r.Git("checkout", "-q", "-b", "topic")
+			r.Write("f.md", lines+"end theirs\n")
+			r.Commit("theirs")
+			r.Git("checkout", "-q", "main")
+			r.Write("f.md", lines+"end ours\n")
+			r.Commit("ours")
+			if _, err := r.Run(nil, "merge", "-q", "topic"); err == nil {
+				t.Fatal("the merge did not conflict")
+			}
+			data, err := os.ReadFile(filepath.Join(r.Dir, "f.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			segs, err := Load(context.Background(), testrun.Runner(t), r.GitDir(), r.Dir, "f.md", data)
+			if err != nil || Count(segs) != 1 {
+				t.Fatalf("%d conflicts, %v\n%s", Count(segs), err, data)
+			}
+			for _, side := range []struct {
+				choice Choice
+				want   string
+			}{{Ours, lines + "end ours\n"}, {Theirs, lines + "end theirs\n"}} {
+				if got, err := Resolve(segs, []Choice{side.choice}, nil); err != nil || string(got) != side.want {
+					t.Errorf("%v: %q, %v", side.choice, got, err)
+				}
+			}
+		})
+	}
+}

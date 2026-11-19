@@ -2,9 +2,9 @@ package conflict
 
 import "errors"
 
-// mergedSides are the versions of a conflicted file git merged, as the
-// index holds them: the merge base (stage 1), ours (2) and theirs (3);
-// nil for one that does not exist.
+// mergedSides are the versions of a conflicted file git merged, as the index
+// holds them: the merge base (stage 1), ours (2) and theirs (3); nil for
+// one that does not exist.
 type mergedSides struct {
 	Base, Ours, Theirs []byte
 }

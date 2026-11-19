@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"ramus/internal/git/run"
 )
@@ -49,11 +50,19 @@ func markerSize(ctx context.Context, r *run.Runner, gitDir, workTree, path strin
 	if len(f) < 3 {
 		return 0, fmt.Errorf("conflict: check-attr printed %q", res.Stdout)
 	}
-	// git's rule: a positive number, else the default.
-	if n, err := strconv.Atoi(string(f[2])); err == nil && n > 0 {
-		return n, nil
+	return markerSizeOf(string(f[2])), nil
+}
+
+// markerSizeOf is the marker size git merges with for an attribute value,
+// as ll_merge reads it: a number that fits in a C int (strtol_i, which
+// skips leading white space and takes a sign) and is positive, else the
+// default. ("set", "unset" and "unspecified" are no number.)
+func markerSizeOf(v string) int {
+	n, err := strconv.ParseInt(strings.TrimLeft(v, " \t\n\v\f\r"), 10, 32)
+	if err != nil || n <= 0 {
+		return defaultMarkerSize
 	}
-	return defaultMarkerSize, nil
+	return int(n)
 }
 
 func hasOpen(data []byte, size int) bool {
