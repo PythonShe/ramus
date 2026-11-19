@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -148,10 +147,11 @@ func ObserveIgnoring(ctx context.Context, r *run.Runner, w Where, paths []string
 		return Observe(w.WorkTree, paths)
 	}
 	ignored := map[string]bool{}
-	// ls-files takes no pathspec file; chunks keep the arguments short.
-	for c := range slices.Chunk(folders, 256) {
-		res, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true, Env: []string{"GIT_LITERAL_PATHSPECS=1"},
-			Args: append([]string{"ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory", "--full-name", "--"}, c...)})
+	// ls-files takes no pathspec file: as many runs as the command line
+	// needs.
+	for _, c := range SplitArgs(run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true, Env: []string{"GIT_LITERAL_PATHSPECS=1"},
+		Args: []string{"ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory", "--full-name", "--"}}, folders) {
+		res, err := r.Run(ctx, &c)
 		if err != nil {
 			return nil, err
 		}

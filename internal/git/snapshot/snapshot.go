@@ -456,17 +456,24 @@ func present(ctx context.Context, git func([]byte, []string, ...string) (string,
 	if len(missing) == 0 {
 		return out, nil
 	}
-	// ls-files takes no pathspec file; chunks keep the arguments short.
-	var tracked []string
-	for c := range slices.Chunk(missing, 256) {
-		ls, err := git(nil, []string{"GIT_LITERAL_PATHSPECS=1"}, append([]string{"ls-files", "-z", "--"}, c...)...)
-		if err != nil {
-			return nil, err
+	// ls-files takes no pathspec file: past what a command line holds,
+	// the whole index is listed and filtered.
+	args := []string{"ls-files", "-z", "--full-name"}
+	if fewPathspecs(missing) {
+		args = append(append(args, "--"), missing...)
+	}
+	ls, err := git(nil, []string{"GIT_LITERAL_PATHSPECS=1"}, args...)
+	if err != nil {
+		return nil, err
+	}
+	set, found := newPathSet(missing), map[string]bool{}
+	for t := range strings.SplitSeq(ls, "\x00") {
+		if t != "" {
+			set.under(t, func(p string) { found[p] = true })
 		}
-		tracked = append(tracked, strings.Split(ls, "\x00")...)
 	}
 	for _, p := range missing {
-		if slices.ContainsFunc(tracked, func(t string) bool { return covered([]string{p}, t) }) {
+		if found[strings.TrimSuffix(p, "/")] {
 			out = append(out, p)
 		}
 	}
@@ -912,6 +919,25 @@ func known(ctx context.Context, r *run.Runner, w Where, tree string, index bool,
 // out, so more are listed by one walk of everything, filtered.
 const maxPathspecs = 256
 
+// maxPathspecBytes bounds the bytes of the paths a listing takes as its
+// arguments: Windows limits a command line to 32767 characters, git's
+// own path and the runner's config included.
+const maxPathspecBytes = 24 << 10
+
+// fewPathspecs reports whether paths are few and short enough to be a
+// listing's arguments.
+func fewPathspecs(paths []string) bool {
+	if len(paths) > maxPathspecs {
+		return false
+	}
+	n := 0
+	for _, p := range paths {
+		// Quoted, as Go quotes one with a space or a quote for Windows.
+		n += len(p) + 3 + 2*strings.Count(p, `"`) + strings.Count(p, `\`)
+	}
+	return n <= maxPathspecBytes
+}
+
 // listPaths runs a git listing that prints names relative to the top of
 // the work tree, each ended by a NUL, of paths, and calls fn with each
 // name paths cover. The names stream past: a listing of a whole large
@@ -921,7 +947,7 @@ func listPaths(ctx context.Context, r *run.Runner, w Where, env []string, paths 
 		return nil
 	}
 	var set pathSet
-	if len(paths) <= maxPathspecs {
+	if fewPathspecs(paths) {
 		args = append(append(args, "--"), paths...)
 	} else {
 		set = newPathSet(paths)

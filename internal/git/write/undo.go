@@ -796,9 +796,9 @@ func (q *Queue) leftPaths(ctx context.Context, e Entry, like *pathState) *pathSt
 		sums[i] = string(sum[:])
 	}
 	var index strings.Builder
-	for c := range slices.Chunk(paths, 256) {
-		res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree, Read: true,
-			Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: append([]string{"ls-files", "--stage", "-z", "--"}, c...)})
+	for _, c := range SplitArgs(run.Cmd{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree, Read: true,
+		Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: []string{"ls-files", "--stage", "-z", "--"}}, paths) {
+		res, err := q.r.Run(ctx, &c)
 		if err != nil {
 			return nil
 		}
