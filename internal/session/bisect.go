@@ -59,6 +59,7 @@ func (b BisectState) Term(v write.BisectVerdict) write.BisectVerdict {
 func (s *Session) LoadBisect(done func(BisectState, error)) {
 	r := s.Repo
 	if r == nil {
+		done(BisectState{Left: -1, Steps: -1}, errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {

@@ -107,7 +107,12 @@ func (s *Session) OpenPulls(find func(forge.Kind) (*forge.CLI, error), done func
 // Leaving the view drops the answer.
 func (s *Session) PullReview(find func(forge.Kind) (*forge.CLI, error), repo forge.Repo, n int, done func(forge.Review, error)) {
 	r := s.Repo
-	if r == nil || r.Restricted {
+	switch {
+	case r == nil:
+		done(forge.Review{}, errNotOpen)
+		return
+	case r.Restricted:
+		done(forge.Review{}, ErrReadOnly)
 		return
 	}
 	ctx := s.viewContext(r)
@@ -337,6 +342,7 @@ func (s *Session) MergeBase(a, b []byte, done func([]byte, error)) {
 func (s *Session) LoadPullRange(n int, done func(PullRange, error)) {
 	r := s.Repo
 	if r == nil {
+		done(PullRange{}, errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {

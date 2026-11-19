@@ -855,6 +855,7 @@ type CommitDetail struct {
 func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
+		done(CommitDetail{OID: oid, Done: true, Err: errNotOpen})
 		return func() {}
 	}
 	key := commitKey(oid)
@@ -1086,6 +1087,7 @@ func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws
 func (s *Session) ResolveCommit(rev string, done func([]byte, error)) {
 	r := s.Repo
 	if r == nil {
+		done(nil, errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {
@@ -1135,6 +1137,7 @@ const MaxFormatPatch = 64 << 20
 func (s *Session) FormatPatch(oid []byte, done func(string, error)) {
 	r := s.Repo
 	if r == nil {
+		done("", errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {

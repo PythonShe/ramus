@@ -55,6 +55,7 @@ const statsReaders = 4
 func (s *Session) LoadStats(req StatsRequest, publish func(StatsResult)) {
 	r := s.Repo
 	if r == nil || s.State.Refs == nil {
+		publish(StatsResult{Req: req, Done: true, Err: errNotOpen})
 		return
 	}
 	list, head := s.State.Refs, s.State.Head

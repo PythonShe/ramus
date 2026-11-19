@@ -922,6 +922,11 @@ func (s *Session) reopenTrusted() {
 // handed over, and the view asks again.
 var ErrReopened error = &sayError{say: locales.SessionReopened}
 
+// errNotOpen answers a read asked while no repository is open: while it
+// opens, again after Trust, or once the session closed. The read is
+// answered all the same, for no view to wait on it for good.
+var errNotOpen = errors.New("session: the repository is not open")
+
 // handOver runs fn on the main thread while r is still the session's
 // repository. What was read of r is not handed over once r has closed,
 // as when Trust opens it again: it may point into r's mappings, gone with

@@ -33,6 +33,7 @@ type PatchSave struct {
 func (s *Session) SavePatch(req PatchSave, file string, done func(error)) {
 	r := s.Repo
 	if r == nil {
+		done(errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {
@@ -260,6 +261,7 @@ type PatchFile struct {
 func (s *Session) ReadPatchFile(file string, done func(PatchFile, error)) {
 	r := s.Repo
 	if r == nil {
+		done(PatchFile{Path: file}, errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {

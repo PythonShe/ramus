@@ -280,6 +280,7 @@ func commitPullKey(oid []byte) string { return "p\x00" + string(oid) }
 func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid []byte, subject string, done func(CommitPullResult)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
+		done(CommitPullResult{Err: errNotOpen})
 		return func() {}
 	}
 	if r.Restricted {

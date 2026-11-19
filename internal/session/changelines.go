@@ -123,6 +123,7 @@ type keptLines struct {
 func (s *Session) CountChanges(st *status.Status, folders []string, done func(ChangeLines)) {
 	r := s.Repo
 	if r == nil || st == nil {
+		done(ChangeLines{For: st})
 		return
 	}
 	a := &countAsk{r: r, ctx: s.viewContext(r), st: st, folders: folders, done: done}

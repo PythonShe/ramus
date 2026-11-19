@@ -13,6 +13,7 @@ import (
 func (s *Session) Then(j *write.Job, fn func(error)) {
 	r := s.Repo
 	if r == nil || j == nil {
+		fn(errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {

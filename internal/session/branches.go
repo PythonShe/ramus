@@ -96,6 +96,7 @@ const maxRefOutput = 128 << 20
 func (s *Session) LoadRefInfo(done func(RefInfo)) {
 	r := s.Repo
 	if r == nil {
+		done(RefInfo{Err: errNotOpen})
 		return
 	}
 	s.refInfo.mu.Lock()

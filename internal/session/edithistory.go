@@ -41,6 +41,7 @@ var ErrMergeInRange error = &sayError{locales.SessionMergeInRange}
 func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, seen write.Seen, commits []EditCommit, err error)) {
 	r := s.Repo
 	if r == nil {
+		done(write.Rewrite{}, write.Seen{}, nil, errNotOpen)
 		return
 	}
 	seen := s.Seen()

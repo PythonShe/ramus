@@ -40,6 +40,7 @@ const treemapTimeout = 15 * time.Minute
 func (s *Session) FileSizes(rev string, done func(PathWeights)) {
 	r := s.Repo
 	if r == nil {
+		done(PathWeights{Err: errNotOpen})
 		return
 	}
 	if rev == "" {
@@ -107,6 +108,7 @@ func fileSizes(ctx context.Context, r *repo.Repository, rev string) PathWeights 
 func (s *Session) ChangeCounts(req StatsRequest, done func(PathWeights)) {
 	r := s.Repo
 	if r == nil {
+		done(PathWeights{Err: errNotOpen})
 		return
 	}
 	s.goWeights(r, func(ctx context.Context) PathWeights { return changeCounts(ctx, r, req) }, done)

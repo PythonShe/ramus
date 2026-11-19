@@ -21,6 +21,7 @@ const MaxClean = 10000
 func (s *Session) ListClean(ignored bool, done func([]string, []write.FileState, error)) {
 	r := s.Repo
 	if r == nil {
+		done(nil, nil, errNotOpen)
 		return
 	}
 	args := []string{"clean", "-n", "-d"}

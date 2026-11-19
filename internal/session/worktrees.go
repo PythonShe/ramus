@@ -91,6 +91,9 @@ func (s *Session) WatchWorktrees(wts []repo.Worktree, done func(WorktreeSummary)
 func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSummary), again bool) (stop func()) {
 	r := s.Repo
 	if r == nil {
+		for _, wt := range wts {
+			done(WorktreeSummary{Path: wt.Path, Err: errNotOpen})
+		}
 		return func() {}
 	}
 	ctx, cancel := context.WithCancel(r.Life().Context())
@@ -305,6 +308,7 @@ func countLines(file string) (n int, binary bool) {
 func (s *Session) WorktreePatch(worktree, path string, untracked bool, done func(PatchResult)) (stop func()) {
 	r := s.Repo
 	if r == nil {
+		done(PatchResult{Err: errNotOpen})
 		return func() {}
 	}
 	ctx, cancel := context.WithCancel(r.Life().Context())

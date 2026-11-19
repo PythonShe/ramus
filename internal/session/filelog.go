@@ -44,6 +44,7 @@ type FileLogOptions struct {
 func (s *Session) FileLog(path string, opt FileLogOptions, done func(commits []FileCommit, limited bool, err error)) {
 	r := s.Repo
 	if r == nil {
+		done(nil, false, errNotOpen)
 		return
 	}
 	args := []string{"log", "--name-only", "-z", "--format=%x1e%H%x1f%P%x1f%an%x1f%at%x1f%s",

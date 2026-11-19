@@ -36,6 +36,7 @@ const maxPreviewPaths = 10000
 func (s *Session) PreviewMerge(what string, done func(MergePreview, error)) {
 	r := s.Repo
 	if r == nil {
+		done(MergePreview{}, errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {
@@ -157,6 +158,7 @@ type ConflictFile struct {
 func (s *Session) LoadConflict(path string, done func(ConflictFile)) {
 	r := s.Repo
 	if r == nil {
+		done(ConflictFile{Path: path, Err: errNotOpen})
 		return
 	}
 	shown := s.stillShown()

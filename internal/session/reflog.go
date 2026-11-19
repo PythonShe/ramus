@@ -51,6 +51,7 @@ const MaxReflog = 10000
 func (s *Session) Reflog(ref string, done func([]ReflogEntry, error)) {
 	r := s.Repo
 	if r == nil {
+		done(nil, errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {
@@ -166,6 +167,7 @@ const FsckTimeout = 15 * time.Minute
 func (s *Session) LostCommits(done func([]LostCommit, error)) {
 	r := s.Repo
 	if r == nil {
+		done(nil, errNotOpen)
 		return
 	}
 	shown := s.stillShown()

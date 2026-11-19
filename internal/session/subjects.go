@@ -11,10 +11,13 @@ import (
 
 // LoadSubjects reads the subjects of commits oids off the main thread and
 // hands them to done on it, in their order; a commit that cannot be read
-// has "". cancel drops the answer, and so does the repository closing.
+// has "". cancel drops the answer, and so does the repository closing;
+// with none open, or no commits asked for, done hears nil at once.
 func (s *Session) LoadSubjects(oids [][]byte, done func([]string)) (cancel func()) {
 	r := s.Repo
 	if r == nil || len(oids) == 0 {
+		// None read: the caller hears all the same.
+		done(nil)
 		return func() {}
 	}
 	ctx, stop := context.WithCancel(s.viewContext(r))

@@ -57,6 +57,7 @@ const lineMark = "\x1eramus-line-log\x1f"
 func (s *Session) LineLog(path string, from, to int, done func(*LineLog, error)) {
 	r := s.Repo
 	if r == nil {
+		done(nil, errNotOpen)
 		return
 	}
 	shown := s.stillShown()

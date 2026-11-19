@@ -14,6 +14,7 @@ import (
 func (s *Session) LFSLocks(done func(lfs.Locks, error)) {
 	r := s.Repo
 	if r == nil {
+		done(lfs.Locks{}, errNotOpen)
 		return
 	}
 	if r.Restricted {

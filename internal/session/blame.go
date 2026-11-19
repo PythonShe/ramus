@@ -64,6 +64,7 @@ type blames struct {
 func (s *Session) Blame(path string, text func([]byte, error), update func(BlameUpdate)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
+		update(BlameUpdate{Done: true, Err: errNotOpen})
 		return func() {}
 	}
 	s.blame.mu.Lock()

@@ -365,6 +365,7 @@ func pushTarget(ctx context.Context, r *run.Runner, gitDir string) (write.PushOp
 func (s *Session) Verify(commit, tag string, done func(signature.Status, error)) {
 	r := s.Repo
 	if r == nil {
+		done(signature.Status{}, errNotOpen)
 		return
 	}
 	r.Life().Go(func(ctx context.Context) {
