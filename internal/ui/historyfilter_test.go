@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/hex"
 	"slices"
 	"testing"
 	"time"
@@ -137,6 +138,51 @@ func TestFilterClosedAndRetyped(t *testing.T) {
 	h.until("no error", func() bool { return !h.tt.HasText("Dates are written as 2024-01-31") })
 	if hf.err != "" {
 		t.Fatalf("error %q", hf.err)
+	}
+}
+
+// Commits picked that a filter then hides are let go of: the bar counts,
+// and Cherry-Pick takes, only those the history shows.
+func TestPickedHiddenByFilter(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("checkout", "-q", "-b", "side")
+	r.Write("s1.txt", "1\n")
+	one := r.Commit("side one")
+	r.Write("s2.txt", "2\n")
+	two := r.Commit("side two")
+	r.Write("s3.txt", "3\n")
+	three := r.Commit("other three")
+	r.Git("checkout", "-q", "main")
+	r.Write("m.txt", "m\n")
+	r.Commit("on main")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("the history", h.shows("other three"))
+	hv := &tb.hist
+	hv.picked.Clear()
+	for _, id := range []string{one, two, three} {
+		b, _ := hex.DecodeString(id)
+		hv.picked.Add(string(b))
+	}
+	h.until("the bar", h.shows("3 commits picked"))
+	hv.filter.message = "side"
+	h.app.applyHistoryFilter(tb)
+	h.until("filtered", func() bool {
+		hs := tb.s.History
+		return hs.Done && hs.Filtered && !shownRow(h, "other three")
+	})
+	h.until("the bar counting those shown", h.shows("2 commits picked"))
+	if hv.picked.Len() != 2 {
+		t.Fatalf("%d picked", hv.picked.Len())
+	}
+	h.click("Cherry-Pick")
+	h.idle(tb, "the cherry-pick")
+	if got := r.Git("log", "-3", "--format=%s", "main"); got != "side two\nside one\non main\n" {
+		t.Fatalf("the bar said 2 commits; main took %q", got)
 	}
 }
 

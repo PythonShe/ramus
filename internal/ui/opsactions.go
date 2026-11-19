@@ -155,7 +155,9 @@ func (a *App) historyIDs(t *tab, h session.HistoryState, i int) (func() []string
 		id := hex.EncodeToString(h.OID(k))
 		return func() []string { return []string{id} }, 1
 	}
-	return func() []string { return pickedIDs(t, h) }, hv.picked.Len()
+	// Counted as the actions take them: the commits the history shows,
+	// though more may be picked while it is read again.
+	return func() []string { return pickedIDs(t, h) }, len(pickedIDs(t, h))
 }
 
 // pickedIDs are the commits picked in the history (hex, newest first).
@@ -178,14 +180,19 @@ func pickedIDs(t *tab, h session.HistoryState) []string {
 // them, or let them go.
 func (a *App) pickedBar(c *ui.Context, t *tab, h session.HistoryState) {
 	hv := &t.hist
-	n := hv.picked.Len()
-	if n < 2 || h.Snap == nil {
+	if hv.picked.Len() < 2 || h.Snap == nil {
 		return
 	}
-	// The merges among them, counted again as the picks or the history
-	// change, not on every frame: the walk may go far down.
-	if k := (pickedKey{h.Snap, n, string(hv.chosenID)}); k != hv.mergesFor {
-		hv.mergesFor, hv.merges = k, pickedMerges(t, h)
+	// The picks the history shows and the merges among them, counted
+	// again as the picks or the history change, not on every frame: the
+	// walk may go far down.
+	if k := (pickedKey{h.Snap, hv.picked.Len(), string(hv.chosenID)}); k != hv.mergesFor {
+		hv.mergesFor = k
+		hv.pickedN, hv.merges = pickedCount(t, h)
+	}
+	n := hv.pickedN
+	if n < 2 {
+		return
 	}
 	th := c.Theme()
 	_, off := pickOnto(t)
@@ -204,7 +211,7 @@ func (a *App) pickedBar(c *ui.Context, t *tab, h session.HistoryState) {
 		}
 		if ui.Button(c, locales.HistoryPickedCherryPick()).Disabled(off || why != "").Tooltip(why).Clicked() {
 			// Counted afresh: a merge must never go in with the others.
-			if pickedMerges(t, h) == 0 {
+			if _, merges := pickedCount(t, h); merges == 0 {
 				a.cherryPick(t, pickedIDs(t, h))
 			}
 		}
@@ -222,14 +229,14 @@ type pickedKey struct {
 	chosen string
 }
 
-// pickedMerges counts the merges among the commits picked in the
-// history, walking its rows until every pick is found, as historyIDs
-// does: once, as the menu opens.
-func pickedMerges(t *tab, h session.HistoryState) int {
+// pickedCount counts the commits picked that the history shows, and the
+// merges among them, walking its rows until every pick is found, as
+// historyIDs does: once, as the menu opens.
+func pickedCount(t *tab, h session.HistoryState) (found, merges int) {
 	hv := &t.hist
 	snap := h.Snap
-	n, found, merges := hv.picked.Len(), 0, 0
-	for r := 0; r < snap.Len() && found < n; r++ {
+	n := hv.picked.Len()
+	for r := 0; snap != nil && r < snap.Len() && found < n; r++ {
 		if hv.picked.Has(string(h.OID(snap.Commit(r)))) {
 			found++
 			if snap.Merges(r) > 0 {
@@ -237,7 +244,37 @@ func pickedMerges(t *tab, h session.HistoryState) int {
 			}
 		}
 	}
-	return merges
+	return found, merges
+}
+
+// prunePicked lets go of the commits picked that the history, read to
+// its end, no longer has: a filter hid them, or no branch shown reaches
+// them now. What is picked is then what the actions take, and the walks
+// counting the picks stop at the oldest.
+func (hv *historyState) prunePicked(h session.HistoryState) {
+	n := hv.picked.Len()
+	if n == 0 || !h.Done || h.Snap == nil {
+		return
+	}
+	snap := h.Snap
+	found := make(map[string]bool, n)
+	for r := 0; r < snap.Len() && len(found) < n; r++ {
+		if id := string(h.OID(snap.Commit(r))); hv.picked.Has(id) {
+			found[id] = true
+		}
+	}
+	if len(found) == n {
+		return
+	}
+	var gone []string
+	for id := range hv.picked.All() {
+		if !found[id] {
+			gone = append(gone, id)
+		}
+	}
+	for _, id := range gone {
+		hv.picked.Remove(id)
+	}
 }
 
 // savePatch asks where to save a patch, then writes it there.

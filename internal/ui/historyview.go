@@ -86,9 +86,11 @@ type historyState struct {
 	// jumpN numbers the go-to requests; only the latest is answered.
 	jumpN int
 	buf   []lanes.Edge
-	// picked are the commits chosen together, by object id; merges is
-	// how many of them are merges, as counted for mergesFor.
+	// picked are the commits chosen together, by object id; pickedN is
+	// how many of them the history shows and merges how many of those
+	// are merges, as counted for mergesFor.
 	picked    ui.Selection[string]
+	pickedN   int
 	merges    int
 	mergesFor pickedKey
 	path      ui.Path
@@ -343,6 +345,7 @@ func (a *App) followHistory(t *tab, h session.HistoryState) {
 	}
 	hv.snapFor = h.Snap
 	clear(hv.asked)
+	hv.prunePicked(h)
 	if h.Text != nil && h.Names >= hv.text.names {
 		// In this frame, before the rows: one landing on top shows with
 		// its text, never a frame without it.
@@ -1222,7 +1225,8 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, h session.HistoryState, i, merges i
 	if n > 1 {
 		a.copyMany(m, t, ids, n)
 		m.Separator()
-		a.pickOps(m, t, ids, n, pickedMerges(t, h))
+		_, pickedMerges := pickedCount(t, h)
+		a.pickOps(m, t, ids, n, pickedMerges)
 		a.rewriteMany(m, t, ids, n)
 		m.Separator()
 		a.commitOps(m, t, ids, n)
