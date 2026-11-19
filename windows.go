@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"maps"
 	"slices"
 	"time"
 
@@ -46,6 +47,8 @@ type windows struct {
 	quitAnyway bool
 	// about is the About window, nil while it is not open.
 	about *aboutWindow
+	// watching is set once the settings file is watched for edits.
+	watching bool
 }
 
 // layoutDelay is how long changes to what is open gather before the
@@ -107,9 +110,64 @@ func (ws *windows) flush() {
 	}
 }
 
+// watchSettings has the settings file, which the user may edit while the
+// app runs, read again when a window gains focus and before each save,
+// and what was edited put in force in every window.
+func (ws *windows) watchSettings() {
+	k := ws.deps.SettingsKeeper
+	if k == nil || ws.probe != "" || ws.watching {
+		return
+	}
+	ws.watching = true
+	k.Started(ws.deps.Settings)
+	k.OnFile = func(f settings.FromFile) {
+		mygo.RunOnMain(func() { ws.settingsFromFile(f) })
+	}
+}
+
+// checkSettings reads the settings file again, off the main thread.
+func (ws *windows) checkSettings() {
+	if k := ws.deps.SettingsKeeper; k != nil && ws.watching {
+		k.Check(func(err error) {
+			mygo.RunOnMain(func() {
+				if w := ws.focused; w != nil {
+					w.app.Notify(ui.LoadNotice(err))
+					if w.win != nil {
+						w.win.Invalidate()
+					}
+				}
+			})
+		})
+	}
+}
+
+// settingsFromFile puts in force what the settings file says, edited
+// by hand, merged with what the app changed since it read it.
+func (ws *windows) settingsFromFile(f settings.FromFile) {
+	old := ws.deps.Settings
+	s, changed := ws.deps.SettingsKeeper.Take(f, old)
+	if !changed {
+		return
+	}
+	ws.deps.Settings = s
+	if s.Theme != old.Theme && ws.deps.ApplyTheme != nil {
+		ws.deps.ApplyTheme(s.Theme)
+	}
+	for _, w := range ws.list {
+		w.app.UseSettings(s)
+		if w.win != nil {
+			w.win.Invalidate()
+		}
+	}
+	if !maps.EqualFunc(s.Keys, old.Keys, slices.Equal) && ws.ready {
+		mygo.App.SetMenu(menu(ws))
+	}
+}
+
 // add makes a window's app; show opens its window once the app is
 // ready.
 func (ws *windows) add() *window {
+	ws.watchSettings()
 	w := &window{}
 	d := ws.deps
 	d.Update = func(fn func()) {
@@ -253,6 +311,7 @@ func (ws *windows) show(w *window) {
 	})
 	w.win.OnFocus(func() {
 		ws.focused = w
+		ws.checkSettings()
 		w.app.WindowFocused()
 		ws.repoMenuEnabled()
 	})

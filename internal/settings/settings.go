@@ -288,15 +288,24 @@ func describe(data []byte, err error) error {
 // half of it. A file there that does not read is not written over: Save
 // fails and leaves it for the user to mend.
 func Save(path string, s Settings) error {
+	_, _, err := save(path, s, nil)
+	return err
+}
+
+// save is Save. With base, the settings s was changed from, a field s
+// has as base had it is left as the file has it, edited by hand since;
+// got is then what the file holds once written, data its content.
+func save(path string, s Settings, base *Settings) (got Settings, data []byte, err error) {
 	merged := map[string]json.RawMessage{}
 	old, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
+		old = nil
 	case err != nil:
-		return notOverwritten(path, err)
+		return s, nil, notOverwritten(path, err)
 	default:
 		if err := json.Unmarshal(old, &merged); err != nil {
-			return notOverwritten(path, describe(old, err))
+			return s, nil, notOverwritten(path, describe(old, err))
 		}
 		if merged == nil { // the file says null
 			merged = map[string]json.RawMessage{}
@@ -304,16 +313,24 @@ func Save(path string, s Settings) error {
 	}
 	known, err := json.Marshal(s)
 	if err != nil {
-		return err
+		return s, nil, err
 	}
 	var fields map[string]json.RawMessage
 	json.Unmarshal(known, &fields)
 	unset := fieldsOf(Defaults.WithDefaults())
 	now := fieldsOf(s.WithDefaults())
+	var was map[string]json.RawMessage
+	if base != nil {
+		was = fieldsOf(base.WithDefaults())
+	}
 	t := reflect.TypeFor[Settings]()
 	for i := range t.NumField() {
 		name := jsonName(t.Field(i))
 		if name == "" {
+			continue
+		}
+		// Not changed in the app: the file's, whatever it says now.
+		if base != nil && bytes.Equal(now[name], was[name]) {
 			continue
 		}
 		// A value Load could not read is in force as the default: while s
@@ -338,11 +355,48 @@ func Save(path string, s Settings) error {
 			merged[name] = v
 		}
 	}
-	data, err := json.MarshalIndent(merged, "", "  ")
+	data, err = json.MarshalIndent(merged, "", "  ")
 	if err != nil {
-		return err
+		return s, nil, err
 	}
-	return WriteFile(path, append(data, '\n'))
+	data = append(data, '\n')
+	if !bytes.Equal(data, old) {
+		if err := WriteFile(path, data); err != nil {
+			return s, nil, err
+		}
+	}
+	got, _, _ = decode(data)
+	return got, data, nil
+}
+
+// Same reports whether a and b are the same settings, a field left at
+// its default and one set to it alike.
+func Same(a, b Settings) bool {
+	fa, fb := fieldsOf(a.WithDefaults()), fieldsOf(b.WithDefaults())
+	if len(fa) != len(fb) {
+		return false
+	}
+	for k, v := range fa {
+		if !bytes.Equal(v, fb[k]) {
+			return false
+		}
+	}
+	return true
+}
+
+// Merge is ours with what theirs changed since base: each field ours has
+// as base had it is theirs.
+func Merge(base, ours, theirs Settings) Settings {
+	was, now := fieldsOf(base.WithDefaults()), fieldsOf(ours.WithDefaults())
+	out := reflect.ValueOf(&ours).Elem()
+	from := reflect.ValueOf(theirs)
+	t := out.Type()
+	for i := range t.NumField() {
+		if name := jsonName(t.Field(i)); name != "" && bytes.Equal(now[name], was[name]) {
+			out.Field(i).Set(from.Field(i))
+		}
+	}
+	return ours.WithDefaults()
 }
 
 // notOverwritten is the error of a save refused because the file there
