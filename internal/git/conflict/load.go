@@ -2,9 +2,11 @@ package conflict
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -13,35 +15,196 @@ import (
 
 // Load splits data, the work tree's text of path, a file git left
 // conflicted, into segments: it reads markers of the size git wrote them
-// in, from the file's conflict-marker-size attribute, and tells text that
-// only looks like a conflict from git's by merging the sides in the index
-// again (see remerge).
+// in, and tells text that only looks like a conflict from git's by merging
+// the sides in the index again (see remerge).
+//
+// git writes markers of the size the file's conflict-marker-size attribute
+// had when it merged, in the work tree's attributes then: HEAD's, unless
+// they were edited and not committed. The merge may change them since, as
+// when the merged branch sets the attribute. So the file is read at HEAD's
+// size, then at the work tree's, then at the size of its own lines that
+// pair up as markers do (see other). A file the index holds conflicted is
+// read as having no conflicts only when every line in it like one of git's
+// markers can be text of its sides.
 func Load(ctx context.Context, r *run.Runner, gitDir, workTree, path string, data []byte) ([]Segment, error) {
 	if len(data) > MaxSize {
 		return nil, errLarge
 	}
-	size, err := markerSize(ctx, r, gitDir, workTree, path)
+	sizes, err := markerSizes(ctx, r, gitDir, workTree, path)
 	if err != nil {
 		return nil, err
 	}
-	if !hasOpen(data, size) {
-		return parseSize(data, size)
+	l := &loader{ctx: ctx, r: r, gitDir: gitDir, workTree: workTree, path: path, data: data}
+	var none []Segment
+	var refused error
+	for i, size := range sizes {
+		segs, err := l.at(size)
+		switch {
+		case err == nil && Count(segs) > 0:
+			return segs, nil
+		case err == nil:
+			if i == 0 {
+				none = segs
+			}
+		case errors.Is(err, ErrAmbiguous) || errors.Is(err, ErrMarkers):
+			refused = cmp.Or(refused, err)
+		default:
+			return nil, err
+		}
 	}
-	s, err := readSides(ctx, r, gitDir, workTree, path)
+	return l.other(none, refused, sizes)
+}
+
+// loader reads one file, the sides in the index once, when needed.
+type loader struct {
+	ctx                    context.Context
+	r                      *run.Runner
+	gitDir, workTree, path string
+	data                   []byte
+	sides                  *mergedSides
+}
+
+func (l *loader) readSides() (mergedSides, error) {
+	if l.sides == nil {
+		s, err := readSides(l.ctx, l.r, l.gitDir, l.workTree, l.path)
+		if err != nil {
+			return s, err
+		}
+		l.sides = &s
+	}
+	return *l.sides, nil
+}
+
+// at reads the file at markers of size, one its attributes give.
+func (l *loader) at(size int) ([]Segment, error) {
+	if !hasOpen(l.data, size) {
+		return parseSize(l.data, size)
+	}
+	s, err := l.readSides()
 	if err != nil {
 		return nil, err
 	}
 	if !s.holdsMarkers(size) {
-		return parseSize(data, size)
+		return parseSize(l.data, size)
 	}
-	return remerge(ctx, r, data, size, s)
+	return remerge(l.ctx, l.r, l.data, size, s)
+}
+
+// other reads the file at the size of lines in it that pair up as markers
+// of a size the attributes did not give (a separator, then a close
+// marker), when a merge of the sides there is the file; else the reading
+// at the attributes' sizes stands, segs or the refusal, but a reading with
+// no conflict only when every line like a marker of those sizes can be
+// text of the sides. git writes the separator and the close marker of each
+// conflict on lines of their own, the open marker after a side's last
+// line, which has none when ignoring white space matched it with a line
+// that has one.
+func (l *loader) other(segs []Segment, refused error, sizes []int) ([]Segment, error) {
+	paired := pairedSizes(l.data)
+	if len(paired) == 0 {
+		return segs, refused
+	}
+	s, err := l.readSides()
+	if err != nil {
+		return nil, err
+	}
+	if s.Base == nil && s.Ours == nil && s.Theirs == nil {
+		return segs, refused // not conflicted in the index
+	}
+	text := map[int]bool{}
+	for _, n := range paired {
+		if slices.Contains(sizes, n) || s.Ours == nil || s.Theirs == nil {
+			continue
+		}
+		if at, err := parseSize(l.data, n); err != nil || Count(at) == 0 {
+			continue
+		}
+		at, err := remerge(l.ctx, l.r, l.data, n, s)
+		switch {
+		case err == nil && Count(at) > 0:
+			return at, nil
+		case err == nil:
+			text[n] = true // the file is a merge with no conflict
+		case !errors.Is(err, ErrAmbiguous):
+			return nil, err
+		}
+	}
+	if refused != nil {
+		return nil, refused
+	}
+	for _, n := range paired {
+		if !text[n] && !s.hold(l.data, n) {
+			return nil, ErrAmbiguous
+		}
+	}
+	return segs, nil
+}
+
+// pairedSizes are the sizes of the separator lines in data that a close
+// marker of the same size follows, smallest first.
+func pairedSizes(data []byte) []int {
+	seps := map[int]bool{}
+	var paired []int
+	for pos := 0; pos < len(data); {
+		line, next := lineAt(data, pos)
+		pos = next
+		n := runOf(line)
+		if n == 0 {
+			continue
+		}
+		switch kind, _ := markerOf(line, n); kind {
+		case sep:
+			seps[n] = true
+		case closeMark:
+			if seps[n] && !slices.Contains(paired, n) {
+				paired = append(paired, n)
+			}
+		}
+	}
+	slices.Sort(paired)
+	return paired
+}
+
+// runOf is the length of the run of one of the characters markers are made
+// of that line starts with.
+func runOf(line []byte) int {
+	if len(line) == 0 || !strings.ContainsRune("<|=>", rune(line[0])) {
+		return 0
+	}
+	n := 1
+	for n < len(line) && line[n] == line[0] {
+		n++
+	}
+	return n
+}
+
+// markerSizes are the sizes git may have written path's markers in, as
+// its conflict-marker-size attribute sets them: in HEAD, and in the work
+// tree. HEAD's comes first.
+func markerSizes(ctx context.Context, r *run.Runner, gitDir, workTree, path string) ([]int, error) {
+	now, err := markerSize(ctx, r, gitDir, workTree, path)
+	if err != nil {
+		return nil, err
+	}
+	head, err := markerSize(ctx, r, gitDir, workTree, path, "--source=HEAD")
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, err
+		}
+		// No commit yet, or a git without check-attr --source (2.40).
+		return []int{now}, nil
+	}
+	if head == now {
+		return []int{now}, nil
+	}
+	return []int{head, now}, nil
 }
 
 // markerSize is the size of the conflict markers git writes for path, as
-// its conflict-marker-size attribute sets it.
-func markerSize(ctx context.Context, r *run.Runner, gitDir, workTree, path string) (int, error) {
-	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true,
-		Args: []string{"check-attr", "-z", "conflict-marker-size", "--", path}})
+// its conflict-marker-size attribute sets it, read with extra options.
+func markerSize(ctx context.Context, r *run.Runner, gitDir, workTree, path string, extra ...string) (int, error) {
+	args := append(append([]string{"check-attr", "-z"}, extra...), "conflict-marker-size", "--", path)
+	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, Args: args})
 	if err != nil {
 		return 0, err
 	}
