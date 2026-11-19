@@ -21,8 +21,8 @@ type Record struct {
 	// command gets (the repository, locks, encoding).
 	Line, Short string
 	Read        bool
-	// Long marks a process that lives as long as its repository (cat-file
-	// --batch-command): it is recorded when it starts, with no result.
+	// Long marks a long-lived process (cat-file --batch-command, a diff
+	// tool): it is recorded once, when it first starts, with no result.
 	Long     bool
 	Started  time.Time
 	Duration time.Duration

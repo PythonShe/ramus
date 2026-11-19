@@ -437,13 +437,25 @@ func (r *Runner) Run(ctx context.Context, c *Cmd) (Result, error) {
 	return r.start(ctx, c)
 }
 
-// Command prepares a long-lived process, such as cat-file --batch-command,
-// that lives as long as its repository: it takes no slot of the pool and
-// has no time limit, and stops when ctx is cancelled. Start starts it;
-// Track tells the runner it started and ended, for Running. A write
-// through a hardened runner fails to start, with ErrRestricted, as Run
-// refuses it.
+// Command prepares a long-lived process, such as cat-file --batch-command
+// or a diff tool, that lives as long as its caller keeps it: it takes no
+// slot of the pool and has no time limit, and stops when ctx is
+// cancelled. Start starts it; Track tells the runner it started and
+// ended, for Running. The command log records it as it is prepared. A
+// write through a hardened runner fails to start, with ErrRestricted, as
+// Run refuses it.
 func (r *Runner) Command(ctx context.Context, c *Cmd) *exec.Cmd {
+	cmd := r.Again(ctx, c)
+	if cmd.Err == nil {
+		r.journal.record(c, c.Line(), time.Now(), Result{}, nil, true)
+	}
+	return cmd
+}
+
+// Again is Command for a process that starts again one Command started
+// before, as an object reader that ended while idle: the command log has
+// it already, and would otherwise fill with it.
+func (r *Runner) Again(ctx context.Context, c *Cmd) *exec.Cmd {
 	if r.hardened && !c.Read {
 		// Start returns a Cmd's Err without running anything, so each
 		// caller's own error path reports the refusal.
@@ -453,7 +465,6 @@ func (r *Runner) Command(ctx context.Context, c *Cmd) *exec.Cmd {
 	}
 	cmd := r.command(ctx, c)
 	cmd.WaitDelay = 2 * time.Second
-	r.journal.record(c, c.Line(), time.Now(), Result{}, nil, true)
 	return cmd
 }
 

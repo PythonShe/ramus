@@ -125,9 +125,17 @@ func TestEndsWhenIdle(t *testing.T) {
 			t.Fatal("not alive once idle")
 		}
 	}
+	// Long enough that git is not ended again before it is counted.
+	p.mu.Lock()
+	p.idle = time.Hour
+	p.mu.Unlock()
 	read()
 	if runner.Running() != 1 {
 		t.Fatalf("%d gits running", runner.Running())
+	}
+	// The command log has the reader once, however often it started.
+	if recs := runner.Journal().For(p.gitDir); len(recs) != 1 || !recs[0].Long {
+		t.Fatalf("command log %+v", recs)
 	}
 }
 

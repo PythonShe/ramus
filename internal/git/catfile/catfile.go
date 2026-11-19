@@ -102,7 +102,7 @@ func Start(ctx context.Context, r *run.Runner, gitDir string) (*Process, error) 
 		gitDir = abs
 	}
 	p := &Process{ctx: ctx, runner: r, gitDir: gitDir, batch: make(chan struct{}, 1), idle: IdleTimeout, stall: StallTimeout}
-	g, err := p.start()
+	g, err := p.start(false)
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +110,15 @@ func Start(ctx context.Context, r *run.Runner, gitDir string) (*Process, error) 
 	return p, nil
 }
 
-func (p *Process) start() (*proc, error) {
+// start starts git; again is a start after the first, which the command
+// log has already.
+func (p *Process) start(again bool) (*proc, error) {
 	ctx, cancel := context.WithCancel(p.ctx)
-	cmd := p.runner.Command(ctx, &run.Cmd{GitDir: p.gitDir, Read: true, Args: []string{"cat-file", "--batch-command", "--buffer"}})
+	prepare := p.runner.Command
+	if again {
+		prepare = p.runner.Again
+	}
+	cmd := prepare(ctx, &run.Cmd{GitDir: p.gitDir, Read: true, Args: []string{"cat-file", "--batch-command", "--buffer"}})
 	// It names the repository by --git-dir; a working directory inside it
 	// would stop Windows from moving or deleting the folder.
 	cmd.Dir = os.TempDir()
@@ -254,7 +260,7 @@ func (p *Process) running() (*proc, error) {
 		return nil, p.dead
 	}
 	if p.g == nil {
-		g, err := p.start()
+		g, err := p.start(true)
 		if err != nil {
 			return nil, err
 		}
