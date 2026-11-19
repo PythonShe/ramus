@@ -20,13 +20,16 @@ type Pointer struct {
 // maxPointer is the most a pointer file holds; git-lfs reads no more.
 const maxPointer = 1024
 
+// Version is the first line of every pointer file, without its newline.
+const Version = "version https://git-lfs.github.com/spec/v1"
+
 // ParsePointer reads b as an LFS pointer file, as the specification
 // writes one: a version line, then sorted keys, oid and size among them.
 func ParsePointer(b []byte) (Pointer, bool) {
 	if len(b) >= maxPointer {
 		return Pointer{}, false
 	}
-	rest, ok := bytes.CutPrefix(b, []byte("version https://git-lfs.github.com/spec/v1\n"))
+	rest, ok := bytes.CutPrefix(b, []byte(Version+"\n"))
 	if !ok {
 		return Pointer{}, false
 	}
@@ -39,11 +42,10 @@ func ParsePointer(b []byte) (Pointer, bool) {
 		}
 		switch string(k) {
 		case "oid":
-			hex, ok := bytes.CutPrefix(v, []byte("sha256:"))
-			if !ok || !isHex64(hex) {
+			if !IsOIDLine(line) {
 				return Pointer{}, false
 			}
-			p.OID = string(hex)
+			p.OID = string(v[len("sha256:"):])
 		case "size":
 			n, err := strconv.ParseInt(string(v), 10, 64)
 			if err != nil || n < 0 {
@@ -53,6 +55,13 @@ func ParsePointer(b []byte) (Pointer, bool) {
 		}
 	}
 	return p, p.OID != "" && size
+}
+
+// IsOIDLine reports whether line, without its newline, is a pointer's
+// oid line: "oid sha256:" and 64 lower-case hex digits.
+func IsOIDLine(line []byte) bool {
+	hex, ok := bytes.CutPrefix(line, []byte("oid sha256:"))
+	return ok && isHex64(hex)
 }
 
 func isHex64(b []byte) bool {

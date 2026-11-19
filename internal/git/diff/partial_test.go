@@ -419,6 +419,81 @@ func TestSelectNewAndDeletedFiles(t *testing.T) {
 	}
 }
 
+// git diff shows a file stored in Git LFS as its pointer. Some of a
+// pointer's lines staged or discarded make no pointer: git-lfs then
+// writes the pointer text into the work tree, or the index gets a broken
+// one. Its lines go only all at once.
+func TestSelectRefusesSomeLinesOfAnLFSPointer(t *testing.T) {
+	oid := func(c string) string { return "oid sha256:" + strings.Repeat(c, 64) }
+	head := "diff --git a/a.dat b/a.dat\nindex 1..2 100644\n--- a/a.dat\n+++ b/a.dat\n"
+	for _, c := range []struct{ name, patch string }{
+		{"changed", head + "@@ -1,3 +1,3 @@\n version https://git-lfs.github.com/spec/v1\n-" + oid("1") + "\n-size 4\n+" + oid("2") + "\n+size 11\n"},
+		{"no context", head + "@@ -2,2 +2,2 @@\n-" + oid("1") + "\n-size 4\n+" + oid("2") + "\n+size 11\n"},
+		{"moved to LFS", head + "@@ -1,2 +1,3 @@\n-one\n-two\n+version https://git-lfs.github.com/spec/v1\n+" + oid("2") + "\n+size 11\n"},
+		{"moved out of LFS", head + "@@ -1,3 +1 @@\n-version https://git-lfs.github.com/spec/v1\n-" + oid("1") + "\n-size 4\n+one\n"},
+	} {
+		p, err := Parse([]byte(c.patch))
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		var changed []int
+		for i, l := range p.Lines {
+			if l.Kind == '+' || l.Kind == '-' {
+				changed = append(changed, i)
+			}
+		}
+		for _, reverse := range []bool{false, true} {
+			if err := p.Partial(0, reverse); err != ErrNotPartial {
+				t.Errorf("%s, reverse %v: lines offered one by one: %v", c.name, reverse, err)
+			}
+			for _, one := range changed {
+				if sel, err := p.Select(0, reverse, func(i int) bool { return i == one }); err != ErrNotPartial {
+					t.Errorf("%s, reverse %v: line %d alone: %v\n%s", c.name, reverse, one, err, sel)
+				}
+			}
+			if _, err := p.Select(0, reverse, func(int) bool { return true }); err != nil {
+				t.Errorf("%s, reverse %v: every line: %v", c.name, reverse, err)
+			}
+		}
+	}
+	// The patch git diff gives with git-lfs installed, staged and not.
+	if _, err := exec.LookPath("git-lfs"); err != nil {
+		t.Log("no git-lfs:", err)
+	} else {
+		r := gittest.Init(t)
+		rn := testrun.Runner(t)
+		r.Git("config", "filter.lfs.clean", "git-lfs clean -- %f")
+		r.Git("config", "filter.lfs.smudge", "git-lfs smudge -- %f")
+		r.Git("config", "filter.lfs.process", "git-lfs filter-process")
+		r.Git("config", "filter.lfs.required", "true")
+		r.Write(".gitattributes", "*.dat filter=lfs diff=lfs merge=lfs -text\n")
+		r.Write("a.dat", "one\n")
+		r.Commit("one")
+		r.Write("a.dat", "two-longer\n")
+		r.Git("add", "a.dat")
+		r.Write("a.dat", "three\n")
+		for _, src := range []Source{Unstaged, Staged} {
+			pt, err := WorkTreePatch(context.Background(), rn, r.GitDir(), r.Dir, PatchRequest{Source: src, Paths: []string{"a.dat"}, Context: -1, ForApply: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err := Parse(pt.Text)
+			if err != nil || len(p.Files) != 1 || !bytes.Contains(pt.Text, []byte("+oid sha256:")) {
+				t.Fatalf("%v\n%s", err, pt.Text)
+			}
+			if p.Partial(0, false) != ErrNotPartial || p.Partial(0, true) != ErrNotPartial {
+				t.Errorf("source %d: the lines of an LFS pointer are offered one by one", src)
+			}
+		}
+	}
+	// A file that merely mentions the version line, past its first line,
+	// is text like any other.
+	p, err := Parse([]byte(head + "@@ -4,2 +4,2 @@ notes\n version https://git-lfs.github.com/spec/v1\n-old\n+new\n"))
+	if err != nil || p.Partial(0, false) != nil || p.Partial(0, true) != nil {
+		t.Fatalf("a text file mentioning a pointer: %v", err)
+	}
+}
+
 func splitLines(s string) []string {
 	l := strings.SplitAfter(s, "\n")
 	if l[len(l)-1] == "" {

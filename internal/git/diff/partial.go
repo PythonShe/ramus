@@ -4,27 +4,50 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	"ramus/internal/git/lfs"
 )
 
 // ErrNothingChosen is a selection with no added or removed line in it.
 var ErrNothingChosen = errors.New("diff: no changed line chosen")
 
 // ErrNotPartial is a file that cannot be taken apart by line: binary, or
-// with a quoted path; or, in one direction, a file the patch adds or
-// deletes (see Partial).
+// with a quoted path; a Git LFS pointer; or, in one direction, a file the
+// patch adds or deletes (see Partial).
 var ErrNotPartial = errors.New("diff: this file can only be taken whole")
 
 // Partial reports whether lines of file f can be chosen one by one in
 // the direction Select is given, ErrNotPartial when not. git applies a
 // patch that adds or deletes a file only whole: lines of a new file
 // cannot be taken back one by one, nor lines of a deleted one taken; all
-// of them at once can.
+// of them at once can. The same holds both ways for a file stored in Git
+// LFS, whose patch is of its pointer.
 func (p *Parsed) Partial(f int, reverse bool) error {
 	fl := p.Files[f]
-	if fl.Binary || fl.Quoted || onlyWhole(p.Bytes(fl.Header), reverse) {
+	if fl.Binary || fl.Quoted || onlyWhole(p.Bytes(fl.Header), reverse) || p.pointer(fl) {
 		return ErrNotPartial
 	}
 	return nil
+}
+
+// pointer reports whether fl's patch is of a Git LFS pointer, on either
+// side: a pointer's version line as its first line, or an oid line
+// changed, as a patch with no context shows it. Some of a pointer's lines
+// make no pointer: git-lfs would write that text into the work tree in
+// place of the file's content, or the index would get a broken pointer.
+func (p *Parsed) pointer(fl File) bool {
+	for hi := fl.Hunks.Start; hi < fl.Hunks.End; hi++ {
+		h := p.Hunks[hi]
+		for li := h.Lines.Start; li < h.Lines.End; li++ {
+			l := p.Lines[li]
+			text := p.Bytes(l.Text)
+			if (l.Old == 1 || l.New == 1) && string(text) == lfs.Version ||
+				(l.Kind == '+' || l.Kind == '-') && lfs.IsOIDLine(text) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func onlyWhole(header []byte, reverse bool) bool {
@@ -189,7 +212,7 @@ func (p *Parsed) Select(f int, reverse bool, chosen func(line int) bool) ([]byte
 	if !any {
 		return nil, ErrNothingChosen
 	}
-	if !all && onlyWhole(p.Bytes(fl.Header), reverse) {
+	if !all && (onlyWhole(p.Bytes(fl.Header), reverse) || p.pointer(fl)) {
 		return nil, ErrNotPartial
 	}
 	return out, nil
