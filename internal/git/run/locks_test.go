@@ -43,7 +43,7 @@ func TestRemoveLocks(t *testing.T) {
 		write(filepath.Join(common, "refs", "heads", "main"), 0),
 		write(filepath.Join(common, "objects", "pack", "x.lock"), 0),
 	}
-	removeLocks(gitDir, since)
+	removeLocks(gitDir, since, false)
 	for _, p := range gone {
 		if _, err := os.Stat(p); err == nil {
 			t.Errorf("%s left", p)
@@ -53,6 +53,60 @@ func TestRemoveLocks(t *testing.T) {
 		if _, err := os.Stat(p); err != nil {
 			t.Errorf("%s removed", p)
 		}
+	}
+
+	// With another write running in the repository, as in another
+	// worktree, its shared locks may be that write's: only this
+	// worktree's own go.
+	gone = []string{
+		write(filepath.Join(gitDir, "index.lock"), 0),
+		write(filepath.Join(gitDir, "HEAD.lock"), 0),
+	}
+	kept = []string{
+		write(filepath.Join(common, "packed-refs.lock"), 0),
+		write(filepath.Join(common, "refs", "heads", "topic", "a.lock"), 0),
+		write(filepath.Join(common, "config.lock"), 0),
+	}
+	removeLocks(gitDir, since, true)
+	for _, p := range gone {
+		if _, err := os.Stat(p); err == nil {
+			t.Errorf("shared: %s left", p)
+		}
+	}
+	for _, p := range kept {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("shared: %s removed", p)
+		}
+	}
+}
+
+// Writes are counted per repository, a linked worktree's with its main
+// one's, so that a stopped write can tell whether another runs there.
+func TestWritesPerRepository(t *testing.T) {
+	common := t.TempDir()
+	wt := filepath.Join(common, "worktrees", "wt")
+	if err := os.MkdirAll(wt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "commondir"), []byte("../..\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if commonDir(wt) != filepath.Clean(common) || commonDir(common) != filepath.Clean(common) {
+		t.Fatalf("common of %s is %s", wt, commonDir(wt))
+	}
+	var w writes
+	w.add(commonDir(wt), 1)
+	if w.others(common) {
+		t.Fatal("one write counted as two")
+	}
+	w.add(commonDir(common), 1)
+	if !w.others(commonDir(wt)) {
+		t.Fatal("a write in the main worktree not seen from the linked one")
+	}
+	w.add(common, -1)
+	w.add(common, -1)
+	if len(w.n) != 0 {
+		t.Fatalf("left %v", w.n)
 	}
 }
 

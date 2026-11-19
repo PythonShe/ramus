@@ -98,6 +98,9 @@ type pool struct {
 	running  atomic.Int64
 	commands atomic.Int64
 	journal  Journal
+	// writes counts the writes running per repository, where stopping
+	// one leaves its locks for the runner to remove (stopsHard).
+	writes writes
 	// quit is cancelled when the app quits; see Quit.
 	quit     context.Context
 	quitting context.CancelFunc
@@ -551,6 +554,12 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 		go r.watchStall(c.Stall, act, done, func() { stalled.Store(true); cancel() })
 	}
 	cmd.WaitDelay = 2 * time.Second
+	var common string
+	if stopsHard && !c.Read && c.GitDir != "" {
+		common = commonDir(c.GitDir)
+		r.writes.add(common, 1)
+		defer r.writes.add(common, -1)
+	}
 	t0 := time.Now()
 	r.running.Add(1)
 	r.commands.Add(1)
@@ -567,8 +576,8 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 			// a hook's background job. What git printed has come.
 			err = nil
 		}
-		if stopsHard && err != nil && ctx.Err() != nil && !c.Read && c.GitDir != "" {
-			removeLocks(c.GitDir, t0)
+		if common != "" && err != nil && ctx.Err() != nil {
+			removeLocks(c.GitDir, t0, r.writes.others(common))
 		}
 	}
 	waited()
