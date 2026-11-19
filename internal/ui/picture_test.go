@@ -206,6 +206,95 @@ func TestPictureDecodeStopsWhenStale(t *testing.T) {
 	}
 }
 
+// waitingPictures is how many decodes wait for pictureSlot.
+func waitingPictures() int {
+	pictureWaiters.Lock()
+	defer pictureWaiters.Unlock()
+	return len(pictureWaiters.queue)
+}
+
+// untilWaiting waits until n decodes wait for pictureSlot: each joins
+// the queue, and leaves it, itself.
+func untilWaiting(t *testing.T, what string, n int) {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); waitingPictures() != n; time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("%s: %d decodes wait, not %d", what, waitingPictures(), n)
+		}
+	}
+}
+
+// A decode waiting for its turn leaves the queue, and its bytes, as soon
+// as its file is no longer shown or its repository closes: not once the
+// decode ahead of it ends.
+func TestPictureWaitEnds(t *testing.T) {
+	h := newHarness(t)
+	pictureSlot <- struct{}{} // another picture decoding, for as long as it takes
+	defer func() { <-pictureSlot }()
+
+	pv := &patchView{}
+	h.app.setPatch(pv, session.PatchResult{})
+	pv.pics.sides = [2][]byte{[]byte("old"), []byte("new")}
+	h.app.decodePictures(pv)
+	untilWaiting(t, "a file shown", 1)
+	h.app.setPatch(pv, session.PatchResult{}) // another file chosen
+	untilWaiting(t, "another file chosen", 0)
+
+	life := make(chan struct{})
+	pv = &patchView{life: life}
+	h.app.setPatch(pv, session.PatchResult{})
+	pv.pics.sides = [2][]byte{[]byte("old"), []byte("new")}
+	h.app.decodePictures(pv)
+	untilWaiting(t, "a file shown", 1)
+	close(life) // the repository closed
+	untilWaiting(t, "the repository closed", 0)
+	if n := len(h.updates); n != 0 {
+		t.Fatalf("%d updates from decodes no longer wanted", n)
+	}
+}
+
+// However many files ask for their pictures while one decodes, only a
+// few wait, holding their bytes: one more sends the oldest away, whose
+// view asks again if it still shows it.
+func TestPictureWaitersAreBounded(t *testing.T) {
+	h := newHarness(t)
+	pictureSlot <- struct{}{}
+	defer func() { <-pictureSlot }()
+	pvs := make([]*patchView, maxPictureWaiters+2)
+	for i := range pvs {
+		pv := &patchView{}
+		pvs[i] = pv
+		h.app.setPatch(pv, session.PatchResult{})
+		pv.pics.sides = [2][]byte{[]byte("old"), []byte("new")}
+		h.app.decodePictures(pv)
+		untilWaiting(t, "a file shown", min(i+1, maxPictureWaiters))
+	}
+	for range 2 {
+		select {
+		case fn := <-h.updates:
+			fn()
+		case <-time.After(10 * time.Second):
+			t.Fatal("no decode sent away")
+		}
+	}
+	for i, pv := range pvs {
+		if want := i >= 2; pv.pics.asked != want {
+			t.Fatalf("file %d asked %v", i, pv.pics.asked)
+		}
+	}
+	// Shown again, the first asks again, sending the next oldest away.
+	h.app.decodePictures(pvs[0])
+	untilWaiting(t, "asked again", maxPictureWaiters)
+	(<-h.updates)()
+	if pvs[2].pics.asked || !pvs[0].pics.asked {
+		t.Fatalf("asked: %v, %v", pvs[0].pics.asked, pvs[2].pics.asked)
+	}
+	for _, pv := range pvs {
+		h.app.setPatch(pv, session.PatchResult{})
+	}
+	untilWaiting(t, "all moved on", 0)
+}
+
 func TestDifference(t *testing.T) {
 	a := image.NewNRGBA(image.Rect(0, 0, 2, 1))
 	copy(a.Pix, []byte{10, 20, 30, 255, 0, 0, 0, 0})

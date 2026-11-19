@@ -3,7 +3,7 @@ package ui
 import (
 	"bytes"
 	"fmt"
-	"sync/atomic"
+	"sync"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -109,7 +109,10 @@ type patchView struct {
 	gen int
 	// stale is set once the patch of gen is replaced, for the work off
 	// the main thread on it to stop; nil for none.
-	stale *atomic.Bool
+	stale *staleness
+	// life ends with the repository the view shows the patch of, for the
+	// work waiting on its behalf to stop waiting; nil for none.
+	life <-chan struct{}
 	// d is nil until the viewer is built, off the main thread.
 	d     *editor.DiffState
 	p     *diff.Parsed
@@ -135,6 +138,42 @@ type patchView struct {
 	// out for: the header asks for it every frame, and a selection can
 	// hold a whole patch's lines.
 	picked pickedLines
+}
+
+// staleness says that a patch was replaced: Load reports it, and Done is
+// closed then, for work waiting on something else to stop waiting. A nil
+// staleness is never set.
+type staleness struct {
+	once sync.Once
+	done chan struct{}
+}
+
+func newStaleness() *staleness { return &staleness{done: make(chan struct{})} }
+
+// set marks the patch replaced.
+func (s *staleness) set() {
+	if s != nil {
+		s.once.Do(func() { close(s.done) })
+	}
+}
+
+// Load reports whether the patch was replaced.
+func (s *staleness) Load() bool {
+	select {
+	case <-s.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// Done is closed once the patch is replaced; nil, never closed, for a
+// nil staleness.
+func (s *staleness) Done() <-chan struct{} {
+	if s == nil {
+		return nil
+	}
+	return s.done
 }
 
 // pickedLines is selectedLines of a viewer's selection.
@@ -166,10 +205,8 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		return
 	}
 	pv.gen++
-	if pv.stale != nil {
-		pv.stale.Store(true)
-	}
-	stale := new(atomic.Bool)
+	pv.stale.set()
+	stale := newStaleness()
 	pv.stale = stale
 	gen, update := pv.gen, a.Update
 	scroll := -1.0
@@ -191,18 +228,15 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		pv.pics.sides, pv.pics.notFetched = [2][]byte{res.Old, res.New}, res.NotFetched
 	}
 	// git diffs a picture in LFS as its pointers, as text.
+	// The view decodes the pictures it shows, where it knows the
+	// repository whose closing ends the wait for their turn.
 	if p.Files[0].Binary || res.LFS && picture {
 		pv.pics.lfs = res.LFS && picture
-		if picture {
-			a.decodePictures(pv)
-		}
+		pv.pics.binary = picture
 		return
 	}
 	if picture {
 		pv.pics.text = true
-		if a.diffOpts().svg == 1 {
-			a.decodePictures(pv)
-		}
 	}
 	a.goWork(nil, func() {
 		if stale.Load() {
@@ -301,6 +335,13 @@ func (a *App) patchBodyWith(c *ui.Context, t *tab, pv *patchView, res session.Pa
 	decorate func(d *editor.DiffState)) ui.Element {
 	th := c.Theme()
 	p := res.Parsed
+	pv.life = nil
+	if t != nil {
+		pv.life = t.s.Done()
+	}
+	if pv.pics.binary {
+		a.decodePictures(pv)
+	}
 	switch {
 	case res.Err != nil:
 		errorMessage(c, errText(res.Err))

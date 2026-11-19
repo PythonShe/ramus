@@ -44,6 +44,9 @@ type pictureState struct {
 	// sides whose content was never downloaded.
 	lfs, pictured bool
 	notFetched    [2]bool
+	// binary is a picture shown as pictures, never as text: one git
+	// diffs as binary, or one in LFS.
+	binary bool
 	// text is a picture git diffs as text, as SVG is, shown as one when
 	// the user asks; asked says its sides are decoding.
 	text, asked bool
@@ -76,6 +79,48 @@ const maxDiffPixels = 16 << 20
 // made, at a time: each can take hundreds of megabytes, and arrowing
 // through a folder of pictures starts one per file shown.
 var pictureSlot = make(chan struct{}, 1)
+
+// pictureWaiters are the decodes waiting for pictureSlot, oldest first,
+// each holding its sides' bytes: at most maxPictureWaiters wait, and one
+// more sends the oldest away, whose view asks again while it shows it.
+var pictureWaiters struct {
+	sync.Mutex
+	queue []chan struct{}
+}
+
+const maxPictureWaiters = 4
+
+// waitPicture waits for pictureSlot and reports whether it took it: not
+// once the patch went stale or life ended, as the repository closing,
+// nor once a newer decode sent it away, which away reports.
+func waitPicture(stale *staleness, life <-chan struct{}) (took, away bool) {
+	if stale.Load() {
+		return false, false
+	}
+	sent := make(chan struct{})
+	w := &pictureWaiters
+	w.Lock()
+	if len(w.queue) == maxPictureWaiters {
+		close(w.queue[0])
+		w.queue = slices.Delete(w.queue, 0, 1)
+	}
+	w.queue = append(w.queue, sent)
+	w.Unlock()
+	defer func() {
+		w.Lock()
+		w.queue = slices.DeleteFunc(w.queue, func(c chan struct{}) bool { return c == sent })
+		w.Unlock()
+	}()
+	select {
+	case pictureSlot <- struct{}{}:
+		return true, false
+	case <-sent:
+		return false, true
+	case <-stale.Done():
+	case <-life:
+	}
+	return false, false
+}
 
 // decodePicture decodes one side of a picture's change, and says its
 // size and, for an SVG, what of it is not drawn; nil for a side that is
@@ -113,15 +158,24 @@ func (a *App) decodePictures(pv *patchView) {
 		return
 	}
 	ps.asked = true
-	gen, update, sides, notFetched, stale := pv.gen, a.Update, ps.sides, ps.notFetched, pv.stale
+	gen, update, sides, notFetched, stale, life := pv.gen, a.Update, ps.sides, ps.notFetched, pv.stale, pv.life
 	a.goWork(nil, func() {
-		pictureSlot <- struct{}{}
+		if took, away := waitPicture(stale, life); !took {
+			if away {
+				update(func() {
+					if pv.gen == gen && pv.stale == stale {
+						pv.pics.asked = false
+					}
+				})
+			}
+			return
+		}
 		defer func() { <-pictureSlot }()
 		var imgs [2]ui.ImageSource
 		var about [2]string
 		var notDrawn []string
 		for k, data := range sides {
-			if stale != nil && stale.Load() {
+			if stale.Load() {
 				// Another file shown since, whose pictures come next.
 				return
 			}
@@ -343,11 +397,20 @@ func (a *App) makeDifference(c *ui.Context, pv *patchView) {
 	ps.diffAsked = true
 	t := c.Theme().Text
 	current := color.NRGBA{t.R, t.G, t.B, t.A}
-	gen, update, sides, images, stale := pv.gen, a.Update, ps.sides, ps.images, pv.stale
+	gen, update, sides, images, stale, life := pv.gen, a.Update, ps.sides, ps.images, pv.stale, pv.life
 	a.goWork(nil, func() {
-		pictureSlot <- struct{}{}
+		if took, away := waitPicture(stale, life); !took {
+			if away {
+				update(func() {
+					if pv.gen == gen && pv.stale == stale {
+						pv.pics.diffAsked = false
+					}
+				})
+			}
+			return
+		}
 		defer func() { <-pictureSlot }()
-		if stale != nil && stale.Load() {
+		if stale.Load() {
 			return
 		}
 		// The size the sides say first: an SVG is drawn at the size it
