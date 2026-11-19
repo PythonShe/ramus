@@ -16,7 +16,8 @@ const MaxClean = 10000
 // ListClean asks git clean what it would delete, untracked folders
 // included and ignored files too when ignored is set, off the main thread,
 // and hands the paths to done on it, with their state then for the clean
-// to check. A folder ends in "/".
+// to check. A folder ends in "/". A listing whose repository closed and
+// opened again (Trust) is answered ErrReopened.
 func (s *Session) ListClean(ignored bool, done func([]string, []write.FileState, error)) {
 	r := s.Repo
 	if r == nil {
@@ -26,7 +27,6 @@ func (s *Session) ListClean(ignored bool, done func([]string, []write.FileState,
 	if ignored {
 		args = append(args, "-x")
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		// git clean has no -z; it is read in English, its paths quoted only
 		// where they must be.
@@ -43,7 +43,7 @@ func (s *Session) ListClean(ignored bool, done func([]string, []write.FileState,
 				seen, err = write.ObserveIgnoring(ctx, r.Runner, write.Where{GitDir: r.GitDir, WorkTree: r.WorkTree}, paths)
 			}
 		}
-		update(func() { done(paths, seen, err) })
+		s.handOver(r, func() { done(paths, seen, err) }, func() { done(nil, nil, ErrReopened) })
 	})
 }
 

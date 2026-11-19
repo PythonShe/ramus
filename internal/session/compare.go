@@ -15,7 +15,8 @@ import (
 // CommitDetail of to whose one parent is from: CommitPatch then reads a
 // file's patch between the two. done is called again, Done set, once
 // the lines are counted. cancel stops the read; done is not called after
-// it. A comparison read before is handed over at once.
+// it. A comparison read before is handed over at once. One whose
+// repository closed and opened again (Trust) ends with ErrReopened.
 func (s *Session) Compare(from, to []byte, done func(CommitDetail)) (cancel func()) {
 	return s.compare(from, to, done)
 }
@@ -43,6 +44,17 @@ func (s *Session) compare(from, to []byte, done func(CommitDetail)) (cancel func
 	}
 	ctx, stop := context.WithCancel(s.viewContext(r))
 	dropped := false // main thread only
+	shown := s.stillShown()
+	reopened := func() {
+		if !dropped && shown() {
+			done(CommitDetail{OID: to, Parents: [][]byte{from}, WorkTree: work, Done: true, Err: ErrReopened})
+		}
+	}
+	cut := func() {
+		if closedUnder(r) {
+			s.handOver(r, nil, reopened)
+		}
+	}
 	r.Life().Go(func(context.Context) {
 		defer stop()
 		d := CommitDetail{OID: to, Parents: [][]byte{from}, WorkTree: work}
@@ -52,17 +64,18 @@ func (s *Session) compare(from, to []byte, done func(CommitDetail)) (cancel func
 			d.Files, d.Renames, d.Err = diff.Renames(ctx, r.Runner, r.GitDir, r.Caps.HashSize, from, to)
 		}
 		if ctx.Err() != nil {
+			cut()
 			return
 		}
 		// The list shows while its lines are counted, which reads every
 		// file in it.
 		if d.Err == nil {
 			listed := d
-			s.update(func() {
+			s.handOver(r, func() {
 				if !dropped {
 					done(listed)
 				}
-			})
+			}, nil)
 			var ns *diff.NumStat
 			var err error
 			if work {
@@ -75,18 +88,19 @@ func (s *Session) compare(from, to []byte, done func(CommitDetail)) (cancel func
 				d.Sum = diff.Total(d.Lines)
 			}
 			if ctx.Err() != nil {
+				cut()
 				return
 			}
 		}
 		d.Done = true
-		s.update(func() {
+		s.handOver(r, func() {
 			if d.Err == nil && !work {
 				s.keep(r, key, answer{detail: &d})
 			}
 			if !dropped {
 				done(d)
 			}
-		})
+		}, reopened)
 	})
 	return func() { dropped = true; stop() }
 }

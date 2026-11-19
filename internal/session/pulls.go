@@ -202,7 +202,6 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 		a.local, a.remote = append(a.local, b.Name), append(a.remote, name)
 	}
 	ctx := s.viewContext(r)
-	update := s.update
 	r.Life().Go(func(context.Context) {
 		res := PullsResult{Pulls: map[string]PullInfo{}}
 		clis := map[forge.Kind]*forge.CLI{}
@@ -244,11 +243,12 @@ func (s *Session) LoadPulls(find func(forge.Kind) (*forge.CLI, error), info *Ref
 				}
 			}
 		}
-		update(func() {
+		// Only a trusted repository asks its hosts, and one never opens again.
+		s.handOver(r, func() {
 			if ctx.Err() == nil {
 				done(res)
 			}
-		})
+		}, nil)
 	})
 }
 
@@ -302,7 +302,8 @@ func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid 
 		if ctx.Err() != nil {
 			return // cancelled, or the repository closed
 		}
-		s.update(func() {
+		// Only a trusted repository asks its hosts, and one never opens again.
+		s.handOver(r, func() {
 			if res.Err == nil {
 				res.at = s.timeNow()
 				s.keep(r, key, answer{pull: &res})
@@ -310,7 +311,7 @@ func (s *Session) LoadCommitPull(find func(forge.Kind) (*forge.CLI, error), oid 
 			if !dropped {
 				done(res)
 			}
-		})
+		}, nil)
 	})
 	return func() { dropped = true; stop() }
 }

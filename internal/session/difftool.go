@@ -113,7 +113,6 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 	if len(runs) == 0 {
 		runs = []run.Cmd{base}
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		defer s.tools.open.Add(-1)
 		ctx, cancel := context.WithTimeout(ctx, diffToolTime)
@@ -158,9 +157,12 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 			}
 		}
 		if ctx.Err() != nil && r.Life().Context().Err() != nil {
-			return // the repository closed
+			return // the repository closed, which ended the tool
 		}
-		update(func() { done(err) })
+		// The tool's own end is told whichever repository is open now: it
+		// holds nothing of r.
+		tell := func() { done(err) }
+		s.handOver(r, tell, tell)
 	})
 }
 

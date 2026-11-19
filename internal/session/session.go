@@ -91,7 +91,9 @@ type Session struct {
 	// Log is what the app ran here for the user, oldest first.
 	Log []*LogEntry
 	// Writes counts the writes that have ended, so a view of something a
-	// write may change (snapshots, undo) knows to read it again.
+	// write may change (snapshots, undo) knows to read it again. The
+	// repository opening again (Trust) counts too: what was read of it
+	// before is read again.
 	Writes int
 	// History is the history list as loaded; LoadHistory fills it.
 	History HistoryState
@@ -902,6 +904,7 @@ func (s *Session) reopenTrusted() {
 	s.fetch.halt()
 	s.fetch = backgroundFetch{}
 	s.DropAnswers()
+	s.Writes++
 	old.Close()
 	s.start()
 }

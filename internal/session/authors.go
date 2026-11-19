@@ -36,6 +36,7 @@ const (
 // authorsLoad is the people LoadAuthors read, for the HEAD it read them
 // from. Main thread only.
 type authorsLoad struct {
+	r       *repo.Repository
 	head    string
 	people  []Person
 	done    bool
@@ -47,7 +48,8 @@ type authorsLoad struct {
 // user, as git names them in a commit, is left out. They are read once for a
 // HEAD; a call while they are read replaces the publish of the one
 // before. A repository without commits, or one that cannot be read, has
-// nobody.
+// nobody, and so has a read whose repository closed and opened again
+// (Trust).
 func (s *Session) LoadAuthors(publish func([]Person)) {
 	r := s.Repo
 	head := s.State.Head.OID
@@ -57,7 +59,7 @@ func (s *Session) LoadAuthors(publish func([]Person)) {
 		return
 	}
 	key := string(head)
-	if a.head == key {
+	if a.head == key && a.r == r {
 		if a.done {
 			publish(a.people)
 		} else {
@@ -65,16 +67,15 @@ func (s *Session) LoadAuthors(publish func([]Person)) {
 		}
 		return
 	}
-	*a = authorsLoad{head: key, publish: publish}
+	*a = authorsLoad{r: r, head: key, publish: publish}
 	tip := slices.Clone(head)
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		mm := s.mailmap(ctx, r)
 		people, err := readAuthors(ctx, r, mm, tip, AuthorCommits)
 		me := ownEmails(ctx, r, mm)
 		people = slices.DeleteFunc(people, func(p Person) bool { return slices.Contains(me, strings.ToLower(p.Email)) })
-		update(func() {
-			if a.head != key {
+		s.handOver(r, func() {
+			if a.head != key || a.r != r {
 				return
 			}
 			a.people, a.done = people, true
@@ -85,6 +86,16 @@ func (s *Session) LoadAuthors(publish func([]Person)) {
 			if a.publish != nil {
 				a.publish(people)
 				a.publish = nil
+			}
+		}, func() {
+			// Read of a repository closed since: nobody, and read again
+			// at the next call.
+			if a.r == r {
+				publish := a.publish
+				*a = authorsLoad{}
+				if publish != nil {
+					publish(nil)
+				}
 			}
 		})
 	})

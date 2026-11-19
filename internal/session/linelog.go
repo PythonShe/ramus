@@ -51,18 +51,29 @@ const lineMark = "\x1eramus-line-log\x1f"
 // LineLog reads the history of lines from to to (1-based, inclusive) of
 // path as the work tree has it, off the main thread, and hands it to done
 // on it. The lines are first found in HEAD's version of the file: lines
-// the work tree changed stand for the lines they replaced.
+// the work tree changed stand for the lines they replaced. Leaving the
+// view stops the read, and done is not called; a read whose repository
+// closed and opened again (Trust) is answered ErrReopened.
 func (s *Session) LineLog(path string, from, to int, done func(*LineLog, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
+	shown := s.stillShown()
 	s.goView(r, func(ctx context.Context) {
 		l, err := readLineLog(ctx, r.Runner, r.GitDir, r.WorkTree, path, from, to)
-		if ctx.Err() == nil {
-			update(func() { done(l, err) })
+		if ctx.Err() != nil && !closedUnder(r) {
+			return
 		}
+		s.handOver(r, func() {
+			if ctx.Err() == nil {
+				done(l, err)
+			}
+		}, func() {
+			if shown() {
+				done(nil, ErrReopened)
+			}
+		})
 	})
 }
 

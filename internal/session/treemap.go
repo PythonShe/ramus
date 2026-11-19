@@ -34,7 +34,9 @@ const treemapTimeout = 15 * time.Minute
 
 // FileSizes reads the size of every file in the tree of rev (a full ref
 // name, or HEAD when empty) off the main thread, and hands them to done
-// on it.
+// on it. Leaving the view stops the read, and done is not called; a read
+// whose repository closed and opened again (Trust) is answered
+// ErrReopened.
 func (s *Session) FileSizes(rev string, done func(PathWeights)) {
 	r := s.Repo
 	if r == nil {
@@ -43,14 +45,27 @@ func (s *Session) FileSizes(rev string, done func(PathWeights)) {
 	if rev == "" {
 		rev = "HEAD"
 	}
-	update := s.update
+	s.goWeights(r, func(ctx context.Context) PathWeights { return fileSizes(ctx, r, rev) }, done)
+}
+
+// goWeights runs read in the shown view's context and hands its answer
+// to done.
+func (s *Session) goWeights(r *repo.Repository, read func(context.Context) PathWeights, done func(PathWeights)) {
+	shown := s.stillShown()
 	s.goView(r, func(ctx context.Context) {
-		pw := fileSizes(ctx, r, rev)
+		pw := read(ctx)
+		if ctx.Err() != nil && !closedUnder(r) {
+			return
+		}
 		// Not once the view is left: the read was cancelled, and its
 		// error would stand for the treemap until another is asked for.
-		update(func() {
+		s.handOver(r, func() {
 			if ctx.Err() == nil {
 				done(pw)
+			}
+		}, func() {
+			if shown() {
+				done(PathWeights{Err: ErrReopened})
 			}
 		})
 	})
@@ -88,21 +103,13 @@ func fileSizes(ctx context.Context, r *repo.Repository, rev string) PathWeights 
 
 // ChangeCounts counts the commits that changed each path, over the
 // commits req names (merges left out, renames not followed), off the
-// main thread, and hands them to done on it.
+// main thread, and hands them to done on it, as FileSizes does.
 func (s *Session) ChangeCounts(req StatsRequest, done func(PathWeights)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
-	s.goView(r, func(ctx context.Context) {
-		pw := changeCounts(ctx, r, req)
-		update(func() {
-			if ctx.Err() == nil {
-				done(pw)
-			}
-		})
-	})
+	s.goWeights(r, func(ctx context.Context) PathWeights { return changeCounts(ctx, r, req) }, done)
 }
 
 func changeCounts(ctx context.Context, r *repo.Repository, req StatsRequest) PathWeights {

@@ -282,7 +282,6 @@ func (s *Session) pumpAvatars(st *avatarStore) {
 	}
 	r := st.r
 	ctx := st.ctx
-	update := s.update
 	if !st.querying && len(st.queued) > 0 {
 		n := min(len(st.queued), forge.CommitBatch)
 		batch := append([]string(nil), st.queued[len(st.queued)-n:]...)
@@ -314,7 +313,7 @@ func (s *Session) pumpAvatars(st *avatarStore) {
 					}
 				}
 			}
-			update(func() { s.peopleArrived(st, batch, shas, got, mapped, err) })
+			s.handOver(r, func() { s.peopleArrived(st, batch, shas, got, mapped, err) }, nil)
 		})
 	}
 	for len(st.fetching) < avatarDownloads && len(st.wanted) > 0 {
@@ -328,7 +327,7 @@ func (s *Session) pumpAvatars(st *avatarStore) {
 			if ctx.Err() != nil {
 				return
 			}
-			update(func() { s.pictureArrived(st, addr, b, err) })
+			s.handOver(r, func() { s.pictureArrived(st, addr, b, err) }, nil)
 		})
 	}
 }

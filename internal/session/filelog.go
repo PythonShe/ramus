@@ -37,7 +37,10 @@ type FileLogOptions struct {
 
 // FileLog reads the commits that changed path (relative to the work tree;
 // a folder ends in "/"), newest first, off the main thread, and hands them
-// to done on it; limited is set when MaxFileLog cut it short.
+// to done on it; limited is set when MaxFileLog cut it short. Leaving the
+// view stops the read, and done is not called. A read whose repository
+// closed and opened again (Trust) is answered with no commits and no
+// error: the view reads again, as for any change of the refs.
 func (s *Session) FileLog(path string, opt FileLogOptions, done func(commits []FileCommit, limited bool, err error)) {
 	r := s.Repo
 	if r == nil {
@@ -52,7 +55,7 @@ func (s *Session) FileLog(path string, opt FileLogOptions, done func(commits []F
 		args = append(args, "--no-merges")
 	}
 	args = append(args, "--", path)
-	update := s.update
+	shown := s.stillShown()
 	s.goView(r, func(ctx context.Context) {
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true, MaxOutput: 256 << 20,
 			Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: args})
@@ -64,9 +67,18 @@ func (s *Session) FileLog(path string, opt FileLogOptions, done func(commits []F
 		if limited {
 			out = out[:MaxFileLog]
 		}
-		if ctx.Err() == nil {
-			update(func() { done(out, limited, err) })
+		if ctx.Err() != nil && !closedUnder(r) {
+			return
 		}
+		s.handOver(r, func() {
+			if ctx.Err() == nil {
+				done(out, limited, err)
+			}
+		}, func() {
+			if shown() {
+				done(nil, false, nil)
+			}
+		})
 	})
 }
 

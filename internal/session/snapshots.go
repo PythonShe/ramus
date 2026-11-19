@@ -25,40 +25,40 @@ func (s *Session) noWrites() error {
 }
 
 // Snapshots reads the work tree's snapshots off the main thread, newest
-// first, and hands them to done on it.
+// first, and hands them to done on it; ErrReopened when the repository
+// closed and opened again (Trust).
 func (s *Session) Snapshots(done func([]snapshot.Snapshot, error)) {
 	r := s.Repo
 	if r == nil {
 		done(nil, errors.New("session: the repository is not open"))
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		cat, err := r.CatFile()
 		var list []snapshot.Snapshot
 		if err == nil {
 			list, err = snapshot.List(ctx, r.Refs(), cat)
 		}
-		update(func() { done(list, err) })
+		s.handOver(r, func() { done(list, err) }, func() { done(nil, ErrReopened) })
 	})
 }
 
 // SnapshotFiles reads the files snap holds another state of off the main
-// thread and hands them to done on it.
+// thread and hands them to done on it; ErrReopened when the repository
+// closed and opened again (Trust).
 func (s *Session) SnapshotFiles(snap snapshot.Snapshot, done func([]snapshot.File, error)) {
 	r := s.Repo
 	if r == nil {
 		done(nil, errors.New("session: the repository is not open"))
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		cat, err := r.CatFile()
 		var files []snapshot.File
 		if err == nil {
 			files, err = snapshot.Files(ctx, cat, r.Caps.HashSize, snap)
 		}
-		update(func() { done(files, err) })
+		s.handOver(r, func() { done(files, err) }, func() { done(nil, ErrReopened) })
 	})
 }
 

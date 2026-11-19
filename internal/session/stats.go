@@ -50,7 +50,8 @@ const statsReaders = 4
 
 // LoadStats counts commits off the main thread, handing the counts to
 // publish on it as they grow. A newer call cancels one still running,
-// whose publish is not called again.
+// whose publish is not called again. A count whose repository closed and
+// opened again (Trust) ends with ErrReopened.
 func (s *Session) LoadStats(req StatsRequest, publish func(StatsResult)) {
 	r := s.Repo
 	if r == nil || s.State.Refs == nil {
@@ -66,27 +67,42 @@ func (s *Session) LoadStats(req StatsRequest, publish func(StatsResult)) {
 	gen := s.stats.gen
 	s.stats.cancel = cancel
 	s.stats.mu.Unlock()
-	send := func(res StatsResult) {
+	latest := func() bool {
+		s.stats.mu.Lock()
+		defer s.stats.mu.Unlock()
+		return s.stats.gen == gen
+	}
+	shown := s.stillShown()
+	reopened := func() {
+		if latest() && shown() {
+			publish(StatsResult{Req: req, Done: true, Err: ErrReopened})
+		}
+	}
+	send := func(res StatsResult, end bool) {
 		res.Req = req
-		s.update(func() {
-			s.stats.mu.Lock()
-			ok := s.stats.gen == gen
-			s.stats.mu.Unlock()
-			if ok {
+		var after func()
+		if end {
+			after = reopened
+		}
+		s.handOver(r, func() {
+			if latest() {
 				publish(res)
 			}
-		})
+		}, after)
 	}
 	r.Life().Go(func(context.Context) {
 		defer cancel()
 		res, err := countStats(ctx, r, req, list, head, func(read, total int, st stats.Stats) {
-			send(StatsResult{Stats: st, Read: read, Total: total})
+			send(StatsResult{Stats: st, Read: read, Total: total}, false)
 		})
 		if ctx.Err() != nil {
+			if closedUnder(r) {
+				s.handOver(r, nil, reopened)
+			}
 			return
 		}
 		res.Done, res.Err = true, err
-		send(res)
+		send(res, true)
 	})
 }
 

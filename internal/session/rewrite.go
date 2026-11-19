@@ -22,7 +22,8 @@ func (s *Session) Then(j *write.Job, fn func(error)) {
 			return
 		}
 		_, err := j.Result()
-		s.update(func() { fn(err) })
+		// Only a trusted repository writes, and one never opens again.
+		s.handOver(r, func() { fn(err) }, nil)
 	})
 }
 
@@ -35,7 +36,6 @@ func (s *Session) PushedRewrite(branch, old string, done func(upstream string)) 
 	if r == nil || branch == "" || old == "" {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Untranslated: true,
 			Args: []string{"rev-parse", "--verify", "--quiet", "--symbolic-full-name", "--end-of-options",
@@ -60,6 +60,6 @@ func (s *Session) PushedRewrite(branch, old string, done func(upstream string)) 
 		if still, err := ancestor(branch); err != nil || still {
 			return
 		}
-		update(func() { done(strings.TrimPrefix(up, "refs/remotes/")) })
+		s.handOver(r, func() { done(strings.TrimPrefix(up, "refs/remotes/")) }, nil)
 	})
 }

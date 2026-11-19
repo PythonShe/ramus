@@ -31,18 +31,16 @@ type MergePreview struct {
 const maxPreviewPaths = 10000
 
 // PreviewMerge works out a merge of what (a branch or hex) into HEAD off
-// the main thread with git merge-tree, and hands it to done on it.
+// the main thread with git merge-tree, and hands it to done on it;
+// ErrReopened when the repository closed and opened again (Trust).
 func (s *Session) PreviewMerge(what string, done func(MergePreview, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		p, err := previewMerge(ctx, r.Runner, r.GitDir, r.CommonDir, what)
-		if ctx.Err() == nil {
-			update(func() { done(p, err) })
-		}
+		s.handOver(r, func() { done(p, err) }, func() { done(MergePreview{}, ErrReopened) })
 	})
 }
 
@@ -153,18 +151,29 @@ type ConflictFile struct {
 }
 
 // LoadConflict reads a conflicted file of the work tree off the main
-// thread and hands it to done on it.
+// thread and hands it to done on it. Leaving the view stops the read, and
+// done is not called; a read whose repository closed and opened again
+// (Trust) is answered ErrReopened.
 func (s *Session) LoadConflict(path string, done func(ConflictFile)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
+	shown := s.stillShown()
 	s.goView(r, func(ctx context.Context) {
 		cf := loadConflict(ctx, r.Runner, r.GitDir, r.WorkTree, path)
-		if ctx.Err() == nil {
-			update(func() { done(cf) })
+		if ctx.Err() != nil && !closedUnder(r) {
+			return
 		}
+		s.handOver(r, func() {
+			if ctx.Err() == nil {
+				done(cf)
+			}
+		}, func() {
+			if shown() {
+				done(ConflictFile{Path: path, Err: ErrReopened})
+			}
+		})
 	})
 }
 

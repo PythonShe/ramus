@@ -63,8 +63,9 @@ func (s *Session) OpenPulls(find func(forge.Kind) (*forge.CLI, error), done func
 	}
 	up, _ := RemoteURLs(r)
 	_, named := forge.Parse(up)
-	update := s.update
 	ctx := s.viewContext(r)
+	// Only a trusted repository asks its hosts, and one never opens again.
+	update := func(fn func()) { s.handOver(r, fn, nil) }
 	r.Life().Go(func(context.Context) {
 		res := OpenPullsResult{Repo: repo}
 		c, err := find(repo.Kind)
@@ -109,7 +110,6 @@ func (s *Session) PullReview(find func(forge.Kind) (*forge.CLI, error), repo for
 	if r == nil || r.Restricted {
 		return
 	}
-	update := s.update
 	ctx := s.viewContext(r)
 	r.Life().Go(func(context.Context) {
 		var rv forge.Review
@@ -120,11 +120,12 @@ func (s *Session) PullReview(find func(forge.Kind) (*forge.CLI, error), repo for
 		if ctx.Err() != nil {
 			return
 		}
-		update(func() {
+		// Only a trusted repository asks its hosts, and one never opens again.
+		s.handOver(r, func() {
 			if ctx.Err() == nil {
 				done(rv, err)
 			}
-		})
+		}, nil)
 	})
 }
 
@@ -137,7 +138,6 @@ func (s *Session) ForgeDo(find func(forge.Kind) (*forge.CLI, error), repo forge.
 		done(errors.New("session: the repository is not open"))
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		c, err := find(repo.Kind)
 		if err == nil {
@@ -146,7 +146,8 @@ func (s *Session) ForgeDo(find func(forge.Kind) (*forge.CLI, error), repo forge.
 		if ctx.Err() != nil {
 			return
 		}
-		update(func() { done(err) })
+		// Only a trusted repository asks its hosts, and one never opens again.
+		s.handOver(r, func() { done(err) }, nil)
 	})
 }
 
@@ -195,7 +196,6 @@ func (s *Session) ForgetPulls(keep []int) {
 	if r == nil || r.Restricted || s.Queue == nil {
 		return
 	}
-	update := s.update
 	w := s.Where()
 	rd := r.Refs()
 	if rd == nil {
@@ -223,14 +223,16 @@ func (s *Session) ForgetPulls(keep []int) {
 		if in.Len() == 0 || ctx.Err() != nil {
 			return
 		}
-		update(func() {
-			if s.Repo != r || s.Queue == nil {
+		// Only a trusted repository asks its hosts, and one never opens
+		// again.
+		s.handOver(r, func() {
+			if s.Queue == nil {
 				return
 			}
 			op := write.Op{Name: locales.SessionForgetPulls(), RefsOnly: true, NoIndex: true, Input: []byte(in.String()),
 				Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"update-ref", "--stdin"}, Background: true}}
 			s.submit(op, repo.RefsChanged, true)
-		})
+		}, nil)
 	})
 }
 
@@ -273,7 +275,9 @@ func mergeBase(ctx context.Context, r *repo.Repository, a, b string) ([]byte, er
 
 // MergeBase reads the commit a branch at b split off from one at a, what
 // git diff a...b diffs from, off the main thread, and hands it to done
-// on it; NoMergeBaseError for none.
+// on it; NoMergeBaseError for none. Leaving the view stops the read, and
+// done is not called; a read whose repository closed and opened again
+// (Trust) is answered ErrReopened.
 func (s *Session) MergeBase(a, b []byte, done func([]byte, error)) {
 	r := s.Repo
 	if r == nil {
@@ -281,28 +285,32 @@ func (s *Session) MergeBase(a, b []byte, done func([]byte, error)) {
 		return
 	}
 	ctx := s.viewContext(r)
-	update := s.update
+	shown := s.stillShown()
 	r.Life().Go(func(context.Context) {
 		mb, err := mergeBase(ctx, r, hex.EncodeToString(a), hex.EncodeToString(b))
-		if ctx.Err() != nil {
+		if ctx.Err() != nil && !closedUnder(r) {
 			return
 		}
-		update(func() {
+		s.handOver(r, func() {
 			if ctx.Err() == nil {
 				done(mb, err)
+			}
+		}, func() {
+			if shown() {
+				done(nil, ErrReopened)
 			}
 		})
 	})
 }
 
 // LoadPullRange reads the commits of pull request n, once fetched, off
-// the main thread, and hands them to done on it.
+// the main thread, and hands them to done on it; ErrReopened when the
+// repository closed and opened again (Trust).
 func (s *Session) LoadPullRange(n int, done func(PullRange, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		var pr PullRange
 		out := func(args ...string) ([]byte, error) {
@@ -318,6 +326,6 @@ func (s *Session) LoadPullRange(n int, done func(PullRange, error)) {
 			// The head read, not the ref, which a fetch may have moved since.
 			pr.MergeBase, err = mergeBase(ctx, r, write.PullBase(n), hex.EncodeToString(head))
 		}
-		update(func() { done(pr, err) })
+		s.handOver(r, func() { done(pr, err) }, func() { done(PullRange{}, ErrReopened) })
 	})
 }

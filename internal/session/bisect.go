@@ -53,16 +53,18 @@ func (b BisectState) Term(v write.BisectVerdict) write.BisectVerdict {
 }
 
 // LoadBisect reads the bisect in progress off the main thread and hands it
-// to done on it.
+// to done on it; none, without an error, when the repository closed and
+// opened again (Trust) before it was handed over.
 func (s *Session) LoadBisect(done func(BisectState, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		st, err := readBisect(ctx, r.Runner, r.GitDir)
-		update(func() { done(st, err) })
+		// A read of the repository before it opened again shows no
+		// bisect: the bar reads it again (Writes).
+		s.handOver(r, func() { done(st, err) }, func() { done(BisectState{Left: -1, Steps: -1}, nil) })
 	})
 }
 

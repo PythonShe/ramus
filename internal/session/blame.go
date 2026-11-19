@@ -59,7 +59,8 @@ type blames struct {
 // Blame reads path's text from the work tree and blames its lines with git
 // blame --incremental off the main thread, streaming what it finds to
 // update on the main thread about every 100 ms. A newer Blame, or cancel,
-// stops it.
+// stops it. A blame whose repository closed and opened again (Trust) ends
+// with ErrReopened.
 func (s *Session) Blame(path string, text func([]byte, error), update func(BlameUpdate)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
@@ -87,6 +88,26 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 			}
 		})
 	}
+	// Mid-way, what r's closing cut short is not handed over; its end is,
+	// for the view waiting on it, unless the view was left.
+	shown := s.stillShown()
+	reopened := func() {
+		if !dropped.Load() && shown() {
+			update(BlameUpdate{Done: true, Err: ErrReopened})
+		}
+	}
+	end := func(fn func()) {
+		s.handOver(r, func() {
+			if live() {
+				fn()
+			}
+		}, reopened)
+	}
+	cut := func() {
+		if closedUnder(r) {
+			s.handOver(r, nil, reopened)
+		}
+	}
 	// Restricted, textconv is off: the hardening empties the drivers the
 	// repository defines, which blame would otherwise fail on.
 	args := []string{"blame", "--incremental"}
@@ -97,12 +118,14 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 		defer stop()
 		data, readErr := readWorkFile(r.WorkTree, path)
 		if ctx.Err() != nil {
+			cut()
+			return
+		}
+		if readErr != nil {
+			end(func() { text(data, readErr) })
 			return
 		}
 		post(func() { text(data, readErr) })
-		if readErr != nil {
-			return
-		}
 		pr, pw := io.Pipe()
 		var runErr error
 		var wg sync.WaitGroup
@@ -120,13 +143,14 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 		pr.CloseWithError(errors.New("session: blame ended"))
 		wg.Wait()
 		if ctx.Err() != nil {
+			cut()
 			return
 		}
 		err := runErr
 		if err == nil {
 			err = parseErr
 		}
-		post(func() { update(BlameUpdate{Done: true, Err: err}) })
+		end(func() { update(BlameUpdate{Done: true, Err: err}) })
 	})
 	return cancel
 }

@@ -36,20 +36,18 @@ var ErrNotCheckedOut = errors.New("session: the submodule is not checked out")
 
 // LoadSubmoduleRange lists the commits between a submodule's old and new
 // commits, from its repository in the work tree, off the main thread,
-// and hands them to done on it.
+// and hands them to done on it; ErrReopened when the repository closed and
+// opened again (Trust).
 func (s *Session) LoadSubmoduleRange(path string, old, new []byte, done func(SubmoduleRange)) {
 	r := s.Repo
 	if r == nil || r.WorkTree == "" {
 		done(SubmoduleRange{Err: ErrNotCheckedOut})
 		return
 	}
-	update := s.update
 	in := s.gitIn(r)
 	r.Life().Go(func(ctx context.Context) {
 		res := submoduleRange(ctx, r, in, path, old, new)
-		if ctx.Err() == nil {
-			update(func() { done(res) })
-		}
+		s.handOver(r, func() { done(res) }, func() { done(SubmoduleRange{Err: ErrReopened}) })
 	})
 }
 

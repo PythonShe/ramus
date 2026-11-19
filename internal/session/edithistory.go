@@ -35,7 +35,9 @@ var ErrMergeInRange error = &sayError{locales.SessionMergeInRange}
 // thread, and hands them to done on it with the rewrite they make and
 // the HEAD they were read at. The edit's write is to carry that seen, not
 // HEAD as it is when the user applies the plan: a commit made in between
-// is not in the plan, and replaying the plan would drop it.
+// is not in the plan, and replaying the plan would drop it. Leaving the
+// view stops the read, and done is not called; a read whose repository
+// closed and opened again (Trust) is answered ErrReopened.
 func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, seen write.Seen, commits []EditCommit, err error)) {
 	r := s.Repo
 	if r == nil {
@@ -55,16 +57,25 @@ func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, seen write.
 		}
 	}
 	rw := write.Rewrite{Commit: hex.EncodeToString(from), Git: r.Runner.Git().Version, Branches: s.LocalBranches()}
-	update := s.update
+	shown := s.stillShown()
 	s.goView(r, func(ctx context.Context) {
 		commits, parent, err := readEditRange(ctx, r.Runner, r.GitDir, seen.Head, from)
 		for i := range commits {
 			commits[i].Branches = tips[string(commits[i].OID)]
 		}
 		rw.Parent = parent
-		if ctx.Err() == nil {
-			update(func() { done(rw, seen, commits, err) })
+		if ctx.Err() != nil && !closedUnder(r) {
+			return
 		}
+		s.handOver(r, func() {
+			if ctx.Err() == nil {
+				done(rw, seen, commits, err)
+			}
+		}, func() {
+			if shown() {
+				done(write.Rewrite{}, write.Seen{}, nil, ErrReopened)
+			}
+		})
 	})
 }
 

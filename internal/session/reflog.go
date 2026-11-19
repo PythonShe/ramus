@@ -45,13 +45,14 @@ type ReflogEntry struct {
 const MaxReflog = 10000
 
 // Reflog reads up to MaxReflog entries of ref's reflog off the main
-// thread and hands them to done on it.
+// thread and hands them to done on it. A read whose repository closed and
+// opened again (Trust) is answered with no entries and no error: the
+// views read again, as for any change of the refs.
 func (s *Session) Reflog(ref string, done func([]ReflogEntry, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		var out []ReflogEntry
 		var err error
@@ -62,7 +63,7 @@ func (s *Session) Reflog(ref string, done func([]ReflogEntry, error)) {
 				break
 			}
 		}
-		update(func() { done(out, err) })
+		s.handOver(r, func() { done(out, err) }, func() { done(nil, nil) })
 	})
 }
 
@@ -159,20 +160,29 @@ const FsckTimeout = 15 * time.Minute
 // LostCommits lists the commits nothing reaches, those reachable only
 // from reflogs counted as lost too, off the main thread, and hands them
 // to done on it. It reads every object, so it runs only when asked; a
-// newer call does not cancel an older one.
+// newer call does not cancel an older one. Leaving the view stops it, and
+// done is not called; a search whose repository closed and opened again
+// (Trust) is answered ErrReopened.
 func (s *Session) LostCommits(done func([]LostCommit, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
+	shown := s.stillShown()
 	s.goView(r, func(ctx context.Context) {
 		lost, err := lostCommits(ctx, r)
+		if ctx.Err() != nil && !closedUnder(r) {
+			return
+		}
 		// Not once the view is left: the search was cancelled, and its
 		// error would stand over a new search.
-		update(func() {
+		s.handOver(r, func() {
 			if ctx.Err() == nil {
 				done(lost, err)
+			}
+		}, func() {
+			if shown() {
+				done(nil, ErrReopened)
 			}
 		})
 	})

@@ -28,18 +28,24 @@ type PatchSave struct {
 }
 
 // SavePatch writes a patch to file off the main thread, replacing it whole
-// or not at all, and calls done on the main thread.
+// or not at all, and calls done on the main thread: with ErrReopened when
+// the repository closing, as Trust opens it again, cut it short.
 func (s *Session) SavePatch(req PatchSave, file string, done func(error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		err := savePatch(ctx, r.Runner, r.GitDir, r.WorkTree, req, file)
-		if ctx.Err() == nil {
-			update(func() { done(err) })
-		}
+		cut := ctx.Err() != nil
+		// The file written, or not, is told whichever repository is open
+		// now: it holds nothing of r.
+		s.handOver(r, func() { done(err) }, func() {
+			if cut {
+				err = ErrReopened
+			}
+			done(err)
+		})
 	})
 }
 
@@ -240,16 +246,17 @@ type PatchFile struct {
 }
 
 // ReadPatchFile reads what a patch file changes off the main thread and
-// hands it to done on it; git refuses a file that is not a patch.
+// hands it to done on it; git refuses a file that is not a patch. A read
+// whose repository closed and opened again (Trust) is answered
+// ErrReopened: what to apply is asked of the repository as it is now.
 func (s *Session) ReadPatchFile(file string, done func(PatchFile, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		pf, err := readPatchFile(ctx, r.Runner, r.GitDir, r.WorkTree, file)
-		update(func() { done(pf, err) })
+		s.handOver(r, func() { done(pf, err) }, func() { done(PatchFile{Path: file}, ErrReopened) })
 	})
 }
 

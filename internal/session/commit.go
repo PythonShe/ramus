@@ -196,7 +196,7 @@ func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done 
 	if err != nil {
 		return err
 	}
-	r, update := s.Repo, s.update
+	r := s.Repo
 	r.Life().Go(func(ctx context.Context) {
 		<-j.Done()
 		res, err := j.Result()
@@ -214,7 +214,8 @@ func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done 
 			target, err = pushTarget(ctx, r.Runner, r.GitDir)
 			pushOpt.Remote = target.Remote
 		}
-		update(func() {
+		// Only a trusted repository writes, and one never opens again.
+		s.handOver(r, func() {
 			if err == nil && push != nil {
 				_, err = s.Submit(write.Push(s.Where(), pushOpt))
 			}
@@ -224,7 +225,7 @@ func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done 
 			if done != nil {
 				done(err)
 			}
-		})
+		}, nil)
 	})
 	return nil
 }

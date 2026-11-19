@@ -74,7 +74,8 @@ type WorktreeFile struct {
 // SummarizeWorktrees reads, off the main thread, the summary of each
 // worktree but the missing ones, a few at a time, and hands each to
 // done on the main thread as it comes. It returns a function that stops
-// what is not read yet.
+// what is not read yet. Each worktree not summarized when the repository
+// closed and opened again (Trust) is answered with ErrReopened.
 func (s *Session) SummarizeWorktrees(wts []repo.Worktree, done func(WorktreeSummary)) (stop func()) {
 	return s.summarizeWorktrees(wts, done, false)
 }
@@ -93,21 +94,40 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 		return func() {}
 	}
 	ctx, cancel := context.WithCancel(r.Life().Context())
-	update := s.update
 	in := s.gitIn(r)
 	every := worktreeEvery
 	if s.worktreeEvery > 0 {
 		every = s.worktreeEvery
 	}
+	// Main thread only: stopped by the caller, and the worktrees
+	// answered, by path.
+	stopped, told := false, map[string]bool{}
+	reopened := func() {
+		if stopped {
+			return
+		}
+		for _, wt := range summarized(wts) {
+			if !told[wt.Path] {
+				told[wt.Path] = true
+				done(WorktreeSummary{Path: wt.Path, Err: ErrReopened})
+			}
+		}
+	}
 	r.Life().Go(func(context.Context) {
+		defer func() {
+			if closedUnder(r) {
+				s.handOver(r, nil, reopened)
+			}
+		}()
 		for {
 			t0 := time.Now()
 			summarizeAll(ctx, r, in, wts, true, func(sum WorktreeSummary) {
-				update(func() {
+				s.handOver(r, func() {
 					if ctx.Err() == nil {
+						told[sum.Path] = true
 						done(sum)
 					}
-				})
+				}, nil)
 			})
 			if !again {
 				return
@@ -121,7 +141,21 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 			}
 		}
 	})
-	return cancel
+	return func() { stopped = true; cancel() }
+}
+
+// summarized are the worktrees of wts summarizeAll summarizes.
+func summarized(wts []repo.Worktree) []repo.Worktree {
+	var out []repo.Worktree
+	for _, wt := range wts {
+		if len(out) >= MaxDashboardWorktrees {
+			break
+		}
+		if !wt.Prunable && !wt.Bare {
+			out = append(out, wt)
+		}
+	}
+	return out
 }
 
 // summarizeAll summarizes the worktrees but the missing and bare ones,
@@ -149,15 +183,7 @@ func summarizeAll(ctx context.Context, r *repo.Repository, in gitIn, wts []repo.
 			}
 		}()
 	}
-	n := 0
-	for _, wt := range wts {
-		if n >= MaxDashboardWorktrees {
-			break
-		}
-		if wt.Prunable || wt.Bare {
-			continue
-		}
-		n++
+	for _, wt := range summarized(wts) {
 		select {
 		case jobs <- wt:
 		case <-ctx.Done():
@@ -273,15 +299,17 @@ func countLines(file string) (n int, binary bool) {
 
 // WorktreePatch reads, off the main thread, the patch of one file in a
 // worktree against its HEAD, or added whole when untracked, and hands
-// it to done on the main thread. It returns a function that stops it.
+// it to done on the main thread. It returns a function that stops it. A
+// read whose repository closed and opened again (Trust) is answered
+// ErrReopened.
 func (s *Session) WorktreePatch(worktree, path string, untracked bool, done func(PatchResult)) (stop func()) {
 	r := s.Repo
 	if r == nil {
 		return func() {}
 	}
 	ctx, cancel := context.WithCancel(r.Life().Context())
-	update := s.update
 	in := s.gitIn(r)
+	stopped := false // main thread only
 	r.Life().Go(func(context.Context) {
 		req := diff.PatchRequest{Source: diff.Head, Paths: []string{path}, Context: -1, MaxBytes: 16 << 20}
 		if untracked {
@@ -298,13 +326,20 @@ func (s *Session) WorktreePatch(worktree, path string, untracked bool, done func
 			}
 		}
 		res.Err = err
-		update(func() {
+		if ctx.Err() != nil && !closedUnder(r) {
+			return
+		}
+		s.handOver(r, func() {
 			if ctx.Err() == nil {
 				done(res)
 			}
+		}, func() {
+			if !stopped {
+				done(PatchResult{Err: ErrReopened})
+			}
 		})
 	})
-	return cancel
+	return func() { stopped = true; cancel() }
 }
 
 // othersBusy reports whether a worktree of r but the one it was opened

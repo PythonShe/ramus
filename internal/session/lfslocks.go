@@ -9,7 +9,8 @@ import (
 
 // LFSLocks reads the repository's Git LFS locks from its server off the
 // main thread and hands them to done on it. Leaving the view stops the
-// read, and done is not called.
+// read, and done is not called; a read whose repository closed and opened
+// again (Trust) is answered ErrReopened.
 func (s *Session) LFSLocks(done func(lfs.Locks, error)) {
 	r := s.Repo
 	if r == nil {
@@ -20,15 +21,23 @@ func (s *Session) LFSLocks(done func(lfs.Locks, error)) {
 		done(lfs.Locks{}, ErrReadOnly)
 		return
 	}
-	update := s.update
+	shown := s.stillShown()
 	s.goView(r, func(ctx context.Context) {
 		s.lfsMu.Lock()
 		ls, err := lfs.List(ctx, r.Runner, r.GitDir, r.WorkTree)
 		s.lfsMu.Unlock()
-		if ctx.Err() != nil {
+		if ctx.Err() != nil && !closedUnder(r) {
 			return
 		}
-		update(func() { done(ls, err) })
+		s.handOver(r, func() {
+			if ctx.Err() == nil {
+				done(ls, err)
+			}
+		}, func() {
+			if shown() {
+				done(lfs.Locks{}, ErrReopened)
+			}
+		})
 	})
 }
 
