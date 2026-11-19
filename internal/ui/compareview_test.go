@@ -130,3 +130,60 @@ func TestComparePatchStops(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+// A read of a file's patch stopped as another file is chosen hands back
+// nothing, even once that file is chosen again: its error would show in
+// place of the patch read anew.
+func TestComparePatchStoppedIsDropped(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as the version control tool")
+	}
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip(err)
+	}
+	bin := t.TempDir()
+	// It lists the files that differ, but their patches come only once
+	// stopped.
+	script := "#!/bin/sh\ncase \"$*\" in *--name-status*) ;; *--no-index*) exec sleep 60;; esac\nexec " + real + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g, err := gitexe.Find(context.Background(), bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := run.New(g, gittest.Env(), 8)
+	h := newHarnessWith(t, r)
+	root := t.TempDir()
+	old, new := filepath.Join(root, "old"), filepath.Join(root, "new")
+	for p, s := range map[string]string{"old/a.txt": "1\n", "new/a.txt": "2\n", "old/b.txt": "1\n", "new/b.txt": "2\n"} {
+		p = filepath.Join(root, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.app.Compare(old, new, nil)
+	h.until("the patch of a.txt read", func() bool { return hasExact(h, "b.txt") && r.Running() == 1 })
+	cs := &h.app.compareUI
+	// No update runs until both stopped reads handed theirs back.
+	h.click("b.txt")
+	h.click("a.txt")
+	for deadline := time.Now().Add(10 * time.Second); len(h.updates) < 2; time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d of the stopped reads ended", len(h.updates))
+		}
+	}
+	for len(h.updates) > 0 {
+		(<-h.updates)()
+	}
+	h.tt.Frame()
+	if cs.patch.Err != nil || !cs.patchLoading {
+		t.Fatalf("a.txt read anew shows %v, loading %v", cs.patch.Err, cs.patchLoading)
+	}
+	cs.open = false
+	h.tt.Frame()
+}

@@ -195,7 +195,10 @@ func (a *App) readComparePatch(cs *compareState, key compareKey) {
 			res.SidesTooLarge = !res.HasSides && (o == nil && key.old != "" || n == nil && key.new != "")
 		}
 		update(func() {
-			if cs.key != key {
+			// A read stopped as another file was chosen may hand back its
+			// error once this one is chosen again: its context, made for
+			// each read of a key, tells it from the read now wanted.
+			if cs.key != key || cs.patchCtx != ctx {
 				return
 			}
 			cs.patch = res
