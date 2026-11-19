@@ -144,7 +144,9 @@ func goneWorktreeGitDir(gitDir, dir string) (string, error) {
 }
 
 // linkedWorktrees calls fn with the git directory of each linked worktree
-// of the repository of gitDir, and the .git file its gitdir file names.
+// of the repository of gitDir, and the .git file its gitdir file names:
+// "" when that file is missing, empty or cannot be read, a worktree git
+// worktree prune takes for gone.
 func linkedWorktrees(gitDir string, fn func(admin, named string)) error {
 	common := gitDir
 	if b, err := pathsafe.ReadFile(filepath.Join(gitDir, "commondir"), 64<<10); err == nil {
@@ -171,12 +173,15 @@ func linkedWorktrees(gitDir string, fn func(admin, named string)) error {
 	}
 	for _, a := range admins {
 		admin := filepath.Join(common, "worktrees", a.Name())
-		b, err := pathsafe.ReadFile(filepath.Join(admin, "gitdir"), 64<<10)
-		if err != nil {
-			continue // not a worktree's, or one git cannot read either
+		if fi, err := os.Stat(admin); err != nil || !fi.IsDir() {
+			continue // not a worktree's, and nothing of one's in it
 		}
+		b, err := pathsafe.ReadFile(filepath.Join(admin, "gitdir"), 64<<10)
 		named := strings.TrimSpace(string(b))
-		if !filepath.IsAbs(named) {
+		switch {
+		case err != nil || named == "":
+			named = ""
+		case !filepath.IsAbs(named):
 			named = filepath.Join(admin, named) // worktree.useRelativePaths
 		}
 		fn(admin, named)
@@ -185,15 +190,16 @@ func linkedWorktrees(gitDir string, fn func(admin, named string)) error {
 }
 
 // KeepPruned copies into the worktree of w the snapshots of each linked
-// worktree whose folder is gone, not locked: those git worktree prune
-// removes, its snapshots with its git directory.
+// worktree, not locked, whose folder is gone or whose gitdir file says
+// none: those git worktree prune removes, its snapshots with its git
+// directory.
 func KeepPruned(ctx context.Context, r *run.Runner, w Where) error {
 	var gone []string
 	err := linkedWorktrees(w.GitDir, func(admin, named string) {
 		if _, err := os.Lstat(filepath.Join(admin, "locked")); err == nil {
 			return
 		}
-		if _, err := os.Lstat(named); errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Lstat(named); named == "" || errors.Is(err, os.ErrNotExist) {
 			gone = append(gone, admin)
 		}
 	})

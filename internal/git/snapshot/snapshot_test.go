@@ -364,6 +364,61 @@ func TestWorktreeFolderGoneKeepsItsSnapshots(t *testing.T) {
 	}
 }
 
+// A worktree whose gitdir file is missing, empty or cannot be read, and
+// not locked, is one git worktree prune removes, as it does one whose
+// folder is gone: its snapshots are kept first. A locked one, and one
+// still there, are left as they are.
+func TestKeepPrunedWithoutGitdirFile(t *testing.T) {
+	f := setup(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	names := []string{"missing", "empty", "unreadable", "locked", "there"}
+	for _, n := range names {
+		wt := filepath.Join(base, n)
+		f.r.Git("worktree", "add", "-q", "--detach", wt)
+		f.r.Git("-C", wt, "update-ref", Prefix+n, "HEAD")
+	}
+	admin := func(n string) string { return filepath.Join(f.r.GitDir(), "worktrees", n, "gitdir") }
+	f.r.Git("worktree", "lock", filepath.Join(base, "locked"))
+	for _, n := range []string{"missing", "locked"} {
+		if err := os.Remove(admin(n)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(admin("empty"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"empty", "missing"}
+	if err := os.Chmod(admin("unreadable"), 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(admin("unreadable"), 0o644) })
+	if _, err := os.ReadFile(admin("unreadable")); err == nil {
+		t.Log("the gitdir file is still readable here (as root, or on Windows): that case is left out")
+		os.Chmod(admin("unreadable"), 0o644)
+	} else {
+		want = append(want, "unreadable")
+	}
+	if err := KeepPruned(context.Background(), f.run, f.w); err != nil {
+		t.Fatal(err)
+	}
+	f.r.Git("worktree", "prune")
+	for _, n := range want {
+		if _, err := os.Stat(filepath.Dir(admin(n))); err == nil {
+			t.Fatalf("git did not prune %s: the test shows nothing", n)
+		}
+	}
+	var kept []string
+	for _, s := range strings.Fields(f.r.Git("for-each-ref", "--format=%(refname)", Prefix)) {
+		kept = append(kept, strings.TrimPrefix(s, Prefix))
+	}
+	slices.Sort(want)
+	if !slices.Equal(kept, want) {
+		t.Fatalf("snapshots kept %q, want %q", kept, want)
+	}
+}
+
 // An index copy a snapshot left when the app ended in the middle of it is
 // removed by the next snapshot; one a snapshot may be using stays.
 func TestLeftIndexCopiesRemoved(t *testing.T) {
