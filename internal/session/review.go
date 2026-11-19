@@ -261,8 +261,9 @@ func (s *Session) ForgetPulls(keep []int) {
 				return
 			}
 			op := write.Op{Name: locales.SessionForgetPulls(), RefsOnly: true, NoIndex: true, Input: []byte(in.String()),
-				// No one waits on it: a quit may stop it, the transaction
-				// whole or not at all.
+				// No one waits on it: a quit may stop it, with loose refs
+				// part way, some deleted and some not. Every one was to
+				// go, and what it left is deleted at the next call.
 				Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"update-ref", "--stdin"}, Background: true, EndsWithApp: true}}
 			s.submit(op, repo.RefsChanged, true)
 		}, nil)
