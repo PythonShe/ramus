@@ -3,6 +3,7 @@ package trust
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -212,13 +213,20 @@ func (s *Store) begin() func() {
 	}
 }
 
-// Set records the user's answer and saves the store.
+// Set records the user's answer and saves the store. A folder whose
+// identity cannot be read, gone since it was asked about, is not
+// trusted: Set says why.
 func (s *Store) Set(commonDir string, trusted bool) error {
 	defer s.begin()()
 	d := clean(commonDir)
 	id := ""
 	if trusted {
-		id, _ = identity(d)
+		// Saved by its path alone, the answer would hold for whatever
+		// folder is there later.
+		var err error
+		if id, err = identity(d); err != nil {
+			return fmt.Errorf("trust: %s cannot be trusted, as it cannot be told apart from another put in its place: %w", d, err)
+		}
 	}
 	s.write.Lock()
 	defer s.write.Unlock()

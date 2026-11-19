@@ -113,6 +113,26 @@ func TestAdoptedIdentityIsSaved(t *testing.T) {
 	}
 }
 
+// A folder gone between the question and the answer is not trusted by
+// its path alone, which would hold for any folder put there later: the
+// answer is refused, and nothing is saved.
+func TestNoTrustForAFolderGone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "trust.json")
+	repo := filepath.Join(dir, "project", ".git")
+	s, _ := Load(path)
+	if err := s.Set(repo, true); err == nil {
+		t.Fatal("a folder that is not there was trusted")
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Error("the refused answer was saved")
+	}
+	os.MkdirAll(repo, 0o755)
+	if s.Trusted(repo) {
+		t.Error("a folder made after the answer was refused is trusted")
+	}
+}
+
 // Answers given at once, from several tabs, are all saved: no save of an
 // older list lands after a newer one.
 func TestConcurrentSetsAllSaved(t *testing.T) {
