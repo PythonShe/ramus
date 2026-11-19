@@ -54,6 +54,8 @@ func (h *harness) menu(row string, path ...string) {
 		if !h.tt.HasText(row) {
 			return false
 		}
+		// A row moving to its new place has no area until the clock moves.
+		h.inPlace(row)
 		if err = h.tt.RightClick(row); err != nil {
 			return false
 		}
