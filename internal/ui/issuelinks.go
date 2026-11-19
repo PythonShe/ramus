@@ -163,15 +163,17 @@ func (a *App) saveLinks() {
 	}
 	t, lib, update := d.t, a.Library, a.Update
 	d.open = false
-	a.goWrite(func() {
+	a.goWrite(func() func() {
 		err := lib.SetIssueLinks(t.s.Path, rules)
-		update(func() {
-			if err != nil {
-				a.notice = errText(err)
-				return
-			}
-			// Read again with the remote's rules.
-			t.links.For = nil
-		})
+		return func() {
+			update(func() {
+				if err != nil {
+					a.notice = errText(err)
+					return
+				}
+				// Read again with the remote's rules.
+				t.links.For = nil
+			})
+		}
 	})
 }

@@ -117,10 +117,11 @@ func (a *App) saveRefPrefs(t *tab) {
 	}
 	lib, path, update := a.Library, t.s.Path, a.Update
 	pinned, hidden := slices.Clone(t.prefs.pinned), slices.Clone(t.prefs.hidden)
-	a.goWrite(func() {
+	a.goWrite(func() func() {
 		if err := lib.SetRefPrefs(path, pinned, hidden); err != nil {
-			update(func() { a.tell(t, errText(err)) })
+			return func() { update(func() { a.tell(t, errText(err)) }) }
 		}
+		return nil
 	})
 }
 

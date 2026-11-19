@@ -554,17 +554,22 @@ func (a *App) saveIdentity() {
 	if s.identSaver == nil {
 		s.identSaver = newIdentSaver()
 	}
-	s.identSaver.save(a, r, &identWrite{was: was, now: now, from: from, failed: func(was write.Identity, err error) {
+	saver := s.identSaver
+	saver.save(a, r, &identWrite{was: was, now: now, from: from, failed: func(has *write.Identity, err error) {
 		msg := errText(err)
 		if errors.Is(err, write.ErrBranchName) {
 			msg = locales.SettingsDefaultBranchInvalid(strings.TrimSpace(now.DefaultBranch))
 		}
 		update(func() {
+			last := saver.told(has)
 			if s.open && s.identGen == gen {
 				s.err = locales.SettingsGitFailed(msg)
-				// What the config has, for the next save to write
-				// what did not go in.
-				s.identWas = was
+				if last {
+					// What the config has, for the next save to write
+					// what did not go in. A save asked since started
+					// from it already.
+					s.identWas = *has
+				}
 				return
 			}
 			if !s.open {
@@ -594,8 +599,13 @@ type identSaver struct {
 	mu      sync.Mutex
 	running bool
 	next    *identWrite
-	// idle is broadcast as the last write ends, after its failure is told.
+	// idle is broadcast as the last write ends, before its failure is
+	// told.
 	idle *sync.Cond
+	// failedHas is what the config holds after the last write failed,
+	// until the failure is told (told): a save asked meanwhile writes
+	// from it, as the form does not know it yet.
+	failedHas *write.Identity
 }
 
 func newIdentSaver() *identSaver {
@@ -616,7 +626,22 @@ func (is *identSaver) wait() {
 type identWrite struct {
 	was, now write.Identity
 	from     write.IdentityFrom
-	failed   func(was write.Identity, err error)
+	// failed is told, on the saver's goroutine once it is idle, what the
+	// config holds after the write failed, and why.
+	failed func(has *write.Identity, err error)
+}
+
+// told reports whether has, the config after a failed write, is still
+// the latest known to the saver, no save asked since, and forgets it:
+// on the main thread, as the failure is told.
+func (is *identSaver) told(has *write.Identity) bool {
+	is.mu.Lock()
+	defer is.mu.Unlock()
+	if is.failedHas != has {
+		return false
+	}
+	is.failedHas = nil
+	return true
 }
 
 // save writes w, or after the write running.
@@ -630,25 +655,25 @@ func (is *identSaver) save(a *App, r *run.Runner, w *identWrite) {
 		is.next = w
 		return
 	}
+	if is.failedHas != nil {
+		w.was, is.failedHas = *is.failedHas, nil
+	}
 	is.running = true
 	a.goWork(nil, func() { is.drain(r, w) })
 }
 
 // drain writes w, then each write asked meanwhile, until none is left,
-// and leaves the saver idle.
+// and leaves the saver idle. The last write's failure is told once the
+// saver is idle: telling waits for the main thread, which a quit holds
+// in WaitIdentity. A read of the settings opened again, which waits for
+// the saver too, may land before it; the failure is then said in the
+// app's notice, not in the form, which shows what the read found.
 func (is *identSaver) drain(r *run.Runner, w *identWrite) {
 	for w != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		has, err := write.SetIdentity(ctx, r, w.was, w.now, w.from)
 		cancel()
 		is.mu.Lock()
-		if is.next == nil && err != nil {
-			// Told before the saver is idle, so that a read waiting
-			// for it comes after.
-			is.mu.Unlock()
-			w.failed(has, err)
-			is.mu.Lock()
-		}
 		next := is.next
 		is.next = nil
 		if next != nil && err != nil {
@@ -656,11 +681,19 @@ func (is *identSaver) drain(r *run.Runner, w *identWrite) {
 			// this one went in before the failure, not as asked.
 			next.was = has
 		}
+		var failed *write.Identity
 		if next == nil {
+			if err != nil {
+				failed = &has
+				is.failedHas = failed
+			}
 			is.running = false
 			is.idle.Broadcast()
 		}
 		is.mu.Unlock()
+		if failed != nil {
+			w.failed(failed, err)
+		}
 		w = next
 	}
 }

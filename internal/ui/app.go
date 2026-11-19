@@ -118,8 +118,8 @@ type App struct {
 	active int
 	nextID int
 	strip  tabStrip
-	// writes are the files being written off the main thread, for a test
-	// to wait for before their folder goes.
+	// writes are the files being written off the main thread, for a quit
+	// and a test to wait for.
 	writes sync.WaitGroup
 	// keeper writes the settings when Deps has none.
 	keeper *settings.Keeper
@@ -450,15 +450,16 @@ func (a *App) Open(path string) {
 	if a.Library != nil && !restored {
 		lib, now, runner := a.Library, a.Now(), a.Runner
 		// It reads and writes files: never on the main thread.
-		a.goWrite(func() {
+		a.goWrite(func() func() {
 			// What is no repository (a plain folder, a file, a typo) stays
 			// out, or it would be listed for good. A worktree added to a
 			// repository is no repository of the library either: its
 			// repository lists it, and it comes and goes.
 			if !isRepository(path) || addedWorktree(runner, path) {
-				return
+				return nil
 			}
 			lib.Opened(path, now)
+			return nil
 		})
 	}
 }

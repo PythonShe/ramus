@@ -280,7 +280,7 @@ func TestIdentitySaveAfterPartlyFailed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	failed := func(write.Identity, error) {}
+	failed := func(*write.Identity, error) {}
 	first := write.Identity{Name: "N1", Email: "e1@example.com"}
 	is := newIdentSaver()
 	is.running = true

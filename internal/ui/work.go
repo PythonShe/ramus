@@ -30,13 +30,23 @@ func (a *App) goWork(t *tab, fn func()) {
 	})
 }
 
-// goWrite is goWork for a write of a file, which a test waits for
-// (writes) before the file's folder goes.
-func (a *App) goWrite(fn func()) {
+// goWrite is goWork for a write of a file, which a quit waits for
+// (writes), as a test does before the file's folder goes. fn writes and
+// returns what to do after, if anything: showing the result, which
+// waits for the main thread. That runs once the write counts as done, so
+// that a quit, which holds the main thread while it waits, never waits
+// for it.
+func (a *App) goWrite(fn func() (then func())) {
 	a.writes.Add(1)
 	a.goWork(nil, func() {
-		defer a.writes.Done()
-		fn()
+		var then func()
+		func() {
+			defer a.writes.Done()
+			then = fn()
+		}()
+		if then != nil {
+			then()
+		}
 	})
 }
 
