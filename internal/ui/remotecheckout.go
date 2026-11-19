@@ -83,7 +83,9 @@ func (d *remoteCheckout) relation() (text string, ff, behind bool) {
 	b := d.local
 	switch {
 	case d.unread:
-		return locales.RemoteCheckoutReading(name, short), false, false
+		// Laid out as a reset, which the view keeps disabled until read:
+		// the dialog keeps its shape as the most outcomes land.
+		return locales.RemoteCheckoutReading(name, short), false, true
 	case b.Upstream != d.remote:
 		return locales.RemoteCheckoutNotTracking(name, short), false, true
 	case b.Ahead == 0 && b.Behind == 0:
@@ -140,7 +142,7 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 						reset()
 					}
 				case behind:
-					if ui.Button(c, locales.RemoteCheckoutReset(redact.Control(short))).Clicked() {
+					if ui.Button(c, locales.RemoteCheckoutReset(redact.Control(short))).Disabled(d.unread).Clicked() {
 						reset()
 					}
 				}

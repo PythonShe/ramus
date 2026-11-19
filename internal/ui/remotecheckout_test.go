@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // A remote branch checks out as a new branch tracking it; over a local
@@ -86,8 +88,10 @@ func TestCheckOutRemoteBeforeDetails(t *testing.T) {
 	r.Git("remote", "add", "origin", "https://example.invalid/r.git")
 	r.Git("update-ref", "refs/remotes/origin/feature", two)
 	r.Git("update-ref", "refs/remotes/origin/side", two)
+	r.Git("update-ref", "refs/remotes/origin/plain", two)
 	r.Git("branch", "--no-track", "feature", one)
 	r.Git("branch", "--set-upstream-to=origin/feature", "feature")
+	r.Git("branch", "--no-track", "plain", one)
 	r.Git("worktree", "add", "-q", "-b", "side", filepath.Join(tmp, "side"), one)
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
@@ -98,15 +102,42 @@ func TestCheckOutRemoteBeforeDetails(t *testing.T) {
 		tb.refs.info, tb.refs.readFor = nil, nil
 	}
 
+	// While it reads, the dialog has the shape of a reset, the most
+	// outcomes', with the reset disabled: it does not grow as they land.
+	reading := func(name string) {
+		t.Helper()
+		b, ok := h.tt.AccessByRole(ui.RoleButton, "Reset to origin/"+name)
+		if !ok || !b.Disabled || !h.tt.HasText("A reset backs up "+name+" first; Undo brings it back.") {
+			t.Fatalf("reading %s, the dialog shows %q", name, h.tt.Texts())
+		}
+		if h.tt.HasText(name + " does not track origin/" + name + "; resetting it drops what it has that origin/" + name + " does not.") {
+			t.Fatalf("%s said not to track before it was read", name)
+		}
+		w := tb.s.Writes
+		h.click("Reset to origin/" + name)
+		if !h.app.remoteUI.open || tb.s.Writes != w {
+			t.Fatalf("the reset ran before %s was read", name)
+		}
+	}
 	unread()
 	h.app.checkOutRemote(tb, "refs/remotes/origin/feature")
 	h.tt.Frame()
-	if h.tt.HasText("Reset to origin/feature") || h.tt.HasText("feature does not track origin/feature; resetting it drops what it has that origin/feature does not.") {
-		t.Fatalf("a reset offered before the branch was read: %q", h.tt.Texts())
-	}
+	reading("feature")
 	h.until("the dialog", h.shows("feature is 1 commit behind origin/feature."))
 	h.click("Fast-Forward and Switch")
 	h.until("feature fast-forwarded", func() bool { return strings.TrimSpace(r.Git("rev-parse", "feature")) == two })
+
+	// One that does not track it keeps the shape it had while read.
+	h.until("the branches again", func() bool { return tb.refs.info != nil && !tb.refs.loading })
+	unread()
+	h.app.checkOutRemote(tb, "refs/remotes/origin/plain")
+	h.tt.Frame()
+	reading("plain")
+	h.until("the dialog", h.shows("plain does not track origin/plain; resetting it drops what it has that origin/plain does not."))
+	if b, ok := h.tt.AccessByRole(ui.RoleButton, "Reset to origin/plain"); !ok || b.Disabled || !h.tt.HasText("A reset backs up plain first; Undo brings it back.") {
+		t.Fatalf("read, the dialog shows %q", h.tt.Texts())
+	}
+	h.click("Cancel")
 
 	h.until("the branches again", func() bool { return tb.refs.info != nil && !tb.refs.loading })
 	unread()
