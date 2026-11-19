@@ -704,10 +704,13 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		var st *status.Status
 		var err error
 		rechecked := false
+		// New files listed as the user's git status lists them, so that
+		// git uses the untracked cache that status built.
+		opt := status.Options{UntrackedAll: status.ListsAll(r.Config())}
 		if what == repo.WorkTreeChanged && seen.status != nil && status.CanRecheck(paths) {
 			// Edits to files git knows: read those alone and merge.
 			var part *status.Status
-			if part, err = status.ReadPaths(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, paths); err == nil {
+			if part, err = status.ReadPaths(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, paths, opt); err == nil {
 				st, rechecked = seen.status.Replace(paths, part)
 			}
 		}
@@ -718,7 +721,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		if !rechecked && wait == 0 {
 			full := time.Now()
-			st, err = status.Read(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, status.Options{})
+			st, err = status.Read(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize, opt)
 			end := time.Now()
 			seen.pause.ran(end, end.Sub(full))
 		}

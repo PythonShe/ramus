@@ -38,7 +38,7 @@ func TestReplace(t *testing.T) {
 		if !CanRecheck(paths) {
 			t.Fatalf("%v cannot be rechecked", paths)
 		}
-		part, err := ReadPaths(ctx, run, r.GitDir(), r.Dir, 20, paths)
+		part, err := ReadPaths(ctx, run, r.GitDir(), r.Dir, 20, paths, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}

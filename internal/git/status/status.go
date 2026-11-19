@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 
+	"ramus/internal/git/config"
 	"ramus/internal/git/run"
 )
 
@@ -162,6 +163,27 @@ const MaxEntries = 1 << 23
 // entry.
 const untrackedNormal = "--untracked-files=normal"
 
+// ListsAll reports whether the user's own git status lists every
+// untracked file, status.showUntrackedFiles being "all" as git's
+// untracked cache reads it (dir.c, new_untracked_cache_flags): their
+// git status then builds that cache for this mode alone, and a status
+// that lists files otherwise scans the whole work tree instead. Read and
+// ReadPaths are given it as UntrackedAll.
+func ListsAll(cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	v, ok := cfg.Get("status.showUntrackedFiles")
+	return ok && v == "all"
+}
+
+func untracked(opt Options) string {
+	if opt.UntrackedAll {
+		return "--untracked-files=all"
+	}
+	return untrackedNormal
+}
+
 // ErrTooMany is returned for a status past MaxEntries.
 var ErrTooMany = errors.New("status: too many entries")
 
@@ -178,11 +200,7 @@ func Read(ctx context.Context, r *run.Runner, gitDir, workTree string, hashSize 
 	// Said either way, never left to status.showUntrackedFiles: "no"
 	// would hide new files from Changes, where they could never be
 	// committed, and a recheck must list them as this read does.
-	if opt.UntrackedAll {
-		args = append(args, "--untracked-files=all")
-	} else {
-		args = append(args, untrackedNormal)
-	}
+	args = append(args, untracked(opt))
 	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Args: args, Read: true})
 	if err != nil {
 		return nil, err

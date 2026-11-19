@@ -1,6 +1,7 @@
 package status
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -9,8 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"ramus/internal/git/config"
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/run"
 )
 
 // format prints a status back as porcelain v2 -z, entries only.
@@ -139,13 +143,74 @@ func TestUntrackedShowWhateverConfig(t *testing.T) {
 		if got, want := format(s), "? dir/a\x00? new.txt\x00"; got != want {
 			t.Fatalf("showUntrackedFiles=%s, all: status %q, want %q", c, got, want)
 		}
-		p, err := ReadPaths(context.Background(), run, r.GitDir(), r.Dir, 20, []string{"new.txt"})
+		p, err := ReadPaths(context.Background(), run, r.GitDir(), r.Dir, 20, []string{"new.txt"}, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if got, want := format(p), "? new.txt\x00"; got != want {
 			t.Fatalf("showUntrackedFiles=%s: recheck %q, want %q", c, got, want)
 		}
+	}
+}
+
+// git uses the untracked cache the user's own git status built only for
+// a status that lists new files as that one does: for "all" every file,
+// for any other setting a folder of new files as one entry. Listed
+// otherwise, status scans the whole work tree each time.
+func TestUntrackedCacheKept(t *testing.T) {
+	for _, c := range []string{"", "no", "normal", "all"} {
+		r := gittest.Init(t)
+		r.Commit("one")
+		r.Git("config", "core.untrackedCache", "true")
+		if c != "" {
+			r.Git("config", "status.showUntrackedFiles", c)
+		}
+		r.Write("dir/a", "a\n")
+		// The user's git status builds the cache, for their setting.
+		r.Git("status")
+		r.Git("status")
+		cfg, err := config.Read(context.Background(), testrun.Runner(t), r.GitDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		opt := Options{UntrackedAll: ListsAll(cfg)}
+		trace := filepath.Join(t.TempDir(), "trace")
+		g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
+		if err != nil {
+			t.Skip(err)
+		}
+		// The cache's figures are three regions deep.
+		traced := run.New(g, append(gittest.Env(), "GIT_TRACE2_EVENT="+trace, "GIT_TRACE2_EVENT_NESTING=8"), 1)
+		if _, err := Read(context.Background(), traced, r.GitDir(), r.Dir, 20, opt); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(trace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// git reports what the cache saved only when it used one.
+		if !bytes.Contains(b, []byte(`"key":"opendir"`)) {
+			t.Errorf("showUntrackedFiles=%q: status scanned the work tree past the untracked cache", c)
+		}
+	}
+}
+
+func TestListsAll(t *testing.T) {
+	for v, want := range map[string]bool{"": false, "no": false, "normal": false, "true": false, "All": false, "all": true} {
+		entry := "status.showuntrackedfiles"
+		if v != "" {
+			entry += "\n" + v
+		}
+		cfg, err := config.Parse([]byte("local\x00file:.git/config\x00" + entry + "\x00"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := ListsAll(cfg); got != want {
+			t.Errorf("status.showUntrackedFiles=%q: lists all %v, want %v", v, got, want)
+		}
+	}
+	if ListsAll(nil) {
+		t.Error("no config lists all")
 	}
 }
 

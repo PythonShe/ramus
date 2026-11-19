@@ -32,10 +32,10 @@ func CanRecheck(paths []string) bool {
 }
 
 // ReadPaths runs git status for paths alone, matched literally, as Read
-// runs it for the whole work tree.
-func ReadPaths(ctx context.Context, r *run.Runner, gitDir, workTree string, hashSize int, paths []string) (*Status, error) {
+// runs it for the whole work tree with opt's UntrackedAll.
+func ReadPaths(ctx context.Context, r *run.Runner, gitDir, workTree string, hashSize int, paths []string, opt Options) (*Status, error) {
 	args := []string{"status", "--porcelain=v2", "-z", "--branch", "--show-stash",
-		"--no-ahead-behind", untrackedNormal, "--ignore-submodules=dirty", "--"}
+		"--no-ahead-behind", untracked(opt), "--ignore-submodules=dirty", "--"}
 	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Args: append(args, paths...), Read: true,
 		Env: []string{"GIT_LITERAL_PATHSPECS=1"}})
 	if err != nil {
