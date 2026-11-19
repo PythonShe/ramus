@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/lifetime"
@@ -314,11 +315,26 @@ func (l *Log) reportFatal(name string) (string, error) {
 // stopFatal undoes CatchFatal, for tests.
 func (l *Log) stopFatal() { debug.SetCrashOutput(nil, debug.CrashOptions{}) }
 
+// Bounds of the cuts of readEnds.
+const (
+	// fatalError bounds the error printed before the first goroutine: a
+	// panic's value may print a string of any length.
+	fatalError = 16 << 10
+	// fatalScan bounds how far the first goroutine is looked for.
+	fatalScan = 1 << 20
+	// cutSlack is how far before a cut a line's end may be to cut there
+	// rather than inside the line.
+	cutSlack = 4 << 10
+)
+
 // readEnds reads f, of size bytes, whole when it holds at most head+tail
-// bytes, else its first head bytes and its last tail, each cut at a line,
-// with a line between them that says how much was left out. The runtime
-// prints the error and the goroutine that crashed first, and may then
-// print every other goroutine.
+// bytes, else its start and its last tail bytes, with a line between them
+// that says how much was left out. The runtime prints the error, then the
+// goroutine that crashed, which a report is for, and may then print every
+// other goroutine. The start is the error, up to fatalError, then up to
+// head bytes from the first goroutine on: its stack whole up to head,
+// whatever the length of the error or of a line. Each cut is at a line's
+// end near it, else inside the line, never inside a character.
 func readEnds(f *os.File, size, head, tail int64) (string, error) {
 	if size <= head+tail {
 		buf := make([]byte, size)
@@ -328,22 +344,82 @@ func readEnds(f *os.File, size, head, tail int64) (string, error) {
 		}
 		return string(buf[:n]), nil
 	}
-	first := make([]byte, head)
-	if _, err := f.ReadAt(first, 0); err != nil && !errors.Is(err, io.EOF) {
+	start := make([]byte, min(size, max(head, fatalScan)))
+	n, err := f.ReadAt(start, 0)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return "", err
 	}
-	last := make([]byte, tail)
-	if _, err := f.ReadAt(last, size-tail); err != nil && !errors.Is(err, io.EOF) {
+	start = start[:n]
+	var b strings.Builder
+	from := 0 // where the part kept in full starts
+	if g := firstGoroutine(start); g > 0 {
+		msg := keepStart(start[:g], fatalError)
+		b.Write(msg)
+		if len(msg) < g {
+			fmt.Fprintf(&b, "\n... %d bytes left out ...\n\n", g-len(msg))
+		}
+		from = g
+	}
+	kept := keepStart(start[from:], int(head))
+	b.Write(kept)
+	end := int64(from + len(kept)) // read up to here
+	tailAt := max(size-tail, end)
+	last := make([]byte, size-tailAt)
+	if _, err := f.ReadAt(last, tailAt); err != nil && !errors.Is(err, io.EOF) {
 		return "", err
 	}
-	if i := bytes.LastIndexByte(first, '\n'); i >= 0 {
-		first = first[:i+1]
+	if tailAt > end {
+		last = keepEnd(last)
 	}
-	if i := bytes.IndexByte(last, '\n'); i >= 0 {
-		last = last[i+1:]
+	if left := size - end - int64(len(last)); left > 0 {
+		fmt.Fprintf(&b, "\n... %d bytes left out ...\n\n", left)
 	}
-	left := size - int64(len(first)) - int64(len(last))
-	return fmt.Sprintf("%s\n... %d bytes left out ...\n\n%s", first, left, last), nil
+	b.Write(last)
+	return b.String(), nil
+}
+
+// firstGoroutine is where the first goroutine's stack starts in out, what
+// the runtime printed, at a line's start; -1 when not found.
+func firstGoroutine(out []byte) int {
+	if bytes.HasPrefix(out, []byte("goroutine ")) {
+		return 0
+	}
+	i := bytes.Index(out, []byte("\ngoroutine "))
+	if i < 0 {
+		return -1
+	}
+	return i + 1
+}
+
+// keepStart is the start of b, up to n bytes: cut at the end of a line
+// within cutSlack of n, else inside the line at a character's start.
+func keepStart(b []byte, n int) []byte {
+	if len(b) <= n {
+		return b
+	}
+	if i := bytes.LastIndexByte(b[:n], '\n'); i >= 0 && i >= n-cutSlack {
+		return b[:i+1]
+	}
+	for k := n; k > max(0, n-utf8.UTFMax); k-- {
+		if utf8.RuneStart(b[k]) {
+			return b[:k]
+		}
+	}
+	return b[:n]
+}
+
+// keepEnd is b, the end of a longer text, from the start of a line within
+// cutSlack of its start, else from its first character's start.
+func keepEnd(b []byte) []byte {
+	if i := bytes.IndexByte(b[:min(len(b), cutSlack)], '\n'); i >= 0 {
+		return b[i+1:]
+	}
+	for k := range min(len(b), utf8.UTFMax) {
+		if utf8.RuneStart(b[k]) {
+			return b[k:]
+		}
+	}
+	return b
 }
 
 // appVersion is the version packaged, or the commit built from.
