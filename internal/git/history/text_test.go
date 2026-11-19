@@ -43,6 +43,34 @@ func TestLoadTextClipsTheSubject(t *testing.T) {
 	}
 }
 
+// A parent named after the author line is no parent, as git reads it,
+// and the merged text does not name it.
+func TestLoadTextMergedParentsAsGitReadsThem(t *testing.T) {
+	r := gittest.Init(t)
+	a := r.Commit("a")
+	b := r.Commit("b")
+	c := r.Commit("c")
+	tree := strings.TrimSpace(r.Git("rev-parse", "HEAD^{tree}"))
+	body := "tree " + tree + "\nparent " + a + "\nparent " + b + "\nauthor A <a@x> 1 +0000\nparent " + c + "\ncommitter A <a@x> 1 +0000\n\nm\n"
+	out, err := r.Run([]byte(body), "hash-object", "-t", "commit", "-w", "--literally", "--stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := hex.DecodeString(strings.TrimSpace(out))
+	p, err := catfile.Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	chunk, err := LoadText(p, [][]byte{id}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := chunk.Merged(0), a[:7]+" and "+b[:7]; got != want {
+		t.Fatalf("merged %q, want %q", got, want)
+	}
+}
+
 // A row's text holds its subject and author, and for a merge the parents
 // it merges, as git log's %p abbreviates them to seven digits.
 func TestLoadTextMerged(t *testing.T) {

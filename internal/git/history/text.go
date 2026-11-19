@@ -1,7 +1,6 @@
 package history
 
 import (
-	"bytes"
 	"time"
 	"unicode/utf8"
 
@@ -140,7 +139,7 @@ func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, er
 		c.buf = append(c.buf, author...)
 		c.ends = append(c.ends, uint32(len(c.buf)))
 		if cm.Parents > 1 {
-			c.buf = appendMerged(c.buf, o.Data, cm.Parents)
+			c.buf = appendMerged(c.buf, o.Data)
 		}
 		c.ends = append(c.ends, uint32(len(c.buf)))
 		c.buf = append(c.buf, email...)
@@ -156,25 +155,17 @@ func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, er
 }
 
 // appendMerged appends the abbreviated parents named in a commit's header,
-// n of them, joined as a sentence lists them.
-func appendMerged(buf, data []byte, n int) []byte {
-	k := 0
-	for len(data) > 0 {
-		line, rest, _ := bytes.Cut(data, []byte{'\n'})
-		if len(line) == 0 {
-			break // the end of the header
+// joined as a sentence lists them.
+func appendMerged(buf, data []byte) []byte {
+	ids := object.ParentIDs(data)
+	for k, id := range ids {
+		switch {
+		case k == len(ids)-1 && k > 0:
+			buf = append(buf, " and "...)
+		case k > 0:
+			buf = append(buf, ", "...)
 		}
-		if id, ok := bytes.CutPrefix(line, []byte("parent ")); ok {
-			switch {
-			case k == n-1 && k > 0:
-				buf = append(buf, " and "...)
-			case k > 0:
-				buf = append(buf, ", "...)
-			}
-			buf = append(buf, id[:min(len(id), mergedShort)]...)
-			k++
-		}
-		data = rest
+		buf = append(buf, id[:min(len(id), mergedShort)]...)
 	}
 	return buf
 }
