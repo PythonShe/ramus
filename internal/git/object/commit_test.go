@@ -151,3 +151,31 @@ func TestParentIDs(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+// git reads parents only from the lines right after the tree: one named
+// after the author line is no parent.
+func TestParentsAfterTheAuthorLine(t *testing.T) {
+	r := gittest.Init(t)
+	base := r.Commit("base")
+	tree := strings.TrimSpace(r.Git("rev-parse", "HEAD^{tree}"))
+	for _, header := range []string{
+		"tree " + tree + "\nauthor A <a@x> 1 +0000\nparent " + base + "\ncommitter A <a@x> 1 +0000\n",
+		"tree " + tree + "\nparent " + base + "\nauthor A <a@x> 1 +0000\nparent " + base + "\ncommitter A <a@x> 1 +0000\n",
+		"tree " + tree + "\nparent " + base + "\nparent " + base + "\nauthor A <a@x> 1 +0000\ncommitter A <a@x> 1 +0000\n",
+	} {
+		data := []byte(header + "\nmessage\n")
+		out, err := r.Run(data, "hash-object", "-t", "commit", "-w", "--literally", "--stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := strings.Fields(r.Git("rev-list", "--parents", "-n", "1", strings.TrimSpace(out)))[1:]
+		var got []string
+		for _, p := range ParentIDs(data) {
+			got = append(got, string(p))
+		}
+		c, err := ParseCommit(data)
+		if err != nil || strings.Join(got, " ") != strings.Join(want, " ") || c.Parents != len(want) {
+			t.Errorf("%q: parents %q, %d counted, git %q", header, got, c.Parents, want)
+		}
+	}
+}

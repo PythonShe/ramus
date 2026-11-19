@@ -64,6 +64,9 @@ var ErrBadCommit = errors.New("object: malformed commit")
 func ParseCommit(data []byte) (Commit, error) {
 	var c Commit
 	rest := data
+	// Parents count only on the lines right after the tree, as git reads
+	// them.
+	parents := false
 	for len(rest) > 0 {
 		i := bytes.IndexByte(rest, '\n')
 		if i < 0 {
@@ -79,11 +82,16 @@ func ParseCommit(data []byte) (Commit, error) {
 			continue // continuation of a multi-line header (gpgsig, mergetag)
 		}
 		key, val, _ := bytes.Cut(line, []byte{' '})
+		if string(key) != "parent" {
+			parents = string(key) == "tree" && c.Tree == nil
+		}
 		switch string(key) {
 		case "tree":
 			c.Tree = val
 		case "parent":
-			c.Parents++
+			if parents {
+				c.Parents++
+			}
 		case "author":
 			c.Author = parseSignature(val)
 		case "committer":
@@ -103,21 +111,27 @@ func ParseCommit(data []byte) (Commit, error) {
 }
 
 // ParentIDs returns the parents a commit's headers name, as hex, in
-// order; the slices point into data.
+// order; the slices point into data. As git, it reads them only from the
+// lines right after the tree line, which comes first.
 func ParentIDs(data []byte) [][]byte {
-	var out [][]byte
-	for rest := data; len(rest) > 0; {
-		i := bytes.IndexByte(rest, '\n')
-		if i <= 0 {
-			break // end of the headers
-		}
-		line := rest[:i]
-		rest = rest[i+1:]
-		if v, ok := bytes.CutPrefix(line, []byte("parent ")); ok {
-			out = append(out, v)
-		}
+	rest, ok := bytes.CutPrefix(data, []byte("tree "))
+	if !ok {
+		return nil
 	}
-	return out
+	var out [][]byte
+	for {
+		i := bytes.IndexByte(rest, '\n')
+		if i < 0 {
+			return out
+		}
+		rest = rest[i+1:]
+		v, ok := bytes.CutPrefix(rest, []byte("parent "))
+		end := bytes.IndexByte(v, '\n')
+		if !ok || end < 0 {
+			return out
+		}
+		out = append(out, v[:end])
+	}
 }
 
 // parseSignature reads "Name <email> 1700000000 +0100". git tolerates
