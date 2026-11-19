@@ -129,6 +129,12 @@ ramus blame <file>   # who changed each line
 ramus diff <a> <b>   # compare two files
 ```
 
+On Linux the `.deb`, the `.rpm` and the install script put `ramus` on the
+path (the install script in `~/.local/bin`), and an AppImage takes the same
+arguments. On macOS the command is
+`/Applications/Ramus.app/Contents/MacOS/Ramus`, and on Windows
+`%LOCALAPPDATA%\Programs\Ramus\Ramus.exe`; link or alias it as `ramus`.
+
 **Settings > Tools > Use Ramus for git difftool and mergetool** sets Ramus
 up as both in your git config.
 
