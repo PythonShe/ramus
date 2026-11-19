@@ -35,7 +35,7 @@ func CanRecheck(paths []string) bool {
 // runs it for the whole work tree.
 func ReadPaths(ctx context.Context, r *run.Runner, gitDir, workTree string, hashSize int, paths []string) (*Status, error) {
 	args := []string{"status", "--porcelain=v2", "-z", "--branch", "--show-stash",
-		"--no-ahead-behind", "--ignore-submodules=dirty", untrackedNormal, "--"}
+		"--no-ahead-behind", untrackedNormal, "--ignore-submodules=dirty", "--"}
 	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Args: append(args, paths...), Read: true,
 		Env: []string{"GIT_LITERAL_PATHSPECS=1"}})
 	if err != nil {
