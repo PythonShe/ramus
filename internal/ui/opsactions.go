@@ -136,10 +136,9 @@ func (a *App) commitOps(m *ui.Menu, t *tab, ids func() []string, n int) {
 				label string
 				v     write.BisectVerdict
 			}{{locales.OpsMarkBad(), write.BisectBad}, {locales.OpsMarkGood(), write.BisectGood}, {locales.OpsBisectSkip(), write.BisectSkip}} {
-				// A bisect with its own terms takes them, not bad and good.
-				own := bs.OwnTerms() && v.v != write.BisectSkip
-				if sub.Item(v.label).Disabled(ro || own || v.v == write.BisectSkip && !bs.Active).Chosen() {
-					op, err := write.BisectMark(t.s.Where(), v.v, ids()[0], !bs.Active)
+				if sub.Item(v.label).Disabled(ro || v.v == write.BisectSkip && !bs.Active).Chosen() {
+					// A bisect with its own terms takes them, not bad and good.
+					op, err := write.BisectMark(t.s.Where(), bs.Term(v.v), ids()[0], !bs.Active)
 					a.submit(t, op, err)
 				}
 			}
@@ -389,10 +388,10 @@ func (a *App) bisectBar(c *ui.Context, t *tab) {
 			what = locales.OpsBisectFirstBad(bs.FirstBad[:10])
 		case bs.OnlySkipped:
 			what = locales.OpsBisectOnlySkipped()
-		case bs.OwnTerms():
-			what = locales.OpsBisectOwnTerms(redact.Control(bs.New), redact.Control(bs.Old))
 		case bs.Left >= 0:
 			what = locales.OpsBisectProgress(bs.Left, bs.Steps)
+		case bs.OwnTerms():
+			what = locales.OpsBisectOwnTerms(redact.Control(bs.New), redact.Control(bs.Old))
 		case bs.Bad == "":
 			what = locales.OpsBisectMarkBad()
 		default:
@@ -409,11 +408,15 @@ func (a *App) bisectBar(c *ui.Context, t *tab) {
 				label string
 				v     write.BisectVerdict
 			}{{locales.OpsBisectGood(), write.BisectGood}, {locales.OpsBisectBad(), write.BisectBad}, {locales.OpsBisectSkip(), write.BisectSkip}} {
-				if ui.Button(c, v.label).Disabled(ro || bs.OwnTerms() && v.v != write.BisectSkip).Clicked() {
-					// The commit checked out as the bar is clicked: a second
+				if ui.Button(c, v.label).Disabled(ro).Clicked() {
+					// The commit under test as the bar is clicked: a second
 					// click queued behind the first must not mark the commit
 					// the first one checks out next, untested.
-					op, err := write.BisectMark(w, v.v, hex.EncodeToString(t.s.State.Head.OID), false)
+					under := bs.Testing
+					if under == "" {
+						under = hex.EncodeToString(t.s.State.Head.OID)
+					}
+					op, err := write.BisectMark(w, bs.Term(v.v), under, false)
 					a.submit(t, op, err)
 				}
 			}

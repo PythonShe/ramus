@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -129,12 +130,47 @@ func BisectStart(w Where, bad string, good []string, seen Seen) (Op, error) {
 	return Op{Name: "Start bisect", Expect: seen.expect(), Cmd: w.slow(append(args, "--")...)}, nil
 }
 
+// BisectTerm is the word that marks a commit v in a bisect started with
+// terms of its own, newTerm for bad and oldTerm for good, as git bisect
+// start --term-new and --term-old set them: git bisect bad and good
+// refuse such a bisect. Empty terms are bad and good.
+func BisectTerm(v BisectVerdict, newTerm, oldTerm string) BisectVerdict {
+	switch {
+	case v == BisectBad && newTerm != "":
+		return BisectVerdict(newTerm)
+	case v == BisectGood && oldTerm != "":
+		return BisectVerdict(oldTerm)
+	}
+	return v
+}
+
+// bisectCommands are the words git bisect takes as commands, which it
+// refuses as terms.
+var bisectCommands = []string{"help", "start", "skip", "next", "reset", "visualize", "view", "replay", "log", "run", "terms"}
+
+// validTerm reports a word git could have taken as a bisect's term: one
+// it keeps in a ref's name, refs/bisect/<term>, and reads as no option.
+func validTerm(t string) bool {
+	if t == "" || t[0] == '-' || t[0] == '.' || strings.HasSuffix(t, ".lock") || strings.Contains(t, "..") ||
+		strings.ContainsAny(t, " ~^:?*[\\/@{\x7f") || slices.Contains(bisectCommands, t) {
+		return false
+	}
+	for _, r := range t {
+		if r < ' ' {
+			return false
+		}
+	}
+	return true
+}
+
 // BisectMark marks commit (hex), or HEAD when it is "", good, bad or
-// skipped; git checks out the next commit to test once there are a good
-// and a bad one. start starts the bisect first.
+// skipped, or with one of the bisect's own terms (BisectTerm); git checks
+// out the next commit to test once there are a good and a bad one. start
+// starts the bisect first.
 func BisectMark(w Where, v BisectVerdict, commit string, start bool) (Op, error) {
-	switch v {
-	case BisectGood, BisectBad, BisectSkip:
+	switch {
+	case v == BisectGood, v == BisectBad, v == BisectSkip:
+	case !start && validTerm(string(v)):
 	default:
 		return Op{}, errors.New("write: unknown bisect verdict " + string(v))
 	}

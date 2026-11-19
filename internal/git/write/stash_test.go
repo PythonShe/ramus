@@ -232,6 +232,25 @@ func TestBisectAndPatches(t *testing.T) {
 		t.Fatal("not back where it started")
 	}
 
+	// A bisect with terms of its own is marked with them.
+	h.r.Git("bisect", "start", "--term-new=broken", "--term-old=fixed", commits[7], commits[0])
+	op, err = BisectMark(h.w, BisectTerm(BisectBad, "broken", "fixed"), commits[5], false)
+	h.do(op, err, true)
+	op, err = BisectMark(h.w, BisectTerm(BisectGood, "broken", "fixed"), commits[2], false)
+	h.do(op, err, true)
+	if h.rev("refs/bisect/broken") != commits[5] || h.rev("refs/bisect/fixed-"+commits[2]) != commits[2] {
+		t.Fatalf("not marked with the terms:\n%s", h.r.Git("bisect", "log"))
+	}
+	h.do(BisectReset(h.w), nil, true)
+	for _, bad := range []string{"--help", "run", "a b", "x..y", "", "new\nline"} {
+		if _, err := BisectMark(h.w, BisectVerdict(bad), "", false); err == nil {
+			t.Errorf("%q taken for a term", bad)
+		}
+	}
+	if _, err := BisectMark(h.w, "broken", "", true); err == nil {
+		t.Error("a term of its own taken to start a bisect, which has none yet")
+	}
+
 	// A mailbox patch becomes commits; a plain diff changes files and is
 	// undone from its snapshot.
 	dir := t.TempDir()

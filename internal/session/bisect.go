@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"ramus/internal/git/run"
+	"ramus/internal/git/write"
 )
 
 // BisectState is where a bisect is.
@@ -33,10 +34,23 @@ type BisectState struct {
 	New, Old string
 	// OnlySkipped is set when every commit left to test was skipped.
 	OnlySkipped bool
+	// Testing is the commit under test (hex): HEAD's, or BISECT_HEAD's
+	// for a bisect started with --no-checkout, which leaves HEAD where it
+	// was; "" when there is neither.
+	Testing string
 }
 
 // OwnTerms reports a bisect marked with words other than bad and good.
 func (b BisectState) OwnTerms() bool { return b.Active && (b.New != "bad" || b.Old != "good") }
+
+// Term is the word that marks a commit v in this bisect: its own term
+// for bad or good, when it has them.
+func (b BisectState) Term(v write.BisectVerdict) write.BisectVerdict {
+	if !b.OwnTerms() {
+		return v
+	}
+	return write.BisectTerm(v, b.New, b.Old)
+}
 
 // LoadBisect reads the bisect in progress off the main thread and hands it
 // to done on it.
@@ -63,6 +77,19 @@ func readBisect(ctx context.Context, rn *run.Runner, gitDir string) (BisectState
 	if b, err := os.ReadFile(filepath.Join(gitDir, "BISECT_TERMS")); err == nil && len(b) < 1024 {
 		if lines := strings.Fields(string(b)); len(lines) == 2 {
 			st.New, st.Old = lines[0], lines[1]
+		}
+	}
+	// Read with the rest, so a mark acts on the commit the state shown
+	// was read with.
+	for _, rev := range []string{"BISECT_HEAD^{commit}", "HEAD^{commit}"} {
+		res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: []string{"rev-parse", "-q", "--verify", rev}})
+		var e *run.Error
+		if err == nil {
+			st.Testing = strings.TrimSpace(string(res.Stdout))
+			break
+		}
+		if !errors.As(err, &e) || e.ExitCode != 1 {
+			return st, err
 		}
 	}
 	res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true,
