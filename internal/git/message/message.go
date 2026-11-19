@@ -9,11 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 )
 
@@ -45,7 +45,9 @@ func Template(ctx context.Context, r *run.Runner, w Where) (string, error) {
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(w.WorkTree, p)
 	}
-	f, err := os.Open(p)
+	// The config is the repository's: a named pipe or a device there
+	// would hold a plain open or read for good.
+	f, err := pathsafe.OpenRegular(p)
 	if err != nil {
 		return "", fmt.Errorf("message: commit.template: %w", err)
 	}

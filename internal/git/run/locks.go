@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"ramus/internal/git/pathsafe"
 )
 
 // Where git cannot remove its lock files as it is stopped (Windows), the
@@ -48,10 +50,15 @@ func (w *writes) others(common string) bool {
 	return w.n[common] > 1
 }
 
+// maxCommonDir bounds the commondir file read: one path.
+const maxCommonDir = 64 << 10
+
 // commonDir is the common git directory of gitDir: gitDir itself unless
 // it is a linked worktree's.
 func commonDir(gitDir string) string {
-	if b, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+	// The repository's file: a named pipe there would hold a plain read
+	// for good.
+	if b, err := pathsafe.ReadFile(filepath.Join(gitDir, "commondir"), maxCommonDir); err == nil {
 		common := strings.TrimSpace(string(b))
 		if !filepath.IsAbs(common) {
 			common = filepath.Join(gitDir, common)
