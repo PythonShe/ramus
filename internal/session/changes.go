@@ -63,7 +63,7 @@ var errTooLarge = errors.New("session: the file is too large to show whole")
 
 // readSides reads both sides into res, or leaves them out: a side too
 // large, missing or not a regular file leaves the patch shown alone.
-func readSides(r *repo.Repository, sd Sides, res *PatchResult) {
+func readSides(ctx context.Context, r *repo.Repository, sd Sides, res *PatchResult) {
 	if sd.Old == nil && sd.New == nil && sd.WorkTreePath == "" {
 		return
 	}
@@ -79,7 +79,7 @@ func readSides(r *repo.Repository, sd Sides, res *PatchResult) {
 	if sd.WorkTreePath != "" {
 		newID = nil
 	}
-	old, new, err := diff.BlobPair(cat, sd.Old, newID)
+	old, new, err := diff.BlobPair(ctx, cat, sd.Old, newID)
 	if err != nil {
 		return
 	}
@@ -203,7 +203,7 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 			res.Parsed, err = diff.Parse(pt.Text)
 		}
 		if err == nil && !res.Truncated {
-			readSides(r, sides, &res)
+			readSides(ctx, r, sides, &res)
 		}
 		res.Err = err
 		keep := key != "" && err == nil && ctx.Err() == nil

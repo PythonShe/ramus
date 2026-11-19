@@ -53,8 +53,9 @@ func count(b []byte) (ends, bool) {
 }
 
 // Check reads the blobs of files and returns those that stand out, and
-// whether every file was checked.
-func Check(cat *catfile.Process, files []Staged) ([]Finding, bool, error) {
+// whether every file was checked. Cancelling ctx ends the read with ctx's
+// error.
+func Check(ctx context.Context, cat *catfile.Process, files []Staged) ([]Finding, bool, error) {
 	complete := len(files) <= MaxFiles
 	files = files[:min(len(files), MaxFiles)]
 	var oids [][]byte
@@ -64,7 +65,7 @@ func Check(cat *catfile.Process, files []Staged) ([]Finding, bool, error) {
 	index := make([]ends, len(files))
 	text := make([]bool, len(files))
 	read := 0
-	err := cat.Read(oids, func(i int, o catfile.Object) error {
+	err := cat.ReadContext(ctx, oids, func(i int, o catfile.Object) error {
 		if o.Type != "blob" || o.TooLarge || read+len(o.Data) > MaxBytes {
 			complete = false
 			return nil
@@ -92,7 +93,7 @@ func Check(cat *catfile.Process, files []Staged) ([]Finding, bool, error) {
 			asked = append(asked, i)
 		}
 	}
-	err = cat.Read(heads, func(k int, o catfile.Object) error {
+	err = cat.ReadContext(ctx, heads, func(k int, o catfile.Object) error {
 		if o.Type != "blob" || o.TooLarge {
 			return nil
 		}

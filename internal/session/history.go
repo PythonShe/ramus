@@ -609,7 +609,7 @@ func (s *Session) topText(ctx context.Context, r *repo.Repository, h HistoryStat
 		ids[i] = h.OID(h.Snap.Commit(i))
 	}
 	mm, names := s.names(ctx, r)
-	c, err := history.LoadText(cat, ids, mm)
+	c, err := history.LoadText(ctx, cat, ids, mm)
 	if err != nil {
 		return nil, 0
 	}
@@ -803,7 +803,7 @@ func (s *Session) HistoryText(ids [][]byte, done func(c *history.TextChunk, name
 		if err == nil {
 			var mm *mailmap.Map
 			mm, names = s.names(ctx, r)
-			c, err = history.LoadText(cat, ids, mm)
+			c, err = history.LoadText(ctx, cat, ids, mm)
 		}
 		s.handOver(r, func() { done(c, names, err) }, func() { done(nil, 0, nil) })
 	})
@@ -1053,7 +1053,7 @@ func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws
 			res.Parsed, err = diff.Parse(pt.Text)
 		}
 		if err == nil && !res.Truncated {
-			readSides(r, sides, &res)
+			readSides(ctx, r, sides, &res)
 		}
 		res.Err = err
 		// A newer read, or the view left, cancels it; r closing too, which

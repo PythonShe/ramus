@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -12,6 +13,22 @@ import (
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 )
+
+// A read its caller gave up on stops, with the caller's error.
+func TestLoadTextIsCancelled(t *testing.T) {
+	r := gittest.Init(t)
+	id, _ := hex.DecodeString(r.Commit("one"))
+	p, err := catfile.Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := LoadText(ctx, p, [][]byte{id}, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled: %v", err)
+	}
+}
 
 // A subject of one long paragraph is kept to what a row could show, cut
 // on a character.
@@ -30,7 +47,7 @@ func TestLoadTextClipsTheSubject(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	c, err := LoadText(p, [][]byte{id}, nil)
+	c, err := LoadText(context.Background(), p, [][]byte{id}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +79,7 @@ func TestLoadTextMergedParentsAsGitReadsThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	chunk, err := LoadText(p, [][]byte{id}, nil)
+	chunk, err := LoadText(context.Background(), p, [][]byte{id}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +124,7 @@ func TestLoadTextMerged(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	c, err := LoadText(p, ids, nil)
+	c, err := LoadText(context.Background(), p, ids, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +188,7 @@ func TestLoadTextEncodings(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	c, err := LoadText(p, ids, nil)
+	c, err := LoadText(context.Background(), p, ids, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

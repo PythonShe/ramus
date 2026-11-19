@@ -3,6 +3,7 @@ package tree
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,6 +32,20 @@ func oid(t testing.TB, r *gittest.Repo, rev string) []byte {
 	return b
 }
 
+// A comparison its caller gave up on stops, with the caller's error.
+func TestDiffIsCancelled(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("d/a", "1")
+	a := r.Commit("one")
+	r.Write("d/a", "2")
+	b := r.Commit("two")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := Diff(ctx, start(t, r), 20, oid(t, r, a+"^{tree}"), oid(t, r, b+"^{tree}")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled: %v", err)
+	}
+}
+
 // format prints changes as git diff-tree -r --raw -z --no-renames does.
 func format(c *Changes) string {
 	var b strings.Builder
@@ -48,7 +63,7 @@ func check(t *testing.T, r *gittest.Repo, p *catfile.Process, a, b string) {
 	if a != "" {
 		oa = oid(t, r, a+"^{tree}")
 	}
-	c, err := Diff(p, 20, oa, oid(t, r, b+"^{tree}"))
+	c, err := Diff(context.Background(), p, 20, oa, oid(t, r, b+"^{tree}"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +157,7 @@ func BenchmarkKernelRelease(b *testing.B) {
 	p := start(b, r)
 	a, c := oid(b, r, "v6.6^{tree}"), oid(b, r, "v6.7^{tree}")
 	for b.Loop() {
-		ch, err := Diff(p, 20, a, c)
+		ch, err := Diff(context.Background(), p, 20, a, c)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -169,7 +184,7 @@ func TestAmplification(t *testing.T) {
 	top, _ := hex.DecodeString(strings.TrimSpace(cur))
 	defer func(n int) { maxChanges = n }(maxChanges)
 	maxChanges = 1000
-	c, err := Diff(start(t, r), 20, nil, top)
+	c, err := Diff(context.Background(), start(t, r), 20, nil, top)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +217,7 @@ func TestAmplificationOfBothSides(t *testing.T) {
 	defer func(n int) { maxChanges = n }(maxChanges)
 	maxChanges = 1000
 	cr := &largestBatch{r: start(t, r)}
-	c, err := Diff(cr, 20, a, b)
+	c, err := Diff(context.Background(), cr, 20, a, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +231,7 @@ type largestBatch struct {
 	largest int
 }
 
-func (l *largestBatch) Read(oids [][]byte, fn func(int, catfile.Object) error) error {
+func (l *largestBatch) ReadContext(ctx context.Context, oids [][]byte, fn func(int, catfile.Object) error) error {
 	l.largest = max(l.largest, len(oids))
-	return l.r.Read(oids, fn)
+	return l.r.ReadContext(ctx, oids, fn)
 }

@@ -2,6 +2,7 @@ package diff
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -44,7 +45,7 @@ func TestCommitPatchAndBlobPair(t *testing.T) {
 	for i := 0; i < raw.Len(); i++ {
 		_, o := raw.Old(i)
 		_, n := raw.New(i)
-		old, new, err := BlobPair(cf, o, n)
+		old, new, err := BlobPair(context.Background(), cf, o, n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -59,8 +60,15 @@ func TestCommitPatchAndBlobPair(t *testing.T) {
 			}
 		}
 	}
-	if _, _, err := BlobPair(cf, a, nil); err == nil {
+	if _, _, err := BlobPair(context.Background(), cf, a, nil); err == nil {
 		t.Error("a commit read as a blob")
+	}
+	// A read its caller gave up on stops, with the caller's error.
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, o := raw.Old(0)
+	if _, _, err := BlobPair(cancelled, cf, o, nil); !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled: %v", err)
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 
 // Reader reads objects in batches, as catfile.Process does.
 type Reader interface {
-	Read(oids [][]byte, fn func(i int, o catfile.Object) error) error
+	ReadContext(ctx context.Context, oids [][]byte, fn func(i int, o catfile.Object) error) error
 }
 
 // CommitPatch gets the patch of paths between commits or trees a and b
@@ -49,7 +49,8 @@ func HostPatch(ctx context.Context, r *run.Runner, gitDir string, a, b []byte, p
 // BlobPair reads a changed file's two sides natively, in one batch. A nil
 // or zero object id is a side that does not exist, read as empty. A blob
 // over catfile.MaxObject is an error: the view shows its patch alone.
-func BlobPair(rd Reader, oldID, newID []byte) (old, new []byte, err error) {
+// Cancelling ctx ends the read with ctx's error.
+func BlobPair(ctx context.Context, rd Reader, oldID, newID []byte) (old, new []byte, err error) {
 	var ids [][]byte
 	var which []int
 	for k, id := range [][]byte{oldID, newID} {
@@ -58,7 +59,7 @@ func BlobPair(rd Reader, oldID, newID []byte) (old, new []byte, err error) {
 		}
 	}
 	var out [2][]byte
-	err = rd.Read(ids, func(i int, o catfile.Object) error {
+	err = rd.ReadContext(ctx, ids, func(i int, o catfile.Object) error {
 		switch {
 		case o.Missing:
 			return fmt.Errorf("diff: blob %x is missing", ids[i])

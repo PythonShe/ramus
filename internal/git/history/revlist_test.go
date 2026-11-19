@@ -186,7 +186,7 @@ func BenchmarkTextChunkKernel(b *testing.B) {
 		for k := range ids {
 			ids[k] = g.OID(uint32(first + k))
 		}
-		if _, err := LoadText(p, ids, nil); err != nil {
+		if _, err := LoadText(context.Background(), p, ids, nil); err != nil {
 			b.Fatal(err)
 		}
 	}

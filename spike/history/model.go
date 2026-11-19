@@ -139,7 +139,7 @@ func (m *model) fetcher(g *commitgraph.Graph) {
 		for k := range ids {
 			ids[k] = g.OID(req.snap.Commit(first + k))
 		}
-		c, err := history.LoadText(p, ids, nil)
+		c, err := history.LoadText(context.Background(), p, ids, nil)
 		m.update(func() {
 			if err != nil {
 				m.err = err

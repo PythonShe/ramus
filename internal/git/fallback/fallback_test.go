@@ -110,14 +110,14 @@ func check(t *testing.T, g *gittest.Repo, wantFallback string, hashSize int) {
 	}
 	_, o := raw.Old(0)
 	_, n := raw.New(0)
-	old, new, err := diff.BlobPair(cf, o, n)
+	old, new, err := diff.BlobPair(ctx, cf, o, n)
 	if err != nil || string(old) != string(new) {
 		t.Fatalf("blob pair: %v", err)
 	}
 	trees := strings.Fields(g.Git("rev-parse", "HEAD~^{tree}", "HEAD~2^{tree}"))
 	a, _ := hex.DecodeString(trees[1])
 	b, _ := hex.DecodeString(trees[0])
-	ch, err := tree.Diff(cf, hashSize, a, b)
+	ch, err := tree.Diff(ctx, cf, hashSize, a, b)
 	if err != nil || ch.Len() != 2 {
 		t.Fatalf("tree diff: %v", err)
 	}

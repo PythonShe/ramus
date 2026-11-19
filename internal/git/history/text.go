@@ -1,6 +1,7 @@
 package history
 
 import (
+	"context"
 	"time"
 	"unicode/utf8"
 
@@ -100,8 +101,8 @@ const mergedShort = 7
 // LoadText reads the text of the commits ids, at most TextChunkRows of
 // them, all of one hash size, through a cat-file process. Authors are
 // named as mm maps them, which may be nil, as git log names them through
-// the mailmap.
-func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, error) {
+// the mailmap. Cancelling ctx ends the read with ctx's error.
+func LoadText(ctx context.Context, p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, error) {
 	n := len(ids)
 	c := &TextChunk{
 		buf:   make([]byte, 0, n*64),
@@ -117,7 +118,7 @@ func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, er
 			c.oids = append(c.oids, id...)
 		}
 	}
-	err := p.Read(ids, func(i int, o catfile.Object) error {
+	err := p.ReadContext(ctx, ids, func(i int, o catfile.Object) error {
 		var cm object.Commit
 		if o.Type == "commit" {
 			cm, _ = object.ParseCommit(o.Data)

@@ -3,6 +3,7 @@ package lineend
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -41,7 +42,13 @@ func TestCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cat.Close()
-	found, complete, err := Check(cat, files)
+	// A check its caller gave up on stops, with the caller's error.
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, err := Check(cancelled, cat, files); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled: %v", err)
+	}
+	found, complete, err := Check(context.Background(), cat, files)
 	if err != nil || !complete {
 		t.Fatal(err, complete)
 	}

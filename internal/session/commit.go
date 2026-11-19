@@ -114,7 +114,7 @@ func (s *Session) CheckLineEnds(done func(LineEnds)) {
 			cat, err = r.CatFile()
 		}
 		if err == nil {
-			res.Findings, res.Complete, err = lineend.Check(cat, files)
+			res.Findings, res.Complete, err = lineend.Check(ctx, cat, files)
 		}
 		if err == nil && len(res.Findings) > 0 {
 			res.AutoCRLF, res.EOL, err = lineend.Settings(ctx, r.Runner, r.GitDir, r.WorkTree, res.Findings)

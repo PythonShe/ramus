@@ -636,7 +636,7 @@ func Files(cat *catfile.Process, hashSize int, s Snapshot) ([]File, error) {
 	if err != nil || len(snap) != hashSize {
 		return nil, fmt.Errorf("snapshot: tree %q is not an object id", s.Tree)
 	}
-	ch, err := tree.Diff(cat, hashSize, base, snap)
+	ch, err := tree.Diff(context.Background(), cat, hashSize, base, snap)
 	if err != nil {
 		return nil, err
 	}

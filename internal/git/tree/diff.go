@@ -2,6 +2,7 @@ package tree
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -11,7 +12,7 @@ import (
 
 // Reader reads objects in batches, as catfile.Process does.
 type Reader interface {
-	Read(oids [][]byte, fn func(i int, o catfile.Object) error) error
+	ReadContext(ctx context.Context, oids [][]byte, fn func(i int, o catfile.Object) error) error
 }
 
 // Status is what happened to a path, as git diff-tree --raw names it.
@@ -138,8 +139,8 @@ type pending struct {
 // Diff compares trees a and b (object ids; nil for an empty tree) the way
 // git diff-tree -r --no-renames does. Trees are read level by level, one
 // batch per level, so a deep change costs one round trip per directory
-// level, not per directory.
-func Diff(r Reader, hashSize int, a, b []byte) (*Changes, error) {
+// level, not per directory. Cancelling ctx ends it with ctx's error.
+func Diff(ctx context.Context, r Reader, hashSize int, a, b []byte) (*Changes, error) {
 	c := &Changes{hashSize: hashSize}
 	if bytes.Equal(a, b) {
 		return c, nil
@@ -162,7 +163,7 @@ func Diff(r Reader, hashSize int, a, b []byte) (*Changes, error) {
 			}
 		}
 		var next []pending
-		err := r.Read(oids, func(i int, o catfile.Object) error {
+		err := r.ReadContext(ctx, oids, func(i int, o catfile.Object) error {
 			if o.TooLarge {
 				return fmt.Errorf("tree: %x is too large to compare", oids[i])
 			}
