@@ -114,6 +114,41 @@ func TestStatus(t *testing.T) {
 	}
 }
 
+// A new file shows whatever status.showUntrackedFiles says: hidden, it
+// could never be committed from the app. A whole status and a recheck
+// of the path agree.
+func TestUntrackedShowWhateverConfig(t *testing.T) {
+	for _, c := range []string{"no", "normal", "all", "false"} {
+		r := gittest.Init(t)
+		r.Commit("one")
+		r.Git("config", "status.showUntrackedFiles", c)
+		r.Write("new.txt", "n\n")
+		r.Write("dir/a", "a\n")
+		run := testrun.Runner(t)
+		s, err := Read(context.Background(), run, r.GitDir(), r.Dir, 20, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := format(s), "? dir/\x00? new.txt\x00"; got != want {
+			t.Fatalf("showUntrackedFiles=%s: status %q, want %q", c, got, want)
+		}
+		s, err = Read(context.Background(), run, r.GitDir(), r.Dir, 20, Options{UntrackedAll: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := format(s), "? dir/a\x00? new.txt\x00"; got != want {
+			t.Fatalf("showUntrackedFiles=%s, all: status %q, want %q", c, got, want)
+		}
+		p, err := ReadPaths(context.Background(), run, r.GitDir(), r.Dir, 20, []string{"new.txt"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := format(p), "? new.txt\x00"; got != want {
+			t.Fatalf("showUntrackedFiles=%s: recheck %q, want %q", c, got, want)
+		}
+	}
+}
+
 func TestInitialAndDetached(t *testing.T) {
 	r := gittest.Init(t)
 	run := testrun.Runner(t)

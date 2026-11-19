@@ -157,6 +157,11 @@ type Options struct {
 // held, and the app says so.
 const MaxEntries = 1 << 23
 
+// untrackedNormal is how Read and ReadPaths list untracked files unless
+// told to list every one: a folder holding only untracked files as one
+// entry.
+const untrackedNormal = "--untracked-files=normal"
+
 // ErrTooMany is returned for a status past MaxEntries.
 var ErrTooMany = errors.New("status: too many entries")
 
@@ -170,8 +175,13 @@ func Read(ctx context.Context, r *run.Runner, gitDir, workTree string, hashSize 
 	if opt.Ignored {
 		args = append(args, "--ignored=matching")
 	}
+	// Said either way, never left to status.showUntrackedFiles: "no"
+	// would hide new files from Changes, where they could never be
+	// committed, and a recheck must list them as this read does.
 	if opt.UntrackedAll {
 		args = append(args, "--untracked-files=all")
+	} else {
+		args = append(args, untrackedNormal)
 	}
 	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Args: args, Read: true})
 	if err != nil {
