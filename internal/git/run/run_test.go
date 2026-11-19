@@ -3,7 +3,10 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -297,5 +300,45 @@ func TestOwnConfig(t *testing.T) {
 	own.SetConfig(nil)
 	if got := get(own); got != "" {
 		t.Fatalf("cleared: %q", got)
+	}
+}
+
+// A hardening override whose key holds "=", as a driver the repository
+// named "a=b", still switches that driver off; and the hardening still
+// wins over a command's own config.
+func TestHardeningKeyWithEquals(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the drivers are shell commands")
+	}
+	r := gittest.Init(t)
+	marks := t.TempDir()
+	mark := func(name string) string { return fmt.Sprintf("touch %q; ", filepath.Join(marks, name)) }
+	r.Write(".gitattributes", "*.x filter=a=b diff=c=d\n")
+	r.Write("a.x", "one\n")
+	r.Commit("one")
+	r.Git("config", "filter.a=b.process", mark("process")+"exit 1")
+	r.Git("config", "filter.a=b.clean", mark("clean")+"cat")
+	r.Git("config", "diff.c=d.textconv", mark("textconv")+"cat")
+	r.Write("a.x", "two\n")
+	h := runner(t, 2).Hardened([]string{"core.pager=cat",
+		"filter.a=b.clean=", "filter.a=b.smudge=", "filter.a=b.process=", "filter.a=b.required=false",
+		"diff.c=d.textconv=", "diff.c=d.command="})
+	ctx := context.Background()
+	for _, args := range [][]string{
+		{"status", "--porcelain=v2", "-z"},
+		{"log", "-p", "--", "a.x"},
+		{"diff-files", "-p"},
+	} {
+		if _, err := h.Run(ctx, &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Read: true, Args: args}); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+	if ran, _ := os.ReadDir(marks); len(ran) > 0 {
+		t.Fatalf("the repository's driver ran: %v", ran)
+	}
+	res, err := h.Run(ctx, &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Read: true, Config: []string{"core.pager=less"},
+		Args: []string{"config", "core.pager"}})
+	if err != nil || strings.TrimSpace(string(res.Stdout)) != "cat" {
+		t.Fatalf("core.pager %q %v", res.Stdout, err)
 	}
 }

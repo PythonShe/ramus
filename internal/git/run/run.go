@@ -92,10 +92,10 @@ func (r *Runner) SetPrompt(env []string, asking func() bool) {
 }
 
 // Hardened returns a runner, sharing this one's process limit, for a
-// repository that is not trusted: config adds -c overrides after every
-// command's own, so they win; diff, log and show run no external diff and
-// no textconv; and any command not marked Read is refused, so nothing
-// writes.
+// repository that is not trusted: config, as key=value with the value
+// after the last "=", adds overrides after every command's own, so they
+// win; diff, log and show run no external diff and no textconv; and any
+// command not marked Read is refused, so nothing writes.
 func (r *Runner) Hardened(config []string) *Runner {
 	h := &Runner{git: r.git, env: r.env, pool: r.pool, hardened: true}
 	h.Reharden(config)
@@ -234,8 +234,8 @@ func (c *Cmd) argv() []string {
 }
 
 // argv adds the runner's own config, and the hardening of a runner for
-// a repository not trusted.
-func (r *Runner) argv(c *Cmd) []string {
+// a repository not trusted; env holds the variables the hardening names.
+func (r *Runner) argv(c *Cmd) (args, env []string) {
 	if own := r.config.Load(); own != nil && len(*own) > 0 {
 		cc := *c
 		cc.Config = append(slices.Clone(*own), c.Config...)
@@ -243,21 +243,44 @@ func (r *Runner) argv(c *Cmd) []string {
 	}
 	a := c.argv()
 	if !r.hardened {
-		return a
+		return a, nil
 	}
 	globals := a[: len(a)-len(c.Args) : len(a)-len(c.Args)]
-	for _, kv := range *r.hardening.Load() {
-		globals = append(globals, "-c", kv)
+	for i, kv := range *r.hardening.Load() {
+		// git splits -c at the first "=", so a driver the repository
+		// named "a=b" would turn -c filter.a=b.process= into the key
+		// filter.a and leave its driver in force. --config-env splits at
+		// the last "=", and the value comes from the environment; it
+		// keeps -c's place on the command line, so the hardening still
+		// wins over every -c before it.
+		k, v, ok := cutLast(kv, "=")
+		if !ok {
+			globals = append(globals, "-c", kv)
+			continue
+		}
+		name := fmt.Sprintf("RAMUS_HARDENING_%d", i)
+		globals = append(globals, "--config-env="+k+"="+name)
+		env = append(env, name+"="+v)
 	}
 	if len(c.Args) == 0 {
-		return globals
+		return globals, env
 	}
 	globals = append(globals, c.Args[0])
 	switch c.Args[0] {
 	case "diff", "log", "show":
 		globals = append(globals, "--no-ext-diff", "--no-textconv")
 	}
-	return append(globals, c.Args[1:]...)
+	return append(globals, c.Args[1:]...), env
+}
+
+// cutLast is strings.Cut at the last sep: the hardening's values hold no
+// "=", its keys may.
+func cutLast(s, sep string) (before, after string, found bool) {
+	i := strings.LastIndex(s, sep)
+	if i < 0 {
+		return s, "", false
+	}
+	return s[:i], s[i+len(sep):], true
 }
 
 // Result is what a finished command produced.
@@ -353,12 +376,13 @@ func (r *Runner) Track() (done func()) {
 }
 
 func (r *Runner) command(ctx context.Context, c *Cmd) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, r.git.Path, r.argv(c)...)
+	args, hardening := r.argv(c)
+	cmd := exec.CommandContext(ctx, r.git.Path, args...)
 	cmd.Dir = c.WorkTree
 	if cmd.Dir == "" {
 		cmd.Dir = c.GitDir
 	}
-	cmd.Env = append(append([]string(nil), r.env...), c.Env...)
+	cmd.Env = append(append(append([]string(nil), r.env...), c.Env...), hardening...)
 	if c.Read {
 		cmd.Env = append(cmd.Env, "GIT_NO_LAZY_FETCH=1")
 	}
