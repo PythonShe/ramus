@@ -64,3 +64,18 @@ func TestCoAuthorPicker(t *testing.T) {
 	}
 	h.until("the chips gone", func() bool { return cs.coAuthors == "" && !h.tt.HasText("Grace Hopper") })
 }
+
+// A name may hold a comma or a semicolon, as "Doe, John": the person is
+// kept whole, among others and as a draft keeps them.
+func TestCoAuthorNameWithComma(t *testing.T) {
+	stored := strings.Join(append(coAuthorList("Ann <ann@example.com>"), coAuthorRow{name: "Doe, John", email: "john@example.com"}.person(),
+		coAuthorRow{name: "Roe; Jane", email: "jane@example.com"}.person()), ", ")
+	got := coAuthorList(stored)
+	want := []string{"Ann <ann@example.com>", "Doe, John <john@example.com>", "Roe; Jane <jane@example.com>"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("stored %q read back as %q", stored, got)
+	}
+	if m := typedPerson.FindStringSubmatch(got[1]); m == nil || strings.TrimSpace(m[1]) != "Doe, John" {
+		t.Fatalf("the chip of %q names %q", got[1], m)
+	}
+}

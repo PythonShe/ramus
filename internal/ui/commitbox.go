@@ -97,14 +97,19 @@ type commitRun struct {
 // the log has them all.
 const errLines = 4
 
-var personsRE = regexp.MustCompile(`[^<>,;\n]+<[^<>\s]+>`)
+// personsRE finds each person: a name, which may hold a comma or a
+// semicolon, as "Doe, John" does, then an address, which ends it.
+var personsRE = regexp.MustCompile(`[^<>\n]+<[^<>\s]+>`)
 
 // coAuthorList reads co-authors written one per line or separated by
-// commas.
+// commas or semicolons.
 func coAuthorList(s string) []string {
 	var out []string
 	for _, m := range personsRE.FindAllString(s, -1) {
-		out = append(out, strings.TrimSpace(m))
+		// What separates a person from the one before starts the match.
+		if p := strings.TrimSpace(strings.TrimLeft(m, ",; \t")); p != "" {
+			out = append(out, p)
+		}
 	}
 	return out
 }

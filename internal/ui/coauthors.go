@@ -41,8 +41,9 @@ type coAuthorRow struct {
 
 func (r coAuthorRow) person() string { return r.name + " <" + r.email + ">" }
 
-// typedPerson is a query that names someone whole.
-var typedPerson = regexp.MustCompile(`^([^<>,;\n]+)<([^<>\s]+)>$`)
+// typedPerson is a query that names someone whole; the name may hold a
+// comma or a semicolon.
+var typedPerson = regexp.MustCompile(`^([^<>\n]+)<([^<>\s]+)>$`)
 
 // coAuthorButton opens the picker, beside the summary.
 func (a *App) coAuthorButton(c *ui.Context, t *tab) {
