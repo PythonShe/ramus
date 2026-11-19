@@ -195,6 +195,86 @@ func TestMergeChoicesOutliveOtherWrites(t *testing.T) {
 	h.until("why", h.shows(locales.MergeChangedOnDisk()))
 }
 
+// A conflicted file edited in another editor shows as it is now, with
+// no write of the app's to read it again: the choices made stay while
+// its conflicts are the ones they were made on, and go, said, once one
+// changed.
+func TestMergeRereadsAFileEditedElsewhere(t *testing.T) {
+	h := newHarness(t)
+	r := conflictingRepo(h)
+	h.trust.Set(r.GitDir(), true)
+	r.Run(nil, "merge", "topic")
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	h.click("a.txt")
+	h.until("the editor", h.shows("Conflict 1"))
+	ms := &tb.merge
+	h.click("Theirs")
+	if ms.choices[0] != conflict.Theirs {
+		t.Fatalf("choice %v", ms.choices[0])
+	}
+	w := tb.s.Writes
+
+	r.Write("a.txt", "added elsewhere\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> topic\n")
+	h.until("the text added", h.shows("added elsewhere"))
+	if ms.choices[0] != conflict.Theirs || ms.err != "" {
+		t.Fatalf("the same conflict: choice %v, said %q", ms.choices[0], ms.err)
+	}
+
+	r.Write("a.txt", "added elsewhere\n<<<<<<< HEAD\nours, edited elsewhere\n=======\ntheirs\n>>>>>>> topic\n")
+	h.until("the conflict edited", h.shows("ours, edited elsewhere"))
+	h.until("why", h.shows(locales.MergeChangedOnDisk()))
+	if ms.choices[0] != conflict.Unresolved {
+		t.Fatalf("a changed conflict kept choice %v", ms.choices[0])
+	}
+	if tb.s.Writes != w {
+		t.Fatal("a write of the app's read the file again")
+	}
+}
+
+// A conflict edited elsewhere to text of the same size, its time put
+// back, is told from the one the choices were made on when the file is
+// read again: by what it holds, not by its size and time.
+func TestMergeTellsAnEditOfTheSameSize(t *testing.T) {
+	h := newHarness(t)
+	r := conflictingRepo(h)
+	h.trust.Set(r.GitDir(), true)
+	r.Run(nil, "merge", "topic")
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	h.click("a.txt")
+	h.until("the editor", h.shows("Conflict 1"))
+	ms := &tb.merge
+	h.click("Theirs")
+	name := filepath.Join(r.Dir, "a.txt")
+	before, err := os.Stat(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.ReadFile(name)
+	edited := strings.Replace(string(old), "ours\n", "OURS\n", 1)
+	if edited == string(old) {
+		t.Fatalf("no ours side in %q", old)
+	}
+	r.Write("a.txt", edited)
+	if err := os.Chtimes(name, before.ModTime(), before.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	r.Write("z.txt", "z\n")
+	w := tb.s.Writes
+	if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{"z.txt"})); err != nil {
+		t.Fatal(err)
+	}
+	h.until("read again", func() bool { return tb.s.Writes > w && ms.readW == tb.s.Writes && !ms.loading })
+	if ms.choices[0] != conflict.Unresolved {
+		t.Fatalf("a conflict edited to the same size kept choice %v", ms.choices[0])
+	}
+	h.until("why", h.shows(locales.MergeChangedOnDisk()))
+	h.until("the edit shown", h.shows("OURS"))
+}
+
 // A save that failed says why until the file is read again and shows
 // well: the error does not outlive it.
 func TestMergeSaveErrorGoesWithARead(t *testing.T) {

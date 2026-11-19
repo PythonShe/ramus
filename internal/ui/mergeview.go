@@ -11,6 +11,7 @@ import (
 	"ramus/internal/git/conflict"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
+	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
 	"ramus/locales"
@@ -42,6 +43,12 @@ type mergeState struct {
 	results    []string
 	resultOf   []conflict.Choice
 	resultMade []bool
+	// checkedFor is the status read after which the file was last
+	// looked at on disk, checking set meanwhile; stale is the file
+	// found changed there, to be read again.
+	checkedFor *status.Status
+	checking   bool
+	stale      bool
 }
 
 // shownSegment is the text a segment shows: unchanged text shortened, or
@@ -123,13 +130,17 @@ var mergeChoices = []struct {
 
 func (a *App) loadMerge(t *tab, path string) {
 	ms := &t.merge
-	if ms.loading || ms.path == path && ms.readW == t.s.Writes {
+	if ms.loading {
+		return
+	}
+	if ms.path == path && ms.readW == t.s.Writes && !ms.stale {
+		a.watchMerge(t)
 		return
 	}
 	if ms.path != path {
 		ms.err = ""
 	}
-	ms.path, ms.readW, ms.loading = path, t.s.Writes, true
+	ms.path, ms.readW, ms.loading, ms.stale = path, t.s.Writes, true, false
 	t.s.LoadConflict(path, func(cf session.ConflictFile) {
 		if ms.path != path {
 			ms.loading = false
@@ -147,6 +158,14 @@ func (a *App) loadMerge(t *tab, path string) {
 			ms.cf = cf
 			return
 		}
+		if sameConflicts(ms.cf, cf) && n == len(ms.choices) {
+			// Edited elsewhere around its conflicts only: what shows is
+			// the file now, with the choices made on the same conflicts.
+			ms.cf = cf
+			ms.results, ms.resultOf, ms.resultMade, ms.opened = nil, nil, nil, nil
+			a.showConflicts(ms)
+			return
+		}
 		worked := ms.cf.Path == cf.Path && slices.ContainsFunc(ms.choices, func(ch conflict.Choice) bool { return ch != conflict.Unresolved })
 		ms.cf = cf
 		if worked {
@@ -158,13 +177,68 @@ func (a *App) loadMerge(t *tab, path string) {
 	})
 }
 
-// sameConflict reports whether b is the conflict a was read as, the file
-// unchanged on disk since.
+// watchMerge looks, each time status is read again, off the main thread,
+// whether the file the editor shows changed on disk since it was read,
+// as one edited in another editor does, and has it read again when it
+// did: no write of the app's comes to read it.
+func (a *App) watchMerge(t *tab) {
+	ms := &t.merge
+	st := t.s.State.Status
+	if ms.checking || st == nil || st == ms.checkedFor || ms.cf.Path != ms.path || t.s.Repo == nil {
+		return
+	}
+	ms.checkedFor, ms.checking = st, true
+	root, path, seen, update := t.s.Where().WorkTree, ms.path, ms.cf.Seen, a.Update
+	a.goWork(t, func() {
+		now, err := write.Observe(root, []string{path})
+		update(func() {
+			ms.checking = false
+			if err == nil && len(now) == 1 && ms.path == path && ms.cf.Seen == seen && !sameSeen(now[0], seen) {
+				ms.stale = true
+			}
+		})
+	})
+}
+
+// sameConflict reports whether b, read again, is the file a was read as,
+// byte for byte: its size and time alone miss an edit of the same size
+// within one tick of the file system's clock.
 func sameConflict(a, b session.ConflictFile) bool {
-	sa, sb := a.Seen, b.Seen
-	return a.Path == b.Path && a.Err == nil && b.Err == nil && a.Segments != nil && b.Segments != nil &&
-		a.Ours == b.Ours && a.Theirs == b.Theirs && a.Binary == b.Binary &&
-		sa.Exists && sb.Exists && sa.Size == sb.Size && sa.Mode == sb.Mode && sa.ModTime.Equal(sb.ModTime)
+	return sameConflicts(a, b) && slices.EqualFunc(a.Segments, b.Segments, func(x, y conflict.Segment) bool {
+		if !bytes.Equal(x.Text, y.Text) || (x.Conflict == nil) != (y.Conflict == nil) {
+			return false
+		}
+		cx, cy := x.Conflict, y.Conflict
+		return cx == nil || cx.OursLabel == cy.OursLabel && cx.BaseLabel == cy.BaseLabel && cx.TheirsLabel == cy.TheirsLabel
+	})
+}
+
+// sameSeen reports whether a file seen as a and as b is unchanged.
+func sameSeen(a, b write.FileState) bool {
+	return a.Exists == b.Exists && a.Size == b.Size && a.Mode == b.Mode && a.ModTime.Equal(b.ModTime)
+}
+
+// sameConflicts reports whether b, read again, holds a's conflicts, in
+// order and side for side, whatever changed around them.
+func sameConflicts(a, b session.ConflictFile) bool {
+	if a.Path != b.Path || a.Err != nil || b.Err != nil || a.Binary || b.Binary || a.Segments == nil || b.Segments == nil ||
+		a.Ours != b.Ours || a.Theirs != b.Theirs {
+		return false
+	}
+	var ca, cb []*conflict.Conflict
+	for _, s := range a.Segments {
+		if s.Conflict != nil {
+			ca = append(ca, s.Conflict)
+		}
+	}
+	for _, s := range b.Segments {
+		if s.Conflict != nil {
+			cb = append(cb, s.Conflict)
+		}
+	}
+	return slices.EqualFunc(ca, cb, func(x, y *conflict.Conflict) bool {
+		return bytes.Equal(x.Ours, y.Ours) && bytes.Equal(x.Base, y.Base) && bytes.Equal(x.Theirs, y.Theirs) && x.HasBase == y.HasBase
+	})
 }
 
 // showConflicts numbers ms's conflicts and builds what its segments show
