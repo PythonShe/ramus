@@ -237,3 +237,22 @@ func created(h windows.Handle) (int64, bool) {
 	}
 	return c.Nanoseconds(), true
 }
+
+var isProcessInJob = windows.NewLazySystemDLL("kernel32.dll").NewProc("IsProcessInJob")
+
+// Holds reports whether the process with handle process, which has
+// PROCESS_QUERY_LIMITED_INFORMATION, is in this job, the one Join made,
+// and not only in some job: a child is in every job of its parent's. It
+// is false once the job's process has exited and the job is let go.
+func (j *Job) Holds(process windows.Handle) (bool, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.h == 0 {
+		return false, nil
+	}
+	var in int32
+	if ok, _, err := isProcessInJob.Call(uintptr(process), uintptr(j.h), uintptr(unsafe.Pointer(&in))); ok == 0 {
+		return false, err
+	}
+	return in != 0, nil
+}
