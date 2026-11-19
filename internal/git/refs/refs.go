@@ -18,6 +18,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"ramus/internal/git/osfile"
 )
 
 // maxSymrefDepth is git's limit on chains of symbolic refs.
@@ -272,7 +274,7 @@ func (s *Store) readPacked(path string) (map[string]raw, error) {
 	if !st.Mode().IsRegular() || st.Size() > maxPacked {
 		return nil, fmt.Errorf("refs: packed-refs is not a regular file under %d bytes", maxPacked)
 	}
-	data, err := os.ReadFile(path)
+	data, err := osfile.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +392,7 @@ func (s *Store) readLoose(path, name string) (raw, error) {
 	if !st.Mode().IsRegular() || st.Size() > maxLoose {
 		return raw{}, fmt.Errorf("refs: %s is not a ref file", name)
 	}
-	f, err := os.Open(path)
+	f, err := osfile.Open(path)
 	if err != nil {
 		return raw{}, err
 	}

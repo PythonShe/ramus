@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"ramus/internal/git/osfile"
 )
 
 // Limits on what a header may ask the reader to allocate or walk. The
@@ -98,7 +100,7 @@ func ReadFile(path string, hashSize int) (*Index, error) {
 	if st.Size() > maxFile || !st.Mode().IsRegular() {
 		return nil, bad("%s is not a regular file under %d bytes", path, maxFile)
 	}
-	b, err := os.ReadFile(path)
+	b, err := osfile.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

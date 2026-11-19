@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 
 	"ramus/internal/git/mmap"
+	"ramus/internal/git/osfile"
 )
 
 // None is the position returned for a commit that is not in the graph.
@@ -159,7 +160,7 @@ func openOnce(objectsDir string, prev *Graph) (*Graph, error) {
 }
 
 func readChain(path string) ([]string, error) {
-	f, err := os.Open(path)
+	f, err := osfile.Open(path)
 	if err != nil {
 		return nil, err
 	}

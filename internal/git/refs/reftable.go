@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"ramus/internal/git/osfile"
 )
 
 // Reftable limits: a table larger than maxTable or a name longer than
@@ -292,7 +294,7 @@ func (r *Reftable) stack(dir string) ([]*table, error) {
 	var err error
 	for attempt := 0; attempt < 20; attempt++ {
 		var list []byte
-		list, err = os.ReadFile(filepath.Join(dir, "tables.list"))
+		list, err = osfile.ReadFile(filepath.Join(dir, "tables.list"))
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
@@ -341,7 +343,7 @@ func (r *Reftable) read(path string) ([]byte, error) {
 	if st.Size() > maxTable {
 		return nil, fmt.Errorf("%w: %s is %d bytes", ErrReftable, path, st.Size())
 	}
-	if data, err = os.ReadFile(path); err != nil {
+	if data, err = osfile.ReadFile(path); err != nil {
 		return nil, err
 	}
 	r.mu.Lock()

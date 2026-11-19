@@ -7,8 +7,9 @@ package mmap
 import (
 	"errors"
 	"fmt"
-	"os"
 	"sync"
+
+	"ramus/internal/git/osfile"
 )
 
 // File is a read-only mapping of a whole file. Its bytes stay valid until
@@ -27,7 +28,7 @@ var ErrTooLarge = errors.New("mmap: file too large")
 
 // Open maps the file at path.
 func Open(path string) (*File, error) {
-	f, err := os.Open(path)
+	f, err := osfile.Open(path)
 	if err != nil {
 		return nil, err
 	}
