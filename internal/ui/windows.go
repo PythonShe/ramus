@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"ramus/internal/git/repo"
 	"ramus/internal/library"
 	"ramus/internal/settings"
 )
@@ -66,8 +67,11 @@ func cleanPath(p string) string {
 }
 
 // is reports whether tab t has the repository at path, a clean path, as
-// opened or as resolved.
-func (t *tab) is(path string) bool { return t.s.Path == path || t.real == path }
+// opened, as resolved, or as the top of the repository a folder in it
+// opened.
+func (t *tab) is(path string) bool {
+	return t.s.Path == path || t.real == path || t.top == path
+}
 
 // key is tab t's path as the library keys it once resolved, the path it
 // was opened with until then.
@@ -78,10 +82,11 @@ func (t *tab) key() string {
 	return t.s.Path
 }
 
-// resolveTab resolves the path tab t was opened with off the main thread.
-// When it turns out to be a repository open already, under another
-// name, in this window or another, the new tab closes and that one
-// shows instead, unless the user has a write running in it already.
+// resolveTab resolves the path tab t was opened with off the main thread,
+// and finds the repository there. When it turns out to be a repository
+// open already, under another name or from another of its folders, in
+// this window or another, the new tab closes and that one shows instead,
+// unless the user has a write running in it already.
 func (a *App) resolveTab(t *tab) {
 	path, update, resolve := t.s.Path, a.Update, a.resolve
 	if resolve == nil {
@@ -89,12 +94,14 @@ func (a *App) resolveTab(t *tab) {
 	}
 	a.goWork(t, func() {
 		real := resolve(path)
+		top := repoTop(real)
 		update(func() {
-			t.real = real
-			if real == path || !slices.Contains(a.tabs, t) || busyWrite(t) != nil || t.unsentPR() > 0 {
+			t.real, t.top = real, top
+			if (real == path && top == real) || !slices.Contains(a.tabs, t) || busyWrite(t) != nil || t.unsentPR() > 0 {
 				return
 			}
-			if i := slices.IndexFunc(a.tabs, func(o *tab) bool { return o != t && o.is(real) }); i >= 0 {
+			same := func(o *tab) bool { return o != t && (o.is(real) || top != "" && o.is(top)) }
+			if i := slices.IndexFunc(a.tabs, same); i >= 0 {
 				o, shown := a.tabs[i], a.current() == t
 				a.Close(slices.Index(a.tabs, t))
 				if shown {
@@ -102,9 +109,33 @@ func (a *App) resolveTab(t *tab) {
 				}
 				return
 			}
-			if a.ShowOpen != nil && a.ShowOpen(real) {
-				a.Close(slices.Index(a.tabs, t))
+			if a.ShowOpen == nil {
+				return
+			}
+			asks := []string{real}
+			if top != real {
+				asks = append(asks, top)
+			}
+			for _, p := range asks {
+				// Open asked for path already.
+				if p != "" && p != path && a.ShowOpen(p) {
+					a.Close(slices.Index(a.tabs, t))
+					return
+				}
 			}
 		})
 	})
+}
+
+// repoTop is the top of the repository that has the folder path, its git
+// directory when bare, "" when none does. It reads the disk.
+func repoTop(path string) string {
+	loc, err := repo.Discover(path)
+	switch {
+	case err != nil:
+		return ""
+	case loc.WorkTree != "":
+		return filepath.Clean(loc.WorkTree)
+	}
+	return filepath.Clean(loc.GitDir)
 }

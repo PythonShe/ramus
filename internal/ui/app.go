@@ -227,7 +227,10 @@ type tab struct {
 	// real is the session's path with symbolic links resolved, "" until
 	// resolveTab has.
 	real string
-	sel  string // sidebar item chosen
+	// top is the top of the repository found at real (its git directory
+	// when bare), "" until resolveTab has or when there is none.
+	top string
+	sel string // sidebar item chosen
 	// shown is the view the session was last told is shown.
 	shown  string
 	open   map[string]bool
