@@ -749,37 +749,110 @@ func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 // known returns the paths that name something in tree, or in the index
 // when index is set.
 func known(ctx context.Context, r *run.Runner, w Where, tree string, index bool, paths []string) ([]string, error) {
-	var found []string
-	for c := range slices.Chunk(paths, 256) {
-		list := func(args ...string) error {
-			res, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true,
-				Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Args: append(append(args, "--"), c...)})
-			if err != nil {
-				return err
-			}
-			for _, p := range strings.Split(string(res.Stdout), "\x00") {
-				if p != "" {
-					found = append(found, p)
-				}
-			}
-			return nil
-		}
-		if err := list("ls-tree", "-r", "-z", "--name-only", "--full-tree", tree); err != nil {
+	set := newPathSet(paths)
+	found := make(map[string]bool, len(set))
+	mark := func(name string) { set.under(name, func(p string) { found[p] = true }) }
+	if err := listPaths(ctx, r, w, nil, paths, mark, "ls-tree", "-r", "-z", "--name-only", "--full-tree", tree); err != nil {
+		return nil, err
+	}
+	if index {
+		if err := listPaths(ctx, r, w, nil, paths, mark, "ls-files", "-z", "--full-name"); err != nil {
 			return nil, err
-		}
-		if index {
-			if err := list("ls-files", "-z", "--full-name"); err != nil {
-				return nil, err
-			}
 		}
 	}
 	var out []string
 	for _, p := range paths {
-		if slices.ContainsFunc(found, func(f string) bool { return covered([]string{p}, f) }) {
+		if found[strings.TrimSuffix(p, "/")] {
 			out = append(out, p)
 		}
 	}
 	return out, nil
+}
+
+// maxPathspecs is how many paths a listing takes as its pathspecs. git
+// walks what they have in common, the whole tree when they are spread
+// out, so more are listed by one walk of everything, filtered.
+const maxPathspecs = 256
+
+// listPaths runs a git listing that prints names relative to the top of
+// the work tree, each ended by a NUL, of paths, and calls fn with each
+// name paths cover. The names stream past: a listing of a whole large
+// tree is never held.
+func listPaths(ctx context.Context, r *run.Runner, w Where, env []string, paths []string, fn func(string), args ...string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	var set pathSet
+	if len(paths) <= maxPathspecs {
+		args = append(append(args, "--"), paths...)
+	} else {
+		set = newPathSet(paths)
+	}
+	out := &nulNames{fn: func(name string) {
+		if set == nil || set.covers(name) {
+			fn(name)
+		}
+	}}
+	_, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true,
+		Env: append([]string{"GIT_LITERAL_PATHSPECS=1"}, env...), Args: args, Stdout: out})
+	return err
+}
+
+// nulNames calls fn with each NUL-ended name written to it.
+type nulNames struct {
+	buf []byte
+	fn  func(string)
+}
+
+func (n *nulNames) Write(b []byte) (int, error) {
+	n.buf = append(n.buf, b...)
+	for {
+		i := bytes.IndexByte(n.buf, 0)
+		if i < 0 {
+			break
+		}
+		if i > 0 {
+			n.fn(string(n.buf[:i]))
+		}
+		n.buf = n.buf[i+1:]
+	}
+	return len(b), nil
+}
+
+// pathSet holds paths, each without a trailing slash, to tell which of
+// them a name is, or is inside of; nil holds none.
+type pathSet map[string]bool
+
+func newPathSet(paths []string) pathSet {
+	if len(paths) == 0 {
+		return nil
+	}
+	s := make(pathSet, len(paths))
+	for _, p := range paths {
+		s[strings.TrimSuffix(p, "/")] = true
+	}
+	return s
+}
+
+// under calls fn with each path of s that is name or a folder holding it.
+func (s pathSet) under(name string, fn func(string)) {
+	for p := name; ; {
+		if s[p] {
+			fn(p)
+		}
+		i := strings.LastIndexByte(p, '/')
+		if i < 0 {
+			return
+		}
+		p = p[:i]
+	}
+}
+
+// covers reports whether name is a path of s or inside one.
+func (s pathSet) covers(name string) bool {
+	in := false
+	s.under(name, func(string) { in = true })
+	return in
 }
 
 // Expire removes the snapshots taken before cutoff, in one transaction.

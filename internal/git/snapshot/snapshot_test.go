@@ -399,6 +399,40 @@ func TestRestoreModes(t *testing.T) {
 	}
 }
 
+// Many paths restored are found in the snapshot by one listing of its
+// tree, not one listing of the whole tree per handful of paths.
+func TestRestoreManyPathsListsOnce(t *testing.T) {
+	f := setup(t)
+	var paths []string
+	for i := range 3*maxPathspecs + 1 {
+		p := "d" + strconv.Itoa(i%7) + "/f" + strconv.Itoa(i)
+		f.r.Write(p, "1")
+		paths = append(paths, p)
+	}
+	f.r.Commit("one")
+	for _, p := range paths[:10] {
+		f.r.Write(p, "changed")
+	}
+	s := f.take(Options{Reason: "x", Paths: paths})
+	f.r.Git("checkout", "--", ".")
+	from := len(f.run.Journal().For(f.w.GitDir))
+	if _, err := Restore(context.Background(), f.run, f.w, s, paths, Exact); err != nil {
+		t.Fatal(err)
+	}
+	trees := 0
+	for _, rec := range f.run.Journal().For(f.w.GitDir)[from:] {
+		if strings.Contains(rec.Line, " ls-tree ") {
+			trees++
+		}
+	}
+	if trees > 2 {
+		t.Errorf("%d listings of a tree, want one for the files and one for the index", trees)
+	}
+	if read(t, filepath.Join(f.r.Dir, paths[3])) != "changed" || read(t, filepath.Join(f.r.Dir, paths[20])) != "1" {
+		t.Fatal("not restored")
+	}
+}
+
 // A file changed in the same tick as the index was written is racy: git
 // reads it again instead of trusting its stat data, and so must the copy
 // of the index a snapshot works in. Without ctime and inode, as on
