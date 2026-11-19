@@ -183,6 +183,8 @@ func errForge(err error) string {
 		return locales.PrsNotFound()
 	case errors.Is(err, forge.ErrTimeout):
 		return locales.PrsTimeout()
+	case errors.Is(err, forge.ErrTooLarge):
+		return locales.PrsTooLarge()
 	case errors.Is(err, session.ErrReadOnly):
 		return locales.PrsReadOnly()
 	}

@@ -431,7 +431,7 @@ func (c *CLI) githubPullReview(ctx context.Context, r Repo, n int) (Review, erro
 		"reviews" + page(maxComments) + "{totalCount nodes{author{login} state body submittedAt}} " +
 		"reviewThreads" + page(maxThreads) + "{totalCount nodes{id isResolved isOutdated path line startLine originalLine diffSide " +
 		"viewerCanResolve viewerCanUnresolve viewerCanReply comments" + page(maxComments) + "{totalCount nodes{id databaseId author{login} body createdAt}}}}}}}"
-	out, err := c.read(ctx, r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+q,
+	out, err := c.readUpTo(ctx, r.Host, reviewOutput, "api", "graphql", "--hostname", r.Host, "-f", "query="+q,
 		"-f", "owner="+owner, "-f", "name="+name, "-F", "n="+strconv.Itoa(n))
 	if err != nil {
 		return Review{}, err

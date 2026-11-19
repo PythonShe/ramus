@@ -18,10 +18,14 @@ import (
 // Bounds on the tool: how long one call may take, how much it may print,
 // how many run at once, and how many branches one call asks about.
 const (
-	Timeout     = 30 * time.Second
-	maxOutput   = 8 << 20
-	maxRunning  = 2
-	branchBatch = 50
+	Timeout   = 30 * time.Second
+	maxOutput = 8 << 20
+	// reviewOutput bounds a pull request's review, read whole in one
+	// answer: a long one with bots' walkthroughs after every push passes
+	// maxOutput.
+	reviewOutput = 48 << 20
+	maxRunning   = 2
+	branchBatch  = 50
 	// MaxBranches bounds the branches asked about in one repository.
 	MaxBranches = 500
 )
@@ -167,10 +171,15 @@ func (c *CLI) run(ctx context.Context, dir string, host string, args ...string) 
 // failed to answer (ServerError) is asked again, once. What GitHub read
 // for a query it cut off, it has at hand for the next.
 func (c *CLI) read(ctx context.Context, host string, args ...string) ([]byte, error) {
-	out, err := c.run(ctx, "", host, args...)
+	return c.readUpTo(ctx, host, maxOutput, args...)
+}
+
+// readUpTo is read with what the tool may print bounded by limit.
+func (c *CLI) readUpTo(ctx context.Context, host string, limit int, args ...string) ([]byte, error) {
+	out, err := c.runWith(ctx, "", host, nil, limit, 0, args...)
 	var se *ServerError
 	if errors.As(err, &se) && ctx.Err() == nil {
-		out, err = c.run(ctx, "", host, args...)
+		out, err = c.runWith(ctx, "", host, nil, limit, 0, args...)
 	}
 	return out, err
 }

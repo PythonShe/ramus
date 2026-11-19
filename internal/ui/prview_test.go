@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 
 	"ramus/internal/forge"
 	"ramus/internal/git/gittest"
+	"ramus/locales"
 )
 
 // reviewTool is a gh or glab, named prog, that answers the list and
@@ -351,6 +353,14 @@ func TestPullRequestsTurnedOff(t *testing.T) {
 	h.pumpFor(300 * time.Millisecond)
 	if n := asked.Load(); n != before || tb.sel == sidePulls || rv.loading || rv.sending || log() != "" {
 		t.Fatalf("asked %d more times, page %q, loading %v, sending %v, log %q", n-before, tb.sel, rv.loading, rv.sending, log())
+	}
+}
+
+// An answer too large to read is said in words, sending the user to the
+// host's page.
+func TestTooLargeSaid(t *testing.T) {
+	if got := errForge(fmt.Errorf("%w: gh printed more than 1 bytes", forge.ErrTooLarge)); got != locales.PrsTooLarge() {
+		t.Errorf("said %q", got)
 	}
 }
 

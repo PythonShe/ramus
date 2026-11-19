@@ -16595,6 +16595,16 @@ func (msgs Messages) PrsTimeout() string {
 	return Catalog.Format(msgs.locale, "prsTimeout", nil)
 }
 
+// PrsTooLarge says "The host's answer is too large to read here. Open it on the host's page instead."
+// in the language the app shows.
+func PrsTooLarge() string { return In(i18n.Locale()).PrsTooLarge() }
+
+// PrsTooLarge says "The host's answer is too large to read here. Open it on the host's page instead."
+// in the language of msgs.
+func (msgs Messages) PrsTooLarge() string {
+	return Catalog.Format(msgs.locale, "prsTooLarge", nil)
+}
+
 // PrsReadOnly says "Fetching the commits writes to the repository, which is read-only until you trust it."
 // in the language the app shows.
 func PrsReadOnly() string { return In(i18n.Locale()).PrsReadOnly() }

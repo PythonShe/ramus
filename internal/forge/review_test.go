@@ -215,6 +215,34 @@ const reviewAnswer = `{"data":{"viewer":{"login":"me"},"repository":{"pullReques
   "viewerCanResolve":true,"viewerCanUnresolve":false,"viewerCanReply":true,
   "comments":{"totalCount":1,"nodes":[{"id":"C3","databaseId":44,"author":{"login":"bob"},"body":"Split this file","createdAt":"2026-11-11T12:00:00Z"}]}}]}}}}}`
 
+// A review whose answer passes the bound on other answers still opens:
+// bots' walkthroughs after every push make one that long.
+func TestLongReviewOpens(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tool is a shell script")
+	}
+	dir := t.TempDir()
+	answer := strings.Replace(reviewAnswer, `"body":"Why\n"`, `"body":"`+strings.Repeat("walkthrough ", 800_000)+`"`, 1)
+	if len(answer) <= maxOutput {
+		t.Fatalf("answer of %d bytes", len(answer))
+	}
+	if err := os.WriteFile(filepath.Join(dir, "answer.json"), []byte(answer), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\ncat '" + filepath.Join(dir, "answer.json") + "'\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Find([]string{"PATH=" + dir + ":/usr/bin:/bin"}, GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rv, err := c.PullReview(context.Background(), Repo{GitHub, "github.com", "o/r"}, 7)
+	if err != nil || rv.Number != 7 || len(rv.Body) < maxOutput {
+		t.Fatalf("%d bytes of body, %v", len(rv.Body), err)
+	}
+}
+
 func TestParseReview(t *testing.T) {
 	rv, err := parseReview([]byte(reviewAnswer))
 	if err != nil {

@@ -123,7 +123,7 @@ func gitlabReviewQuery(r Repo, n int) string {
 }
 
 func (c *CLI) gitlabPullReview(ctx context.Context, r Repo, n int) (Review, error) {
-	out, err := c.run(ctx, "", r.Host, "api", "graphql", "--hostname", r.Host, "-f", "query="+gitlabReviewQuery(r, n))
+	out, err := c.runWith(ctx, "", r.Host, nil, reviewOutput, 0, "api", "graphql", "--hostname", r.Host, "-f", "query="+gitlabReviewQuery(r, n))
 	if err != nil {
 		return Review{}, err
 	}
