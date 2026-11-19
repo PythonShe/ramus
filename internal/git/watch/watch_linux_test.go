@@ -61,6 +61,34 @@ func TestRewatch(t *testing.T) {
 	wait(t, w, "out/deep/seen")
 }
 
+// A folder the user cannot read, there at start or made later, is left
+// unwatched; the watcher goes on with the rest.
+func TestUnreadableFolder(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads every folder")
+	}
+	root := t.TempDir()
+	locked := filepath.Join(root, "locked")
+	os.MkdirAll(filepath.Join(locked, "in"), 0o755)
+	os.Chmod(locked, 0)
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+	w, err := New(root, Options{Latency: 20 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("an unreadable folder stopped the watcher: %v", err)
+	}
+	defer w.Close()
+	ready(t, w, root)
+	later := filepath.Join(root, "later")
+	os.Mkdir(later, 0)
+	t.Cleanup(func() { os.Chmod(later, 0o755) })
+	wait(t, w, "later")
+	os.WriteFile(filepath.Join(root, "f"), []byte("x"), 0o644)
+	wait(t, w, "f")
+	if err := w.Err(); err != nil {
+		t.Errorf("the watcher says it stopped: %v", err)
+	}
+}
+
 // Once closed, the watcher adds no watch: the descriptor's number may be
 // another file's by then.
 func TestNoWatchAfterClose(t *testing.T) {

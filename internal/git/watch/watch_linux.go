@@ -68,12 +68,15 @@ func (l *linuxWatch) onFD(fn func(fd int) error) error {
 }
 
 // addTree watches dir (relative to the root) and every directory under
-// it that is not skipped.
+// it that is not skipped. A directory below the root that cannot be read
+// is left unwatched, as one gone already is: one such folder, lost+found
+// or a volume of another user's, must not turn the watcher off.
 func (l *linuxWatch) addTree(dir string) error {
 	err := filepath.WalkDir(filepath.Join(l.w.root, dir), func(p string, d fs.DirEntry, err error) error {
+		top := p == l.w.root
 		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				return nil // gone already
+			if errors.Is(err, fs.ErrNotExist) || !top && denied(err) {
+				return nil // gone already, or not ours to read
 			}
 			return err
 		}
@@ -96,6 +99,8 @@ func (l *linuxWatch) addTree(dir string) error {
 			return ErrLimit
 		case err == syscall.ENOENT || err == syscall.ENOTDIR:
 			return nil
+		case !top && denied(err):
+			return filepath.SkipDir
 		case err != nil:
 			return err
 		}
@@ -108,6 +113,10 @@ func (l *linuxWatch) addTree(dir string) error {
 		return nil // the watcher closed while it walked
 	}
 	return err
+}
+
+func denied(err error) bool {
+	return errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM)
 }
 
 func (l *linuxWatch) read() {
