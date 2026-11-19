@@ -53,6 +53,9 @@ type Library struct {
 	mu     sync.Mutex
 	repos  []Repo
 	groups []Group
+	// refuse, when set, is why the file is not written: it did not read
+	// and could not be kept aside, so writing would lose it.
+	refuse error
 }
 
 type file struct {
@@ -60,7 +63,11 @@ type file struct {
 	Groups []Group `json:"groups"`
 }
 
-// Load reads the library at path; a missing file is an empty library.
+// Load reads the library at path; a missing file is an empty library. A
+// value of the wrong type costs that value only, the rest read, and a
+// copy of the file is kept aside; a file that does not read at all is
+// moved aside and gives an empty library. The error, a
+// *settings.LoadError, says which and where the file went.
 func Load(path string) (*Library, error) {
 	l := &Library{path: path}
 	data, err := os.ReadFile(path)
@@ -68,14 +75,31 @@ func Load(path string) (*Library, error) {
 		return l, nil
 	}
 	if err != nil {
-		return l, err
+		return l, l.broken(settings.Unreadable(path, err))
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(data, &top); err != nil {
+		return l, l.broken(settings.Unreadable(path, err))
 	}
 	var f file
-	if err := json.Unmarshal(data, &f); err != nil {
-		return l, err
+	// A value of the wrong type leaves its field empty and the rest
+	// decodes: encoding/json carries on past it.
+	ferr := json.Unmarshal(data, &f)
+	l.repos = slices.DeleteFunc(f.Repos, func(r Repo) bool { return r.Path == "" })
+	l.groups = slices.DeleteFunc(f.Groups, func(g Group) bool { return strings.TrimSpace(g.Name) == "" })
+	if ferr != nil {
+		return l, l.broken(settings.PartlyRead(path, data, ferr))
 	}
-	l.repos, l.groups = f.Repos, f.Groups
 	return l, nil
+}
+
+// broken takes the error of a file that did not read: one that could not
+// be kept aside is not written.
+func (l *Library) broken(e *settings.LoadError) error {
+	if e.KeptAs == "" {
+		l.refuse = e
+	}
+	return e
 }
 
 // Clean resolves a path the way the library keys it: spelled as on disk,
@@ -358,6 +382,10 @@ func (l *Library) SetGroup(name string, paths []string) error {
 
 func (l *Library) save() error {
 	l.mu.Lock()
+	if l.refuse != nil {
+		l.mu.Unlock()
+		return l.refuse
+	}
 	data, err := json.MarshalIndent(file{Repos: l.repos, Groups: l.groups}, "", "  ")
 	l.mu.Unlock()
 	if err != nil {

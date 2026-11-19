@@ -6,6 +6,7 @@ package layout
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"sync"
 
@@ -37,22 +38,54 @@ type Tab struct {
 	File   string `json:"file,omitempty"`
 }
 
-// Load reads the layout at path; none when there is no file. A file that
-// does not parse is an error, with no layout.
+// Load reads the layout at path; none when there is no file. A value of
+// the wrong type costs that value only, and a copy of the file is kept
+// aside; a file that does not read at all is moved aside, with no
+// layout. The error, a *settings.LoadError, says which and where the
+// file went.
 func Load(path string) ([]Window, error) {
-	f, err := os.Open(path)
+	data, err := read(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
+		return nil, settings.Unreadable(path, err)
+	}
+	ws, err := decode(data)
+	var partial *json.UnmarshalTypeError
+	switch {
+	case errors.As(err, &partial):
+		return bound(ws), settings.PartlyRead(path, data, err)
+	case err != nil:
+		return nil, settings.Unreadable(path, err)
+	}
+	return bound(ws), nil
+}
+
+// read reads the file at path, up to maxFile.
+func read(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	var ws []Window
-	if err := json.NewDecoder(&limited{f, maxFile}).Decode(&ws); err != nil {
-		return nil, errors.New("layout: " + path + " is not a layout: " + err.Error())
+	return io.ReadAll(&limited{f, maxFile})
+}
+
+// decode reads a layout file's content. A value of the wrong type is a
+// *json.UnmarshalTypeError, with the rest read.
+func decode(data []byte) ([]Window, error) {
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		var te *json.UnmarshalTypeError
+		if errors.As(err, &te) {
+			return nil, errors.New("not a layout: " + err.Error())
+		}
+		return nil, err
 	}
-	return bound(ws), nil
+	var ws []Window
+	err := json.Unmarshal(data, &ws)
+	return ws, err
 }
 
 func bound(ws []Window) []Window {
@@ -74,8 +107,18 @@ func bound(ws []Window) []Window {
 }
 
 // Save writes the layout to path whole, so that a crash midway leaves the
-// old one.
+// old one. A file there that does not read, which Load could not keep
+// aside, is not written over.
 func Save(path string, ws []Window) error {
+	old, err := read(path)
+	if err == nil {
+		_, err = decode(old)
+	}
+	// A value of the wrong type was copied aside when Load met it.
+	var partial *json.UnmarshalTypeError
+	if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.As(err, &partial) {
+		return errors.New("layout: " + path + " does not read, so it is not written over: " + err.Error())
+	}
 	data, err := json.MarshalIndent(bound(ws), "", "  ")
 	if err != nil {
 		return err

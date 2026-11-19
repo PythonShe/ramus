@@ -471,7 +471,7 @@ func (a *App) loadDraft(t *tab) {
 		update(func() {
 			cs.draftLoading, cs.draftRead = false, true
 			if err != nil {
-				a.tell(t, errText(err))
+				a.tell(t, LoadNotice(err))
 			}
 			if cs.subject == "" && cs.body == "" && cs.coAuthors == "" {
 				cs.subject, cs.body, cs.coAuthors = d.Subject, d.Body, d.CoAuthors

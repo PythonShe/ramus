@@ -1,12 +1,15 @@
 package layout
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+
+	"ramus/internal/settings"
 )
 
 func TestSaveLoad(t *testing.T) {
@@ -34,6 +37,35 @@ func TestSaveLoad(t *testing.T) {
 	os.WriteFile(p, []byte("["+strings.Repeat(" ", maxFile)+"]"), 0o600)
 	if _, err := Load(p); err == nil {
 		t.Fatal("a file past the bound was read")
+	}
+}
+
+// A layout file that does not read is moved aside, and the next save
+// writes a new one beside it rather than over it; one that cannot be
+// moved is not written over.
+func TestUnreadableLayoutKeptAside(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "layout.json")
+	os.WriteFile(p, []byte(`[{"tabs": [{"path": "/a"}]`), 0o600)
+	_, err := Load(p)
+	var le *settings.LoadError
+	if !errors.As(err, &le) || le.KeptAs != p+".broken" {
+		t.Fatalf("load: %v", err)
+	}
+	if err := Save(p, []Window{{Tabs: []Tab{{Path: "/b"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if kept, _ := os.ReadFile(p + ".broken"); string(kept) != `[{"tabs": [{"path": "/a"}]` {
+		t.Fatalf("kept %q", kept)
+	}
+	os.WriteFile(p, []byte("{"), 0o600)
+	if err := Save(p, nil); err == nil {
+		t.Fatal("a file that does not read was written over")
+	}
+	// A tab of the wrong shape costs that tab's value only.
+	os.WriteFile(p, []byte(`[{"tabs": [{"path": "/a"}, {"path": "/b", "section": 3}], "active": 1}]`), 0o600)
+	ws, err := Load(p)
+	if !errors.As(err, &le) || !le.Partial || len(ws) != 1 || len(ws[0].Tabs) != 2 {
+		t.Fatalf("partly read: %+v %v", ws, err)
 	}
 }
 

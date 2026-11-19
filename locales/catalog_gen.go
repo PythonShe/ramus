@@ -15123,6 +15123,80 @@ func (msgs Messages) AppShellNotRead(error string) string {
 	return Catalog.Format(msgs.locale, "appShellNotRead", map[string]any{"error": error})
 }
 
+// AppFileSetAside says "{file} could not be read, so it was moved to {kept} and Ramus goes on without it: {error}"
+// in the language the app shows.
+//
+// One of the app's own files (its settings, the list of repositories, the
+// windows open, a commit message being written) did not read at launch.
+// file and kept are full paths; error says what is wrong in it.
+func AppFileSetAside(file string, kept string, error string) string {
+	return In(i18n.Locale()).AppFileSetAside(file, kept, error)
+}
+
+// AppFileSetAside says "{file} could not be read, so it was moved to {kept} and Ramus goes on without it: {error}"
+// in the language of msgs.
+//
+// One of the app's own files (its settings, the list of repositories, the
+// windows open, a commit message being written) did not read at launch.
+// file and kept are full paths; error says what is wrong in it.
+func (msgs Messages) AppFileSetAside(file string, kept string, error string) string {
+	return Catalog.Format(msgs.locale, "appFileSetAside", map[string]any{"file": file, "kept": kept, "error": error})
+}
+
+// AppFilePartlyRead says "Part of {file} could not be read. Ramus goes on with the rest and kept a copy of the file as {kept}: {error}"
+// in the language the app shows.
+//
+// Some values in one of the app's own files did not read; the rest did.
+// file and kept are full paths; error names the values.
+func AppFilePartlyRead(file string, kept string, error string) string {
+	return In(i18n.Locale()).AppFilePartlyRead(file, kept, error)
+}
+
+// AppFilePartlyRead says "Part of {file} could not be read. Ramus goes on with the rest and kept a copy of the file as {kept}: {error}"
+// in the language of msgs.
+//
+// Some values in one of the app's own files did not read; the rest did.
+// file and kept are full paths; error names the values.
+func (msgs Messages) AppFilePartlyRead(file string, kept string, error string) string {
+	return Catalog.Format(msgs.locale, "appFilePartlyRead", map[string]any{"file": file, "kept": kept, "error": error})
+}
+
+// AppFileNotWritten says "{file} could not be read, and Ramus will not write to it until it can: {error}"
+// in the language the app shows.
+//
+// One of the app's own files did not read and could not be moved aside, so
+// the app leaves it alone; changes made in the app are not saved to it.
+func AppFileNotWritten(file string, error string) string {
+	return In(i18n.Locale()).AppFileNotWritten(file, error)
+}
+
+// AppFileNotWritten says "{file} could not be read, and Ramus will not write to it until it can: {error}"
+// in the language of msgs.
+//
+// One of the app's own files did not read and could not be moved aside, so
+// the app leaves it alone; changes made in the app are not saved to it.
+func (msgs Messages) AppFileNotWritten(file string, error string) string {
+	return Catalog.Format(msgs.locale, "appFileNotWritten", map[string]any{"file": file, "error": error})
+}
+
+// AppSettingsPartlyRead says "Some settings in {file} could not be read and are at their defaults until they are mended: {error}"
+// in the language the app shows.
+//
+// Some values in the settings file are of the wrong kind; the file keeps
+// them as written. error names them.
+func AppSettingsPartlyRead(file string, error string) string {
+	return In(i18n.Locale()).AppSettingsPartlyRead(file, error)
+}
+
+// AppSettingsPartlyRead says "Some settings in {file} could not be read and are at their defaults until they are mended: {error}"
+// in the language of msgs.
+//
+// Some values in the settings file are of the wrong kind; the file keeps
+// them as written. error names them.
+func (msgs Messages) AppSettingsPartlyRead(file string, error string) string {
+	return Catalog.Format(msgs.locale, "appSettingsPartlyRead", map[string]any{"file": file, "error": error})
+}
+
 // AppPanic says "Something in Ramus failed: {error}"
 // in the language the app shows.
 //

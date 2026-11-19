@@ -189,22 +189,89 @@ func validTables(tables map[string]TableLayout) map[string]TableLayout {
 	return out
 }
 
-// Load reads the file at path. A missing file gives the defaults; a file
-// that does not parse gives the defaults and an error saying where, so
-// the app starts and can show what is wrong.
+// Load reads the file at path. A missing file gives the defaults. A
+// field of the wrong type costs that field only: it is at its default,
+// the file keeps it (Save does not write over it), and the error says
+// which. A file that does not read at all is moved aside, so that saving
+// cannot lose it, and gives the defaults; the error, a *LoadError, says
+// where it went, for the app to tell the user.
 func Load(path string) (Settings, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return Defaults, nil
 	}
 	if err != nil {
-		return Defaults, err
+		return Defaults, Unreadable(path, err)
 	}
-	var s Settings
+	s, partial, err := decode(data)
+	switch {
+	case err == nil:
+		return s, nil
+	case partial:
+		return s, &LoadError{Path: path, Err: err, Partial: true}
+	}
+	return Defaults, Unreadable(path, err)
+}
+
+// decode reads the content of a settings file. One that is not a JSON
+// object is an error with nothing read; partial is set when only some
+// fields did not decode, the others read.
+func decode(data []byte) (s Settings, partial bool, err error) {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(data, &top); err != nil {
+		return Defaults, false, describe(data, err)
+	}
+	// A value of the wrong type leaves its field as it was and the rest
+	// decodes: encoding/json carries on past it.
 	if err := json.Unmarshal(data, &s); err != nil {
-		return Defaults, fmt.Errorf("settings: %s: %w", path, describe(data, err))
+		return s.WithDefaults(), true, badFields(top, err)
 	}
-	return s.WithDefaults(), nil
+	return s.WithDefaults(), false, nil
+}
+
+// badFields says which of the fields in top do not decode, err when it
+// cannot tell.
+func badFields(top map[string]json.RawMessage, err error) error {
+	var msgs []string
+	t := reflect.TypeFor[Settings]()
+	for i := range t.NumField() {
+		key, raw, ok := lookupKey(top, jsonName(t.Field(i)))
+		if !ok {
+			continue
+		}
+		if ferr := json.Unmarshal(raw, reflect.New(t.Field(i).Type).Interface()); ferr != nil {
+			msgs = append(msgs, fmt.Sprintf("%q: %v", key, ferr))
+		}
+	}
+	if len(msgs) == 0 {
+		return err
+	}
+	return errors.New(strings.Join(msgs, "; "))
+}
+
+// lookupKey finds name in top as encoding/json does: as written, else
+// in another case.
+func lookupKey(top map[string]json.RawMessage, name string) (string, json.RawMessage, bool) {
+	if name == "" {
+		return "", nil, false
+	}
+	if v, ok := top[name]; ok {
+		return name, v, true
+	}
+	for k, v := range top {
+		if strings.EqualFold(k, name) {
+			return k, v, true
+		}
+	}
+	return "", nil, false
+}
+
+func jsonName(f reflect.StructField) string {
+	name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+	if name == "-" {
+		return ""
+	}
+	return name
 }
 
 func describe(data []byte, err error) error {
@@ -218,11 +285,22 @@ func describe(data []byte, err error) error {
 
 // Save writes s to path, keeping keys the file has that this version
 // does not know, and replacing the file at once so a reader never sees
-// half of it.
+// half of it. A file there that does not read is not written over: Save
+// fails and leaves it for the user to mend.
 func Save(path string, s Settings) error {
 	merged := map[string]json.RawMessage{}
-	if old, err := os.ReadFile(path); err == nil {
-		json.Unmarshal(old, &merged) // a broken file is replaced whole
+	old, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case err != nil:
+		return notOverwritten(path, err)
+	default:
+		if err := json.Unmarshal(old, &merged); err != nil {
+			return notOverwritten(path, describe(old, err))
+		}
+		if merged == nil { // the file says null
+			merged = map[string]json.RawMessage{}
+		}
 	}
 	known, err := json.Marshal(s)
 	if err != nil {
@@ -230,13 +308,35 @@ func Save(path string, s Settings) error {
 	}
 	var fields map[string]json.RawMessage
 	json.Unmarshal(known, &fields)
-	// Every key of this version is dropped first: one left out of the
-	// new file is at its default and must not keep its old value.
-	for _, k := range knownKeys() {
-		delete(merged, k)
-	}
-	for k, v := range fields {
-		merged[k] = v
+	unset := fieldsOf(Defaults.WithDefaults())
+	now := fieldsOf(s.WithDefaults())
+	t := reflect.TypeFor[Settings]()
+	for i := range t.NumField() {
+		name := jsonName(t.Field(i))
+		if name == "" {
+			continue
+		}
+		// A value Load could not read is in force as the default: while s
+		// leaves it there, the file keeps what the user wrote.
+		if key, raw, ok := lookupKey(merged, name); ok && bytes.Equal(now[name], unset[name]) &&
+			json.Unmarshal(raw, reflect.New(t.Field(i).Type).Interface()) != nil {
+			if key != name {
+				delete(merged, key)
+				merged[name] = raw
+			}
+			continue
+		}
+		// Every other key of this version is dropped first: one left out
+		// of the new file is at its default and must not keep its old
+		// value.
+		for k := range merged {
+			if strings.EqualFold(k, name) {
+				delete(merged, k)
+			}
+		}
+		if v, ok := fields[name]; ok {
+			merged[name] = v
+		}
 	}
 	data, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
@@ -245,16 +345,18 @@ func Save(path string, s Settings) error {
 	return WriteFile(path, append(data, '\n'))
 }
 
-// knownKeys are the JSON names of the fields of Settings.
-func knownKeys() []string {
-	var keys []string
-	t := reflect.TypeFor[Settings]()
-	for i := range t.NumField() {
-		if name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ","); name != "" && name != "-" {
-			keys = append(keys, name)
-		}
-	}
-	return keys
+// notOverwritten is the error of a save refused because the file there
+// does not read.
+func notOverwritten(path string, err error) error {
+	return fmt.Errorf("settings: %s does not read, so it is not written over until it is mended: %w", path, err)
+}
+
+// fieldsOf is s as JSON, by key.
+func fieldsOf(s Settings) map[string]json.RawMessage {
+	data, _ := json.Marshal(s)
+	var m map[string]json.RawMessage
+	json.Unmarshal(data, &m)
+	return m
 }
 
 // WriteFile replaces path with data through a temporary file beside it.

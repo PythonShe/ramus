@@ -3232,6 +3232,22 @@
   "@appShellNotRead": {
     "description": "PATH is the environment variable; keep it as is."
   },
+  "appFileSetAside": "{file} could not be read, so it was moved to {kept} and Ramus goes on without it: {error}",
+  "@appFileSetAside": {
+    "description": "One of the app's own files (its settings, the list of repositories, the windows open, a commit message being written) did not read at launch. file and kept are full paths; error says what is wrong in it."
+  },
+  "appFilePartlyRead": "Part of {file} could not be read. Ramus goes on with the rest and kept a copy of the file as {kept}: {error}",
+  "@appFilePartlyRead": {
+    "description": "Some values in one of the app's own files did not read; the rest did. file and kept are full paths; error names the values."
+  },
+  "appFileNotWritten": "{file} could not be read, and Ramus will not write to it until it can: {error}",
+  "@appFileNotWritten": {
+    "description": "One of the app's own files did not read and could not be moved aside, so the app leaves it alone; changes made in the app are not saved to it."
+  },
+  "appSettingsPartlyRead": "Some settings in {file} could not be read and are at their defaults until they are mended: {error}",
+  "@appSettingsPartlyRead": {
+    "description": "Some values in the settings file are of the wrong kind; the file keeps them as written. error names them."
+  },
   "appPanic": "Something in Ramus failed: {error}",
   "@appPanic": {
     "description": "A bug stopped work that belongs to no repository; error is what failed, as the program says it."

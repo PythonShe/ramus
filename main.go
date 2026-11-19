@@ -111,7 +111,7 @@ func main() {
 	ws.focused = first
 	for _, e := range []error{cfgErr, libErr, layoutErr, trustErr} {
 		if e != nil {
-			first.app.Notify(e.Error())
+			first.app.Notify(ui.LoadNotice(e))
 		}
 	}
 	// handle carries out a request, made in folder wd, in the window it

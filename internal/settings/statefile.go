@@ -1,0 +1,108 @@
+package settings
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"strconv"
+)
+
+// LoadError is a file of the app's state (the settings, the library, the
+// layout, a draft) that could not be read, or not all of it. Such a file
+// is never written over: it is kept aside first, or, when it cannot be,
+// left alone and not written at all.
+type LoadError struct {
+	// Path is the file.
+	Path string
+	// Err is why it could not be read.
+	Err error
+	// Partial is set when the rest of the file was read and is in force.
+	Partial bool
+	// KeptAs is where the file as it was is kept: moved there when none
+	// of it was read, copied when the rest was. "" when it is not kept
+	// aside: KeepErr says why, or, without one, nothing of it will be
+	// lost, as with settings whose file keeps what it could not read.
+	KeptAs  string
+	KeepErr error
+}
+
+func (e *LoadError) Error() string {
+	msg := e.Path + ": " + e.Err.Error()
+	switch {
+	case e.KeptAs != "":
+		msg += " (kept as " + e.KeptAs + ")"
+	case e.KeepErr != nil:
+		msg += " (not kept aside, so not written over: " + e.KeepErr.Error() + ")"
+	}
+	return msg
+}
+
+func (e *LoadError) Unwrap() error { return e.Err }
+
+// maxAside bounds the names tried for a copy kept aside.
+const maxAside = 100
+
+// asideName is the n-th name a file kept aside may take beside path.
+func asideName(path string, n int) string {
+	if n == 0 {
+		return path + ".broken"
+	}
+	return path + ".broken-" + strconv.Itoa(n+1)
+}
+
+// KeepAside moves the file at path, which could not be read at all, to a
+// name beside it that no file has, so that writing path again loses
+// nothing, and returns that name.
+func KeepAside(path string) (string, error) {
+	for n := range maxAside {
+		name := asideName(path, n)
+		if _, err := os.Lstat(name); !errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err := rename(path, name); err != nil {
+			return "", err
+		}
+		return name, nil
+	}
+	return "", fmt.Errorf("%s: no free name to keep it aside", path)
+}
+
+// KeepCopy keeps data, the content of the file at path, part of which
+// could not be read, in a file beside it, and returns its name: one that
+// holds the same already, else a new one. Read again at each launch
+// until a save replaces it, the same file is kept once.
+func KeepCopy(path string, data []byte) (string, error) {
+	for n := range maxAside {
+		name := asideName(path, n)
+		old, err := os.ReadFile(name)
+		if err == nil && bytes.Equal(old, data) {
+			return name, nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err := WriteFile(name, data); err != nil {
+			return "", err
+		}
+		return name, nil
+	}
+	return "", fmt.Errorf("%s: no free name to keep a copy", path)
+}
+
+// Unreadable is the LoadError of the file at path, which could not be
+// read at all: it is moved aside.
+func Unreadable(path string, err error) *LoadError {
+	e := &LoadError{Path: path, Err: err}
+	e.KeptAs, e.KeepErr = KeepAside(path)
+	return e
+}
+
+// PartlyRead is the LoadError of the file at path, holding data, of which
+// the rest was read: a copy of it is kept aside.
+func PartlyRead(path string, data []byte, err error) *LoadError {
+	e := &LoadError{Path: path, Err: err, Partial: true}
+	e.KeptAs, e.KeepErr = KeepCopy(path, data)
+	return e
+}

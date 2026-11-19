@@ -1,10 +1,13 @@
 package drafts
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"ramus/internal/settings"
 )
 
 // A draft kept is read back by a new store; an empty one removes it, and
@@ -48,8 +51,16 @@ func TestKeepLoad(t *testing.T) {
 	if err := os.WriteFile(n.name("/r/bad"), []byte("{"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := n.Load("/r/bad"); err == nil {
-		t.Fatal("a broken file read")
+	_, err := n.Load("/r/bad")
+	var le *settings.LoadError
+	if !errors.As(err, &le) || le.KeptAs != n.name("/r/bad")+".broken" {
+		t.Fatalf("a broken file read: %v", err)
+	}
+	// The next draft kept leaves the broken one where it went.
+	n.Keep("/r/bad", Draft{Subject: "new"})
+	waitIdle(n)
+	if kept, _ := os.ReadFile(le.KeptAs); string(kept) != "{" {
+		t.Fatalf("kept %q", kept)
 	}
 }
 

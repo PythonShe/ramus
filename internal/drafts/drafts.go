@@ -60,7 +60,9 @@ func (s *Store) name(path string) string {
 }
 
 // Load reads the draft of the repository at path, none when there is
-// none. It reads the disk: never call it on the main thread.
+// none. A file that does not read is moved aside, so the next draft
+// kept does not replace it, and the error, a *settings.LoadError, says
+// where it went. It reads the disk: never call it on the main thread.
 func (s *Store) Load(path string) (Draft, error) {
 	s.write.Lock()
 	defer s.write.Unlock()
@@ -70,26 +72,36 @@ func (s *Store) Load(path string) (Draft, error) {
 	if ok {
 		return d, nil
 	}
-	f, err := os.Open(s.name(path))
+	name := s.name(path)
+	data, err := read(name)
 	if errors.Is(err, os.ErrNotExist) {
 		return Draft{}, nil
 	}
 	if err != nil {
-		return Draft{}, err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxFile+1))
-	if err != nil {
-		return Draft{}, err
+		return Draft{}, settings.Unreadable(name, err)
 	}
 	var v file
-	if len(data) > maxFile || json.Unmarshal(data, &v) != nil {
-		return Draft{}, errors.New("drafts: " + f.Name() + " is not a draft")
+	if err := json.Unmarshal(data, &v); err != nil {
+		return Draft{}, settings.Unreadable(name, errors.New("not a draft: "+err.Error()))
 	}
 	if v.Path != path {
 		return Draft{}, nil
 	}
 	return v.Draft, nil
+}
+
+// read reads the file at name, up to maxFile.
+func read(name string) ([]byte, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxFile+1))
+	if err == nil && len(data) > maxFile {
+		err = errors.New("larger than a draft can be")
+	}
+	return data, err
 }
 
 // Keep has d written as the draft of the repository at path soon; an

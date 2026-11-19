@@ -1,9 +1,13 @@
 package settings
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -112,5 +116,98 @@ func TestTablesNormalized(t *testing.T) {
 	}
 	if back, err := Load(p); err != nil || !reflect.DeepEqual(back, s) {
 		t.Fatalf("round trip %+v %v", back, err)
+	}
+}
+
+// A settings file that does not read at all is moved aside before
+// anything is written, so the first save made in the app (a column
+// dragged) cannot replace the user's actions, shortcuts and editor with
+// the defaults; the error says where the file went.
+func TestUnreadableFileKeptAside(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	text := `{"theme": "dark", "actions": [{"name": "Lint", "command": ["/usr/bin/make", "lint"]}], "emails": ["me@x"],}`
+	os.WriteFile(p, []byte(text), 0o600)
+	s, err := Load(p)
+	var le *LoadError
+	if !errors.As(err, &le) || le.Partial || le.KeptAs != p+".broken" || le.Path != p || !reflect.DeepEqual(s, Defaults) {
+		t.Fatalf("load: %+v %v", s, err)
+	}
+	s.DiffSplit = true
+	if err := Save(p, s); err != nil {
+		t.Fatal(err)
+	}
+	if kept, _ := os.ReadFile(p + ".broken"); string(kept) != text {
+		t.Fatalf("kept aside: %q", kept)
+	}
+	// Broken again: a second copy, the first left alone.
+	os.WriteFile(p, []byte("{"), 0o600)
+	if _, err := Load(p); !errors.As(err, &le) || le.KeptAs != p+".broken-2" {
+		t.Fatalf("second: %v", err)
+	}
+	if kept, _ := os.ReadFile(p + ".broken"); string(kept) != text {
+		t.Fatalf("first copy changed: %q", kept)
+	}
+}
+
+// A file the app may not read is moved aside too, never replaced unseen.
+func TestFileNotOpenedKeptAside(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("permissions do not stop this user reading")
+	}
+	p := filepath.Join(t.TempDir(), "settings.json")
+	os.WriteFile(p, []byte(`{"theme": "dark"}`), 0o600)
+	os.Chmod(p, 0)
+	_, err := Load(p)
+	var le *LoadError
+	if !errors.As(err, &le) || le.KeptAs != p+".broken" {
+		t.Fatalf("load: %v", err)
+	}
+	if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("still in place: %v", err)
+	}
+}
+
+// A field of the wrong type costs that field only: the others load, and
+// a save keeps the field as the user wrote it for them to mend.
+func TestWrongTypedFieldCostsOnlyItself(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	os.WriteFile(p, []byte(`{"theme": "dark", "actions": [{"name": "Lint", "command": ["/usr/bin/make", "lint"]}],
+		"emails": ["me@x"], "editor": "/usr/bin/vim", "snapshotDays": "long"}`), 0o600)
+	s, err := Load(p)
+	var le *LoadError
+	if !errors.As(err, &le) || !le.Partial || le.KeptAs != "" || !strings.Contains(err.Error(), `"editor"`) || !strings.Contains(err.Error(), `"snapshotDays"`) {
+		t.Fatalf("load error %v", err)
+	}
+	if s.Theme != "dark" || len(s.Actions) != 1 || len(s.Emails) != 1 || s.Editor != nil || s.SnapshotDays != Defaults.SnapshotDays {
+		t.Fatalf("loaded %+v", s)
+	}
+	s.DiffSplit = true
+	if err := Save(p, s); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(p)
+	for _, want := range []string{`"editor": "/usr/bin/vim"`, `"snapshotDays": "long"`, `"diffSplit": true`, `"Lint"`, `"me@x"`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("saved file lacks %s:\n%s", want, data)
+		}
+	}
+	// Set in the app, the field is the app's again.
+	s.Editor = []string{"/usr/bin/nano"}
+	Save(p, s)
+	if back, err := Load(p); err == nil || !slices.Equal(back.Editor, s.Editor) {
+		t.Fatalf("editor set in the app: %v %v", back.Editor, err)
+	}
+}
+
+// A save never writes over a file that does not read, as one broken by
+// hand while the app runs.
+func TestSaveRefusesUnreadableFile(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "settings.json")
+	os.WriteFile(p, []byte(`{"theme": "dark",}`), 0o600)
+	if err := Save(p, Defaults); err == nil || !strings.Contains(err.Error(), p) {
+		t.Fatalf("save over a broken file: %v", err)
+	}
+	if data, _ := os.ReadFile(p); string(data) != `{"theme": "dark",}` {
+		t.Fatalf("file now %q", data)
 	}
 }
