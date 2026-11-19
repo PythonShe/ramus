@@ -195,6 +195,10 @@ func TestTrustStartsTheBackgroundFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.until(t, "the fetch once trusted", func() bool { keep(); return fetched() })
+	// Stopped before the remote hangs: one it started after would hang
+	// for its whole minute, as nothing closes the repository under it.
+	s.SetBackgroundFetch(0, nil)
+	m.until(t, "the last background fetch", func() bool { return !s.Fetching() })
 
 	// A fetch that hangs until the repository closes.
 	hang := filepath.Join(t.TempDir(), "ssh")
@@ -208,8 +212,6 @@ func TestTrustStartsTheBackgroundFetch(t *testing.T) {
 		v, _ := s.Repo.Config().Get("core.sshCommand")
 		return v == hang
 	})
-	s.SetBackgroundFetch(0, nil)
-	m.until(t, "the last background fetch", func() bool { return !s.Fetching() })
 	pickerDone := false
 	if !s.FetchFresh(0, func(error) { pickerDone = true }) {
 		t.Fatal("no fetch started")
