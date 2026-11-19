@@ -10,6 +10,7 @@ import (
 	"ramus/internal/git/commitgraph"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 	"ramus/locales"
@@ -128,6 +129,42 @@ func TestGraphWriteGivesWay(t *testing.T) {
 	})
 	if w := graphWrites(s); len(w) != 1 || !w[0].Quiet || w[0].Err != nil {
 		t.Fatalf("writes %d", len(w))
+	}
+}
+
+// The commit-graph the app writes gives way to the user's writes, not to
+// the background fetch: on a repository whose graph takes longer to
+// write than the time between fetches, it would never be written.
+func TestGraphWriteDoesNotGiveWayToTheBackgroundFetch(t *testing.T) {
+	origin := gittest.Init(t)
+	origin.Commit("one")
+	r := gittest.Init(t)
+	r.Commit("one")
+	r.Git("remote", "add", "origin", origin.Dir)
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "refs", func() bool { return s.State.Refs != nil })
+	// A graph write that takes a while.
+	j, err := s.submit(write.Op{Name: "Slow", Cmd: run.Cmd{GitDir: s.Repo.GitDir, WorkTree: r.Dir,
+		Config: []string{"alias.slow=!sleep 1"}, Args: []string{"slow"}}}, repo.GraphChanged, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.graph.repo, s.graph.job = s.Repo, j
+	if !s.FetchFresh(0, func(error) {}) {
+		t.Fatal("no fetch")
+	}
+	m.until(t, "the graph write", func() bool {
+		select {
+		case <-j.Done():
+			return true
+		default:
+			return false
+		}
+	})
+	if _, err := j.Result(); err != nil {
+		t.Fatalf("the graph write gave way to the background fetch: %v", err)
 	}
 }
 

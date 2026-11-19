@@ -176,11 +176,13 @@ func (s *Session) followThen(e *LogEntry, j *write.Job, what repo.Change) {
 	// quiet fetch itself and the quiet writes: the queue runs one at a
 	// time, so a fetch in the background, which may take minutes, gives
 	// its turn up and is tried again later. A commit-graph the session
-	// writes on its own gives it up to any other write.
+	// writes on its own gives it up to any write of the user's too, but
+	// not to the background fetch: one that takes longer to write than
+	// the time between fetches would never be written.
 	if bg := s.fetch.job; bg != nil && bg != j && !e.Quiet {
 		bg.Cancel()
 	}
-	if g := s.graph.job; g != nil && g != j {
+	if g := s.graph.job; g != nil && g != j && !e.Quiet {
 		g.Cancel()
 	}
 	e.job, e.Percent = j, -1
