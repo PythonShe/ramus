@@ -266,6 +266,13 @@ func TestRemotesFetchPullPushAndTags(t *testing.T) {
 	if typ := strings.TrimSpace(h.r.Git("cat-file", "-t", "v1")); typ != "tag" || h.rev("v1-light") != head {
 		t.Fatalf("v1 is a %s", typ)
 	}
+	// A line of the message that starts with # is the user's, not a
+	// comment.
+	op, err = CreateTag(h.w, "v1-hash", head, Annotated, "Release\n\n#123 fixed the crash\n")
+	h.do(op, err, true)
+	if got := h.r.Git("tag", "-l", "--format=%(contents)", "v1-hash"); got != "Release\n\n#123 fixed the crash\n\n" {
+		t.Fatalf("tag message %q", got)
+	}
 	if _, err := CreateTag(h.w, "v2", head, Annotated, " "); err == nil {
 		t.Fatal("an annotated tag with no message")
 	}

@@ -133,7 +133,9 @@ func CreateTag(w Where, name, commit string, kind TagKind, message string) (Op, 
 		if kind == Signed {
 			flag = "-s"
 		}
-		args = append(args, flag, "-F", "-")
+		// git strips lines starting with # from a message it is given
+		// unless told otherwise: an issue reference, a heading.
+		args = append(args, "--cleanup=whitespace", flag, "-F", "-")
 		op.Input = []byte(message)
 	}
 	op.Cmd = run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: append(args, "--end-of-options", name, commit), Timeout: HookTimeout}
