@@ -43,6 +43,34 @@ func TestCloseTabWhileWriting(t *testing.T) {
 	h.until("closed", func() bool { return len(h.app.tabs) == 0 })
 }
 
+// Reopening a repository, as the warning bar's Reopen and the panic
+// banner offer, closes its tab: with a write running it asks first, as
+// closing the tab does.
+func TestReopenWhileWriting(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	tb.sel = "history"
+	h.hang(tb)
+	h.until("running", h.app.Writing)
+	h.app.reopen(tb)
+	h.until("the question", h.shows("Slow push is still running in "+h.app.title(tb)))
+	h.click("Cancel")
+	if h.app.current() != tb || busyWrite(tb) == nil {
+		t.Fatal("reopened, or stopped the write, without asking")
+	}
+	h.app.reopen(tb)
+	h.until("the question again", h.shows("Stop and Close"))
+	h.click("Stop and Close")
+	h.until("reopened", func() bool { return len(h.app.tabs) == 1 && h.app.current() != tb })
+	if h.app.current().sel != "history" {
+		t.Fatalf("reopened on %q", h.app.current().sel)
+	}
+}
+
 // Closing the window or quitting while a write runs asks first; once
 // told to, the writes stop and the window may go.
 func TestQuitWhileWriting(t *testing.T) {

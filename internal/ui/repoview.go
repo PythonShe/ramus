@@ -216,19 +216,25 @@ func (a *App) panicBanner(c *ui.Context, t *tab) {
 	})
 }
 
-// reopen closes the repository of tab t and opens it again in its place.
+// reopen closes the repository of tab t and opens it again in its place,
+// first asking, as closing the tab does, whether to stop the write
+// running there.
 func (a *App) reopen(t *tab) {
-	i := slices.Index(a.tabs, t)
-	if i < 0 {
-		return
-	}
-	path, sel := t.s.Path, t.sel
-	a.Close(i)
-	a.Open(path)
-	n := len(a.tabs) - 1
-	a.tabs[n].sel = sel
-	a.Move(n, i)
-	a.active = i
+	a.askToDrop(t, func() {
+		i := slices.Index(a.tabs, t)
+		if i < 0 {
+			return
+		}
+		path, sel, n := t.s.Path, t.sel, len(a.tabs)
+		a.Close(i)
+		a.Open(path)
+		if len(a.tabs) != n {
+			return // shown in another window instead
+		}
+		a.tabs[n-1].sel = sel
+		a.Move(n-1, i)
+		a.active = i
+	})
 }
 
 // sideLimit bounds the refs a sidebar section lists; the branch and tag
