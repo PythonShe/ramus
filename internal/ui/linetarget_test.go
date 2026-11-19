@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui/editor"
+
+	"ramus/internal/git/diff"
+	"ramus/internal/session"
 )
 
 // Lines picked in one file, then another file chosen: until the other
@@ -56,5 +59,25 @@ func TestLinesStayWithTheirFile(t *testing.T) {
 	read := func(name string) string { b, _ := os.ReadFile(filepath.Join(r.Dir, name)); return string(b) }
 	if !strings.Contains(read("a.txt"), "twelve") {
 		t.Fatal("a.txt changed")
+	}
+}
+
+// A file in Git LFS shows the content its pointers stand for, but git
+// applies lines to the pointers: none can be picked.
+func TestNoLinesOfAnLFSPointer(t *testing.T) {
+	text := "diff --git a/a.dat b/a.dat\nindex 1111111..2222222 100644\n--- a/a.dat\n+++ b/a.dat\n" +
+		"@@ -1,3 +1,3 @@\n version https://git-lfs.github.com/spec/v1\n" +
+		"-oid sha256:" + strings.Repeat("a", 64) + "\n-size 4\n" +
+		"+oid sha256:" + strings.Repeat("b", 64) + "\n+size 11\n"
+	p, err := diff.Parse([]byte(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := diffKey{path: "a.dat", src: diff.Unstaged, ws: diff.AllWhitespace}
+	if !partialOK(session.PatchResult{Parsed: p}, key) {
+		t.Fatal("a text patch offers no lines; the test shows nothing")
+	}
+	if partialOK(session.PatchResult{Parsed: p, LFS: true, HasSides: true}, key) {
+		t.Fatal("lines of an LFS pointer offered")
 	}
 }

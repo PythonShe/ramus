@@ -222,9 +222,11 @@ func (d *diffState) partialOK() bool {
 
 func partialOK(res session.PatchResult, key diffKey) bool {
 	p := res.Parsed
-	// Lines of a rename applied back would undo the rename with them.
+	// Lines of a rename applied back would undo the rename with them. A
+	// file in LFS shows its content, but its patch is of the pointers,
+	// which a part of would break.
 	return p != nil && len(p.Files) == 1 && !p.Files[0].Binary && !p.Files[0].Quoted &&
-		!res.Truncated && !p.Cut && key.src != diff.Untracked && key.ws == diff.AllWhitespace &&
+		!res.Truncated && !p.Cut && !res.LFS && key.src != diff.Untracked && key.ws == diff.AllWhitespace &&
 		key.orig == ""
 }
 
