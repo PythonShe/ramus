@@ -137,6 +137,10 @@ func (a *App) loadMerge(t *tab, path string) {
 		}
 		ms.loading = false
 		n := conflict.Count(cf.Segments)
+		if cf.Err == nil && ms.err != locales.MergeChangedOnDisk() {
+			// A save that failed said why; the file read well since.
+			ms.err = ""
+		}
 		if sameConflict(ms.cf, cf) && n == len(ms.choices) {
 			// Any write ending reads the file again, a background fetch
 			// included: the choices made on the file as it is stay.

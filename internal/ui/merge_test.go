@@ -195,6 +195,32 @@ func TestMergeChoicesOutliveOtherWrites(t *testing.T) {
 	h.until("why", h.shows(locales.MergeChangedOnDisk()))
 }
 
+// A save that failed says why until the file is read again and shows
+// well: the error does not outlive it.
+func TestMergeSaveErrorGoesWithARead(t *testing.T) {
+	h := newHarness(t)
+	r := conflictingRepo(h)
+	h.trust.Set(r.GitDir(), true)
+	r.Run(nil, "merge", "topic")
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	h.click("a.txt")
+	h.until("the editor", h.shows("Conflict 1"))
+	ms := &tb.merge
+	ms.err = "the save failed"
+	r.Write("z.txt", "z\n")
+	w := tb.s.Writes
+	if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{"z.txt"})); err != nil {
+		t.Fatal(err)
+	}
+	h.until("read again", func() bool { return tb.s.Writes > w && ms.readW == tb.s.Writes && !ms.loading })
+	h.tt.Frame()
+	if h.tt.HasText("the save failed") {
+		t.Fatal("a save error outlived a good read")
+	}
+}
+
 // Enter, a double click or Mark Resolved on a file that still holds
 // conflict markers asks before staging it, Cancel the default; a file
 // whose markers are gone is staged at once.
