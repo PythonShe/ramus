@@ -250,6 +250,10 @@ func compareTrees(c *Changes, next *[]pending, prefix, a, b []byte, hashSize int
 					if err != nil {
 						return err
 					}
+					if len(*next) >= maxChanges {
+						c.Truncated = true
+						return nil
+					}
 					*next = append(*next, pending{prefix: p, old: bytes.Clone(ea.OID), new: bytes.Clone(eb.OID)})
 				}
 			case kind(ea.Mode) != kind(eb.Mode):

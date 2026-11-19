@@ -177,3 +177,46 @@ func TestAmplification(t *testing.T) {
 		t.Fatalf("truncated %v with %d changes", c.Truncated, c.Len())
 	}
 }
+
+// Two trees that name the same changed subtree twice at every level
+// queue no more pairs to compare than the changes they may list.
+func TestAmplificationOfBothSides(t *testing.T) {
+	r := gittest.Init(t)
+	chain := func(content string) []byte {
+		blob, err := r.Run([]byte(content), "hash-object", "-w", "--stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cur, err := r.Run([]byte("100644 blob "+strings.TrimSpace(blob)+"\tf\n"), "mktree")
+		for i := 0; i < 14 && err == nil; i++ {
+			id := strings.TrimSpace(cur)
+			cur, err = r.Run([]byte("040000 tree "+id+"\ta\n040000 tree "+id+"\tb\n"), "mktree")
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		top, _ := hex.DecodeString(strings.TrimSpace(cur))
+		return top
+	}
+	a, b := chain("x\n"), chain("y\n")
+	defer func(n int) { maxChanges = n }(maxChanges)
+	maxChanges = 1000
+	cr := &largestBatch{r: start(t, r)}
+	c, err := Diff(cr, 20, a, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Truncated || c.Len() > maxChanges || cr.largest > 2*maxChanges {
+		t.Fatalf("truncated %v with %d changes, a batch of %d ids", c.Truncated, c.Len(), cr.largest)
+	}
+}
+
+type largestBatch struct {
+	r       Reader
+	largest int
+}
+
+func (l *largestBatch) Read(oids [][]byte, fn func(int, catfile.Object) error) error {
+	l.largest = max(l.largest, len(oids))
+	return l.r.Read(oids, fn)
+}
