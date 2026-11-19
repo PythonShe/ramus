@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -135,6 +136,40 @@ func TestPictureDifferenceOfTheSame(t *testing.T) {
 	(&png.Encoder{CompressionLevel: png.NoCompression}).Encode(&b, img)
 	h.openPictureChange("same.png", a, b.String())
 	h.until("the difference", h.shows("No pixels differ"))
+}
+
+// Sides that say they are too large to compare are found so before any
+// is drawn or decoded at that size: an SVG names the size it is drawn
+// at, which nothing else bounds.
+func TestDifferenceTooLargeAllocatesNothing(t *testing.T) {
+	svg := func(fill string) []byte {
+		return []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="6000" height="6000"><rect width="10" height="10" fill="` + fill + `"/></svg>`)
+	}
+	big := pngOf(t, 4097, 4097, color.RGBA{0, 200, 0, 255})
+	for _, sides := range [][2][]byte{{svg("red"), svg("blue")}, {[]byte(big), []byte(pngOf(t, 4, 4, color.RGBA{200, 0, 0, 255}))}} {
+		a, _, _ := decodePicture(sides[0])
+		b, _, _ := decodePicture(sides[1])
+		if a == nil || b == nil {
+			t.Fatal("a side did not decode")
+		}
+		h := newHarness(t)
+		pv := &patchView{}
+		pv.pics.images = [2]ui.ImageSource{a, b}
+		pv.pics.sides = sides
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+		tt := ui.NewTester(func(c *ui.Context) { h.app.makeDifference(c, pv) }, 200, 200)
+		tt.Frame()
+		(<-h.updates)()
+		runtime.ReadMemStats(&after)
+		if !pv.pics.tooLarge || pv.pics.diff != nil {
+			t.Fatalf("tooLarge %v", pv.pics.tooLarge)
+		}
+		if made := after.TotalAlloc - before.TotalAlloc; made > 16<<20 {
+			t.Fatalf("%d MB made to find the sides too large", made>>20)
+		}
+	}
 }
 
 func TestDifference(t *testing.T) {

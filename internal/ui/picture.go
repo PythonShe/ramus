@@ -334,19 +334,28 @@ func (a *App) makeDifference(c *ui.Context, pv *patchView) {
 	current := color.NRGBA{t.R, t.G, t.B, t.A}
 	gen, update, sides, images := pv.gen, a.Update, ps.sides, ps.images
 	a.goWork(nil, func() {
-		var pics [2]image.Image
-		w, h := 0, 0
-		for k, img := range images {
+		// The size the sides say first: an SVG is drawn at the size it
+		// names, however large, and a bitmap decoded again whole.
+		var fw, fh float64
+		for _, img := range images {
 			iw, ih := ui.ImageSize(img)
-			if svg, ok := img.(*ui.SVG); ok {
-				pics[k] = svg.Image(int(math.Ceil(float64(iw))), int(math.Ceil(float64(ih))), current)
-			} else if p, _, err := image.Decode(bytes.NewReader(sides[k])); err == nil {
-				pics[k] = p
+			fw, fh = max(fw, math.Ceil(float64(iw))), max(fh, math.Ceil(float64(ih)))
+		}
+		w, h := 0, 0
+		var pics [2]image.Image
+		if fw*fh <= maxDiffPixels {
+			w, h = int(fw), int(fh)
+			for k, img := range images {
+				iw, ih := ui.ImageSize(img)
+				if svg, ok := img.(*ui.SVG); ok {
+					pics[k] = svg.Image(int(math.Ceil(float64(iw))), int(math.Ceil(float64(ih))), current)
+				} else if p, _, err := image.Decode(bytes.NewReader(sides[k])); err == nil {
+					pics[k] = p
+				}
 			}
-			w, h = max(w, int(math.Ceil(float64(iw)))), max(h, int(math.Ceil(float64(ih))))
 		}
 		var d ui.ImageSource
-		n, tooLarge := 0, w*h > maxDiffPixels || pics[0] == nil || pics[1] == nil
+		n, tooLarge := 0, pics[0] == nil || pics[1] == nil
 		if !tooLarge {
 			var img *image.RGBA
 			img, n = difference(pics[0], pics[1], w, h)
