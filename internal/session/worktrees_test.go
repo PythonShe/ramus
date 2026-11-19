@@ -438,3 +438,53 @@ func TestLinkedWorktreeConfigRunsNoDriver(t *testing.T) {
 		t.Fatalf("summary %+v, patch error %v", sum, patch.Err)
 	}
 }
+
+// A repository trusted as its work tree, its git directory apart from
+// it, does not carry its trust to the other worktrees of that directory:
+// the busy check before a background fetch runs their drivers no more
+// than the dashboard does.
+func TestBusyCheckTrustsOnlyTheFolderTrusted(t *testing.T) {
+	marks := t.TempDir()
+	mark := markWith(t, marks, "busy")
+	r := gittest.Init(t, "--separate-git-dir", filepath.Join(t.TempDir(), "g"))
+	r.Write(".gitattributes", "*.z filter=wt\n")
+	r.Write("a.z", "one\n")
+	r.Commit("one")
+	r.Git("config", "extensions.worktreeConfig", "true")
+	wt := addWorktree(t, r, "agent")
+	w := gittest.Open(t, wt)
+	w.Git("config", "--worktree", "filter.wt.process", mark+"exit 1")
+	w.Git("config", "--worktree", "filter.wt.clean", mark+"cat")
+	w.Git("config", "--worktree", "filter.wt.required", "true")
+	// Same size, so that git reads the file to tell.
+	os.WriteFile(filepath.Join(wt, "a.z"), []byte("two\n"), 0o644)
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.Dir), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	if s.State.Restricted || s.Repo.TrustDir != r.Dir {
+		t.Fatalf("restricted %v, trusted as %s", s.State.Restricted, s.Repo.TrustDir)
+	}
+	othersBusy(t.Context(), s.Repo)
+	noMarks(t, marks)
+}
+
+// The worktrees of a repository the user trusts are trusted with it: git
+// runs in them as it does in the repository, not hardened.
+func TestWorktreesOfATrustedRepositoryRunPlain(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("one")
+	wt := addWorktree(t, r, "agent")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	if s.State.Restricted {
+		t.Fatal("not trusted")
+	}
+	_, rn, err := s.gitIn(s.Repo)(t.Context(), wt)
+	if err != nil || rn != s.Repo.Runner {
+		t.Fatalf("the worktree runs git hardened (%v)", err)
+	}
+}

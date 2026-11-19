@@ -326,9 +326,11 @@ func othersBusy(ctx context.Context, r *repo.Repository) bool {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	// Without the session's trust store, only r's own worktrees count as
-	// trusted, and those only when r is.
-	own := func(commonDir string) bool { return !r.Restricted && commonDir == r.CommonDir }
+	// Without the session's trust store, only the folders r's trust is
+	// recorded under count as trusted, and those only when r is: not the
+	// other worktrees of a git directory r was trusted apart from, by its
+	// work tree.
+	own := func(trustDir string) bool { return !r.Restricted && trustDir == r.TrustDir }
 	in := func(ctx context.Context, dir string) (repo.Location, *run.Runner, error) {
 		return folderGit(ctx, r, r.Runner, own, dir)
 	}
