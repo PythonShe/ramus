@@ -222,23 +222,14 @@ func findGit(ws *windows, crash *crashlog.Log, ask *askpass.Server) {
 }
 
 // listenAsk starts listening for the questions git and ssh ask through
-// the askpass helper, each shown in the window of the repository that
-// asks, else the one last focused. None in the probe: it asks nothing.
+// the askpass helper, each shown as ws.ask has it. None in the probe: it
+// asks nothing.
 func listenAsk(ws *windows) *askpass.Server {
 	if ws.probe != "" {
 		return nil
 	}
 	s, err := askpass.Listen(func(q *askpass.Ask) {
-		mygo.RunOnMain(func() {
-			w := ws.showing(q.Dir)
-			if w == nil {
-				w = ws.target()
-			}
-			w.app.Ask(q)
-			if w.win != nil {
-				w.win.Invalidate()
-			}
-		})
+		mygo.RunOnMain(func() { ws.ask(q) })
 	})
 	if err != nil {
 		log.Print(err) // git and ssh then fail where they would ask

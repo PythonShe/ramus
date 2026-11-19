@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/askpass"
 	"ramus/internal/git/gittest"
@@ -100,4 +101,51 @@ func TestAskpassDialog(t *testing.T) {
 	helper.Process.Kill()
 	helper.Wait()
 	h.until("the notice gone", func() bool { return len(h.app.asking.list) == 0 && !h.tt.HasText("Security key") })
+}
+
+// A window closing leaves no question from git unanswered: one asked in
+// a repository open there is declined, its git stopping with the window;
+// one asked elsewhere, as by a clone in another window, is handed on;
+// and one still left when the window is gone is declined too.
+func TestAskpassWindowCloses(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.app.Open(r.Dir)
+	program, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := askpass.Listen(func(q *askpass.Ask) { h.updates <- func() { h.app.Ask(q) } })
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	elsewhere := t.TempDir()
+	ended := map[string]chan error{}
+	for _, dir := range []string{r.Dir, elsewhere} {
+		helper := exec.Command(program, "Password for 'https://git.example': ")
+		helper.Env, helper.Dir = append(gittest.Env(), s.Env(program)...), dir
+		if err := helper.Start(); err != nil {
+			t.Fatal(err)
+		}
+		ended[dir] = make(chan error, 1)
+		go func() { ended[dir] <- helper.Wait() }()
+	}
+	h.until("both questions", func() bool { return len(h.app.asking.list) == 2 })
+	waitEnd := func(dir string) {
+		t.Helper()
+		select {
+		case <-ended[dir]:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("the helper in %s still waits", dir)
+		}
+	}
+	taken := h.app.TakeAsks()
+	if len(taken) != 1 || len(h.app.asking.list) != 0 {
+		t.Fatalf("took %d, left %d", len(taken), len(h.app.asking.list))
+	}
+	waitEnd(r.Dir)
+	h.app.Ask(taken[0])
+	h.app.CloseAll()
+	waitEnd(elsewhere)
 }

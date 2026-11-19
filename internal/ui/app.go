@@ -469,9 +469,11 @@ func (a *App) Move(from, to int) {
 	a.active = slices.Index(a.tabs, cur)
 }
 
-// CloseAll ends every session, and stops a clone running, when the
+// CloseAll ends every session, stops a clone running and declines the
+// questions from git left (those TakeAsks did not take), when the
 // window closes.
 func (a *App) CloseAll() {
+	a.cancelAsks()
 	for _, t := range a.tabs {
 		t.s.Close()
 	}

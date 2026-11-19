@@ -97,6 +97,32 @@ func inFolder(dir, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
+// TakeAsks takes, as the window closes, the questions from git asked in
+// no repository open here, for another window to show: what asks may
+// run in another window, as a clone. The others are cancelled: their
+// git is stopped with the window. Call it before CloseAll.
+func (a *App) TakeAsks() []*askpass.Ask {
+	var out []*askpass.Ask
+	for _, q := range a.asking.list {
+		if q.Dir == "" || !a.Has(q.Dir) {
+			out = append(out, q)
+		} else {
+			q.Cancel()
+		}
+	}
+	a.asking = asking{}
+	return out
+}
+
+// cancelAsks declines every question still shown, as the window closes:
+// git or ssh would otherwise wait for an answer no one can give.
+func (a *App) cancelAsks() {
+	for _, q := range a.asking.list {
+		q.Cancel()
+	}
+	a.asking = asking{}
+}
+
 func (a *App) dropAsk(q *askpass.Ask) {
 	d := &a.asking
 	i := slices.Index(d.list, q)

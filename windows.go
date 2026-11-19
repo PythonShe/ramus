@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo"
 	mygoui "github.com/egoist/mygo/ui"
 
+	"ramus/internal/askpass"
 	"ramus/internal/git/run"
 	"ramus/internal/layout"
 	"ramus/internal/settings"
@@ -230,6 +231,7 @@ func (ws *windows) show(w *window) {
 			ws.quitting = true
 		}
 		w.app.SaveIdentity() // the settings open, the change typed is kept
+		asks := w.app.TakeAsks()
 		w.app.CloseAll()
 		ws.list = slices.DeleteFunc(ws.list, func(o *window) bool { return o == w })
 		if ws.focused == w {
@@ -237,6 +239,9 @@ func (ws *windows) show(w *window) {
 			if n := len(ws.list); n > 0 {
 				ws.focused = ws.list[n-1]
 			}
+		}
+		for _, q := range asks {
+			ws.ask(q)
 		}
 		ws.layoutChanged()
 	})
@@ -333,6 +338,24 @@ func (ws *windows) showing(path string) *window {
 		}
 	}
 	return nil
+}
+
+// ask shows a question from git or ssh in the window of the repository
+// that asks, else the one last focused. During a quit, or with no window
+// left, it is declined rather than open a window.
+func (ws *windows) ask(q *askpass.Ask) {
+	if ws.quitting || len(ws.list) == 0 {
+		q.Cancel()
+		return
+	}
+	w := ws.showing(q.Dir)
+	if w == nil {
+		w = ws.target()
+	}
+	w.app.Ask(q)
+	if w.win != nil {
+		w.win.Invalidate()
+	}
 }
 
 // target is the window a request goes to: the one last focused, or a
