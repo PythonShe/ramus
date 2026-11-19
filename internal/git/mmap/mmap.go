@@ -1,5 +1,7 @@
 // Package mmap maps files read-only into memory, so that large on-disk
-// formats are read without copying them onto the Go heap.
+// formats are read without copying them onto the Go heap. On Windows the
+// file is copied into memory outside the heap instead, so that git can
+// still replace or delete it.
 package mmap
 
 import (

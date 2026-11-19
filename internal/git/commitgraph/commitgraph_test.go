@@ -385,6 +385,34 @@ func TestOpenReusing(t *testing.T) {
 	next.Close()
 }
 
+// git rewrites the commit-graph, and deletes the layers of a chain it
+// replaces, while a repository holds the graph open here; on Windows a
+// mapped file refuses both.
+func TestGitRewritesAnOpenGraph(t *testing.T) {
+	r := fixture(t)
+	objects := filepath.Join(r.GitDir(), "objects")
+	r.Git("commit-graph", "write", "--reachable")
+	single := open(t, r)
+	r.Commit("on top")
+	r.Git("commit-graph", "write", "--reachable")
+	r.Git("commit-graph", "write", "--reachable", "--split")
+	chain, err := Open(objects)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer chain.Close()
+	r.Commit("one more")
+	r.Git("commit-graph", "write", "--reachable", "--split=replace")
+	g, err := Open(objects)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer g.Close()
+	if g.Len() != single.Len()+2 || chain.Len() != single.Len()+1 {
+		t.Fatalf("graphs of %d, %d and %d commits", single.Len(), chain.Len(), g.Len())
+	}
+}
+
 // A graph written without generation numbers reads, but says it has
 // none; one with version 1 numbers has them.
 func TestNoGenerations(t *testing.T) {
