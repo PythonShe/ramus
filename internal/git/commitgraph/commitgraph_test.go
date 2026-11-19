@@ -148,8 +148,12 @@ func TestOracle(t *testing.T) {
 			if g.Layers() != v.layers {
 				t.Fatalf("layers = %d, want %d", g.Layers(), v.layers)
 			}
-			if g.HasGenerationV2() != v.genV2 {
-				t.Fatalf("generation v2 = %v, want %v", g.HasGenerationV2(), v.genV2)
+			// git 2.41 to 2.54 write corrected dates that go backwards
+			// below the commit dated past 2106, which their own verify
+			// then rejects: the reader falls back to topological levels.
+			want := v.genV2 && generationsVerify(t, r)
+			if g.HasGenerationV2() != want {
+				t.Fatalf("generation v2 = %v, want %v", g.HasGenerationV2(), want)
 			}
 			if g.Bloom().Version != v.bloom {
 				t.Fatalf("bloom version = %d, want %d", g.Bloom().Version, v.bloom)
@@ -158,6 +162,21 @@ func TestOracle(t *testing.T) {
 			checkBloom(t, r, g)
 		})
 	}
+}
+
+// generationsVerify reports whether git's own check of the graph it wrote
+// finds its generation numbers sound.
+func generationsVerify(t *testing.T, r *gittest.Repo) bool {
+	t.Helper()
+	out, err := r.Run(nil, "commit-graph", "verify")
+	if err == nil {
+		return true
+	}
+	if !strings.Contains(out+err.Error(), "generation") {
+		t.Fatalf("git commit-graph verify: %v\n%s", err, out)
+	}
+	t.Logf("git writes generation numbers its own check rejects: %v", err)
+	return false
 }
 
 func checkCommits(t *testing.T, g *Graph, cs []oracleCommit) {

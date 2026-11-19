@@ -115,7 +115,16 @@ type layer struct {
 	bdat     []byte // filters, after the settings header
 	bloom    BloomSettings
 	baseOIDs []byte
+	// gens is whether the layer's corrected commit dates hold, checked
+	// once with the layers below it: gensUnknown, gensHold, gensBroken.
+	gens atomic.Int32
 }
+
+const (
+	gensUnknown = iota
+	gensHold
+	gensBroken
+)
 
 // Open reads the commit-graph of the repository whose objects directory is
 // objectsDir. A split chain is preferred over a single file, as git does.
@@ -244,6 +253,9 @@ func openLayers(paths []string, prev *Graph) (_ *Graph, err error) {
 			g.noGen = true
 		}
 	}
+	if g.genV2 && !g.generationsHold() {
+		g.genV2 = false
+	}
 	g.bloom = g.layers[0].bloom
 	for _, l := range g.layers[1:] {
 		if l.bloom != g.bloom {
@@ -266,6 +278,47 @@ func openLayer(path string, base uint32) (*layer, error) {
 		return nil, err
 	}
 	return l, nil
+}
+
+// generationsHold reports whether every commit's corrected commit date
+// is past each of its parents', as git's commit-graph verify requires.
+// git 2.41 to 2.54 kept a parent's corrected date in 32 bits while
+// computing its children's, so below a commit dated past 2106 they wrote
+// dates that go backwards, and before 2.54 an offset from a date past 34
+// bits, which the file cannot hold. A walk pruned by such dates misses
+// commits, so the graph then answers with its topological levels, which
+// those versions write right. Each layer is checked once, when first
+// opened: a layer kept from an earlier graph has the same layers below.
+func (g *Graph) generationsHold() bool {
+	var parents []uint32
+	for _, l := range g.layers {
+		switch l.gens.Load() {
+		case gensHold:
+			continue
+		case gensBroken:
+			return false
+		}
+		state := int32(gensHold)
+	commits:
+		for pos := l.base; pos < l.base+l.n; pos++ {
+			gen := g.Generation(pos)
+			var err error
+			if parents, err = g.Parents(pos, parents[:0]); err != nil {
+				continue
+			}
+			for _, p := range parents {
+				if g.Generation(p) >= gen {
+					state = gensBroken
+					break commits
+				}
+			}
+		}
+		l.gens.Store(state)
+		if state == gensBroken {
+			return false
+		}
+	}
+	return true
 }
 
 func (l *layer) bad(format string, args ...any) error {
@@ -472,7 +525,9 @@ func (g *Graph) HashSize() int { return g.hashSize }
 // Layers returns the number of files the graph was read from.
 func (g *Graph) Layers() int { return len(g.layers) }
 
-// HasGenerationV2 reports whether corrected commit dates are available.
+// HasGenerationV2 reports whether corrected commit dates are available
+// and hold (see generationsHold); Generation returns them then, and the
+// topological levels otherwise.
 func (g *Graph) HasGenerationV2() bool { return g.genV2 }
 
 // HasGenerations reports whether every layer has generation numbers.
