@@ -191,6 +191,17 @@ func BisectMark(w Where, v BisectVerdict, commit string, start bool) (Op, error)
 	return op, nil
 }
 
+// BisectMarkTesting marks commit, the one the bisect had under test when
+// the user chose v, as BisectMark does; it refuses once the bisect moved
+// on to another, as a mark queued behind one that moved it does.
+func BisectMarkTesting(w Where, v BisectVerdict, commit string) (Op, error) {
+	op, err := BisectMark(w, v, commit, false)
+	if err == nil && commit != "" {
+		op.Expect = &Expect{AnyHead: true, Testing: commit}
+	}
+	return op, err
+}
+
 // BisectReset ends a bisect and checks out where it started.
 func BisectReset(w Where) Op {
 	return Op{Name: "End bisect", Cmd: w.slow("bisect", "reset")}

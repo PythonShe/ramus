@@ -42,6 +42,10 @@ type Expect struct {
 	// replay the branch onto that parent, and when a merge is among the
 	// commits replayed, as replaying it asks for its conflicts again.
 	Replay *Rewrite
+	// Testing, when set, is the commit a bisect had under test (hex):
+	// BISECT_HEAD in a bisect with --no-checkout, else HEAD. The action
+	// refuses once the bisect moved on to another.
+	Testing string
 }
 
 // ErrNotInHistory is a rewrite of a commit the current branch does not
@@ -243,6 +247,18 @@ func check(ctx context.Context, r *run.Runner, gitDir, workTree string, x *Expec
 	if x.Replay != nil {
 		if err := checkReplay(ctx, r, gitDir, x.Replay); err != nil {
 			return err
+		}
+	}
+	if x.Testing != "" {
+		now, err := resolve(ctx, r, gitDir, "BISECT_HEAD^{commit}")
+		if err == nil && now == "" {
+			now, err = resolve(ctx, r, gitDir, "HEAD^{commit}")
+		}
+		if err != nil {
+			return err
+		}
+		if now != x.Testing {
+			return &StaleError{What: "the commit under test", Saw: short(x.Testing), Now: short(now)}
 		}
 	}
 	for name, saw := range x.Refs {

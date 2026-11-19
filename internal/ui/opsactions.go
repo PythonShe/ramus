@@ -416,7 +416,7 @@ func (a *App) bisectBar(c *ui.Context, t *tab) {
 					if under == "" {
 						under = hex.EncodeToString(t.s.State.Head.OID)
 					}
-					op, err := write.BisectMark(w, bs.Term(v.v), under, false)
+					op, err := write.BisectMarkTesting(w, bs.Term(v.v), under)
 					a.submit(t, op, err)
 				}
 			}
