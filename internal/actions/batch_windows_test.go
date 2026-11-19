@@ -33,3 +33,26 @@ func TestBatchActionGetsNoCommand(t *testing.T) {
 		t.Fatalf("an argument cmd.exe expands: %v", err)
 	}
 }
+
+// A batch action that turns delayed expansion on would get !OS! as the
+// value of OS: an argument holding ! is refused, and the script never
+// runs.
+func TestBatchActionGetsNoDelayedExpansion(t *testing.T) {
+	dir := t.TempDir()
+	bat := filepath.Join(dir, "show.cmd")
+	marker := filepath.Join(dir, "ran")
+	script := "@echo off\r\nsetlocal EnableDelayedExpansion\r\necho ran>\"" + marker + "\"\r\necho ARG=%1\r\n"
+	if err := os.WriteFile(bat, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	argv, err := Expand([]string{bat, "${branch}"}, Vars{Branch: "wip-!OS!"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(context.Background(), argv, dir, func(string) {}); !errors.Is(err, tools.ErrBatchArgument) {
+		t.Fatalf("an argument delayed expansion expands: %v", err)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("the script ran")
+	}
+}

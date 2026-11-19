@@ -23,15 +23,16 @@ func TestIsBatch(t *testing.T) {
 
 // A file or branch name that holds cmd.exe's own characters reaches a
 // batch file as one quoted argument, never as a command; one cmd.exe
-// would expand, or that would end the quote, is refused.
+// would expand, with or without delayed expansion, or that would end the
+// quote, is refused.
 func TestBatchLine(t *testing.T) {
 	sh := `C:\Windows\System32\cmd.exe`
-	got, err := batchLine(sh, []string{`C:\VS Code\bin\code.cmd`, `C:\repo\x&calc&.md`, `C:\repo\a (1)^|<>.txt`, `C:\repo\dir\`, ``, `wip!`})
-	want := `"C:\Windows\System32\cmd.exe" /d /e:on /v:off /s /c ""C:\VS Code\bin\code.cmd" "C:\repo\x&calc&.md" "C:\repo\a (1)^|<>.txt" "C:\repo\dir\\" "" "wip!""`
+	got, err := batchLine(sh, []string{`C:\VS Code\bin\code.cmd`, `C:\repo\x&calc&.md`, `C:\repo\a (1)^|<>.txt`, `C:\repo\dir\`, ``, `a^b`})
+	want := `"C:\Windows\System32\cmd.exe" /d /e:on /v:off /s /c ""C:\VS Code\bin\code.cmd" "C:\repo\x&calc&.md" "C:\repo\a (1)^|<>.txt" "C:\repo\dir\\" "" "a^b""`
 	if err != nil || got != want {
 		t.Fatalf("got  %s\nwant %s (%v)", got, want, err)
 	}
-	for _, bad := range []string{`C:\repo\%PATH%.md`, `x"&calc&"`, "a\nb", "a\rb"} {
+	for _, bad := range []string{`C:\repo\%PATH%.md`, `C:\repo\!PATH!.md`, `wip!`, `x"&calc&"`, "a\nb", "a\rb"} {
 		if _, err := batchLine(sh, []string{`C:\t\x.cmd`, bad}); !errors.Is(err, ErrBatchArgument) {
 			t.Errorf("%q passed: %v", bad, err)
 		}

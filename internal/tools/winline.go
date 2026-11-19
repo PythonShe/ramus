@@ -21,21 +21,25 @@ func isBatch(program string) bool {
 }
 
 // ErrBatchArgument is an argument that cannot be handed to a batch file
-// as it is: cmd.exe expands % in it, even quoted, and a quote or a line
-// break would end it.
+// as it is: cmd.exe expands % in it, even quoted, a quote or a line
+// break would end it, and ! is expanded, and ^ taken away beside it, by
+// a script that turns delayed expansion on (setlocal
+// EnableDelayedExpansion), which cmd.exe's /v:off cannot keep it from:
+// whether an argument must be escaped for it depends on the script.
 var ErrBatchArgument = errors.New("tools: a batch file cannot be given this argument safely")
 
 // batchLine is the command line that has shell (cmd.exe) run the batch
 // file argv[0] with the arguments argv[1:], each passed as one argument
 // whatever it holds: each is quoted, inside which & | < > ^ ( ) are
 // plain characters to cmd.exe. /d leaves out the AutoRun commands of the
-// registry, /v:off the expansion of !, which the registry may turn on;
-// /s /c strips the outer quotes only.
+// registry, /v:off the expansion of !, which the registry may turn on,
+// while the line is read; /s /c strips the outer quotes only. One that
+// holds % or ! is refused (ErrBatchArgument).
 func batchLine(shell string, argv []string) (string, error) {
 	var b strings.Builder
 	b.WriteString(`"` + shell + `" /d /e:on /v:off /s /c "`)
 	for i, a := range argv {
-		if strings.ContainsAny(a, `"%`) || strings.ContainsFunc(a, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+		if strings.ContainsAny(a, `"%!`) || strings.ContainsFunc(a, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
 			return "", fmt.Errorf("%w: %q", ErrBatchArgument, a)
 		}
 		if i > 0 {

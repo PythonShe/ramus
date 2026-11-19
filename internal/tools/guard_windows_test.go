@@ -39,4 +39,8 @@ func TestBatchEditorGetsNoCommand(t *testing.T) {
 	if _, err := tool.Command(filepath.Join(dir, "%PATH%.md"), 0); !errors.Is(err, ErrBatchArgument) {
 		t.Fatalf("a name cmd.exe expands: %v", err)
 	}
+	// A script that turns delayed expansion on would expand it.
+	if _, err := tool.Command(filepath.Join(dir, "!OS!.md"), 0); !errors.Is(err, ErrBatchArgument) {
+		t.Fatalf("a name delayed expansion expands: %v", err)
+	}
 }
