@@ -207,6 +207,63 @@ func TestReadsTheSettingsOf060(t *testing.T) {
 	}
 }
 
+// What a later version added inside a column, a table and an action
+// stays across a save that rewrites them (a column dragged, a table's
+// order changed), through Save and through the Keeper, as at the top.
+func TestKeepsWhatALaterVersionAddedInside(t *testing.T) {
+	const later = `{
+  "actions": [{"name": "Lint", "command": ["/usr/bin/make"], "icon": "hammer"}],
+  "future": {"a": 1},
+  "historyColumns": {"graph": {"width": 80, "glow": true}, "date": {"hidden": true}},
+  "tables": {"branches": {"order": ["name"], "sticky": ["name"]}}
+}`
+	kept := []string{`"icon":"hammer"`, `"future":{"a":1}`, `"glow":true`, `"sticky":["name"]`}
+	compact := func(data []byte) string {
+		return strings.Join(strings.Fields(strings.ReplaceAll(string(data), `": `, `":`)), "")
+	}
+	edit := func(s *Settings) {
+		s.HistoryColumns = map[string]Column{"graph": {Width: 120}, "date": {Hidden: true}}
+		s.Tables = map[string]TableLayout{"branches": {Order: []string{"name", "date"}}}
+		s.Actions = slices.Clone(s.Actions)
+		s.Actions[0].On = "file"
+	}
+	t.Run("save", func(t *testing.T) {
+		p := filepath.Join(t.TempDir(), "settings.json")
+		os.WriteFile(p, []byte(later), 0o600)
+		s, err := Load(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		edit(&s)
+		if err := Save(p, s); err != nil {
+			t.Fatal(err)
+		}
+		data, _ := os.ReadFile(p)
+		for _, k := range kept {
+			if !strings.Contains(compact(data), k) {
+				t.Errorf("%s dropped:\n%s", k, data)
+			}
+		}
+		if back, _ := Load(p); back.HistoryColumns["graph"].Width != 120 || back.Actions[0].On != "file" ||
+			len(back.Tables["branches"].Order) != 2 {
+			t.Fatalf("the app's change not written: %+v", back)
+		}
+	})
+	t.Run("keeper", func(t *testing.T) {
+		p := filepath.Join(t.TempDir(), "settings.json")
+		os.WriteFile(p, []byte(later), 0o600)
+		m := newModel(t, p)
+		m.keep(edit)
+		m.agrees()
+		data, _ := os.ReadFile(p)
+		for _, k := range kept {
+			if !strings.Contains(compact(data), k) {
+				t.Errorf("%s dropped:\n%s", k, data)
+			}
+		}
+	})
+}
+
 // A settings file that does not read at all is moved aside before
 // anything is written, so the first save made in the app (a column
 // dragged) cannot replace the user's actions, shortcuts and editor with

@@ -414,12 +414,16 @@ func saveOnce(path string, s Settings, base *Settings) (got Settings, data []byt
 		// Every other key of this version is dropped first: one left out
 		// of the new file is at its default and must not keep its old
 		// value.
+		_, was, _ := lookupKey(merged, name)
 		for k := range merged {
 			if strings.EqualFold(k, name) {
 				delete(merged, k)
 			}
 		}
 		if v, ok := fields[name]; ok {
+			if was != nil {
+				v = KeepUnknown(was, v, t.Field(i).Type)
+			}
 			merged[name] = v
 		}
 	}

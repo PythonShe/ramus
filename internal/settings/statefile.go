@@ -160,6 +160,95 @@ func WithExtra(v any, extra map[string]json.RawMessage) (json.RawMessage, error)
 	return json.Marshal(m)
 }
 
+// KeepUnknown is now, the JSON of a value of type t that replaces old,
+// with the keys of old that this version does not know added back, at
+// every level: in an object of a struct, in the entries of a map, by key,
+// and in the elements of a list, by place. What a later version added
+// inside a value this one rewrites is so kept. A key this version knows
+// is now's to leave out, as an entry of a map or an element of a list
+// is. Without such keys, now comes back as it is.
+func KeepUnknown(old, now json.RawMessage, t reflect.Type) json.RawMessage {
+	out, _ := keepUnknown(old, now, t)
+	return out
+}
+
+func keepUnknown(old, now json.RawMessage, t reflect.Type) (json.RawMessage, bool) {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		var o, n map[string]json.RawMessage
+		if json.Unmarshal(old, &o) != nil || json.Unmarshal(now, &n) != nil || o == nil || n == nil {
+			return now, false
+		}
+		changed := false
+		for i := range t.NumField() {
+			f := t.Field(i)
+			name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+			if !f.IsExported() || name == "-" {
+				continue
+			}
+			if name == "" {
+				name = f.Name
+			}
+			nk, nv, ok := lookupKey(n, name)
+			_, ov, found := lookupKey(o, name)
+			if !ok || !found {
+				continue
+			}
+			if v, c := keepUnknown(ov, nv, f.Type); c {
+				n[nk], changed = v, true
+			}
+		}
+		for k, v := range Extra(old, t) {
+			if _, ok := n[k]; !ok {
+				n[k], changed = v, true
+			}
+		}
+		return remarshal(n, now, changed)
+	case reflect.Map:
+		var o, n map[string]json.RawMessage
+		if t.Key().Kind() != reflect.String || json.Unmarshal(old, &o) != nil || json.Unmarshal(now, &n) != nil {
+			return now, false
+		}
+		changed := false
+		for k, nv := range n {
+			if ov, ok := o[k]; ok {
+				if v, c := keepUnknown(ov, nv, t.Elem()); c {
+					n[k], changed = v, true
+				}
+			}
+		}
+		return remarshal(n, now, changed)
+	case reflect.Slice, reflect.Array:
+		var o, n []json.RawMessage
+		if t.Elem().Kind() == reflect.Uint8 || json.Unmarshal(old, &o) != nil || json.Unmarshal(now, &n) != nil {
+			return now, false
+		}
+		changed := false
+		for i := range min(len(o), len(n)) {
+			if v, c := keepUnknown(o[i], n[i], t.Elem()); c {
+				n[i], changed = v, true
+			}
+		}
+		return remarshal(n, now, changed)
+	}
+	return now, false
+}
+
+// remarshal is v as JSON when changed, else now.
+func remarshal(v any, now json.RawMessage, changed bool) (json.RawMessage, bool) {
+	if !changed {
+		return now, false
+	}
+	out, err := json.Marshal(v)
+	if err != nil {
+		return now, false
+	}
+	return out, true
+}
+
 // Unreadable is the LoadError of the file at path, which could not be
 // read at all: it is moved aside.
 func Unreadable(path string, err error) *LoadError {

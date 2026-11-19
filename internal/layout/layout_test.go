@@ -88,6 +88,50 @@ func TestLayoutFormats(t *testing.T) {
 	}
 }
 
+// A layout of a later version comes back from this one's save with its
+// version and every key this one does not know, in the file, in each
+// window and in each tab, matched by what they show: a tab moved, a
+// window closed before another.
+func TestKeepsALaterLayout(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "layout.json")
+	os.WriteFile(p, []byte(`{"version": 3, "focused": 1, "windows": [
+  {"tabs": [{"path": "/a", "pinned": true}], "active": 0, "frame": "left"},
+  {"tabs": [{"path": "/b", "zoom": 2}, {"path": "/c", "zoom": 3}], "active": 1, "frame": "right"}
+]}`), 0o600)
+	ws, err := Load(p)
+	if err != nil || len(ws) != 2 {
+		t.Fatalf("read %+v %v", ws, err)
+	}
+	// The first window closed; the second's tabs swapped, one added.
+	if err := Save(p, []Window{{Tabs: []Tab{{Path: "/c"}, {Path: "/b"}, {Path: "/d"}}, Active: 2}}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(p)
+	var f struct {
+		Version int
+		Focused int
+		Windows []struct {
+			Frame  string
+			Active int
+			Tabs   []struct {
+				Path string
+				Zoom int
+			}
+		}
+	}
+	if err := json.Unmarshal(data, &f); err != nil {
+		t.Fatal(err)
+	}
+	w := f.Windows
+	if f.Version != 3 || f.Focused != 1 || len(w) != 1 || w[0].Frame != "right" || w[0].Active != 2 || len(w[0].Tabs) != 3 ||
+		w[0].Tabs[0].Zoom != 3 || w[0].Tabs[1].Zoom != 2 || w[0].Tabs[2].Zoom != 0 || w[0].Tabs[2].Path != "/d" {
+		t.Fatalf("written as %s", data)
+	}
+	if strings.Contains(string(data), "pinned") || strings.Contains(string(data), `"left"`) {
+		t.Fatalf("the closed window's keys kept: %s", data)
+	}
+}
+
 // A layout file that does not read is moved aside, and the next save
 // writes a new one beside it rather than over it; one that cannot be
 // moved is not written over.
