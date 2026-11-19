@@ -76,12 +76,14 @@ jobs:
       - name: What starting git costs
         run: RAMUS_MEASURE=1 go test ./spike/spawn -run Spawn -v
       # The runner has git-lfs; the test skips where it is missing, so
-      # here a skip fails.
+      # here only a pass passes: not a skip, nor no test at all if it is
+      # renamed. An explicit bash fails the pipe when go test fails.
       - name: Clone with Git LFS
+        shell: bash
         run: |
           git lfs version
-          go test ./internal/git/write -run TestCloneLFS -v | tee "$RUNNER_TEMP/lfs.txt"
-          ! grep -q -- '--- SKIP' "$RUNNER_TEMP/lfs.txt"
+          go test ./internal/git/write -run '^TestCloneLFS$' -count=1 -v | tee "$RUNNER_TEMP/lfs.txt"
+          grep -q -- '^--- PASS: TestCloneLFS ' "$RUNNER_TEMP/lfs.txt"
       - name: Build without cgo
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ramus" .
 
