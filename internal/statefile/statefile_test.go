@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // TestWriteFileIfLeavesAChangedFile has the file change before the
@@ -28,6 +29,34 @@ func TestWriteFileIfLeavesAChangedFile(t *testing.T) {
 	}
 	if names, _ := os.ReadDir(dir); len(names) != 1 {
 		t.Fatalf("left beside the file: %v", names)
+	}
+}
+
+// A state file's lock keeps a second writer out until the first lets it
+// go, and a writer that waited past its bound is told so.
+func TestLockKeepsASecondWriterOut(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "state.json")
+	unlock, err := Lock(p, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Lock(p, 20*time.Millisecond); !errors.Is(err, ErrLocked) {
+		t.Fatalf("err = %v, want ErrLocked", err)
+	}
+	took := make(chan error, 1)
+	go func() {
+		u, err := Lock(p, time.Minute)
+		if err == nil {
+			u()
+		}
+		took <- err
+	}()
+	unlock()
+	if err := <-took; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the lock made the file itself: %v", err)
 	}
 }
 

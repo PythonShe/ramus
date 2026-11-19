@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	"ramus/internal/statefile"
 )
@@ -326,7 +327,19 @@ func Save(path string, s Settings) error {
 // save is Save. With base, the settings s was changed from, a field s
 // has as base had it is left as the file has it, edited by hand since;
 // got is then what the file holds once written, data its content.
+//
+// Two copies of the app keep one file under its lock (statefile.Lock), so
+// that each reads what the other wrote before it replaces the file: both
+// end with every change, the one written last winning a setting both
+// changed. A writer that takes no lock, an editor, is guarded against by
+// the check before the rename only, which leaves a moment between the
+// check and the rename where its save is replaced.
 func save(path string, s Settings, base *Settings) (got Settings, data []byte, err error) {
+	unlock, err := statefile.Lock(path, lockWait)
+	if err != nil {
+		return s, nil, err
+	}
+	defer unlock()
 	for range maxMerges {
 		got, data, err = saveOnce(path, s, base)
 		if !errors.Is(err, statefile.ErrChanged) {
@@ -339,6 +352,10 @@ func save(path string, s Settings, base *Settings) (got Settings, data []byte, e
 // maxMerges bounds the merges of a save whose file changes each time
 // before it is replaced.
 const maxMerges = 5
+
+// lockWait bounds how long a save waits for another copy of the app's: a
+// save holds the lock for a read and a small write.
+const lockWait = 2 * time.Second
 
 // saveOnce is one try of save, which fails with statefile.ErrChanged when
 // the file changes between its reading and its replacement.

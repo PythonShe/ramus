@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"ramus/internal/statefile"
@@ -285,6 +286,35 @@ func TestKeeperTwoCopies(t *testing.T) {
 	for _, m := range []*model{a, b} {
 		if m.app.Theme != "dark" || !m.app.DiffSplit {
 			t.Fatalf("%+v", m.app)
+		}
+	}
+}
+
+// twoCopiesRuns is how many times TestKeeperTwoCopiesAtOnce races: once
+// lost a change about one run in twelve.
+const twoCopiesRuns = 100
+
+// Two copies of the app save different settings at the same moment, many
+// times over: the file ends with both changes every time, and each copy
+// then reads the other's.
+func TestKeeperTwoCopiesAtOnce(t *testing.T) {
+	for i := range twoCopiesRuns {
+		p := filepath.Join(t.TempDir(), "settings.json")
+		hand(t, p, `{}`)
+		a, b := newModel(t, p), newModel(t, p)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Go(func() { <-start; a.keep(dark); a.k.Wait() })
+		wg.Go(func() { <-start; b.keep(split); b.k.Wait() })
+		close(start)
+		wg.Wait()
+		if s := load(t, p); s.Theme != "dark" || !s.DiffSplit {
+			t.Fatalf("run %d: one change lost: %+v", i, s)
+		}
+		a.agrees()
+		b.agrees()
+		if a.app.Theme != "dark" || !a.app.DiffSplit || b.app.Theme != "dark" || !b.app.DiffSplit {
+			t.Fatalf("run %d: the copies end with %+v and %+v", i, a.app, b.app)
 		}
 	}
 }

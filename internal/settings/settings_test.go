@@ -39,7 +39,7 @@ func TestLoadSave(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(back, s) {
 		t.Fatalf("round trip %+v %v", back, err)
 	}
-	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(p), ".settings.json.*")); len(left) != 0 {
+	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(p), ".settings.json.[0-9]*")); len(left) != 0 {
 		t.Fatalf("temporary files left: %q", left)
 	}
 
