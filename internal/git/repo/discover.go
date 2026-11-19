@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"ramus/internal/git/pathsafe"
 )
 
 // Location is where a repository's parts are.
@@ -91,9 +93,14 @@ func at(dir string) (Location, bool, error) {
 	return Location{}, false, nil
 }
 
+// smallFile bounds what is read of a file in a git directory that holds
+// one line (HEAD, commondir, a gitfile): git's own limit on such a line
+// is its path limit, far below this.
+const smallFile = 64 << 10
+
 // readGitfile reads "gitdir: <path>" from a .git file.
 func readGitfile(path string) (string, error) {
-	b, err := os.ReadFile(path)
+	b, err := pathsafe.ReadFile(path, smallFile)
 	if err != nil {
 		return "", err
 	}
@@ -125,7 +132,7 @@ func gitDirLocation(dir string) (Location, bool) {
 	}
 	common := dir
 	linked := false
-	if b, err := os.ReadFile(filepath.Join(dir, "commondir")); err == nil {
+	if b, err := pathsafe.ReadFile(filepath.Join(dir, "commondir"), smallFile); err == nil {
 		c := strings.TrimSpace(string(b))
 		if !filepath.IsAbs(c) {
 			c = filepath.Join(dir, c)
@@ -153,7 +160,9 @@ func validHEAD(path string) bool {
 		target, err := os.Readlink(path)
 		return err == nil && strings.HasPrefix(filepath.ToSlash(target), "refs/")
 	}
-	b, err := os.ReadFile(path)
+	// Not a named pipe or a device: git's validate_headref refuses those
+	// too, and a read of one would not return.
+	b, err := pathsafe.ReadFile(path, smallFile)
 	if err != nil {
 		return false
 	}

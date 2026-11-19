@@ -1,8 +1,11 @@
 package repo
 
 import (
+	"io"
 	"os"
 	"path/filepath"
+
+	"ramus/internal/git/pathsafe"
 )
 
 // Operation is a multi-step git operation left in progress in a work
@@ -43,7 +46,7 @@ func InProgress(gitDir string) Operation {
 		return Revert
 	case has("sequencer/todo"):
 		// A cherry-pick or revert of several commits stopped between two.
-		if data, err := os.ReadFile(filepath.Join(gitDir, "sequencer", "todo")); err == nil && len(data) >= 6 && string(data[:6]) == "revert" {
+		if startsWith(filepath.Join(gitDir, "sequencer", "todo"), "revert") {
 			return Revert
 		}
 		return CherryPick
@@ -51,4 +54,17 @@ func InProgress(gitDir string) Operation {
 		return Bisect
 	}
 	return NoOperation
+}
+
+// startsWith reports whether the regular file at path starts with prefix,
+// reading no more of it than that.
+func startsWith(path, prefix string) bool {
+	f, err := pathsafe.OpenRegular(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	b := make([]byte, len(prefix))
+	_, err = io.ReadFull(f, b)
+	return err == nil && string(b) == prefix
 }

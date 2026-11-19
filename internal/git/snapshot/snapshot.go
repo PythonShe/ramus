@@ -22,7 +22,7 @@ import (
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/object"
-	"ramus/internal/git/osfile"
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
 	"ramus/internal/git/tree"
@@ -110,7 +110,7 @@ func ignoredDirs(git func(stdin []byte, extra []string, args ...string) (string,
 // worktreeGitDir is the git directory of the linked worktree at dir, which
 // its .git file names.
 func worktreeGitDir(dir string) (string, error) {
-	b, err := os.ReadFile(filepath.Join(dir, ".git"))
+	b, err := pathsafe.ReadFile(filepath.Join(dir, ".git"), 64<<10)
 	if err != nil {
 		return "", fmt.Errorf("snapshot: %s is not a linked worktree: %w", dir, err)
 	}
@@ -358,7 +358,7 @@ func copyIndex(gitDir string) (string, error) {
 	var b [8]byte
 	rand.Read(b[:])
 	tmp := filepath.Join(gitDir, "ramus-snapshot-"+hex.EncodeToString(b[:])+".index")
-	src, err := osfile.Open(filepath.Join(gitDir, "index"))
+	src, err := pathsafe.OpenRegular(filepath.Join(gitDir, "index"))
 	if errors.Is(err, os.ErrNotExist) {
 		return tmp, nil // no index yet: git starts an empty one
 	}

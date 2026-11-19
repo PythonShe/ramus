@@ -11,8 +11,13 @@ import (
 
 	"ramus/internal/git/config"
 	"ramus/internal/git/index"
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/refs"
 )
+
+// maxPackedRefs bounds the packed-refs read for replace refs; one larger
+// counts as holding some, as one that cannot be read does.
+const maxPackedRefs = 1 << 30
 
 // Capabilities says which of a repository's parts the engine's own readers
 // can serve. What they cannot goes to git, never to a guess.
@@ -238,7 +243,7 @@ func hasReplaceRefs(loc Location, c Capabilities, seen *replaceSeen) bool {
 	if seen.ok && seen.at == at && seen.base == base {
 		return seen.found
 	}
-	b, err := os.ReadFile(packed)
+	b, err := pathsafe.ReadFile(packed, maxPackedRefs)
 	if err != nil {
 		found = !errors.Is(err, fs.ErrNotExist)
 	} else {

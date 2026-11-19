@@ -13,6 +13,7 @@ import (
 
 	"ramus/internal/git/config"
 	"ramus/internal/git/index"
+	"ramus/internal/git/pathsafe"
 )
 
 // DependencyFolders are the folders package managers, virtual
@@ -120,11 +121,16 @@ func (r *Repository) excludesWith(hide []string) (string, bool) {
 	}
 	var own []byte
 	if source != "" {
-		fi, err := os.Stat(source)
-		if err == nil && fi.Size() > maxExcludes {
+		// Only a regular file, read to its bound: a device (/dev/zero)
+		// would be read without end, and a named pipe waited on for ever.
+		// git reads either as empty, or waits; given the copy, it does not.
+		var err error
+		own, err = pathsafe.ReadFile(source, maxExcludes)
+		if errors.Is(err, pathsafe.ErrTooLarge) {
 			return "", false
 		}
-		own, _ = os.ReadFile(source) // git reads one it cannot as empty
+		// Any other failure leaves own empty: git reads a file it cannot
+		// as empty.
 	}
 	var b strings.Builder
 	b.Write(own)
@@ -206,7 +212,7 @@ func (f removeFile) Close() error {
 // indexEntries is the number of entries the index at path says it
 // holds, -1 for none or one that cannot be read.
 func indexEntries(path string) int64 {
-	f, err := os.Open(path)
+	f, err := pathsafe.OpenRegular(path)
 	if err != nil {
 		return -1
 	}
@@ -300,6 +306,11 @@ func (r *Repository) userExcludes() (string, bool) {
 		e := entries[i]
 		if e.Key != "core.excludesfile" || e.Scope == config.Command && own != "" && e.Value == own {
 			continue
+		}
+		if r.Restricted && (e.Scope == config.Local || e.Scope == config.Worktree) {
+			// A path the repository names is not followed for it: git
+			// reads its own excludes file as it reads the rest of it.
+			return "", false
 		}
 		p := e.Value
 		switch {
