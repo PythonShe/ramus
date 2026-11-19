@@ -1335,14 +1335,17 @@ func (a *App) prSubmitView(c *ui.Context, t *tab, rv *prReview) {
 						rv.sending = false
 						var sent *forge.SentError
 						if errors.As(err, &sent) {
-							// What was sent is not sent again: what is
+							// What was sent is not sent again: what may be
 							// left to do is approve.
 							rv.drafts = nil
 							if strings.TrimSpace(d.body) == body {
 								// Not what was typed since it was sent.
 								d.body = ""
 							}
-							d.err = locales.PrsSentNotApproved(errForge(sent.Err))
+							d.err = locales.PrsSentAnswerLost(kindName(rv.repo.Kind), errForge(sent.Err))
+							if sent.NotApproved {
+								d.err = locales.PrsSentNotApproved(errForge(sent.Err))
+							}
 							if t.pr.rv == rv {
 								rv.reread()
 							}

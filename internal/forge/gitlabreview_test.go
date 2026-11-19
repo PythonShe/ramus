@@ -198,7 +198,7 @@ func TestGitLabSubmit(t *testing.T) {
 	var sent *SentError
 	env, _ = glabLog(t, "/approve")
 	c, _ = Find(env, GitLab)
-	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictApprove, "", drafts); !errors.As(err, &sent) || !errors.Is(err, ErrHeadMoved) {
+	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictApprove, "", drafts); !errors.As(err, &sent) || !errors.Is(err, ErrHeadMoved) || !sent.NotApproved {
 		t.Errorf("approval after comments: %v", err)
 	}
 	// A publish that fails takes the drafts back.
@@ -214,8 +214,15 @@ func TestGitLabSubmit(t *testing.T) {
 	// not sent again.
 	env, _ = glabLog(t, "draft_notes/=>glab: 404 Not Found")
 	c, _ = Find(env, GitLab)
-	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictComment, "", drafts); !errors.As(err, &sent) {
+	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictRequestChanges, "", drafts); !errors.As(err, &sent) || sent.NotApproved {
 		t.Errorf("publish answer lost: %v", err)
+	}
+	// One that asked for an approval has it still to send.
+	sent = nil
+	env, _ = glabLog(t, "draft_notes/=>glab: 404 Not Found")
+	c, _ = Find(env, GitLab)
+	if err := c.SubmitReview(context.Background(), r, 12, at, VerdictApprove, "", drafts); !errors.As(err, &sent) || !sent.NotApproved {
+		t.Errorf("publish answer lost before an approval: %v", err)
 	}
 	// Drafts it could not take back are told of.
 	var left *LeftError

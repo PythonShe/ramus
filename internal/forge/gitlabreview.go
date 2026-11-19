@@ -473,7 +473,7 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 				return err
 			}
 			if err := c.gitlabApprove(ctx, r, n, at.Head); err != nil {
-				return &SentError{Err: err}
+				return &SentError{Err: err, NotApproved: true}
 			}
 			return nil
 		}
@@ -533,8 +533,9 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 	if err := c.gitlabSend(ctx, r, "POST", mr+"/draft_notes/bulk_publish", pub, nil); err != nil {
 		switch gone, left := drop(made); {
 		case gone > 0:
-			// The publish went through, its answer did not reach us.
-			return &SentError{Err: err}
+			// The publish went through, its answer did not reach us; an
+			// approval asked for is still to send.
+			return &SentError{Err: err, NotApproved: v == VerdictApprove}
 		case left > 0:
 			return &LeftError{Err: err, Left: left}
 		}
@@ -542,7 +543,7 @@ func (c *CLI) gitlabSubmit(ctx context.Context, r Repo, n int, at Revs, v Verdic
 	}
 	if v == VerdictApprove {
 		if err := c.gitlabApprove(ctx, r, n, at.Head); err != nil {
-			return &SentError{Err: err}
+			return &SentError{Err: err, NotApproved: true}
 		}
 	}
 	return nil
@@ -560,11 +561,19 @@ func (e *LeftError) Error() string {
 }
 func (e *LeftError) Unwrap() error { return e.Err }
 
-// SentError is a review whose comments went out but whose approval did
-// not: sending it again would post them twice.
-type SentError struct{ Err error }
+// SentError is a review that went out, but not whole or not answered:
+// sending it again would post its comments twice. NotApproved is a
+// review that asked for an approval which was not sent; without it, the
+// review was published and its answer lost.
+type SentError struct {
+	Err         error
+	NotApproved bool
+}
 
 func (e *SentError) Error() string {
+	if !e.NotApproved {
+		return "forge: the review was sent, its answer was lost: " + e.Err.Error()
+	}
 	return "forge: the comments were sent, the approval was not: " + e.Err.Error()
 }
 func (e *SentError) Unwrap() error { return e.Err }

@@ -16879,6 +16879,24 @@ func (msgs Messages) PrsSentNotApproved(reason string) string {
 	return Catalog.Format(msgs.locale, "prsSentNotApproved", map[string]any{"reason": reason})
 }
 
+// PrsSentAnswerLost says "{kind, select, gitlab {Your review was sent, but GitLab's answer did not come: {reason}} other {Your review was sent,…"
+// in the language the app shows.
+//
+// A review that asked for no approval was published, as its drafts are gone
+// from the host, but the host's answer to it was lost.
+func PrsSentAnswerLost(kind string, reason string) string {
+	return In(i18n.Locale()).PrsSentAnswerLost(kind, reason)
+}
+
+// PrsSentAnswerLost says "{kind, select, gitlab {Your review was sent, but GitLab's answer did not come: {reason}} other {Your review was sent,…"
+// in the language of msgs.
+//
+// A review that asked for no approval was published, as its drafts are gone
+// from the host, but the host's answer to it was lost.
+func (msgs Messages) PrsSentAnswerLost(kind string, reason string) string {
+	return Catalog.Format(msgs.locale, "prsSentAnswerLost", map[string]any{"kind": kind, "reason": reason})
+}
+
 // PrsNoReview says "Pull requests can be reviewed in the app on GitHub and GitLab only."
 // in the language the app shows.
 //
