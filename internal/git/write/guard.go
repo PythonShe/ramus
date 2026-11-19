@@ -208,9 +208,17 @@ func check(ctx context.Context, r *run.Runner, gitDir, workTree string, x *Expec
 		}
 		for _, e := range es {
 			p := path.Join(f.Path, e.Name())
-			if !seen[p] && !(e.IsDir() && e.Name() == ".git") {
-				return &StaleError{What: p, Saw: describe(FileState{}), Now: describe(stat(workTree, p))}
+			if seen[p] || e.IsDir() && e.Name() == ".git" {
+				continue
 			}
+			// A repository inside, which Observe leaves out as git leaves
+			// its files alone.
+			if e.IsDir() {
+				if _, err := os.Lstat(filepath.Join(workTree, filepath.FromSlash(p), ".git")); err == nil {
+					continue
+				}
+			}
+			return &StaleError{What: p, Saw: describe(FileState{}), Now: describe(stat(workTree, p))}
 		}
 	}
 	return nil

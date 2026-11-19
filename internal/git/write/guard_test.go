@@ -186,3 +186,27 @@ func TestObserveSkipsNestedRepositories(t *testing.T) {
 		t.Fatalf("observed %q", paths)
 	}
 }
+
+// A delete of a folder that holds a repository goes through the check
+// of what was seen, which leaves the repository out as Observe does,
+// and git keeps the repository.
+func TestDeleteFolderHoldingARepository(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	h.r.Write("dir/file", "x")
+	h.r.Write("dir/nested/f", "y")
+	h.r.Git("-C", filepath.Join(h.r.Dir, "dir", "nested"), "init", "-q")
+	op, err := Delete(h.w, []string{"dir/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	op.Expect = &Expect{AnyHead: true, Files: observe(t, h.r.Dir, "dir")}
+	h.do(op, nil, true)
+	if _, err := os.Stat(filepath.Join(h.r.Dir, "dir", "file")); err == nil {
+		t.Fatal("dir/file left")
+	}
+	if _, err := os.Stat(filepath.Join(h.r.Dir, "dir", "nested", "f")); err != nil {
+		t.Fatal("the nested repository was deleted")
+	}
+}
