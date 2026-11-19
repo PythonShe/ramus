@@ -36,8 +36,32 @@ func TestStore(t *testing.T) {
 	if third, _ := Load(path); third.Trusted(repo) {
 		t.Error("still trusted after revoking")
 	}
-	os.WriteFile(path, []byte("{broken"), 0o600)
-	if _, err := Load(path); err == nil {
-		t.Error("a broken store loaded")
+}
+
+// A store file that does not read leaves the app a usable, empty store,
+// trusting nothing; the file is kept aside, never written over.
+func TestUnreadableStore(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), ".git")
+	os.MkdirAll(repo, 0o755)
+	for _, content := range []string{"", "{broken", `{"trusted": 3}`} {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "trust.json")
+		os.WriteFile(path, []byte(content), 0o600)
+		s, err := Load(path)
+		if err == nil || s == nil {
+			t.Fatalf("%q: %v %v", content, s, err)
+		}
+		if s.Trusted(repo) {
+			t.Errorf("%q: trusts", content)
+		}
+		if kept, err := os.ReadFile(path + ".bad"); err != nil || string(kept) != content {
+			t.Errorf("%q: not kept aside: %q %v", content, kept, err)
+		}
+		if err := s.Set(repo, true); err != nil {
+			t.Fatal(err)
+		}
+		if again, err := Load(path); err != nil || !again.Trusted(repo) {
+			t.Errorf("%q: the new answer is not saved: %v", content, err)
+		}
 	}
 }

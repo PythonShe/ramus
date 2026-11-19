@@ -3,10 +3,12 @@ package trust
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 
 	"ramus/internal/git/pathsafe"
@@ -21,25 +23,37 @@ type Store struct {
 	path string
 	mu   sync.Mutex
 	dirs []string // sorted
+	// broken is why the file could not be read and was left in place:
+	// Set then refuses, rather than write over the user's list.
+	broken error
 }
 
 type file struct {
 	Trusted []string `json:"trusted"`
 }
 
-// Load reads the store at path; a missing file is an empty store.
+// Load reads the store at path; a missing file is an empty store. A file
+// that cannot be read or parsed is moved aside, to the name the error
+// gives, and the store returned is empty and usable: every repository is
+// asked about again, which is the safe side. When it cannot be moved, the
+// store refuses to save over it.
 func Load(path string) (*Store, error) {
 	s := &Store{path: path}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return s, nil
 	}
-	if err != nil {
-		return nil, err
-	}
 	var f file
-	if err := json.Unmarshal(data, &f); err != nil {
-		return nil, err
+	if err == nil {
+		err = json.Unmarshal(data, &f)
+	}
+	if err != nil {
+		bad, merr := moveAside(path)
+		if merr != nil {
+			s.broken = fmt.Errorf("trust: %s cannot be read (%v) nor moved aside (%v); no trust given is saved until it is", path, err, merr)
+			return s, s.broken
+		}
+		return s, fmt.Errorf("trust: %s cannot be read (%v); it was moved to %s, and every repository asks to be trusted again", path, err, bad)
 	}
 	for _, d := range f.Trusted {
 		s.dirs = append(s.dirs, clean(d))
@@ -47,6 +61,20 @@ func Load(path string) (*Store, error) {
 	slices.Sort(s.dirs)
 	s.dirs = slices.Compact(s.dirs)
 	return s, nil
+}
+
+// moveAside renames the file at path to a name of its own beside it.
+func moveAside(path string) (string, error) {
+	for i := 1; i <= 100; i++ {
+		bad := path + ".bad"
+		if i > 1 {
+			bad += strconv.Itoa(i)
+		}
+		if _, err := os.Lstat(bad); errors.Is(err, fs.ErrNotExist) {
+			return bad, os.Rename(path, bad)
+		}
+	}
+	return "", errors.New("too many files moved aside already")
 }
 
 func clean(dir string) string {
@@ -73,6 +101,10 @@ func (s *Store) Trusted(commonDir string) bool {
 func (s *Store) Set(commonDir string, trusted bool) error {
 	d := clean(commonDir)
 	s.mu.Lock()
+	if s.broken != nil {
+		s.mu.Unlock()
+		return s.broken
+	}
 	i, ok := slices.BinarySearch(s.dirs, d)
 	switch {
 	case trusted && !ok:

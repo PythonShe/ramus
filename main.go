@@ -75,10 +75,8 @@ func main() {
 	cfgPath := filepath.Join(dir, "settings.json")
 	cfg, cfgErr := settings.Load(cfgPath)
 	mygo.Theme.SetSource(mygo.ThemeSource(cfg.Theme))
-	ts, err := trust.Load(filepath.Join(dir, "trust.json"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	// One that does not read still gives a store, trusting nothing.
+	ts, trustErr := trust.Load(filepath.Join(dir, "trust.json"))
 	lib, libErr := library.Load(filepath.Join(dir, "library.json"))
 
 	program, _ := os.Executable() // none only leaves the tool config out
@@ -111,7 +109,7 @@ func main() {
 		w.app.Restore(l)
 	}
 	ws.focused = first
-	for _, e := range []error{cfgErr, libErr, layoutErr} {
+	for _, e := range []error{cfgErr, libErr, layoutErr, trustErr} {
 		if e != nil {
 			first.app.Notify(e.Error())
 		}
