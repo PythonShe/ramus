@@ -20,6 +20,7 @@ import (
 	"ramus/internal/library"
 	"ramus/internal/settings"
 	"ramus/internal/ui"
+	"ramus/locales"
 )
 
 // app is the app without a window: mygo's headless tester builds, lays
@@ -143,7 +144,7 @@ func save5000(m *meter) error {
 	}
 	defer x.close()
 	x.a.Open(work)
-	clean := regexp.MustCompile(`^No changes$`)
+	clean := regexp.MustCompile("^" + regexp.QuoteMeta(locales.ChangesNoLocal()) + "$")
 	if err := x.until("the repository", time.Minute, func() bool { return x.shows(clean) }); err != nil {
 		return err
 	}
@@ -164,7 +165,7 @@ func save5000(m *meter) error {
 			os.WriteFile(p, []byte("saved "+stamp+"\n"), 0o644)
 		}
 	}()
-	all := regexp.MustCompile(fmt.Sprintf(`^Changes \(%d\)$`, len(paths)))
+	all := regexp.MustCompile("^" + regexp.QuoteMeta(locales.RepoSectionChangesCount(len(paths))) + "$")
 	var fs frames
 	peak := 0
 	var settled time.Duration
@@ -215,7 +216,7 @@ func idle10(m *meter) error {
 	for _, d := range dirs {
 		x.a.Open(d)
 	}
-	clean := regexp.MustCompile(`^No changes$`)
+	clean := regexp.MustCompile("^" + regexp.QuoteMeta(locales.ChangesNoLocal()) + "$")
 	if err := x.until("the repositories", 2*time.Minute, func() bool { return x.shows(clean) }); err != nil {
 		return err
 	}
@@ -274,7 +275,7 @@ func scrollKernel(m *meter) error {
 	if err := x.tt.Click("History"); err != nil {
 		return err
 	}
-	done := regexp.MustCompile(`^\d+ commits$`)
+	done := regexp.MustCompile(`^[\d,]+ commits$`) // the catalog groups thousands
 	t0 := time.Now()
 	if err := x.until("the whole history", 5*time.Minute, func() bool { return x.shows(done) }); err != nil {
 		return err

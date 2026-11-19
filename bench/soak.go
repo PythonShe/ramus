@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"runtime"
 	"time"
+
+	"ramus/locales"
 )
 
 // soak opens, changes, refreshes and closes repositories in the app for
@@ -35,8 +37,8 @@ func soak(m *meter) error {
 		return err
 	}
 	defer x.close()
-	shown := regexp.MustCompile(`^(No changes|Changes \(\d+\))$`)
-	changed := regexp.MustCompile(`^Changes \(1\)$`)
+	shown := regexp.MustCompile("^(" + regexp.QuoteMeta(locales.ChangesNoLocal()) + `|Changes \([\d,]+\))$`)
+	changed := regexp.MustCompile("^" + regexp.QuoteMeta(locales.RepoSectionChangesCount(1)) + "$")
 	round := func(n int) error {
 		for _, d := range dirs {
 			x.a.Open(d)
