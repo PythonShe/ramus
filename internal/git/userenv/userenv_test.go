@@ -109,6 +109,19 @@ printf '\037RAMUS-ENV\037'
 	}
 }
 
+// Windows keeps PATH as Path; a variable is found whatever its case
+// there, and only in its own case elsewhere.
+func TestLookupCase(t *testing.T) {
+	env := []string{`Path=C:\Users\me\scoop\shims`}
+	want := ""
+	if runtime.GOOS == "windows" {
+		want = `C:\Users\me\scoop\shims`
+	}
+	if got := Lookup(env, "PATH"); got != want {
+		t.Fatalf("Lookup PATH in %q: %q, want %q", env, got, want)
+	}
+}
+
 func TestResolveBrokenShell(t *testing.T) {
 	fakeShell(t, "echo oops >&2; exit 3\n")
 	r := Resolve(context.Background())

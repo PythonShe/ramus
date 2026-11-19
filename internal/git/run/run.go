@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -108,6 +109,9 @@ func New(git *gitexe.Git, env []string, max int) *Runner {
 	var clean []string
 	for _, kv := range env {
 		k, _, _ := strings.Cut(kv, "=")
+		if runtime.GOOS == "windows" {
+			k = strings.ToUpper(k) // git there reads Git_Dir as GIT_DIR
+		}
 		// Without GIT_CONFIG_COUNT these do nothing, and with the count
 		// readEnv sets they would add to its entries.
 		if !localEnv[k] && !strings.HasPrefix(k, "GIT_CONFIG_KEY_") && !strings.HasPrefix(k, "GIT_CONFIG_VALUE_") {

@@ -151,12 +151,21 @@ func merge(base []string, shell map[string]string) []string {
 	return out
 }
 
-// Lookup returns the value of key in env.
+// Lookup returns the value of key in env. On Windows names are the same
+// whatever their case: the system keeps PATH as Path.
 func Lookup(env []string, key string) string {
 	for i := len(env) - 1; i >= 0; i-- {
-		if k, v, ok := strings.Cut(env[i], "="); ok && k == key {
+		if k, v, ok := strings.Cut(env[i], "="); ok && SameKey(k, key) {
 			return v
 		}
 	}
 	return ""
+}
+
+// SameKey reports whether two variable names are the same on this system.
+func SameKey(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }

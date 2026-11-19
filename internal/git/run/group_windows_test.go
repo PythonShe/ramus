@@ -8,6 +8,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"ramus/internal/git/gitexe"
 )
 
 // git starts with no console window: the app has no console, so Windows
@@ -21,6 +23,15 @@ func TestNoConsoleWindow(t *testing.T) {
 		if a == nil || !a.HideWindow || a.CreationFlags&windows.CREATE_NO_WINDOW == 0 {
 			t.Fatalf("%v: SysProcAttr %+v", c.Args, a)
 		}
+	}
+}
+
+// A variable that points git at a repository is dropped whatever the
+// case of its name: git on Windows reads Git_Dir as GIT_DIR.
+func TestLocalEnvAnyCase(t *testing.T) {
+	r := New(&gitexe.Git{Path: "git"}, []string{`Git_Dir=C:\wrong`, `git_index_file=C:\wrong\index`, `Path=C:\bin`}, 1)
+	if got := r.Environ(); len(got) != 1 || got[0] != `Path=C:\bin` {
+		t.Fatalf("environment %q", got)
 	}
 }
 

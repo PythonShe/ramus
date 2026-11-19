@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -200,7 +199,7 @@ func findGit(ws *windows, crash *crashlog.Log, ask *askpass.Server) {
 	go func() {
 		r, env, shellErr, err := lookGit()
 		// An askpass of the user's own stays theirs.
-		if err == nil && ask != nil && lookup(env, "SSH_ASKPASS") == "" {
+		if err == nil && ask != nil && userenv.Lookup(env, "SSH_ASKPASS") == "" {
 			if program, perr := os.Executable(); perr == nil {
 				r.SetPrompt(ask.Env(program), ask.Asking)
 			}
@@ -253,7 +252,7 @@ func lookGit() (r *run.Runner, env []string, shellErr, err error) {
 		res := userenv.Resolve(context.Background())
 		env, shellErr = res.Env, res.Err
 	}
-	g, err := gitexe.Find(context.Background(), lookup(env, "PATH"))
+	g, err := gitexe.Find(context.Background(), userenv.Lookup(env, "PATH"))
 	if err != nil {
 		return nil, env, shellErr, err
 	}
@@ -337,15 +336,6 @@ func toolLabels(r cli.Request, cwd string) []string {
 		}
 	}
 	return labels
-}
-
-func lookup(env []string, key string) string {
-	for i := len(env) - 1; i >= 0; i-- {
-		if k, v, ok := strings.Cut(env[i], "="); ok && k == key {
-			return v
-		}
-	}
-	return ""
 }
 
 // repoMenu are the commands of the Repository menu, by id, "" a
