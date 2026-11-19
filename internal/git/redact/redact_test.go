@@ -24,6 +24,14 @@ func TestControl(t *testing.T) {
 		"ma\u200bin \ufeffmain":          "main main",
 		"ma\u200din ma\u200cin":          "main main",
 		"\u200dlead trail\u200c":         "lead trail",
+		// Separators break lines; invisible and blank characters go.
+		"one\u2028two\u2029three":                                 "one\ntwo\nthree",
+		"ma\u2060in m\u00adain ma\u034fin m\u180eain":             "main main main main",
+		"ma\u2061in ma\u2064in":                                   "main main",
+		"\u115f\u1160\u3164\uffa0main":                            "main",
+		"main\U000e0069\U000e0067\U000e006e\U000e006f\U000e007f":  "main",
+		"heart \u2764\ufe0f kept, text \u263a\ufe0e kept":         "heart \u2764\ufe0f kept, text \u263a\ufe0e kept",
+		"family \U0001f468\u200d\U0001f469\u200d\U0001f467\ufe0f": "family \U0001f468\u200d\U0001f469\u200d\U0001f467\ufe0f",
 		// Joiners that shape what they join stay: an emoji sequence, a
 		// Persian word, a Devanagari conjunct.
 		"\U0001f468\u200d\U0001f469\u200d\U0001f467":       "\U0001f468\u200d\U0001f469\u200d\U0001f467",

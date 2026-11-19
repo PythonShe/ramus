@@ -15,9 +15,11 @@ import (
 // Control removes what a terminal or a text view could misread: escape
 // sequences (CSI, OSC and the rest), control characters other than
 // newline and tab, C1 controls, bidirectional overrides and marks, and
-// zero-width characters with no work to do (see joins), which can make a
-// host, a path or a name read as something else. A lone \r becomes a
-// newline, as git's progress lines are meant to be read.
+// invisible characters with no work to do (zero-width ones, see joins,
+// fillers, tags), which can make a host, a path or a name read as
+// something else. A lone \r, and a line or paragraph separator, becomes
+// a newline, as git's progress lines are meant to be read. Variation
+// selectors stay: emoji need them.
 func Control(s string) string {
 	if plain(s) {
 		return s
@@ -52,9 +54,17 @@ func Control(s string) string {
 				continue
 			case r >= 0x80 && r <= 0x9f:
 			case r >= 0x202a && r <= 0x202e, r >= 0x2066 && r <= 0x2069, r == 0x200e, r == 0x200f, r == 0x061c:
-			case r == 0x200b, r == 0xfeff:
-				// Invisible, and in text a commit or a ref carries only to
-				// make two names that differ read the same.
+			case r == 0x2028 || r == 0x2029:
+				// Line and paragraph separators break a line as a newline
+				// does, where a view honours them; one that does not would
+				// show two lines as one.
+				b.WriteByte('\n')
+			case r == 0x200b, r == 0xfeff, r >= 0x2060 && r <= 0x2064, r == 0x180e, r == 0x00ad, r == 0x034f,
+				r == 0x115f, r == 0x1160, r == 0x3164, r == 0xffa0, r >= 0xe0000 && r <= 0xe007f:
+				// Invisible (zero-width, soft hyphen, word joiner, tag
+				// characters) or shown blank (the Hangul fillers), and in
+				// text a commit or a ref carries only to make two names that
+				// differ read the same, or to hide text.
 			case (r == 0x200c || r == 0x200d) && !joins(s, i, n):
 			default:
 				b.WriteString(s[i : i+n])
