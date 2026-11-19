@@ -6,11 +6,42 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 )
+
+// A subject of one long paragraph is kept to what a row could show, cut
+// on a character.
+func TestLoadTextClipsTheSubject(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1\n")
+	r.Commit("one")
+	long := "x" + strings.Repeat("é", 1<<19)
+	out, err := r.Run([]byte(long), "commit-tree", "HEAD^{tree}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := hex.DecodeString(strings.TrimSpace(out))
+	p, err := catfile.Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	c, err := LoadText(p, [][]byte{id}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subject, _, _ := c.Row(0)
+	if len(subject) > MaxSubject || len(subject) < MaxSubject-4 || !strings.HasPrefix(long, subject) || !utf8.ValidString(subject) {
+		t.Fatalf("kept %d bytes of the subject", len(subject))
+	}
+	if c.Bytes() > 2*MaxSubject+1024 {
+		t.Fatalf("the chunk holds %d bytes", c.Bytes())
+	}
+}
 
 // A row's text holds its subject and author, and for a merge the parents
 // it merges, as git log's %p abbreviates them to seven digits.

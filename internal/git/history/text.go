@@ -3,6 +3,7 @@ package history
 import (
 	"bytes"
 	"time"
+	"unicode/utf8"
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/mailmap"
@@ -47,8 +48,8 @@ func (c *TextChunk) Bytes() int {
 // OID returns the object id of commit k.
 func (c *TextChunk) OID(k int) []byte { return c.oids[k*c.hashSize : (k+1)*c.hashSize] }
 
-// Row returns the subject, author name and author time of commit k. The
-// strings share the chunk's buffer.
+// Row returns the subject, author name and author time of commit k, as
+// copies of the chunk's text.
 func (c *TextChunk) Row(k int) (subject, author string, when time.Time) {
 	start := uint32(0)
 	if k > 0 {
@@ -73,6 +74,22 @@ func (c *TextChunk) Merged(k int) string {
 // Email returns the email of commit k's author, as the mailmap maps it.
 func (c *TextChunk) Email(k int) string {
 	return string(c.buf[c.ends[textParts*k+2]:c.ends[textParts*k+3]])
+}
+
+// MaxSubject bounds the bytes of a subject a chunk keeps: a row shows one
+// line of it, and a message of one long paragraph would otherwise be kept
+// whole and copied for every row drawn.
+const MaxSubject = 4 << 10
+
+// clip cuts s to at most n bytes, on a rune boundary.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 // textParts is how many ends each commit has in a chunk's buffer.
@@ -116,6 +133,7 @@ func LoadText(p *catfile.Process, ids [][]byte, mm *mailmap.Map) (*TextChunk, er
 		// The text is only shown: without the controls and bidi overrides
 		// a commit could carry to disguise its subject or its author.
 		subject, author, email = redact.Control(subject), redact.Control(author), redact.Control(email)
+		subject = clip(subject, MaxSubject)
 		c.odd = append(c.odd, !ok1 || !ok2)
 		c.buf = append(c.buf, subject...)
 		c.ends = append(c.ends, uint32(len(c.buf)))
