@@ -1,13 +1,49 @@
 #!/bin/sh
 # The full gate: formatting, vet, the engine's import boundary, tests.
-# A step that fails says so last, on a line of its own starting
-# "check.sh:", so a long log need not be searched for what stopped it.
+# A step that fails says so last, on lines of their own starting
+# "check.sh:", so a long log need not be searched for what stopped it:
+# for the tests, a line for each test that failed, by package and name.
 set -eu
 cd "$(dirname "$0")/.."
 
 fail() {
 	echo "check.sh: $*" >&2
 	exit 1
+}
+
+# The checks below search what a command printed. POSIX sh has no
+# pipefail, and grep says "no match" and "could not read" by its status
+# alone: a command that failed early in a pipe, or a grep that could not
+# run, would leave a check nothing to find, and it would pass. So each
+# command's output is kept whole before it is searched, and search and
+# pick fail the gate when grep fails (status 2), not when it finds
+# nothing (1). Called as x=$(pick ...), they fail in a subshell: follow
+# them with || exit 1.
+
+# search runs grep with the arguments given.
+search() {
+	s=0
+	grep "$@" || s=$?
+	[ "$s" -le 1 ] || fail "grep could not read what a check searches: its message is above"
+}
+
+# pick prints the lines of $1 that grep, given the rest, selects.
+pick() {
+	in=$1
+	shift
+	printf '%s\n' "$in" | search "$@"
+}
+
+# has reports whether $1 holds the line $2.
+has() {
+	case "
+$1
+" in
+	*"
+$2
+"*) return 0 ;;
+	esac
+	return 1
 }
 
 unformatted=$(gofmt -l *.go internal spike scripts bench assets locales) || fail "gofmt could not read the files it names above"
@@ -19,10 +55,6 @@ fi
 go vet ./... || fail "go vet failed"
 go tool mygo vet . || fail "go tool mygo vet failed"
 
-# What go list prints is kept whole before it is searched: piped into
-# grep, a go list that failed would give the check nothing to find, and
-# the check would pass.
-#
 # The engine must stay usable without the app and its UI framework: it,
 # its tests included, on every system it is built for, imports only the
 # standard library, its own packages, internal/statefile, and the modules
@@ -31,7 +63,10 @@ go tool mygo vet . || fail "go tool mygo vet failed"
 allowed='^(ramus/internal/git(/.*)?|ramus/internal/statefile|golang\.org/x/(sys|text)/.*|github\.com/klauspost/compress/.*|github\.com/ebitengine/purego(/.*)?)$'
 for os in darwin linux windows; do
 	engine=$(GOOS=$os CGO_ENABLED=0 go list -deps -test -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./internal/git/...) || fail "go list failed"
-	if echo "$engine" | grep -v -E "$allowed" | grep . >&2; then
+	has "$engine" ramus/internal/git || fail "go list named no engine package on $os"
+	outside=$(pick "$engine" -v -E "$allowed") || exit 1
+	if [ -n "$outside" ]; then
+		echo "$outside" >&2
 		fail "internal/git imports the packages above on $os"
 	fi
 done
@@ -45,7 +80,10 @@ done
 # fixtures under internal/git/gittest serve tests alone, a Git LFS server
 # on the loopback among them, and the app must not link them.
 app=$(go list -deps .) || fail "go list failed"
-if echo "$app" | grep '^ramus/internal/git/gittest'; then
+has "$app" ramus || fail "go list named no main package"
+fixtures=$(pick "$app" '^ramus/internal/git/gittest') || exit 1
+if [ -n "$fixtures" ]; then
+	echo "$fixtures" >&2
 	fail "the app links test fixtures"
 fi
 # What a package links counts, not only what it names: net/http/httputil,
@@ -55,23 +93,44 @@ fi
 # updater, so it is held to its own imports.
 network='^(net|net/http|net/http/.*|net/rpc|net/smtp|crypto/tls|golang.org/x/net/.*|github.com/egoist/mygo/ui/netimage)$'
 links=$(go list -f '{{.ImportPath}} {{join .Deps " "}}' ./internal/...) || fail "go list failed"
-if echo "$links" |
-	awk -v net="$network" '$1 !~ /^ramus\/internal\/git\/gittest(\/|$)/ {for (i = 2; i <= NF; i++) if ($i ~ net && $i != "net") print $1 " links " $i}' | grep .; then
+[ -n "$links" ] || fail "go list named no package under internal/"
+linked=$(printf '%s\n' "$links" |
+	awk -v net="$network" '$1 !~ /^ramus\/internal\/git\/gittest(\/|$)/ {for (i = 2; i <= NF; i++) if ($i ~ net && $i != "net") print $1 " links " $i}') ||
+	fail "awk could not search what the packages link"
+if [ -n "$linked" ]; then
+	echo "$linked" >&2
 	fail "a package of ours uses the network"
 fi
+set -- internal/askpass/*.go
+[ -f "$1" ] || fail "no Go files in internal/askpass, which the checks below name"
 imports=$(go list -f '{{.ImportPath}} {{join .Imports " "}}' . ./internal/...) || fail "go list failed"
-if echo "$imports" |
-	awk -v net="$network" '$1 !~ /^ramus\/internal\/git\/gittest(\/|$)/ {for (i = 2; i <= NF; i++) if ($i ~ net && !($1 == "ramus/internal/askpass" && $i == "net")) print $1 " imports " $i}' | grep .; then
+[ -n "$imports" ] || fail "go list named no package"
+imported=$(printf '%s\n' "$imports" |
+	awk -v net="$network" '$1 !~ /^ramus\/internal\/git\/gittest(\/|$)/ {for (i = 2; i <= NF; i++) if ($i ~ net && !($1 == "ramus/internal/askpass" && $i == "net")) print $1 " imports " $i}') ||
+	fail "awk could not search what the packages import"
+if [ -n "$imported" ]; then
+	echo "$imported" >&2
 	fail "a package of ours uses the network"
 fi
-if grep -n -E '\.(Dial|Listen)[A-Za-z]*\(' internal/askpass/*.go | grep -v '_test.go:' | grep -v '"unix"'; then
+sockets=$(search -n -E '\.(Dial|Listen)[A-Za-z]*\(' "$@") || exit 1
+sockets=$(pick "$sockets" -v '_test.go:') || exit 1
+sockets=$(pick "$sockets" -v '"unix"') || exit 1
+if [ -n "$sockets" ]; then
+	echo "$sockets" >&2
 	fail "askpass opens a socket that is not a Unix socket"
 fi
 # The check below knows mygo's modules by the package's own name.
-if grep -rn -E '^[[:space:]]*(import[[:space:]]+)?[A-Za-z_.][A-Za-z0-9_]*[[:space:]]+"github\.com/egoist/mygo"' --include='*.go' *.go internal | grep -v -E ':[[:space:]]*(import[[:space:]]+)?mygo[[:space:]]+"'; then
+named=$(search -rn -E '^[[:space:]]*(import[[:space:]]+)?[A-Za-z_.][A-Za-z0-9_]*[[:space:]]+"github\.com/egoist/mygo"' --include='*.go' *.go internal) || exit 1
+named=$(pick "$named" -v -E ':[[:space:]]*(import[[:space:]]+)?mygo[[:space:]]+"') || exit 1
+if [ -n "$named" ]; then
+	echo "$named" >&2
 	fail "mygo is imported under another name"
 fi
-if grep -rn -E 'mygo\.(Updater|Network|Protocol|Cookies)\b' --include='*.go' *.go internal | grep -v '_test.go:' | grep -v -E '^about\.go:[0-9]+:.*mygo\.Updater\.'; then
+reached=$(search -rn -E 'mygo\.(Updater|Network|Protocol|Cookies)\b' --include='*.go' *.go internal) || exit 1
+reached=$(pick "$reached" -v '_test.go:') || exit 1
+reached=$(pick "$reached" -v -E '^about\.go:[0-9]+:.*mygo\.Updater\.') || exit 1
+if [ -n "$reached" ]; then
+	echo "$reached" >&2
 	fail "the app reaches mygo's network modules"
 fi
 
@@ -87,67 +146,91 @@ darwin) race=1 ;;
 linux) [ "$(go env CGO_ENABLED)" = 1 ] && race=1 ;;
 esac
 
-# mygo is pure Go; building without cgo keeps cross-compiling working.
-# The ui package takes five minutes on GitHub's Windows runner, half of
-# go test's default timeout, and grows with every view: past it, go
-# test reports a hang.
-timeout=20m
+# go test's events are kept, in RAMUS_TEST_JSON when it names a folder,
+# for CI to list the tests skipped (scripts/testlog), else in a folder of
+# our own; once the tests are done, the last lines name from them each
+# test that failed.
+events=${RAMUS_TEST_JSON:-}
+if [ -z "$events" ]; then
+	events=$(mktemp -d)
+	ours=$events
+else
+	ours=
+fi
+racelog=$(mktemp)
+racing=
+trap 'if [ -n "$racing" ]; then kill "$racing" 2>/dev/null || true; fi; rm -f "$racelog"; if [ -n "$ours" ]; then rm -rf "$ours"; fi' EXIT
 
-# gotest is go test of the arguments after the first. With
-# RAMUS_TEST_JSON set, a folder, go test's events are also kept there, in
-# a file named by the first argument, for CI to list the tests skipped
-# (scripts/testlog); what is printed stays go test's usual output. That
-# go test passed is kept in a file, which a pipe in sh would lose.
+# gotest is go test of the arguments after the first, printing go test's
+# usual output, its events kept in $events in a file named by the first
+# argument. That go test passed is kept in a file, which a pipe in sh
+# would lose.
 gotest() {
 	name=$1
 	shift
-	if [ -z "${RAMUS_TEST_JSON:-}" ]; then
-		go test "$@"
-		return
-	fi
-	mkdir -p "$RAMUS_TEST_JSON"
+	mkdir -p "$events"
 	passed=$(mktemp)
 	shown=0
 	{ go test -json "$@" && echo yes >"$passed"; } |
-		go run ./scripts/testlog -save "$RAMUS_TEST_JSON/$name.json" || shown=1
+		go run ./scripts/testlog -save "$events/$name.json" || shown=1
 	result=$(cat "$passed")
 	rm -f "$passed"
 	[ "$result" = yes ] && [ "$shown" = 0 ]
 }
 
+# failures names, on the gate's last lines, each test that failed in the
+# run named $2 and how, and each package that failed without a test to
+# name; step $1 of check.sh.
+failures() {
+	said=$(go run ./scripts/testlog -failed "$1" "$events/$2.json") || said=
+	if [ -n "$said" ]; then
+		echo "$said" >&2
+	else
+		echo "check.sh: $1 failed, naming no test: its output is above" >&2
+	fi
+}
+
+# mygo is pure Go; building without cgo keeps cross-compiling working.
+# The ui package takes five minutes on GitHub's Windows runner, half of
+# go test's default timeout, and grows with every view: past it, go
+# test reports a hang.
+timeout=20m
 if [ -z "$race" ]; then
-	CGO_ENABLED=0 gotest all -timeout "$timeout" ./... || fail "go test failed: the FAIL lines above name the package and the test"
+	if ! CGO_ENABLED=0 gotest all -timeout "$timeout" ./...; then
+		failures "go test" all
+		exit 1
+	fi
 	exit 0
 fi
 pkgs=$(go list ./...) || fail "go list failed"
 ui='^ramus/internal/ui(/|$)'
-raced=$(echo "$pkgs" | grep '^ramus/internal/' | grep -v -E "$ui")
-rest=$(echo "$pkgs" | grep -v '^ramus/internal/' | grep -v -E "$ui" || true)
-rest="$rest $(echo "$pkgs" | grep -E "$ui")"
+internal=$(pick "$pkgs" '^ramus/internal/') || exit 1
+raced=$(pick "$internal" -v -E "$ui") || exit 1
+[ -n "$raced" ] || fail "go list named no package under internal/ to run under the race detector"
+views=$(pick "$pkgs" -E "$ui") || exit 1
+[ -n "$views" ] || fail "go list named no ui package"
+rest=$(pick "$pkgs" -v '^ramus/internal/') || exit 1
+has "$rest" ramus || fail "go list named no main package"
 
-# The race run writes to a file of its own, shown once the rest is done:
-# two go tests writing to one log interleave. Both are waited for, so a
+# The race run prints to a file of its own, shown once the rest is done:
+# two go tests printing to one log interleave. Both are waited for, so a
 # failure in one still shows all the other found.
-racelog=$(mktemp)
 # One package a word.
 # shellcheck disable=SC2086
 gotest race -race -timeout "$timeout" $raced >"$racelog" 2>&1 &
 racing=$!
-trap 'kill "$racing" 2>/dev/null || true; rm -f "$racelog"' EXIT
 failed=
 # shellcheck disable=SC2086
-CGO_ENABLED=0 gotest rest -timeout "$timeout" $rest || failed=1
+CGO_ENABLED=0 gotest rest -timeout "$timeout" $rest $views || failed=1
 racefailed=
 wait "$racing" || racefailed=1
+racing=
 echo "--- go test -race, the packages under internal/ but the ui's"
 cat "$racelog"
-if [ -n "$racefailed" ]; then
-	# A race seen outside any test ends the run with "Found N data
-	# race(s)" and no "--- FAIL" line to look for.
-	grep -E '^(--- FAIL|FAIL|panic:|Found [0-9]+ data race)' "$racelog" >&2 || true
-	echo "check.sh: go test -race failed: its log is above, a race under WARNING: DATA RACE" >&2
-fi
 if [ -n "$failed" ]; then
-	echo "check.sh: go test failed: the FAIL lines above name the package and the test" >&2
+	failures "go test" rest
+fi
+if [ -n "$racefailed" ]; then
+	failures "go test -race" race
 fi
 [ -z "$racefailed$failed" ] || exit 1

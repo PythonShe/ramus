@@ -1,15 +1,19 @@
 // Command testlog reads the events of go test -json, keeps them in a file
 // and prints what go test prints without -json: each package's result,
 // and the output of the tests that failed. Later, it lists the tests the
-// kept events say were skipped, each with its reason.
+// kept events say were skipped, each with its reason, or names those
+// that failed.
 //
 //	go test -json ./... | go run ./scripts/testlog -save tests.json
 //	go run ./scripts/testlog -skips tests.json ...
+//	go run ./scripts/testlog -failed "go test" tests.json ...
 //
-// scripts/check.sh runs its tests through it when RAMUS_TEST_JSON names a
-// folder, and CI lists the skipped tests from there: a test that skips
-// where it should run passes without testing anything, which only such a
-// list shows, and the tests run once.
+// scripts/check.sh runs its tests through it, and names the tests that
+// failed on its last lines, so that a long log need not be searched.
+// When RAMUS_TEST_JSON names a folder, the events are kept there, and CI
+// lists the skipped tests from them: a test that skips where it should
+// run passes without testing anything, which only such a list shows,
+// and the tests run once.
 package main
 
 import (
@@ -30,16 +34,22 @@ type event struct {
 	ImportPath string // of a build-output event
 	Test       string
 	Output     string
+	// FailedBuild names, on a package's fail, the build that failed.
+	FailedBuild string
 }
 
 func main() {
 	save := flag.String("save", "", "the file to keep the events read from standard input in")
 	skips := flag.Bool("skips", false, "list the tests skipped in the files named, each with its reason")
+	failed := flag.String("failed", "", "name, as check.sh's step of this name, each test and package that failed in the files named")
 	flag.Parse()
 	var err error
-	if *skips {
+	switch {
+	case *skips:
 		err = listSkips(os.Stdout, flag.Args())
-	} else {
+	case *failed != "":
+		err = listFailures(os.Stdout, *failed, flag.Args())
+	default:
 		err = render(os.Stdin, os.Stdout, *save)
 	}
 	if err != nil {
@@ -164,4 +174,126 @@ func listSkips(out io.Writer, files []string) error {
 	}
 	fmt.Fprintf(out, "%d skipped\n", len(all))
 	return nil
+}
+
+// failedTest is a test of a package that failed, as listFailures reads
+// it: how it ended, "" for a pass or a skip.
+type failedTest struct {
+	name, how string
+	ended     bool
+}
+
+// listFailures prints a line for each test that failed in the events of
+// files, by package and name, and how: failed, panicked, had a data race,
+// or ran past the time limit; and for each package that failed without a
+// test to blame: did not build, or had a data race outside any test. A
+// subtest is named rather than the test it runs in. Each line starts
+// "check.sh: step: ", for the gate's last lines.
+func listFailures(out io.Writer, step string, files []string) error {
+	type pkg struct {
+		tests  []*failedTest
+		byName map[string]*failedTest
+		output []string
+	}
+	say := func(s string) { fmt.Fprintf(out, "check.sh: %s: %s\n", step, s) }
+	for _, name := range files {
+		f, err := os.Open(name)
+		if err != nil {
+			return err
+		}
+		pkgs := map[string]*pkg{}
+		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 0, 64<<10), 16<<20)
+		for sc.Scan() {
+			var e event
+			if json.Unmarshal(sc.Bytes(), &e) != nil || e.Package == "" {
+				continue
+			}
+			p := pkgs[e.Package]
+			if p == nil {
+				p = &pkg{byName: map[string]*failedTest{}}
+				pkgs[e.Package] = p
+			}
+			var t *failedTest
+			if e.Test != "" {
+				if t = p.byName[e.Test]; t == nil {
+					t = &failedTest{name: e.Test}
+					p.byName[e.Test] = t
+					p.tests = append(p.tests, t)
+				}
+			}
+			switch {
+			case e.Action == "output":
+				p.output = append(p.output, e.Output)
+				switch {
+				case t == nil:
+				case strings.Contains(e.Output, "race detected during execution of test"):
+					t.how = "had a data race"
+				case strings.HasPrefix(e.Output, "panic: ") && !strings.HasPrefix(e.Output, "panic: test timed out") && t.how == "":
+					t.how = "panicked"
+				}
+			case t != nil && e.Action == "fail":
+				t.ended = true
+				if t.how == "" {
+					t.how = "failed"
+				}
+			case t != nil && (e.Action == "pass" || e.Action == "skip"):
+				t.ended, t.how = true, ""
+			case t == nil && e.Action == "fail":
+				failedPackage(say, e, p.tests, p.output)
+				delete(pkgs, e.Package)
+			case t == nil && (e.Action == "pass" || e.Action == "skip"):
+				delete(pkgs, e.Package)
+			}
+		}
+		f.Close()
+		if err := sc.Err(); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// failedPackage names what failed in package e.Package, given its tests
+// in the order they started and all its output.
+func failedPackage(say func(string), e event, tests []*failedTest, output []string) {
+	if e.FailedBuild != "" {
+		say(e.Package + " did not build")
+		return
+	}
+	timedOut, raced, panicked := false, false, false
+	for _, l := range output {
+		timedOut = timedOut || strings.HasPrefix(l, "panic: test timed out")
+		raced = raced || strings.HasPrefix(l, "testing: race detected outside of test execution") ||
+			strings.HasPrefix(l, "Found ") && strings.Contains(l, " data race")
+		panicked = panicked || strings.HasPrefix(l, "panic: ")
+	}
+	named := false
+	for _, t := range tests {
+		how := t.how
+		if !t.ended {
+			// Still running when the package stopped: past the time
+			// limit, or in a crash.
+			how = "did not finish"
+			if timedOut {
+				how = "ran past the time limit"
+			}
+		}
+		if how == "" || slices.ContainsFunc(tests, func(u *failedTest) bool {
+			return u.how != "" && strings.HasPrefix(u.name, t.name+"/")
+		}) {
+			continue
+		}
+		say(t.name + " in " + e.Package + " " + how)
+		named = true
+	}
+	switch {
+	case raced:
+		say(e.Package + " had a data race outside any test")
+	case named:
+	case panicked:
+		say(e.Package + " failed in a panic, naming no test")
+	default:
+		say(e.Package + " failed, naming no test")
+	}
 }
