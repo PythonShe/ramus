@@ -120,3 +120,54 @@ func TestTrustIsTheFoldersOwn(t *testing.T) {
 		t.Fatal("a folder the user trusted opened Restricted")
 	}
 }
+
+// A work tree whose .git is a symlink to its git directory elsewhere (the
+// layout of Android's repo tool) is the same repository as one whose .git
+// file names that directory: the same common directory, the one its
+// linked worktrees carry, and the same answer to trust.
+func TestDotGitSymlinkIsAGitfile(t *testing.T) {
+	a := gittest.Init(t)
+	a.Write("f", "x\n")
+	a.Commit("one")
+	elsewhere := filepath.Join(t.TempDir(), "a.git")
+	if err := os.Rename(a.GitDir(), elsewhere); err != nil {
+		t.Fatal(err)
+	}
+	dotgit := filepath.Join(a.Dir, ".git")
+	if err := os.Symlink(elsewhere, dotgit); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	wt := filepath.Join(t.TempDir(), "wt")
+	a.Git("worktree", "add", "-q", wt)
+
+	viaLink, err := Discover(a.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	real := resolve(elsewhere)
+	if viaLink.GitDir != real || viaLink.CommonDir != real || viaLink.Linked {
+		t.Fatalf("through the symlink: %+v, want %s", viaLink, real)
+	}
+	linked, err := Discover(wt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if linked.CommonDir != viaLink.CommonDir {
+		t.Fatalf("worktree's common directory %s, the repository's %s", linked.CommonDir, viaLink.CommonDir)
+	}
+
+	os.Remove(dotgit)
+	if err := os.WriteFile(dotgit, []byte("gitdir: "+elsewhere+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	viaFile, err := Discover(a.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if viaFile != viaLink {
+		t.Fatalf("through a .git file %+v, through a symlink %+v", viaFile, viaLink)
+	}
+	if got, want := TrustDir(viaLink, nil), TrustDir(viaFile, nil); got != want {
+		t.Fatalf("trusted under %s through a symlink, %s through a .git file", got, want)
+	}
+}

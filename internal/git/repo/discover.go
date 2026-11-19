@@ -132,6 +132,10 @@ func gitDirLocation(dir string) (Location, bool) {
 	if !validHEAD(filepath.Join(dir, "HEAD")) {
 		return Location{}, false
 	}
+	// Spelled as on disk once, for both: a .git that is a symlink to the
+	// git directory must give the common directory its linked worktrees
+	// name, not the symlink's path.
+	dir = resolve(dir)
 	common := dir
 	linked := false
 	if b, err := osfile.ReadFile(filepath.Join(dir, "commondir"), smallFile); err == nil {
@@ -147,7 +151,6 @@ func gitDirLocation(dir string) (Location, bool) {
 			return Location{}, false
 		}
 	}
-	dir = resolve(dir)
 	return Location{GitDir: dir, CommonDir: common, Linked: linked && common != dir}, true
 }
 
