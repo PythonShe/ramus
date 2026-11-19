@@ -21,9 +21,10 @@ import (
 func main() {
 	runs := flag.Int("runs", 10, "runs to time")
 	budget := flag.Duration("budget", 200*time.Millisecond, "the most the fastest run may take")
+	warn := flag.Duration("warn", 0, "warn when the fastest run takes longer than this, short of the budget")
 	flag.Parse()
 	if flag.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "usage: coldstart [-runs n] [-budget d] <binary>")
+		fmt.Fprintln(os.Stderr, "usage: coldstart [-runs n] [-budget d] [-warn d] <binary>")
 		os.Exit(2)
 	}
 	var times []time.Duration
@@ -44,6 +45,15 @@ func main() {
 	if times[0] > *budget {
 		fmt.Fprintln(os.Stderr, "the fastest cold start is over budget")
 		os.Exit(1)
+	}
+	if *warn > 0 && times[0] > *warn {
+		// An annotation on the run where GitHub Actions runs this.
+		prefix := "warning: "
+		if os.Getenv("GITHUB_ACTIONS") == "true" {
+			prefix = "::warning title=Cold start::"
+		}
+		fmt.Printf("%sthe fastest cold start, %v, is over %v and near the budget of %v\n", prefix,
+			times[0].Round(100*time.Microsecond), *warn, *budget)
 	}
 }
 

@@ -69,14 +69,14 @@ use):
 
 | | |
 |---|---|
-| Linux kernel, open to the first screen of history | 1.08 s |
-| Linux kernel, all 1,506,743 commits laid out in the graph | 2.54 s, 172 MiB |
-| Scrolling the kernel's whole graph, slowest frame of 600 | 2.5 ms |
-| 390,000-file repository, open to a populated status panel | 3.65 s |
-| One file saved, to the status showing it (20,000 files) | 171 ms |
-| 50 MB text diff, read and shown | 1.3 s |
-| Ten repositories open and idle | 0.10% CPU, 48 MiB |
-| Cold start to first frame, on GitHub's macOS runner | 171 ms |
+| Linux kernel, open to the first screen of history | 795 ms |
+| Linux kernel, all 1,507,296 commits laid out in the graph | 1.59 s, 176 MiB |
+| Scrolling the kernel's whole graph, slowest frame of 600 | 2.35 s |
+| 390,000-file repository, open to a populated status panel | 3.36 s |
+| One file saved, to the status showing it (20,000 files) | 154 ms |
+| 50 MB text diff, read and shown | 0.97 s |
+| Ten repositories open and idle | 0.09% CPU, 55 MiB |
+| Cold start to first frame, at normal priority (median of 10) | 155 ms |
 
 Ramus reads git's files on disk itself and draws its interface natively on
 the GPU, with no web view. Everything that writes runs your `git`, so hooks,

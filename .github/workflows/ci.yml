@@ -53,11 +53,15 @@ jobs:
             echo "set macos.minimumSystemVersion in mygo.json, and the README, to $binary" >&2
             exit 1
           fi
-      # The hosted runner is a VM with a virtual GPU: its median varies
-      # from 150 to 290 ms, nearly all AppKit and Metal. The gate catches
-      # a regression; the 200 ms target is for hardware.
+      # The hosted runner is a VM with a virtual GPU, nearly all of whose
+      # time is AppKit and Metal. Over the 20 runs of 15 to 18 November
+      # 2026 the median of ten starts went from 141 to 374 ms and the
+      # fastest from 135 to 263 ms, for the same code: the runner cannot
+      # hold the 200 ms that hardware does (155 ms on Apple silicon, see
+      # docs/benchmarks.md). It fails past 300 ms, above every fastest
+      # run seen, and warns past 250 ms, which two of the twenty reached.
       - name: Cold start to first frame
-        run: go run ./scripts/coldstart -runs 10 -budget 300ms "$RUNNER_TEMP/ramus"
+        run: go run ./scripts/coldstart -runs 10 -budget 300ms -warn 250ms "$RUNNER_TEMP/ramus"
 
   linux:
     runs-on: ubuntu-26.04
