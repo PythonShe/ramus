@@ -45,11 +45,12 @@ func (m *Map) addLine(line string) {
 	if strings.HasPrefix(line, "#") {
 		return
 	}
-	name1, email1, rest, ok := nameAndEmail(line)
+	// The first address may not be empty, the second may.
+	name1, email1, rest, ok := nameAndEmail(line, false)
 	if !ok {
 		return
 	}
-	name2, email2, _, ok := nameAndEmail(rest)
+	name2, email2, _, ok := nameAndEmail(rest, true)
 	if !ok {
 		// "Proper Name <commit@email>": the address is the key and stays.
 		m.add("", email1, name1, "")
@@ -58,13 +59,13 @@ func (m *Map) addLine(line string) {
 	m.add(name2, email2, name1, email1)
 }
 
-func nameAndEmail(s string) (name, email, rest string, ok bool) {
+func nameAndEmail(s string, allowEmpty bool) (name, email, rest string, ok bool) {
 	lt := strings.IndexByte(s, '<')
 	if lt < 0 {
 		return "", "", "", false
 	}
 	gt := strings.IndexByte(s[lt+1:], '>')
-	if gt < 0 {
+	if gt < 0 || gt == 0 && !allowEmpty {
 		return "", "", "", false
 	}
 	return strings.TrimSpace(s[:lt]), s[lt+1 : lt+1+gt], s[lt+1+gt+1:], true
@@ -74,7 +75,7 @@ func (m *Map) add(oldName, oldEmail, newName, newEmail string) {
 	if m.byEmail == nil {
 		m.byEmail = map[string]*entry{}
 	}
-	key := strings.ToLower(oldEmail)
+	key := fold(oldEmail)
 	e := m.byEmail[key]
 	if e == nil {
 		e = &entry{}
@@ -87,13 +88,26 @@ func (m *Map) add(oldName, oldEmail, newName, newEmail string) {
 	if e.names == nil {
 		e.names = map[string]*person{}
 	}
-	n := strings.ToLower(oldName)
-	p := e.names[n]
-	if p == nil {
-		p = &person{}
-		e.names[n] = p
+	// A later line for the same name and address replaces the earlier,
+	// where one for the address alone adds to it.
+	e.names[fold(oldName)] = &person{newName, newEmail}
+}
+
+// fold lower-cases ASCII letters alone: git matches names and addresses
+// with strcasecmp, which leaves other letters as they are.
+func fold(s string) string {
+	for i := 0; i < len(s); i++ {
+		if 'A' <= s[i] && s[i] <= 'Z' {
+			b := []byte(s)
+			for j := i; j < len(b); j++ {
+				if 'A' <= b[j] && b[j] <= 'Z' {
+					b[j] += 'a' - 'A'
+				}
+			}
+			return string(b)
+		}
 	}
-	p.merge(newName, newEmail)
+	return s
 }
 
 // Len returns the number of addresses m maps.
@@ -106,17 +120,17 @@ func (m *Map) Len() int {
 
 // Lookup returns the canonical name and address of an identity; one m
 // does not name comes back as it is. Names and addresses match ignoring
-// case.
+// the case of ASCII letters.
 func (m *Map) Lookup(name, email string) (string, string) {
 	if m == nil || len(m.byEmail) == 0 {
 		return name, email
 	}
-	e := m.byEmail[strings.ToLower(email)]
+	e := m.byEmail[fold(email)]
 	if e == nil {
 		return name, email
 	}
 	p := &e.def
-	if q := e.names[strings.ToLower(name)]; q != nil {
+	if q := e.names[fold(name)]; q != nil {
 		p = q
 	} else if p.name == "" && p.email == "" {
 		return name, email
