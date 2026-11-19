@@ -135,7 +135,13 @@ func (h *harness) click(s string) {
 	h.note()
 	h.inPlace(s)
 	if err := h.tt.Click(s); err != nil {
-		h.t.Fatalf("click %q: %v; texts %q", s, err, h.tt.Texts())
+		// What a test waited for and what it clicks next can arrive in
+		// different frames, as a list's rows after the bar's subject:
+		// the click waits for its own target, as a user does.
+		h.until("something to click that shows "+s, func() bool {
+			h.inPlace(s)
+			return h.tt.Click(s) == nil
+		})
 	}
 	h.tt.Frame()
 }
