@@ -405,9 +405,9 @@ func (q *Queue) record(j *Job, before fullState) {
 	}
 	b, a := touched(before, after, j.Op.Refs)
 	j.mu.Lock()
-	snap, config := j.snap, j.config
+	snap, config, backup := j.snap, j.config, j.backup
 	j.mu.Unlock()
-	e := Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op}
+	e := Entry{Name: j.Op.Name, Kind: j.Op.Undo, Time: time.Now(), Before: b, After: a, Snapshot: snap, op: j.Op, backup: backup}
 	q.settle(&e, config)
 	id := q.History.push(e)
 	j.mu.Lock()

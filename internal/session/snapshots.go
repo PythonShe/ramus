@@ -177,9 +177,10 @@ func (s *Session) ExpireSnapshots(keep time.Duration) {
 			return
 		}
 		list, err := snapshot.List(r.Refs(), cat)
-		if err != nil || len(list) == 0 {
+		if err != nil {
 			return
 		}
+		// With no snapshot, the backups of history rewrites still expire.
 		<-q.Expire(r.WorkTree, list, cutoff).Done()
 	})
 }

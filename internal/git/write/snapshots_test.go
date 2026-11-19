@@ -3,6 +3,8 @@ package write
 import (
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,5 +70,52 @@ func TestSnapshotNowRestoreExpire(t *testing.T) {
 	}
 	if list, _ = snapshot.List(rd, cat); len(list) != 0 {
 		t.Fatalf("%d left after expiry", len(list))
+	}
+}
+
+// Backups of history rewrites expire with the snapshots, but those an
+// undo or redo the History holds still needs.
+func TestExpireBackups(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	old := BackupPrefix + strconv.FormatInt(time.Now().Add(-30*24*time.Hour).UnixNano(), 10) + "/heads/main"
+	recent := BackupPrefix + strconv.FormatInt(time.Now().Add(-time.Hour).UnixNano(), 10) + "/heads/main"
+	h.r.Git("update-ref", old, "HEAD")
+	h.r.Git("update-ref", recent, "HEAD")
+	op, err := Commit(h.w, CommitOptions{Message: "amended", Amend: true, Seen: h.rev("HEAD"), Branch: "refs/heads/main"})
+	h.do(op, err, true)
+	backups := func() string {
+		return strings.TrimSpace(h.r.Git("for-each-ref", "--format=%(refname)", BackupPrefix))
+	}
+	amend := ""
+	for name := range strings.SplitSeq(backups(), "\n") {
+		if name != old && name != recent {
+			amend = name
+		}
+	}
+	if amend == "" {
+		t.Fatal("the amend made no backup")
+	}
+	if _, err := wait(t, h.q.Expire(h.r.Dir, nil, time.Now().Add(-14*24*time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	if got := backups(); got != recent+"\n"+amend && got != amend+"\n"+recent {
+		t.Fatalf("after expiry %q", got)
+	}
+	// Past the cutoff, the amend's backup stays while Undo can take the
+	// amend back, which needs the commit it holds.
+	if _, err := wait(t, h.q.Expire(h.r.Dir, nil, time.Now().Add(time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	if got := backups(); got != amend {
+		t.Fatalf("after expiry %q", got)
+	}
+	h.undo()
+	if _, err := wait(t, h.q.Expire(h.r.Dir, nil, time.Now().Add(time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	if got := backups(); got != amend {
+		t.Fatalf("a backup redo needs expired: %q", got)
 	}
 }

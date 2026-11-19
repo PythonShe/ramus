@@ -67,6 +67,9 @@ type Entry struct {
 	// id tells this entry from every other of its History, for an undo
 	// that must take back this write and no other.
 	id uint64
+	// backup is the directory of the refs the write backed up, "" for
+	// none: kept from expiring while the entry is in the History.
+	backup string
 }
 
 // History holds a repository's undoable writes, for as long as the
@@ -172,6 +175,21 @@ func (h *History) push(e Entry) uint64 {
 	h.undone = nil
 	h.trim()
 	return e.id
+}
+
+// backups are the backup directories of the entries held.
+func (h *History) backups() map[string]bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := map[string]bool{}
+	for _, side := range [][]Entry{h.done, h.undone} {
+		for _, e := range side {
+			if e.backup != "" {
+				out[e.backup] = true
+			}
+		}
+	}
+	return out
 }
 
 // ErrNothingToUndo is an Undo or Redo with nothing on its side.
