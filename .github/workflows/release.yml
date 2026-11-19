@@ -33,8 +33,10 @@ on:
 permissions:
   contents: read
 
+# By the tag released, the same whether pushed or dispatched: two runs of
+# one tag would upload over each other's files.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
