@@ -601,7 +601,7 @@ func (q *Queue) touchedPaths(ctx context.Context, e Entry) ([]string, error) {
 		index = s.Commit // the index had conflicts: their files are kept
 	}
 	list := func(set map[string]bool, args ...string) error {
-		res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree, Read: true, Args: args})
+		res, err := q.r.Run(ctx, &run.Cmd{GitDir: q.gitDir, WorkTree: e.op.Cmd.WorkTree, Read: true, Env: []string{"GIT_OPTIONAL_LOCKS=0"}, Args: args})
 		if err != nil {
 			return err
 		}
@@ -627,7 +627,10 @@ func (q *Queue) touchedPaths(ctx context.Context, e Entry) ([]string, error) {
 			steps = steps[1:]
 		}
 	default:
-		steps = [][]string{{"diff-index", "--cached", "-z", "--name-only", index, "--"}, {"diff-index", "-z", "--name-only", s.Commit, "--"}}
+		// The files by their contents: one changed before the write, and
+		// left by it, is not the write's, as plumbing that trusts the
+		// index's file times would say.
+		steps = [][]string{{"diff-index", "--cached", "-z", "--name-only", index, "--"}, {"diff", "--no-renames", "--no-ext-diff", "--no-textconv", "-z", "--name-only", s.Commit, "--"}}
 	}
 	set := map[string]bool{}
 	for _, args := range steps {

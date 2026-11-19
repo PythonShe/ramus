@@ -444,7 +444,7 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	// same, a discard with a filter that failed after it unstaged, or a
 	// delete cancelled between its runs: undo puts back what it kept.
 	if record && (err == nil || snapped && j.Op.Undo == FilesOnly) {
-		q.record(j, before)
+		q.record(j, before, err != nil)
 	}
 	return res, q.kept(j, err, true)
 }
@@ -474,7 +474,9 @@ func (q *Queue) kept(j *Job, err error, recorded bool) error {
 	return &KeptError{Err: err, Snapshot: j.snap, Undo: recorded && j.entry != 0}
 }
 
-func (q *Queue) record(j *Job, before fullState) {
+// record pushes the entry undo of j takes; failed is a write that failed,
+// recorded only when it changed what its snapshot holds.
+func (q *Queue) record(j *Job, before fullState, failed bool) {
 	after, err := capture(q.Refs)
 	if err != nil {
 		return // the write happened; it just cannot be undone
@@ -495,6 +497,11 @@ func (q *Queue) record(j *Job, before fullState) {
 		}
 	}
 	q.settle(&e, config)
+	if failed && !e.unknown && len(e.paths) == 0 {
+		// Refused before it changed anything, as a squash merge over local
+		// changes it would overwrite: an undo would do nothing.
+		return
+	}
 	id := q.History.push(e)
 	j.mu.Lock()
 	j.entry = id

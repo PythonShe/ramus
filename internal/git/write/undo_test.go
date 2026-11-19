@@ -526,6 +526,27 @@ func TestUndoSquashMerge(t *testing.T) {
 	}
 }
 
+// A squash merge git refuses over local changes it would overwrite
+// changed nothing, and records nothing to undo.
+func TestRefusedSquashMergeRecordsNothing(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1\n")
+	h.r.Commit("one")
+	h.r.Git("switch", "-q", "-c", "side")
+	h.r.Write("a", "side\n")
+	h.r.Commit("side")
+	h.r.Git("switch", "-q", "main")
+	h.r.Write("a", "local\n")
+	op, err := Merge(h.w, "side", MergeSquash, h.seen())
+	h.do(op, err, false)
+	if u, _ := h.q.History.Next(); u != "" {
+		t.Fatalf("next undo %q", u)
+	}
+	if h.read("a") != "local\n" {
+		t.Fatalf("a %q", h.read("a"))
+	}
+}
+
 // A merge that changed nothing records nothing to undo: an undo of it
 // would only unstage what was staged since.
 func TestUpToDateMergeRecordsNothing(t *testing.T) {
