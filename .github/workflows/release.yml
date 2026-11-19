@@ -117,9 +117,7 @@ jobs:
           # An app for each CPU rather than one universal app: each
           # download is half the size. Xcode 27 is the newest image.
           - { name: macOS, os: xcode-27, platform: "darwin/arm64,darwin/amd64" }
-          # mygo needs no cgo, so one Ubuntu runner makes both. One build
-          # of both also writes one SHA256SUMS, with no other job's upload
-          # to race against but the Mac's.
+          # mygo needs no cgo, so one Ubuntu runner makes both.
           - { name: Linux and Windows, os: ubuntu-26.04, platform: "linux/amd64,linux/arm64,windows/amd64,windows/arm64" }
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
@@ -274,6 +272,43 @@ jobs:
             gh release upload "$TAG" build/ramus-*-linux-x86_64.AppImage --repo "$GITHUB_REPOSITORY" --clobber
           fi
 
+      # mygo build only warns when it skips a package, as the Windows
+      # installer without NSIS; and the globs below and in finish would
+      # skip one that is renamed.
+      - name: The build made every package
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: go run ./scripts/verifyrelease -build build -platforms "$PLATFORM" "v$VERSION"
+
+      # Each build merges its lines into the release's SHA256SUMS: it
+      # downloads the file, adds its own and uploads it, so the two can
+      # upload over each other. finish makes the file again from these,
+      # each the lines of the files one build made.
+      - name: List the checksums of this build
+        if: needs.prepare.outputs.tag != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build
+          # build/SHA256SUMS holds what mygo merged from the release too.
+          while read -r sum name; do
+            name=${name#\*}
+            if compgen -G "*/$name" >/dev/null; then echo "$sum  $name"; fi
+          done < SHA256SUMS > "$RUNNER_TEMP/SHA256SUMS"
+          if [ "$RUNNER_OS" = Linux ]; then
+            sha256sum ramus-*-linux-x86_64.AppImage >> "$RUNNER_TEMP/SHA256SUMS"
+          fi
+          cat "$RUNNER_TEMP/SHA256SUMS"
+
+      - name: Keep the checksums of this build
+        if: needs.prepare.outputs.tag != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: checksums-${{ matrix.os }}
+          path: ${{ runner.temp }}/SHA256SUMS
+          if-no-files-found: error
+          overwrite: true
+
       - name: Keep the apps of a dry run
         if: needs.prepare.outputs.tag == ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -304,23 +339,38 @@ jobs:
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
-  # Each build merged its files into the release's SHA256SUMS: check that
-  # every file is there and matches, and add the AppImage, which mygo does
-  # not make. Then put the notes in the release and in the update
-  # manifests, which the update window shows them from.
+  # Make SHA256SUMS from the lists of the builds, and put the notes in the
+  # release and in the update manifests, which the update window shows
+  # them from. Then check the release whole, and publish it.
   finish:
     needs: [prepare, build, notes]
     runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
+      # The commit released, for the check and the key in its mygo.json.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
       - name: Download notes
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-notes
           path: ${{ runner.temp }}/notes
 
-      - name: Check and complete SHA256SUMS, and add the notes
+      - name: Download the checksums of the builds
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: checksums-*
+          path: ${{ runner.temp }}/checksums
+
+      - name: Check the release whole, and publish it
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -329,34 +379,33 @@ jobs:
         run: |
           set -euo pipefail
           NOTES="$RUNNER_TEMP/notes/notes.md"
-          mkdir assets && cd assets
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY"
-          ls -l
-          listed=$(awk '{ n = $2; sub(/^\*/, "", n); print n }' SHA256SUMS)
-          missing=0
-          for f in *.dmg *-setup-*.exe *.deb *.rpm *.tar.gz *.delta; do
-            [ -e "$f" ] || continue
-            if ! grep -qxF "$f" <<<"$listed"; then
-              echo "::error::SHA256SUMS does not list $f; re-run the build that made it."
-              missing=1
-            fi
-          done
-          [ "$missing" = 0 ]
-          sha256sum -c SHA256SUMS
-          for f in *.AppImage; do
-            grep -qxF "$f" <<<"$listed" || sha256sum "$f" >> SHA256SUMS
-          done
-          sort -k 2 -o SHA256SUMS SHA256SUMS
+          RELEASE="$RUNNER_TEMP/release"
+          mkdir "$RELEASE"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RELEASE"
+          ls -l "$RELEASE"
+          # Both builds make install.sh, the same; a file with two
+          # different checksums is an error.
+          sort -u "$RUNNER_TEMP"/checksums/*/SHA256SUMS | sort -k 2 > "$RELEASE/SHA256SUMS"
+          twice=$(awk '{ print $2 }' "$RELEASE/SHA256SUMS" | uniq -d)
+          if [ -n "$twice" ]; then
+            echo "::error::The builds made different files of the same name: $twice"
+            exit 1
+          fi
 
           # The manifests are not in SHA256SUMS, and their signatures are
           # of the archives, so the notes change neither.
-          manifests=(update-*.json)
+          manifests=("$RELEASE"/update-*.json)
           [ -e "${manifests[0]}" ] || { echo "::error::The release has no update manifests."; exit 1; }
           for m in "${manifests[@]}"; do
             jq --rawfile notes "$NOTES" '.notes = ($notes | rtrimstr("\n"))' "$m" > "$m.new"
             mv "$m.new" "$m"
           done
-          gh release upload "$TAG" SHA256SUMS "${manifests[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+
+          # Every file of every platform, checked against the builds'
+          # checksums; every manifest of this version and its own
+          # platform, naming files whose size and signature match.
+          go run ./scripts/verifyrelease -dir "$RELEASE" "$TAG"
+          gh release upload "$TAG" "$RELEASE/SHA256SUMS" "${manifests[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           # Installed apps and install.sh read the manifests of the latest
           # release, and the app never asks for prereleases: a version
           # such as 1.0.0-rc.1 is published as a prerelease and never
