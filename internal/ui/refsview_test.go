@@ -209,3 +209,24 @@ func TestRefsNewBranch(t *testing.T) {
 	h.menu("other", "Create Branch Here…")
 	h.until("the dialog from other", h.shows("New Branch from other"))
 }
+
+// The question asked before switching over local changes is a dialog
+// like the others: the app menu's repository commands wait while it is
+// up.
+func TestSwitchQuestionIsADialog(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "other")
+	r.Write("README", "changed")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("the change", func() bool { st := tb.s.State.Status; return st != nil && st.Len() > 0 })
+	h.app.switchTo(tb, "refs/heads/other")
+	h.until("the question", h.shows("Stash Them"))
+	if !h.app.DialogOpen() || h.app.RepoCommandsOn() {
+		t.Fatal("the app menu acts behind the question")
+	}
+	h.click("Cancel")
+	h.until("the question gone", func() bool { return !h.app.DialogOpen() })
+}

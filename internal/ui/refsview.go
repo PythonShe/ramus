@@ -817,6 +817,9 @@ func (a *App) switchAsk(c *ui.Context, t *tab) {
 	}
 	open := true
 	name := redact.Control(strings.TrimPrefix(rs.switching, "refs/heads/"))
+	// Counted as a.modal counts its dialogs: the app menu's commands wait
+	// while it is up.
+	a.modals++
 	choice := ui.AlertDialog(c, &open, locales.RefsSwitchTitle(name), locales.RefsSwitchMessage(),
 		locales.RefsCarryThem(), locales.RefsStashThem(), locales.CommonCancel())
 	branch := rs.switching
