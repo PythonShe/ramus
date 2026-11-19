@@ -76,6 +76,39 @@ func TestResolveHangingShell(t *testing.T) {
 	}
 }
 
+// A shell given up on leaves nothing it started running.
+func TestResolveTimeoutStopsChildren(t *testing.T) {
+	mark := filepath.Join(t.TempDir(), "ran")
+	fakeShell(t, "sh -c 'sleep 2; touch \""+mark+"\"'\n")
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if r := Resolve(ctx); r.Err == nil {
+		t.Fatal("no error")
+	}
+	time.Sleep(time.Until(start.Add(3 * time.Second)))
+	if _, err := os.Stat(mark); err == nil {
+		t.Fatal("the shell's child ran on")
+	}
+}
+
+// What chooses git's ssh command and config files comes from the shell.
+func TestResolveTakesGitVariables(t *testing.T) {
+	fakeShell(t, `printf '\037RAMUS-ENV\037'
+printf 'PATH=/usr/bin\0GIT_SSH_COMMAND=ssh -i key\0XDG_CONFIG_HOME=/home/me/.config\0GIT_CONFIG_GLOBAL=/home/me/gitconfig\0'
+printf '\037RAMUS-ENV\037'
+`)
+	r := Resolve(context.Background())
+	if r.Err != nil {
+		t.Fatal(r.Err)
+	}
+	for k, want := range map[string]string{"GIT_SSH_COMMAND": "ssh -i key", "XDG_CONFIG_HOME": "/home/me/.config", "GIT_CONFIG_GLOBAL": "/home/me/gitconfig"} {
+		if got := Lookup(r.Env, k); got != want {
+			t.Errorf("%s %q", k, got)
+		}
+	}
+}
+
 func TestResolveBrokenShell(t *testing.T) {
 	fakeShell(t, "echo oops >&2; exit 3\n")
 	r := Resolve(context.Background())

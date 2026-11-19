@@ -20,9 +20,11 @@ import (
 )
 
 // Keys are the variables taken from the login shell; the rest of the
-// app's environment stays as it was.
+// app's environment stays as it was. The GIT_ and XDG_ ones choose the
+// ssh command and the config files git uses, as in the terminal.
 var Keys = []string{
 	"PATH", "SSH_AUTH_SOCK", "SSH_AGENT_PID", "GNUPGHOME", "GPG_AGENT_INFO",
+	"GIT_SSH_COMMAND", "GIT_SSH", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM", "XDG_CONFIG_HOME",
 	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy", "ALL_PROXY",
 	"LANG", "LC_ALL", "LC_CTYPE",
 }
@@ -78,6 +80,9 @@ func Resolve(ctx context.Context) Result {
 	cmd.Stdout = &out
 	cmd.Stderr = nil
 	cmd.WaitDelay = time.Second
+	// A startup file blocked in a child (a network call, a read from a
+	// terminal) would otherwise leave that child running for good.
+	gitexe.StopTree(cmd)
 	gitexe.Hide(cmd)
 	err := cmd.Run()
 	if ctx.Err() != nil {
