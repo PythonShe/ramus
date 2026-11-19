@@ -50,6 +50,9 @@ type windows struct {
 	about *aboutWindow
 	// watching is set once the settings file is watched for edits.
 	watching bool
+	// roleKeys are the shortcuts of the app menu's items with a role, as
+	// the menu last made has them (roleKeys).
+	roleKeys map[string]string
 }
 
 // layoutDelay is how long changes to what is open gather before the

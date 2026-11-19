@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+
+	"ramus/locales"
 )
 
 func TestChords(t *testing.T) {
@@ -309,5 +311,51 @@ func TestKeysDialog(t *testing.T) {
 	h.tt.Frame()
 	if h.app.Settings.Keys != nil || h.app.keys().owner(chord{ui.Cmd, ui.KeyR}) != "refresh" {
 		t.Fatalf("keys %v", h.app.Settings.Keys)
+	}
+}
+
+// A shortcut of an item of the app menu that has a role, as mygo makes
+// them on Windows and Linux, where the window takes a key before those
+// items: binding a command to one takes the key from the item, and the
+// dialog says so, as it does for another command's.
+func TestRoleKeyTakenIsSaid(t *testing.T) {
+	h := newHarness(t)
+	h.app.RoleKeys = func() map[string]string {
+		return map[string]string{"CmdOrCtrl+M": "Minimize", "CmdOrCtrl+W": "Close Window", "CmdOrCtrl+Plus": "Zoom In", "F11": "Toggle Full Screen"}
+	}
+	h.app.openKeys()
+	h.tt.Frame()
+	h.tt.Type("show reflog")
+	h.tt.Frame()
+	ks := &h.app.keysUI
+	label := locales.KeysAddShortcut()
+	for _, c := range []struct {
+		key  chord
+		item string
+	}{
+		{chord{ui.Cmd, ui.KeyM}, "Minimize"},
+		{chord{ui.Cmd, ui.KeyEqual}, "Zoom In"},
+		{chord{0, ui.KeyF11}, "Toggle Full Screen"},
+		// A command's key is told as the command's.
+		{chord{ui.Cmd, ui.KeyW}, CommandName("close-tab")},
+	} {
+		h.click(label)
+		h.tt.Frame()
+		h.tt.Key(c.key.mods, c.key.key)
+		h.tt.Frame()
+		if got := h.app.Settings.Keys["show-reflog"]; !slices.Equal(got, []string{c.key.String()}) || ks.recording != "" {
+			t.Fatalf("keys %v, recording %q", h.app.Settings.Keys, ks.recording)
+		}
+		h.until("the note", h.shows(locales.KeysNoLongerRuns(c.key.label(), c.item)))
+		label = c.key.label()
+	}
+	// Where no item has a role, nothing is said.
+	h.app.RoleKeys = nil
+	h.click(label)
+	h.tt.Frame()
+	h.tt.Key(ui.Cmd, ui.KeyM)
+	h.tt.Frame()
+	if ks.note != "" {
+		t.Fatalf("note %q", ks.note)
 	}
 }

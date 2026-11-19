@@ -70,6 +70,12 @@ type Deps struct {
 	// KeysChanged is called on the main thread when the shortcuts
 	// change, for the app menu to show them; Accelerator reads them.
 	KeysChanged func()
+	// RoleKeys are the shortcuts of the app menu's items with a role (as
+	// Minimize in the Window menu), by accelerator, with the labels the
+	// menu shows, where a command bound to one of them takes it from the
+	// item: the window takes a key before those items do. Nil, or nil
+	// returned, where none is. Called on the main thread.
+	RoleKeys func() map[string]string
 	// RepoCommandsChanged is called on the main thread when the app
 	// menu's Repository items come to act on the window, or stop
 	// (RepoCommandsOn).

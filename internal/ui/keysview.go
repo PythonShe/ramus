@@ -230,9 +230,31 @@ func (a *App) bind(id string, k *chord, km *keymap) {
 			}
 			user[other] = append([]string{}, left...)
 			a.keysUI.note = locales.KeysNoLongerRuns(k.label(), a.commandName(other))
+		} else if item := a.roleOf(*k); item != "" {
+			a.keysUI.note = locales.KeysNoLongerRuns(k.label(), item)
 		}
 	}
 	a.setKeys(user)
+}
+
+// roleOf is the label of the app menu's item with a role whose shortcut
+// is k, "" none: a command bound to k takes the key from it.
+func (a *App) roleOf(k chord) string {
+	if a.RoleKeys == nil {
+		return ""
+	}
+	roles := a.RoleKeys()
+	for _, acc := range slices.Sorted(maps.Keys(roles)) {
+		// mygo's Plus is the key of = and +, without Shift.
+		parts := strings.Split(acc, "+")
+		if parts[len(parts)-1] == "Plus" {
+			parts[len(parts)-1] = "="
+		}
+		if rk, err := parseChord(strings.Join(parts, "+")); err == nil && rk == k {
+			return roles[acc]
+		}
+	}
+	return ""
 }
 
 func (a *App) setKeys(user map[string][]string) {

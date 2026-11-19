@@ -91,6 +91,7 @@ func main() {
 		CacheDir: cacheDir, Program: program, Crash: crash,
 		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
 	}}
+	ws.deps.RoleKeys = func() map[string]string { return ws.roleKeys }
 	var saved []layout.Window
 	var layoutErr error
 	if probe == "" {
@@ -438,7 +439,7 @@ func menu(ws *windows) *mygo.Menu {
 		repo = append(repo, &mygo.MenuItem{ID: repoMenuID(id), Label: ui.CommandName(id), Accelerator: key(id),
 			Disabled: !ws.repoCommandsOn(), Click: act(func(a *ui.App) { a.RunCommand(id) })})
 	}
-	return mygo.NewMenu([]*mygo.MenuItem{
+	m := mygo.NewMenu([]*mygo.MenuItem{
 		appMenu,
 		{Label: locales.MenuFile(), Submenu: append(file, []*mygo.MenuItem{
 			// Not RoleClose, whose Cmd+W would close the window and every
@@ -478,4 +479,32 @@ func menu(ws *windows) *mygo.Menu {
 		{Role: mygo.RoleWindowMenu},
 		help,
 	})
+	ws.roleKeys = roleKeys(m)
+	return m
+}
+
+// roleKeys are the shortcuts of the items of menu m that have a role, by
+// accelerator, with their labels. Off macOS a window takes a key before
+// those items do (mygo gives them only the keys it leaves), so a command
+// bound to one of their keys takes it from the item, which the shortcuts
+// dialog says. On macOS the menu takes its keys first: none.
+func roleKeys(m *mygo.Menu) map[string]string {
+	if runtime.GOOS == "darwin" {
+		return nil
+	}
+	out := map[string]string{}
+	var walk func([]*mygo.MenuItem)
+	walk = func(items []*mygo.MenuItem) {
+		for _, it := range items {
+			if it.Hidden {
+				continue
+			}
+			if it.Role != "" && it.Accelerator != "" {
+				out[it.Accelerator] = it.Label
+			}
+			walk(it.Submenu)
+		}
+	}
+	walk(m.Items())
+	return out
 }
