@@ -461,3 +461,53 @@ func TestLoadCommitParts(t *testing.T) {
 		t.Fatalf("a cancelled load handed over %d parts", stale)
 	}
 }
+
+// A history load that hands its rows to the main thread just as Trust
+// opens the repository again is dropped: its object ids point into the
+// closed repository's commit-graph, which is unmapped once it closes.
+func TestHistoryOfTheClosedRepositoryIsDropped(t *testing.T) {
+	r := gittest.Init(t)
+	for i := range 5 {
+		r.Write("a", strconv.Itoa(i))
+		r.Commit("c" + strconv.Itoa(i))
+	}
+	r.Git("commit-graph", "write", "--reachable")
+	m := make(mainThread, 256)
+	s := Open(testrun.Runner(t), trusted(t), r.Dir, m.update)
+	defer func() { s.Close(); <-s.Done() }()
+	m.until(t, "status", func() bool {
+		return s.State.Status != nil && s.State.Refs != nil && s.refreshIdle.Load() && len(m) == 0
+	})
+	old := s.Repo
+	if err := s.Trust(); err != nil {
+		t.Fatal(err)
+	}
+	// The trust's answer is queued, not yet run.
+	for deadline := time.Now().Add(10 * time.Second); len(m) == 0; {
+		if time.Now().After(deadline) {
+			t.Fatal("trust not queued")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	// A history load started in the same frame, its publish queued after.
+	s.LoadHistory()
+	s.hist.mu.Lock()
+	done := s.hist.done
+	s.hist.mu.Unlock()
+	<-done
+	for len(m) > 0 {
+		(<-m)()
+	}
+	if s.Repo == old {
+		t.Fatal("not opened again")
+	}
+	if s.History.Snap != nil {
+		t.Errorf("history of the closed repository (native %v) published after it was opened again", s.History.Native)
+	}
+	s.hist.mu.Lock()
+	last := s.hist.last
+	s.hist.mu.Unlock()
+	if last != nil && last.repo == old {
+		t.Errorf("the closed repository's history kept for the next load to grow")
+	}
+}

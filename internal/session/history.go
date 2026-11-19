@@ -226,13 +226,16 @@ func (h *hist) current(gen int) bool {
 	return h.gen == gen
 }
 
-// reset forgets the loads of a repository closed.
+// reset forgets the loads of a repository closed. A load of it may have
+// handed its rows to the main thread already: the new generation makes
+// them stale there.
 func (h *hist) reset() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.cancel != nil {
 		h.cancel()
 	}
+	h.gen++
 	h.cancel, h.loading, h.last, h.done = nil, histKey{}, nil, nil
 }
 
@@ -315,10 +318,12 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 			h.Text, h.Names = s.topText(ctx, r, h)
 		}
 		// The load's context ends when it returns, before the main thread
-		// runs this; a newer load is what makes it stale.
+		// runs this; a newer load, or r closed, is what makes it stale. The
+		// rows of a closed repository may point into its commit-graph's
+		// mapping, gone once it has closed.
 		h.TagCommits, h.Stashes = tagCommits, stashes
 		s.update(func() {
-			if s.hist.current(gen) {
+			if s.Repo == r && s.hist.current(gen) {
 				h.For, h.View, h.Load, h.Filtered = key.refs, key.view, key.load, !view.Filter.IsZero()
 				if s.History.View == key.view && s.History.First > 0 && h.First == 0 {
 					h.First = s.History.First
@@ -344,7 +349,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		return
 	}
 	tagCommits, stashes = tc, readStashes(ctx, r, key.refs)
-	if view.Filter.IsZero() && s.growHistory(ctx, r, cat, key, tips, publish, t0) {
+	if view.Filter.IsZero() && s.growHistory(ctx, gen, r, cat, key, tips, publish, t0) {
 		return
 	}
 	if ctx.Err() != nil {
@@ -441,7 +446,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		}
 		snap := l.Snapshot()
 		if w.Err() == nil {
-			s.keepGrown(&grown{repo: r, key: key, src: src, in: in, starts: w.Starts(), snap: snap, native: true})
+			s.keepGrown(gen, &grown{repo: r, key: key, src: src, in: in, starts: w.Starts(), snap: snap, native: true})
 		}
 		publish(HistoryState{Snap: snap, OID: oid, Native: true, Done: true, Err: w.Err(), Advice: advice, First: first, Took: time.Since(t0)})
 		return
@@ -463,7 +468,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 	}
 	snap := l.Snapshot()
 	if err == nil && growsWithGit(r) {
-		s.keepRevList(r, key, store, tips, snap)
+		s.keepRevList(gen, r, key, store, tips, snap)
 	}
 	publish(HistoryState{Snap: snap, OID: store.Snapshot().OID, Done: true, Err: err, Advice: advice, First: first, Took: time.Since(t0)})
 }
@@ -490,17 +495,22 @@ func growsWithGit(r *repo.Repository) bool {
 	return !c.Shallow && !c.Grafts && !c.ReplaceRefs
 }
 
-// keepGrown keeps a history loaded whole for the next load to grow.
-func (s *Session) keepGrown(g *grown) {
+// keepGrown keeps a history loaded whole by load gen for the next load to
+// grow, unless a newer load or a repository closed made it stale: it
+// would keep the closed repository's graph reachable, or replace what
+// the newer one kept.
+func (s *Session) keepGrown(gen int, g *grown) {
 	s.hist.mu.Lock()
 	defer s.hist.mu.Unlock()
-	s.hist.last = g
 	s.hist.walks++
+	if s.hist.gen == gen {
+		s.hist.last = g
+	}
 }
 
 // keepRevList keeps a history git ordered for the next load to grow:
 // store holds every commit of it.
-func (s *Session) keepRevList(r *repo.Repository, key histKey, store *commits.Store, tips [][]byte, snap *lanes.Snapshot) {
+func (s *Session) keepRevList(gen int, r *repo.Repository, key histKey, store *commits.Store, tips [][]byte, snap *lanes.Snapshot) {
 	src := history.NewSource(nil, store, r.Caps.HashSize)
 	var ids []uint32
 	for _, t := range tips {
@@ -516,13 +526,13 @@ func (s *Session) keepRevList(r *repo.Repository, key histKey, store *commits.St
 	for id := range uint32(store.Len()) {
 		in.add(id)
 	}
-	s.keepGrown(&grown{repo: r, key: key, src: src, in: in, starts: starts, snap: snap})
+	s.keepGrown(gen, &grown{repo: r, key: key, src: src, in: in, starts: starts, snap: snap})
 }
 
 // growHistory lays out the commits tips add on top of the history last
 // loaded whole, when the rest of it stays as it was, and publishes it. It
 // reports false when the whole is to be laid out anew.
-func (s *Session) growHistory(ctx context.Context, r *repo.Repository, cat *catfile.Process, key histKey, tips [][]byte, publish func(HistoryState), t0 time.Time) bool {
+func (s *Session) growHistory(ctx context.Context, gen int, r *repo.Repository, cat *catfile.Process, key histKey, tips [][]byte, publish func(HistoryState), t0 time.Time) bool {
 	s.hist.mu.Lock()
 	last := s.hist.last
 	s.hist.mu.Unlock()
@@ -558,11 +568,16 @@ func (s *Session) growHistory(ctx context.Context, r *repo.Repository, cat *catf
 	if !ok {
 		return false
 	}
+	// A copy: last stays whole as it was for a load after this one, should
+	// this one be stale and not keep what it grew.
+	in := slices.Clone(last.in)
 	for _, id := range rows {
-		last.in.add(id)
+		in.add(id)
 	}
 	s.hist.mu.Lock()
-	s.hist.last = &grown{repo: r, key: key, src: src, in: last.in, starts: starts, snap: snap, native: last.native}
+	if s.hist.gen == gen {
+		s.hist.last = &grown{repo: r, key: key, src: src, in: in, starts: starts, snap: snap, native: last.native}
+	}
 	s.hist.mu.Unlock()
 	advice := graphAdvice(r, real, last.native && src.Read() == 0)
 	took := time.Since(t0)
