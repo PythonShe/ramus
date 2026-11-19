@@ -209,8 +209,10 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 			case head.Detached:
 				label = locales.CommitBoxCommit()
 			}
-			// A disabled button shows no tooltip of its own: the row
-			// around it says why it is.
+			// A disabled button shows no tooltip of its own in the mygo
+			// pinned: the row around it says why it is. egoist/mygo#1982
+			// fixes that: once a mygo release with it is pinned, the row
+			// goes and the tip is the button's.
 			ui.Row(c).Grow(1).Tooltip(why).Children(func() {
 				if ui.PrimaryButton(c, label).Description(why).Disabled(!ready).Grow(1).Clicked() {
 					a.startCommit(t, commitRun{})

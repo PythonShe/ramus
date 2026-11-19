@@ -345,13 +345,24 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 					continue
 				}
 				var b ui.Element
-				if ms.choices[k] == mc.choice {
-					b = ui.PrimaryButton(c, mc.label())
-				} else {
-					b = ui.Button(c, mc.label())
+				button := func() {
+					if ms.choices[k] == mc.choice {
+						b = ui.PrimaryButton(c, mc.label())
+					} else {
+						b = ui.Button(c, mc.label())
+					}
 				}
 				if mc.choice == conflict.Custom && shown.lines > maxEditLines {
-					b.Disabled(true).Tooltip(locales.MergeEditTooLong(maxEditLines))
+					// A disabled element shows no tooltip of its own in the
+					// mygo pinned, so a row of the button alone says why.
+					// egoist/mygo#1982 fixes that: once a mygo release with
+					// it is pinned, the row goes and the tip is the button's.
+					ui.Row(c).Tooltip(locales.MergeEditTooLong(maxEditLines)).Children(func() {
+						button()
+						b.Disabled(true)
+					})
+				} else {
+					button()
 				}
 				if b.Clicked() {
 					if mc.choice == conflict.Custom && ms.choices[k] != conflict.Custom {

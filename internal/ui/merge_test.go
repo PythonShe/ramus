@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/conflict"
 	"ramus/internal/git/gittest"
@@ -184,6 +185,39 @@ func TestMergeChoicesOutliveOtherWrites(t *testing.T) {
 		t.Fatalf("a file changed on disk kept choice %v", ms.choices[0])
 	}
 	h.until("why", h.shows(locales.MergeChangedOnDisk()))
+}
+
+// Edit, kept off for a conflict too long to edit in place, says why
+// under the pointer, where the other choices stand as they did.
+func TestMergeEditTooLongSaysWhy(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("a.txt", "base\n")
+	r.Commit("base")
+	r.Git("switch", "-q", "-c", "topic")
+	r.Write("a.txt", "theirs\n")
+	r.Commit("topic")
+	r.Git("switch", "-q", "main")
+	r.Write("a.txt", strings.Repeat("ours\n", maxEditLines+1))
+	r.Commit("main")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	r.Run(nil, "merge", "topic")
+	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	h.click("a.txt")
+	h.until("the editor", h.shows("Conflict 1"))
+	edit, _ := h.tt.Find("Edit")
+	base, _ := h.tt.Find("Base")
+	ours, _ := h.tt.Find("Ours")
+	if edit.Y != ours.Y || edit.H != ours.H || edit.X <= base.X+base.W {
+		t.Fatalf("Edit at %v, Base at %v, Ours at %v", edit, base, ours)
+	}
+	why := locales.MergeEditTooLong(maxEditLines)
+	h.tt.Move(edit.X+edit.W/2, edit.Y+edit.H/2)
+	h.tt.Frame()
+	h.tt.Advance(2 * time.Second)
+	h.until("the tooltip", h.shows(why))
 }
 
 // A conflict that failed to load says why, and offers no side to take:
