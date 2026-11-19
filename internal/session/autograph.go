@@ -78,8 +78,9 @@ func (s *Session) writeGraphQuietly(a *history.Advice) {
 		return
 	}
 	op := write.Op{Name: locales.SessionWriteCommitGraph(), Cmd: a.Cmd}
-	// No one waits on it: a quit stops it, as git removes its lock then;
-	// one in a large repository takes minutes.
+	// No one waits on it: a quit stops it where git removes its lock as
+	// it is stopped, and on Windows lets it end; one in a large
+	// repository takes minutes.
 	op.Cmd.Background, op.Cmd.EndsWithApp = true, true
 	j, err := s.submit(op, repo.GraphChanged, true)
 	if err != nil {

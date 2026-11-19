@@ -181,11 +181,13 @@ func (r *Runner) SetConfig(config []string) {
 	r.config.Store(&c)
 }
 
-// Quit stops every command Run is running that reads or is marked
-// EndsWithApp, for an app that quits: git would go on without it, a
-// fetch hung on the network for hours. A write the user started is let
-// end, and so is a process from Command. Such a command Run starts after
-// Quit is stopped at once: nothing should run once the app quits.
+// Quit stops every command Run is running that reads, and every one
+// marked EndsWithApp where git removes its locks as it is stopped (not
+// Windows, where such a command runs to its end), for an app that quits:
+// git would go on without it, a fetch hung on the network for hours. A
+// write the user started is let end, and so is a process from Command.
+// Such a command Run starts after Quit is stopped at once: nothing should
+// run once the app quits.
 func (r *Runner) Quit() { r.quitting() }
 
 // IsHardened reports a runner from Hardened.
