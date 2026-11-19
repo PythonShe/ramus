@@ -93,18 +93,68 @@ type proc struct {
 	ended   sync.Once
 	err     error
 	// stuck is a git the watchdog stopped: one hung on a stalled volume
-	// may never die, so no one waits for it.
-	stuck atomic.Bool
+	// may never die, so no one waits for it but abandon's. It is set, and
+	// exited, under abandoned's lock.
+	stuck  atomic.Bool
+	exited bool
+	gitDir string
+	// done is closed once end is over; nil where a test builds the proc.
+	done chan struct{}
 }
 
-// letGo ends g, waiting for it unless it is stuck, which is ended in the
-// background, out of its caller's way.
+// letGo ends g, waiting for it unless it is stuck, which abandon ends in
+// the background, out of its caller's way.
 func (g *proc) letGo() error {
 	if g.stuck.Load() {
-		go g.end()
 		return nil
 	}
 	return g.end()
+}
+
+// abandoned counts, by git directory, the gits that stopped answering
+// and have not exited yet. While one is left, no other starts there: on
+// a hung volume each would hang in turn, one more process a stall.
+var abandoned = struct {
+	sync.Mutex
+	n map[string]int
+}{n: map[string]int{}}
+
+// abandon takes g, which stopped answering, for stuck, and waits for it
+// in the background, however long it lives.
+func (p *Process) abandon(g *proc) {
+	abandoned.Lock()
+	defer abandoned.Unlock()
+	if g.stuck.Load() || g.exited {
+		return
+	}
+	g.stuck.Store(true)
+	g.gitDir = p.gitDir
+	abandoned.n[g.gitDir]++
+	go g.end()
+}
+
+// exit counts g out of abandoned once it has exited.
+func (g *proc) exit() {
+	abandoned.Lock()
+	defer abandoned.Unlock()
+	g.exited = true
+	if !g.stuck.Load() {
+		return
+	}
+	if abandoned.n[g.gitDir]--; abandoned.n[g.gitDir] <= 0 {
+		delete(abandoned.n, g.gitDir)
+	}
+}
+
+// stillStuck returns the error for a read where a git stopped answering
+// and has not exited, or nil.
+func stillStuck(gitDir string) error {
+	abandoned.Lock()
+	defer abandoned.Unlock()
+	if abandoned.n[gitDir] > 0 {
+		return fmt.Errorf("%w: %w: the cat-file that stopped answering has not exited", ErrClosed, run.ErrStalled)
+	}
+	return nil
 }
 
 // Start runs git cat-file --batch-command for the repository at gitDir.
@@ -127,6 +177,9 @@ func Start(ctx context.Context, r *run.Runner, gitDir string) (*Process, error) 
 // start starts git; again is a start after the first, which the command
 // log has already.
 func (p *Process) start(again bool) (*proc, error) {
+	if err := stillStuck(p.gitDir); err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithCancel(p.ctx)
 	prepare := p.runner.Command
 	if again {
@@ -136,7 +189,7 @@ func (p *Process) start(again bool) (*proc, error) {
 	// It names the repository by --git-dir; a working directory inside it
 	// would stop Windows from moving or deleting the folder.
 	cmd.Dir = os.TempDir()
-	g := &proc{cmd: cmd, cancel: cancel, stderr: &limitedWriter{n: 64 << 10}}
+	g := &proc{cmd: cmd, cancel: cancel, stderr: &limitedWriter{n: 64 << 10}, done: make(chan struct{})}
 	cmd.Stderr = g.stderr
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -166,6 +219,10 @@ func (g *proc) end() error {
 		g.cancel()
 		g.err = g.cmd.Wait()
 		g.untrack()
+		g.exit()
+		if g.done != nil {
+			close(g.done)
+		}
 	})
 	return g.err
 }
@@ -294,8 +351,7 @@ func (p *Process) drop(g *proc) {
 	}
 	p.g = nil
 	if g.stuck.Load() {
-		g.letGo() // Close need not wait for it
-		return
+		return // abandon waits for it; Close need not
 	}
 	p.ending.Add(1)
 	go func() {
@@ -342,7 +398,7 @@ func (p *Process) watch(g *proc) *watchdog {
 			return
 		}
 		w.stalled = true
-		g.stuck.Store(true)
+		p.abandon(g)
 		g.cancel()
 		// A git that cannot die, hung on a stalled volume, would hold
 		// the batch on its pipes for good: closed, they give it up. In a
@@ -483,6 +539,7 @@ func (p *Process) Close() error {
 	case err = <-ended:
 	case <-time.After(closeWait):
 		if g != nil {
+			p.abandon(g)
 			go func() { g.stdout.Close(); g.stdin.Close() }()
 		}
 		return fmt.Errorf("catfile: git did not end within %v", closeWait)

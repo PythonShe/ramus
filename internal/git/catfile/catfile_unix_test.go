@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -133,5 +134,87 @@ func TestStalledGitThatCannotDie(t *testing.T) {
 	case <-closed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Close waits for a git that cannot die")
+	}
+}
+
+// While a git that stopped answering has not exited, no other starts for
+// its repository, which on a hung volume would hang in turn, one more
+// process each stall: reads fail at once, saying why. Once it exits, the
+// next read starts git again.
+func TestNoGitStartsWhileOneCannotDie(t *testing.T) {
+	r := gittest.Init(t)
+	c := r.Commit("first")
+	runner := testrun.Runner(t)
+	gitDir, err := filepath.Abs(r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hold, release, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hold.Close()
+	defer release.Close()
+	// A stand-in for a git in uninterruptible sleep: it answers nothing,
+	// ignores the end of its input and its cancel, and exits when the
+	// test closes the pipe it reads.
+	cmd := exec.Command("/bin/sh", "-c", "read x <&3")
+	cmd.ExtraFiles = []*os.File{hold}
+	g := &proc{cmd: cmd, cancel: func() {}, untrack: func() {}, stderr: &limitedWriter{n: 1 << 10}, done: make(chan struct{})}
+	cmd.Stderr = g.stderr
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	g.stdin, g.stdout = stdin, stdout
+	g.in, g.out = bufio.NewWriter(stdin), bufio.NewReader(stdout)
+	p := &Process{ctx: context.Background(), runner: runner, gitDir: gitDir, batch: make(chan struct{}, 1), g: g, idle: time.Hour, stall: 100 * time.Millisecond}
+	defer p.Close()
+
+	read := func(p *Process) error {
+		done := make(chan error, 1)
+		go func() { done <- p.Read([][]byte{decode(c)}, func(int, Object) error { return nil }) }()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(10 * time.Second):
+			t.Fatal("the read is held")
+			return nil
+		}
+	}
+	if err := read(p); !strings.Contains(err.Error(), run.ErrStalled.Error()) {
+		t.Fatalf("stalled read: %v", err)
+	}
+	before := runner.Running()
+	if q, err := Start(context.Background(), runner, gitDir); !errors.Is(err, run.ErrStalled) {
+		if q != nil {
+			q.Close()
+		}
+		t.Fatalf("a new reader started beside the git that cannot die: %v", err)
+	}
+	if n := runner.Running(); n != before {
+		t.Fatalf("%d gits running, %d before", n, before)
+	}
+
+	release.Close()
+	select {
+	case <-g.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the stand-in did not exit")
+	}
+	q, err := Start(context.Background(), runner, gitDir)
+	if err != nil {
+		t.Fatalf("no reader once the stuck git exited: %v", err)
+	}
+	defer q.Close()
+	if err := read(q); err != nil {
+		t.Fatalf("read once the stuck git exited: %v", err)
 	}
 }
