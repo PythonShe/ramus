@@ -3,7 +3,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-unformatted=$(gofmt -l *.go internal spike scripts bench)
+unformatted=$(gofmt -l *.go internal spike scripts bench assets locales)
 if [ -n "$unformatted" ]; then
 	echo "gofmt needed:" >&2
 	echo "$unformatted" >&2
@@ -31,13 +31,29 @@ if go list -deps . | grep '^ramus/internal/git/gittest'; then
 	echo "the app links test fixtures" >&2
 	exit 1
 fi
-if go list -f '{{.ImportPath}} {{join .Imports " "}}' . ./internal/... |
-	awk '$1 !~ /^ramus\/internal\/git\/gittest(\/|$)/ {for (i = 2; i <= NF; i++) if ($i ~ /^(net|net\/http|net\/rpc|net\/smtp|crypto\/tls)$/ && !($1 == "ramus/internal/askpass" && $i == "net")) print $1 " imports " $i}' | grep .; then
+# What a package links counts, not only what it names: net/http/httputil,
+# golang.org/x/net, mygo's netimage or a client library connect as well.
+# mygo's UI links net itself, so only the packages that import net by
+# name are held to it; the main package links net/http through mygo's
+# updater, so it is held to its own imports.
+network='^(net|net/http|net/http/.*|net/rpc|net/smtp|crypto/tls|golang.org/x/net/.*|github.com/egoist/mygo/ui/netimage)$'
+if go list -f '{{.ImportPath}} {{join .Deps " "}}' ./internal/... |
+	awk -v net="$network" '$1 !~ /^ramus\/internal\/git\/gittest(\/|$)/ {for (i = 2; i <= NF; i++) if ($i ~ net && $i != "net") print $1 " links " $i}' | grep .; then
 	echo "a package of ours uses the network" >&2
 	exit 1
 fi
-if grep -n -E 'net\.(Dial|Listen)[A-Za-z]*\(' internal/askpass/*.go | grep -v '_test.go:' | grep -v '("unix"'; then
+if go list -f '{{.ImportPath}} {{join .Imports " "}}' . ./internal/... |
+	awk -v net="$network" '$1 !~ /^ramus\/internal\/git\/gittest(\/|$)/ {for (i = 2; i <= NF; i++) if ($i ~ net && !($1 == "ramus/internal/askpass" && $i == "net")) print $1 " imports " $i}' | grep .; then
+	echo "a package of ours uses the network" >&2
+	exit 1
+fi
+if grep -n -E '\.(Dial|Listen)[A-Za-z]*\(' internal/askpass/*.go | grep -v '_test.go:' | grep -v '"unix"'; then
 	echo "askpass opens a socket that is not a Unix socket" >&2
+	exit 1
+fi
+# The check below knows mygo's modules by the package's own name.
+if grep -rn -E '^[[:space:]]*(import[[:space:]]+)?[A-Za-z_.][A-Za-z0-9_]*[[:space:]]+"github\.com/egoist/mygo"' --include='*.go' *.go internal | grep -v -E ':[[:space:]]*(import[[:space:]]+)?mygo[[:space:]]+"'; then
+	echo "mygo is imported under another name" >&2
 	exit 1
 fi
 if grep -rn -E 'mygo\.(Updater|Network|Protocol|Cookies)\b' --include='*.go' *.go internal | grep -v '_test.go:' | grep -v -E '^about\.go:[0-9]+:.*mygo\.Updater\.'; then
