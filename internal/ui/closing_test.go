@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -41,6 +42,21 @@ func TestCloseTabWhileWriting(t *testing.T) {
 	h.until("the question again", h.shows("Stop and Close"))
 	h.click("Stop and Close")
 	h.until("closed", func() bool { return len(h.app.tabs) == 0 })
+}
+
+// The question before quitting during a clone names its URL without the
+// credentials typed in it.
+func TestQuitWhileCloningHidesCredentials(t *testing.T) {
+	h := newHarness(t)
+	h.app.clone.url = "https://me:s3cret-token@git.example/r.git"
+	h.app.clone.starting = true
+	if !h.app.AskToClose(true, func() {}) {
+		t.Fatal("did not ask")
+	}
+	if m := h.app.confirm.message; strings.Contains(m, "s3cret-token") || !strings.Contains(m, "git.example/r.git") {
+		t.Fatalf("asked %q", m)
+	}
+	h.app.clone.starting = false
 }
 
 // Reopening a repository, as the warning bar's Reopen and the panic

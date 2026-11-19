@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/git/trust"
 	"ramus/internal/git/write"
 	"ramus/locales"
@@ -225,9 +226,11 @@ func (a *App) startClone() {
 func (a *App) followClone(j *write.Job, dir string, update func(func()), ts *trust.Store) {
 	cs := &a.clone
 	for ev := range j.Events() {
+		// A server's "remote:" lines are its own text, escapes included.
+		line := redact.Shown(ev.Line)
 		update(func() {
 			if cs.job == j {
-				cs.progress, cs.percent = ev.Line, ev.Percent
+				cs.progress, cs.percent = line, ev.Percent
 			}
 		})
 	}

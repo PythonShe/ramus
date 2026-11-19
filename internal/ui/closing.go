@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -116,7 +117,7 @@ func (a *App) AskToClose(quit bool, done func()) bool {
 		parts = append(parts, a.closingLoses(t))
 	}
 	if cloning {
-		parts = append(parts, locales.AppCloneRunning(strings.TrimSpace(a.clone.url)))
+		parts = append(parts, locales.AppCloneRunning(redact.Shown(strings.TrimSpace(a.clone.url))))
 	}
 	if len(parts) == 0 {
 		return false
