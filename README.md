@@ -135,7 +135,7 @@ arguments. On macOS the command is
 `/Applications/Ramus.app/Contents/MacOS/Ramus`, and on Windows
 `%LOCALAPPDATA%\Programs\Ramus\Ramus.exe`; link or alias it as `ramus`.
 
-**Settings > Tools > Use Ramus for git difftool and mergetool** sets Ramus
+**Settings > Tools > Use Ramus as git's diff and merge tool** sets Ramus
 up as both in your git config.
 
 ## License
