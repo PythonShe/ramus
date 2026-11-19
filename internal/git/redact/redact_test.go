@@ -103,19 +103,6 @@ func TestHost(t *testing.T) {
 	}
 }
 
-func TestCheckRemoteURL(t *testing.T) {
-	for _, bad := range []string{"", "-oProxyCommand=x", "https://x\n[core]", "https://x\x00y", "https://x\u2028y"} {
-		if CheckRemoteURL(bad) == nil {
-			t.Errorf("accepted %q", bad)
-		}
-	}
-	for _, good := range []string{"https://github.com/a/b.git", "git@host:a/b", "/srv/repo.git", "https://h/\u65e5\u672c"} {
-		if err := CheckRemoteURL(good); err != nil {
-			t.Errorf("rejected %q", good)
-		}
-	}
-}
-
 func FuzzControl(f *testing.F) {
 	f.Add("\x1b[31mx\x1b]0;t\x07\u202e")
 	f.Fuzz(func(t *testing.T, s string) {

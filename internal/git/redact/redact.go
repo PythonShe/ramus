@@ -4,7 +4,6 @@
 package redact
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -196,22 +195,4 @@ func Host(remote string) (host string, ok bool) {
 	}
 	h = strings.Trim(h, "[]")
 	return h, h != ""
-}
-
-// ErrBadURL is returned for a remote URL the app will not store.
-var ErrBadURL = errors.New("redact: remote URL has control characters or starts with a dash")
-
-// CheckRemoteURL rejects a URL for a new or changed remote that holds
-// control characters (which can split a config line or a credential
-// request) or starts with a dash (which git would take as an option).
-func CheckRemoteURL(u string) error {
-	if u == "" || strings.HasPrefix(u, "-") {
-		return ErrBadURL
-	}
-	for _, r := range u {
-		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == 0x2028 || r == 0x2029 {
-			return ErrBadURL
-		}
-	}
-	return nil
 }
