@@ -115,6 +115,26 @@ func TestCommitRefusesAnotherBranch(t *testing.T) {
 	}
 }
 
+// The message is committed as typed, whatever commit.cleanup says: a
+// line of the user's that starts with the comment character (an issue
+// number, a heading) stays.
+func TestCommitKeepsCommentLinesWhateverCleanup(t *testing.T) {
+	const msg = "subject\n\n#123 fixed here\n; not a comment either\nbody"
+	for _, c := range []string{"strip", "scissors", "verbatim", "default"} {
+		t.Run(c, func(t *testing.T) {
+			h := newHarness(t)
+			h.r.Git("config", "commit.cleanup", c)
+			h.r.Git("config", "core.commentChar", ";")
+			h.r.Stage("a", "1")
+			h.do(mustOp(t)(Commit(h.w, CommitOptions{Message: msg + "  \n\n"})), nil, true)
+			got := strings.TrimRight(h.r.Git("log", "-1", "--format=%B"), "\n")
+			if got != msg {
+				t.Fatalf("commit.cleanup=%s: message\n%q\nwant\n%q", c, got, msg)
+			}
+		})
+	}
+}
+
 func mustOp(t *testing.T) func(Op, error) Op {
 	return func(op Op, err error) Op {
 		t.Helper()

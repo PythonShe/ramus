@@ -50,7 +50,11 @@ func Commit(w Where, opt CommitOptions) (Op, error) {
 	if err := message.Check(opt.Message); err != nil {
 		return Op{}, err
 	}
-	args := []string{"commit", "-F", "-"}
+	// The commit box shows what will be committed and has taken out the
+	// template's comment lines itself: commit.cleanup=strip would also
+	// drop a line of the user's that starts with the comment character,
+	// and verbatim would keep trailing blank lines git trims elsewhere.
+	args := []string{"commit", "--cleanup=whitespace", "-F", "-"}
 	name := "Commit"
 	op := Op{Undo: RefsOnly}
 	if opt.Amend {
