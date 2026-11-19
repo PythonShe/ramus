@@ -3,8 +3,11 @@ package session
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -43,7 +46,7 @@ func savePatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 	if len(req.Commits) > write.MaxPick {
 		return write.ErrTooMany
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(file), ".ramus-patch-*")
+	tmp, err := createBeside(file)
 	if err != nil {
 		return err
 	}
@@ -84,6 +87,35 @@ func savePatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 		return err
 	}
 	return os.Rename(tmp.Name(), file)
+}
+
+// createBeside makes a new file in file's folder, to be renamed over it,
+// with the mode os.Create gives (0666 less the umask) rather than
+// os.CreateTemp's 0600, as a patch is made to be shared; or, replacing a
+// file, that file's mode.
+func createBeside(file string) (*os.File, error) {
+	mode, keep := os.FileMode(0o666), false
+	if fi, err := os.Stat(file); err == nil && fi.Mode().IsRegular() {
+		mode, keep = fi.Mode().Perm(), true
+	}
+	for try := 0; ; try++ {
+		var b [8]byte
+		rand.Read(b[:])
+		f, err := os.OpenFile(filepath.Join(filepath.Dir(file), ".ramus-patch-"+hex.EncodeToString(b[:])),
+			os.O_RDWR|os.O_CREATE|os.O_EXCL, mode)
+		if errors.Is(err, fs.ErrExist) && try < 100 {
+			continue
+		}
+		if err == nil && keep {
+			// The umask applied to the new file; the old one's mode is
+			// what the user had.
+			if err = f.Chmod(mode); err != nil {
+				f.Close()
+				os.Remove(f.Name())
+			}
+		}
+		return f, err
+	}
 }
 
 // diffPatch writes the changes to req.Paths as a patch git apply takes

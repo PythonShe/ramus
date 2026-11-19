@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -19,6 +20,50 @@ func savePatchFile(t *testing.T, s *Session, m mainThread, req PatchSave) (strin
 	s.SavePatch(req, file, func(e error) { err, done = e, true })
 	m.until(t, "the save", func() bool { return done })
 	return file, err
+}
+
+// A saved patch gets the mode a new file gets, not 0600; saved over a
+// file, it keeps that file's mode.
+func TestSavedPatchMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no Unix modes")
+	}
+	r := gittest.Init(t)
+	r.Write("a", "a\n")
+	c := r.Commit("one")
+	s, m := openFor(t, r)
+	dir := t.TempDir()
+	probe, err := os.Create(filepath.Join(dir, "probe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe.Close()
+	fi, _ := os.Stat(probe.Name())
+	want := fi.Mode().Perm()
+	save := func(file string) os.FileMode {
+		t.Helper()
+		done := false
+		s.SavePatch(PatchSave{Commits: []string{c}}, file, func(err error) {
+			if err != nil {
+				t.Error(err)
+			}
+			done = true
+		})
+		m.until(t, "the save", func() bool { return done })
+		fi, err := os.Stat(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fi.Mode().Perm()
+	}
+	file := filepath.Join(dir, "one.patch")
+	if got := save(file); got != want {
+		t.Errorf("a new patch file has mode %v, a new file %v", got, want)
+	}
+	os.Chmod(file, 0o640)
+	if got := save(file); got != 0o640 {
+		t.Errorf("a patch saved over one of mode 0640 has mode %v", got)
+	}
 }
 
 // A merge commit is refused as a patch: git format-patch skips merges,
