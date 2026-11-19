@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,6 +43,58 @@ func longHistory(t *testing.T, h *harness, n int) *tab {
 	})
 	h.tt.Advance(time.Second)
 	return tb
+}
+
+// A frame of the history list costs what it shows, however long the
+// history: scrolling down a long one, each frame reads the commits of
+// about the rows it shows, never of every commit, and once still the
+// list asks for no more frames. Counted rather than timed, to hold on a
+// loaded machine.
+func TestHistoryFrameCostsWhatItShows(t *testing.T) {
+	const n = 30000
+	h := newHarness(t)
+	tb := longHistory(t, h, n)
+	hv := &tb.hist
+	if h.tt.FramePending() {
+		t.Fatal("history at rest still asks for frames")
+	}
+	// Every commit a frame reads goes through OID; it is called on the
+	// main thread here, and atomically counted for any other.
+	var reads atomic.Int64
+	oid := tb.s.History.OID
+	tb.s.History.OID = func(id uint32) []byte { reads.Add(1); return oid(id) }
+	at, ok := h.tt.Find("Commits")
+	if !ok {
+		t.Fatal("no list of commits")
+	}
+	first, _ := hv.list.Visible()
+	var most int64
+	for range 40 {
+		reads.Store(0)
+		b0 := hv.frame
+		h.tt.Wheel(at.X+at.W/2, at.Y+at.H/2, 0, 2400)
+		h.tt.Advance(time.Second / 60)
+		for len(h.updates) > 0 {
+			(<-h.updates)()
+		}
+		// Frames that only moved the rows count as one.
+		built := max(1, hv.frame-b0)
+		most = max(most, reads.Load()/int64(built))
+	}
+	if now, _ := hv.list.Visible(); now <= first {
+		t.Fatalf("the list did not scroll: it shows row %d, from %d", now, first)
+	}
+	shown := func() int { f, l := hv.list.Visible(); return l - f + 1 }()
+	t.Logf("%d rows shown; at most %d commits read a frame, of %d", shown, most, n+1)
+	// The rows shown, each read a few times, and the list looking a
+	// little around its place; nothing near the history's length.
+	if limit := int64(n / 10); most > limit {
+		t.Fatalf("a frame read %d commits of a history of %d (rows shown %d), over %d: it does work for every commit", most, n+1, shown, limit)
+	}
+	h.tt.Advance(time.Second)
+	if h.tt.FramePending() {
+		t.Fatal("the list at rest after scrolling still asks for frames")
+	}
 }
 
 // Text read of a repository that opened again under the read is not a
