@@ -356,6 +356,35 @@ func TestPullRequestsTurnedOff(t *testing.T) {
 	}
 }
 
+// A pull request GitHub answers in part, a field the token may not read
+// left out, is shown, with what GitHub said above it.
+func TestReviewReadInPart(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "https://github.com/o/r")
+	list := `{"data":{"repository":{"pullRequests":{"totalCount":1,"nodes":[{"id":"PR_7","number":7,"title":"Add a thing",
+"url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},"headRefName":"thing",
+"baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","headRepositoryOwner":{"login":"o"}}]}}}}`
+	review := `{"data":{"viewer":{"login":"me"},"repository":{"pullRequest":{"number":7,"title":"Add a thing",
+"url":"https://github.com/o/r/pull/7","body":"Why it matters","state":"OPEN","isDraft":false,"author":{"login":"ann"},
+"baseRefName":"main","headRefName":"thing","baseRefOid":"","headRefOid":"","reviewDecision":null,
+"createdAt":"2026-11-10T09:00:00Z","additions":2,"deletions":1,"commits":{"nodes":[]},"reviewRequests":null,
+"comments":{"totalCount":0,"nodes":[]},"reviews":{"totalCount":0,"nodes":[]},"reviewThreads":{"totalCount":0,"nodes":[]}}}},
+"errors":[{"type":"FORBIDDEN","message":"Resource not accessible‮ by personal access token"}]}`
+	env, _ := reviewTool(t, "gh", "pullRequests(states", "pullRequest(number", list, review)
+	tools := &forgeTools{env: env}
+	h.app.forgeFind = tools.find
+	h.app.Settings.PullRequests = true
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the pull requests in the sidebar", h.shows("Pull Requests"))
+	h.click("Pull Requests")
+	h.until("the list", h.shows("Add a thing"))
+	h.click("Add a thing")
+	h.until("the pull request", h.shows("ann wants to merge thing into main"))
+	h.until("what GitHub said", h.shows(locales.PrsReadInPart("Resource not accessible by personal access token")))
+}
+
 // An answer too large to read is said in words, sending the user to the
 // host's page.
 func TestTooLargeSaid(t *testing.T) {

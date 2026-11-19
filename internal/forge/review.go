@@ -391,6 +391,10 @@ type Review struct {
 	// More says the host holds comments, reviews, threads or events past
 	// what was read.
 	More bool
+	// Warning is what the host said of the parts it did not answer, as
+	// a field the token may not read: the rest is read. Empty when it
+	// answered all.
+	Warning string
 }
 
 // PullReview reads r's pull request n with its conversation, reviews and
@@ -434,6 +438,11 @@ func (c *CLI) githubPullReview(ctx context.Context, r Repo, n int) (Review, erro
 	out, err := c.readUpTo(ctx, r.Host, reviewOutput, "api", "graphql", "--hostname", r.Host, "-f", "query="+q,
 		"-f", "owner="+owner, "-f", "name="+name, "-F", "n="+strconv.Itoa(n))
 	if err != nil {
+		// gh fails an answer with an error in it, as a field the token
+		// may not read, and prints it: the pull request in it is shown.
+		if rv, perr := parseReview(out); perr == nil && rv.Warning != "" {
+			return rv, nil
+		}
 		return Review{}, err
 	}
 	return parseReview(out)
@@ -745,10 +754,11 @@ func parseReview(out []byte) (Review, error) {
 	if err := json.Unmarshal(out, &ans); err != nil {
 		return Review{}, fmt.Errorf("gh: %w", err)
 	}
-	if err := ans.err("gh"); err != nil {
+	found := ans.Data.Repository != nil && ans.Data.Repository.PullRequest != nil
+	if err := ans.err("gh"); err != nil && !found {
 		return Review{}, err
 	}
-	if ans.Data.Repository == nil || ans.Data.Repository.PullRequest == nil {
+	if !found {
 		return Review{}, ErrNotFound
 	}
 	p := ans.Data.Repository.PullRequest
@@ -757,6 +767,9 @@ func parseReview(out []byte) (Review, error) {
 			Added: p.Additions, Deleted: p.Deletions},
 		Author: p.Author.login(), Body: p.Body, Base: p.Base, BaseOID: p.BaseOID, HeadOID: p.HeadOID,
 		Decision: reviewState(p.Decision), Created: p.Created, Viewer: ans.Data.Viewer.Login,
+	}
+	if len(ans.Errors) > 0 {
+		rv.Warning = ans.Errors[0].Message
 	}
 	if ns := p.Commits.Nodes; len(ns) > 0 && ns[0].Commit.Rollup != nil {
 		rv.Checks = githubChecks(ns[0].Commit.Rollup.State)

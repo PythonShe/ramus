@@ -3575,6 +3575,7 @@
   "prsNotFound": "The host did not find it, or it cannot be seen with the account logged in.",
   "prsTimeout": "The host did not answer in time. Try again.",
   "prsTooLarge": "The host's answer is too large to read here. Open it on the host's page instead.",
+  "prsReadInPart": "GitHub did not give all of it: {reason}",
   "prsReadOnly": "Fetching the commits writes to the repository, which is read-only until you trust it.",
   "prsNotLoggedIn": "{program} is not logged in to {host}. Run {program} auth login in a terminal.",
   "prsDraftsStale": "{count, plural, one {Your pending comment is on older commits: submit the review, or discard it, before adding to it.} other {Your # pending comments are on older commits: submit the review, or discard them, before adding to it.}}",

@@ -483,6 +483,9 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 		if rv.read {
 			rv.verify = false
 		}
+		if r.Warning != "" {
+			rv.err = locales.PrsReadInPart(redact.Control(r.Warning))
+		}
 		rv.r, rv.events, rv.checks = r, nil, sortChecks(r.CheckList)
 		// The folds stay as they are: read again, a comment opened is
 		// still being read. The comments read stay read.

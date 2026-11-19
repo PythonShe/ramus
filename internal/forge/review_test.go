@@ -243,6 +243,36 @@ func TestLongReviewOpens(t *testing.T) {
 	}
 }
 
+// A field the token may not read leaves the rest of the pull request to
+// be read: gh fails the answer, and prints it with the error beside it.
+func TestReviewReadInPart(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tool is a shell script")
+	}
+	msg := "Resource not accessible by personal access token"
+	answer := strings.TrimSuffix(reviewAnswer, "}") + `,"errors":[{"type":"FORBIDDEN","message":"` + msg + `"}]}`
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "answer.json"), []byte(answer), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\ncat '" + filepath.Join(dir, "answer.json") + "'\necho 'gh: " + msg + "' >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Find([]string{"PATH=" + dir + ":/usr/bin:/bin"}, GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rv, err := c.PullReview(context.Background(), Repo{GitHub, "github.com", "o/r"}, 7)
+	if err != nil || rv.Number != 7 || len(rv.Threads) != 3 || rv.Warning != msg {
+		t.Fatalf("%+v, %v", rv, err)
+	}
+	// With no pull request in it, the error stands.
+	if _, err := parseReview([]byte(`{"data":{"repository":{"pullRequest":null}},"errors":[{"message":"Could not resolve"}]}`)); err == nil || !strings.Contains(err.Error(), "Could not resolve") {
+		t.Fatalf("err %v", err)
+	}
+}
+
 func TestParseReview(t *testing.T) {
 	rv, err := parseReview([]byte(reviewAnswer))
 	if err != nil {

@@ -16605,6 +16605,16 @@ func (msgs Messages) PrsTooLarge() string {
 	return Catalog.Format(msgs.locale, "prsTooLarge", nil)
 }
 
+// PrsReadInPart says "GitHub did not give all of it: {reason}"
+// in the language the app shows.
+func PrsReadInPart(reason string) string { return In(i18n.Locale()).PrsReadInPart(reason) }
+
+// PrsReadInPart says "GitHub did not give all of it: {reason}"
+// in the language of msgs.
+func (msgs Messages) PrsReadInPart(reason string) string {
+	return Catalog.Format(msgs.locale, "prsReadInPart", map[string]any{"reason": reason})
+}
+
 // PrsReadOnly says "Fetching the commits writes to the repository, which is read-only until you trust it."
 // in the language the app shows.
 func PrsReadOnly() string { return In(i18n.Locale()).PrsReadOnly() }
