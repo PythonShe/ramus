@@ -124,7 +124,7 @@ func TestLockErrorFromGit(t *testing.T) {
 	}
 	// Nor through a folder in the git directory that links out of it.
 	if err := os.Symlink(filepath.Dir(outside), filepath.Join(dir, "out")); err != nil {
-		t.Fatal(err)
+		t.Skip("no symlinks here:", err)
 	}
 	if err := RemoveLock(context.Background(), dir, filepath.Join(dir, "out", "x.lock")); err == nil {
 		t.Fatal("removed a file outside the repository through a symlink")

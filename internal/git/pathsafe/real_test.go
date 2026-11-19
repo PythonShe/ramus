@@ -11,8 +11,12 @@ import (
 func TestRealSpellsAsOnDisk(t *testing.T) {
 	base := t.TempDir()
 	dir := filepath.Join(base, "MixedCase", "Sub")
-	os.MkdirAll(dir, 0o755)
-	os.Symlink(filepath.Join(base, "MixedCase"), filepath.Join(base, "link"))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(base, "MixedCase"), filepath.Join(base, "link")); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
 	want, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		t.Fatal(err)

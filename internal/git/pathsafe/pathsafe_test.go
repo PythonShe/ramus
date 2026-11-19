@@ -66,7 +66,9 @@ func TestInWorkTree(t *testing.T) {
 	outside := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "dir"), 0o755)
 	os.MkdirAll(filepath.Join(root, "real"), 0o755)
-	os.Symlink(outside, filepath.Join(root, "out"))
+	if err := os.Symlink(outside, filepath.Join(root, "out")); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
 	os.Symlink(filepath.Join(root, "real"), filepath.Join(root, "in"))
 	os.Symlink(outside, filepath.Join(root, "dir", "leaf"))
 	realRoot, _ := filepath.EvalSymlinks(root)
@@ -163,7 +165,9 @@ func TestTarget(t *testing.T) {
 	outside := t.TempDir()
 	os.WriteFile(filepath.Join(root, "file"), []byte("x"), 0o644)
 	os.WriteFile(filepath.Join(outside, "secret"), []byte("x"), 0o644)
-	os.Symlink(filepath.Join(outside, "secret"), filepath.Join(root, "away"))
+	if err := os.Symlink(filepath.Join(outside, "secret"), filepath.Join(root, "away")); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
 	os.Symlink("file", filepath.Join(root, "near"))
 	os.Symlink("missing", filepath.Join(root, "dangling"))
 	for rel, ok := range map[string]bool{
