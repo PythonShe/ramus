@@ -286,6 +286,34 @@ func (c *Cmd) argv() []string {
 	return append(a, c.Args...)
 }
 
+// MaxArgBytes bounds the arguments of a command that names paths git
+// reads only as arguments: Windows limits a command line to 32767
+// characters, git's own path and the runner's config included.
+const MaxArgBytes = 24 << 10
+
+// ArgBytes is what a takes of a command line, its separator included,
+// as Windows is given it: Go quotes an argument that is empty or holds a
+// space, a tab or a quote, escaping each quote and the backslashes before
+// one with a backslash. The count is over, never under: UTF-8 takes at
+// least as many bytes as UTF-16 takes characters.
+func ArgBytes(a string) int {
+	n := len(a) + 1
+	if a == "" || strings.ContainsAny(a, " \t\"") {
+		n += 2 + strings.Count(a, `"`) + strings.Count(a, `\`)
+	}
+	return n
+}
+
+// LineBytes is what c's arguments take of a command line, as ArgBytes
+// counts them; the runner's own config is left to MaxArgBytes' margin.
+func (c *Cmd) LineBytes() int {
+	n := 0
+	for _, a := range c.argv() {
+		n += ArgBytes(a)
+	}
+	return n
+}
+
 // argv adds the runner's own config, and the hardening of a runner for
 // a repository not trusted; env holds the variables the hardening names.
 func (r *Runner) argv(c *Cmd) (args, env []string) {

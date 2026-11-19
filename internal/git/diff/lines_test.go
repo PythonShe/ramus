@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -109,6 +110,29 @@ func TestWorkTreeLines(t *testing.T) {
 	// The index stays as git left it.
 	if _, err := os.Stat(filepath.Join(r.GitDir(), "index.lock")); err == nil {
 		t.Error("index left locked")
+	}
+
+	// Paths past what a Windows command line holds, counted as Windows
+	// is given them, quotes and all, are not named: every change is
+	// counted instead, b with a.
+	for _, c := range []struct {
+		name string
+		size int
+	}{{"long-name-", 26 << 10}, {`q"q q"q `, 20 << 10}} {
+		paths := []string{"a"}
+		size := 0
+		for i := 0; size < c.size; i++ {
+			p := strings.Repeat(c.name, 3) + strconv.Itoa(i)
+			paths = append(paths, p)
+			size += len(p) + 1
+		}
+		many, err := WorkTreeLines(ctx, run, r.GitDir(), r.Dir, false, "", false, paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if l := many.Find([]byte("b"), []byte("b")); !l.Known {
+			t.Errorf("%d bytes of paths like %q named to git", size, c.name)
+		}
 	}
 }
 

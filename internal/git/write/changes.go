@@ -113,11 +113,6 @@ const MaxArgPaths = 1000
 // ErrTooMany is more paths than one write takes.
 var ErrTooMany = errors.New("write: too many paths at once")
 
-// maxArgBytes bounds the arguments of a command that names paths git
-// reads only as arguments: Windows limits a command line to 32767
-// characters, git's own path and the runner's config included.
-const maxArgBytes = 24 << 10
-
 // Delete removes untracked paths, folders included, after keeping them
 // in a snapshot; it is undoable. git clean takes paths only as
 // arguments, so many paths take several runs, inside the one write.
@@ -143,18 +138,12 @@ func argCmds(mk func(...string) run.Cmd, args, paths []string) []run.Cmd {
 // Each copy runs on its own, so a command that reads all its paths as
 // one whole (a diff that pairs renames) sees each part alone.
 func SplitArgs(c run.Cmd, paths []string) []run.Cmd {
-	base := argBytes("--git-dir="+c.GitDir) + argBytes("--work-tree="+c.WorkTree)
-	for _, kv := range c.Config {
-		base += argBytes("-c") + argBytes(kv)
-	}
-	for _, a := range c.Args {
-		base += argBytes(a)
-	}
+	base := c.LineBytes()
 	var cmds []run.Cmd
 	for rest := paths; len(rest) > 0; {
 		n, k := base, 0
-		for k < len(rest) && (k == 0 || n+argBytes(rest[k]) <= maxArgBytes) {
-			n += argBytes(rest[k])
+		for k < len(rest) && (k == 0 || n+run.ArgBytes(rest[k]) <= run.MaxArgBytes) {
+			n += run.ArgBytes(rest[k])
 			k++
 		}
 		part := c
@@ -163,19 +152,6 @@ func SplitArgs(c run.Cmd, paths []string) []run.Cmd {
 		rest = rest[k:]
 	}
 	return cmds
-}
-
-// argBytes is what a takes of a command line, its separator included,
-// as Windows is given it: Go quotes an argument that is empty or holds a
-// space, a tab or a quote, escaping each quote and the backslashes before
-// one with a backslash. The count is over, never under: UTF-8 takes at
-// least as many bytes as UTF-16 takes characters.
-func argBytes(a string) int {
-	n := len(a) + 1
-	if a == "" || strings.ContainsAny(a, " \t\"") {
-		n += 2 + strings.Count(a, `"`) + strings.Count(a, `\`)
-	}
-	return n
 }
 
 // DiscardStaged discards changes staged and not: it unstages the paths

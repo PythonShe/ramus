@@ -158,12 +158,17 @@ func ParseNumStat(data []byte) (*NumStat, error) {
 
 // numStat runs a diff that prints --numstat -z, its paths as literal.
 func numStat(ctx context.Context, r *run.Runner, gitDir, workTree string, args []string) (*NumStat, error) {
-	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Args: args, Read: true, Untranslated: true,
-		Env: []string{"GIT_LITERAL_PATHSPECS=1"}})
+	c := numStatCmd(gitDir, workTree, args)
+	res, err := r.Run(ctx, &c)
 	if err != nil {
 		return nil, err
 	}
 	return ParseNumStat(res.Stdout)
+}
+
+func numStatCmd(gitDir, workTree string, args []string) run.Cmd {
+	return run.Cmd{GitDir: gitDir, WorkTree: workTree, Args: args, Read: true, Untranslated: true,
+		Env: []string{"GIT_LITERAL_PATHSPECS=1"}}
 }
 
 // CommitLines counts the lines changed from commit or tree a to b, with
@@ -183,16 +188,13 @@ func WorkTreeBaseLines(ctx context.Context, r *run.Runner, gitDir, workTree stri
 	return numStat(ctx, r, gitDir, workTree, args)
 }
 
-// MaxLinePaths bounds the paths WorkTreeLines names to git; past it,
-// counting every change costs about what naming them would.
-const MaxLinePaths = 64 << 10
-
 // WorkTreeLines counts the lines changed in the work tree, against the
 // index, or, staged, in the index against the tree-ish base, renames
 // found when renames is set. paths limit it, matched literally; none, or
-// more than MaxLinePaths bytes of them, count every change. Like the
-// patches of a worktree another program may work in, it runs the
-// plumbing, which never writes the index.
+// more than a command line takes on every platform (run.MaxArgBytes),
+// count every change: one command, so that renames pair across all of
+// them. Like the patches of a worktree another program may work in, it
+// runs the plumbing, which never writes the index.
 func WorkTreeLines(ctx context.Context, r *run.Runner, gitDir, workTree string, staged bool, base string, renames bool, paths []string) (*NumStat, error) {
 	args := []string{"diff-files", "--numstat", "-z", "--submodule=short"}
 	if staged {
@@ -202,12 +204,11 @@ func WorkTreeLines(ctx context.Context, r *run.Runner, gitDir, workTree string, 
 		}
 		args = append(args, base)
 	}
-	size := 0
-	for _, p := range paths {
-		size += len(p) + 1
-	}
-	if size > 0 && size <= MaxLinePaths {
-		args = append(append(args, "--"), paths...)
+	if len(paths) > 0 {
+		named := append(append(slices.Clip(args), "--"), paths...)
+		if c := numStatCmd(gitDir, workTree, named); c.LineBytes() <= run.MaxArgBytes {
+			args = named
+		}
 	}
 	return numStat(ctx, r, gitDir, workTree, args)
 }
