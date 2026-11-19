@@ -171,13 +171,6 @@ func TestTrustThenQuitIsSaved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w, ok := any(ts).(interface {
-		trustSaver
-		Wait(time.Duration) bool
-	})
-	if !ok {
-		t.Skip("the trust store counts no saves to come")
-	}
 	s := Open(testrun.Runner(t), ts, r.Dir, m.update)
 	defer func() { s.Close(); <-s.Done() }()
 	m.until(t, "status", func() bool { return s.State.Status != nil })
@@ -186,7 +179,7 @@ func TestTrustThenQuitIsSaved(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The quit, on the main thread at once.
-	if !w.Wait(20 * time.Second) {
+	if !ts.Wait(20 * time.Second) {
 		t.Fatal("the save never ended")
 	}
 	again, err := trust.Load(path)

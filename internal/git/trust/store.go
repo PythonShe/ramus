@@ -195,6 +195,11 @@ func (s *Store) adopt() {
 	}
 }
 
+// Saving counts a save the caller is about to make, from before the
+// goroutine that makes it starts, until the func it returns is called:
+// a quit right after waits for it (Wait).
+func (s *Store) Saving() func() { return s.begin() }
+
 // begin counts a save under way, for Wait, until the func it returns is
 // called.
 func (s *Store) begin() func() {
