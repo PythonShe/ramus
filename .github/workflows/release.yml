@@ -11,9 +11,13 @@ name: Release
 # costs no model call; finish puts them in the release and in its update
 # manifests, whose signatures cover the archives and not the notes.
 # Dispatched by hand without a tag, it is a dry run of the branch:
-# everything up to notarization, nothing uploaded, the apps kept as
-# artifacts of the run. Only the macOS apps, one for each CPU, are signed
-# and notarized; the Windows and Linux builds are not.
+# everything up to notarization, nothing uploaded and no update signed,
+# the apps kept as artifacts of the run. Only the macOS apps, one for each
+# CPU, are signed and notarized; the Windows and Linux builds are not.
+#
+# The build's secrets belong to the environment "release", which only
+# main and vX.Y.Z tags may deploy to, so that another branch's copy of
+# this file cannot reach them: a dry run is of main.
 
 on:
   push:
@@ -108,6 +112,7 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    environment: release
     permissions:
       contents: write
     strategy:
@@ -210,7 +215,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          # The key every installed app trusts signs only what is uploaded.
+          MYGO_UPDATER_PRIVATE_KEY: ${{ needs.prepare.outputs.tag != '' && secrets.MYGO_UPDATER_PRIVATE_KEY || '' }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail

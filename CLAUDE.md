@@ -16,7 +16,7 @@ scripts/check.sh      # the full gate: gofmt, vet, engine import boundary, no ne
 go run ./scripts/coldstart <binary>  # time to first frame; CI runs it, it opens AppKit
 gh workflow run ci.yml   # CI and soak.yml run only when started by hand
 git push origin vX.Y.Z   # release.yml: builds and publishes a release of mygo.json's version
-gh workflow run release.yml               # a dry run: builds and notarizes, uploads nothing
+gh workflow run release.yml               # a dry run of main: builds and notarizes, uploads nothing
 gh workflow run release-notes.yml -f ref=main  # preview the notes Claude writes
 RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json  # the benchmarks
 ```
@@ -33,12 +33,13 @@ RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json 
   when the user asks: mygo's updater reads the releases of
   PythonShe/ramus, signed with the key whose public half is in
   `mygo.json`; the secret half is the `MYGO_UPDATER_PRIVATE_KEY` secret
-  of the repository and never goes in it.
+  of the repository's `release` environment and never goes in it.
 - `.github/workflows/release.yml`: on a `vX.Y.Z` tag, runs CI and
   builds the macOS app, signed with the Developer ID of
   `APPLE_CERTIFICATE` and notarized with the App Store Connect key of
   `APPLE_API_KEY`, and the Linux and Windows packages, unsigned, into a
-  draft release. Once every build succeeded, `release-notes.yml` writes
+  draft release. Those secrets belong to the `release` environment,
+  which only `main` and `v*` tags may deploy to. Once every build succeeded, `release-notes.yml` writes
   the notes (a `## X.Y.Z` section of `CHANGELOG.md` written by hand
   wins), which go into the release and its update manifests, and the
   release is published, whole. It names
