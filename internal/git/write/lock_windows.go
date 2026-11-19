@@ -10,6 +10,10 @@ import (
 // package does not name.
 const errSharingViolation = syscall.Errno(32)
 
+// otherUsers is nil: opening the lock unshared, as openHolders does,
+// fails while any user's process holds it.
+func otherUsers(string) error { return nil }
+
 // openHolders tells whether a process has path open by opening it with
 // no sharing at all, which Windows refuses while any process holds it
 // open, git's own share mode whatever it is. It cannot say which

@@ -165,8 +165,23 @@ var lsofPaths = []string{"/usr/sbin/lsof", "/usr/bin/lsof", "/bin/lsof"}
 
 // holders asks the system who has path open: lsof where there is one,
 // else what the system offers (openHolders). An error means it could not
-// tell, which is not the same as no one.
+// tell, which is not the same as no one. Neither lsof nor /proc shows
+// another user's processes to a user who is not root, so a lock another
+// user made that no process seems to hold is theirs to judge: it is
+// errOtherUser, never one left behind.
 func holders(ctx context.Context, path string) ([]Holder, error) {
+	hs, err := openedBy(ctx, path)
+	if err == nil && len(hs) == 0 {
+		err = otherUsers(path)
+	}
+	return hs, err
+}
+
+// errOtherUser is a lock another user made, whose processes this one
+// cannot see.
+var errOtherUser = errors.New("the lock is another user's")
+
+func openedBy(ctx context.Context, path string) ([]Holder, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	var lsof string

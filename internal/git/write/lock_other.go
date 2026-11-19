@@ -8,7 +8,29 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 )
+
+// currentUID is the user the app runs as, for a test to stand in for
+// another.
+var currentUID = os.Getuid
+
+// otherUsers is errOtherUser for a lock at path that another user owns,
+// unless this one is root, who sees every process.
+func otherUsers(path string) error {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return nil // gone: nobody's
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil
+	}
+	if uid := currentUID(); uid != 0 && int(st.Uid) != uid {
+		return errOtherUser
+	}
+	return nil
+}
 
 // openHolders finds who has path open without lsof, through /proc where
 // the system has it, as Linux does: each process's open files are links
