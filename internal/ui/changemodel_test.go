@@ -76,6 +76,25 @@ func TestBuildChanges(t *testing.T) {
 	}
 }
 
+// A filter of a letter past ASCII keeps the paths that hold it as typed:
+// the filter folds case as the paths do, in ASCII alone.
+func TestFilterFoldsAsPathsDo(t *testing.T) {
+	st := fakeStatus(t, nil, "Äpfel.txt", "äpfel.txt", "APFEL.txt")
+	shown := func(filter string) []string {
+		var out []string
+		for _, i := range buildChanges(st, filter, false, nil, nil).files[secUnstaged] {
+			out = append(out, string(st.Path(int(i))))
+		}
+		return out
+	}
+	if got := shown("Äpfel"); len(got) != 1 || got[0] != "Äpfel.txt" {
+		t.Fatalf("filter Äpfel kept %q", got)
+	}
+	if got := shown("apfel"); len(got) != 1 || got[0] != "APFEL.txt" {
+		t.Fatalf("filter apfel kept %q", got)
+	}
+}
+
 // BenchmarkBuildChanges builds the list for 390,000 changed files, the
 // size of the monorepo fixture, flat and as a tree.
 func BenchmarkBuildChanges(b *testing.B) {

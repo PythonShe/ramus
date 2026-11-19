@@ -138,7 +138,14 @@ func inSection(st *status.Status, i int, sec section) bool {
 // the folders in closed shown closed, and the untracked folders open
 // holding the files of folders.
 func buildChanges(st *status.Status, filter string, tree bool, closed map[openKey]bool, folders map[string]session.FolderFiles) *changeModel {
-	q := []byte(strings.ToLower(filter))
+	// Lowered as containsFold lowers the paths, in ASCII alone: lowered
+	// whole, a capital past ASCII would match none of the paths holding it.
+	q := bytes.Map(func(r rune) rune {
+		if 'A' <= r && r <= 'Z' {
+			return r + 'a' - 'A'
+		}
+		return r
+	}, []byte(filter))
 	m := &changeModel{st: st, filter: filter, q: q, tree: tree, folders: folders}
 	if len(folders) > 0 {
 		m.folders = m.untracked(folders)
