@@ -259,7 +259,9 @@ func (s *Session) quietFetch(done func(error)) bool {
 	op.Cmd.NoPrompt = true // no one is there to answer
 	// needsUser reads what git said.
 	op.Cmd.Untranslated = true
-	j, err := s.Submit(op)
+	// Quiet: no one waits on it, so its failures while offline are not told
+	// of as the user's, nor is it waited on to close.
+	j, err := s.submit(op, repo.RefsChanged, true)
 	if err != nil {
 		return false
 	}

@@ -289,3 +289,30 @@ func TestWriteDoesNotWaitForTheBackgroundFetch(t *testing.T) {
 		t.Fatalf("the fetch given up counted as failed: %d, %v, %v", s.fetch.failures, s.FetchStopped(), failed)
 	}
 }
+
+// The background fetch is logged as a write the app made on its own, not
+// one of the user's: while offline its failures are not told of as the
+// user's own, closing does not wait on it, and one that goes through
+// leaves the user's own failure shown.
+func TestBackgroundFetchIsQuiet(t *testing.T) {
+	origin := gittest.Init(t)
+	origin.Commit("one")
+	r := gittest.Init(t)
+	r.Commit("one")
+	r.Git("remote", "add", "origin", origin.Dir+"-gone")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	s.SetBackgroundFetch(50*time.Millisecond, nil)
+	m.until(t, "a failure", func() bool { return s.fetch.failures >= 1 && len(s.Log) > 0 && !s.Log[0].Running })
+	if !s.FetchFresh(0, func(error) {}) && !s.Fetching() {
+		t.Fatal("the branch picker's fetch did not run")
+	}
+	m.until(t, "the fetch ended", func() bool { return !s.Fetching() })
+	for _, e := range s.Log {
+		if !e.Quiet {
+			t.Errorf("%q logged as the user's own write", e.Name)
+		}
+	}
+}
