@@ -225,6 +225,26 @@ func TestGitLabSubmit(t *testing.T) {
 		t.Errorf("drafts left: %v", err)
 	}
 
+	// A comment sent now goes as a discussion of its own: published as
+	// a review, it would take the drafts pending in the browser with it.
+	env, log = glabLog(t, "never")
+	c, _ = Find(env, GitLab)
+	if err := c.CommentNow(context.Background(), r, 12, at, drafts[0]); err != nil {
+		t.Fatal(err)
+	}
+	calls = strings.Split(strings.TrimSpace(log()), "\n")
+	var d struct {
+		Body     string
+		Position map[string]any
+	}
+	if len(calls) != 2 || !strings.Contains(calls[0], "--method POST projects/g%2Fp/merge_requests/12/discussions --input -") {
+		t.Fatalf("comment now %q", calls)
+	}
+	json.Unmarshal([]byte(calls[1]), &d)
+	if pos := d.Position; d.Body != "unchanged" || pos["new_line"] != 12.0 || pos["old_line"] != 10.0 || pos["head_sha"] != at.Head || pos["position_type"] != "text" {
+		t.Errorf("comment now %s", calls[1])
+	}
+
 	env, log = glabLog(t, "never")
 	c, _ = Find(env, GitLab)
 	th := Thread{ID: "gid://gitlab/Discussion/bb"}

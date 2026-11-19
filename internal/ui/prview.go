@@ -1124,7 +1124,7 @@ func (a *App) composeNote(c *ui.Context, t *tab, rv *prReview) {
 		if ui.Button(c, locales.PrsCommentNow()).Disabled(body == "" || rv.busy()).Clicked() {
 			dr, at := cp.draft(body), cp.at
 			a.prSend(t, rv, func(ctx context.Context, cl *forge.CLI) error {
-				return cl.SubmitReview(ctx, rv.repo, rv.n, at, forge.VerdictComment, "", []forge.Draft{dr})
+				return cl.CommentNow(ctx, rv.repo, rv.n, at, dr)
 			}, func() {
 				if rv.compose == cp {
 					rv.compose = nil

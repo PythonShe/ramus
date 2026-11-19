@@ -886,6 +886,28 @@ func (c *CLI) SubmitReview(ctx context.Context, r Repo, n int, at Revs, v Verdic
 	return c.post(ctx, r, "repos/"+r.Path+"/pulls/"+strconv.Itoa(n)+"/reviews", req)
 }
 
+// CommentNow posts d, a comment on lines of the commits at, on r's pull
+// request n by itself, as a review of that one comment would be, but
+// for nothing else: on GitLab a review published takes with it every
+// draft the user left pending in the browser, so the comment goes as a
+// discussion of its own.
+func (c *CLI) CommentNow(ctx context.Context, r Repo, n int, at Revs, d Draft) error {
+	if r.Kind != GitLab {
+		return c.SubmitReview(ctx, r, n, at, VerdictComment, "", []Draft{d})
+	}
+	if err := c.reviewable(r); err != nil {
+		return err
+	}
+	if !hexID(at.Head) || !hexID(at.Base) || !hexID(at.Start) {
+		return fmt.Errorf("forge: merge request !%d has no diff to comment on", n)
+	}
+	p := d.position(at)
+	return c.gitlabSend(ctx, r, "POST", mrPath(r, n)+"/discussions", struct {
+		Body     string      `json:"body"`
+		Position *glPosition `json:"position"`
+	}{d.Body, &p}, nil)
+}
+
 // Reply adds body to the review thread th of r's pull request n.
 func (c *CLI) Reply(ctx context.Context, r Repo, n int, th Thread, body string) error {
 	if err := c.reviewable(r); err != nil {
