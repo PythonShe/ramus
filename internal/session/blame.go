@@ -88,7 +88,12 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 			}
 		})
 	}
+	// Restricted, textconv is off: the hardening empties the drivers the
+	// repository defines, which blame would otherwise fail on.
 	args := []string{"blame", "--incremental"}
+	if r.Restricted {
+		args = append(args, "--no-textconv")
+	}
 	r.Life().Go(func(context.Context) {
 		defer stop()
 		data, readErr := readWorkFile(r.WorkTree, path)

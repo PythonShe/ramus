@@ -116,3 +116,30 @@ func TestCancelledBlameCallsBackNoMore(t *testing.T) {
 		t.Errorf("the cancelled blame of a called back %d times after it was cancelled", aCalls)
 	}
 }
+
+// Blame in a repository not trusted runs no textconv, and blames a file
+// whose driver the repository defines, which the hardening empties.
+func TestRestrictedBlameRunsNoTextconv(t *testing.T) {
+	marks := t.TempDir()
+	mark := markWith(t, marks, "textconv")
+	r := gittest.Init(t)
+	r.Write(".gitattributes", "*.x diff=conv\n")
+	r.Write("a.x", "one\ntwo\n")
+	r.Commit("one")
+	r.Git("config", "diff.conv.textconv", mark+"cat")
+	s, m := openFor(t, r)
+	if !s.State.Restricted {
+		t.Fatal("the repository is trusted")
+	}
+	var last BlameUpdate
+	groups := 0
+	s.Blame("a.x", func([]byte, error) {}, func(u BlameUpdate) {
+		groups += len(u.Groups)
+		last = u
+	})
+	m.until(t, "the blame", func() bool { return last.Done })
+	noMarks(t, marks)
+	if last.Err != nil || groups == 0 {
+		t.Fatalf("blame: %v, %d groups", last.Err, groups)
+	}
+}
