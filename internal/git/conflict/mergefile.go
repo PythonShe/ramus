@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 )
 
@@ -59,9 +60,11 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 }
 
 // longestRun is the longest run of one of the characters conflict markers
-// are made of at the start of a line of the file at path.
+// are made of at the start of a line of the file at path. A path that is
+// not a regular file, as a named pipe a read would wait on for ever, is
+// refused, and so is a file past MaxSize, which no merge here resolves.
 func longestRun(path string) (int, error) {
-	f, err := os.Open(path)
+	f, err := pathsafe.OpenRegular(path)
 	if err != nil {
 		return 0, err
 	}
@@ -69,8 +72,12 @@ func longestRun(path string) (int, error) {
 	buf := make([]byte, 64<<10)
 	longest, n := 0, 0
 	var c byte = '\n' // the run's character; a newline before the first line
+	var total int
 	for {
 		k, err := f.Read(buf)
+		if total += k; total > MaxSize {
+			return 0, ErrTooLarge
+		}
 		for _, b := range buf[:k] {
 			switch {
 			case b == '\n':
