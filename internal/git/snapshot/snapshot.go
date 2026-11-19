@@ -61,7 +61,8 @@ type Options struct {
 	Ignored bool
 	// Worktree, when set, is the folder of another worktree of the
 	// repository, about to be removed: its state is kept, under the refs
-	// of the worktree Take is given, since its own go with it.
+	// of the worktree Take is given, since its own go with it. A folder
+	// that is gone has nothing to keep: Take returns no snapshot.
 	Worktree string
 }
 
@@ -152,6 +153,11 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	}
 	keep := w.GitDir
 	if opts.Worktree != "" {
+		if _, err := os.Lstat(opts.Worktree); errors.Is(err, os.ErrNotExist) {
+			// Its folder was deleted: nothing of it is left to keep,
+			// and git removes such a worktree as it is.
+			return Snapshot{}, nil
+		}
 		gd, err := worktreeGitDir(opts.Worktree)
 		if err != nil {
 			return Snapshot{}, err

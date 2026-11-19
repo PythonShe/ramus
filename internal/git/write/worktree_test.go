@@ -141,3 +141,34 @@ func TestRemovingAWorktreeKeepsItsFiles(t *testing.T) {
 		t.Fatalf("redo: %v", err)
 	}
 }
+
+// A worktree whose folder was deleted outside the app is removed, and
+// its branch deleted, as git does: there is nothing of it to keep first.
+func TestWorktreeFolderGone(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	h.r.Git("branch", "gone")
+	h.r.Git("branch", "gone-too")
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	for _, b := range []string{"gone", "gone-too"} {
+		op, err := AddWorktree(h.w, WorktreeOptions{Path: filepath.Join(base, b), Branch: b})
+		h.do(op, err, true)
+		if err := os.RemoveAll(filepath.Join(base, b)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.do(RemoveWorktree(h.w, filepath.Join(base, "gone"), false), nil, true)
+	h.do(DeleteBranch(h.w, "refs/heads/gone-too", h.rev("HEAD"), false, filepath.Join(base, "gone-too"), h.seen()), nil, true)
+	if h.rev("refs/heads/gone-too") != "" {
+		t.Fatal("the branch is still there")
+	}
+	if l := h.r.Git("worktree", "list", "--porcelain"); strings.Contains(l, "gone") {
+		t.Fatalf("still listed:\n%s", l)
+	}
+	// Undo brings the branch back.
+	h.undo()
+	if h.rev("refs/heads/gone-too") == "" {
+		t.Fatal("undo did not bring the branch back")
+	}
+}
