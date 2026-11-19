@@ -3440,6 +3440,10 @@
     "description": "name is what was asked for, quoted."
   },
   "sessionNotCommitted": "these lines are not committed yet",
+  "sessionMergeAsPatch": "a merge commit cannot be saved as a patch",
+  "@sessionMergeAsPatch": {
+    "description": "git format-patch writes no patch for a merge commit."
+  },
   "repoSectionLocks": "LFS Locks",
   "@repoSectionLocks": {
     "description": "Sidebar item and page title: the files locked on the repository's Git LFS server."

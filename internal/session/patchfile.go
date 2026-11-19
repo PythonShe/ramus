@@ -11,6 +11,7 @@ import (
 
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // PatchSave is what a patch file is made of: commits (hex, oldest first),
@@ -54,6 +55,17 @@ func savePatch(ctx context.Context, rn *run.Runner, gitDir, workTree string, req
 	}()
 	switch {
 	case len(req.Commits) > 0:
+		// format-patch skips a merge: -1 on one walks past it and writes
+		// the next commit that is not, under the merge's name.
+		var res run.Result
+		res, err = rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true,
+			Args: append([]string{"rev-list", "--no-walk", "--min-parents=2", "--end-of-options"}, req.Commits...)})
+		if err != nil {
+			return err
+		}
+		if len(bytes.TrimSpace(res.Stdout)) > 0 {
+			return &sayError{locales.SessionMergeAsPatch}
+		}
 		for i, c := range req.Commits {
 			_, err = rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Stdout: tmp,
 				Args: []string{"format-patch", "--stdout", "-1", "--start-number=" + strconv.Itoa(i+1), "--end-of-options", c}})

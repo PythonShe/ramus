@@ -16069,6 +16069,20 @@ func (msgs Messages) SessionNotCommitted() string {
 	return Catalog.Format(msgs.locale, "sessionNotCommitted", nil)
 }
 
+// SessionMergeAsPatch says "a merge commit cannot be saved as a patch"
+// in the language the app shows.
+//
+// git format-patch writes no patch for a merge commit.
+func SessionMergeAsPatch() string { return In(i18n.Locale()).SessionMergeAsPatch() }
+
+// SessionMergeAsPatch says "a merge commit cannot be saved as a patch"
+// in the language of msgs.
+//
+// git format-patch writes no patch for a merge commit.
+func (msgs Messages) SessionMergeAsPatch() string {
+	return Catalog.Format(msgs.locale, "sessionMergeAsPatch", nil)
+}
+
 // RepoSectionLocks says "LFS Locks"
 // in the language the app shows.
 //

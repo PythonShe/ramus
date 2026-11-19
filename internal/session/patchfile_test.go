@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"ramus/internal/git/gittest"
@@ -18,6 +19,33 @@ func savePatchFile(t *testing.T, s *Session, m mainThread, req PatchSave) (strin
 	s.SavePatch(req, file, func(e error) { err, done = e, true })
 	m.until(t, "the save", func() bool { return done })
 	return file, err
+}
+
+// A merge commit is refused as a patch: git format-patch skips merges,
+// and would write another commit under the merge's name.
+func TestSavePatchRefusesAMerge(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "a\n")
+	r.Commit("one")
+	r.Git("switch", "-q", "-c", "side")
+	r.Write("s", "s\n")
+	r.Commit("side")
+	r.Git("switch", "-q", "main")
+	r.Write("m", "m\n")
+	work := r.Commit("main work")
+	r.Git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+	merge := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	s, m := openFor(t, r)
+	for _, list := range [][]string{{merge}, {work, merge}} {
+		file, err := savePatchFile(t, s, m, PatchSave{Commits: list})
+		if err == nil {
+			b, _ := os.ReadFile(file)
+			t.Errorf("%d commits with a merge saved:\n%s", len(list), b)
+		}
+	}
+	if _, err := savePatchFile(t, s, m, PatchSave{Commits: []string{work}}); err != nil {
+		t.Fatalf("a plain commit: %v", err)
+	}
 }
 
 // A patch saved from the changes applies with git apply on a clean
