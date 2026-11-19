@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"ramus/internal/git/conflict"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/write"
+	"ramus/internal/session"
 	"ramus/locales"
 )
 
@@ -182,4 +184,37 @@ func TestMergeChoicesOutliveOtherWrites(t *testing.T) {
 		t.Fatalf("a file changed on disk kept choice %v", ms.choices[0])
 	}
 	h.until("why", h.shows(locales.MergeChangedOnDisk()))
+}
+
+// A conflict that failed to load says why, and offers no side to take:
+// both would have read as deleted.
+func TestMergeLoadErrorIsNotADeletion(t *testing.T) {
+	h := newHarness(t)
+	r := conflictingRepo(h)
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	r.Run(nil, "merge", "topic")
+	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	h.click("a.txt")
+	h.until("the editor", h.shows("Conflict 1"))
+	tb.merge.cf = session.ConflictFile{Path: "a.txt", Err: errors.New("git ls-files failed")}
+	h.tt.Frame()
+	if !h.tt.HasText("git ls-files failed") || h.tt.HasText(locales.MergeDeletedHere()) || h.tt.HasText(locales.MergeDeleteIt()) {
+		t.Fatalf("texts %q", h.tt.Texts())
+	}
+	// ls-files found no stage: resolved outside the app, before the
+	// status read says so.
+	tb.merge.cf = session.ConflictFile{Path: "a.txt"}
+	h.tt.Frame()
+	if h.tt.HasText(locales.MergeDeletedHere()) || h.tt.HasText(locales.MergeDeleteIt()) {
+		t.Fatalf("no stages: texts %q", h.tt.Texts())
+	}
+	// Deleted on both sides: git keeps the base stage alone.
+	tb.merge.cf = session.ConflictFile{Path: "a.txt", Staged: true}
+	h.tt.Frame()
+	if !h.tt.HasText(locales.MergeDeleteIt()) {
+		t.Fatalf("both deleted: texts %q", h.tt.Texts())
+	}
 }

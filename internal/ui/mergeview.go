@@ -228,11 +228,17 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 		case cf.Path != path:
 			loading(c, "")
 			return
+		case cf.Err != nil:
+			// Before the sides: a file that failed to load has none.
+			errorMessage(c, errText(cf.Err))
+			return
+		case !cf.Staged:
+			// Resolved outside the app since the status was read, which
+			// a new status read soon says.
+			loading(c, "")
+			return
 		case !cf.Ours || !cf.Theirs || cf.Binary:
 			a.sidesOnly(c, t, cf)
-			return
-		case cf.Err != nil:
-			errorMessage(c, errText(cf.Err))
 			return
 		case len(ms.choices) == 0:
 			ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {

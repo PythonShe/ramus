@@ -123,6 +123,9 @@ type ConflictFile struct {
 	Binary   bool
 	// Ours and Theirs are false when that side deleted the file.
 	Ours, Theirs bool
+	// Staged is set when the index holds the file's conflict stages: a
+	// file resolved since its status was read has none.
+	Staged bool
 	// Seen is the file as read, for the write to check it is unchanged.
 	Seen write.FileState
 	Err  error
@@ -155,6 +158,7 @@ func loadConflict(ctx context.Context, rn *run.Runner, gitDir, workTree, path st
 	for rec := range bytes.SplitSeq(res.Stdout, []byte{0}) {
 		f := bytes.Fields(rec)
 		if len(f) >= 3 {
+			cf.Staged = true
 			switch string(f[2]) {
 			case "2":
 				cf.Ours = true
