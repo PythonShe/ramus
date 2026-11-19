@@ -469,3 +469,26 @@ func TestMarkResolvedReadsOnce(t *testing.T) {
 		t.Fatalf("an Enter after the question read a.txt %d times in all", n)
 	}
 }
+
+// The merge editor emptied once nothing is left to resolve stays empty
+// when a build of what it showed lands after.
+func TestDroppedMergeStaysEmpty(t *testing.T) {
+	h := newHarness(t)
+	orig, ran := h.app.Update, make(chan struct{})
+	h.app.Update = func(fn func()) { orig(func() { fn(); close(ran) }) }
+	ms := &mergeState{cf: session.ConflictFile{Segments: []conflict.Segment{{Text: []byte("kept\n")}}}}
+	h.app.showConflicts(ms)
+	h.app.Update = orig
+	ms.drop()
+	h.until("the build", func() bool {
+		select {
+		case <-ran:
+			return true
+		default:
+			return false
+		}
+	})
+	if ms.shown != nil {
+		t.Fatalf("an emptied editor holds %+v", ms.shown)
+	}
+}

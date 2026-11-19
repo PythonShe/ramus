@@ -86,7 +86,8 @@ func (a *App) startMergeTool() {
 				mt.err = errText(err)
 			}
 			n := conflict.Count(files.Segments)
-			mt.ms = mergeState{path: merged, choices: make([]conflict.Choice, n), custom: make([]string, n)}
+			// gen goes on from the last: a build for that may still land.
+			mt.ms = mergeState{path: merged, choices: make([]conflict.Choice, n), custom: make([]string, n), gen: mt.ms.gen}
 			mt.ms.cf.Segments = files.Segments
 			a.showConflicts(&mt.ms)
 		})

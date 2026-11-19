@@ -241,6 +241,10 @@ func sameConflicts(a, b session.ConflictFile) bool {
 	})
 }
 
+// drop empties ms. gen moves on, so a build still running for what it
+// held lands nowhere rather than keep its text.
+func (ms *mergeState) drop() { *ms = mergeState{gen: ms.gen + 1} }
+
 // showConflicts numbers ms's conflicts and builds what its segments show
 // off the main thread.
 func (a *App) showConflicts(ms *mergeState) {
@@ -615,8 +619,8 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 	if st := t.s.State.Status; st != nil && st.Unmerged() == 0 && t.merge.path != "" && t.cv.model != nil && t.cv.model.st == st {
 		// Nothing left to resolve, as the list, built off the main thread,
 		// shows too: the conflict last shown, which can be tens of
-		// megabytes, goes. gen stays, for builds still running.
-		t.merge = mergeState{gen: t.merge.gen}
+		// megabytes, goes.
+		t.merge.drop()
 	}
 	op := t.s.State.Operation
 	switch op {
