@@ -31,7 +31,9 @@ func TestToolHasNoWindow(t *testing.T) {
 func TestToolInAJob(t *testing.T) {
 	comspec := filepath.Join(os.Getenv("SystemRoot"), "System32", "cmd.exe")
 	var out bytes.Buffer
-	cmd := exec.Command(comspec, "/c", "echo answered")
+	// As the app makes every tool command: ownGroup sets Cancel, which
+	// Start refuses on a command made without a context.
+	cmd := exec.CommandContext(context.Background(), comspec, "/c", "echo answered")
 	cmd.Stdout = &out
 	if err := runTool(cmd); err != nil || !strings.Contains(out.String(), "answered") {
 		t.Fatalf("%v: %q", err, out.String())
