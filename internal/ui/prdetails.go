@@ -161,9 +161,6 @@ func checkRank(s forge.CheckState) int {
 	return 5
 }
 
-// sortChecks orders list as the page lists it: the failed first, then
-// those running and waiting; among those that stand alike the required
-// first, then each by its group and name.
 // checkKey names a check in the list: two runs of one job, as a workflow
 // run for a push and for the pull request, may have one group, name and
 // address (none, when the host's is refused), and are told apart by
@@ -186,6 +183,9 @@ func (rv *prReview) setChecks(list []forge.Check) {
 	rv.checks, rv.checkKeys = list, keys
 }
 
+// sortChecks orders list as the page lists it: the failed first, then
+// those running and waiting; among those that stand alike the required
+// first, then each by its group and name.
 func sortChecks(list []forge.Check) []forge.Check {
 	out := slices.Clone(list)
 	required := func(c forge.Check) int {
