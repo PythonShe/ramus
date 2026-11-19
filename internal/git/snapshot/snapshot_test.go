@@ -3,6 +3,7 @@ package snapshot
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -39,7 +40,7 @@ func (f *fixture) list(gitDir, common string) ([]Snapshot, *catfile.Process) {
 		f.t.Fatal(err)
 	}
 	f.t.Cleanup(func() { cat.Close() })
-	l, err := List(refs.New(gitDir, common, 20), cat)
+	l, err := List(context.Background(), refs.New(gitDir, common, 20), cat)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -102,7 +103,16 @@ func TestTakeListRestore(t *testing.T) {
 		got.Reason != "Discard changes" || !slices.Equal(got.Paths, s.Paths) {
 		t.Fatalf("listed %+v, took %+v", got, s)
 	}
-	files, err := Files(cat, 20, got)
+	// A read stopped, as when the repository closes, stops listing.
+	stopped, stop := context.WithCancel(context.Background())
+	stop()
+	if _, err := List(stopped, refs.New(f.w.GitDir, f.w.GitDir, 20), cat); !errors.Is(err, context.Canceled) {
+		t.Fatalf("list stopped: %v", err)
+	}
+	if _, err := Files(stopped, cat, 20, got); !errors.Is(err, context.Canceled) {
+		t.Fatalf("files stopped: %v", err)
+	}
+	files, err := Files(context.Background(), cat, 20, got)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +161,7 @@ func TestWholeTreeAndIgnored(t *testing.T) {
 		t.Fatalf("list %+v", list)
 	}
 	names := func(s Snapshot) []string {
-		fs, err := Files(cat, 20, s)
+		fs, err := Files(context.Background(), cat, 20, s)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -555,7 +565,7 @@ func TestRacyFile(t *testing.T) {
 // A repository whose refs go to git, which refuses it as well, has no
 // snapshots to list, and listing them does not fail.
 func TestListWithoutRefReader(t *testing.T) {
-	if list, err := List(nil, nil); list != nil || err != nil {
+	if list, err := List(context.Background(), nil, nil); list != nil || err != nil {
 		t.Fatalf("%v %v", list, err)
 	}
 }

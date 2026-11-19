@@ -33,11 +33,11 @@ func (s *Session) Snapshots(done func([]snapshot.Snapshot, error)) {
 		return
 	}
 	update := s.update
-	r.Life().Go(func(context.Context) {
+	r.Life().Go(func(ctx context.Context) {
 		cat, err := r.CatFile()
 		var list []snapshot.Snapshot
 		if err == nil {
-			list, err = snapshot.List(r.Refs(), cat)
+			list, err = snapshot.List(ctx, r.Refs(), cat)
 		}
 		update(func() { done(list, err) })
 	})
@@ -52,11 +52,11 @@ func (s *Session) SnapshotFiles(snap snapshot.Snapshot, done func([]snapshot.Fil
 		return
 	}
 	update := s.update
-	r.Life().Go(func(context.Context) {
+	r.Life().Go(func(ctx context.Context) {
 		cat, err := r.CatFile()
 		var files []snapshot.File
 		if err == nil {
-			files, err = snapshot.Files(cat, r.Caps.HashSize, snap)
+			files, err = snapshot.Files(ctx, cat, r.Caps.HashSize, snap)
 		}
 		update(func() { done(files, err) })
 	})
@@ -171,12 +171,12 @@ func (s *Session) ExpireSnapshots(keep time.Duration) {
 		return
 	}
 	cutoff := s.timeNow().Add(-keep)
-	r.Life().Go(func(context.Context) {
+	r.Life().Go(func(ctx context.Context) {
 		cat, err := r.CatFile()
 		if err != nil {
 			return
 		}
-		list, err := snapshot.List(r.Refs(), cat)
+		list, err := snapshot.List(ctx, r.Refs(), cat)
 		if err != nil {
 			return
 		}

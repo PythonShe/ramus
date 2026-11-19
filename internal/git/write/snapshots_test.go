@@ -38,7 +38,7 @@ func TestSnapshotNowRestoreExpire(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cat.Close()
-	files, err := snapshot.Files(cat, 20, s)
+	files, err := snapshot.Files(context.Background(), cat, 20, s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,14 +64,14 @@ func TestSnapshotNowRestoreExpire(t *testing.T) {
 	}
 
 	rd := refs.New(r.GitDir(), r.GitDir(), 20)
-	list, err := snapshot.List(rd, cat)
+	list, err := snapshot.List(context.Background(), rd, cat)
 	if err != nil || len(list) != 2 {
 		t.Fatalf("list %d %v", len(list), err)
 	}
 	if _, err := wait(t, q.Expire(r.Dir, list, time.Now().Add(time.Hour))); err != nil {
 		t.Fatal(err)
 	}
-	if list, _ = snapshot.List(rd, cat); len(list) != 0 {
+	if list, _ = snapshot.List(context.Background(), rd, cat); len(list) != 0 {
 		t.Fatalf("%d left after expiry", len(list))
 	}
 }

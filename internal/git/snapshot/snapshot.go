@@ -659,7 +659,7 @@ func parse(s *Snapshot, msg []byte) bool {
 // List returns the worktree's snapshots, newest first. rd is nil when the
 // repository's refs go to git (repo.Repository.Refs), which happens only
 // where git refuses the repository too, so none can be listed.
-func List(rd refs.Reader, cat *catfile.Process) ([]Snapshot, error) {
+func List(ctx context.Context, rd refs.Reader, cat *catfile.Process) ([]Snapshot, error) {
 	if rd == nil {
 		return nil, nil
 	}
@@ -677,7 +677,7 @@ func List(rd refs.Reader, cat *catfile.Process) ([]Snapshot, error) {
 		}
 	}
 	keep := out[:0]
-	err = cat.Read(oids, func(i int, o catfile.Object) error {
+	err = cat.ReadContext(ctx, oids, func(i int, o catfile.Object) error {
 		if o.Type != "commit" {
 			return nil
 		}
@@ -710,14 +710,14 @@ type File struct {
 
 // Files compares a snapshot with the commit it was taken on: the files it
 // holds a different state of, limited to its recorded paths.
-func Files(cat *catfile.Process, hashSize int, s Snapshot) ([]File, error) {
+func Files(ctx context.Context, cat *catfile.Process, hashSize int, s Snapshot) ([]File, error) {
 	var base []byte
 	if s.Head != "" {
 		id, err := hex.DecodeString(s.Head)
 		if err != nil || len(id) != hashSize {
 			return nil, fmt.Errorf("snapshot: head %q is not an object id", s.Head)
 		}
-		err = cat.Read([][]byte{id}, func(_ int, o catfile.Object) error {
+		err = cat.ReadContext(ctx, [][]byte{id}, func(_ int, o catfile.Object) error {
 			c, err := object.ParseCommit(o.Data)
 			if err != nil || o.Type != "commit" {
 				return fmt.Errorf("snapshot: head %s unreadable", s.Head)
