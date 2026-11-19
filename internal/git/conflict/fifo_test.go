@@ -39,7 +39,7 @@ func TestMergeFilesRefusesANamedPipe(t *testing.T) {
 		}
 	case <-time.After(30 * time.Second):
 		// Lets the reader go, so the test ends either way.
-		if f, err := os.OpenFile(pipe, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+		if f, err := os.OpenFile(pipe, os.O_RDWR, 0); err == nil {
 			f.Close()
 		}
 		t.Fatal("waited on the pipe")

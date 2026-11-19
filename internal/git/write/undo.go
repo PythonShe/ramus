@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
 	"ramus/internal/git/snapshot"
@@ -772,7 +773,20 @@ func (q *Queue) leftPaths(ctx context.Context, e Entry, like *pathState) *pathSt
 			target, err = os.Readlink(p)
 			b = []byte(target)
 		default:
-			b, err = os.ReadFile(p)
+			// Within the size seen: a named pipe, which a read waits on for
+			// ever, or a file grown since is not read, and its size and time
+			// tell it apart, or it is changed from the one hashed before.
+			limit := budget
+			if like != nil {
+				limit = f.Size
+			}
+			b, err = pathsafe.ReadFile(p, limit)
+			if errors.Is(err, pathsafe.ErrNotRegular) || errors.Is(err, pathsafe.ErrTooLarge) {
+				if like != nil {
+					sums[i] = "changed"
+				}
+				continue
+			}
 		}
 		if err != nil {
 			return nil
