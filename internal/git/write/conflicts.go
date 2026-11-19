@@ -63,19 +63,77 @@ const (
 
 // TakeSide resolves conflicted paths with one side's version whole, and
 // marks them resolved. The conflicted files are kept in a snapshot first.
-// A path the chosen side deleted is resolved by RemoveConflicted.
+// A path the chosen side deleted is resolved by RemoveConflicted. A
+// submodule is resolved with the commit that side records, whatever
+// commit the submodule has checked out.
 func TakeSide(w Where, paths []string, side Side) (Op, error) {
 	if err := checkPaths(paths); err != nil {
 		return Op{}, err
 	}
-	flag, name := "--ours", "Take ours for "
+	flag, stage, name := "--ours", "2", "Take ours for "
 	if side == TheirSide {
-		flag, name = "--theirs", "Take theirs for "
+		flag, stage, name = "--theirs", "3", "Take theirs for "
 	}
 	name += count(len(paths), paths[0])
-	pre := w.cmd(append([]string{"checkout", flag, "--"}, paths...)...)
-	return Op{Name: name, Pre: &pre, Snapshot: &snapshot.Options{Reason: name, Paths: paths},
-		Cmd: w.cmd(append([]string{"add", "--"}, paths...)...)}, nil
+	op := Op{Name: name, Snapshot: &snapshot.Options{Reason: name, Paths: paths},
+		Cmd: w.cmd(append([]string{"add", "--"}, paths...)...)}
+	// The index is read in the job's turn: which paths are submodules is
+	// what the conflict holds when the write runs.
+	op.do = func(ctx context.Context, j *Job) (run.Result, error) {
+		if err := j.q.prepare(ctx, j); err != nil {
+			return run.Result{}, err
+		}
+		links, files, err := gitlinks(ctx, j.q.r, w, paths, stage)
+		if err != nil {
+			return run.Result{}, err
+		}
+		var res run.Result
+		if len(files) > 0 {
+			if res, err = execute(ctx, j.q.r, j, w.cmd(append([]string{"checkout", flag, "--"}, files...)...), nil); err != nil {
+				return res, err
+			}
+			if res, err = execute(ctx, j.q.r, j, w.cmd(append([]string{"add", "--"}, files...)...), nil); err != nil {
+				return res, err
+			}
+		}
+		if len(links) > 0 {
+			// git checkout leaves a gitlink as it is and git add stages
+			// the commit the submodule has checked out, so the side's
+			// entry is staged as it is.
+			res, err = execute(ctx, j.q.r, j, w.cmd("update-index", "-z", "--index-info"), links)
+		}
+		return res, err
+	}
+	return op, nil
+}
+
+// gitlinks splits conflicted paths into the submodules whose entry at
+// stage (2 ours, 3 theirs) the index holds, as lines for git update-index
+// --index-info -z that stage it resolved, and the other paths.
+func gitlinks(ctx context.Context, r *run.Runner, w Where, paths []string, stage string) ([]byte, []string, error) {
+	res, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"ls-files", "-u", "-z"}, Read: true})
+	if err != nil {
+		return nil, nil, err
+	}
+	link := map[string]string{}
+	for _, e := range strings.Split(string(res.Stdout), "\x00") {
+		// <mode> <oid> <stage>\t<path>
+		info, path, ok := strings.Cut(e, "\t")
+		f := strings.Fields(info)
+		if ok && len(f) == 3 && f[0] == "160000" && f[2] == stage {
+			link[path] = f[1]
+		}
+	}
+	var lines []byte
+	var files []string
+	for _, p := range paths {
+		if oid, ok := link[strings.TrimSuffix(p, "/")]; ok {
+			lines = fmt.Appendf(lines, "160000 %s\t%s\x00", oid, strings.TrimSuffix(p, "/"))
+		} else {
+			files = append(files, p)
+		}
+	}
+	return lines, files, nil
 }
 
 // RemoveConflicted resolves conflicted paths by deleting them, as when

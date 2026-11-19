@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"ramus/internal/git/gittest"
 )
 
 // conflicted makes a merge of topic into main stop on a.txt and b.bin.
@@ -216,6 +218,48 @@ func TestSquashKeepsItsCommentCharacter(t *testing.T) {
 		write("rebase-merge/message", c.body)
 		if cc, err := keepMessage(dir); err != nil || cc != c.want {
 			t.Fatalf("comment %q, want %q: %v", cc, c.want, err)
+		}
+	}
+}
+
+// Taking a side of a submodule conflict stages that side's commit, not
+// the one the submodule has checked out: git checkout leaves a gitlink
+// alone, and git add would stage the submodule's HEAD.
+func TestTakeSideOfASubmodule(t *testing.T) {
+	for _, side := range []Side{OurSide, TheirSide} {
+		h := newHarness(t)
+		h.r.Git("init", "-q", "sub")
+		sub := gittest.Open(t, filepath.Join(h.r.Dir, "sub"))
+		sub.Write("s", "1\n")
+		c1 := sub.Commit("c1")
+		sub.Write("s", "2\n")
+		c2 := sub.Commit("c2")
+		sub.Git("switch", "-q", "--detach", c1)
+		sub.Write("s", "3\n")
+		c3 := sub.Commit("c3")
+		h.r.Write("f", "base\n")
+		h.r.Git("update-index", "--add", "--cacheinfo", "160000,"+c1+",sub")
+		h.r.Git("add", "f")
+		h.r.Git("commit", "-q", "-m", "base")
+		h.r.Git("switch", "-q", "-c", "topic")
+		h.r.Git("update-index", "--cacheinfo", "160000,"+c3+",sub")
+		h.r.Git("commit", "-q", "-m", "topic")
+		h.r.Git("switch", "-q", "main")
+		h.r.Git("update-index", "--cacheinfo", "160000,"+c2+",sub")
+		h.r.Git("commit", "-q", "-m", "main")
+		// The submodule has the other side checked out.
+		want, other := c2, c3
+		if side == TheirSide {
+			want, other = c3, c2
+		}
+		sub.Git("switch", "-q", "--detach", other)
+		if out, err := h.r.Run(nil, "merge", "topic"); err == nil {
+			t.Fatalf("merged cleanly: %s", out)
+		}
+		op, err := TakeSide(h.w, []string{"sub"}, side)
+		h.do(op, err, true)
+		if got := h.r.Git("ls-files", "-s", "sub"); got != "160000 "+want+" 0\tsub\n" {
+			t.Fatalf("side %d staged %q, want %s", side, got, want)
 		}
 	}
 }
