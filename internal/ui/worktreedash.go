@@ -12,7 +12,6 @@ import (
 
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
-	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -190,9 +189,9 @@ func (a *App) openHeld(path string, hold bool) {
 	if !hold || known {
 		return
 	}
-	path = library.Clean(path)
+	path = cleanPath(path)
 	for _, t := range a.tabs {
-		if t.s.Path == path {
+		if t.is(path) {
 			t.s.HoldWrites()
 		}
 	}

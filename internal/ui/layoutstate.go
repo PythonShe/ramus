@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"ramus/internal/layout"
-	"ramus/internal/library"
 )
 
 // restorable are the sections a tab reopens on; the others (a comparison,
@@ -43,7 +42,7 @@ func (a *App) Restore(w layout.Window) {
 		a.restoring = map[string]restoredTab{}
 	}
 	for i, lt := range w.Tabs {
-		a.restoring[library.Clean(lt.Path)] = restoredTab{lt, i == w.Active}
+		a.restoring[cleanPath(lt.Path)] = restoredTab{lt, i == w.Active}
 	}
 	for _, lt := range w.Tabs {
 		a.Open(lt.Path)

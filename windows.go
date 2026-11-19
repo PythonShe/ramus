@@ -152,6 +152,16 @@ func (ws *windows) add() *window {
 			}
 		}
 	}
+	d.ShowOpen = func(p string) bool {
+		for _, o := range ws.list {
+			if o != w && o.app.Has(p) {
+				o.app.Open(p)
+				ws.raise(o)
+				return true
+			}
+		}
+		return false
+	}
 	d.LayoutChanged = ws.layoutChanged
 	d.Languages, d.ChosenLocale, d.SetLocale = mygo.App.Languages(), mygo.App.ChosenLocale, mygo.App.SetLocale
 	w.app = ui.NewApp(d)

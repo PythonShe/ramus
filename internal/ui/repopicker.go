@@ -71,7 +71,7 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 	name, icon := "", glyphs().repo
 	if t != nil {
 		name = a.title(t)
-		if p.briefs[t.s.Path].Fork {
+		if p.briefs[t.key()].Fork {
 			icon = glyphs().fork
 		}
 	}
@@ -124,11 +124,8 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 			if at < 0 {
 				// Enter starts on a repository other than the one shown,
 				// where it would do nothing; the shown one, when alone.
-				cur := ""
-				if t := a.current(); t != nil {
-					cur = t.s.Path
-				}
-				at = slices.IndexFunc(rows, func(r repoRow) bool { return r.heading == "" && r.path != cur })
+				cur := a.current()
+				at = slices.IndexFunc(rows, func(r repoRow) bool { return r.heading == "" && (cur == nil || !cur.is(r.path)) })
 				if at < 0 {
 					at = slices.IndexFunc(rows, func(r repoRow) bool { return r.heading == "" })
 				}
@@ -166,7 +163,7 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 				}
 				// An open repository closes, and moves to a window of its
 				// own, from its menu, as a tab did.
-				if at := slices.IndexFunc(a.tabs, func(t *tab) bool { return t.s.Path == rows[i].path }); at >= 0 {
+				if at := slices.IndexFunc(a.tabs, func(t *tab) bool { return t.is(rows[i].path) }); at >= 0 {
 					ot := a.tabs[at]
 					r.ContextMenu(func(m *ui.Menu) {
 						if a.NewWindow != nil && m.Item(locales.TabsMoveToNewWindow()).Disabled(len(a.tabs) < 2 || busyWrite(ot) != nil).Chosen() {
@@ -322,8 +319,8 @@ func (a *App) stopBriefs() {
 func (a *App) pickerRepos() []library.Repo {
 	all := a.Library.Recent(maxBriefs)
 	for _, t := range a.tabs {
-		if !slices.ContainsFunc(all, func(r library.Repo) bool { return r.Path == t.s.Path }) {
-			all = append(all, library.Repo{Path: t.s.Path, Name: a.title(t)})
+		if !slices.ContainsFunc(all, func(r library.Repo) bool { return t.is(r.Path) }) {
+			all = append(all, library.Repo{Path: t.key(), Name: a.title(t)})
 		}
 	}
 	return all
@@ -456,13 +453,13 @@ func (a *App) repoRowView(c *ui.Context, r repoRow, hi bool) ui.Element {
 		fg = th.AccentText
 	}
 	var open *tab
-	if at := slices.IndexFunc(a.tabs, func(t *tab) bool { return t.s.Path == r.path }); at >= 0 {
+	if at := slices.IndexFunc(a.tabs, func(t *tab) bool { return t.is(r.path) }); at >= 0 {
 		open = a.tabs[at]
 	}
 	row.Children(func() {
 		// A check by the repository shown; the others open are in their
 		// own group.
-		if cur := a.current(); cur != nil && cur.s.Path == r.path {
+		if cur := a.current(); cur != nil && cur.is(r.path) {
 			row.Description(locales.RepoPickerShown())
 			ui.Icon(c, glyphs().check).FontSize(iconMedium).Width(markW).TextColor(fg)
 		} else {

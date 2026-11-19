@@ -16,7 +16,6 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/write"
-	"ramus/internal/library"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -95,7 +94,7 @@ func (a *App) ShowFile(abs string, blame bool) {
 		dir = filepath.Dir(abs)
 	}
 	a.Open(dir)
-	a.pendingFile = pendingFile{abs: abs, blame: blame, dir: library.Clean(dir)}
+	a.pendingFile = pendingFile{abs: abs, blame: blame, dir: cleanPath(dir)}
 }
 
 type pendingFile struct {
@@ -114,7 +113,7 @@ type pendingFile struct {
 // for again each frame.
 func (a *App) resolvePending(t *tab) {
 	p := a.pendingFile
-	if p.abs == "" || t.s.Path != p.dir || t.s.Repo == nil {
+	if p.abs == "" || !t.is(p.dir) || t.s.Repo == nil {
 		return
 	}
 	a.pendingFile = pendingFile{}

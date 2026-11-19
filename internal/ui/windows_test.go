@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/layout"
 	"ramus/internal/library"
 	"ramus/internal/settings"
 	"ramus/locales"
@@ -69,4 +72,88 @@ func TestNewWindow(t *testing.T) {
 	s.NoSidebar = false
 	h.app.UseSettings(s)
 	h.until("the sidebar back", h.shows("Repository sections"))
+}
+
+// Opening, finding and restoring a repository never resolve its path on
+// the main thread, where a volume that stopped answering would freeze
+// the window: a tab opens on the path as given, which is resolved off
+// it, and one that turns out to be a repository open already under
+// another name closes for that one.
+func TestOpenResolvesOffTheMainThread(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	tmp, _ := filepath.EvalSymlinks(t.TempDir())
+	link := filepath.Join(tmp, "link")
+	if err := os.Symlink(r.Dir, link); err != nil {
+		t.Skip(err)
+	}
+	release := make(chan struct{})
+	h.app.resolve = func(p string) string {
+		<-release
+		return library.Clean(p)
+	}
+	done := make(chan struct{})
+	go func() {
+		h.app.Open(r.Dir)
+		h.app.Open(link)
+		h.app.Has(link)
+		h.app.Restore(layout.Window{Tabs: []layout.Tab{{Path: link}}})
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		close(release)
+		t.Fatal("opening waited for the path to be resolved")
+	}
+	if len(h.app.tabs) != 2 || h.app.current().s.Path != link {
+		t.Fatalf("before the paths are resolved: %d tabs", len(h.app.tabs))
+	}
+	close(release)
+	h.until("the tab of the link to close", func() bool { return len(h.app.tabs) == 1 })
+	if h.app.current().s.Path != r.Dir {
+		t.Fatalf("shown %s", h.app.current().s.Path)
+	}
+}
+
+// A repository another window has open is shown there, that window
+// brought forward, rather than opened a second time here: two sessions
+// would race for its index.lock and write over each other's draft.
+func TestOpenShowsAnotherWindowsTab(t *testing.T) {
+	h := newHarness(t)
+	r, r2 := h.repoWith(), h.repoWith()
+	tmp, _ := filepath.EvalSymlinks(t.TempDir())
+	link := filepath.Join(tmp, "link")
+	if err := os.Symlink(r.Dir, link); err != nil {
+		t.Skip(err)
+	}
+	h.app.Open(r.Dir)
+	h.app.Open(r2.Dir)
+	other := NewApp(Deps{Runner: h.runner, Trust: h.trust, Library: h.lib, Settings: settings.Defaults,
+		Update: func(fn func()) { h.updates <- fn }})
+	shown := 0
+	other.ShowOpen = func(p string) bool {
+		if !h.app.Has(p) {
+			return false
+		}
+		h.app.Open(p)
+		shown++
+		return true
+	}
+	other.Open(r.Dir)
+	if len(other.tabs) != 0 || shown != 1 || h.app.current().s.Path != r.Dir {
+		t.Fatalf("%d tabs here, shown %d", len(other.tabs), shown)
+	}
+
+	// Under another name, it is known once resolved.
+	h.app.Open(r2.Dir)
+	other.Open(link)
+	h.note()
+	for _, o := range other.tabs {
+		h.seen[o.s] = true
+	}
+	h.until("the second tab to close", func() bool { return len(other.tabs) == 0 })
+	if shown != 2 || h.app.current().s.Path != r.Dir {
+		t.Fatalf("shown %d", shown)
+	}
 }

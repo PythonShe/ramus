@@ -75,6 +75,10 @@ type Deps struct {
 	// NewWindow opens a window showing the repositories at paths, none
 	// for an empty one; nil offers no other window.
 	NewWindow func(paths []string)
+	// ShowOpen shows the repository at path in another window that has
+	// it open, bringing that window forward, and reports whether one
+	// had; nil looks in no other window. Called on the main thread.
+	ShowOpen func(path string) bool
 	// ShowAbout opens the About window, where the check for updates is;
 	// nil offers none.
 	ShowAbout func()
@@ -126,6 +130,9 @@ type App struct {
 	// is made; lastLayout the layout LayoutChanged was last told of.
 	restoring  map[string]restoredTab
 	lastLayout layout.Window
+	// resolve resolves a tab's path off the main thread, library.Clean
+	// when nil; a test makes it slow.
+	resolve func(string) string
 	// gitWarning says the installed git is missing security fixes.
 	gitWarning string
 	// clip is text to put on the clipboard on the next frame: work read
@@ -199,9 +206,12 @@ type App struct {
 
 // tab is one open repository.
 type tab struct {
-	id  int
-	s   *session.Session
-	sel string // sidebar item chosen
+	id int
+	s  *session.Session
+	// real is the session's path with symbolic links resolved, "" until
+	// resolveTab has.
+	real string
+	sel  string // sidebar item chosen
 	// shown is the view the session was last told is shown.
 	shown  string
 	open   map[string]bool
@@ -367,9 +377,14 @@ func (a *App) Open(path string) {
 		a.pending = append(a.pending, path)
 		return
 	}
-	path = library.Clean(path)
-	if i := slices.IndexFunc(a.tabs, func(t *tab) bool { return t.s.Path == path }); i >= 0 {
+	path = cleanPath(path)
+	if i := slices.IndexFunc(a.tabs, func(t *tab) bool { return t.is(path) }); i >= 0 {
 		a.active = i
+		return
+	}
+	// Two windows on one repository would race for its index.lock and
+	// write over each other's draft.
+	if a.ShowOpen != nil && a.ShowOpen(path) {
 		return
 	}
 	if len(a.tabs) == 0 && a.noticeBy.tab == nil {
@@ -390,6 +405,7 @@ func (a *App) Open(path string) {
 	if !restored || r.active {
 		a.active = len(a.tabs) - 1
 	}
+	a.resolveTab(t)
 	// Reopened at launch is not opened by the user: the library's order
 	// stays.
 	if a.Library != nil && !restored {
