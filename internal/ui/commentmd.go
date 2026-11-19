@@ -42,7 +42,19 @@ var (
 // which become their Markdown. A picture is not fetched: it is a link to
 // itself, named by its description, or image when it has none.
 func commentParts(body, image string) []*commentPart {
+	// The tags not in code. Both come in order, so the code is walked
+	// once, not from its start for each tag.
 	code := codeRanges(body)
+	var tags [][]int
+	ci := 0
+	for _, m := range detailsTag.FindAllStringSubmatchIndex(body, -1) {
+		for ci < len(code) && code[ci][1] <= m[0] {
+			ci++
+		}
+		if ci == len(code) || m[0] < code[ci][0] {
+			tags = append(tags, m)
+		}
+	}
 	root := &commentPart{}
 	stack := []*commentPart{root}
 	last, folds := 0, 0
@@ -54,8 +66,8 @@ func commentParts(body, image string) []*commentPart {
 			top.parts = append(top.parts, &commentPart{md: md})
 		}
 	}
-	for _, m := range detailsTag.FindAllStringSubmatchIndex(body, -1) {
-		if m[0] < last || code.has(m[0]) {
+	for i, m := range tags {
+		if m[0] < last {
 			continue
 		}
 		closing := m[3] > m[2]
@@ -84,7 +96,14 @@ func commentParts(body, image string) []*commentPart {
 		}
 		folds++
 		p := &commentPart{fold: true, open: m[4] >= 0 && openAttr.MatchString(body[m[4]:m[5]])}
-		if s := summaryTag.FindStringSubmatchIndex(body[last:]); s != nil {
+		// Its summary comes before the next fold's tag: looked for to the
+		// end, an unclosed summary in each of many folds would read the
+		// rest of the text again for each.
+		end := len(body)
+		if i+1 < len(tags) {
+			end = tags[i+1][0]
+		}
+		if s := summaryTag.FindStringSubmatchIndex(body[last:end]); s != nil {
 			p.summary = plainText(body[last+s[2] : last+s[3]])
 			last += s[1]
 		}
@@ -103,18 +122,6 @@ func plainText(s string) string {
 
 // ranges are stretches of a text, in order.
 type ranges [][2]int
-
-func (r ranges) has(at int) bool {
-	for _, x := range r {
-		if at < x[0] {
-			return false
-		}
-		if at < x[1] {
-			return true
-		}
-	}
-	return false
-}
 
 // codeRanges are the stretches of s that are code, which is shown as
 // written: fenced blocks, and the code within a line.
@@ -172,39 +179,43 @@ func fencedRanges(s string) ranges {
 // inlineCode are the code spans of s between from and to: what is
 // between two runs of as many backticks.
 func inlineCode(s string, from, to int) ranges {
-	var out ranges
+	// The runs of backticks, each with the next run as wide: a run that
+	// closes none is passed by once, not looked past to the end for each.
+	type run struct{ at, end, next int }
+	var runs []run
 	for at := from; at < to; {
-		if s[at] != '`' {
-			at++
-			continue
+		i := strings.IndexByte(s[at:to], '`')
+		if i < 0 {
+			break
 		}
-		n := at
-		for n < to && s[n] == '`' {
-			n++
+		at += i
+		end := at
+		for end < to && s[end] == '`' {
+			end++
 		}
-		width := n - at
-		end := -1
-		for j := n; j < to; {
-			if s[j] != '`' {
-				j++
-				continue
-			}
-			k := j
-			for k < to && s[k] == '`' {
-				k++
-			}
-			if k-j == width {
-				end = k
-				break
-			}
-			j = k
-		}
-		if end < 0 {
-			at = n
-			continue
-		}
-		out = append(out, [2]int{at, end})
+		runs = append(runs, run{at: at, end: end, next: -1})
 		at = end
+	}
+	if len(runs) < 2 {
+		return nil
+	}
+	after := map[int]int{}
+	for i := len(runs) - 1; i >= 0; i-- {
+		w := runs[i].end - runs[i].at
+		if j, ok := after[w]; ok {
+			runs[i].next = j
+		}
+		after[w] = i
+	}
+	var out ranges
+	for i := 0; i < len(runs); {
+		j := runs[i].next
+		if j < 0 {
+			i++
+			continue
+		}
+		out = append(out, [2]int{runs[i].at, runs[j].end})
+		i = j + 1
 	}
 	return out
 }
@@ -346,10 +357,44 @@ func tidyText(s, image string) string {
 	s = blockTags.ReplaceAllString(s, "\n\n")
 	s = droppedTags.ReplaceAllString(s, "")
 	s = blankLines.ReplaceAllString(s, "\n\n")
-	for i := len(kept) - 1; i >= 0; i-- {
-		s = strings.ReplaceAll(s, held+strconv.Itoa(i)+held, kept[i])
+	return putBack(s, kept)
+}
+
+// putBack writes s with what tidyText held back in place of each mark,
+// in one pass: one replace over the whole text for each mark would take
+// a time that grows with their number times the text's length. What is
+// held may hold marks of what was held before it (code in a <pre>).
+func putBack(s string, kept []string) string {
+	if len(kept) == 0 {
+		return s
 	}
-	return s
+	var b strings.Builder
+	b.Grow(len(s))
+	var put func(s string, below int)
+	put = func(s string, below int) {
+		for {
+			i := strings.Index(s, held)
+			if i < 0 {
+				b.WriteString(s)
+				return
+			}
+			b.WriteString(s[:i])
+			rest := s[i+len(held):]
+			j := strings.Index(rest, held)
+			n, err := strconv.Atoi(rest[:max(j, 0)])
+			if j < 0 || err != nil || n < 0 || n >= below {
+				// Not a mark: the text had none of its own (tidyText takes
+				// them out), but a rewrite may have split one.
+				b.WriteString(held)
+				s = rest
+				continue
+			}
+			put(kept[n], n)
+			s = rest[j+len(held):]
+		}
+	}
+	put(s, len(kept))
+	return b.String()
 }
 
 // mdLink is a Markdown link to dest named text.

@@ -105,6 +105,98 @@ func TestTidyComment(t *testing.T) {
 	}
 }
 
+// A comment as long as a host allows (GitHub 64 KiB, GitLab a million
+// characters) is read in a time that grows with its length, whatever it
+// holds: one that took the square of it froze the window for minutes.
+// The bound is loose for a loaded machine; the square of a mebibyte
+// takes minutes.
+func TestLongCommentsReadInLinearTime(t *testing.T) {
+	const size = 1 << 20
+	repeat := func(unit string) string { return strings.Repeat(unit, size/len(unit)) }
+	for name, body := range map[string]string{
+		"code and bangs":     repeat("`a` !"),
+		"code and tags":      repeat("`a` <"),
+		"code and folds":     repeat("`a` <details>"),
+		"unclosed summaries": repeat("<details><summary>x"),
+		"backticks never closed": strings.Repeat("x", size/2) + func() string {
+			var b strings.Builder
+			for w := 1; b.Len() < size/2; w++ {
+				b.WriteString(strings.Repeat("`", w) + "<a")
+			}
+			return b.String()
+		}(),
+		"pre with code": repeat("<pre>`a` `b`</pre> `c` "),
+	} {
+		start := time.Now()
+		commentParts(body, "Image")
+		if d := time.Since(start); d > 2*time.Second {
+			t.Errorf("%s: %d bytes read in %v", name, len(body), d)
+		}
+	}
+}
+
+// A long comment is read in the background, not in a frame, and once:
+// the review read again after a refresh or a write keeps the comments it
+// still has read, within a budget.
+func TestCommentsReadOnceOffTheFrame(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.app.Open(r.Dir)
+	h.until("the tab", func() bool { return h.app.current() != nil })
+	tb := h.app.current()
+	rv := &prReview{}
+	long := strings.Repeat("`a` !", 1<<20/5) + "\n\nthe end"
+	p := h.app.comment(tb, rv, long)
+	if p.ready {
+		t.Fatal("a long comment read within the frame")
+	}
+	if h.app.comment(tb, rv, long) != p {
+		t.Fatal("a comment being read read again")
+	}
+	h.until("the long comment read", func() bool { return p.ready })
+	if n := len(p.parts); n != 1 || !strings.HasSuffix(p.parts[0].md, "the end") {
+		t.Fatalf("%d parts", n)
+	}
+	short := h.app.comment(tb, rv, "<!-- hidden -->")
+	if !short.ready || !short.empty {
+		t.Fatalf("a short comment %+v", short)
+	}
+
+	rv.bodies.keep(&forge.Review{Comments: []forge.Comment{{Body: long}}})
+	if h.app.comment(tb, rv, long) != p || len(rv.bodies.m) != 1 {
+		t.Fatalf("read again: %d kept", len(rv.bodies.m))
+	}
+	rv.bodies.keep(&forge.Review{Body: "other"})
+	if len(rv.bodies.m) != 0 || rv.bodies.bytes != 0 {
+		t.Fatalf("a comment gone kept: %d, %d bytes", len(rv.bodies.m), rv.bodies.bytes)
+	}
+	plain := strings.Repeat("x", 1<<20)
+	for i := range 2 * commentBudget / len(plain) {
+		h.app.comment(tb, rv, plain+strings.Repeat(" ", i))
+		if rv.bodies.bytes > commentBudget {
+			t.Fatalf("%d bytes kept", rv.bodies.bytes)
+		}
+	}
+	h.until("the rest read", func() bool {
+		for _, p := range rv.bodies.m {
+			if !p.ready {
+				return false
+			}
+		}
+		return true
+	})
+}
+
+// The code a comment's HTML rewriting holds back is put back where it
+// was, code within a <pre> too.
+func TestTidyCommentPutsCodeBack(t *testing.T) {
+	in := "a `<b>` c <pre>x `y` &lt;z&gt;</pre> `<i>` <p>"
+	want := "a `<b>` c \n\n```\nx `y` <z>\n```\n\n `<i>`"
+	if got := strings.TrimSpace(tidyComment(in, "Image")); got != want {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+}
+
 func TestCodeRanges(t *testing.T) {
 	s := "a `b` c ``d ` e`` f\n~~~\n`x`\n~~~\ng `h\n```go\nfn\n"
 	var got []string

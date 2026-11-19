@@ -134,7 +134,7 @@ type prReview struct {
 	// (commentParts), of the review as last read; folds is whether each
 	// fold of theirs is open, by the entry it is in (prEvent.id) and by
 	// where it is in the entry.
-	bodies map[string][]*commentPart
+	bodies readComments
 	folds  map[string]map[string]*bool
 	// staleList lists the drafts on an older head in the submit dialog,
 	// unplacedList the threads the patch shown has no line for.
@@ -475,8 +475,8 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 		}
 		rv.r, rv.events, rv.checks = r, nil, sortChecks(r.CheckList)
 		// The folds stay as they are: read again, a comment opened is
-		// still being read.
-		rv.bodies = nil
+		// still being read. The comments read stay read.
+		rv.bodies.keep(&r)
 		rv.threadsOn = map[string]int{}
 		for _, th := range r.Threads {
 			if !th.Outdated && th.Line > 0 {

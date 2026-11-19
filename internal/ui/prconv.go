@@ -43,24 +43,95 @@ func commentTheme() *markdown.Theme {
 	return th
 }
 
-// parts are the parts of body, a comment as shown, read once.
-func (rv *prReview) parts(body string) []*commentPart {
-	if p, ok := rv.bodies[body]; ok {
+const (
+	// commentNow is the longest comment read into its parts within a
+	// frame; a longer one, which a host may hold up to a mebibyte of, is
+	// read in the background and shown once it is.
+	commentNow = 16 << 10
+	// commentBudget bounds the comments kept read, counted twice over:
+	// their text and their parts.
+	commentBudget = 32 << 20
+)
+
+// readComment is a comment read into what is shown of it (commentParts).
+type readComment struct {
+	parts []*commentPart
+	// empty is a comment with nothing to show once its page's hidden
+	// text is out (shownBody).
+	empty bool
+	// ready is false while it is read in the background.
+	ready bool
+}
+
+// readComments are the comments of a review read into their parts, by
+// their text as the host holds it: a read again, after a refresh or a
+// write, reads only those that are new.
+type readComments struct {
+	m     map[string]*readComment
+	bytes int
+}
+
+// keep drops the comments r no longer has.
+func (rc *readComments) keep(r *forge.Review) {
+	if len(rc.m) == 0 {
+		return
+	}
+	has := map[string]bool{r.Body: true}
+	for _, c := range r.Comments {
+		has[c.Body] = true
+	}
+	for _, s := range r.Reviews {
+		has[s.Body] = true
+	}
+	for _, th := range r.Threads {
+		for _, c := range th.Comments {
+			has[c.Body] = true
+		}
+	}
+	for body := range rc.m {
+		if !has[body] {
+			delete(rc.m, body)
+			rc.bytes -= 2 * len(body)
+		}
+	}
+}
+
+// comment is body, a comment as the host holds it, read into its parts:
+// at once when it is short, in the background when not, not ready then.
+func (a *App) comment(t *tab, rv *prReview, body string) *readComment {
+	rc := &rv.bodies
+	if p := rc.m[body]; p != nil {
 		return p
 	}
-	if rv.bodies == nil {
-		rv.bodies = map[string][]*commentPart{}
+	if rc.m == nil || rc.bytes+2*len(body) > commentBudget {
+		rc.m, rc.bytes = map[string]*readComment{}, 0
 	}
-	p := commentParts(body, locales.PrsImage())
-	rv.bodies[body] = p
+	p := &readComment{}
+	rc.m[body] = p
+	rc.bytes += 2 * len(body)
+	image := locales.PrsImage()
+	read := func() (parts []*commentPart, empty bool) {
+		shown := shownBody(body)
+		return commentParts(shown, image), shown == ""
+	}
+	if len(body) <= commentNow {
+		p.parts, p.empty = read()
+		p.ready = true
+		return p
+	}
+	update := a.Update
+	a.goWork(t, func() {
+		parts, empty := read()
+		update(func() { p.parts, p.empty, p.ready = parts, empty, true })
+	})
 	return p
 }
 
-// commentBody shows body, a description or a comment, as its Markdown
+// commentBody shows p, a description or a comment, as its Markdown
 // reads; id is the entry it is in and key what tells it from the others
 // there, for the folds it has.
-func (a *App) commentBody(c *ui.Context, rv *prReview, id, key, body string) {
-	a.commentPartsView(c, rv, id, key, rv.parts(body))
+func (a *App) commentBody(c *ui.Context, rv *prReview, id, key string, p *readComment) {
+	a.commentPartsView(c, rv, id, key, p.parts)
 }
 
 func (a *App) commentPartsView(c *ui.Context, rv *prReview, id, key string, parts []*commentPart) {
@@ -356,13 +427,14 @@ func (a *App) convCard(c *ui.Context, t *tab, rv *prReview, e *prEvent) {
 						if key == "" {
 							key = strconv.Itoa(n)
 						}
-						a.commentBody(c, rv, e.id, key, shownBody(cm.Body))
+						a.commentBody(c, rv, e.id, key, a.comment(t, rv, cm.Body))
 					})
 				}
 				return
 			}
-			if body := shownBody(e.body); body != "" {
-				a.commentBody(c, rv, e.id, "", body)
+			// One still being read is not said to be empty.
+			if p := a.comment(t, rv, e.body); !p.ready || !p.empty {
+				a.commentBody(c, rv, e.id, "", p)
 			} else {
 				ui.Text(c, locales.PrsNoDescription()).FontSize(noteBodySize).TextColor(th.TextMuted)
 			}
