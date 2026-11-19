@@ -155,16 +155,40 @@ func parseSignature(b []byte) Signature {
 }
 
 // Subject returns the first paragraph of a message joined into one line,
-// as git's %s does.
+// as git's %s does: blank lines before it are skipped, a line of white
+// space alone ends it (so CRLF messages split as LF ones do), and each
+// line loses its trailing white space. A one-line subject points into msg.
 func Subject(msg []byte) []byte {
-	msg = bytes.TrimLeft(msg, "\n")
-	end := bytes.Index(msg, []byte("\n\n"))
-	if end >= 0 {
-		msg = msg[:end]
+	var first, joined []byte
+	started := false
+	for len(msg) > 0 {
+		line := msg
+		if i := bytes.IndexByte(msg, '\n'); i >= 0 {
+			line, msg = msg[:i], msg[i+1:]
+		} else {
+			msg = nil
+		}
+		line = bytes.TrimRight(line, gitSpace)
+		if len(line) == 0 {
+			if started {
+				break
+			}
+			continue
+		}
+		switch {
+		case !started:
+			first, started = line, true
+		case joined == nil:
+			joined = append(append(append(joined, first...), ' '), line...)
+		default:
+			joined = append(append(joined, ' '), line...)
+		}
 	}
-	msg = bytes.TrimRight(msg, "\n")
-	if bytes.IndexByte(msg, '\n') < 0 {
-		return msg
+	if joined != nil {
+		return joined
 	}
-	return bytes.ReplaceAll(msg, []byte{'\n'}, []byte{' '})
+	return first
 }
+
+// gitSpace is what git's isspace takes for white space.
+const gitSpace = " \t\n\r"

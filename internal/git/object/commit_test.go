@@ -62,6 +62,24 @@ func TestOracle(t *testing.T) {
 	r.Commit("multi\nline\nsubject\n\nbody")
 	r.Write("a", "3")
 	r.Commit("  leading spaces")
+	// Messages as tools other than git commit write them: commit-tree
+	// keeps them as given.
+	tree := strings.TrimSpace(r.Git("rev-parse", "HEAD^{tree}"))
+	for i, msg := range []string{
+		"Fix the thing\r\n\r\nLong body line one\r\nline two\r\n",
+		"Subject  \n   \nbody after a blank-looking line\n",
+		"\n \t\n\r\nafter blank lines\nsecond\t \n\nbody",
+		"tab\tinside  \r\nnext line\r\n",
+		"vertical\v\n\fform feed\n\v\nbody",
+		"no newline at all",
+		"",
+	} {
+		id, err := r.Run([]byte(msg), "commit-tree", tree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Git("tag", fmt.Sprintf("m%d", i), strings.TrimSpace(id))
+	}
 	compare(t, r, 0)
 }
 
