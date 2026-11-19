@@ -182,6 +182,79 @@ func TestPullsPastOtherForks(t *testing.T) {
 	}
 }
 
+// A branch whose name other forks' branches share, and which has no pull
+// request of the head's, has its lists paged through once: at the next
+// lookup the first page, where one made or changed since would be, is
+// read alone.
+func TestPullsPagedThroughOnce(t *testing.T) {
+	calls := func(env []string) func() int {
+		dir := strings.TrimPrefix(strings.SplitN(env[0], ":", 2)[0], "PATH=")
+		return func() int {
+			b, _ := os.ReadFile(filepath.Join(dir, "calls"))
+			return strings.Count(string(b), "\n")
+		}
+	}
+	counting := func(t *testing.T, program, first, more, morePattern string) []string {
+		env := fakePager(t, program, first, more, morePattern)
+		dir := strings.TrimPrefix(strings.SplitN(env[0], ":", 2)[0], "PATH=")
+		script, err := os.ReadFile(filepath.Join(dir, program))
+		if err != nil {
+			t.Fatal(err)
+		}
+		logged := strings.Replace(string(script), "#!/bin/sh\n", "#!/bin/sh\necho x >> '"+filepath.Join(dir, "calls")+"'\n", 1)
+		if err := os.WriteFile(filepath.Join(dir, program), []byte(logged), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return env
+	}
+	var others []string
+	for i := range 10 {
+		others = append(others, fmt.Sprintf(`{"number":%d,"title":"t","url":"u","isDraft":false,"state":"OPEN","headRefName":"main","headRepositoryOwner":{"login":"other%d"},"commits":{"nodes":[]}}`, 500+i, i))
+	}
+	first := `{"data":{"repository":{"b0":{"nodes":[` + strings.Join(others, ",") + `],"pageInfo":{"hasNextPage":true,"endCursor":"C1"}},
+		"c0":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"D1"}}}}}`
+	more := `{"data":{"repository":{"p0":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"C2"}},"p1":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"D2"}}}}}`
+	env := counting(t, "gh", first, more, "*a0=*")
+	c, err := Find(env, GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := calls(env)
+	base, fork := Repo{GitHub, "github.com", "up/r"}, Repo{GitHub, "github.com", "me/r"}
+	for _, want := range []int{1 + ghMorePages, 1} {
+		before := count()
+		if got, err := c.Pulls(context.Background(), base, fork, []string{"main"}); err != nil || len(got) != 0 {
+			t.Fatalf("github: %+v, %v", got, err)
+		}
+		if n := count() - before; n != want {
+			t.Errorf("github: %d calls, want %d", n, want)
+		}
+	}
+
+	var mrs []string
+	for i := range 100 {
+		mrs = append(mrs, fmt.Sprintf(`{"iid":"%d","title":"t","webUrl":"u","state":"opened","sourceBranch":"main","sourceProject":{"fullPath":"other%d/p"}}`, 500+i, i))
+	}
+	first = `{"data":{"project":{"o":{"nodes":[` + strings.Join(mrs, ",") + `],"pageInfo":{"hasNextPage":true,"endCursor":"X1"}},
+		"d":{"nodes":[` + strings.Join(mrs, ",") + `],"pageInfo":{"hasNextPage":true,"endCursor":"Y1"}}}}}`
+	more = `{"data":{"project":{"o":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"X2"}},"d":{"nodes":[],"pageInfo":{"hasNextPage":true,"endCursor":"Y2"}}}}}`
+	env = counting(t, "glab", first, more, `*after:*`)
+	if c, err = Find(env, GitLab); err != nil {
+		t.Fatal(err)
+	}
+	count = calls(env)
+	base, fork = Repo{GitLab, "gitlab.com", "g/p"}, Repo{GitLab, "gitlab.com", "me/p"}
+	for _, want := range []int{1 + glMorePages, 1} {
+		before := count()
+		if got, err := c.Pulls(context.Background(), base, fork, []string{"main"}); err != nil || len(got) != 0 {
+			t.Fatalf("gitlab: %+v, %v", got, err)
+		}
+		if n := count() - before; n != want {
+			t.Errorf("gitlab: %d calls, want %d", n, want)
+		}
+	}
+}
+
 func TestSquashHint(t *testing.T) {
 	for _, tc := range []struct {
 		subject string

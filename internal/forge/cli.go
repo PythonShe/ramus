@@ -39,6 +39,9 @@ type CLI struct {
 	slots chan struct{}
 	// known are the hosts the tool's config says it is logged in to.
 	known *knownHosts
+	// searched are the lists of pull requests not read past their first
+	// page again.
+	searched *searched
 	// Timeout, when set, bounds each call instead of the package's.
 	Timeout time.Duration
 }
@@ -106,7 +109,7 @@ func Find(env []string, k Kind) (*CLI, error) {
 		return nil, ErrNoCLI
 	}
 	return &CLI{Kind: k, Path: p, env: quiet(env), slots: make(chan struct{}, maxRunning),
-		known: &knownHosts{files: configFiles(env, k)}}, nil
+		known: &knownHosts{files: configFiles(env, k)}, searched: &searched{}}, nil
 }
 
 // lookPath finds an executable named name in env's PATH, not the app's,

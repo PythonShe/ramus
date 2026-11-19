@@ -11,7 +11,9 @@ import (
 
 // githubQuery asks for the pull requests of n head branches, each a
 // variable, in one query: for each, the open ones (bN), with their
-// checks, and the merged and closed ones, latest first (cN). A branch of
+// checks, newest first, and the merged and closed ones, latest first
+// (cN): one of a head's made or changed since a lookup is on the first
+// page (searched). A branch of
 // a fork shares its name with every other fork's, so each asks for more
 // than one, and for where the next page starts.
 func githubQuery(n int) string {
@@ -22,7 +24,7 @@ func githubQuery(n int) string {
 	}
 	b.WriteString("){repository(owner:$owner,name:$name){")
 	for i := range n {
-		fmt.Fprintf(&b, "b%d:pullRequests(headRefName:$b%d,states:[OPEN],first:10){nodes{...p} %s}", i, i, ghPageInfo)
+		fmt.Fprintf(&b, "b%d:pullRequests(headRefName:$b%d,states:[OPEN],first:10,orderBy:{field:CREATED_AT,direction:DESC}){nodes{...p} %s}", i, i, ghPageInfo)
 		fmt.Fprintf(&b, "c%d:pullRequests(headRefName:$b%d,states:[MERGED,CLOSED],first:10,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...q} %s}", i, i, ghPageInfo)
 	}
 	b.WriteString("}}" + ghPullFragments)
@@ -57,7 +59,7 @@ func githubMoreQuery(lists []ghList) string {
 	b.WriteString("){repository(owner:$owner,name:$name){")
 	for i, l := range lists {
 		if l.open {
-			fmt.Fprintf(&b, "p%d:pullRequests(headRefName:$h%d,states:[OPEN],first:100,after:$a%d){nodes{...p} %s}", i, i, i, ghPageInfo)
+			fmt.Fprintf(&b, "p%d:pullRequests(headRefName:$h%d,states:[OPEN],first:100,after:$a%d,orderBy:{field:CREATED_AT,direction:DESC}){nodes{...p} %s}", i, i, i, ghPageInfo)
 		} else {
 			fmt.Fprintf(&b, "p%d:pullRequests(headRefName:$h%d,states:[MERGED,CLOSED],first:100,after:$a%d,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{...q} %s}", i, i, i, ghPageInfo)
 		}
@@ -92,11 +94,22 @@ func (c *CLI) githubPulls(ctx context.Context, base Repo, headOwner string, bran
 		lists = append(lists, ghList{branch: br, open: true}, ghList{branch: br})
 		conns["l"+strconv.Itoa(2*i)], conns["l"+strconv.Itoa(2*i+1)] = conns["b"+strconv.Itoa(i)], conns["c"+strconv.Itoa(i)]
 	}
+	key := func(l ghList) string {
+		list := "closed"
+		if l.open {
+			list = "open"
+		}
+		return searchKey(base, headOwner, l.branch, list)
+	}
+	// deep are the lists read past their first page and not found in
+	// yet; those read as far as they go are remembered (searched).
+	deep := map[string]bool{}
 	for page := 0; ; page++ {
 		var next []ghList
 		for i, l := range lists {
 			conn := conns["l"+strconv.Itoa(i)]
 			if conn == nil {
+				delete(deep, key(l))
 				continue
 			}
 			found := closed
@@ -107,14 +120,23 @@ func (c *CLI) githubPulls(ctx context.Context, base Repo, headOwner string, bran
 				if _, seen := found[l.branch]; !seen {
 					found[l.branch] = p
 				}
+				delete(deep, key(l))
 				continue
 			}
 			// An open one found, the closed ones are not looked through.
-			if _, opened := open[l.branch]; conn.Page.Next && conn.Page.End != "" && (l.open || !opened) {
+			_, opened := open[l.branch]
+			switch {
+			case !l.open && opened:
+				delete(deep, key(l))
+			case conn.Page.Next && conn.Page.End != "" && !c.searched.has(key(l)):
 				next = append(next, ghList{branch: l.branch, open: l.open, after: conn.Page.End})
+				deep[key(l)] = true
 			}
 		}
 		if len(next) == 0 || page == ghMorePages {
+			for k := range deep {
+				c.searched.add(k)
+			}
 			break
 		}
 		lists = next

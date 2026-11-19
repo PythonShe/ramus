@@ -46,7 +46,9 @@ func gitlabPageQuery(path string, branches []string, open, all glCursor) string 
 	b.WriteString(literal(path))
 	b.WriteString("){")
 	if open.Next || open.End == "" {
-		b.WriteString("o:mergeRequests(state:opened,first:100" + after(open) + ",sourceBranches:[")
+		// Newest first, as the d list is latest first: one of the head's
+		// made or changed since a lookup is on the first page (searched).
+		b.WriteString("o:mergeRequests(state:opened,sort:CREATED_DESC,first:100" + after(open) + ",sourceBranches:[")
 		b.WriteString(list.String())
 		b.WriteString("]){nodes{...m headPipeline{status}} pageInfo{hasNextPage endCursor}}")
 	}
@@ -72,6 +74,9 @@ func (c *CLI) gitlabPulls(ctx context.Context, base Repo, head string, branches 
 	opened, latest := map[string]Pull{}, map[string]Pull{}
 	// done is a list read to its end, or no longer needed: not asked again.
 	done := glCursor{End: "-"}
+	// pagedOpen and pagedAll are set once a list is read past its first
+	// page; a branch still lacking in it then is remembered (searched).
+	var pagedOpen, pagedAll bool
 	for page := 0; ; page++ {
 		q := gitlabPageQuery(base.Path, branches, open, all)
 		out, err := c.run(ctx, "", base.Host, "api", "graphql", "--hostname", base.Host, "-f", "query="+q)
@@ -86,17 +91,30 @@ func (c *CLI) gitlabPulls(ctx context.Context, base Repo, head string, branches 
 		if err != nil {
 			break
 		}
-		lacks := func(found map[string]Pull) bool {
-			return slices.ContainsFunc(branches, func(br string) bool { _, ok := found[br]; return !ok })
+		// A branch whose list was read as far as it goes, at a lookup
+		// before, is not paged for.
+		lacks := func(found map[string]Pull, list string) bool {
+			return slices.ContainsFunc(branches, func(br string) bool {
+				_, ok := found[br]
+				return !ok && !c.searched.has(searchKey(base, head, br, list))
+			})
 		}
 		open, all = done, done
-		if o != nil && o.Next && o.End != "" && lacks(opened) {
-			open = *o
+		if o != nil && o.Next && o.End != "" && lacks(opened, "open") {
+			open, pagedOpen = *o, true
 		}
-		if d != nil && d.Next && d.End != "" && lacks(latest) {
-			all = *d
+		if d != nil && d.Next && d.End != "" && lacks(latest, "any") {
+			all, pagedAll = *d, true
 		}
 		if !open.Next && !all.Next || page == glMorePages {
+			for _, br := range branches {
+				if _, ok := opened[br]; !ok && pagedOpen {
+					c.searched.add(searchKey(base, head, br, "open"))
+				}
+				if _, ok := latest[br]; !ok && pagedAll {
+					c.searched.add(searchKey(base, head, br, "any"))
+				}
+			}
 			break
 		}
 	}
