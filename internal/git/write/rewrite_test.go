@@ -185,6 +185,36 @@ func TestEditHistory(t *testing.T) {
 	}
 }
 
+// A squash with no message joins the messages whole: lines starting
+// with #, which git's own joining strips as comments, are kept.
+func TestEditHistorySquashKeepsHashLines(t *testing.T) {
+	h := newHarness(t)
+	h.r.Git("config", "commit.cleanup", "strip")
+	h.r.Write("f0", "0\n")
+	h.r.Commit("base")
+	var ids []string
+	for i, msg := range []string{"Fix crash\n\n#123 was the report\n", "More\n\n#456 too\n", "Last\n\n# a heading\n"} {
+		h.r.Write("f"+string(rune('1'+i)), "x\n")
+		h.r.Git("add", ".")
+		h.r.Git("commit", "-q", "--cleanup=verbatim", "-m", msg)
+		ids = append(ids, h.rev("HEAD"))
+	}
+	h.r.Write("f4", "x\n")
+	h.r.Commit("after")
+	ids = append(ids, h.rev("HEAD"))
+	rw := Rewrite{Commit: ids[0], Parent: h.rev("main~4"), Git: localGit(t)}
+	op, err := EditHistory(h.w, rw, []Step{{Action: DoPick, Commit: ids[0]}, {Action: DoSquash, Commit: ids[1]},
+		{Action: DoSquash, Commit: ids[2]}, {Action: DoPick, Commit: ids[3]}}, h.seen())
+	h.do(op, err, true)
+	want := "Fix crash\n\n#123 was the report\n\nMore\n\n#456 too\n\nLast\n\n# a heading\n\n"
+	if body := h.r.Git("log", "-1", "--format=%B", "main~1"); body != want {
+		t.Fatalf("joined message %q, want %q", body, want)
+	}
+	if got := h.r.Git("log", "--format=%s", "main"); got != "after\nFix crash\nbase\n" {
+		t.Fatalf("log %q", got)
+	}
+}
+
 // oldGit is a git before git history, whose rewrites go through a
 // rebase.
 var oldGit = gitexe.Version{Major: 2, Minor: 50, Raw: "2.50.0"}

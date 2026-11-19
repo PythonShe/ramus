@@ -218,8 +218,8 @@ type Step struct {
 	Action Action
 	Commit string // hex
 	// Message is the commit's new message for DoReword, and for DoSquash the
-	// message of the commit the fold makes; "" there joins the messages,
-	// as git does.
+	// message of the commit the fold makes; "" there joins the messages
+	// whole, as git does but keeping lines that start with #.
 	Message string
 	// Refs are branches (full names) to leave at this step's commit, as
 	// it is once the step is done.
@@ -293,21 +293,31 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 			return "", fmt.Errorf("write: unknown %v", s.Action)
 		}
 		word := s.Action.String()
-		if msg != "" {
+		// A squash with no message joins the messages here, whole: git
+		// joins them with comment lines of its own, and stripping those
+		// strips the user's lines that start with its comment character.
+		join := s.Action == DoSquash && msg == ""
+		if msg != "" || join {
 			// The new message is set once the commit is made, by an
 			// amend git runs: git's own editor would ask for it.
 			word = "pick"
 			if s.Action == DoSquash {
 				word = "fixup"
 			}
-		}
-		if msg != "" {
 			// HEAD before the step, for the amend to tell the step's
 			// commit made from one skipped, which left HEAD on the commit
 			// before: that one keeps its message.
 			b.WriteString("exec git rev-parse -q --verify HEAD >\"$(git rev-parse --git-path " + stepHead + ")\" || :\n")
 		}
+		if join {
+			b.WriteString("exec git log -1 --no-show-signature --format=%B HEAD >\"$(git rev-parse --git-path " + stepMessage + ")\"\n")
+		}
 		fmt.Fprintf(&b, "%s %s\n", word, s.Commit)
+		if join {
+			fmt.Fprintf(&b, "exec test \"$(git rev-parse -q --verify HEAD)\" = \"$(cat \"$(git rev-parse --git-path %s)\")\" || "+
+				"{ cat \"$(git rev-parse --git-path %s)\"; echo; git log -1 --no-show-signature --format=%%B %s; } | "+
+				"git commit --amend --only -q --allow-empty --cleanup=whitespace -F -\n", stepHead, stepMessage, s.Commit)
+		}
 		if msg != "" {
 			cc, err := commentChar(msg)
 			if err != nil {
@@ -333,6 +343,10 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 // stepHead is where a todo keeps HEAD as it was before a step: in the
 // rebase's own folder, which goes with it.
 const stepHead = "rebase-merge/ramus-step-head"
+
+// stepMessage is where a todo keeps the message of the commit a squash
+// folds into, to join the squashed commit's to.
+const stepMessage = "rebase-merge/ramus-step-message"
 
 // printfArg is s as printf %b reads it inside single quotes, on one line.
 func printfArg(s string) string {
