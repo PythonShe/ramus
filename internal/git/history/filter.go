@@ -90,7 +90,9 @@ func Filtered(ctx context.Context, r *run.Runner, gitDir string, tips [][]byte, 
 	for _, t := range tips {
 		fmt.Fprintf(&in, "%x\n", t)
 	}
-	args := []string{"log", "--format=%ct %H %P", "--no-color", "--no-ext-diff", "--no-textconv", "--stdin"}
+	// log.follow=true would follow a single path across renames, which
+	// lists commits of other paths and does not rewrite parents.
+	args := []string{"log", "--format=%ct %H %P", "--no-color", "--no-ext-diff", "--no-textconv", "--no-follow", "--stdin"}
 	graph := f.KeepsGraph()
 	if graph {
 		args = append(args, "--topo-order", "--parents")

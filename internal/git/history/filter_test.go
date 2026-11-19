@@ -78,6 +78,33 @@ func TestFiltered(t *testing.T) {
 	check("literal", Filter{Message: "[x]"}, "-i", "--fixed-strings", "--grep=[x]")
 }
 
+// log.follow=true in the user's config does not turn a one-path filter
+// into --follow, whose parents are not those of the commits kept.
+func TestFilteredIgnoresLogFollow(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1\n")
+	a1 := r.Commit("a1")
+	r.Write("b", "1\n")
+	r.Commit("b1")
+	r.Write("a", "2\n")
+	a2 := r.Commit("a2")
+	r.Git("config", "log.follow", "true")
+	head, _ := hex.DecodeString(a2)
+	s := commits.New(20)
+	var got []string
+	err := Filtered(t.Context(), testrun.Runner(t), r.GitDir(), [][]byte{head}, Filter{Paths: []string{"a"}}, s, func(id uint32, parents []uint32) error {
+		line := hex.EncodeToString(s.Snapshot().OID(id))
+		for _, p := range parents {
+			line += " " + hex.EncodeToString(s.Snapshot().OID(p))
+		}
+		got = append(got, line)
+		return nil
+	})
+	if want := []string{a2 + " " + a1, a1}; err != nil || !slices.Equal(got, want) {
+		t.Fatalf("got %v, %v, want %v", got, err, want)
+	}
+}
+
 func short(ids []string) []string {
 	out := make([]string, len(ids))
 	for i, id := range ids {
