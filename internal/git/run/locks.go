@@ -28,12 +28,20 @@ import (
 type writes struct {
 	mu sync.Mutex
 	n  map[string]int
+	// cleaning holds, for a common directory whose stopped write's locks
+	// are being removed, a channel closed once they are.
+	cleaning map[string]chan struct{}
 }
 
 // add counts a write in the repository whose common directory is common.
+// A write counted in waits for the removal of a stopped write's locks
+// there: what its git takes meanwhile would be removed with them.
 func (w *writes) add(common string, d int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if d > 0 {
+		w.await(common)
+	}
 	if w.n == nil {
 		w.n = map[string]int{}
 	}
@@ -43,11 +51,48 @@ func (w *writes) add(common string, d int) {
 	}
 }
 
+// await waits, w.mu held, until no stopped write's locks are being
+// removed in common.
+func (w *writes) await(common string) {
+	for {
+		ch, ok := w.cleaning[common]
+		if !ok {
+			return
+		}
+		w.mu.Unlock()
+		<-ch
+		w.mu.Lock()
+	}
+}
+
 // others reports whether a write besides one counted runs in common.
 func (w *writes) others(common string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.n[common] > 1
+}
+
+// stopped calls remove for a write counted in common that was stopped,
+// telling it whether another write runs there, and counts no other write
+// in until remove returns: the answer holds for the whole removal.
+// Other repositories are not held.
+func (w *writes) stopped(common string, remove func(shared bool)) {
+	w.mu.Lock()
+	w.await(common)
+	shared := w.n[common] > 1
+	ch := make(chan struct{})
+	if w.cleaning == nil {
+		w.cleaning = map[string]chan struct{}{}
+	}
+	w.cleaning[common] = ch
+	w.mu.Unlock()
+	defer func() {
+		w.mu.Lock()
+		delete(w.cleaning, common)
+		close(ch)
+		w.mu.Unlock()
+	}()
+	remove(shared)
 }
 
 // maxCommonDir bounds the commondir file read: one path.

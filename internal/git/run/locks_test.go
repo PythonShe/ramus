@@ -110,6 +110,79 @@ func TestWritesPerRepository(t *testing.T) {
 	}
 }
 
+// A write of the same repository that comes while a stopped write's
+// locks are removed waits for the removal: the locks its git takes are
+// not taken for the stopped one's. A write elsewhere does not wait.
+func TestNoWriteStartsWhileStoppedLocksGo(t *testing.T) {
+	common := t.TempDir()
+	stoppedDir := filepath.Join(common, "worktrees", "a")
+	if err := os.MkdirAll(stoppedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stoppedDir, "commondir"), []byte("../..\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var w writes
+	w.add(commonDir(stoppedDir), 1)
+	since := time.Now().Add(-time.Second)
+	locks := []string{"index.lock", "config.lock", "packed-refs.lock", "refs/heads/topic.lock"}
+	// The other write, in the main worktree, takes its locks as soon as
+	// it is counted in.
+	admitted := make(chan struct{})
+	taken := make(chan error, 1)
+	other := func() {
+		w.add(commonDir(common), 1)
+		close(admitted)
+		var err error
+		for _, rel := range locks {
+			p := filepath.Join(common, filepath.FromSlash(rel))
+			os.MkdirAll(filepath.Dir(p), 0o755)
+			if e := os.WriteFile(p, nil, 0o644); e != nil {
+				err = e
+			}
+		}
+		taken <- err
+	}
+	elsewhere := make(chan struct{})
+	w.stopped(commonDir(stoppedDir), func(shared bool) {
+		if shared {
+			t.Error("another write counted before it came")
+		}
+		go other()
+		go func() {
+			w.add(t.TempDir(), 1)
+			close(elsewhere)
+		}()
+		select {
+		case <-elsewhere:
+		case <-time.After(10 * time.Second):
+			t.Error("a write in another repository waits for the removal")
+		}
+		select {
+		case <-admitted:
+			t.Error("a write of the same repository counted in during the removal")
+		case <-time.After(200 * time.Millisecond):
+		}
+		removeLocks(stoppedDir, since, shared)
+	})
+	select {
+	case <-admitted:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the other write never counted in")
+	}
+	if err := <-taken; err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range locks {
+		if _, err := os.Stat(filepath.Join(common, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("the other write's %s: %v", rel, err)
+		}
+	}
+	if !w.others(common) {
+		t.Fatal("the other write is not counted")
+	}
+}
+
 // A write stopped while git holds the index lock leaves no lock behind,
 // on Windows too, where git is ended without a chance to remove it.
 func TestStoppedWriteLeavesNoLock(t *testing.T) {

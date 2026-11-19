@@ -605,7 +605,7 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 			err = nil
 		}
 		if common != "" && err != nil && ctx.Err() != nil {
-			removeLocks(c.GitDir, t0, r.writes.others(common))
+			r.writes.stopped(common, func(shared bool) { removeLocks(c.GitDir, t0, shared) })
 		}
 	}
 	waited()
