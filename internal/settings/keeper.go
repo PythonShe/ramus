@@ -65,8 +65,9 @@ type Keeper struct {
 	onError func(error)
 	has     bool
 	busy    bool
-	// quiet is set when next is a write the user did not ask for (4).
-	quiet bool
+	// quiet is set when next is a write the user did not ask for (4);
+	// writing while one runs.
+	quiet, writing bool
 	// app is the app's settings as last kept or taken, once known.
 	app      Settings
 	appKnown bool
@@ -161,9 +162,11 @@ func (k *Keeper) run() {
 		}
 		s, gen, onError, quiet := k.next, k.kept, k.onError, k.quiet
 		k.next, k.onError, k.has, k.quiet = Settings{}, nil, false, false
+		k.writing = true
 		k.mu.Unlock()
 		news, err := k.write(s, gen)
 		k.mu.Lock()
+		k.writing = false
 		if err != nil {
 			if quiet && err.Error() == k.failed {
 				err = nil // told already
@@ -221,7 +224,7 @@ func (k *Keeper) SaveNow() {
 func (k *Keeper) Unsaved() bool {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	return k.unsaved || k.has || k.busy
+	return k.unsaved || k.has || k.writing
 }
 
 // Close stops the tries of a write that failed: a test's file goes with
