@@ -48,8 +48,9 @@ func (s *Session) LoadCommitRelations(oid []byte, done func(CommitRelations)) (c
 	ctx, stop := context.WithCancel(s.viewContext(r))
 	// dropped is read and written on the main thread only.
 	dropped := false
+	shown := s.stillShown()
 	reopened := func() {
-		if !dropped {
+		if !dropped && shown() {
 			done(CommitRelations{Err: ErrReopened})
 		}
 	}

@@ -141,6 +141,27 @@ func readWorkTreeFile(workTree, rel string, max int) ([]byte, error) {
 type PatchSlot struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
+	gen    int
+}
+
+// take cancels the read the slot holds and holds a new one, under parent.
+// latest reports whether that read is still the slot's: a read a newer
+// one replaced is not answered, though the repository closes under it.
+func (sl *PatchSlot) take(parent context.Context) (ctx context.Context, cancel context.CancelFunc, latest func() bool) {
+	sl.mu.Lock()
+	defer sl.mu.Unlock()
+	if sl.cancel != nil {
+		sl.cancel()
+	}
+	ctx, cancel = context.WithCancel(parent)
+	sl.cancel = cancel
+	sl.gen++
+	gen := sl.gen
+	return ctx, cancel, func() bool {
+		sl.mu.Lock()
+		defer sl.mu.Unlock()
+		return sl.gen == gen
+	}
 }
 
 // Patch reads a work-tree patch off the main thread, in the form git
@@ -169,13 +190,8 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 		req.Context = 3
 	}
 	req.NoRefresh = s.holding
-	slot.mu.Lock()
-	if slot.cancel != nil {
-		slot.cancel()
-	}
-	ctx, cancel := context.WithCancel(s.viewContext(r))
-	slot.cancel = cancel
-	slot.mu.Unlock()
+	ctx, cancel, latest := slot.take(s.viewContext(r))
+	shown := s.stillShown()
 	key, work := workPatchKey(req, sides)
 	if key != "" && !work {
 		if a, ok := s.answers().Get(key); ok {
@@ -185,10 +201,10 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 		}
 	}
 	file := filepath.Join(r.WorkTree, filepath.FromSlash(sides.WorkTreePath))
-	// A newer read, or the view left, cancels it; r closing too, as Trust
-	// opens it again, which is answered.
+	// A newer read, or the view left, cancels it, and is not answered; r
+	// closing under it, as Trust opens it again, is.
 	reopened := func() {
-		if ctx.Err() == nil || closedUnder(r) {
+		if latest() && shown() {
 			cancel()
 			done(PatchResult{Err: ErrReopened})
 		}

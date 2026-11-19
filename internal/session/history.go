@@ -867,8 +867,9 @@ func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()
 	ctx, stop := context.WithCancel(s.viewContext(r))
 	// dropped and told are read and written on the main thread only.
 	dropped, told := false, false
+	shown := s.stillShown()
 	reopened := func() {
-		if !dropped && !told {
+		if !dropped && !told && shown() {
 			told = true
 			done(CommitDetail{OID: oid, Done: true, Err: ErrReopened})
 		}
@@ -1023,13 +1024,8 @@ func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws
 	if len(d.Parents) > 0 {
 		parent = d.Parents[0]
 	}
-	s.commitPatch.mu.Lock()
-	if s.commitPatch.cancel != nil {
-		s.commitPatch.cancel()
-	}
-	ctx, cancel := context.WithCancel(s.viewContext(r))
-	s.commitPatch.cancel = cancel
-	s.commitPatch.mu.Unlock()
+	ctx, cancel, latest := s.commitPatch.take(s.viewContext(r))
+	shown := s.stillShown()
 	key := commitPatchKey(parent, d.OID, paths, maxBytes, ws, sides)
 	if host {
 		key = "h" + key
@@ -1056,10 +1052,10 @@ func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws
 			readSides(ctx, r, sides, &res)
 		}
 		res.Err = err
-		// A newer read, or the view left, cancels it; r closing too, which
-		// is answered.
+		// A newer read, or the view left, cancels it, and is not answered;
+		// r closing under it is.
 		reopened := func() {
-			if ctx.Err() == nil || closedUnder(r) {
+			if latest() && shown() {
 				cancel()
 				done(PatchResult{Err: ErrReopened})
 			}

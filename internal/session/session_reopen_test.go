@@ -118,3 +118,67 @@ func TestReadsOfAClosedRepositoryAreNotHandedOver(t *testing.T) {
 		})
 	}
 }
+
+// openSettled opens r, trusted, and runs the main thread until the
+// session has read everything it reads on opening.
+func openSettled(t *testing.T, r *gittest.Repo) (*Session, mainThread) {
+	t.Helper()
+	m := make(mainThread, 256)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil && s.State.Refs != nil })
+	m.settle(t, s)
+	return s, m
+}
+
+// A read a newer one replaced, or whose view was left, is not answered
+// when the repository closes and opens again under it: the view no longer
+// waits on it, and an answer would stand for the newer read.
+func TestReplacedReadsAreNotAnsweredOnReopen(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Write("b.txt", "one\n")
+	parent := mustHex(t, strings.TrimSpace(r.Commit("one")))
+	r.Write("a.txt", "two\n")
+	r.Write("b.txt", "two\n")
+	head := mustHex(t, strings.TrimSpace(r.Commit("two")))
+	r.Write("a.txt", "three\n")
+	r.Write("b.txt", "three\n")
+	r.Git("add", "a.txt", "b.txt")
+	d := CommitDetail{OID: head, Parents: [][]byte{parent}}
+	patch := func(s *Session, path string, done func(PatchResult)) {
+		s.Patch(diff.PatchRequest{Source: diff.Staged, Paths: []string{path}, Context: -1}, Sides{}, done)
+	}
+	commitPatch := func(s *Session, path string, done func(PatchResult)) {
+		s.CommitPatch(d, []string{path}, 0, 0, Sides{}, done)
+	}
+	for _, c := range []struct {
+		name string
+		read func(s *Session, path string, done func(PatchResult))
+	}{{"Patch", patch}, {"CommitPatch", commitPatch}} {
+		t.Run(c.name+" replaced", func(t *testing.T) {
+			s, m := openSettled(t, r)
+			var a, b []PatchResult
+			c.read(s, "a.txt", func(p PatchResult) { a = append(a, p) })
+			c.read(s, "b.txt", func(p PatchResult) { b = append(b, p) })
+			s.reopenTrusted()
+			m.until(t, "the newer read", func() bool { return len(b) > 0 })
+			m.pump(100 * time.Millisecond)
+			if len(a) != 0 || len(b) != 1 || !errors.Is(b[0].Err, ErrReopened) {
+				t.Fatalf("the replaced read heard %d answers, the newer %d (%v)", len(a), len(b), b)
+			}
+		})
+		t.Run(c.name+" of a view left", func(t *testing.T) {
+			s, m := openSettled(t, r)
+			s.SetView("history")
+			var a []PatchResult
+			c.read(s, "a.txt", func(p PatchResult) { a = append(a, p) })
+			s.SetView("changes")
+			s.reopenTrusted()
+			m.pump(300 * time.Millisecond)
+			if len(a) != 0 {
+				t.Fatalf("the read of the view left heard %v", a)
+			}
+		})
+	}
+}
