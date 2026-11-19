@@ -1,11 +1,16 @@
 package session
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
 	"ramus/internal/git/conflict"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/write"
 )
 
 func conflictRepo(t *testing.T) *gittest.Repo {
@@ -77,5 +82,58 @@ func TestPreviewMergeAndLoadConflict(t *testing.T) {
 	}
 	if c := load("c.txt"); !c.Ours || c.Theirs {
 		t.Fatalf("c.txt %+v", c)
+	}
+}
+
+// A conflicted file read for the merge editor carries the sum of its
+// bytes, so a save over it is refused when an edit elsewhere kept its
+// size and time.
+func TestLoadConflictRefusesASaveOverAnEditOfTheSameSize(t *testing.T) {
+	r := conflictRepo(t)
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	r.Run(nil, "merge", "topic")
+	var cf *ConflictFile
+	s.LoadConflict("a.txt", func(got ConflictFile) { cf = &got })
+	m.until(t, "the file", func() bool { return cf != nil })
+	if cf.Err != nil {
+		t.Fatal(cf.Err)
+	}
+	p := filepath.Join(r.Dir, "a.txt")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := []byte(string(data[:len(data)-2]) + "X\n")
+	if err := os.WriteFile(p, edited, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p, cf.Seen.ModTime, cf.Seen.ModTime); err != nil {
+		t.Fatal(err)
+	}
+	op, err := write.Resolve(s.Where(), "a.txt", []byte("resolved\n"), cf.Seen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, err := s.Submit(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.until(t, "the save", func() bool {
+		select {
+		case <-j.Done():
+			return true
+		default:
+			return false
+		}
+	})
+	var se *write.StaleError
+	if _, err := j.Result(); !errors.As(err, &se) {
+		t.Fatalf("saved over the edit: %v", err)
+	}
+	if b, _ := os.ReadFile(p); string(b) != string(edited) {
+		t.Fatalf("a.txt %q", b)
 	}
 }
