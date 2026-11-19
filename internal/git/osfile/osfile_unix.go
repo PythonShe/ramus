@@ -16,3 +16,5 @@ func open(path string) (*os.File, error) {
 }
 
 func regular(fi fs.FileInfo) bool { return fi.Mode().IsRegular() }
+
+func statName(path string) string { return path }

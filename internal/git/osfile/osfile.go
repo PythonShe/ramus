@@ -80,7 +80,7 @@ func openRegular(path string) (*os.File, fs.FileInfo, error) {
 	// Checked before opening too, so that a device, whose open alone can
 	// act on it, is never opened; the check of what was opened is the one
 	// that holds.
-	if fi, err := os.Stat(path); err != nil {
+	if fi, err := os.Stat(statName(path)); err != nil {
 		return nil, nil, err
 	} else if !regular(fi) {
 		return nil, nil, notRegular

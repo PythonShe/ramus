@@ -35,6 +35,11 @@ func regular(fi fs.FileInfo) bool {
 	return fi.Mode()&(fs.ModeDir|fs.ModeNamedPipe|fs.ModeDevice|fs.ModeCharDevice|fs.ModeSocket) == 0
 }
 
+// statName is the name the check before opening stats: Go adds no
+// prefix to a long path once it has made the process long-path aware,
+// which works only where the system turned long paths on.
+func statName(path string) string { return longPath(path) }
+
 // longPath gives a path past MAX_PATH the \\?\ prefix (\\?\UNC\ for a
 // share), as os.Open does (os/path_windows.go, addExtendedPrefix), so
 // that a deep ref or work-tree file opens without long paths turned on

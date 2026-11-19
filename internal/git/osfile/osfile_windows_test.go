@@ -89,14 +89,26 @@ func TestRefusesWhatIsNoFile(t *testing.T) {
 
 // A path past MAX_PATH opens, as it does with os.Open.
 func TestLongPath(t *testing.T) {
-	dir := t.TempDir()
-	deep := filepath.Join(dir, strings.Repeat("d", 100), strings.Repeat("e", 100), strings.Repeat("f", 100))
-	if err := os.MkdirAll(deep, 0o755); err != nil {
+	dir, err := filepath.Abs(t.TempDir())
+	if err != nil {
 		t.Fatal(err)
+	}
+	// Made and removed through the \\?\ form, which takes a path past
+	// MAX_PATH whether or not the system turned long paths on: Go, which
+	// marks the process long-path aware, adds no prefix itself, so the
+	// plain form would fail where LongPathsEnabled is 0, and so would the
+	// removal of the test's folder.
+	t.Cleanup(func() { os.RemoveAll(`\\?\` + dir) })
+	deep := dir
+	for _, name := range []string{strings.Repeat("d", 100), strings.Repeat("e", 100), strings.Repeat("f", 100)} {
+		deep = filepath.Join(deep, name)
+		if err := os.Mkdir(`\\?\`+deep, 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	path := filepath.Join(deep, "HEAD")
 	want := []byte("ref: refs/heads/main\n")
-	if err := os.WriteFile(path, want, 0o644); err != nil {
+	if err := os.WriteFile(`\\?\`+path, want, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if len(path) <= 300 {
