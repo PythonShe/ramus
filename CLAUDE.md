@@ -33,14 +33,14 @@ RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json 
   the update check, the app's one use of the network of its own, made
   when the user asks: mygo's updater reads the releases of
   PythonShe/ramus, signed with the key whose public half is in
-  `mygo.json`; the secret half is the `MYGO_UPDATER_PRIVATE_KEY` secret
-  of the repository's `release` environment and never goes in it.
+  `mygo.json`; the secret half is the repository's
+  `MYGO_UPDATER_PRIVATE_KEY` secret and never goes in it.
 - `.github/workflows/release.yml`: on a `vX.Y.Z` tag, runs CI and
   builds the macOS app, signed with the Developer ID of
   `APPLE_CERTIFICATE` and notarized with the App Store Connect key of
   `APPLE_API_KEY`, and the Linux and Windows packages, unsigned, into a
-  draft release. Those secrets belong to the `release` environment,
-  which only `main` and `v*` tags may deploy to. Once every build succeeded, `release-notes.yml` writes
+  draft release. Those secrets are the repository's; the build job runs
+  in the `release` environment. Once every build succeeded, `release-notes.yml` writes
   the notes (a `## X.Y.Z` section of `CHANGELOG.md` written by hand
   wins), which go into the release and its update manifests, and the
   release, checked whole by `scripts/verifyrelease`, is published: as a

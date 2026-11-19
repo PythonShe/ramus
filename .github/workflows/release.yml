@@ -15,9 +15,9 @@ name: Release
 # the apps kept as artifacts of the run. Only the macOS apps, one for each
 # CPU, are signed and notarized; the Windows and Linux builds are not.
 #
-# The build's secrets belong to the environment "release", which only
-# main and vX.Y.Z tags may deploy to, so that another branch's copy of
-# this file cannot reach them: a dry run is of main.
+# The build job runs in the environment "release", and reads the signing
+# secrets, which are the repository's. A dry run signs no update: the
+# updater's key is passed only when a tag is released.
 
 on:
   push:
@@ -50,7 +50,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          # The tag by its full name: a branch named as the tag would
+          # otherwise be what is checked out and released.
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       # A tag that is not the configuration's version would publish the
       # build under another version, as mygo uploads to v<version>.
@@ -135,7 +137,7 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
 
@@ -362,7 +364,7 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
 
