@@ -3229,6 +3229,10 @@
   "@appGitOutdated": {
     "description": "version is git's, as 2.39.1."
   },
+  "appGitTooOld": "Git {found} is too old for Ramus: install git {needed} or later",
+  "@appGitTooOld": {
+    "description": "found is the version of the git found, as 2.30.1; needed the oldest Ramus runs, as 2.36.0."
+  },
   "appOpenRepository": "Choose a repository folder",
   "@appOpenRepository": {
     "description": "The title of the folder picker."

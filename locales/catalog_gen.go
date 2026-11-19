@@ -15143,6 +15143,24 @@ func (msgs Messages) AppGitOutdated(version string) string {
 	return Catalog.Format(msgs.locale, "appGitOutdated", map[string]any{"version": version})
 }
 
+// AppGitTooOld says "Git {found} is too old for Ramus: install git {needed} or later"
+// in the language the app shows.
+//
+// found is the version of the git found, as 2.30.1; needed the oldest Ramus
+// runs, as 2.36.0.
+func AppGitTooOld(found string, needed string) string {
+	return In(i18n.Locale()).AppGitTooOld(found, needed)
+}
+
+// AppGitTooOld says "Git {found} is too old for Ramus: install git {needed} or later"
+// in the language of msgs.
+//
+// found is the version of the git found, as 2.30.1; needed the oldest Ramus
+// runs, as 2.36.0.
+func (msgs Messages) AppGitTooOld(found string, needed string) string {
+	return Catalog.Format(msgs.locale, "appGitTooOld", map[string]any{"found": found, "needed": needed})
+}
+
 // AppOpenRepository says "Choose a repository folder"
 // in the language the app shows.
 //

@@ -3,6 +3,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"ramus/internal/drafts"
 	"ramus/internal/forge"
 	"ramus/internal/git/config"
+	"ramus/internal/git/gitexe"
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
@@ -377,7 +379,12 @@ func toolName(name string) string {
 // thread, and opens what was asked for meanwhile; err says why there is
 // none.
 func (a *App) SetRunner(r *run.Runner, err error) {
-	if err != nil {
+	var old *gitexe.TooOldError
+	switch {
+	case errors.As(err, &old):
+		a.Notify(locales.AppGitTooOld(old.Version.String(), gitexe.Minimum.String()))
+		return
+	case err != nil:
 		a.Notify(locales.AppGitNotFound(errText(err)))
 		return
 	}
