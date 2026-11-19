@@ -287,6 +287,9 @@ func (s *Session) LoadHistory() {
 			select {
 			case <-prev:
 			case <-ctx.Done():
+				// done closing tells the next load that none runs: not
+				// before the one before has ended, which every load does.
+				<-prev
 				return
 			}
 		}

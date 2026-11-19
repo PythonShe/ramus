@@ -462,6 +462,32 @@ func TestLoadCommitParts(t *testing.T) {
 	}
 }
 
+// History loads run one at a time: a load cancelled while it waits for
+// the one before still ends only once that one has, so the load after it
+// does not run beside one still running.
+func TestHistoryLoadsRunOneAtATime(t *testing.T) {
+	r := gittest.Init(t)
+	r.Commit("one")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	defer func() { s.Close(); <-s.Done() }()
+	m.until(t, "status", func() bool { return s.State.Status != nil && s.State.Refs != nil })
+	// A: a load still running, as far as the next one can tell.
+	a := make(chan struct{})
+	s.hist.mu.Lock()
+	s.hist.done = a
+	s.hist.mu.Unlock()
+	s.LoadHistory() // B, waits for A
+	s.SetHistoryView(HistoryView{})
+	s.LoadHistory() // C, cancels B
+	m.pump(300 * time.Millisecond)
+	if s.History.Snap != nil {
+		t.Fatal("load C ran while load A had not ended")
+	}
+	close(a)
+	m.until(t, "history", func() bool { return s.History.Done })
+}
+
 // A history load that hands its rows to the main thread just as Trust
 // opens the repository again is dropped: its object ids point into the
 // closed repository's commit-graph, which is unmapped once it closes.
