@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
 )
 
@@ -72,10 +71,7 @@ func TestMergeTool(t *testing.T) {
 // The settings' switch makes the app git's difftool and mergetool in
 // the global config, and takes it out again.
 func TestDifftoolSwitch(t *testing.T) {
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	cfg := filepath.Join(t.TempDir(), "gitconfig")
 	env := []string{"GIT_CONFIG_GLOBAL=" + cfg}
 	for _, kv := range gittest.Env() {

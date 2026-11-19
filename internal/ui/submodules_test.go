@@ -6,18 +6,15 @@ import (
 	"strings"
 	"testing"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
 )
 
 // A submodule not checked out says so and is checked out when chosen;
 // one checked out opens in a tab; its URL is synced from .gitmodules.
 func TestSubmoduleActions(t *testing.T) {
-	g, err := gitexe.Find(t.Context(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	// Local paths stand in for a remote; git refuses them for submodules
 	// unless told.
 	h := newHarnessWith(t, run.New(g, append(gittest.Env(),

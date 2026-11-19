@@ -3,12 +3,10 @@ package repo
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
@@ -18,13 +16,10 @@ func trustAll(Location) bool { return true }
 
 func TestOwnership(t *testing.T) {
 	g := gittest.Init(t)
-	git, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	git := testrun.Git(t)
 	// git's own test switch makes it see another owner.
 	other := run.New(git, append(gittest.Env(), "GIT_TEST_ASSUME_DIFFERENT_OWNER=1"), 2)
-	_, err = Open(context.Background(), other, g.Dir, trustAll)
+	_, err := Open(context.Background(), other, g.Dir, trustAll)
 	var e *OwnershipError
 	if !errors.As(err, &e) || e.Path != g.Dir || e.Fix != "git config --global --add safe.directory "+filepath.ToSlash(g.Dir) {
 		t.Fatalf("got %v", err)

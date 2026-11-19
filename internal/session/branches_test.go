@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/repo"
@@ -94,10 +93,7 @@ func TestTrackWordsInAnyLanguage(t *testing.T) {
 	up.Git("branch", "-D", "gone")
 	r.Git("fetch", "-q", "--prune", "origin")
 
-	g, err := gitexe.Find(t.Context(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	// gittest pins LC_ALL=C; this git speaks German where it can.
 	german := run.New(g, append(gittest.Env(), "LC_ALL=de_DE.UTF-8", "LANGUAGE=de"), 4)
 	res, err := german.Run(t.Context(), &run.Cmd{GitDir: r.GitDir(), Read: true,

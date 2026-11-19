@@ -1,7 +1,6 @@
 package write
 
 import (
-	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -11,16 +10,14 @@ import (
 
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 )
 
 // Reword, drop and fixup rewrite an older commit and move the branches
 // after it, through git history and through the rebase it falls back to;
 // undo puts every branch back.
 func TestRewrite(t *testing.T) {
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	for _, v := range []gitexe.Version{g.Version, {Major: 2, Minor: 40, Raw: "2.40.0"}} {
 		t.Run(v.Raw, func(t *testing.T) { testRewrite(t, v) })
 	}
@@ -147,10 +144,7 @@ func TestRewriteFallbackLeavesFixupCommits(t *testing.T) {
 // squashed with a message or joined, fixed up and dropped, a branch left
 // where its step says; undo puts it all back.
 func TestEditHistory(t *testing.T) {
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	h := newHarness(t)
 	for i := 1; i <= 6; i++ {
 		f := "f" + string(rune('0'+i))
@@ -258,10 +252,7 @@ func TestEditHistorySquashKeepsHashLines(t *testing.T) {
 var oldGit = gitexe.Version{Major: 2, Minor: 50, Raw: "2.50.0"}
 
 func localGit(t *testing.T) gitexe.Version {
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	return g.Version
 }
 

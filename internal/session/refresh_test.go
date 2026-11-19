@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -13,11 +12,10 @@ import (
 	"time"
 
 	"ramus/internal/git/gitexe"
-	"ramus/internal/git/run"
-
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/repo"
+	"ramus/internal/git/run"
 )
 
 // loggedRunner runs git through a script that logs each command line;
@@ -34,10 +32,7 @@ func scriptRunner(t *testing.T, more string) (runner *run.Runner, logged func() 
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script as git")
 	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
+	real := gittest.GitPath(t)
 	bin := t.TempDir()
 	logFile := filepath.Join(bin, "log")
 	script := "#!/bin/sh\necho \"$*\" >> " + logFile + "\n" + more + "\nexec " + real + " \"$@\"\n"

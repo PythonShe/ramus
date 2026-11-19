@@ -120,9 +120,19 @@ func Open(t testing.TB, dir string) *Repo {
 
 func requireGit(t testing.TB) {
 	t.Helper()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git not installed")
+	GitPath(t)
+}
+
+// GitPath is the path of the git on PATH. A test that needs git fails
+// without one, and never skips: a run with no git would pass having
+// tested nothing.
+func GitPath(t testing.TB) string {
+	t.Helper()
+	p, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatalf("git cannot be found: %v", err)
 	}
+	return p
 }
 
 // Git runs git in the repository and returns its standard output. It fails

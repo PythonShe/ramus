@@ -58,9 +58,10 @@ func TestFeatures(t *testing.T) {
 
 // The features the table says the installed git has must exist in it.
 func TestFeaturesAgainstGit(t *testing.T) {
+	gittest.GitPath(t)
 	g, err := Find(context.Background(), os.Getenv("PATH"))
 	if err != nil {
-		t.Skip(err)
+		t.Fatal(err) // a git is on PATH: Find failing is what is tested
 	}
 	probes := map[Feature][]string{
 		History:            {"history", "-h"},

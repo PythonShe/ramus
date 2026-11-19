@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
@@ -41,10 +40,7 @@ func TestListClean(t *testing.T) {
 	r.Write(odd, "1")
 	r.Write("日本.txt", "1")
 	r.Write("y.log", "1")
-	g, err := gitexe.Find(t.Context(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	// gittest pins LC_ALL=C; this git speaks German where it can.
 	s, m := openWith(t, r, run.New(g, append(gittest.Env(), "LC_ALL=de_DE.UTF-8", "LANGUAGE=de"), 4))
 	list := func(ignored bool) []string {

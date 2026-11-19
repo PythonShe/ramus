@@ -16,12 +16,25 @@ import (
 	"ramus/internal/git/gittest"
 )
 
+// findGit is testrun.Git, which imports this package: it fails the test
+// when there is no git, and never skips it.
+func findGit(t *testing.T) *gitexe.Git {
+	t.Helper()
+	gittest.GitPath(t)
+	var err error
+	for range 3 {
+		var g *gitexe.Git
+		if g, err = gitexe.Find(context.Background(), os.Getenv("PATH")); err == nil {
+			return g
+		}
+	}
+	t.Fatalf("git cannot be found: %v", err)
+	return nil
+}
+
 func runner(t *testing.T, max int) *Runner {
 	t.Helper()
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := findGit(t)
 	return New(g, append(gittest.Env(), "GIT_DIR=/wrong", "GIT_INDEX_FILE=/wrong/index"), max)
 }
 
@@ -226,10 +239,7 @@ func TestStderrCapped(t *testing.T) {
 // can read, where it reads them.
 func TestUntranslated(t *testing.T) {
 	r := gittest.Init(t)
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := findGit(t)
 	run := New(g, append(gittest.Env(), "LC_ALL=zh_CN.UTF-8", "LANGUAGE=zh_CN"), 2)
 	stderr := func(untranslated bool) string {
 		_, err := run.Run(context.Background(), &Cmd{GitDir: r.GitDir(), Args: []string{"rev-parse", "--verify", "nope"}, Untranslated: untranslated})
@@ -501,10 +511,7 @@ func TestReadIgnoresParseBreakingConfig(t *testing.T) {
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := findGit(t)
 	run := New(g, append(gittest.Env(), "GIT_CONFIG_GLOBAL="+global), 2)
 	out := func(config []string, args ...string) string {
 		t.Helper()

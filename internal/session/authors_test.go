@@ -3,7 +3,6 @@ package session
 import (
 	"encoding/hex"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -97,10 +96,7 @@ func TestFailedAuthorsReadAgain(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script as git")
 	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
+	real := gittest.GitPath(t)
 	r := gittest.Init(t)
 	r.Env = []string{"GIT_AUTHOR_NAME=Bob", "GIT_AUTHOR_EMAIL=bob@example.com"}
 	r.Write("f", "1")

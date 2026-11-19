@@ -19,10 +19,7 @@ func TestLeftViewReadsAgain(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script as git")
 	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
+	real := gittest.GitPath(t)
 	// While the flag file exists, file history hangs.
 	bin := t.TempDir()
 	flag := filepath.Join(bin, "hang")

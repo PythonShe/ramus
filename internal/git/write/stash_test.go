@@ -1,7 +1,6 @@
 package write
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 )
 
 func (h *harness) stash(n int) StashEntry {
@@ -305,7 +305,7 @@ func TestStashPaths(t *testing.T) {
 // stays as it was.
 func TestStashStaged(t *testing.T) {
 	h := newHarness(t)
-	if g, err := gitexe.Find(context.Background(), os.Getenv("PATH")); err != nil || !g.Version.Has(gitexe.StashStaged) {
+	if g := testrun.Git(t); !g.Version.Has(gitexe.StashStaged) {
 		t.Skip("no git with stash push --staged")
 	}
 	h.r.Write("f", "1\n2\n3\n4\n5\n6\n7\n8\n9\n")

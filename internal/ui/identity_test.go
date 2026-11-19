@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 	"ramus/locales"
@@ -21,10 +21,7 @@ import (
 // tells git not to guess them.
 func identityHarness(t *testing.T) (*harness, string) {
 	t.Helper()
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	cfg := filepath.Join(t.TempDir(), "gitconfig")
 	if err := os.WriteFile(cfg, []byte("[user]\n\tuseConfigOnly = true\n"), 0o644); err != nil {
 		t.Fatal(err)

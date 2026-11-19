@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -23,10 +22,7 @@ func wrappedGit(t *testing.T, body, flag string) *run.Runner {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script as git")
 	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
+	real := gittest.GitPath(t)
 	bin := t.TempDir()
 	script := "#!/bin/sh\n" + strings.ReplaceAll(body, "FLAG", flag) + "\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {

@@ -12,9 +12,7 @@ import (
 // TestTrailersMatchGit compares Trailers with git interpret-trailers
 // --parse, which prints each trailer as "Key: value".
 func TestTrailersMatchGit(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("no git")
-	}
+	gittest.GitPath(t)
 	msgs := []string{
 		"Subject only",
 		"Co-authored-by: A <a@x>",

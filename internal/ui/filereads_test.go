@@ -2,19 +2,17 @@ package ui
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"ramus/internal/git/gittest"
 )
 
 // A file chosen, another, then the first again: the history shown is
 // the last read's, even when the first read of it ends after.
 func TestFileHistoryLastReadWins(t *testing.T) {
-	gitBin, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
+	gitBin := gittest.GitPath(t)
 	dir := t.TempDir()
 	// The first history of one.txt read once ARM is there is held, its
 	// output kept, until RELEASE is: a minute at most, for a test that

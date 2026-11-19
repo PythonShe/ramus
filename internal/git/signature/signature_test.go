@@ -6,17 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
 )
 
 func runner(t *testing.T) *run.Runner {
 	t.Helper()
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	return run.New(g, gittest.Env(), 2)
 }
 

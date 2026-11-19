@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
@@ -154,10 +153,7 @@ func TestDiffToolEnvironment(t *testing.T) {
 	env, seen := filepath.Join(dir, "env"), filepath.Join(dir, "seen")
 	r.Git("config", "difftool.record.cmd", `env > `+filepath.ToSlash(env)+`; echo "$MERGED" >> `+filepath.ToSlash(seen))
 	r.Git("config", "diff.tool", "record")
-	g, err := gitexe.Find(t.Context(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	// The user's environment, as the app has it, sets no GIT_TERMINAL_PROMPT.
 	runner := run.New(g, slices.DeleteFunc(gittest.Env(), func(e string) bool { return strings.HasPrefix(e, "GIT_TERMINAL_PROMPT=") }), 8)
 	runner.SetPrompt([]string{"SSH_ASKPASS=/x/ramus", "SSH_ASKPASS_REQUIRE=force", "RAMUS_ASKPASS_TOKEN=tok"}, nil)

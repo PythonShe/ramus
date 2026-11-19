@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -104,10 +103,7 @@ func TestStoppedLostSearchFails(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script as git")
 	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
+	real := gittest.GitPath(t)
 	r := gittest.Init(t)
 	r.Write("a", "1")
 	r.Commit("one")

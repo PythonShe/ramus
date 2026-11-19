@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
 )
 
@@ -19,10 +19,7 @@ import (
 // "{dir}" in a content is the folder.
 func identityConfig(t *testing.T, files map[string]string) (*run.Runner, string) {
 	t.Helper()
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	dir := t.TempDir()
 	if d, err := filepath.EvalSymlinks(dir); err == nil {
 		dir = d

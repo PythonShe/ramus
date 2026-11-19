@@ -7,18 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
 )
 
 // The tool goes into the global config and comes out again, leaving a
 // difftool the user chose since, and what else the file holds.
 func TestSetTool(t *testing.T) {
-	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
-	if err != nil {
-		t.Skip(err)
-	}
+	g := testrun.Git(t)
 	cfg := filepath.Join(t.TempDir(), "gitconfig")
 	if err := os.WriteFile(cfg, []byte("[user]\n\tname = Someone\n"), 0o644); err != nil {
 		t.Fatal(err)

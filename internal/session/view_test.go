@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -20,10 +19,7 @@ func TestLeavingAViewCancelsItsReads(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script as git")
 	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
+	real := gittest.GitPath(t)
 	// A git whose file history never ends.
 	bin := t.TempDir()
 	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = --name-only ] && exec sleep 60; done\nexec " + real + " \"$@\"\n"

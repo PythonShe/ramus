@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -23,10 +22,7 @@ func TestIdle(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("uses a shell script as git")
 	}
-	real, err := exec.LookPath("git")
-	if err != nil {
-		t.Skip(err)
-	}
+	real := gittest.GitPath(t)
 	bin := t.TempDir()
 	logFile := filepath.Join(bin, "log")
 	// Each command is logged as it starts.
