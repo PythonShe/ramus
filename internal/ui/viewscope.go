@@ -106,6 +106,9 @@ func (a *App) leaveView(t *tab, name string) {
 		if fs.logLoading {
 			fs.logKey, fs.logLoading = "", false
 		}
+		if lh := &fs.lines; lh.loading {
+			lh.key, lh.loading = "", false
+		}
 		fs.dropBlame()
 	case "review":
 		t.rev.leave()

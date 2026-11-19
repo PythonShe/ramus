@@ -39,6 +39,26 @@ func wrappedGit(t *testing.T, body, flag string) *run.Runner {
 	return run.New(g, gittest.Env(), 8)
 }
 
+// A line history left while it reads is read again when shown again,
+// not left loading for good.
+func TestLeftLineHistoryReadsAgain(t *testing.T) {
+	flag := filepath.Join(t.TempDir(), "hang")
+	h := newHarnessWith(t, wrappedGit(t, `if [ -e FLAG ]; then for a in "$@"; do case "$a" in -L*) exec sleep 61;; esac; done; fi`, flag))
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.ShowFile(filepath.Join(r.Dir, "README"), true)
+	h.until("the blame", func() bool { return hasExact(h, "hello") && !h.tt.HasText("Blaming") })
+	tb := h.app.current()
+	os.WriteFile(flag, nil, 0o644)
+	h.menu("hello", "History of This Line")
+	h.until("the line history read", func() bool { return tb.file.lines.loading })
+	h.click("Changes")
+	h.until("the view left", func() bool { return tb.shown != "file" })
+	os.Remove(flag)
+	tb.sel = "file"
+	h.until("the line history read again", func() bool { return hasExact(h, "Line 1") && hasExact(h, "one") })
+}
+
 // The history of a file asked for while another's was read is never
 // shown with the other file's commits.
 func TestFileHistoryOfTheFileShown(t *testing.T) {
