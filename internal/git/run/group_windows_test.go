@@ -43,8 +43,8 @@ func TestOnlyReadsDieWithApp(t *testing.T) {
 		cmd := r.Command(context.Background(), c.cmd)
 		v, ok := groups.Load(cmd)
 		leaveGroup(cmd)
-		if !ok || v.(*group).dies != c.want {
-			t.Errorf("%v: in a group %v, dies with the app %v, want %v", c.cmd.Args, ok, ok && v.(*group).dies, c.want)
+		if !ok || v.(*gitexe.Job).Dies() != c.want {
+			t.Errorf("%v: in a group %v, dies with the app %v, want %v", c.cmd.Args, ok, ok && v.(*gitexe.Job).Dies(), c.want)
 		}
 	}
 }
