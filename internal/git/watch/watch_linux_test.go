@@ -61,6 +61,31 @@ func TestRewatch(t *testing.T) {
 	wait(t, w, "out/deep/seen")
 }
 
+// Once closed, the watcher adds no watch: the descriptor's number may be
+// another file's by then.
+func TestNoWatchAfterClose(t *testing.T) {
+	root := t.TempDir()
+	os.Mkdir(filepath.Join(root, "a"), 0o755)
+	w, err := New(root, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := w.plat.(*linuxWatch)
+	w.Close()
+	var calls atomic.Int32
+	inotifyAddWatch = func(fd int, path string, mask uint32) (int, error) {
+		calls.Add(1)
+		return syscall.InotifyAddWatch(fd, path, mask)
+	}
+	t.Cleanup(func() { inotifyAddWatch = syscall.InotifyAddWatch })
+	if err := l.addTree("."); err != nil {
+		t.Errorf("after close: %v", err)
+	}
+	if n := calls.Load(); n != 0 {
+		t.Errorf("%d watches added after close", n)
+	}
+}
+
 func TestLimitLater(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "a"), 0o755)

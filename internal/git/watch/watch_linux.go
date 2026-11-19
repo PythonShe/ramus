@@ -27,7 +27,6 @@ var inotifyAddWatch = syscall.InotifyAddWatch
 
 type linuxWatch struct {
 	w    *Watcher
-	fd   int
 	file *os.File
 	skip func(string) bool
 	mu   sync.Mutex
@@ -40,7 +39,7 @@ func start(w *Watcher, opt Options) (platform, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := &linuxWatch{w: w, fd: fd, skip: opt.SkipDir, dirs: map[int32]string{}}
+	l := &linuxWatch{w: w, skip: opt.SkipDir, dirs: map[int32]string{}}
 	// A non-blocking descriptor goes through the runtime's poller, so Close
 	// wakes the reader.
 	l.file = os.NewFile(uintptr(fd), "inotify")
@@ -53,10 +52,25 @@ func start(w *Watcher, opt Options) (platform, error) {
 	return l, nil
 }
 
+// onFD runs fn with the inotify descriptor, which stays open while it
+// runs; once the watcher is closed it does not run, and the error is
+// os.ErrClosed's. The number alone could be another file's by then.
+func (l *linuxWatch) onFD(fn func(fd int) error) error {
+	rc, err := l.file.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var ferr error
+	if err := rc.Control(func(fd uintptr) { ferr = fn(int(fd)) }); err != nil {
+		return os.ErrClosed // it fails only once the file is closing
+	}
+	return ferr
+}
+
 // addTree watches dir (relative to the root) and every directory under
 // it that is not skipped.
 func (l *linuxWatch) addTree(dir string) error {
-	return filepath.WalkDir(filepath.Join(l.w.root, dir), func(p string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(filepath.Join(l.w.root, dir), func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				return nil // gone already
@@ -71,14 +85,18 @@ func (l *linuxWatch) addTree(dir string) error {
 		if rel != "." && l.skip != nil && l.skip(rel) {
 			return filepath.SkipDir
 		}
-		wd, err := inotifyAddWatch(l.fd, p, mask|syscall.IN_ONLYDIR)
-		if err == syscall.ENOSPC {
+		var wd int
+		err = l.onFD(func(fd int) error {
+			var err error
+			wd, err = inotifyAddWatch(fd, p, mask|syscall.IN_ONLYDIR)
+			return err
+		})
+		switch {
+		case err == syscall.ENOSPC:
 			return ErrLimit
-		}
-		if err != nil {
-			if err == syscall.ENOENT || err == syscall.ENOTDIR {
-				return nil
-			}
+		case err == syscall.ENOENT || err == syscall.ENOTDIR:
+			return nil
+		case err != nil:
 			return err
 		}
 		l.mu.Lock()
@@ -86,6 +104,10 @@ func (l *linuxWatch) addTree(dir string) error {
 		l.mu.Unlock()
 		return nil
 	})
+	if errors.Is(err, os.ErrClosed) {
+		return nil // the watcher closed while it walked
+	}
+	return err
 }
 
 func (l *linuxWatch) read() {
