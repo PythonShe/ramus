@@ -369,7 +369,7 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	}
 	if f := j.Op.File; f != nil {
 		if err := f.write(j.Op.Cmd.WorkTree); err != nil {
-			return run.Result{}, err
+			return run.Result{}, q.kept(j, err, false)
 		}
 	}
 	var stashed *preStash
@@ -433,6 +433,19 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 		q.record(j, before)
 	}
 	return res, q.kept(j, err, true)
+}
+
+// failed is err, from a command a job that sets its own do ran past its
+// checks and snapshot: a lock found held says so, and so does the
+// snapshot where what the job changed is kept, as for any other write.
+func (q *Queue) failed(j *Job, res run.Result, err error) error {
+	if err == nil {
+		return nil
+	}
+	if le := lockError(q.gitDir, res.Stderr); le != nil {
+		err = le
+	}
+	return q.kept(j, err, false)
 }
 
 // kept is err, from a write that ran past its checks, saying where what

@@ -91,10 +91,10 @@ func TakeSide(w Where, paths []string, side Side) (Op, error) {
 		var res run.Result
 		if len(files) > 0 {
 			if res, err = execute(ctx, j.q.r, j, w.cmd(fromStdin("checkout", flag)...), pathspecs(files)); err != nil {
-				return res, err
+				return res, j.q.failed(j, res, err)
 			}
 			if res, err = execute(ctx, j.q.r, j, w.cmd(fromStdin("add")...), pathspecs(files)); err != nil {
-				return res, err
+				return res, j.q.failed(j, res, err)
 			}
 		}
 		if len(links) > 0 {
@@ -103,7 +103,7 @@ func TakeSide(w Where, paths []string, side Side) (Op, error) {
 			// entry is staged as it is.
 			res, err = execute(ctx, j.q.r, j, w.cmd("update-index", "-z", "--index-info"), links)
 		}
-		return res, err
+		return res, j.q.failed(j, res, err)
 	}
 	return op, nil
 }
