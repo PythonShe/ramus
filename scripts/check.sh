@@ -73,12 +73,16 @@ linux) [ "$(go env CGO_ENABLED)" = 1 ] && race=1 ;;
 esac
 
 # mygo is pure Go; building without cgo keeps cross-compiling working.
+# The ui package takes five minutes on GitHub's Windows runner, half of
+# go test's default timeout, and grows with every view: past it, go
+# test reports a hang.
+timeout=20m
 if [ -n "$race" ]; then
-	go test -race ./internal/session/ &
+	go test -race -timeout "$timeout" ./internal/session/ &
 	racing=$!
 	trap 'kill "$racing" 2>/dev/null || true' EXIT
-	CGO_ENABLED=0 go test $(go list ./... | grep -v '^ramus/internal/session$')
+	CGO_ENABLED=0 go test -timeout "$timeout" $(go list ./... | grep -v '^ramus/internal/session$')
 	wait "$racing"
 else
-	CGO_ENABLED=0 go test ./...
+	CGO_ENABLED=0 go test -timeout "$timeout" ./...
 fi

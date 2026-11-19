@@ -14,9 +14,12 @@ on:
 permissions:
   contents: read
 
+# Each job's limit is about four times its time in the runs of
+# November 2026, rather than GitHub's six hours.
 jobs:
   macos:
     runs-on: xcode-27
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -58,6 +61,7 @@ jobs:
 
   linux:
     runs-on: ubuntu-26.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -83,6 +87,7 @@ jobs:
 
   linux-packages:
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -118,6 +123,7 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
