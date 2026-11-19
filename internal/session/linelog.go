@@ -99,9 +99,11 @@ func readLineLog(ctx context.Context, rn *run.Runner, gitDir, workTree, path str
 	if !ok {
 		return nil, ErrNotCommitted
 	}
+	// No textconv: the lines are the file's own, found above without it,
+	// and git log -L would follow and show the driver's text instead.
 	res, err = rn.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, MaxOutput: 128 << 20, Timeout: 10 * time.Minute,
 		Config: []string{"core.quotePath=false"},
-		Args: []string{"log", "--no-ext-diff", "--no-color", "--max-count=" + strconv.Itoa(MaxLineLog+1),
+		Args: []string{"log", "--no-ext-diff", "--no-textconv", "--no-color", "--max-count=" + strconv.Itoa(MaxLineLog+1),
 			"--format=" + strings.ReplaceAll(lineMark, "\x1e", "%x1e") + "%H%x1f%P%x1f%an%x1f%at%x1f%s",
 			"-L" + strconv.Itoa(lo) + "," + strconv.Itoa(hi) + ":" + path, "HEAD", "--"}})
 	if errors.Is(err, run.ErrOutputTooLarge) {

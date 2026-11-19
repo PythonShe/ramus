@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -117,5 +118,43 @@ func TestFileNamedHEAD(t *testing.T) {
 	m.until(t, "the summary", func() bool { return sum != nil })
 	if sum.Err != nil || sum.Added != 1 {
 		t.Fatalf("summary %+v", sum)
+	}
+}
+
+// The lines followed are the file's own, as the work tree has them: a
+// textconv driver's text, which may not even have the same lines, is not
+// what git log -L follows nor what it shows.
+func TestLineLogFollowsTheFileNotItsTextconv(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the driver is a shell command")
+	}
+	r := gittest.Init(t)
+	r.Write(".gitattributes", "*.txt diff=conv\n")
+	r.Write("f.txt", "a\nb\nc\n")
+	r.Commit("one")
+	r.Write("f.txt", "a\nB\nc\n")
+	r.Commit("two")
+	// Each line twice, marked: line 2 of its text is the first line's.
+	r.Git("config", "diff.conv.textconv", "sed -e p -e s/^/CONV:/")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	if s.State.Restricted {
+		t.Fatal("not trusted")
+	}
+	var l *LineLog
+	var err error
+	done := false
+	s.LineLog("f.txt", 2, 2, func(got *LineLog, e error) { l, err, done = got, e, true })
+	m.until(t, "the line log", func() bool { return done })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(l.Commits) != 2 || l.Commits[0].Subject != "two" {
+		t.Fatalf("commits %+v", l.Commits)
+	}
+	if p := string(l.Patch(0)); strings.Contains(p, "CONV:") || !strings.Contains(p, "-b\n+B\n") {
+		t.Fatalf("patch of two:\n%s", p)
 	}
 }
