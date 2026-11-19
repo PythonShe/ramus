@@ -4435,6 +4435,44 @@ func (msgs Messages) ChangesMarkResolved(count int) string {
 	return Catalog.Format(msgs.locale, "changesMarkResolved", map[string]any{"count": count})
 }
 
+// ChangesMarkResolvedTitle says "{count, plural, one {Mark a file with conflict markers resolved?} other {Mark # files with conflict markers resolved?}}"
+// in the language the app shows.
+func ChangesMarkResolvedTitle(count int) string {
+	return In(i18n.Locale()).ChangesMarkResolvedTitle(count)
+}
+
+// ChangesMarkResolvedTitle says "{count, plural, one {Mark a file with conflict markers resolved?} other {Mark # files with conflict markers resolved?}}"
+// in the language of msgs.
+func (msgs Messages) ChangesMarkResolvedTitle(count int) string {
+	return Catalog.Format(msgs.locale, "changesMarkResolvedTitle", map[string]any{"count": count})
+}
+
+// ChangesMarkResolvedMessage says "{count, plural, one {This file still holds conflict markers, or could not be read for them:\n{files}\n\nMarked resolved,…"
+// in the language the app shows.
+//
+// files is the list of paths, one per line.
+func ChangesMarkResolvedMessage(count int, files string) string {
+	return In(i18n.Locale()).ChangesMarkResolvedMessage(count, files)
+}
+
+// ChangesMarkResolvedMessage says "{count, plural, one {This file still holds conflict markers, or could not be read for them:\n{files}\n\nMarked resolved,…"
+// in the language of msgs.
+//
+// files is the list of paths, one per line.
+func (msgs Messages) ChangesMarkResolvedMessage(count int, files string) string {
+	return Catalog.Format(msgs.locale, "changesMarkResolvedMessage", map[string]any{"count": count, "files": files})
+}
+
+// ChangesMarkResolvedAnyway says "Mark Resolved Anyway"
+// in the language the app shows.
+func ChangesMarkResolvedAnyway() string { return In(i18n.Locale()).ChangesMarkResolvedAnyway() }
+
+// ChangesMarkResolvedAnyway says "Mark Resolved Anyway"
+// in the language of msgs.
+func (msgs Messages) ChangesMarkResolvedAnyway() string {
+	return Catalog.Format(msgs.locale, "changesMarkResolvedAnyway", nil)
+}
+
 // ChangesIgnorePath says "Ignore {path}"
 // in the language the app shows.
 func ChangesIgnorePath(path string) string { return In(i18n.Locale()).ChangesIgnorePath(path) }

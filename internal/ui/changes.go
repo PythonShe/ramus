@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/conflict"
 	"ramus/internal/git/diff"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
@@ -951,7 +952,7 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 	case secConflicts:
 		a.conflictMenu(menu, t, m, es, act)
 		if menu.Item(locales.ChangesMarkResolved(n)).Disabled(ro || n == 0).Chosen() {
-			*act = func() { a.stageEntries(t, m, secUnstaged, es) }
+			*act = func() { a.markResolved(t, m, es) }
 		}
 	}
 	if fileRow(r) && r.sec != secStaged {
@@ -1001,12 +1002,49 @@ func (a *App) toggleStage(t *tab, m *changeModel, rows []changeRow) {
 		return
 	}
 	sec := rows[0].sec
-	if sec == secConflicts {
-		sec = secUnstaged
-	}
 	t.cv.keepPlace(m, rows)
 	es, inner := m.targets(rows)
+	if sec == secConflicts {
+		a.markResolved(t, m, es)
+		return
+	}
 	a.stagePaths(t, sec, slices.Concat(paths(m.st, es), inner))
+}
+
+// markResolved stages conflicted entries es, asking first when any still
+// holds conflict markers or could not be read for them: staged so, a
+// file loses its conflict's sides, which no undo brings back. The files
+// are read one at a time, as the merge editor reads them.
+func (a *App) markResolved(t *tab, m *changeModel, es []int32) {
+	ps := paths(m.st, es)
+	if len(ps) == 0 || t.s.Queue == nil {
+		return
+	}
+	var marked []string
+	var next func(i int)
+	next = func(i int) {
+		if i < len(ps) {
+			t.s.LoadConflict(ps[i], func(cf session.ConflictFile) {
+				if cf.Err != nil || conflict.Count(cf.Segments) > 0 {
+					marked = append(marked, ps[i])
+				}
+				next(i + 1)
+			})
+			return
+		}
+		if len(marked) == 0 {
+			a.stagePaths(t, secUnstaged, ps)
+			return
+		}
+		t.cv.confirm = confirmState{
+			open:    true,
+			title:   locales.ChangesMarkResolvedTitle(len(marked)),
+			message: locales.ChangesMarkResolvedMessage(len(marked), nameList(marked)),
+			button:  locales.ChangesMarkResolvedAnyway(),
+			run:     func() { a.stagePaths(t, secUnstaged, ps) },
+		}
+	}
+	next(0)
 }
 
 // stageEntries stages entries listed under Changes or Conflicts, and

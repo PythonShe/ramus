@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"ramus/internal/git/conflict"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/write"
@@ -185,6 +187,65 @@ func TestMergeChoicesOutliveOtherWrites(t *testing.T) {
 		t.Fatalf("a file changed on disk kept choice %v", ms.choices[0])
 	}
 	h.until("why", h.shows(locales.MergeChangedOnDisk()))
+}
+
+// Enter, a double click or Mark Resolved on a file that still holds
+// conflict markers asks before staging it, Cancel the default; a file
+// whose markers are gone is staged at once.
+func TestConflictMarkersAskBeforeStaging(t *testing.T) {
+	h := newHarness(t)
+	r := conflictingRepo(h)
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	r.Run(nil, "merge", "topic")
+	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	conflicted := func(p string) bool { return strings.Contains(r.Git("ls-files", "-u", "--", p), p) }
+	cf := &tb.cv.confirm
+	h.click("a.txt")
+	h.until("the editor", h.shows("Conflict 1"))
+
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("the question", func() bool { return cf.open })
+	if cf.safe || cf.button != locales.ChangesMarkResolvedAnyway() || !strings.Contains(cf.message, "a.txt") {
+		t.Fatalf("question %+v", *cf)
+	}
+	h.click("Cancel")
+	h.tt.Frame()
+	if !conflicted("a.txt") {
+		t.Fatal("Enter staged a.txt with its markers")
+	}
+
+	h.click("a.txt")
+	h.click("a.txt")
+	h.until("the question again", func() bool { return cf.open })
+	h.click("Cancel")
+	h.tt.Frame()
+	if !conflicted("a.txt") {
+		t.Fatal("a double click staged a.txt with its markers")
+	}
+
+	h.tt.RightClick("a.txt")
+	if err := h.tt.ChooseMenuItem(locales.ChangesMarkResolved(1)); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the question from the menu", func() bool { return cf.open })
+	h.click(locales.ChangesMarkResolvedAnyway())
+	h.until("a.txt staged as it is", func() bool { return !conflicted("a.txt") })
+	h.idle(tb, "the stage")
+
+	// Its markers taken out by hand: staged without a word.
+	r.Write("b.bin", "\x00resolved")
+	h.until("b.bin listed", func() bool { return hasExact(h, "b.bin") })
+	h.tt.RightClick("b.bin")
+	if err := h.tt.ChooseMenuItem(locales.ChangesMarkResolved(1)); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("b.bin staged", func() bool { return !conflicted("b.bin") })
+	if cf.open {
+		t.Fatalf("asked about a file with no markers: %+v", *cf)
+	}
 }
 
 // Edit, kept off for a conflict too long to edit in place, says why

@@ -865,6 +865,12 @@
   "changesStageFiles": "{count, plural, one {Stage File} other {Stage # Files}}",
   "changesDiscardFiles": "{count, plural, one {Discard Changes to File…} other {Discard Changes to # Files…}}",
   "changesMarkResolved": "{count, plural, one {Mark File Resolved} other {Mark # Files Resolved}}",
+  "changesMarkResolvedTitle": "{count, plural, one {Mark a file with conflict markers resolved?} other {Mark # files with conflict markers resolved?}}",
+  "changesMarkResolvedMessage": "{count, plural, one {This file still holds conflict markers, or could not be read for them:\n{files}\n\nMarked resolved, it is staged as it is, markers and all, and the merge editor can no longer show its sides.} other {These files still hold conflict markers, or could not be read for them:\n{files}\n\nMarked resolved, they are staged as they are, markers and all, and the merge editor can no longer show their sides.}}",
+  "@changesMarkResolvedMessage": {
+    "description": "files is the list of paths, one per line."
+  },
+  "changesMarkResolvedAnyway": "Mark Resolved Anyway",
   "changesIgnorePath": "Ignore {path}",
   "changesIgnoreExt": "Ignore All *{ext} Files",
   "@changesIgnoreExt": {
