@@ -70,3 +70,72 @@ func TestOverTimePeriods(t *testing.T) {
 		}
 	}
 }
+
+// A treemap read for one request and built after the view was left and
+// shown again for another is not taken for the other's: the files of the
+// branch asked for show, not those of the branch asked for before.
+func TestTreemapDropsAnEarlierRead(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "other")
+	r.Write("main.txt", "main")
+	r.Commit("main only")
+	r.Git("checkout", "-q", "other")
+	r.Write("other.txt", "other")
+	r.Commit("other only")
+	r.Git("checkout", "-q", "-")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No local changes"))
+	h.click("Statistics")
+	tab := h.app.current()
+	h.until("the counts", func() bool { return tab.stats.res.Done })
+	ts := &tab.stats.sizes
+
+	// The app's updates are held while HEAD's sizes are read, and the one
+	// that would store the treemap built from them is kept back.
+	orig := h.app.Update
+	held := make(chan func(), 64)
+	h.app.Update = func(fn func()) { held <- fn }
+	tab.stats.mode = 1
+	h.tt.Frame()
+	if !ts.loading {
+		t.Fatal("the sizes are not read")
+	}
+	var store func()
+	deadline := time.Now().Add(20 * time.Second)
+	for store == nil {
+		select {
+		case fn := <-h.updates:
+			fn()
+		case fn := <-held:
+			saved := *ts
+			fn()
+			if ts.data != saved.data {
+				*ts, store = saved, fn
+			}
+		case <-time.After(time.Until(deadline)):
+			t.Fatal("HEAD's sizes were never read")
+		}
+	}
+	h.app.Update = orig
+	for len(held) > 0 {
+		(<-held)()
+	}
+
+	// Left and shown again, for another branch.
+	tab.sel = "history"
+	h.tt.Frame()
+	tab.sel = "stats"
+	tab.stats.branch = "refs/heads/other"
+	h.app.countStats(tab)
+	h.tt.Frame()
+	if !ts.loading || ts.For.Branch != "refs/heads/other" {
+		t.Fatalf("other's sizes not asked for: %+v", ts.For)
+	}
+	store()
+	h.until("other's sizes", func() bool { return ts.data != nil && !ts.loading })
+	if paths := string(ts.data.pw.Paths); !strings.Contains(paths, "other.txt") || strings.Contains(paths, "main.txt") {
+		t.Fatalf("other's treemap holds %q", strings.ReplaceAll(paths, "\x00", " "))
+	}
+}

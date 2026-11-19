@@ -163,14 +163,22 @@ func (a *App) loadTreemap(t *tab, ts *treemapState, changes bool) {
 		if ts.data != nil && ts.For == req || ts.loading {
 			return
 		}
-		ts.loading, ts.For, ts.path = true, req, nil
+		asked := new(session.StatsRequest)
+		*asked = req
+		ts.loading, ts.For, ts.path, ts.reading = true, req, nil, asked
 		done := func(pw session.PathWeights) {
 			// The tree is built off the main thread too: a large
 			// repository has hundreds of thousands of paths.
 			update := a.Update
 			a.goWork(t, func() {
 				d := newTreemapData(pw)
-				update(func() { ts.data, ts.loading = d, false })
+				update(func() {
+					// The view may have been left and shown again meanwhile,
+					// and another read asked for.
+					if ts.reading == asked {
+						ts.data, ts.loading, ts.reading = d, false, nil
+					}
+				})
 			})
 		}
 		if changes {

@@ -66,6 +66,9 @@ type treemapState struct {
 	path []pathtree.Node
 	// For is the request the data was read for.
 	For session.StatsRequest
+	// reading is the read under way, nil none: what another read built
+	// is not stored.
+	reading *session.StatsRequest
 	// laidW and laidH are the size the tiles were last laid out for.
 	laidW, laidH float32
 }
