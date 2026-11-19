@@ -53,6 +53,9 @@ type fileState struct {
 	// stamp is the blame's key as of stampFor, once read off the main
 	// thread: the file, HEAD and the file's stat (blameStamp).
 	stamp, stampFor string
+	// logN numbers the reads of the history: the file chosen again
+	// after another asks again, and only the last read lands.
+	logN int
 
 	lines lineHistory
 }
@@ -270,8 +273,10 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 	// read of what was shown before lands nowhere.
 	if key != fs.logKey || t.s.State.Refs != fs.logFor && !fs.logLoading {
 		fs.logKey, fs.logFor, fs.logLoading = key, t.s.State.Refs, true
+		fs.logN++
+		n := fs.logN
 		t.s.FileLog(fs.path, session.FileLogOptions{Follow: fs.follow, NoMerges: fs.noMerges}, func(cs []session.FileCommit, limited bool, err error) {
-			if fs.logKey != key {
+			if fs.logN != n {
 				return
 			}
 			fs.logLoading = false
