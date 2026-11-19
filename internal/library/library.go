@@ -17,7 +17,7 @@ import (
 
 	"ramus/internal/git/pathsafe"
 	"ramus/internal/issuelink"
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 )
 
 // Repo is a known repository.
@@ -83,7 +83,7 @@ type rawFile struct {
 // value of the wrong type costs that value only, the rest read, and a
 // copy of the file is kept aside; a file that does not read at all is
 // moved aside and gives an empty library. The error, a
-// *settings.LoadError, says which and where the file went.
+// *statefile.LoadError, says which and where the file went.
 func Load(path string) (*Library, error) {
 	l := &Library{path: path}
 	data, err := os.ReadFile(path)
@@ -91,11 +91,11 @@ func Load(path string) (*Library, error) {
 		return l, nil
 	}
 	if err != nil {
-		return l, l.broken(settings.Unreadable(path, err))
+		return l, l.broken(statefile.Unreadable(path, err))
 	}
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(data, &top); err != nil {
-		return l, l.broken(settings.Unreadable(path, err))
+		return l, l.broken(statefile.Unreadable(path, err))
 	}
 	var f file
 	// A value of the wrong type leaves its field empty and the rest
@@ -105,16 +105,16 @@ func Load(path string) (*Library, error) {
 	var raw rawFile
 	json.Unmarshal(data, &raw)
 	for i := range min(len(f.Repos), len(raw.Repos)) {
-		f.Repos[i].extra = settings.Extra(raw.Repos[i], reflect.TypeFor[Repo]())
+		f.Repos[i].extra = statefile.Extra(raw.Repos[i], reflect.TypeFor[Repo]())
 	}
 	for i := range min(len(f.Groups), len(raw.Groups)) {
-		f.Groups[i].extra = settings.Extra(raw.Groups[i], reflect.TypeFor[Group]())
+		f.Groups[i].extra = statefile.Extra(raw.Groups[i], reflect.TypeFor[Group]())
 	}
-	l.extra = settings.Extra(data, reflect.TypeFor[file]())
+	l.extra = statefile.Extra(data, reflect.TypeFor[file]())
 	l.repos = slices.DeleteFunc(f.Repos, func(r Repo) bool { return r.Path == "" })
 	l.groups = slices.DeleteFunc(f.Groups, func(g Group) bool { return strings.TrimSpace(g.Name) == "" })
 	if ferr != nil {
-		return l, l.broken(settings.PartlyRead(path, data, ferr))
+		return l, l.broken(statefile.PartlyRead(path, data, ferr))
 	}
 	return l, nil
 }
@@ -124,7 +124,7 @@ func (l *Library) Path() string { return l.path }
 
 // broken takes the error of a file that did not read: one that could not
 // be kept aside is not written.
-func (l *Library) broken(e *settings.LoadError) error {
+func (l *Library) broken(e *statefile.LoadError) error {
 	if e.KeptAs == "" {
 		l.refuse = e
 	}
@@ -428,7 +428,7 @@ func (l *Library) save() error {
 	var out bytes.Buffer
 	json.Indent(&out, data, "", "  ")
 	out.WriteByte('\n')
-	return settings.WriteFile(l.path, out.Bytes())
+	return statefile.WriteFile(l.path, out.Bytes())
 }
 
 // marshal is the library as its file holds it, with what a later version
@@ -436,7 +436,7 @@ func (l *Library) save() error {
 func (l *Library) marshal() ([]byte, error) {
 	var f rawFile
 	for _, r := range l.repos {
-		data, err := settings.WithExtra(r, r.extra)
+		data, err := statefile.WithExtra(r, r.extra)
 		if err != nil {
 			return nil, err
 		}
@@ -446,11 +446,11 @@ func (l *Library) marshal() ([]byte, error) {
 		f.Groups = []json.RawMessage{}
 	}
 	for _, g := range l.groups {
-		data, err := settings.WithExtra(g, g.extra)
+		data, err := statefile.WithExtra(g, g.extra)
 		if err != nil {
 			return nil, err
 		}
 		f.Groups = append(f.Groups, data)
 	}
-	return settings.WithExtra(f, l.extra)
+	return statefile.WithExtra(f, l.extra)
 }

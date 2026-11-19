@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 )
 
 // fortyAndAGroup writes a library of 40 repositories and a group to p
@@ -37,7 +37,7 @@ func TestUnreadableLibraryKeptAside(t *testing.T) {
 	cut := data[:len(data)-2]
 	os.WriteFile(p, cut, 0o600)
 	l, err := Load(p)
-	var le *settings.LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) || le.Path != p || le.KeptAs != p+".broken" || len(l.Recent(100)) != 0 {
 		t.Fatalf("load: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestWrongTypedValueCostsOnlyItself(t *testing.T) {
 		{"path": "/r/b", "name": "b", "opened": "2026-01-02T03:04:05Z", "favourite": true}
 	], "groups": [{"name": "work", "paths": ["/r/a"]}]}`), 0o600)
 	l, err := Load(p)
-	var le *settings.LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) || !le.Partial || le.KeptAs != p+".broken" {
 		t.Fatalf("load: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestLibraryNotKeptNotWritten(t *testing.T) {
 	os.Chmod(dir, 0o500)
 	defer os.Chmod(dir, 0o700)
 	l, err := Load(p)
-	var le *settings.LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) || le.KeptAs != "" || le.KeepErr == nil {
 		t.Fatalf("load: %v", err)
 	}

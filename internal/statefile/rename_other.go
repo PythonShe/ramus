@@ -1,13 +1,13 @@
 //go:build !windows
 
-package settings
+package statefile
 
 import "os"
 
 // rename replaces to with from, while ok, when given, says it may.
 func rename(from, to string, ok func() bool) error {
 	if ok != nil && !ok() {
-		return errChanged
+		return ErrChanged
 	}
 	return os.Rename(from, to)
 }

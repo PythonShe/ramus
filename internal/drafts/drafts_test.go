@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 )
 
 // A draft kept is read back by a new store; an empty one removes it, and
@@ -53,7 +53,7 @@ func TestKeepLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := n.Load("/r/bad")
-	var le *settings.LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) || le.KeptAs != n.name("/r/bad")+".broken" {
 		t.Fatalf("a broken file read: %v", err)
 	}

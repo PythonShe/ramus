@@ -1,4 +1,10 @@
-package settings
+// Package statefile reads and writes the files of the app's state (the
+// settings, the library, the layout, the drafts, the folders trusted): a
+// file is replaced whole and reaches the disk before it counts as written,
+// one that does not read is kept aside rather than written over, and what
+// a later version of the app wrote in it is kept across a save. It imports
+// nothing of the app, so the engine may use it.
+package statefile
 
 import (
 	"bytes"
@@ -7,6 +13,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -192,8 +199,8 @@ func keepUnknown(old, now json.RawMessage, t reflect.Type) (json.RawMessage, boo
 			if name == "" {
 				name = f.Name
 			}
-			nk, nv, ok := lookupKey(n, name)
-			_, ov, found := lookupKey(o, name)
+			nk, nv, ok := LookupKey(n, name)
+			_, ov, found := LookupKey(o, name)
 			if !ok || !found {
 				continue
 			}
@@ -263,4 +270,65 @@ func PartlyRead(path string, data []byte, err error) *LoadError {
 	e := &LoadError{Path: path, Err: err, Partial: true}
 	e.KeptAs, e.KeepErr = KeepCopy(path, data)
 	return e
+}
+
+// LookupKey finds name in top as encoding/json does: as written, else
+// in another case.
+func LookupKey(top map[string]json.RawMessage, name string) (string, json.RawMessage, bool) {
+	if name == "" {
+		return "", nil, false
+	}
+	if v, ok := top[name]; ok {
+		return name, v, true
+	}
+	for k, v := range top {
+		if strings.EqualFold(k, name) {
+			return k, v, true
+		}
+	}
+	return "", nil, false
+}
+
+// ErrChanged is a file found changed since it was read, at its
+// replacement by WriteFileIf.
+var ErrChanged = errors.New("changed meanwhile")
+
+// WriteFile replaces path with data through a temporary file beside it.
+// The data reaches the disk before the rename: without that, a power cut
+// soon after can leave the file empty on file systems that order neither,
+// and an empty file is one the app cannot read.
+func WriteFile(path string, data []byte) error { return WriteFileIf(path, data, nil) }
+
+// WriteFileIf is WriteFile, which, with unchanged, replaces the file only
+// while unchanged says it is as it was, asked before each try of the
+// rename, and fails with ErrChanged when it is not.
+func WriteFileIf(path string, data []byte, unchanged func() bool) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := rename(tmp.Name(), path, unchanged); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	syncDir(dir)
+	return nil
 }

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 )
 
 func TestStore(t *testing.T) {
@@ -178,7 +178,7 @@ func TestUnreadableStore(t *testing.T) {
 		path := filepath.Join(dir, "trust.json")
 		os.WriteFile(path, []byte(content), 0o600)
 		s, err := Load(path)
-		var le *settings.LoadError
+		var le *statefile.LoadError
 		if s == nil || !errors.As(err, &le) || le.Path != path || le.KeptAs != path+".broken" {
 			t.Fatalf("%q: %v %#v", content, s, err)
 		}

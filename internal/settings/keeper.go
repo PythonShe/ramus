@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"ramus/internal/statefile"
 )
 
 // Keeper writes the settings to their file off the caller's thread, one
@@ -222,7 +224,7 @@ func (k *Keeper) read() (*FromFile, error) {
 			return nil, nil
 		}
 		k.checkErr = err.Error()
-		return nil, &LoadError{Path: k.path, Err: err}
+		return nil, &statefile.LoadError{Path: k.path, Err: err}
 	}
 	k.checkErr = ""
 	if k.diskKnown && bytes.Equal(data, k.disk) {
@@ -234,10 +236,10 @@ func (k *Keeper) read() (*FromFile, error) {
 		var partial bool
 		s, partial, err = decode(data)
 		if err != nil && !partial {
-			return nil, &LoadError{Path: k.path, Err: err}
+			return nil, &statefile.LoadError{Path: k.path, Err: err}
 		}
 		if err != nil {
-			err = &LoadError{Path: k.path, Err: err, Partial: true}
+			err = &statefile.LoadError{Path: k.path, Err: err, Partial: true}
 		}
 	}
 	k.mu.Lock()

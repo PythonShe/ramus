@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 )
 
 // Bounds on what is kept: a layout is small, and a file grown past them
@@ -45,7 +45,7 @@ type Tab struct {
 // Load reads the layout at path; none when there is no file. A value of
 // the wrong type costs that value only, and a copy of the file is kept
 // aside; a file that does not read at all is moved aside, with no
-// layout. The error, a *settings.LoadError, says which and where the
+// layout. The error, a *statefile.LoadError, says which and where the
 // file went.
 func Load(path string) ([]Window, error) {
 	data, err := read(path)
@@ -53,15 +53,15 @@ func Load(path string) ([]Window, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, settings.Unreadable(path, err)
+		return nil, statefile.Unreadable(path, err)
 	}
 	ws, _, _, err := decode(data)
 	var partial *json.UnmarshalTypeError
 	switch {
 	case errors.As(err, &partial):
-		return bound(ws), settings.PartlyRead(path, data, err)
+		return bound(ws), statefile.PartlyRead(path, data, err)
 	case err != nil:
-		return nil, settings.Unreadable(path, err)
+		return nil, statefile.Unreadable(path, err)
 	}
 	return bound(ws), nil
 }
@@ -110,7 +110,7 @@ func decode(data []byte) ([]Window, map[string]json.RawMessage, int, error) {
 	case map[string]any:
 		var f file
 		err := json.Unmarshal(data, &f)
-		return f.Windows, settings.Extra(data, reflect.TypeFor[file]()), f.Version, err
+		return f.Windows, statefile.Extra(data, reflect.TypeFor[file]()), f.Version, err
 	}
 	return nil, nil, 0, errors.New("not a layout")
 }
@@ -157,9 +157,9 @@ func Save(path string, ws []Window) error {
 		return err
 	}
 	if old != nil {
-		windows = settings.KeepUnknown(matching(old, ws), windows, reflect.TypeFor[[]Window]())
+		windows = statefile.KeepUnknown(matching(old, ws), windows, reflect.TypeFor[[]Window]())
 	}
-	data, err := settings.WithExtra(struct {
+	data, err := statefile.WithExtra(struct {
 		Version int             `json:"version"`
 		Windows json.RawMessage `json:"windows"`
 	}{version, windows}, extra)
@@ -169,7 +169,7 @@ func Save(path string, ws []Window) error {
 	var out bytes.Buffer
 	json.Indent(&out, data, "", "  ")
 	out.WriteByte('\n')
-	return settings.WriteFile(path, out.Bytes())
+	return statefile.WriteFile(path, out.Bytes())
 }
 
 // matching is the windows of old, a layout file's content, as JSON, laid

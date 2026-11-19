@@ -4,15 +4,15 @@ import (
 	"errors"
 
 	"ramus/internal/git/redact"
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 	"ramus/locales"
 )
 
 // LoadNotice is what the user is told of err, an error reading one of
-// the app's own files (a *settings.LoadError): which file, what is wrong
+// the app's own files (a *statefile.LoadError): which file, what is wrong
 // in it, and where it was kept aside. Another error is shown as it is.
 func LoadNotice(err error) string {
-	var le *settings.LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) {
 		return errText(err)
 	}

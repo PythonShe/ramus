@@ -91,7 +91,7 @@ func (ws *windows) layoutChanged() {
 // may end the process as soon as the quit's listeners return, and the
 // files are small. The wait is bounded, stopWait for them all: a write
 // that is not done by then is given up, which a write through
-// settings.WriteFile survives whole, the file as it was before.
+// statefile.WriteFile survives whole, the file as it was before.
 func (ws *windows) flush() {
 	var waits []func()
 	if k := ws.deps.SettingsKeeper; k != nil {

@@ -1,4 +1,4 @@
-package settings
+package statefile
 
 import (
 	"errors"
@@ -22,7 +22,7 @@ func rename(from, to string, ok func() bool) error {
 	wait := 10 * time.Millisecond
 	for i := 0; ; i++ {
 		if ok != nil && !ok() {
-			return errChanged
+			return ErrChanged
 		}
 		err := os.Rename(from, to)
 		if err == nil || i == renameTries-1 || !busy(err) {

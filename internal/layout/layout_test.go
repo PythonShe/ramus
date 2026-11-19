@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 )
 
 func TestSaveLoad(t *testing.T) {
@@ -139,7 +139,7 @@ func TestUnreadableLayoutKeptAside(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "layout.json")
 	os.WriteFile(p, []byte(`[{"tabs": [{"path": "/a"}]`), 0o600)
 	_, err := Load(p)
-	var le *settings.LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) || le.KeptAs != p+".broken" {
 		t.Fatalf("load: %v", err)
 	}

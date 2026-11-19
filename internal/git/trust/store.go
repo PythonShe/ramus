@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"ramus/internal/git/pathsafe"
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 )
 
 // Store remembers which repositories the user trusts, in a file of the
@@ -70,7 +70,7 @@ type folder struct {
 
 // Load reads the store at path; a missing file is an empty store. A file
 // that cannot be read or parsed is moved aside, as the app's other state
-// files are, and the error is a *settings.LoadError saying where; the
+// files are, and the error is a *statefile.LoadError saying where; the
 // store returned is empty and usable: every repository is asked about
 // again, which is the safe side. When it cannot be moved, the store
 // refuses to save over it.
@@ -85,7 +85,7 @@ func Load(path string) (*Store, error) {
 		err = json.Unmarshal(data, &f)
 	}
 	if err != nil {
-		e := settings.Unreadable(path, err)
+		e := statefile.Unreadable(path, err)
 		if e.KeepErr != nil {
 			s.broken = e
 		}
@@ -334,5 +334,5 @@ func writeAtomic(path string, data []byte) error {
 	if writeHook != nil {
 		writeHook()
 	}
-	return settings.WriteFile(path, data)
+	return statefile.WriteFile(path, data)
 }

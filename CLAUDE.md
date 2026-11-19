@@ -50,8 +50,14 @@ RAMUS_FIXTURES=~/Projects/ramus-fixtures go run ./bench -runs 5 -out bench.json 
   stay ad hoc.
 - `internal/ui/`: app state and views. Views are tested without a window
   through `ui.NewTester`.
-- `internal/git/`: the engine. It imports nothing from mygo; `check.sh` fails
-  if it does.
+- `internal/git/`: the engine. It imports nothing of the app and nothing
+  from mygo: only the standard library, its own packages,
+  `internal/statefile` and the few modules `check.sh` names, which fails
+  on any other.
+- `internal/statefile/`: how the files of the app's state (settings,
+  library, layout, drafts, trust) are written whole, kept aside when they
+  do not read, and keep what a later version added; shared by the app and
+  the engine.
 - `bench/`: the benchmarks, a program apart from the product: each case
   runs in a process of its own and records the machine, p50, p95 and peak
   memory. Cases on fixtures only read them; the others make repositories

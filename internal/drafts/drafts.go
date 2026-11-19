@@ -13,7 +13,7 @@ import (
 	"reflect"
 	"sync"
 
-	"ramus/internal/settings"
+	"ramus/internal/statefile"
 )
 
 // maxFile bounds a draft read back: a message is text a person typed.
@@ -62,7 +62,7 @@ func (s *Store) name(path string) string {
 
 // Load reads the draft of the repository at path, none when there is
 // none. A file that does not read is moved aside, so the next draft
-// kept does not replace it, and the error, a *settings.LoadError, says
+// kept does not replace it, and the error, a *statefile.LoadError, says
 // where it went. It reads the disk: never call it on the main thread.
 func (s *Store) Load(path string) (Draft, error) {
 	s.write.Lock()
@@ -79,11 +79,11 @@ func (s *Store) Load(path string) (Draft, error) {
 		return Draft{}, nil
 	}
 	if err != nil {
-		return Draft{}, settings.Unreadable(name, err)
+		return Draft{}, statefile.Unreadable(name, err)
 	}
 	var v file
 	if err := json.Unmarshal(data, &v); err != nil {
-		return Draft{}, settings.Unreadable(name, errors.New("not a draft: "+err.Error()))
+		return Draft{}, statefile.Unreadable(name, errors.New("not a draft: "+err.Error()))
 	}
 	if v.Path != path {
 		return Draft{}, nil
@@ -173,11 +173,11 @@ func (s *Store) save(path string, d Draft) error {
 	// What a later version added to the draft stays.
 	var extra map[string]json.RawMessage
 	if old, err := read(name); err == nil {
-		extra = settings.Extra(old, reflect.TypeFor[file]())
+		extra = statefile.Extra(old, reflect.TypeFor[file]())
 	}
-	data, err := settings.WithExtra(file{path, d}, extra)
+	data, err := statefile.WithExtra(file{path, d}, extra)
 	if err != nil {
 		return err
 	}
-	return settings.WriteFile(name, append(data, '\n'))
+	return statefile.WriteFile(name, append(data, '\n'))
 }

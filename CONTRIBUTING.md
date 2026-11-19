@@ -64,8 +64,10 @@ Run `scripts/check.sh` before sending a change; it must pass.
 - **No network of its own.** The only connections are git's, the user's `gh`
   or `glab` when pull requests are turned on, and the update check;
   `scripts/check.sh` fails on anything else.
-- **The engine stands alone.** `internal/git` imports nothing from mygo;
-  `scripts/check.sh` fails if it does.
+- **The engine stands alone.** `internal/git` imports nothing of the app
+  and nothing from mygo: the standard library, its own packages,
+  `internal/statefile` and a few modules `scripts/check.sh` names, which
+  fails on any other.
 
 ## Views and text
 

@@ -22,11 +22,19 @@ go tool mygo vet . || fail "go tool mygo vet failed"
 # What go list prints is kept whole before it is searched: piped into
 # grep, a go list that failed would give the check nothing to find, and
 # the check would pass.
-engine=$(go list -deps ./internal/git/...) || fail "go list failed"
-# The engine must stay usable without the UI framework.
-if echo "$engine" | grep -q '^github.com/egoist/mygo'; then
-	fail "internal/git imports mygo"
-fi
+#
+# The engine must stay usable without the app and its UI framework: it,
+# its tests included, on every system it is built for, imports only the
+# standard library, its own packages, internal/statefile, and the modules
+# below (git's text encodings, zlib, system calls, and macOS's file
+# events through purego).
+allowed='^(ramus/internal/git(/.*)?|ramus/internal/statefile|golang\.org/x/(sys|text)/.*|github\.com/klauspost/compress/.*|github\.com/ebitengine/purego(/.*)?)$'
+for os in darwin linux windows; do
+	engine=$(GOOS=$os CGO_ENABLED=0 go list -deps -test -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./internal/git/...) || fail "go list failed"
+	if echo "$engine" | grep -v -E "$allowed" | grep . >&2; then
+		fail "internal/git imports the packages above on $os"
+	fi
+done
 
 # Network use is git's own, the user's gh or glab when the settings
 # turn pull requests on, and the update check the user asks for in the

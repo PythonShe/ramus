@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
+
+	"ramus/internal/statefile"
 )
 
 // Settings are the user's choices. The zero value of a field means its
@@ -234,24 +235,24 @@ func validTables(tables map[string]TableLayout) map[string]TableLayout {
 // field of the wrong type costs that field only: it is at its default,
 // the file keeps it (Save does not write over it), and the error says
 // which. A file that does not read at all is moved aside, so that saving
-// cannot lose it, and gives the defaults; the error, a *LoadError, says
-// where it went, for the app to tell the user.
+// cannot lose it, and gives the defaults; the error, a *statefile.LoadError,
+// says where it went, for the app to tell the user.
 func Load(path string) (Settings, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return Defaults, nil
 	}
 	if err != nil {
-		return Defaults, Unreadable(path, err)
+		return Defaults, statefile.Unreadable(path, err)
 	}
 	s, partial, err := decode(data)
 	switch {
 	case err == nil:
 		return s, nil
 	case partial:
-		return s, &LoadError{Path: path, Err: err, Partial: true}
+		return s, &statefile.LoadError{Path: path, Err: err, Partial: true}
 	}
-	return Defaults, Unreadable(path, err)
+	return Defaults, statefile.Unreadable(path, err)
 }
 
 // decode reads the content of a settings file. One that is not a JSON
@@ -281,7 +282,7 @@ func badFields(s *Settings, top map[string]json.RawMessage, err error) error {
 	t := reflect.TypeFor[Settings]()
 	v := reflect.ValueOf(s).Elem()
 	for i := range t.NumField() {
-		key, raw, ok := lookupKey(top, jsonName(t.Field(i)))
+		key, raw, ok := statefile.LookupKey(top, jsonName(t.Field(i)))
 		if !ok {
 			continue
 		}
@@ -294,23 +295,6 @@ func badFields(s *Settings, top map[string]json.RawMessage, err error) error {
 		return err
 	}
 	return errors.New(strings.Join(msgs, "; "))
-}
-
-// lookupKey finds name in top as encoding/json does: as written, else
-// in another case.
-func lookupKey(top map[string]json.RawMessage, name string) (string, json.RawMessage, bool) {
-	if name == "" {
-		return "", nil, false
-	}
-	if v, ok := top[name]; ok {
-		return name, v, true
-	}
-	for k, v := range top {
-		if strings.EqualFold(k, name) {
-			return k, v, true
-		}
-	}
-	return "", nil, false
 }
 
 func jsonName(f reflect.StructField) string {
@@ -345,7 +329,7 @@ func Save(path string, s Settings) error {
 func save(path string, s Settings, base *Settings) (got Settings, data []byte, err error) {
 	for range maxMerges {
 		got, data, err = saveOnce(path, s, base)
-		if !errors.Is(err, errChanged) {
+		if !errors.Is(err, statefile.ErrChanged) {
 			return got, data, err
 		}
 	}
@@ -356,12 +340,8 @@ func save(path string, s Settings, base *Settings) (got Settings, data []byte, e
 // before it is replaced.
 const maxMerges = 5
 
-// errChanged is a file found changed since it was read, at its
-// replacement.
-var errChanged = errors.New("changed meanwhile")
-
-// saveOnce is one try of save, which fails with errChanged when the file
-// changes between its reading and its replacement.
+// saveOnce is one try of save, which fails with statefile.ErrChanged when
+// the file changes between its reading and its replacement.
 func saveOnce(path string, s Settings, base *Settings) (got Settings, data []byte, err error) {
 	merged := map[string]json.RawMessage{}
 	old, err := os.ReadFile(path)
@@ -403,7 +383,7 @@ func saveOnce(path string, s Settings, base *Settings) (got Settings, data []byt
 		}
 		// A value Load could not read is in force as the default: while s
 		// leaves it there, the file keeps what the user wrote.
-		if key, raw, ok := lookupKey(merged, name); ok && bytes.Equal(now[name], unset[name]) &&
+		if key, raw, ok := statefile.LookupKey(merged, name); ok && bytes.Equal(now[name], unset[name]) &&
 			json.Unmarshal(raw, reflect.New(t.Field(i).Type).Interface()) != nil {
 			if key != name {
 				delete(merged, key)
@@ -414,7 +394,7 @@ func saveOnce(path string, s Settings, base *Settings) (got Settings, data []byt
 		// Every other key of this version is dropped first: one left out
 		// of the new file is at its default and must not keep its old
 		// value.
-		_, was, _ := lookupKey(merged, name)
+		_, was, _ := statefile.LookupKey(merged, name)
 		for k := range merged {
 			if strings.EqualFold(k, name) {
 				delete(merged, k)
@@ -422,7 +402,7 @@ func saveOnce(path string, s Settings, base *Settings) (got Settings, data []byt
 		}
 		if v, ok := fields[name]; ok {
 			if was != nil {
-				v = KeepUnknown(was, v, t.Field(i).Type)
+				v = statefile.KeepUnknown(was, v, t.Field(i).Type)
 			}
 			merged[name] = v
 		}
@@ -435,13 +415,16 @@ func saveOnce(path string, s Settings, base *Settings) (got Settings, data []byt
 	if !bytes.Equal(data, old) {
 		// An edit saved between the reading and the rename would be lost.
 		unchanged := func() bool {
+			if beforeReplace != nil {
+				beforeReplace()
+			}
 			now, err := os.ReadFile(path)
 			if !existed {
 				return errors.Is(err, fs.ErrNotExist)
 			}
 			return err == nil && bytes.Equal(now, old)
 		}
-		if err := writeFile(path, data, unchanged); err != nil {
+		if err := statefile.WriteFileIf(path, data, unchanged); err != nil {
 			return s, nil, err
 		}
 	}
@@ -493,49 +476,6 @@ func fieldsOf(s Settings) map[string]json.RawMessage {
 	return m
 }
 
-// WriteFile replaces path with data through a temporary file beside it.
-// The data reaches the disk before the rename: without that, a power cut
-// soon after can leave the file empty on file systems that order neither,
-// and an empty file is one the app cannot read.
-func WriteFile(path string, data []byte) error { return writeFile(path, data, nil) }
-
-// beforeReplace, when set, runs as a write is about to replace its file:
+// beforeReplace, when set, runs as a save is about to replace its file:
 // a test edits the file there.
 var beforeReplace func()
-
-// writeFile is WriteFile, which, with unchanged, replaces the file only
-// while unchanged says it is as it was, asked before each try of the
-// rename, and fails with errChanged when it is not.
-func writeFile(path string, data []byte, unchanged func() bool) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
-	if err != nil {
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmp.Name())
-		return err
-	}
-	if beforeReplace != nil {
-		beforeReplace()
-	}
-	if err := rename(tmp.Name(), path, unchanged); err != nil {
-		os.Remove(tmp.Name())
-		return err
-	}
-	syncDir(dir)
-	return nil
-}

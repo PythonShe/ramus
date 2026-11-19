@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"ramus/internal/statefile"
 )
 
 // model is the app as it uses a Keeper: its settings, changed on its
@@ -33,7 +35,7 @@ func newModel(t *testing.T, p string) *model {
 func load(t *testing.T, p string) Settings {
 	t.Helper()
 	s, err := Load(p)
-	if le, ok := err.(*LoadError); err != nil && (!ok || !le.Partial) {
+	if le, ok := err.(*statefile.LoadError); err != nil && (!ok || !le.Partial) {
 		t.Fatal(err)
 	}
 	return s

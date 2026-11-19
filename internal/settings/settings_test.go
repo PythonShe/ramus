@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"ramus/internal/statefile"
 )
 
 func TestLoadSave(t *testing.T) {
@@ -273,7 +275,7 @@ func TestUnreadableFileKeptAside(t *testing.T) {
 	text := `{"theme": "dark", "actions": [{"name": "Lint", "command": ["/usr/bin/make", "lint"]}], "emails": ["me@x"],}`
 	os.WriteFile(p, []byte(text), 0o600)
 	s, err := Load(p)
-	var le *LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) || le.Partial || le.KeptAs != p+".broken" || le.Path != p || !reflect.DeepEqual(s, Defaults) {
 		t.Fatalf("load: %+v %v", s, err)
 	}
@@ -303,7 +305,7 @@ func TestFileNotOpenedKeptAside(t *testing.T) {
 	os.WriteFile(p, []byte(`{"theme": "dark"}`), 0o600)
 	os.Chmod(p, 0)
 	_, err := Load(p)
-	var le *LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) || le.KeptAs != p+".broken" {
 		t.Fatalf("load: %v", err)
 	}
@@ -319,7 +321,7 @@ func TestWrongTypedFieldCostsOnlyItself(t *testing.T) {
 	os.WriteFile(p, []byte(`{"theme": "dark", "actions": [{"name": "Lint", "command": ["/usr/bin/make", "lint"]}],
 		"emails": ["me@x"], "editor": "/usr/bin/vim", "snapshotDays": "long"}`), 0o600)
 	s, err := Load(p)
-	var le *LoadError
+	var le *statefile.LoadError
 	if !errors.As(err, &le) || !le.Partial || le.KeptAs != "" || !strings.Contains(err.Error(), `"editor"`) || !strings.Contains(err.Error(), `"snapshotDays"`) {
 		t.Fatalf("load error %v", err)
 	}

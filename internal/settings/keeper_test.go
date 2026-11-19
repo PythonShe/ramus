@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"ramus/internal/statefile"
 )
 
 // TestKeeperKeepsTheLatest has saves asked for back to back, from two
@@ -122,7 +124,7 @@ func TestCheckReadsHandEdits(t *testing.T) {
 	k.Check(onError)
 	k.Check(onError)
 	k.Wait()
-	var le *LoadError
+	var le *statefile.LoadError
 	if len(errs) != 1 || !errors.As(errs[0], &le) || le.Path != p || len(got) != 0 {
 		t.Fatalf("errors %v", errs)
 	}
