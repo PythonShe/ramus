@@ -48,8 +48,18 @@ func (t Tool) Command(target string, line int) (*exec.Cmd, error) {
 	if t.Kind == Terminal {
 		cmd.Dir = target
 	}
+	if err := Guard(cmd); err != nil {
+		return nil, err
+	}
 	return cmd, nil
 }
+
+// Guard readies cmd, a program the user chose with arguments that may
+// come from a repository (a file's or a branch's name), to start as
+// asked: on Windows a batch file (.bat, .cmd) is run through cmd.exe
+// with each argument quoted for it, and refused an argument that cannot
+// be. Elsewhere it does nothing.
+func Guard(cmd *exec.Cmd) error { return guard(cmd) }
 
 // Program is what the tool runs: the app bundle of one opened through
 // open(1), else its program.

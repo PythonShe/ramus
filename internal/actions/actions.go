@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"ramus/internal/tools"
 )
 
 // Vars are what an action runs on; empty fields are not available where
@@ -99,6 +101,11 @@ func Run(ctx context.Context, argv []string, dir string, line func(string)) erro
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = dir
 	cmd.WaitDelay = 2 * time.Second
+	// ${file} and ${branch} come from the repository: a batch file on
+	// Windows must not read them as commands.
+	if err := tools.Guard(cmd); err != nil {
+		return err
+	}
 	pr, pw := io.Pipe()
 	cmd.Stdout, cmd.Stderr = pw, pw
 	if err := cmd.Start(); err != nil {

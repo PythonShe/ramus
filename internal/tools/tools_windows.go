@@ -1,8 +1,11 @@
 package tools
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"syscall"
 )
 
 func macApp(name string, kind Kind, bundle string) Tool {
@@ -33,7 +36,7 @@ func Detect() []Tool {
 	add("Sublime Text", Editor, nil, j(pf, "Sublime Text", "sublime_text.exe"))
 	add("Notepad++", Editor, nil, j(pf, "Notepad++", "notepad++.exe"), j(pf86, "Notepad++", "notepad++.exe"))
 	add("Notepad", Editor, nil, j(sys, "System32", "notepad.exe"))
-	add("Windows Terminal", Terminal, func(a []string, t string, _ int) []string { return append(a, "-d", t) },
+	add("Windows Terminal", Terminal, func(a []string, t string, _ int) []string { return append(a, "-d", wtFolder(t)) },
 		j(local, "Microsoft", "WindowsApps", "wt.exe"))
 	add("PowerShell", Terminal, func(a []string, _ string, _ int) []string { return a },
 		j(pf, "PowerShell", "7", "pwsh.exe"), j(sys, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"))
@@ -44,10 +47,21 @@ func Detect() []Tool {
 
 // Reveal shows path selected in Explorer.
 func Reveal(path string) error {
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("tools: %q is not an absolute path", path)
+	}
 	ex := filepath.Join(os.Getenv("SystemRoot"), "explorer.exe")
-	return Tool{Name: "Explorer", Argv: []string{ex}, how: func(a []string, t string, _ int) []string {
-		return append(a, "/select,"+t)
-	}}.Open(path, 0)
+	line, err := revealLine(ex, path)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(ex)
+	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: line}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go cmd.Wait()
+	return nil
 }
 
 // OpenDefault opens path in the app Windows has for it.
