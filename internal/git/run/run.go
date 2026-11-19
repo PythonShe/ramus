@@ -518,6 +518,9 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 			// a hook's background job. What git printed has come.
 			err = nil
 		}
+		if stopsHard && err != nil && ctx.Err() != nil && !c.Read && c.GitDir != "" {
+			removeLocks(c.GitDir, t0)
+		}
 	}
 	waited()
 	r.running.Add(-1)

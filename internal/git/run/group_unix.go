@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// stopsHard is false: git removes its lock files on SIGTERM.
+const stopsHard = false
+
 // lower runs the process started at the priority nice 10 gives, which
 // what it starts later inherits.
 func lower(cmd *exec.Cmd) {

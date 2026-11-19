@@ -13,6 +13,10 @@ import (
 	"ramus/internal/git/gitexe"
 )
 
+// stopsHard: cancelling ends git with TerminateJobObject, which leaves it
+// no chance to remove its lock files, as it does on SIGTERM elsewhere.
+const stopsHard = true
+
 // lower leaves the priority as it is: Windows has no nice.
 func lower(cmd *exec.Cmd) {}
 
