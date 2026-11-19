@@ -33,7 +33,9 @@ func TestStatsReadersBounded(t *testing.T) {
 	}
 	bin := t.TempDir()
 	log := filepath.Join(bin, "log")
-	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = cat-file ] && echo x >> " + log + "; done\nexec " + real + " \"$@\"\n"
+	// A reader given no commit is ended as soon as it starts: the script
+	// ignores that until it has logged, then git ends as its input closes.
+	script := "#!/bin/sh\ntrap '' TERM\nfor a in \"$@\"; do [ \"$a\" = cat-file ] && echo x >> " + log + "; done\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
