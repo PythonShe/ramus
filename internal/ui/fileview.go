@@ -51,8 +51,9 @@ type fileState struct {
 	cancel     func()
 
 	// stamp is the blame's key as of stampFor, once read off the main
-	// thread: the file, HEAD and the file's stat (blameStamp).
-	stamp, stampFor string
+	// thread: the file, HEAD and the file's stat (blameStamp). blameFor
+	// is the stampFor a blame keyed by the path alone started under.
+	stamp, stampFor, blameFor string
 	// logN numbers the reads of the history: the file chosen again
 	// after another asks again, and only the last read lands.
 	logN int
@@ -380,7 +381,7 @@ func (a *App) loadBlame(t *tab) {
 	if !ok || key == fs.blameKey {
 		return
 	}
-	fs.blameKey = key
+	fs.blameKey, fs.blameFor = key, fs.stampFor
 	fs.bpicked.Clear()
 	if fs.cancel != nil {
 		fs.cancel()
@@ -453,8 +454,10 @@ func (a *App) blameStamp(t *tab) (string, bool) {
 						return
 					}
 					fs.stamp = path + "\x00" + head + "\x00" + st
-					if fs.blameKey == path+"\x00" {
-						// Blamed as it was chosen, about as the stat was read.
+					if fs.blameKey == path+"\x00" && fs.blameFor == asked {
+						// Blamed as it was chosen, about as the stat was
+						// read; one started before HEAD moved or a write
+						// ended is blamed again.
 						fs.blameKey = fs.stamp
 					}
 				})

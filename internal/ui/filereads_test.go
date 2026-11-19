@@ -58,3 +58,36 @@ func TestFileHistoryLastReadWins(t *testing.T) {
 		t.Fatalf("the first read of one.txt, ended last, is shown: %q", h.tt.Texts())
 	}
 }
+
+// A file blamed as it is chosen, before its stat is read, is blamed
+// again when HEAD moved before that stat came: the blame of the HEAD it
+// started under is not taken for the new one's.
+func TestBlameStartedBeforeHeadMovedIsRedone(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith("a.txt")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", func() bool { tb := h.app.current(); return tb.s.Repo != nil && len(tb.s.State.Head.OID) > 0 })
+	tb := h.app.current()
+	blames := func() int {
+		n := 0
+		for _, rec := range tb.s.Repo.Runner.Journal().For(tb.s.Repo.GitDir) {
+			if strings.Contains(rec.Line, " blame ") {
+				n++
+			}
+		}
+		return n
+	}
+	tb.file.path, tb.file.blame, tb.sel = "a.txt", 1, "file"
+	h.tt.Frame()
+	fs := &tb.file
+	if fs.blameKey != "a.txt\x00" {
+		t.Fatalf("blamed under key %q, not at once", fs.blameKey)
+	}
+	// A write ends before the stat asked lands, as HEAD moving would: a
+	// stat is asked again, and the blame begun before is not known to
+	// be of what is there now.
+	tb.s.Writes++
+	h.tt.Frame()
+	h.until("the blame done again", func() bool { return fs.stamp != "" && fs.blameKey == fs.stamp && fs.blameDone && blames() >= 2 })
+}
