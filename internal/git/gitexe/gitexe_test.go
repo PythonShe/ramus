@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func TestParseVersion(t *testing.T) {
@@ -96,6 +97,31 @@ func TestFindSkipsRelativeAndMissing(t *testing.T) {
 	g, err = Find(context.Background(), dir)
 	if err != nil || g.Path != fake || g.Version.String() != "9.9.9" {
 		t.Fatalf("absolute PATH entry: %v %v", g, err)
+	}
+}
+
+// A git that is a wrapper script whose child hangs is given up on within
+// the time limit, and its child does not run on.
+func TestProbeWrapperHangs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a shell script")
+	}
+	dir := t.TempDir()
+	mark := filepath.Join(dir, "ran")
+	fake := filepath.Join(dir, "git")
+	os.WriteFile(fake, []byte("#!/bin/sh\nsleep 2\ntouch '"+mark+"'\necho git version 2.50.0\n"), 0o755)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if _, err := Probe(ctx, fake); err == nil {
+		t.Fatal("answered")
+	}
+	if d := time.Since(start); d > 1500*time.Millisecond {
+		t.Fatalf("returned after %v", d)
+	}
+	time.Sleep(time.Until(start.Add(3 * time.Second)))
+	if _, err := os.Stat(mark); err == nil {
+		t.Fatal("the wrapper's child ran on")
 	}
 }
 

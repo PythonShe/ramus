@@ -56,7 +56,10 @@ func Probe(ctx context.Context, p string) (Version, error) {
 	cmd := exec.CommandContext(ctx, p, "version")
 	cmd.Dir = os.TempDir()
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "LC_ALL=C")
+	stopTree(cmd)
 	Hide(cmd)
+	// What a wrapper script started may hold the output past the limit.
+	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
 	if err != nil {
 		return Version{}, err
