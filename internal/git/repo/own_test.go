@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -57,9 +58,22 @@ func TestTrustIsTheFoldersOwn(t *testing.T) {
 	if !r.Restricted {
 		t.Fatal("a folder naming a trusted repository in its .git file opened trusted")
 	}
-	r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Args: []string{"commit", "-q", "--allow-empty", "-m", "x"}})
+	commit := &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Args: []string{"commit", "-q", "--allow-empty", "-m", "x"}}
+	if _, err := r.Runner.Run(ctx, commit); !errors.Is(err, run.ErrRestricted) {
+		t.Fatalf("a commit in the folder was not refused: %v", err)
+	}
+	// Were it let through, the hardening keeps the hook from running.
+	through := *commit
+	through.Read = true
+	r.Runner.Run(ctx, &through)
 	if _, err := os.Stat(marker); err == nil {
 		t.Fatal("the folder's hook ran")
+	}
+	// The fixture is hostile: with the trusted repository's runner, the
+	// folder's hook runs.
+	runner.Run(ctx, commit)
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("the fixture's hook did not run when trusted: %v", err)
 	}
 
 	// A git directory of the folder's own whose commondir names it.
