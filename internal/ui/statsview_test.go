@@ -139,3 +139,41 @@ func TestTreemapDropsAnEarlierRead(t *testing.T) {
 		t.Fatalf("other's treemap holds %q", strings.ReplaceAll(paths, "\x00", " "))
 	}
 }
+
+// The branch chosen in the statistics' menu is the one it was shown for,
+// when a branch whose name reads alike, once cleaned for showing, comes
+// in before it while the menu is open.
+func TestStatsBranchMenuFollowsItsBranch(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "a‮b")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No local changes"))
+	h.click("Statistics")
+	tab := h.app.current()
+	h.until("the counts", func() bool { return tab.stats.res.Done })
+	h.click("All Branches and Tags")
+	h.tt.Frame()
+	r.Git("branch", "ab")
+	// Read with no frame drawn: the menu shown is still the one opened.
+	deadline := time.After(20 * time.Second)
+	for {
+		if _, ok := tab.s.State.Refs.Find("refs/heads/ab"); ok {
+			break
+		}
+		select {
+		case fn := <-h.updates:
+			fn()
+		case <-deadline:
+			t.Fatal("the branch made was never read")
+		}
+	}
+	if err := h.tt.ChooseMenuItem("ab"); err != nil {
+		t.Fatalf("menu %q: %v", h.tt.Menu(), err)
+	}
+	h.tt.Frame()
+	if got := tab.stats.branch; got != "refs/heads/a‮b" {
+		t.Fatalf("chose %q", got)
+	}
+}

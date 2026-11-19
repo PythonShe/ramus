@@ -210,7 +210,9 @@ func (a *App) statsBranchMenu(c *ui.Context, t *tab) {
 		label = redact.Control(strings.TrimPrefix(ss.branch, "refs/heads/"))
 	}
 	ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
-		if m.Item(locales.StatsAllBranches()).Chosen() {
+		// Items by the ref's full name: two names cleaned for showing may
+		// read alike, and branches come and go while the menu is open.
+		if m.Item(locales.StatsAllBranches()).ID("all").Chosen() {
 			ss.branch = ""
 			a.countStats(t)
 		}
@@ -227,7 +229,7 @@ func (a *App) statsBranchMenu(c *ui.Context, t *tab) {
 			if n++; n > sideLimit {
 				break
 			}
-			if m.Item(redact.Control(strings.TrimPrefix(name, "refs/heads/"))).Chosen() {
+			if m.Item(redact.Control(strings.TrimPrefix(name, "refs/heads/"))).ID(name).Chosen() {
 				ss.branch = name
 				a.countStats(t)
 			}
