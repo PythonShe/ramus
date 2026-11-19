@@ -1,8 +1,8 @@
-//go:build !unix
+//go:build !unix && !windows
 
 package forge
 
 import "os/exec"
 
-// ownGroup leaves the process to exec's default kill.
-func ownGroup(cmd *exec.Cmd) {}
+// runTool runs cmd, left to exec's default kill.
+func runTool(cmd *exec.Cmd) error { return cmd.Run() }

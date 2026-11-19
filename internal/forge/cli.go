@@ -193,12 +193,11 @@ func (c *CLI) runWith(ctx context.Context, dir string, host string, stdin []byte
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
 	cmd.WaitDelay = 2 * time.Second
-	ownGroup(cmd)
 	out := &capped{max: limit}
 	var stderr capped
 	stderr.max = 64 << 10
 	cmd.Stdout, cmd.Stderr = out, &stderr
-	err := cmd.Run()
+	err := runTool(cmd)
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
 		return nil, fmt.Errorf("%w: %s, within %v", ErrTimeout, c.Kind.Program(), wait)

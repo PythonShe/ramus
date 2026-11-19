@@ -147,8 +147,7 @@ func (c *CLI) Stack(ctx context.Context, dir string, stdout, stderr io.Writer, a
 	}
 	cmd.Env = append(env, "GIT_TERMINAL_PROMPT=0")
 	cmd.WaitDelay = 2 * time.Second
-	ownGroup(cmd)
-	err := cmd.Run()
+	err := runTool(cmd)
 	if ctx.Err() == context.DeadlineExceeded {
 		return fmt.Errorf("forge: gh stack did not finish within %v", StackTimeout)
 	}

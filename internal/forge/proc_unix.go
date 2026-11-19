@@ -7,6 +7,12 @@ import (
 	"syscall"
 )
 
+// runTool runs cmd in a session of its own (ownGroup).
+func runTool(cmd *exec.Cmd) error {
+	ownGroup(cmd)
+	return cmd.Run()
+}
+
 // ownGroup runs the tool in a session of its own, with no terminal to
 // ask on, and stops all of it when cancelled.
 func ownGroup(cmd *exec.Cmd) {
