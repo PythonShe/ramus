@@ -168,7 +168,7 @@ func (k chord) typesOn(goos string) bool {
 	case k.mods&ui.Alt == 0 || !k.typesChar():
 		return false
 	case goos == "darwin":
-		return k.mods&(ui.Ctrl|ui.Super) == 0 // Option types characters, as Option-S an "ß"
+		return k.mods&(ui.Ctrl|ui.Super) == 0 // Option types characters, as Option-S the German sharp s
 	case goos == "windows":
 		return k.mods&ui.Ctrl != 0 && k.mods&ui.Super == 0 // AltGr, which types characters, comes as Control and Alt
 	}
