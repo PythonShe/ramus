@@ -132,6 +132,45 @@ func TestKeepsALaterLayout(t *testing.T) {
 	}
 }
 
+// A later version's file with two windows that share a tab, and a window
+// this version cannot show: each window's keys go with the window that
+// shows the most of its tabs, whatever the order, and the window not
+// shown stays as it was, at its place.
+func TestLaterLayoutWindowsSharingATab(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "layout.json")
+	os.WriteFile(p, []byte(`{"version": 3, "windows": [
+  {"frame": "W1", "tabs": [{"path": "/a", "x": "A1"}, {"path": "/b", "x": "B1"}]},
+  {"kind": "settings", "frame": "WS"},
+  {"frame": "W2", "tabs": [{"path": "/b", "x": "B2"}, {"path": "/c", "x": "C2"}]}
+]}`), 0o600)
+	ws, err := Load(p)
+	if err != nil || len(ws) != 2 {
+		t.Fatalf("read %+v %v", ws, err)
+	}
+	// W2's tabs first now, W1 left with /a.
+	if err := Save(p, []Window{{Tabs: []Tab{{Path: "/b"}, {Path: "/c"}}}, {Tabs: []Tab{{Path: "/a"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(p)
+	var f struct {
+		Windows []struct {
+			Kind, Frame string
+			Tabs        []struct{ Path, X string }
+		}
+	}
+	if err := json.Unmarshal(data, &f); err != nil {
+		t.Fatal(err)
+	}
+	w := f.Windows
+	if len(w) != 3 || w[0].Frame != "W2" || w[1].Kind != "settings" || w[1].Frame != "WS" || w[2].Frame != "W1" ||
+		w[0].Tabs[0].X != "B2" || w[0].Tabs[1].X != "C2" || w[2].Tabs[0].X != "A1" {
+		t.Fatalf("written as %s", data)
+	}
+	if ws, err := Load(p); err != nil || len(ws) != 2 {
+		t.Fatalf("read back %+v %v", ws, err)
+	}
+}
+
 // A layout file that does not read is moved aside, and the next save
 // writes a new one beside it rather than over it; one that cannot be
 // moved is not written over.

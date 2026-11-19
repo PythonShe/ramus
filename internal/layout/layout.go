@@ -5,12 +5,14 @@ package layout
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"io"
 	"maps"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
@@ -83,7 +85,11 @@ func read(path string) ([]byte, error) {
 // A file of a later version is read for what this version knows of it,
 // and written back with the rest as it was, at every level: the keys of
 // the file, of each window and of each tab this version does not know
-// stay, and so does the file's version, never lowered.
+// stay, and so does the file's version, never lowered. A window keeps its
+// keys by the tabs it shows (matching), and one this version cannot show,
+// with no tab of a repository, stays as it was. A tab with no path, which
+// this version cannot show either, goes with the next save of its window:
+// the place of the window's active tab counts only the tabs it shows.
 const formatVersion = 1
 
 // file is the layout as written.
@@ -157,7 +163,11 @@ func Save(path string, ws []Window) error {
 		return err
 	}
 	if old != nil {
-		windows = statefile.KeepUnknown(matching(old, ws), windows, reflect.TypeFor[[]Window]())
+		was, carried := matching(old, ws, version > formatVersion)
+		windows = statefile.KeepUnknown(was, windows, reflect.TypeFor[[]Window]())
+		if windows, err = carry(windows, carried); err != nil {
+			return err
+		}
 	}
 	data, err := statefile.WithExtra(struct {
 		Version int             `json:"version"`
@@ -173,11 +183,15 @@ func Save(path string, ws []Window) error {
 }
 
 // matching is the windows of old, a layout file's content, as JSON, laid
-// out as ws: for each window of ws the old one that had one of its tabs
-// open, and in it each tab of ws as the old file had it, by its path; {}
-// for one that is new. A window or a tab is matched by what it shows, not
-// by its place, which closing one changes.
-func matching(old []byte, ws []Window) json.RawMessage {
+// out as ws: for each window of ws the old one that had the most of its
+// tabs open, and in it each tab of ws as the old file had it, by its
+// path; {} for one that is new. A window or a tab is matched by what it
+// shows, not by its place, which closing one changes. An old window that
+// matches none was closed, and goes; but with later, the file of a later
+// version, one with no tab this version opens (a kind of window it does
+// not know) was never shown here to be closed: it is carried as it was,
+// at its place among the old windows.
+func matching(old []byte, ws []Window, later bool) (json.RawMessage, []carried) {
 	var wins []json.RawMessage
 	if json.Unmarshal(old, &wins) != nil {
 		var f struct{ Windows []json.RawMessage }
@@ -189,8 +203,9 @@ func matching(old []byte, ws []Window) json.RawMessage {
 		tabs map[string]json.RawMessage
 	}
 	var olds []oldWindow
+	var keep []carried
 	anyTab := map[string]json.RawMessage{}
-	for _, w := range wins {
+	for at, w := range wins {
 		var raw map[string]json.RawMessage
 		if json.Unmarshal(w, &raw) != nil || raw == nil {
 			continue
@@ -207,27 +222,52 @@ func matching(old []byte, ws []Window) json.RawMessage {
 				}
 			}
 		}
+		if len(tabs) == 0 {
+			if later {
+				keep = append(keep, carried{at, w})
+			}
+			continue
+		}
 		olds = append(olds, oldWindow{raw, tabs})
 	}
-	used := make([]bool, len(olds))
-	out := make([]json.RawMessage, len(ws))
+	// The pairs sharing the most tabs first, then the nearest in place.
+	type pair struct{ i, j, shared int }
+	var pairs []pair
 	for i, w := range ws {
-		j := -1
-		for _, t := range w.Tabs {
-			for k, o := range olds {
-				if _, ok := o.tabs[t.Path]; ok && !used[k] {
-					j = k
-					break
+		for j, o := range olds {
+			n := 0
+			for _, t := range w.Tabs {
+				if _, ok := o.tabs[t.Path]; ok {
+					n++
 				}
 			}
-			if j >= 0 {
-				break
+			if n > 0 {
+				pairs = append(pairs, pair{i, j, n})
 			}
 		}
+	}
+	slices.SortStableFunc(pairs, func(a, b pair) int {
+		if c := cmp.Compare(b.shared, a.shared); c != 0 {
+			return c
+		}
+		return cmp.Compare(abs(a.i-a.j), abs(b.i-b.j))
+	})
+	match := make([]int, len(ws))
+	for i := range match {
+		match[i] = -1
+	}
+	used := make([]bool, len(olds))
+	for _, p := range pairs {
+		if match[p.i] < 0 && !used[p.j] {
+			match[p.i], used[p.j] = p.j, true
+		}
+	}
+	out := make([]json.RawMessage, len(ws))
+	for i, w := range ws {
+		j := match[i]
 		win := map[string]json.RawMessage{}
 		tabs := map[string]json.RawMessage{}
 		if j >= 0 {
-			used[j] = true
 			maps.Copy(win, olds[j].raw)
 			tabs = olds[j].tabs
 		}
@@ -249,8 +289,33 @@ func matching(old []byte, ws []Window) json.RawMessage {
 		out[i], _ = json.Marshal(win)
 	}
 	data, _ := json.Marshal(out)
-	return data
+	return data, keep
 }
+
+// carried is a window of a later version's file this version does not
+// show, kept as it was at its place, at, among the file's windows.
+type carried struct {
+	at  int
+	raw json.RawMessage
+}
+
+// carry is windows, a JSON list, with the windows of keep put back at
+// their places, or after the others when fewer are left.
+func carry(windows json.RawMessage, keep []carried) (json.RawMessage, error) {
+	if len(keep) == 0 {
+		return windows, nil
+	}
+	var list []json.RawMessage
+	if err := json.Unmarshal(windows, &list); err != nil {
+		return nil, err
+	}
+	for _, c := range keep {
+		list = slices.Insert(list, min(c.at, len(list)), c.raw)
+	}
+	return json.Marshal(list)
+}
+
+func abs(n int) int { return max(n, -n) }
 
 // Keeper writes the layout to its file off the caller's thread: only the
 // latest asked for, one write at a time.
