@@ -198,12 +198,31 @@ func RemoveLock(ctx context.Context, gitDir, path string) error {
 	if err != nil {
 		return err
 	}
+	// Where the file's identity is read on demand (Windows), read now, as
+	// the path may name another file by the time it is compared.
+	os.SameFile(fi, fi)
 	age := time.Since(fi.ModTime())
 	if hs, err := holders(ctx, path); len(hs) > 0 || err != nil || age < LeftAfter {
 		return &LockedError{Path: path, Age: age, Holders: hs, Unknown: err}
 	}
+	if f := lockLooked.Load(); f != nil {
+		(*f)()
+	}
+	// The lock looked at may have gone while its holders were asked, and
+	// a git started since may have taken a new one: that one is live.
+	again, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(fi, again) || !again.ModTime().Equal(fi.ModTime()) || again.Size() != fi.Size() {
+		return &LockedError{Path: path, Age: time.Since(again.ModTime())}
+	}
 	return os.Remove(path)
 }
+
+// lockLooked is called once RemoveLock has asked who holds the lock, for
+// a test to stand in for a git taking a new one then.
+var lockLooked atomic.Pointer[func()]
 
 // LeftAfter is how old a lock no process has open must be to be taken
 // for one a git that ended left behind: git closes the lock it writes

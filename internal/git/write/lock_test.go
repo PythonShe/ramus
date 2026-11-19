@@ -133,6 +133,33 @@ func TestLockErrorFromGit(t *testing.T) {
 	}
 }
 
+// A lock that a new git takes while RemoveLock asks who held the old one
+// is live, and stays.
+func TestRemoveLockLeavesALockTakenSince(t *testing.T) {
+	dir := t.TempDir()
+	lock := filepath.Join(dir, "index.lock")
+	old := time.Now().Add(-LeftAfter - time.Minute)
+	if err := os.WriteFile(lock, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(lock, old, old); err != nil {
+		t.Fatal(err)
+	}
+	retake := func() {
+		os.Remove(lock)
+		os.WriteFile(lock, []byte("new"), 0o644)
+	}
+	lockLooked.Store(&retake)
+	t.Cleanup(func() { lockLooked.Store(nil) })
+	var le *LockedError
+	if err := RemoveLock(context.Background(), dir, lock); !errors.As(err, &le) || le.Left() {
+		t.Fatalf("remove of a lock taken again meanwhile: %v", err)
+	}
+	if b, err := os.ReadFile(lock); err != nil || string(b) != "new" {
+		t.Fatalf("the new lock is gone: %q %v", b, err)
+	}
+}
+
 func lsofMissing() bool {
 	for _, p := range []string{"/usr/sbin/lsof", "/usr/bin/lsof", "/bin/lsof"} {
 		if _, err := os.Stat(p); err == nil {
