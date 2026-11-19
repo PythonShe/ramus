@@ -1,8 +1,7 @@
-//go:build !windows && !linux
+//go:build !windows && !linux && !darwin
 
 package trust
 
-// birth is "" here: macOS's file systems (APFS, HFS+) number files in
-// increasing order and do not give a freed number again, so the inode
-// alone tells folders apart.
+// birth is "" on the systems the app is not built for: the device and
+// inode alone tell folders apart there.
 func birth(string) string { return "" }

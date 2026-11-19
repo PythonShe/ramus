@@ -13,6 +13,13 @@ import (
 // name later: its device and inode, and its birth time where the system
 // tells it (birth).
 //
+// The inode alone is not enough: ext4 and XFS give a freed number to the
+// next file made, so a folder removed and made again at a path can have
+// the number of the one there before; it was not made at the same
+// moment. Where the file system keeps no birth time (on Linux, older
+// kernels and some file systems such as NFS), a folder made again with
+// the inode of the one removed takes its trust: that is the limit.
+//
 // The device number is the volume as the system mounted it this time:
 // an external drive or a network share mounted again can have another,
 // and its repositories then ask to be trusted again. That is the safe
