@@ -117,6 +117,9 @@ func (l *loader) at(size int) ([]Segment, error) {
 	if err != nil {
 		return nil, err
 	}
+	if s.holdsNested(size) {
+		return nil, ErrAmbiguous
+	}
 	if !s.holdsMarkers(size) {
 		// Every marker in the file is git's, so each is one of a
 		// conflict read: one left as text, as markers after an open

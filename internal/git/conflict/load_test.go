@@ -216,3 +216,40 @@ func TestMarkerSizeAsGitReadsIt(t *testing.T) {
 		})
 	}
 }
+
+// Two renames onto one path, each with a conflict of its own, leave a
+// file whose sides in the index hold git's nested conflicts, in markers
+// one longer: any choice would keep them as text, so the file is
+// refused, in every style, with an example in it or not.
+func TestLoadRefusesNestedConflicts(t *testing.T) {
+	for _, pre := range []string{"", example} {
+		for _, style := range []string{"merge", "diff3", "zdiff3"} {
+			r := gittest.Init(t)
+			r.Write("a.txt", pre+"a1\na2\na3\na4\na5\na6\n")
+			r.Write("b.txt", pre+"b1\nb2\nb3\nb4\nb5\nb6\n")
+			r.Commit("base")
+			r.Git("checkout", "-q", "-b", "topic")
+			r.Write("a.txt", pre+"a1\na2 topic\na3\na4\na5\na6\n")
+			r.Git("mv", "b.txt", "f.md")
+			r.Write("f.md", pre+"b1\nb2\nb3\nb4\nb5 topic\nb6\n")
+			r.Commit("theirs")
+			r.Git("checkout", "-q", "main")
+			r.Git("mv", "a.txt", "f.md")
+			r.Write("f.md", pre+"a1\na2 main\na3\na4\na5\na6\n")
+			r.Write("b.txt", pre+"b1\nb2\nb3\nb4\nb5 main\nb6\n")
+			r.Commit("ours")
+			r.Run(nil, "-c", "merge.conflictStyle="+style, "merge", "topic")
+			data, err := os.ReadFile(filepath.Join(r.Dir, "f.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(data), "\n<<<<<<<< ") {
+				t.Fatalf("%s: git nested no conflict: %q", style, data)
+			}
+			segs, err := Load(context.Background(), testrun.Runner(t), r.GitDir(), r.Dir, "f.md", data)
+			if !errors.Is(err, ErrAmbiguous) {
+				t.Fatalf("%s, example %v: %d conflicts, %v", style, pre != "", Count(segs), err)
+			}
+		}
+	}
+}

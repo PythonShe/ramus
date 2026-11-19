@@ -22,6 +22,24 @@ func (s mergedSides) holdsMarkers(size int) bool {
 	return s.holds(size, func(k marker) bool { return k != none })
 }
 
+// holdsNested reports whether a side holds a whole conflict of markers
+// longer than size, as git nests one in a side of a rename that collides
+// with another path: every choice of the file's conflicts would keep its
+// markers as text.
+func (s mergedSides) holdsNested(size int) bool {
+	for _, side := range [][]byte{s.Base, s.Ours, s.Theirs} {
+		for _, n := range pairedSizes(side) {
+			if n <= size {
+				continue
+			}
+			if segs, err := parseSize(side, n); err == nil && Count(segs) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // holds reports whether a side holds a line like a conflict marker of size
 // whose kind is is.
 func (s mergedSides) holds(size int, is func(marker) bool) bool {
