@@ -125,6 +125,13 @@ func gitlabReviewQuery(r Repo, n int) string {
 func (c *CLI) gitlabPullReview(ctx context.Context, r Repo, n int) (Review, error) {
 	out, err := c.runWith(ctx, "", r.Host, nil, reviewOutput, 0, "api", "graphql", "--hostname", r.Host, "-f", "query="+gitlabReviewQuery(r, n))
 	if err != nil {
+		// glab's api comes from gh's, which fails an answer with an error
+		// in it and prints it; whether glab fails it or not, the merge
+		// request in it is shown.
+		if rv, perr := parseGitLabReview(out); perr == nil && rv.Warning != "" {
+			jobPages(r, rv.CheckList)
+			return rv, nil
+		}
 		return Review{}, err
 	}
 	rv, err := parseGitLabReview(out)
@@ -293,10 +300,11 @@ func parseGitLabReview(out []byte) (Review, error) {
 	if err := json.Unmarshal(out, &ans); err != nil {
 		return Review{}, fmt.Errorf("glab: %w", err)
 	}
-	if err := ans.err("glab"); err != nil {
+	found := ans.Data.Project != nil && ans.Data.Project.MR != nil
+	if err := ans.err("glab"); err != nil && !found {
 		return Review{}, err
 	}
-	if ans.Data.Project == nil || ans.Data.Project.MR == nil {
+	if !found {
 		return Review{}, ErrNotFound
 	}
 	m := ans.Data.Project.MR
@@ -305,6 +313,11 @@ func parseGitLabReview(out []byte) (Review, error) {
 		return Review{}, ErrNotFound
 	}
 	rv := Review{Pull: p, Author: m.Author.login(), Body: m.Body, Base: m.Target, Decision: m.decision(), Created: m.Created}
+	// GraphQL answers a field it could not resolve with null and an
+	// error beside the rest: the rest is shown, and the error said.
+	if len(ans.Errors) > 0 {
+		rv.Warning = ans.Errors[0].Message
+	}
 	if ans.Data.Viewer != nil {
 		rv.Viewer = ans.Data.Viewer.Username
 	}

@@ -84,6 +84,39 @@ func TestParseGitLabReview(t *testing.T) {
 	}
 }
 
+// A field GitLab could not resolve leaves the rest of the merge request
+// to be read, whether glab fails the answer or not: the error is said
+// beside it.
+func TestGitLabReviewReadInPart(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tool is a shell script")
+	}
+	msg := "Internal server error"
+	answer := strings.TrimSuffix(glReviewAnswer, "}") + `,"errors":[{"message":"` + msg + `","path":["project","mergeRequest","headPipeline"]}]}`
+	for _, exit := range []string{"0", "1"} {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "answer.json"), []byte(answer), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		script := "#!/bin/sh\ncat '" + filepath.Join(dir, "answer.json") + "'\necho 'glab: " + msg + "' >&2\nexit " + exit + "\n"
+		if err := os.WriteFile(filepath.Join(dir, "glab"), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		c, err := Find([]string{"PATH=" + dir + ":/usr/bin:/bin"}, GitLab)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rv, err := c.PullReview(context.Background(), Repo{GitLab, "gitlab.com", "g/p"}, 12)
+		if err != nil || rv.Number != 12 || len(rv.Threads) != 2 || rv.Warning != msg {
+			t.Fatalf("exit %s: %+v, %v", exit, rv, err)
+		}
+	}
+	// With no merge request in it, the error stands.
+	if _, err := parseGitLabReview([]byte(`{"data":{"project":null},"errors":[{"message":"Could not resolve"}]}`)); err == nil || !strings.Contains(err.Error(), "Could not resolve") {
+		t.Fatalf("err %v", err)
+	}
+}
+
 // Notes on a whole file, as GitLab gives them (positionType file, and
 // image for a point of an image, with no line), are threads on their
 // file, as a GitHub comment on a file is; one of an older head is on a
