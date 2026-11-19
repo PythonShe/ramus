@@ -27,7 +27,7 @@ func (s *Session) LoadSubjects(oids [][]byte, done func([]string)) (cancel func(
 		if err != nil {
 			return
 		}
-		_ = cat.Read(oids, func(i int, o catfile.Object) error {
+		_ = cat.ReadContext(ctx, oids, func(i int, o catfile.Object) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}

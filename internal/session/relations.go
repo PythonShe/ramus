@@ -89,7 +89,7 @@ func readRelations(ctx context.Context, r *repo.Repository, list *refs.List, hea
 	if err != nil {
 		return CommitRelations{Err: err}
 	}
-	names, tips, err := relationTips(cat, list)
+	names, tips, err := relationTips(ctx, cat, list)
 	if err != nil {
 		return CommitRelations{Err: err}
 	}
@@ -150,7 +150,7 @@ func gitRelations(ctx context.Context, r *repo.Repository, cat *catfile.Process,
 			return refKind(n) < 0 || refKind(n) == 2 && strings.HasSuffix(n, "/HEAD")
 		})
 	}
-	commits, err := commitsOf(cat, g, all)
+	commits, err := commitsOf(ctx, cat, g, all)
 	if err != nil {
 		return CommitRelations{Err: err}
 	}
@@ -164,7 +164,7 @@ func gitRelations(ctx context.Context, r *repo.Repository, cat *catfile.Process,
 // relationTips are the branches, remote branches and tags of list, by full
 // name, symbolic ones left out, with the object each names in the end: an
 // annotated tag peeled, through tags of tags, maybe to a tree.
-func relationTips(cat *catfile.Process, list *refs.List) (names []string, tips [][]byte, err error) {
+func relationTips(ctx context.Context, cat *catfile.Process, list *refs.List) (names []string, tips [][]byte, err error) {
 	if list == nil {
 		return nil, nil, nil
 	}
@@ -192,7 +192,7 @@ func relationTips(cat *catfile.Process, list *refs.List) (names []string, tips [
 			ids[k] = tips[j]
 		}
 		var next []int
-		err := cat.Read(ids, func(k int, o catfile.Object) error {
+		err := cat.ReadContext(ctx, ids, func(k int, o catfile.Object) error {
 			if o.Type == "tag" {
 				if t := tagTarget(o.Data); t != nil {
 					tips[loose[k]] = t
@@ -211,7 +211,7 @@ func relationTips(cat *catfile.Process, list *refs.List) (names []string, tips [
 
 // commitsOf keeps the tips that are commits, without repeats: those in
 // g, which may be nil, and those cat-file says are.
-func commitsOf(cat *catfile.Process, g *commitgraph.Graph, tips [][]byte) ([][]byte, error) {
+func commitsOf(ctx context.Context, cat *catfile.Process, g *commitgraph.Graph, tips [][]byte) ([][]byte, error) {
 	var keep, check [][]byte
 	seen := map[string]bool{}
 	for _, t := range tips {
@@ -225,7 +225,7 @@ func commitsOf(cat *catfile.Process, g *commitgraph.Graph, tips [][]byte) ([][]b
 			check = append(check, t)
 		}
 	}
-	err := cat.Read(check, func(i int, o catfile.Object) error {
+	err := cat.ReadContext(ctx, check, func(i int, o catfile.Object) error {
 		if o.Type == "commit" {
 			keep = append(keep, check[i])
 		}

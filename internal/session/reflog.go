@@ -205,7 +205,7 @@ func lostCommits(ctx context.Context, r *repo.Repository) ([]LostCommit, error) 
 		return nil, err
 	}
 	var lost []LostCommit
-	err = cat.Read(ids, func(i int, o catfile.Object) error {
+	err = cat.ReadContext(ctx, ids, func(i int, o catfile.Object) error {
 		if o.Type != "commit" {
 			return nil
 		}

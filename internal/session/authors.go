@@ -165,7 +165,7 @@ func readAuthors(ctx context.Context, r *repo.Repository, mm *mailmap.Map, tip [
 			if err = ctx.Err(); err != nil {
 				break
 			}
-			err = cat.Read(ids[i:min(i+authorBatch, len(ids))], func(_ int, o catfile.Object) error {
+			err = cat.ReadContext(ctx, ids[i:min(i+authorBatch, len(ids))], func(_ int, o catfile.Object) error {
 				if o.Type == "commit" {
 					add(o)
 				}
@@ -230,7 +230,7 @@ func walkRecent(ctx context.Context, cat *catfile.Process, tip []byte, n int, ad
 		front = front[:min(len(front), n-read)]
 		read += len(front)
 		var next [][]byte
-		err := cat.Read(front, func(_ int, o catfile.Object) error {
+		err := cat.ReadContext(ctx, front, func(_ int, o catfile.Object) error {
 			if o.Type != "commit" {
 				return nil
 			}

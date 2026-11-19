@@ -96,7 +96,7 @@ func countStats(ctx context.Context, r *repo.Repository, req StatsRequest, list 
 	}
 	var tips [][]byte
 	if req.Branch == "" {
-		if tips, _, err = historyTips(cat, list, head, HistoryView{}); err != nil {
+		if tips, _, err = historyTips(ctx, cat, list, head, HistoryView{}); err != nil {
 			return StatsResult{}, err
 		}
 	} else {
@@ -170,7 +170,7 @@ func statsCommits(ctx context.Context, r *repo.Repository, cat *catfile.Process,
 		return stats.IDs{}, err
 	}
 	if g != nil {
-		ts, err := commitTips(cat, g, tips)
+		ts, err := commitTips(ctx, cat, g, tips)
 		if err != nil {
 			return stats.IDs{}, err
 		}

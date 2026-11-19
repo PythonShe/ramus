@@ -346,7 +346,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		fail(err)
 		return
 	}
-	tips, tc, err := historyTips(cat, key.refs, head, view)
+	tips, tc, err := historyTips(ctx, cat, key.refs, head, view)
 	if err != nil {
 		fail(err)
 		return
@@ -644,7 +644,7 @@ func (s *Session) findKept(ctx context.Context, h HistoryState) map[string]int {
 // historyTips are the commits history starts from: HEAD, and the
 // branches, remote branches and tags, annotated tags peeled. Ramus's own
 // refs (snapshots, backups) and the stash are left out.
-func historyTips(cat *catfile.Process, list *refs.List, head refs.Head, view HistoryView) ([][]byte, map[string][]byte, error) {
+func historyTips(ctx context.Context, cat *catfile.Process, list *refs.List, head refs.Head, view HistoryView) ([][]byte, map[string][]byte, error) {
 	var tips, tags [][]byte
 	// from is the tag ref's own object id each tag read stands for.
 	var from [][]byte
@@ -684,7 +684,7 @@ func historyTips(cat *catfile.Process, list *refs.List, head refs.Head, view His
 	// to find the commit, through tags of tags.
 	for depth := 0; len(tags) > 0 && depth < 8; depth++ {
 		var next, nextFrom [][]byte
-		err := cat.Read(tags, func(i int, o catfile.Object) error {
+		err := cat.ReadContext(ctx, tags, func(i int, o catfile.Object) error {
 			switch o.Type {
 			case "commit":
 				add(tags[i])
@@ -750,7 +750,7 @@ func readStashes(ctx context.Context, r *repo.Repository, list *refs.List) []Sta
 
 // commitTips keeps the tips that are commits: those in g, and those
 // cat-file says are.
-func commitTips(cat *catfile.Process, g *commitgraph.Graph, tips [][]byte) ([][]byte, error) {
+func commitTips(ctx context.Context, cat *catfile.Process, g *commitgraph.Graph, tips [][]byte) ([][]byte, error) {
 	var keep, check [][]byte
 	for _, t := range tips {
 		if g.Lookup(t) != commitgraph.None {
@@ -759,7 +759,7 @@ func commitTips(cat *catfile.Process, g *commitgraph.Graph, tips [][]byte) ([][]
 			check = append(check, t)
 		}
 	}
-	err := cat.Read(check, func(i int, o catfile.Object) error {
+	err := cat.ReadContext(ctx, check, func(i int, o catfile.Object) error {
 		if o.Type == "commit" {
 			keep = append(keep, check[i])
 		}
@@ -907,7 +907,7 @@ func (s *Session) readCommit(ctx context.Context, r *repo.Repository, d *CommitD
 		return err
 	}
 	var data []byte
-	err = cat.Read([][]byte{d.OID}, func(_ int, o catfile.Object) error {
+	err = cat.ReadContext(ctx, [][]byte{d.OID}, func(_ int, o catfile.Object) error {
 		if o.Type != "commit" {
 			return errors.New("session: not a commit")
 		}
