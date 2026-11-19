@@ -136,6 +136,8 @@ type prReview struct {
 	// where it is in the entry.
 	bodies readComments
 	folds  map[string]map[string]*bool
+	// notes are the comments under the lines of the Files tab.
+	notes noteTexts
 	// staleList lists the drafts on an older head in the submit dialog,
 	// unplacedList the threads the patch shown has no line for.
 	staleList, unplacedList ui.ListState
@@ -502,6 +504,7 @@ func (a *App) loadPRReview(t *tab, rv *prReview) {
 		// The folds stay as they are: read again, a comment opened is
 		// still being read. The comments read stay read.
 		rv.bodies.keep(&r)
+		rv.notes.keep(&r)
 		rv.threadsOn = map[string]int{}
 		for _, th := range r.Threads {
 			if !th.Outdated && th.Line > 0 {
@@ -1019,9 +1022,67 @@ func (rv *prReview) noteWidth(d *editor.DiffState) float32 {
 	return max(120, w-80-2*spaceM-2*spaceM)
 }
 
-func bodyHeight(c *ui.Context, body string, w float32) float32 {
-	_, h := c.MeasureText(w, ui.Span{Text: shownBody(body), Size: noteBodySize})
-	return max(h, noteHeaderH)
+// noteBudget bounds the comment texts the Files tab keeps ready, counted
+// as the text and what is shown of it.
+const noteBudget = 16 << 20
+
+// noteTexts are the comments the Files tab shows, by their text as the
+// host holds it, each made ready to show once and measured once per
+// width: every frame builds the notes of the file shown, and would
+// otherwise read and lay out the whole of each.
+type noteTexts struct {
+	m     map[string]*noteText
+	bytes int
+}
+
+// noteText is a comment as shown, and its height at width w in font.
+type noteText struct {
+	shown string
+	font  string
+	w, h  float32
+}
+
+// text is body ready to show.
+func (nt *noteTexts) text(body string) *noteText {
+	if n := nt.m[body]; n != nil {
+		return n
+	}
+	shown := shownBody(body)
+	if nt.m == nil || nt.bytes+len(body)+len(shown) > noteBudget {
+		nt.m, nt.bytes = map[string]*noteText{}, 0
+	}
+	n := &noteText{shown: shown, w: -1}
+	nt.m[body] = n
+	nt.bytes += len(body) + len(shown)
+	return n
+}
+
+// keep drops the comments r no longer has, and the drafts' text.
+func (nt *noteTexts) keep(r *forge.Review) {
+	if len(nt.m) == 0 {
+		return
+	}
+	has := map[string]bool{}
+	for _, th := range r.Threads {
+		for _, c := range th.Comments {
+			has[c.Body] = true
+		}
+	}
+	for body, n := range nt.m {
+		if !has[body] {
+			delete(nt.m, body)
+			nt.bytes -= len(body) + len(n.shown)
+		}
+	}
+}
+
+// height is the height of the comment's text at width w.
+func (n *noteText) height(c *ui.Context, w float32) float32 {
+	if font := c.Theme().Font; n.w != w || n.font != font {
+		_, h := c.MeasureText(w, ui.Span{Text: n.shown, Size: noteBodySize})
+		n.font, n.w, n.h = font, w, max(h, noteHeaderH)
+	}
+	return n.h
 }
 
 func (rv *prReview) threadHeight(c *ui.Context, th *forge.Thread, w float32) float32 {
@@ -1030,14 +1091,14 @@ func (rv *prReview) threadHeight(c *ui.Context, th *forge.Thread, w float32) flo
 	}
 	h := float32(noteFrame)
 	for _, cm := range th.Comments {
-		h += noteHeaderH + spaceXS + bodyHeight(c, cm.Body, w) + spaceS
+		h += noteHeaderH + spaceXS + rv.notes.text(cm.Body).height(c, w) + spaceS
 	}
 	h += controlHeight + spaceS
 	return min(h+spaceS, noteMaxHeight)
 }
 
 func (rv *prReview) draftHeight(c *ui.Context, body string, w float32) float32 {
-	return min(noteFrame+noteHeaderH+spaceXS+bodyHeight(c, body, w)+spaceS+controlHeight+spaceS, noteMaxHeight)
+	return min(noteFrame+noteHeaderH+spaceXS+rv.notes.text(body).height(c, w)+spaceS+controlHeight+spaceS, noteMaxHeight)
 }
 
 // htmlComment is what GitHub's pages hide of a text: the comments of a
@@ -1073,7 +1134,7 @@ func (a *App) threadNote(c *ui.Context, t *tab, rv *prReview, th *forge.Thread) 
 			for _, cm := range th.Comments {
 				ui.Column(c.Key(cm.ID)).FillWidth().Gap(spaceXS).Children(func() {
 					commentHead(c, cm.Author, cm.At, now)
-					ui.Text(c, shownBody(cm.Body)).FontSize(noteBodySize).Selectable()
+					ui.Text(c, rv.notes.text(cm.Body).shown).FontSize(noteBodySize).Selectable()
 				})
 			}
 		})
@@ -1111,7 +1172,7 @@ func (a *App) threadNote(c *ui.Context, t *tab, rv *prReview, th *forge.Thread) 
 func (a *App) draftNote(c *ui.Context, rv *prReview, i int) {
 	dr := rv.drafts[i]
 	ui.Text(c, locales.PrsPending()).Bold().FontSize(textSmall).TextColor(c.Theme().Warning)
-	ui.Text(c, shownBody(dr.Body)).FontSize(noteBodySize).Selectable().Grow(1)
+	ui.Text(c, rv.notes.text(dr.Body).shown).FontSize(noteBodySize).Selectable().Grow(1)
 	ui.Row(c).Children(func() {
 		ui.Spacer(c)
 		if ui.Button(c, locales.CommonDelete()).Disabled(rv.sending).Clicked() {
@@ -1426,7 +1487,7 @@ func (a *App) staleDrafts(c *ui.Context, rv *prReview) {
 			ui.Row(c).FillWidth().Gap(spaceM).AlignItems(ui.Center).Padding(space2XS, 0).Children(func() {
 				shown, _ := showPath(dr.Path)
 				ui.Text(c, fmt.Sprintf("%s:%d", shown, dr.Line)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
-				ui.Text(c, shownBody(dr.Body)).FontSize(textSmall).SingleLine().Grow(1)
+				ui.Text(c, rv.notes.text(dr.Body).shown).FontSize(textSmall).SingleLine().Grow(1)
 				if ui.Button(c, locales.CommonDelete()).Disabled(rv.busy()).Clicked() {
 					drop = i
 				}
@@ -1453,7 +1514,7 @@ func (a *App) unplacedThreads(c *ui.Context, rv *prReview) {
 					for _, cm := range t.Comments {
 						ui.Column(c.Key(cm.ID)).Padding(0, 0, 0, spaceL).Gap(space2XS).Children(func() {
 							commentHead(c, cm.Author, cm.At, now)
-							ui.Text(c, shownBody(cm.Body)).FontSize(noteBodySize).Selectable()
+							ui.Text(c, rv.notes.text(cm.Body).shown).FontSize(noteBodySize).Selectable()
 						})
 					}
 				})
