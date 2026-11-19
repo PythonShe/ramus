@@ -227,8 +227,14 @@ func (ws *windows) show(w *window) {
 	})
 	w.win.OnClosed(func() {
 		if len(ws.list) == 1 && !ws.quitting {
-			ws.flush() // the app quits with its last window
-			ws.quitting = true
+			// What the last window had open is what opens next time.
+			ws.flush()
+			// The app quits with its last window, the About window
+			// included: while it stays open, windows opened later are
+			// asked about and kept as any other.
+			if ws.about == nil {
+				ws.quitting = true
+			}
 		}
 		w.app.SaveIdentity() // the settings open, the change typed is kept
 		asks := w.app.TakeAsks()
