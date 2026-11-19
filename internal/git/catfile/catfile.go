@@ -75,8 +75,10 @@ type Process struct {
 	stall     time.Duration
 	idleTimer *time.Timer
 	used      time.Time
-	// ending counts gits let go of that have not exited yet.
-	ending sync.WaitGroup
+	// ending counts gits let go of that have not exited yet, and leaving
+	// holds them, for Close to abandon those that do not exit.
+	ending  sync.WaitGroup
+	leaving map[*proc]struct{}
 }
 
 // proc is one cat-file process.
@@ -353,11 +355,26 @@ func (p *Process) drop(g *proc) {
 	if g.stuck.Load() {
 		return // abandon waits for it; Close need not
 	}
+	p.letGoOf(g)
+	go p.ended(g)
+}
+
+// letGoOf counts g, taken out of p.g, among the gits ending; p.mu is held.
+func (p *Process) letGoOf(g *proc) {
 	p.ending.Add(1)
-	go func() {
-		defer p.ending.Done()
-		g.end()
-	}()
+	if p.leaving == nil {
+		p.leaving = map[*proc]struct{}{}
+	}
+	p.leaving[g] = struct{}{}
+}
+
+// ended ends g, which letGoOf counted, and counts it out once it exited.
+func (p *Process) ended(g *proc) {
+	defer p.ending.Done()
+	g.end()
+	p.mu.Lock()
+	delete(p.leaving, g)
+	p.mu.Unlock()
 }
 
 // fail ends the process for good: CatFile starts another.
@@ -453,11 +470,10 @@ func (p *Process) endIdle() {
 		return
 	}
 	p.g = nil
-	p.ending.Add(1)
+	p.letGoOf(g)
 	p.mu.Unlock()
 	<-p.batch
-	defer p.ending.Done()
-	g.end()
+	p.ended(g)
 }
 
 func (p *Process) next(g *proc) (Object, error) {
@@ -509,8 +525,8 @@ func (p *Process) Alive() bool {
 }
 
 // closeWait bounds how long Close waits for git to end: far past what a
-// git killed takes.
-const closeWait = 10 * time.Second
+// git killed takes. A variable, for a test to shorten.
+var closeWait = 10 * time.Second
 
 // Close ends the process. A batch still reading fails at once.
 func (p *Process) Close() error {
@@ -538,9 +554,20 @@ func (p *Process) Close() error {
 	select {
 	case err = <-ended:
 	case <-time.After(closeWait):
+		// A git let go of earlier, by a cancelled read or for being idle,
+		// that has not exited either holds starts off as p.g's does.
+		p.mu.Lock()
+		stuck := make([]*proc, 0, len(p.leaving)+1)
+		for l := range p.leaving {
+			stuck = append(stuck, l)
+		}
+		p.mu.Unlock()
 		if g != nil {
-			p.abandon(g)
-			go func() { g.stdout.Close(); g.stdin.Close() }()
+			stuck = append(stuck, g)
+		}
+		for _, s := range stuck {
+			p.abandon(s)
+			go func() { s.stdout.Close(); s.stdin.Close() }()
 		}
 		return fmt.Errorf("catfile: git did not end within %v", closeWait)
 	}
