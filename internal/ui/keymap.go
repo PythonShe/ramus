@@ -149,15 +149,8 @@ func (k chord) textSafe() bool { return k.textSafeOn(runtime.GOOS) }
 
 // textSafeOn is textSafe on the system goos.
 func (k chord) textSafeOn(goos string) bool {
-	if k.mods&(ui.Ctrl|ui.Alt|ui.Super) == 0 {
+	if k.mods&(ui.Ctrl|ui.Alt|ui.Super) == 0 || k.typesOn(goos) {
 		return false
-	}
-	switch {
-	case !k.typesChar():
-	case goos == "darwin" && k.mods&(ui.Ctrl|ui.Super) == 0:
-		return false // Option types characters, as Option-S an "ß"
-	case goos == "windows" && k.mods&(ui.Ctrl|ui.Alt) == ui.Ctrl|ui.Alt && k.mods&ui.Super == 0:
-		return false // AltGr, which types characters, comes as Control and Alt
 	}
 	switch k.key {
 	case ui.KeyLeft, ui.KeyRight, ui.KeyUp, ui.KeyDown, ui.KeyHome, ui.KeyEnd, ui.KeyBackspace, ui.KeyDelete:
@@ -166,6 +159,20 @@ func (k chord) textSafeOn(goos string) bool {
 		return k.mods&ui.Cmd == 0
 	}
 	return true
+}
+
+// typesOn reports a chord with which a keyboard layout of the system
+// goos may type a character.
+func (k chord) typesOn(goos string) bool {
+	switch {
+	case k.mods&ui.Alt == 0 || !k.typesChar():
+		return false
+	case goos == "darwin":
+		return k.mods&(ui.Ctrl|ui.Super) == 0 // Option types characters, as Option-S an "ß"
+	case goos == "windows":
+		return k.mods&ui.Ctrl != 0 && k.mods&ui.Super == 0 // AltGr, which types characters, comes as Control and Alt
+	}
+	return false
 }
 
 // typesChar reports a key of a character, which a layout may type with
@@ -289,46 +296,61 @@ func goToTabs() []bindableCommand {
 }
 
 // defaultKeys are the shortcuts the app ships with.
-var defaultKeys = map[string][]string{
-	"palette":           {"CmdOrCtrl+Shift+P", "CmdOrCtrl+K"},
-	"open":              {"CmdOrCtrl+O"},
-	"repositories":      {"CmdOrCtrl+Shift+O"},
-	"switch-repository": {"CmdOrCtrl+T"},
-	"settings":          {"CmdOrCtrl+,"},
-	"close-tab":         {"CmdOrCtrl+W"},
-	"new-window":        {"CmdOrCtrl+Shift+N"},
-	"refresh":           {"CmdOrCtrl+R"},
-	"undo":              {"CmdOrCtrl+Z"},
-	"redo":              {"CmdOrCtrl+Shift+Z"},
-	"commit":            {"CmdOrCtrl+Enter"},
-	"find":              {"CmdOrCtrl+F"},
-	// As in browsers and editors; Control-Tab on macOS too.
-	"next-tab":     {"Ctrl+Tab", "CmdOrCtrl+Shift+]"},
-	"previous-tab": {"Ctrl+Shift+Tab", "CmdOrCtrl+Shift+["},
-	// The day's work, each a chord away: menus and the system take none
-	// of these.
-	"show-changes":  {"CmdOrCtrl+Shift+C"},
-	"show-history":  {"CmdOrCtrl+Shift+H"},
-	"switch-branch": {"CmdOrCtrl+Shift+B"},
-	"new-branch":    {"CmdOrCtrl+Alt+N"},
-	"fetch":         {"CmdOrCtrl+Shift+F"},
-	"pull":          {"CmdOrCtrl+Shift+L"},
-	"push":          {"CmdOrCtrl+P"},
-	"stage-all":     {"CmdOrCtrl+Shift+A"},
-	"unstage-all":   {"CmdOrCtrl+Shift+U"},
-	"stash":         {"CmdOrCtrl+Shift+S"},
+var defaultKeys = defaultKeysOn(runtime.GOOS)
+
+// defaultKeysOn are the shortcuts the app ships with on the system goos.
+func defaultKeysOn(goos string) map[string][]string {
+	// Control and Alt is AltGr on Windows, which types characters there:
+	// a chord of them would never run in a text field nor be the menu's.
+	// Control-N is left free there by the app's other chords and the
+	// menu's.
+	newBranch := "CmdOrCtrl+Alt+N"
+	if goos == "windows" {
+		newBranch = "Ctrl+N"
+	}
 	// The system's own: Control-Command-S on macOS, as in Finder and
 	// Xcode.
-	"toggle-sidebar": {sidebarKey},
-	"tab-1":          {"CmdOrCtrl+1"}, "tab-2": {"CmdOrCtrl+2"}, "tab-3": {"CmdOrCtrl+3"},
-	"tab-4": {"CmdOrCtrl+4"}, "tab-5": {"CmdOrCtrl+5"}, "tab-6": {"CmdOrCtrl+6"},
-	"tab-7": {"CmdOrCtrl+7"}, "tab-8": {"CmdOrCtrl+8"}, "tab-9": {"CmdOrCtrl+9"},
+	sidebar := "CmdOrCtrl+B"
+	if goos == "darwin" {
+		sidebar = "Ctrl+Super+S"
+	}
+	return map[string][]string{
+		"palette":           {"CmdOrCtrl+Shift+P", "CmdOrCtrl+K"},
+		"open":              {"CmdOrCtrl+O"},
+		"repositories":      {"CmdOrCtrl+Shift+O"},
+		"switch-repository": {"CmdOrCtrl+T"},
+		"settings":          {"CmdOrCtrl+,"},
+		"close-tab":         {"CmdOrCtrl+W"},
+		"new-window":        {"CmdOrCtrl+Shift+N"},
+		"refresh":           {"CmdOrCtrl+R"},
+		"undo":              {"CmdOrCtrl+Z"},
+		"redo":              {"CmdOrCtrl+Shift+Z"},
+		"commit":            {"CmdOrCtrl+Enter"},
+		"find":              {"CmdOrCtrl+F"},
+		// As in browsers and editors; Control-Tab on macOS too.
+		"next-tab":     {"Ctrl+Tab", "CmdOrCtrl+Shift+]"},
+		"previous-tab": {"Ctrl+Shift+Tab", "CmdOrCtrl+Shift+["},
+		// The day's work, each a chord away: menus and the system take
+		// none of these.
+		"show-changes":   {"CmdOrCtrl+Shift+C"},
+		"show-history":   {"CmdOrCtrl+Shift+H"},
+		"switch-branch":  {"CmdOrCtrl+Shift+B"},
+		"new-branch":     {newBranch},
+		"fetch":          {"CmdOrCtrl+Shift+F"},
+		"pull":           {"CmdOrCtrl+Shift+L"},
+		"push":           {"CmdOrCtrl+P"},
+		"stage-all":      {"CmdOrCtrl+Shift+A"},
+		"unstage-all":    {"CmdOrCtrl+Shift+U"},
+		"stash":          {"CmdOrCtrl+Shift+S"},
+		"toggle-sidebar": {sidebar},
+		"tab-1":          {"CmdOrCtrl+1"}, "tab-2": {"CmdOrCtrl+2"}, "tab-3": {"CmdOrCtrl+3"},
+		"tab-4": {"CmdOrCtrl+4"}, "tab-5": {"CmdOrCtrl+5"}, "tab-6": {"CmdOrCtrl+6"},
+		"tab-7": {"CmdOrCtrl+7"}, "tab-8": {"CmdOrCtrl+8"}, "tab-9": {"CmdOrCtrl+9"},
+	}
 }
 
 // actionID is the command id of the user's action named name, and
 // toolID of opening the repository in a tool.
-var sidebarKey = map[bool]string{true: "Ctrl+Super+S", false: "CmdOrCtrl+B"}[mac]
-
 func actionID(name string) string { return "action:" + name }
 func toolID(name string) string   { return "open-in:" + name }
 

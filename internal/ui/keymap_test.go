@@ -3,6 +3,7 @@ package ui
 import (
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -82,6 +83,66 @@ func TestChords(t *testing.T) {
 		if got := c.k.textSafeOn(c.goos); got != c.safe {
 			t.Errorf("%s %s: safe %v", c.goos, c.k.String(), got)
 		}
+	}
+}
+
+// No chord the app ships with types a character on the system it ships
+// on, or it would never run in a text field nor be the menu's: on
+// Windows New Branch is off Control and Alt, AltGr there. Nor does one
+// take another's chord or one the menu has for itself.
+func TestDefaultChordsTypeNothing(t *testing.T) {
+	// What the menu takes on each system, of the roles main.go puts in
+	// it, but those a default shares on purpose (Undo, Reload and Close
+	// are the window's Undo, Refresh and Close Tab first).
+	menu := map[string][]string{
+		"darwin":  {"Super+Shift+W", "Super+X", "Super+C", "Super+V", "Super+A", "Super+Q", "Super+H", "Super+Alt+H", "Super+M", "Ctrl+Super+F", "Super+0", "Super+-", "Super+="},
+		"windows": {"Ctrl+Shift+W", "Ctrl+X", "Ctrl+C", "Ctrl+V", "Ctrl+A", "Ctrl+Y", "Ctrl+Shift+R", "Ctrl+Shift+I", "Ctrl+M", "Ctrl+0", "Ctrl+-", "Ctrl+=", "F11"},
+		"linux":   {"Ctrl+Shift+W", "Ctrl+X", "Ctrl+C", "Ctrl+V", "Ctrl+A", "Ctrl+Q", "Ctrl+Shift+R", "Ctrl+Shift+I", "Ctrl+M", "Ctrl+0", "Ctrl+-", "Ctrl+=", "F11"},
+	}
+	for _, goos := range []string{"darwin", "windows", "linux"} {
+		// CmdOrCtrl as that system reads it.
+		cmd := "Ctrl"
+		if goos == "darwin" {
+			cmd = "Super"
+		}
+		read := func(s string) chord {
+			k, err := parseChord(strings.ReplaceAll(s, "CmdOrCtrl", cmd))
+			if err != nil {
+				t.Fatalf("%s: %v", s, err)
+			}
+			return k
+		}
+		taken := map[chord]string{}
+		for _, s := range menu[goos] {
+			taken[read(s)] = "the menu"
+		}
+		for id, keys := range defaultKeysOn(goos) {
+			for _, s := range keys {
+				k := read(s)
+				if k.typesOn(goos) {
+					t.Errorf("%s: %s's %s types a character", goos, id, s)
+				}
+				if by, ok := taken[k]; ok {
+					t.Errorf("%s: %s's %s is %s's", goos, id, s, by)
+				}
+				taken[k] = id
+			}
+		}
+	}
+	if got := defaultKeysOn("windows")["new-branch"]; !slices.Equal(got, []string{"Ctrl+N"}) {
+		t.Errorf("New Branch on Windows: %q", got)
+	}
+	for _, goos := range []string{"darwin", "linux"} {
+		if got := defaultKeysOn(goos)["new-branch"]; !slices.Equal(got, []string{"CmdOrCtrl+Alt+N"}) {
+			t.Errorf("New Branch on %s: %q", goos, got)
+		}
+	}
+	// On this system, the menu has it, and the user's own still wins.
+	if Accelerator(nil, "new-branch") == "" {
+		t.Error("New Branch has no accelerator")
+	}
+	if got := Accelerator(map[string][]string{"new-branch": {"CmdOrCtrl+Shift+E"}}, "new-branch"); got != "CmdOrCtrl+Shift+E" {
+		t.Errorf("the user's New Branch: %q", got)
 	}
 }
 
