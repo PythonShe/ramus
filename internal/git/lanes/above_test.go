@@ -62,6 +62,27 @@ func sameRows(t *testing.T, s *Snapshot, rows [][]uint32) {
 	}
 }
 
+// No rows over a history, as when a branch or tag is made at a commit
+// already shown, is that history as it is, not a reason to lay it all
+// out again.
+func TestNothingAbove(t *testing.T) {
+	rows := [][]uint32{{1}, {2, 3}, {3}, nil}
+	base := layoutOf(rows, 0, len(rows)).Snapshot()
+	var l Layout
+	s, ok := l.Above(base)
+	if !ok {
+		t.Fatal("nothing does not fit over a history")
+	}
+	if s == base {
+		t.Fatal("the cursor is shared")
+	}
+	sameRows(t, s, rows)
+	var empty Layout
+	if s, ok := l.Above(empty.Snapshot()); !ok || s.Len() != 0 {
+		t.Fatalf("over nothing: %v, %d rows", ok, s.Len())
+	}
+}
+
 // Colors are stored plus one, 0 meaning no lane, so no lane may take
 // color 0xFFFF: the history of the Linux kernel opens more lanes than
 // that. Laid out at once, or over another layout.

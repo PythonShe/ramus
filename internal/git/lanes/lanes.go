@@ -359,6 +359,11 @@ func (s *Snapshot) step(st *store, r rec) {
 // and l's other lanes colors base has not used, so base's rows keep
 // theirs. l is not to be used afterwards.
 func (l *Layout) Above(base *Snapshot) (_ *Snapshot, ok bool) {
+	if l.Len() == 0 {
+		// Nothing added, as when a ref is made at a commit shown: base
+		// as it is, with a cursor of its own.
+		return &Snapshot{segs: base.segs, n: base.n, width: base.width, colors: base.colors, at: -1}, true
+	}
 	if base.Len() == 0 {
 		if len(l.lanes) != 0 {
 			return nil, false
