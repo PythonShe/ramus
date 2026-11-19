@@ -193,6 +193,6 @@ func loadConflict(ctx context.Context, rn *run.Runner, gitDir, workTree, path st
 		cf.Binary = true
 		return cf
 	}
-	cf.Segments, cf.Err = conflict.Parse(data)
+	cf.Segments, cf.Err = conflict.Load(ctx, rn, gitDir, workTree, path, data)
 	return cf
 }

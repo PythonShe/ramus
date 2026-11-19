@@ -57,11 +57,16 @@ const (
 	closeMark
 )
 
-// markerOf reports whether line is a conflict marker, of what kind and
-// size: at least 7 of one character, then a space or the line's end.
-// size, when not 0, is the size an open marker set.
+// DefaultMarkerSize is the size of the markers git writes for a file with
+// no conflict-marker-size attribute.
+const DefaultMarkerSize = 7
+
+// markerOf reports whether line is a conflict marker of size characters,
+// and of what kind: size of one character, then a space or the line's
+// end. git writes markers of one size for a file; longer ones are of a
+// conflict nested in a side, shorter ones text.
 func markerOf(line []byte, size int) (marker, int) {
-	if len(line) < 7 {
+	if len(line) < size {
 		return none, 0
 	}
 	c := line[0]
@@ -82,7 +87,7 @@ func markerOf(line []byte, size int) (marker, int) {
 	for n < len(line) && line[n] == c {
 		n++
 	}
-	if n < 7 || size != 0 && n != size {
+	if n != size {
 		return none, 0
 	}
 	rest := line[n:]
@@ -99,68 +104,106 @@ func label(line []byte, n int) string {
 	return string(bytes.TrimSpace(line[n:]))
 }
 
-// Parse splits data into segments. A marker out of place is read as text
-// of the side it is in; Parse fails when a conflict is not closed, or the
-// file is larger than MaxSize.
+// Parse is ParseSize with git's default marker size.
 func Parse(data []byte) ([]Segment, error) {
+	return ParseSize(data, DefaultMarkerSize)
+}
+
+// ParseSize splits data into segments at conflict markers of size
+// characters, the size git wrote them in (see Load). A marker out of place
+// is read as text of the side it is in; ParseSize fails when a conflict is
+// not closed, or the file is larger than MaxSize.
+//
+// Text in the file that only looks like a conflict, as an example in a
+// document, is read as one: ParseSides tells them apart.
+func ParseSize(data []byte, size int) ([]Segment, error) {
 	if len(data) > MaxSize {
-		return nil, fmt.Errorf("conflict: the file is larger than %d MB", MaxSize>>20)
+		return nil, errLarge
 	}
-	var segs []Segment
-	var text []byte
-	var cur *Conflict
-	state := none // the last marker seen inside a conflict
-	size := 0
-	start := 0
-	for start < len(data) {
-		end := bytes.IndexByte(data[start:], '\n')
-		if end < 0 {
-			end = len(data)
-		} else {
-			end += start + 1
-		}
-		line := data[start:end]
-		start = end
-		kind, n := markerOf(line, size)
-		if cur == nil {
-			if kind == open {
-				if len(text) > 0 {
-					segs = append(segs, Segment{Text: text})
-					text = nil
-				}
-				cur = &Conflict{OursLabel: label(line, n), Ours: []byte{}, Theirs: []byte{}}
-				state, size = open, n
-				continue
-			}
-			// A line like a marker outside a conflict, as a reStructuredText
-			// underline, is text.
-			text = append(text, line...)
+	var p parsed
+	for pos := 0; pos < len(data); {
+		line, next := lineAt(data, pos)
+		if kind, _ := markerOf(line, size); kind != open {
+			// A line like a marker outside a conflict, as a
+			// reStructuredText underline, is text.
+			p.text = append(p.text, line...)
+			pos = next
 			continue
 		}
+		c, end, _ := conflictAt(data, pos, size)
+		if c == nil {
+			return nil, ErrMarkers
+		}
+		p.add(c)
+		pos = end
+	}
+	return p.done(), nil
+}
+
+var errLarge = fmt.Errorf("conflict: the file is larger than %d MB", MaxSize>>20)
+
+// parsed gathers segments: text up to a conflict, the conflict, and so on.
+type parsed struct {
+	segs []Segment
+	text []byte
+}
+
+func (p *parsed) add(c *Conflict) {
+	if len(p.text) > 0 {
+		p.segs = append(p.segs, Segment{Text: p.text})
+		p.text = nil
+	}
+	p.segs = append(p.segs, Segment{Conflict: c})
+}
+
+func (p *parsed) done() []Segment {
+	if len(p.text) > 0 {
+		p.segs = append(p.segs, Segment{Text: p.text})
+	}
+	return p.segs
+}
+
+// lineAt returns the line of data that starts at pos, with its newline,
+// and where the next one starts.
+func lineAt(data []byte, pos int) ([]byte, int) {
+	end := bytes.IndexByte(data[pos:], '\n')
+	if end < 0 {
+		return data[pos:], len(data)
+	}
+	return data[pos : pos+end+1], pos + end + 1
+}
+
+// conflictAt reads the conflict whose open marker is the line at pos,
+// returning it, where its close marker ends, and the lines of its other
+// markers; nil when no close marker ends it.
+func conflictAt(data []byte, pos, size int) (*Conflict, int, [][]byte) {
+	line, pos := lineAt(data, pos)
+	_, n := markerOf(line, size)
+	c := &Conflict{OursLabel: label(line, n), Ours: []byte{}, Theirs: []byte{}}
+	marks := [][]byte{line}
+	state := open // the last marker seen
+	for pos < len(data) {
+		line, pos = lineAt(data, pos)
+		kind, n := markerOf(line, size)
 		switch {
 		case kind == baseMark && state == open:
-			cur.HasBase, cur.BaseLabel, cur.Base, state = true, label(line, n), []byte{}, baseMark
+			c.HasBase, c.BaseLabel, c.Base, state = true, label(line, n), []byte{}, baseMark
+			marks = append(marks, line)
 		case kind == sep && (state == open || state == baseMark):
 			state = sep
+			marks = append(marks, line)
 		case kind == closeMark && state == sep:
-			cur.TheirsLabel = label(line, n)
-			segs = append(segs, Segment{Conflict: cur})
-			cur, state, size = nil, none, 0
+			c.TheirsLabel = label(line, n)
+			return c, pos, append(marks, line)
 		case state == open:
-			cur.Ours = append(cur.Ours, line...)
+			c.Ours = append(c.Ours, line...)
 		case state == baseMark:
-			cur.Base = append(cur.Base, line...)
+			c.Base = append(c.Base, line...)
 		default:
-			cur.Theirs = append(cur.Theirs, line...)
+			c.Theirs = append(c.Theirs, line...)
 		}
 	}
-	if cur != nil {
-		return nil, ErrMarkers
-	}
-	if len(text) > 0 {
-		segs = append(segs, Segment{Text: text})
-	}
-	return segs, nil
+	return nil, pos, nil
 }
 
 // Count is the number of conflicts in segs.

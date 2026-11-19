@@ -50,6 +50,25 @@ func TestMergeFiles(t *testing.T) {
 	if err != nil || Count(clean.Segments) != 0 {
 		t.Fatalf("clean: %+v, %v", clean, err)
 	}
+	// Text like conflict markers in the files, in agreed text and in a
+	// side of a conflict, is text: the merge's markers are longer.
+	lines := "a\nb\nc\nd\ne\nf\ng\nh\n"
+	base = put("base", example+lines+"end\n")
+	local = put("local", example+lines+"<<<<<<< x\n=======\n")
+	remote = put("remote", example+lines+"end remote\n")
+	f, err = MergeFiles(context.Background(), r, base, local, remote, labels)
+	if err != nil || Count(f.Segments) != 1 {
+		t.Fatalf("markers in the files: %+v, %v", f, err)
+	}
+	for _, side := range []struct {
+		flag   string
+		choice Choice
+	}{{"--ours", Ours}, {"--theirs", Theirs}} {
+		want, _ := mergeFile(t, side.flag, local, base, remote)
+		if got, err := Resolve(f.Segments, []Choice{side.choice}, nil); err != nil || string(got) != want {
+			t.Errorf("markers in the files, %s: %q, %v; want %q", side.flag, got, err, want)
+		}
+	}
 	bin := put("bin", "\x00\x01")
 	f, err = MergeFiles(context.Background(), r, base, bin, remote, labels)
 	if err != nil || !f.Binary {
