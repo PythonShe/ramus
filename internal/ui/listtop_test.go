@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -121,6 +122,25 @@ func TestReflogShowsNewEntriesAtItsTop(t *testing.T) {
 			uniqueKeys(t, &tb.reflog.list.ListState, len(tb.reflog.entries))
 		})
 	}
+}
+
+func TestStashKeysAreUniqueWithAStashStoredTwice(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("README", "first")
+	r.Git("stash", "push", "-q", "-m", "first")
+	r.Write("README", "second")
+	r.Git("stash", "push", "-q", "-m", "second")
+	// The first stash again on top: two entries of one commit.
+	r.Git("stash", "store", "-m", "first again", strings.TrimSpace(r.Git("rev-parse", "stash@{1}")))
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	h.app.Settings.NoSidebar = true
+	tb.sel = "stashes"
+	h.until("the stashes", func() bool { return len(tb.stash.entries) == 3 && hasExact(h, "first again") })
+	uniqueKeys(t, &tb.stash.list.ListState, 3)
 }
 
 func TestStashesShowNewEntriesAtTheirTop(t *testing.T) {

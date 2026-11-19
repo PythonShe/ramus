@@ -22,6 +22,9 @@ type stashState struct {
 	readW   int
 	loading bool
 	entries []session.ReflogEntry
+	// keys are the entries' keys in the list: a commit stored twice is
+	// two entries.
+	keys    []reflogKey
 	err     string
 	list    tableState
 	chosen  int
@@ -166,7 +169,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 	if refs := t.s.State.Refs; (refs != ss.readFor || t.s.Writes != ss.readW) && !ss.loading {
 		ss.readFor, ss.readW, ss.loading = refs, t.s.Writes, true
 		t.s.Reflog("refs/stash", func(es []session.ReflogEntry, err error) {
-			ss.loading, ss.entries, ss.err = false, es, ""
+			ss.loading, ss.entries, ss.keys, ss.err = false, es, reflogKeys(es), ""
 			if st := t.s.State.Status; err != nil && st != nil && st.Branch.Stashes > 0 {
 				ss.err = errText(err)
 			}
@@ -206,9 +209,9 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 				})
 				return
 			}
-			entries := ss.entries
+			entries, keys := ss.entries, ss.keys
 			ss.list.Selected = &ss.chosen
-			ss.list.Key = func(i int) any { return string(entries[i].OID) }
+			ss.list.Key = func(i int) any { return keys[i] }
 			keepTop(&ss.list.ListState)
 			ss.list.Label = func(i int) string { return locales.StashEntryLabel(stashName(i), redact.Control(entries[i].Message)) }
 			now := a.Now()
