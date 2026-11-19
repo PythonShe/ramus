@@ -5,6 +5,7 @@ package run
 import (
 	"context"
 	"testing"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -21,4 +22,36 @@ func TestNoConsoleWindow(t *testing.T) {
 			t.Fatalf("%v: SysProcAttr %+v", c.Args, a)
 		}
 	}
+}
+
+// A command Run starts is created suspended, put in its job and only then
+// let run, so that nothing it starts escapes the job.
+func TestRunStartsInItsJob(t *testing.T) {
+	r := runner(t, 1)
+	cmd := r.command(context.Background(), &Cmd{GitDir: t.TempDir(), Read: true, Args: []string{"version"}})
+	waited := watchGroup(cmd)
+	if cmd.SysProcAttr.CreationFlags&windows.CREATE_SUSPENDED == 0 {
+		t.Fatal("not created suspended")
+	}
+	if err := r.Start(cmd); err != nil {
+		t.Fatal(err)
+	}
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(cmd.Process.Pid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer windows.CloseHandle(h)
+	var in int32
+	isProcessInJob := windows.NewLazySystemDLL("kernel32.dll").NewProc("IsProcessInJob")
+	if ok, _, err := isProcessInJob.Call(uintptr(h), 0, uintptr(unsafe.Pointer(&in))); ok == 0 {
+		t.Fatal(err)
+	}
+	if in == 0 {
+		t.Error("git is in no job")
+	}
+	// It runs to its end: it was let run.
+	if err := cmd.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	waited()
 }

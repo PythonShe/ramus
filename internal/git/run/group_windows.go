@@ -3,8 +3,10 @@
 package run
 
 import (
+	"errors"
 	"os/exec"
 	"sync"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 
@@ -23,6 +25,9 @@ type group struct {
 	mu        sync.Mutex
 	job       windows.Handle
 	cancelled bool
+	// suspended is a process created suspended, so that it is in its job
+	// before it runs (see watchGroup).
+	suspended bool
 }
 
 // groups holds the group of each command prepared and not started yet.
@@ -43,14 +48,24 @@ func stopGroup(cmd *exec.Cmd) {
 	}
 }
 
-// joinGroup puts a process just started in its job. It runs before git
-// can start anything: what it starts is in the job from the first.
+// joinGroup puts a process just started in its job. For a process created
+// suspended it then lets it run, so what it starts is in the job from the
+// first; another may already have started something, as the git.exe in
+// Git\cmd starts the real git at once, which then escapes the job.
 func joinGroup(cmd *exec.Cmd) {
 	v, ok := groups.LoadAndDelete(cmd)
 	if !ok {
 		return
 	}
 	g := v.(*group)
+	if g.suspended {
+		defer func() {
+			if err := resume(uint32(cmd.Process.Pid)); err != nil {
+				// Never left suspended: Wait would wait until the timeout.
+				cmd.Process.Kill()
+			}
+		}()
+	}
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return
@@ -83,8 +98,50 @@ func joinGroup(cmd *exec.Cmd) {
 	}()
 }
 
-// watchGroup has nothing to watch: ending the job ends all of it at once.
-func watchGroup(cmd *exec.Cmd) (waited func()) { return func() {} }
+// watchGroup has cmd, one Run starts and waits on, created suspended, for
+// joinGroup to let run once it is in its job: os/exec cannot put a process
+// in a job as it is created. Command's processes are not, as a caller
+// that started one without Runner.Start would leave it suspended for good.
+// Nothing is left to do once Wait has returned: ending the job ends all of
+// it at once.
+func watchGroup(cmd *exec.Cmd) (waited func()) {
+	if v, ok := groups.Load(cmd); ok {
+		v.(*group).suspended = true
+		cmd.SysProcAttr.CreationFlags |= windows.CREATE_SUSPENDED
+	}
+	return func() {}
+}
+
+// resume lets every thread of process pid run: the one thread of a
+// process created suspended.
+func resume(pid uint32) error {
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseHandle(snap)
+	te := windows.ThreadEntry32{Size: uint32(unsafe.Sizeof(windows.ThreadEntry32{}))}
+	found := false
+	for e := windows.Thread32First(snap, &te); e == nil; e = windows.Thread32Next(snap, &te) {
+		if te.OwnerProcessID != pid {
+			continue
+		}
+		th, err := windows.OpenThread(windows.THREAD_SUSPEND_RESUME, false, te.ThreadID)
+		if err != nil {
+			return err
+		}
+		_, err = windows.ResumeThread(th)
+		windows.CloseHandle(th)
+		if err != nil {
+			return err
+		}
+		found = true
+	}
+	if !found {
+		return errors.New("run: no thread to resume")
+	}
+	return nil
+}
 
 // leaveGroup forgets the group of a command that did not start.
 func leaveGroup(cmd *exec.Cmd) { groups.Delete(cmd) }
