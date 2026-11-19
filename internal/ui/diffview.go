@@ -58,6 +58,7 @@ func (a *App) detail(c *ui.Context, t *tab) {
 	cv := &t.cv
 	r, ok := cv.chosenFile()
 	if !ok {
+		t.merge.stopLoad()
 		if m := cv.model; m != nil && len(m.rows) == 0 && m.filter == "" {
 			a.cleanTree(c, t)
 			return
@@ -71,6 +72,8 @@ func (a *App) detail(c *ui.Context, t *tab) {
 		a.mergeEditor(c, t, string(m.st.Path(i)))
 		return
 	}
+	// The conflicted file left for another: its read stops.
+	t.merge.stopLoad()
 	p := m.path(r)
 	if strings.HasSuffix(p, "/") {
 		// git diffs no folder: a patch of it would say there is no

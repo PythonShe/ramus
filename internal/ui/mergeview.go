@@ -23,6 +23,8 @@ type mergeState struct {
 	path    string
 	readW   int
 	loading bool
+	// cancel stops the read in flight, once the file is left.
+	cancel  func()
 	cf      session.ConflictFile
 	choices []conflict.Choice
 	custom  []string
@@ -131,7 +133,12 @@ var mergeChoices = []struct {
 func (a *App) loadMerge(t *tab, path string) {
 	ms := &t.merge
 	if ms.loading {
-		return
+		if ms.path == path {
+			return
+		}
+		// Another file chosen: the read of the one left stops, its
+		// processes with it.
+		ms.stopLoad()
 	}
 	if ms.path == path && ms.readW == t.s.Writes && !ms.stale {
 		a.watchMerge(t)
@@ -141,12 +148,12 @@ func (a *App) loadMerge(t *tab, path string) {
 		ms.err = ""
 	}
 	ms.path, ms.readW, ms.loading, ms.stale = path, t.s.Writes, true, false
-	t.s.LoadConflict(path, func(cf session.ConflictFile) {
+	ms.cancel = t.s.LoadConflict(path, func(cf session.ConflictFile) {
 		if ms.path != path {
 			ms.loading = false
 			return
 		}
-		ms.loading = false
+		ms.loading, ms.cancel = false, nil
 		if reopened(cf.Err) {
 			// Read again as shown next, a reopen counting as a write; the
 			// file and the choices made on it stay till then.
@@ -248,7 +255,22 @@ func sameConflicts(a, b session.ConflictFile) bool {
 
 // drop empties ms. gen moves on, so a build still running for what it
 // held lands nowhere rather than keep its text.
-func (ms *mergeState) drop() { *ms = mergeState{gen: ms.gen + 1} }
+func (ms *mergeState) drop() {
+	ms.stopLoad()
+	*ms = mergeState{gen: ms.gen + 1}
+}
+
+// stopLoad stops the read in flight, if any: it answers nothing, and the
+// file is read again when shown.
+func (ms *mergeState) stopLoad() {
+	if ms.cancel != nil {
+		ms.cancel()
+		ms.cancel = nil
+	}
+	if ms.loading {
+		ms.path, ms.loading = "", false
+	}
+}
 
 // showConflicts numbers ms's conflicts and builds what its segments show
 // off the main thread.

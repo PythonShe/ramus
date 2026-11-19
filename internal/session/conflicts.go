@@ -152,31 +152,40 @@ type ConflictFile struct {
 }
 
 // LoadConflict reads a conflicted file of the work tree off the main
-// thread and hands it to done on it. Leaving the view stops the read, and
-// done is not called; a read whose repository closed and opened again
-// (Trust) is answered ErrReopened.
-func (s *Session) LoadConflict(path string, done func(ConflictFile)) {
+// thread and hands it to done on it. Leaving the view, or cancel, which
+// the main thread calls when it no longer waits on the file, stops the
+// read and its processes, and done is not called; a read whose
+// repository closed and opened again (Trust) is answered ErrReopened.
+func (s *Session) LoadConflict(path string, done func(ConflictFile)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
 		done(ConflictFile{Path: path, Err: errNotOpen})
-		return
+		return func() {}
 	}
 	shown := s.stillShown()
-	s.goView(r, func(ctx context.Context) {
+	ctx, cancel := context.WithCancel(s.viewContext(r))
+	r.Life().Go(func(context.Context) {
 		cf := loadConflict(ctx, r.Runner, r.GitDir, r.WorkTree, path)
 		if ctx.Err() != nil && !closedUnder(r) {
+			cancel()
 			return
 		}
+		// Cancelled on the main thread only once it is answered: a cancel
+		// between the read's end and its answer still holds.
 		s.handOver(r, func() {
-			if ctx.Err() == nil {
+			ok := ctx.Err() == nil
+			cancel()
+			if ok {
 				done(cf)
 			}
 		}, func() {
+			cancel()
 			if shown() {
 				done(ConflictFile{Path: path, Err: ErrReopened})
 			}
 		})
 	})
+	return cancel
 }
 
 func loadConflict(ctx context.Context, rn *run.Runner, gitDir, workTree, path string) ConflictFile {

@@ -128,9 +128,7 @@ func (a *App) leaveView(t *tab, name string) {
 		if d := &t.cv.diff; d.loading {
 			d.key, d.loading = diffKey{}, false
 		}
-		if ms := &t.merge; ms.loading {
-			ms.path, ms.loading = "", false
-		}
+		t.merge.stopLoad()
 	}
 }
 
