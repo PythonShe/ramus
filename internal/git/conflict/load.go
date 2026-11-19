@@ -118,9 +118,40 @@ func (l *loader) at(size int) ([]Segment, error) {
 		return nil, err
 	}
 	if !s.holdsMarkers(size) {
-		return parseSize(l.data, size)
+		// Every marker in the file is git's, so each is one of a
+		// conflict read: one left as text, as markers after an open
+		// marker git wrote on a line, is a conflict missed.
+		segs, err := parseSize(l.data, size)
+		if err == nil && strayMarkers(l.data, size, segs) {
+			return nil, ErrAmbiguous
+		}
+		return segs, err
 	}
 	return remerge(l.ctx, l.r, l.data, size, s)
+}
+
+// strayMarkers reports whether data holds more lines like markers of size
+// than the conflicts of segs, its reading at size, are made of.
+func strayMarkers(data []byte, size int, segs []Segment) bool {
+	marks := 0
+	for _, sg := range segs {
+		if c := sg.Conflict; c != nil {
+			marks += 3
+			if c.HasBase {
+				marks++
+			}
+		}
+	}
+	for pos := 0; pos < len(data); {
+		line, next := lineAt(data, pos)
+		if kind, _ := markerOf(line, size); kind != none {
+			if marks--; marks < 0 {
+				return true
+			}
+		}
+		pos = next
+	}
+	return false
 }
 
 // other reads the file at the size of lines in it that pair up as markers

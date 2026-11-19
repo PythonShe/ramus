@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -209,29 +210,42 @@ func TestLoadFindsTheMarkerSizeInTheFile(t *testing.T) {
 	}
 }
 
-// A file the index holds conflicted is never read as having no conflicts
-// while git's markers are in it; a file resolved by hand, its markers
-// gone, is, whatever text like markers its sides gave it.
+// A file the index holds conflicted is never read as having no conflicts,
+// or fewer than it has, while git's markers are in it; a file resolved by
+// hand, its markers gone, is, whatever text like markers its sides gave
+// it.
 func TestLoadNeverMissesConflicts(t *testing.T) {
 	// Ignoring white space at the end of lines, git matches our last
 	// line, which has no newline, with the base's, and writes the open
-	// marker of the conflict after it on the same line.
-	glued := realMerge{base: "c\nd\nd\nb\n  }\nb\nb\n", ours: "c\nd\nd\nb\n  }\nb", theirs: "c\na\nd\n  }\nb\nb\nc\n",
-		x: []string{"-X", "ignore-space-at-eol"}}
-	for _, style := range []string{"merge", "diff3", "zdiff3"} {
-		t.Run("open marker on a line/"+style, func(t *testing.T) {
-			r, _, _, _ := glued.run(t, "merge", style)
-			if r == nil {
-				t.Fatal("no conflict in the file")
-			}
-			segs, data, err := loadMerged(t, r)
-			if !strings.Contains(string(data), "b<<<<<<< HEAD\n") {
-				t.Fatalf("no open marker on a line\n%q", data)
-			}
-			if !errors.Is(err, ErrAmbiguous) {
-				t.Fatalf("%d conflicts, %v\n%q", Count(segs), err, data)
-			}
-		})
+	// marker of the conflict after it on the same line: alone, and after
+	// a conflict read.
+	for _, c := range []struct {
+		name   string
+		c      realMerge
+		styles []string
+	}{
+		{"alone", realMerge{base: "c\nd\nd\nb\n  }\nb\nb\n", ours: "c\nd\nd\nb\n  }\nb", theirs: "c\na\nd\n  }\nb\nb\nc\n"},
+			[]string{"merge", "diff3", "zdiff3"}},
+		{"after another", realMerge{base: "d\n==========\nb\nb\nc\nf", ours: "d\n==========\nb\n}\nb\nc",
+			theirs: "d\n==========\nf\nb\nc\n<<<<<<<<<< HEAD\na\n", theirsAttrs: ptr(realFile + " conflict-marker-size=10\n")},
+			[]string{"diff3", "zdiff3"}},
+	} {
+		c.c.x = []string{"-X", "ignore-space-at-eol"}
+		for _, style := range c.styles {
+			t.Run("open marker on a line, "+c.name+"/"+style, func(t *testing.T) {
+				r, _, _, _ := c.c.run(t, "merge", style)
+				if r == nil {
+					t.Fatal("no conflict in the file")
+				}
+				segs, data, err := loadMerged(t, r)
+				if !regexp.MustCompile(`[^\n<]<<<<<<< HEAD\n`).Match(data) {
+					t.Fatalf("no open marker on a line\n%q", data)
+				}
+				if !errors.Is(err, ErrAmbiguous) {
+					t.Fatalf("%d conflicts, %v\n%q", Count(segs), err, data)
+				}
+			})
+		}
 	}
 	lines := "a\nb\nc\nd\ne\nf\ng\nh\n"
 	for _, c := range []struct {
