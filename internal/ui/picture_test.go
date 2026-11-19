@@ -271,7 +271,8 @@ func TestPictureWaitersAreBounded(t *testing.T) {
 		h.app.decodePictures(pv)
 		untilWaiting(t, "a file shown", min(i+1, maxPictureWaiters))
 	}
-	for range 2 {
+	sentAway := func() {
+		t.Helper()
 		select {
 		case fn := <-h.updates:
 			fn()
@@ -279,6 +280,8 @@ func TestPictureWaitersAreBounded(t *testing.T) {
 			t.Fatal("no decode sent away")
 		}
 	}
+	sentAway()
+	sentAway()
 	for i, pv := range pvs {
 		if want := i >= 2; pv.pics.asked != want {
 			t.Fatalf("file %d asked %v", i, pv.pics.asked)
@@ -287,7 +290,7 @@ func TestPictureWaitersAreBounded(t *testing.T) {
 	// Shown again, the first asks again, sending the next oldest away.
 	h.app.decodePictures(pvs[0])
 	untilWaiting(t, "asked again", maxPictureWaiters)
-	(<-h.updates)()
+	sentAway()
 	if pvs[2].pics.asked || !pvs[0].pics.asked {
 		t.Fatalf("asked: %v, %v", pvs[0].pics.asked, pvs[2].pics.asked)
 	}
