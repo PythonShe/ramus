@@ -12,11 +12,13 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/image/tiff"
 
 	"ramus/internal/git/gittest"
+	"ramus/internal/session"
 )
 
 func pngOf(t *testing.T, w, h int, c color.Color) string {
@@ -169,6 +171,38 @@ func TestDifferenceTooLargeAllocatesNothing(t *testing.T) {
 		if made := after.TotalAlloc - before.TotalAlloc; made > 16<<20 {
 			t.Fatalf("%d MB made to find the sides too large", made>>20)
 		}
+	}
+}
+
+// Pictures decode one file at a time, and a file no longer shown by the
+// time its turn comes is not decoded: arrowing through large pictures
+// would otherwise decode every one passed, at once.
+func TestPictureDecodeStopsWhenStale(t *testing.T) {
+	big := []byte(pngOf(t, 4000, 4000, color.RGBA{0, 200, 0, 255}))
+	h := newHarness(t)
+	pv := &patchView{}
+	h.app.setPatch(pv, session.PatchResult{})
+	pv.pics.sides = [2][]byte{big, big}
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	goroutines := runtime.NumGoroutine()
+	pictureSlot <- struct{}{} // another picture decoding
+	h.app.decodePictures(pv)
+	h.app.setPatch(pv, session.PatchResult{}) // another file chosen
+	<-pictureSlot
+	for deadline := time.Now().Add(10 * time.Second); runtime.NumGoroutine() > goroutines; {
+		if time.Now().After(deadline) {
+			t.Fatal("the decode did not end")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	runtime.ReadMemStats(&after)
+	if n := len(h.updates); n != 0 {
+		t.Fatalf("%d updates from a file no longer shown", n)
+	}
+	if made := after.TotalAlloc - before.TotalAlloc; made > 16<<20 {
+		t.Fatalf("%d MB decoded of a file no longer shown", made>>20)
 	}
 }
 

@@ -72,6 +72,11 @@ const maxPixels = 64 << 20
 // copies of their pixels while it is made.
 const maxDiffPixels = 16 << 20
 
+// pictureSlot lets one picture's sides decode, or one difference be
+// made, at a time: each can take hundreds of megabytes, and arrowing
+// through a folder of pictures starts one per file shown.
+var pictureSlot = make(chan struct{}, 1)
+
 // decodePicture decodes one side of a picture's change, and says its
 // size and, for an SVG, what of it is not drawn; nil for a side that is
 // none or does not decode.
@@ -108,12 +113,18 @@ func (a *App) decodePictures(pv *patchView) {
 		return
 	}
 	ps.asked = true
-	gen, update, sides, notFetched := pv.gen, a.Update, ps.sides, ps.notFetched
+	gen, update, sides, notFetched, stale := pv.gen, a.Update, ps.sides, ps.notFetched, pv.stale
 	a.goWork(nil, func() {
+		pictureSlot <- struct{}{}
+		defer func() { <-pictureSlot }()
 		var imgs [2]ui.ImageSource
 		var about [2]string
 		var notDrawn []string
 		for k, data := range sides {
+			if stale != nil && stale.Load() {
+				// Another file shown since, whose pictures come next.
+				return
+			}
 			if !notFetched[k] {
 				var nd []string
 				imgs[k], about[k], nd = decodePicture(data)
@@ -332,8 +343,13 @@ func (a *App) makeDifference(c *ui.Context, pv *patchView) {
 	ps.diffAsked = true
 	t := c.Theme().Text
 	current := color.NRGBA{t.R, t.G, t.B, t.A}
-	gen, update, sides, images := pv.gen, a.Update, ps.sides, ps.images
+	gen, update, sides, images, stale := pv.gen, a.Update, ps.sides, ps.images, pv.stale
 	a.goWork(nil, func() {
+		pictureSlot <- struct{}{}
+		defer func() { <-pictureSlot }()
+		if stale != nil && stale.Load() {
+			return
+		}
 		// The size the sides say first: an SVG is drawn at the size it
 		// names, however large, and a bitmap decoded again whole.
 		var fw, fh float64

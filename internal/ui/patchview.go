@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -106,6 +107,9 @@ func (a *App) patchBar(c *ui.Context, review, text bool, more func()) {
 // viewer's lines and changes back to the parsed patch.
 type patchView struct {
 	gen int
+	// stale is set once the patch of gen is replaced, for the work off
+	// the main thread on it to stop; nil for none.
+	stale *atomic.Bool
 	// d is nil until the viewer is built, off the main thread.
 	d     *editor.DiffState
 	p     *diff.Parsed
@@ -162,6 +166,11 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		return
 	}
 	pv.gen++
+	if pv.stale != nil {
+		pv.stale.Store(true)
+	}
+	stale := new(atomic.Bool)
+	pv.stale = stale
 	gen, update := pv.gen, a.Update
 	scroll := -1.0
 	if pv.d != nil && pv.p != nil && res.Parsed != nil && len(pv.p.Files) > 0 && len(res.Parsed.Files) > 0 &&
@@ -196,7 +205,11 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		}
 	}
 	a.goWork(nil, func() {
-		next := patchView{p: p, d: &editor.DiffState{Indicators: editor.DiffClassic}, scrollTo: scroll}
+		if stale.Load() {
+			// Another file shown since: its viewer is built instead.
+			return
+		}
+		next := patchView{p: p, d: &editor.DiffState{Indicators: editor.DiffClassic}, scrollTo: scroll, stale: stale}
 		fps, err := editor.ParsePatch(string(p.Text))
 		if err != nil || len(fps) == 0 {
 			update(func() {
@@ -204,6 +217,9 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 					pv.failed = true
 				}
 			})
+			return
+		}
+		if stale.Load() {
 			return
 		}
 		// The sides of a file in LFS are its content, not the pointers
