@@ -44,7 +44,13 @@ type compareState struct {
 	pager   patchPager
 	// patchLoading is set while the pager's next step is read.
 	patchLoading bool
-	cancel       context.CancelFunc
+	// ctx is the comparison's, which cancel ends as it closes; patchCtx
+	// is the reading of key's patch, which patchCancel ends as another
+	// file is shown.
+	ctx         context.Context
+	cancel      context.CancelFunc
+	patchCtx    context.Context
+	patchCancel context.CancelFunc
 	// closed runs once the comparison is closed, for a tool that waits.
 	closed func()
 }
@@ -81,7 +87,7 @@ func (a *App) startCompare() {
 	cs := &a.compareUI
 	cs.pending = false
 	ctx, cancel := context.WithCancel(context.Background())
-	cs.cancel = cancel
+	cs.ctx, cs.cancel = ctx, cancel
 	old, new, r, update := cs.old, cs.new, a.Runner, a.Update
 	a.goWork(nil, func() {
 		oi, err1 := os.Stat(old)
@@ -155,6 +161,14 @@ func (a *App) loadComparePatch(cs *compareState) {
 		cs.pager = patchPager{}
 	}
 	cs.key, cs.patch = key, session.PatchResult{}
+	if cs.patchCancel != nil {
+		cs.patchCancel()
+	}
+	parent := cs.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	cs.patchCtx, cs.patchCancel = context.WithCancel(parent)
 	a.readComparePatch(cs, key)
 }
 
@@ -166,9 +180,10 @@ func (a *App) readComparePatch(cs *compareState, key compareKey) {
 		sideMax = maxCompareSide
 	}
 	cs.patchLoading = true
+	ctx := cs.patchCtx
 	a.goWork(nil, func() {
 		res := session.PatchResult{}
-		p, err := diff.ComparePatch(context.Background(), r, key.old, key.new, key.ws, max)
+		p, err := diff.ComparePatch(ctx, r, key.old, key.new, key.ws, max)
 		res.Truncated, res.Err = p.Truncated, err
 		if err == nil {
 			res.Parsed, res.Err = diff.Parse(p.Text)

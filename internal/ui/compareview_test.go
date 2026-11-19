@@ -1,9 +1,17 @@
 package ui
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
+
+	"ramus/internal/git/gitexe"
+	"ramus/internal/git/gittest"
+	"ramus/internal/git/run"
 )
 
 // Two folders compare as the files that differ, each shown as a patch;
@@ -78,5 +86,47 @@ func TestCompareNamed(t *testing.T) {
 	h.until("the patch", func() bool { return h.app.compareUI.pv.d != nil })
 	if !hasExact(h, "src/a.txt") || !h.tt.HasText("HEAD → Working tree") || h.tt.HasText("git-blob-x") {
 		t.Fatalf("header: %q", h.tt.Texts())
+	}
+}
+
+// The patch of two files compared is read by a process that closing the
+// comparison stops, as it does one read for a file no longer shown.
+func TestComparePatchStops(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as the version control tool")
+	}
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip(err)
+	}
+	bin := t.TempDir()
+	// Its patches of two files outside a repository never come.
+	script := "#!/bin/sh\ncase \"$*\" in *--no-index*) exec sleep 60;; esac\nexec " + real + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g, err := gitexe.Find(context.Background(), bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := run.New(g, gittest.Env(), 8)
+	h := newHarnessWith(t, r)
+	dir := t.TempDir()
+	old, new := filepath.Join(dir, "a.txt"), filepath.Join(dir, "b.txt")
+	for p, s := range map[string]string{old: "1\n", new: "2\n"} {
+		if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.app.Compare(old, new, nil)
+	h.until("the patch read", func() bool { return r.Running() == 1 })
+	h.app.compareUI.open = false
+	h.tt.Frame()
+	deadline := time.Now().Add(5 * time.Second)
+	for r.Running() != 0 {
+		if time.Now().After(deadline) {
+			t.Fatalf("the read of the patch runs on after the comparison closed")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
