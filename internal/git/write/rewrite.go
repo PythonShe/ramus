@@ -317,17 +317,17 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 		}
 		fmt.Fprintf(&b, "%s %s\n", word, s.Commit)
 		if join {
-			fmt.Fprintf(&b, "exec test \"$(git rev-parse -q --verify HEAD)\" = \"$(cat \"$(git rev-parse --git-path %s)\")\" || "+
+			fmt.Fprintf(&b, "exec %s || "+
 				"{ cat \"$(git rev-parse --git-path %s)\"; echo; git log -1 --no-show-signature --format=%%B %s; } | "+
-				"git commit --amend --only -q --allow-empty --cleanup=whitespace -F -\n", stepHead, stepMessage, s.Commit)
+				"git commit --amend --only -q --allow-empty --cleanup=whitespace -F -\n", skipped(s.Commit, word == "fixup"), stepMessage, s.Commit)
 		}
 		if msg != "" {
 			cc, err := commentChar(msg)
 			if err != nil {
 				return "", err
 			}
-			fmt.Fprintf(&b, "exec test \"$(git rev-parse -q --verify HEAD)\" = \"$(cat \"$(git rev-parse --git-path %s)\")\" || "+
-				"printf '%%b' '%s' | git -c core.commentChar='%s' commit --amend --only -q --allow-empty -F -\n", stepHead, printfArg(msg), cc)
+			fmt.Fprintf(&b, "exec %s || "+
+				"printf '%%b' '%s' | git -c core.commentChar='%s' commit --amend --only -q --allow-empty -F -\n", skipped(s.Commit, word == "fixup"), printfArg(msg), cc)
 		}
 		kept = kept || s.Action != DoDrop
 		if !refs {
@@ -341,6 +341,22 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// skipped is a shell test, run once the step on commit is over, that holds
+// when the step was skipped: HEAD is where it was before it. A fold (fold
+// set) can leave HEAD there too when it changes nothing, as within one
+// second it makes the very commit HEAD is; such a fold cannot stop on a
+// conflict, so it was not skipped.
+func skipped(commit string, fold bool) string {
+	same := `test "$(git rev-parse -q --verify HEAD)" = "$(cat "$(git rev-parse --git-path ` + stepHead + `)")"`
+	if !fold {
+		return same
+	}
+	// git merge-tree in its oldest form prints nothing when commit's
+	// change, put on HEAD, leaves HEAD's tree as it is.
+	noop := "git rev-parse -q --verify " + commit + "^ >/dev/null && test -z \"$(git merge-tree " + commit + "^ HEAD " + commit + ")\""
+	return "{ " + same + " && ! { " + noop + "; }; }"
 }
 
 // stepHead is where a todo keeps HEAD as it was before a step: in the

@@ -292,6 +292,71 @@ func TestEditHistorySkipKeepsTheCommitBefore(t *testing.T) {
 	}
 }
 
+// A squash whose fold makes a commit with HEAD's id, an empty commit folded
+// in the same second, still takes its message: the step was done, not
+// skipped.
+func TestEditHistoryEmptySquashSameSecond(t *testing.T) {
+	// One date for every commit, the rebase's own included: the same
+	// second, whenever the test runs.
+	t.Setenv("GIT_COMMITTER_DATE", "1700000000 +0000")
+	t.Setenv("GIT_AUTHOR_DATE", "1700000000 +0000")
+	h := newHarness(t)
+	h.r.Write("f", "1\n")
+	h.r.Commit("base")
+	h.r.Write("f", "2\n")
+	h.r.Commit("two")
+	h.r.Git("commit", "-q", "--allow-empty", "-m", "empty")
+	two, empty := h.rev("main~1"), h.rev("main")
+	// again makes the change two makes, which a fold into two finds made.
+	h.r.Git("checkout", "-q", "-b", "side", "main~2")
+	h.r.Write("f", "2\n")
+	h.r.Commit("again")
+	again := h.rev("side")
+	h.r.Git("checkout", "-q", "main")
+	for _, steps := range [][]Step{
+		{{Action: DoPick, Commit: two}, {Action: DoSquash, Commit: empty, Message: "folded"}},
+		{{Action: DoReword, Commit: two, Message: "two reworded"}, {Action: DoSquash, Commit: empty, Message: "folded"}},
+		{{Action: DoReword, Commit: two, Message: "two reworded"}, {Action: DoSquash, Commit: again, Message: "folded"}},
+		{{Action: DoReword, Commit: two, Message: "folded\n"}, {Action: DoSquash, Commit: empty}},
+	} {
+		op, err := EditHistory(h.w, Rewrite{Commit: two, Parent: h.rev("main~2"), Git: localGit(t)}, steps, h.seen())
+		h.do(op, err, true)
+		if log := strings.TrimSpace(h.r.Git("log", "--format=%s", "main")); log != "folded\nbase" {
+			t.Fatalf("%+v: log:\n%s", steps, log)
+		}
+		if body := h.r.Git("log", "-1", "--format=%B", "main"); steps[1].Message == "" && body != "folded\n\nempty\n\n" {
+			t.Fatalf("joined message %q", body)
+		}
+		h.undo()
+	}
+}
+
+// A squash with a message whose fold stops on a conflict and is skipped
+// leaves the commit before it as it was.
+func TestEditHistorySkippedSquashKeepsTheCommitBefore(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("f", "1\n")
+	h.r.Commit("base")
+	h.r.Write("g", "g\n")
+	h.r.Commit("prev commit")
+	h.r.Write("f", "2\n")
+	h.r.Commit("two")
+	h.r.Write("f", "3\n")
+	h.r.Commit("three")
+	base, prev, two, three := h.rev("main~3"), h.rev("main~2"), h.rev("main~1"), h.rev("main")
+	op, err := EditHistory(h.w, Rewrite{Commit: prev, Parent: base, Git: localGit(t)}, []Step{
+		{Action: DoPick, Commit: prev},
+		{Action: DoSquash, Commit: three, Message: "THREE squashed"},
+		{Action: DoPick, Commit: two},
+	}, h.seen())
+	h.do(op, err, false)
+	skip, err := Sequence(h.w, "rebase", Skip)
+	h.do(skip, err, true)
+	if log := strings.TrimSpace(h.r.Git("log", "--format=%s", "HEAD")); log != "two\nprev commit\nbase" {
+		t.Fatalf("log:\n%s", log)
+	}
+}
+
 // The fallback's todo editor reads pick in both forms, and fails, which
 // stops the rebase before it starts, when it changed no line: the rebase
 // would otherwise replay every commit as it was and succeed.
