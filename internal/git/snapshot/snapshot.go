@@ -514,8 +514,11 @@ type File struct {
 func Files(cat *catfile.Process, hashSize int, s Snapshot) ([]File, error) {
 	var base []byte
 	if s.Head != "" {
-		id, _ := hex.DecodeString(s.Head)
-		err := cat.Read([][]byte{id}, func(_ int, o catfile.Object) error {
+		id, err := hex.DecodeString(s.Head)
+		if err != nil || len(id) != hashSize {
+			return nil, fmt.Errorf("snapshot: head %q is not an object id", s.Head)
+		}
+		err = cat.Read([][]byte{id}, func(_ int, o catfile.Object) error {
 			c, err := object.ParseCommit(o.Data)
 			if err != nil || o.Type != "commit" {
 				return fmt.Errorf("snapshot: head %s unreadable", s.Head)
@@ -527,7 +530,10 @@ func Files(cat *catfile.Process, hashSize int, s Snapshot) ([]File, error) {
 			return nil, err
 		}
 	}
-	snap, _ := hex.DecodeString(s.Tree)
+	snap, err := hex.DecodeString(s.Tree)
+	if err != nil || len(snap) != hashSize {
+		return nil, fmt.Errorf("snapshot: tree %q is not an object id", s.Tree)
+	}
 	ch, err := tree.Diff(cat, hashSize, base, snap)
 	if err != nil {
 		return nil, err

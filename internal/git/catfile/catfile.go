@@ -152,7 +152,8 @@ func (p *Process) Read(oids [][]byte, fn func(i int, o Object) error) error {
 }
 
 // ReadContext asks for every object in oids, then calls fn with each
-// answer in the same order. If fn returns an error the rest of the batch
+// answer in the same order; an id that is not a whole object id is
+// answered missing. If fn returns an error the rest of the batch
 // is drained and that error returned. Cancelling ctx, while the read
 // waits for its turn or reads, returns ctx's error.
 func (p *Process) ReadContext(ctx context.Context, oids [][]byte, fn func(i int, o Object) error) (err error) {
@@ -197,6 +198,9 @@ func (p *Process) ReadContext(ctx context.Context, oids [][]byte, fn func(i int,
 	}()
 	var line [80]byte
 	for _, id := range oids {
+		if !whole(id) {
+			continue
+		}
 		b := append(line[:0], "contents "...)
 		b = hex.AppendEncode(b, id)
 		b = append(b, '\n')
@@ -212,10 +216,12 @@ func (p *Process) ReadContext(ctx context.Context, oids [][]byte, fn func(i int,
 		return
 	}
 	var first error
-	for i := range oids {
-		var o Object
-		if o, broken = p.next(g); broken != nil {
-			return
+	for i, id := range oids {
+		o := Object{Missing: true}
+		if whole(id) {
+			if o, broken = p.next(g); broken != nil {
+				return
+			}
 		}
 		w.seen.Add(1)
 		if first == nil {
@@ -227,6 +233,11 @@ func (p *Process) ReadContext(ctx context.Context, oids [][]byte, fn func(i int,
 	read = true
 	return first
 }
+
+// whole reports whether id is a whole object id, SHA-1 or SHA-256. git
+// would take a shorter one for an abbreviation, which can name another
+// object, and answers an empty one in a form the batch cannot read.
+func whole(id []byte) bool { return len(id) == 20 || len(id) == 32 }
 
 // running returns the running git, starting one if there is none.
 func (p *Process) running() (*proc, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -127,6 +128,30 @@ func TestEndsWhenIdle(t *testing.T) {
 	read()
 	if runner.Running() != 1 {
 		t.Fatalf("%d gits running", runner.Running())
+	}
+}
+
+// An id that is not whole is answered missing, not sent: git would end
+// the batch on an empty one and take a short one for an abbreviation of
+// whatever object it prefixes.
+func TestPartialIDsAreMissing(t *testing.T) {
+	r := gittest.Init(t)
+	c := decode(r.Commit("first"))
+	p, err := Start(context.Background(), testrun.Runner(t), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	var got []string
+	err = p.Read([][]byte{nil, c[:4], c, c[:19]}, func(i int, o Object) error {
+		got = append(got, fmt.Sprintf("%v %s", o.Missing, o.Type))
+		return nil
+	})
+	if want := "true |true |false commit|true "; err != nil || strings.Join(got, "|") != want {
+		t.Fatalf("got %q, %v, want %q", got, err, want)
+	}
+	if !p.Alive() {
+		t.Fatal("not alive")
 	}
 }
 
