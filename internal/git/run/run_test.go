@@ -342,3 +342,40 @@ func TestHardeningKeyWithEquals(t *testing.T) {
 		t.Fatalf("core.pager %q %v", res.Stdout, err)
 	}
 }
+
+// A hardened diff of the work tree does not ask a submodule whether it is
+// dirty, which would run git status there under the submodule's own
+// config.
+func TestHardenedDiffLeavesSubmodules(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the driver is a shell command")
+	}
+	marks := t.TempDir()
+	sub := gittest.Init(t)
+	sub.Write(".gitattributes", "*.s filter=subf\n")
+	sub.Write("a.s", "one\n")
+	sub.Commit("one")
+	sup := gittest.Init(t)
+	sup.Write("f", "x\n")
+	sup.Commit("base")
+	sup.Git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub.Dir, "sub")
+	sup.Commit("sub")
+	sup.Git("--git-dir="+filepath.Join(sup.GitDir(), "modules", "sub"), "config", "filter.subf.process",
+		fmt.Sprintf("touch %q; exit 1", filepath.Join(marks, "sub-process")))
+	if err := os.WriteFile(filepath.Join(sup.Dir, "sub", "a.s"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := runner(t, 2).Hardened([]string{"core.fsmonitor=false"})
+	for _, args := range [][]string{
+		{"diff-files", "--numstat", "-z", "--submodule=short"},
+		{"diff-index", "--numstat", "-z", "HEAD"},
+		{"diff", "--no-color", "--submodule=short"},
+	} {
+		if _, err := h.Run(context.Background(), &Cmd{GitDir: sup.GitDir(), WorkTree: sup.Dir, Read: true, Args: args}); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if ran, _ := os.ReadDir(marks); len(ran) > 0 {
+			t.Fatalf("%v ran the submodule's driver", args)
+		}
+	}
+}

@@ -94,8 +94,9 @@ func (r *Runner) SetPrompt(env []string, asking func() bool) {
 // Hardened returns a runner, sharing this one's process limit, for a
 // repository that is not trusted: config, as key=value with the value
 // after the last "=", adds overrides after every command's own, so they
-// win; diff, log and show run no external diff and no textconv; and any
-// command not marked Read is refused, so nothing writes.
+// win; diff, log and show run no external diff and no textconv; diff asks
+// no submodule whether it is dirty; and any command not marked Read is
+// refused, so nothing writes.
 func (r *Runner) Hardened(config []string) *Runner {
 	h := &Runner{git: r.git, env: r.env, pool: r.pool, hardened: true}
 	h.Reharden(config)
@@ -269,6 +270,13 @@ func (r *Runner) argv(c *Cmd) (args, env []string) {
 	switch c.Args[0] {
 	case "diff", "log", "show":
 		globals = append(globals, "--no-ext-diff", "--no-textconv")
+	}
+	switch c.Args[0] {
+	case "diff", "diff-files", "diff-index":
+		// Asking whether a submodule's work tree is dirty runs git status
+		// inside it, under the submodule's own config, which the hardening,
+		// made from the superproject's, does not cover.
+		globals = append(globals, "--ignore-submodules=dirty")
 	}
 	return append(globals, c.Args[1:]...), env
 }
