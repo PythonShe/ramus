@@ -3,16 +3,15 @@ package trust
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
 	"ramus/internal/git/pathsafe"
+	"ramus/internal/settings"
 )
 
 // Store remembers which repositories the user trusts, in a file of the
@@ -49,7 +48,7 @@ type Store struct {
 	idle   chan struct{}
 }
 
-// writeHook, when set, runs before a save's file replaces the old one:
+// writeHook, when set, runs as a save begins to write its file:
 // a test holds a save there.
 var writeHook func()
 
@@ -69,10 +68,11 @@ type folder struct {
 }
 
 // Load reads the store at path; a missing file is an empty store. A file
-// that cannot be read or parsed is moved aside, to the name the error
-// gives, and the store returned is empty and usable: every repository is
-// asked about again, which is the safe side. When it cannot be moved, the
-// store refuses to save over it.
+// that cannot be read or parsed is moved aside, as the app's other state
+// files are, and the error is a *settings.LoadError saying where; the
+// store returned is empty and usable: every repository is asked about
+// again, which is the safe side. When it cannot be moved, the store
+// refuses to save over it.
 func Load(path string) (*Store, error) {
 	s := &Store{path: path, ids: map[string]string{}, kept: map[string]map[string]json.RawMessage{}}
 	data, err := os.ReadFile(path)
@@ -84,12 +84,11 @@ func Load(path string) (*Store, error) {
 		err = json.Unmarshal(data, &f)
 	}
 	if err != nil {
-		bad, merr := moveAside(path)
-		if merr != nil {
-			s.broken = fmt.Errorf("trust: %s cannot be read (%v) nor moved aside (%v); no trust given is saved until it is", path, err, merr)
-			return s, s.broken
+		e := settings.Unreadable(path, err)
+		if e.KeepErr != nil {
+			s.broken = e
 		}
-		return s, fmt.Errorf("trust: %s cannot be read (%v); it was moved to %s, and every repository asks to be trusted again", path, err, bad)
+		return s, e
 	}
 	s.extra = unknown(data, "trusted", "folders")
 	for _, d := range f.Trusted {
@@ -132,20 +131,6 @@ func unknown(obj []byte, known ...string) map[string]json.RawMessage {
 		return nil
 	}
 	return m
-}
-
-// moveAside renames the file at path to a name of its own beside it.
-func moveAside(path string) (string, error) {
-	for i := 1; i <= 100; i++ {
-		bad := path + ".bad"
-		if i > 1 {
-			bad += strconv.Itoa(i)
-		}
-		if _, err := os.Lstat(bad); errors.Is(err, fs.ErrNotExist) {
-			return bad, os.Rename(path, bad)
-		}
-	}
-	return "", errors.New("too many files moved aside already")
 }
 
 func clean(dir string) string {
@@ -329,30 +314,12 @@ func (s *Store) marshal() ([]byte, error) {
 	return json.MarshalIndent(out, "", "\t")
 }
 
-// writeAtomic replaces path whole, so a crash leaves the old file or the
-// new one, never half of one.
+// writeAtomic replaces path whole, as the app's other state files are
+// written: a crash leaves the old file or the new one, never half of one,
+// and on Windows a file another program holds open is tried again.
 func writeAtomic(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".trust-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
 	if writeHook != nil {
 		writeHook()
 	}
-	return os.Rename(tmp.Name(), path)
+	return settings.WriteFile(path, data)
 }

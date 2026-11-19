@@ -2,6 +2,7 @@ package trust
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -9,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"ramus/internal/settings"
 )
 
 func TestStore(t *testing.T) {
@@ -144,7 +147,9 @@ func TestConcurrentSetsAllSaved(t *testing.T) {
 }
 
 // A store file that does not read leaves the app a usable, empty store,
-// trusting nothing; the file is kept aside, never written over.
+// trusting nothing; the file is kept aside, never written over, under
+// the name the app's other state files take, and the error says where,
+// as theirs do.
 func TestUnreadableStore(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), ".git")
 	os.MkdirAll(repo, 0o755)
@@ -153,13 +158,14 @@ func TestUnreadableStore(t *testing.T) {
 		path := filepath.Join(dir, "trust.json")
 		os.WriteFile(path, []byte(content), 0o600)
 		s, err := Load(path)
-		if err == nil || s == nil {
-			t.Fatalf("%q: %v %v", content, s, err)
+		var le *settings.LoadError
+		if s == nil || !errors.As(err, &le) || le.Path != path || le.KeptAs != path+".broken" {
+			t.Fatalf("%q: %v %#v", content, s, err)
 		}
 		if s.Trusted(repo) {
 			t.Errorf("%q: trusts", content)
 		}
-		if kept, err := os.ReadFile(path + ".bad"); err != nil || string(kept) != content {
+		if kept, err := os.ReadFile(path + ".broken"); err != nil || string(kept) != content {
 			t.Errorf("%q: not kept aside: %q %v", content, kept, err)
 		}
 		if err := s.Set(repo, true); err != nil {
