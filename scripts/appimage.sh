@@ -27,7 +27,7 @@ chmod +x "$work/appimagetool"
 
 app=$work/Ramus.AppDir
 mkdir -p "$app/usr/lib/ramus"
-cp "$build/ramus" "$build/icon.png" "$build/.mygo-files" "$app/usr/lib/ramus/"
+cp "$build/ramus" "$build/.mygo-files" "$app/usr/lib/ramus/"
 cp "$build/ramus.desktop" "$app/ramus.desktop"
 cp "$build/ramus-256x256.png" "$app/ramus.png"
 cat >"$app/AppRun" <<'RUN'
