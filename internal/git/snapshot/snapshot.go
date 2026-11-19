@@ -733,7 +733,7 @@ func Files(ctx context.Context, cat *catfile.Process, hashSize int, s Snapshot) 
 	if err != nil || len(snap) != hashSize {
 		return nil, fmt.Errorf("snapshot: tree %q is not an object id", s.Tree)
 	}
-	ch, err := tree.Diff(context.Background(), cat, hashSize, base, snap)
+	ch, err := tree.Diff(ctx, cat, hashSize, base, snap)
 	if err != nil {
 		return nil, err
 	}
@@ -953,23 +953,17 @@ func known(ctx context.Context, r *run.Runner, w Where, tree string, index bool,
 // out, so more are listed by one walk of everything, filtered.
 const maxPathspecs = 256
 
-// maxPathspecBytes bounds the bytes of the paths a listing takes as its
-// arguments: Windows limits a command line to 32767 characters, git's
-// own path and the runner's config included.
-const maxPathspecBytes = 24 << 10
-
 // fewPathspecs reports whether paths are few and short enough to be a
-// listing's arguments.
+// listing's arguments, within the command line every platform takes.
 func fewPathspecs(paths []string) bool {
 	if len(paths) > maxPathspecs {
 		return false
 	}
 	n := 0
 	for _, p := range paths {
-		// Quoted, as Go quotes one with a space or a quote for Windows.
-		n += len(p) + 3 + 2*strings.Count(p, `"`) + strings.Count(p, `\`)
+		n += run.ArgBytes(p)
 	}
-	return n <= maxPathspecBytes
+	return n <= run.MaxArgBytes
 }
 
 // listPaths runs a git listing that prints names relative to the top of
