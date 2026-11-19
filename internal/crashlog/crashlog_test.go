@@ -86,6 +86,15 @@ func TestReportsKept(t *testing.T) {
 	}
 }
 
+// On Windows the home folder is taken out however git or Go spelled it.
+func TestWindowsHomeTakenOut(t *testing.T) {
+	l := &Log{home: `C:\Users\First Last`, fold: true}
+	got := l.clean(`C:\Users\First Last\a c:/users/first last/b C:/Users/First Last/c`)
+	if want := `~\a ~/b ~/c`; got != want {
+		t.Fatalf("%q, want %q", got, want)
+	}
+}
+
 // TestFatal crashes a child process and reads its report at the next
 // "launch".
 func TestFatal(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"slices"
@@ -42,8 +43,10 @@ type Log struct {
 	dir string
 	app string
 	os  string
-	// home is replaced by ~ in what a report says.
+	// home is replaced by ~ in what a report says; fold has it found in
+	// any case and with either slash, as on Windows.
 	home string
+	fold bool
 
 	mu      sync.Mutex
 	git     string
@@ -55,7 +58,7 @@ type Log struct {
 // New returns the log keeping its reports in dir, for the app at version.
 func New(dir, version string) *Log {
 	home, _ := os.UserHomeDir()
-	return &Log{dir: dir, app: appVersion(version), os: osVersion(), home: home}
+	return &Log{dir: dir, app: appVersion(version), os: osVersion(), home: home, fold: runtime.GOOS == "windows"}
 }
 
 // Dir is the folder of the reports.
@@ -143,10 +146,19 @@ func outcome(c run.Record) string {
 // the user's home folder, which names them.
 func (l *Log) clean(s string) string {
 	s = redact.Shown(s)
-	if l.home != "" && l.home != "/" {
-		s = strings.ReplaceAll(s, l.home, "~")
+	if l.home == "" || l.home == "/" {
+		return s
 	}
-	return s
+	if !l.fold {
+		return strings.ReplaceAll(s, l.home, "~")
+	}
+	// Windows: git and Go print the folder with forward slashes too, and
+	// with the drive letter or the name in another case.
+	spellings := regexp.QuoteMeta(l.home)
+	if slash := strings.ReplaceAll(l.home, `\`, "/"); slash != l.home {
+		spellings += "|" + regexp.QuoteMeta(slash)
+	}
+	return regexp.MustCompile("(?i)"+spellings).ReplaceAllLiteralString(s, "~")
 }
 
 // samePanicGap is how long a panic with the same value as one reported
