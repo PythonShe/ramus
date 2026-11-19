@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"ramus/internal/git/userenv"
 )
 
 // ErrUnknownHost is a host the tool is not logged in to. Parse takes any
@@ -104,27 +106,12 @@ func hostVars(k Kind) []string {
 // goos is the system the tools run on, which a test may play.
 var goos = runtime.GOOS
 
-// envName reports whether k, the name of a variable in an environment,
-// is name: on Windows, whose names are not case-sensitive, in any case,
-// as the block it gives a program spells APPDATA what a program asks
-// for as AppData.
-func envName(k, name string) bool {
-	if goos == "windows" {
-		return strings.EqualFold(k, name)
-	}
-	return k == name
-}
-
-// envValue is the value of the variable name in env, the last one set;
-// ok is false for none, or one empty.
+// envValue is the value of the variable name in env, the last one set,
+// its name in any case on Windows only (userenv.SameKey); ok is false
+// for none, or one empty.
 func envValue(env []string, name string) (string, bool) {
-	val, found := "", false
-	for _, kv := range env {
-		if k, v, ok := strings.Cut(kv, "="); ok && envName(k, name) {
-			val, found = v, true
-		}
-	}
-	return val, found && val != ""
+	v := userenv.Lookup(env, name)
+	return v, v != ""
 }
 
 // configFiles are where the tool of kind keeps the hosts it is logged

@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"ramus/internal/git/userenv"
 )
 
 // Bounds on the tool: how long one call may take, how much it may print,
@@ -115,12 +117,7 @@ func Find(env []string, k Kind) (*CLI, error) {
 // lookPath finds an executable named name in env's PATH, not the app's,
 // which the desktop starts with only the system's folders.
 func lookPath(env []string, name string) (string, bool) {
-	path := ""
-	for _, kv := range env {
-		if k, v, ok := strings.Cut(kv, "="); ok && strings.EqualFold(k, "PATH") {
-			path = v
-		}
-	}
+	path := userenv.Lookup(env, "PATH")
 	names := []string{name}
 	if runtime.GOOS == "windows" {
 		names = []string{name + ".exe"}
@@ -152,7 +149,7 @@ func quiet(env []string) []string {
 	out := make([]string, 0, len(env)+12)
 	for _, kv := range env {
 		k, _, _ := strings.Cut(kv, "=")
-		if !slices.ContainsFunc(forced, func(name string) bool { return envName(k, name) }) {
+		if !slices.ContainsFunc(forced, func(name string) bool { return userenv.SameKey(k, name) }) {
 			out = append(out, kv)
 		}
 	}

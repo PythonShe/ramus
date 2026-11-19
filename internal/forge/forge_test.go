@@ -604,7 +604,7 @@ func TestConfigFilesOnWindows(t *testing.T) {
 	t.Cleanup(func() { goos = was })
 	home := t.TempDir()
 	app := filepath.Join(home, "AppData", "Roaming")
-	env := []string{"APPDATA=" + app, "UserProfile=" + home, "gh_host=ghe.example"}
+	env := []string{"APPDATA=" + app, "USERPROFILE=" + home}
 	goos = "windows"
 	if got := configFiles(env, GitHub); len(got) != 1 || got[0] != filepath.Join(app, "GitHub CLI", "hosts.yml") {
 		t.Errorf("gh %q", got)
@@ -613,12 +613,28 @@ func TestConfigFilesOnWindows(t *testing.T) {
 		!slices.Contains(got, filepath.Join(home, ".config", "glab-cli", "config.yml")) {
 		t.Errorf("glab %q", got)
 	}
-	if v, ok := envValue(env, "GH_HOST"); !ok || v != "ghe.example" {
-		t.Errorf("GH_HOST %q", v)
+}
+
+// A variable's name is matched in any case on Windows only, where the
+// system keeps PATH as Path; elsewhere Path and PATH are two variables.
+func TestVariableNamesCase(t *testing.T) {
+	windows := runtime.GOOS == "windows"
+	if v, ok := envValue([]string{"gh_host=ghe.example"}, "GH_HOST"); ok != windows || ok && v != "ghe.example" {
+		t.Errorf("GH_HOST %q %v", v, ok)
 	}
-	goos = "linux"
-	if _, ok := envValue(env, "GH_HOST"); ok {
-		t.Error("a name in another case taken off Windows")
+	dir := t.TempDir()
+	name := "gh"
+	if windows {
+		name += ".exe"
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := lookPath([]string{"Path=" + dir}, "gh"); ok != windows {
+		t.Errorf("found through Path: %v", ok)
+	}
+	if _, ok := lookPath([]string{"PATH=" + dir}, "gh"); !ok {
+		t.Error("not found through PATH")
 	}
 }
 
