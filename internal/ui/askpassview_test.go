@@ -128,8 +128,11 @@ func TestAskpassWindowCloses(t *testing.T) {
 		if err := helper.Start(); err != nil {
 			t.Fatal(err)
 		}
-		ended[dir] = make(chan error, 1)
-		go func() { ended[dir] <- helper.Wait() }()
+		// The goroutine is given its channel: it would read the map while
+		// the loop adds the next.
+		done := make(chan error, 1)
+		ended[dir] = done
+		go func() { done <- helper.Wait() }()
 	}
 	h.until("both questions", func() bool { return len(h.app.asking.list) == 2 })
 	waitEnd := func(dir string) {
