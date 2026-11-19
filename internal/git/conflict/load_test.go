@@ -132,7 +132,9 @@ func TestLoadAgainstGit(t *testing.T) {
 func mergeFile(t *testing.T, args ...string) (string, int) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"merge-file", "-p"}, args...)...)
-	cmd.Env = gittest.Env()
+	// Outside any repository: the one around the test would lend git its
+	// config, or stop it when it does not resolve.
+	cmd.Dir, cmd.Env = t.TempDir(), gittest.Env()
 	out, err := cmd.Output()
 	var e *exec.ExitError
 	if errors.As(err, &e) && e.ExitCode() > 0 && e.ExitCode() < 128 {

@@ -35,8 +35,9 @@ func TestTrailersMatchGit(t *testing.T) {
 	}
 	for _, m := range msgs {
 		cmd := exec.Command("git", "interpret-trailers", "--parse")
-		// Without the user's trailer settings, which change git's answer.
-		cmd.Env = gittest.Env()
+		// Without the user's trailer settings, which change git's answer,
+		// nor those of a repository around the test.
+		cmd.Dir, cmd.Env = t.TempDir(), gittest.Env()
 		cmd.Stdin = strings.NewReader(m)
 		out, err := cmd.Output()
 		if err != nil {

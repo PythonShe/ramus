@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"ramus/internal/git/gittest"
 )
 
 func TestParseVersion(t *testing.T) {
@@ -69,7 +71,9 @@ func TestFeaturesAgainstGit(t *testing.T) {
 		if !g.Version.Has(f) {
 			continue
 		}
-		out, _ := exec.Command(g.Path, args...).CombinedOutput()
+		cmd := exec.Command(g.Path, args...)
+		cmd.Dir, cmd.Env = t.TempDir(), gittest.Env()
+		out, _ := cmd.CombinedOutput()
 		if f == BranchDeleteMerged {
 			if !contains(out, "--delete-merged") {
 				t.Errorf("git %s should have %s", g.Version, f)

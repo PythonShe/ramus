@@ -91,7 +91,7 @@ func TestDiscover(t *testing.T) {
 		base := t.TempDir()
 		wt, gd := filepath.Join(base, "wt"), filepath.Join(base, "gd")
 		cmd := exec.Command("git", "init", "-q", "--separate-git-dir", gd, wt)
-		cmd.Env = gittest.Env()
+		cmd.Dir, cmd.Env = base, gittest.Env()
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%v %s", err, out)
 		}
@@ -127,7 +127,9 @@ func TestNotFound(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := Discover(dir); !errors.Is(err, ErrNotFound) {
 		// A temp dir inside some repository would make this meaningless.
-		if _, gerr := exec.Command("git", "-C", dir, "rev-parse").Output(); gerr == nil {
+		cmd := exec.Command("git", "-C", dir, "rev-parse")
+		cmd.Env = gittest.Env()
+		if _, gerr := cmd.Output(); gerr == nil {
 			t.Skip("temp dir is inside a repository")
 		}
 		t.Fatalf("got %v", err)

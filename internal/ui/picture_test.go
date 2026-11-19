@@ -461,7 +461,7 @@ func TestSubmoduleDiff(t *testing.T) {
 	inner := filepath.Join(r.Dir, "lib")
 	for _, msg := range []string{"second", "third"} {
 		os.WriteFile(filepath.Join(inner, "s"), []byte(msg), 0o644)
-		gitIn(t, inner, "commit", "-q", "-a", "-m", msg)
+		gittest.Open(t, inner).Git("commit", "-q", "-a", "-m", msg)
 	}
 	h.trust.Set(r.GitDir(), true)
 	h.app.Open(r.Dir)
@@ -473,14 +473,5 @@ func TestSubmoduleDiff(t *testing.T) {
 		if !h.tt.HasText(want) {
 			t.Fatalf("no %q in %q", want, h.tt.Texts())
 		}
-	}
-}
-
-func gitIn(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "commit.gpgsign=false"}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=T", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=T", "GIT_COMMITTER_EMAIL=t@example.com")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %v: %v: %s", args, err, out)
 	}
 }
