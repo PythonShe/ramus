@@ -1244,14 +1244,20 @@ func (a *App) commitMenu(m *ui.Menu, t *tab, h session.HistoryState, i, merges i
 		a.clip = hex.EncodeToString(id)
 	}
 	if m.Item(locales.HistoryCopyMessage()).Chosen() {
-		t.s.LoadCommit(id, func(d session.CommitDetail) {
-			switch {
-			case d.Err != nil:
-				a.tell(t, errText(d.Err))
-			case d.Done:
-				a.clip = copiedMessage(d.Commit.Message)
-			}
-		})
+		var copyMessage func()
+		copyMessage = func() {
+			t.s.LoadCommit(id, func(d session.CommitDetail) {
+				switch {
+				case reopened(d.Err):
+					a.askAgain(t, copyMessage)
+				case d.Err != nil:
+					a.tell(t, errText(d.Err))
+				case d.Done:
+					a.clip = copiedMessage(d.Commit.Message)
+				}
+			})
+		}
+		copyMessage()
 	}
 	if m.Item(locales.HistoryCopyPatch()).Disabled(merge).Chosen() {
 		a.copyPatch(t, id)

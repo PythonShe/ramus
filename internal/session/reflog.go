@@ -46,8 +46,8 @@ const MaxReflog = 10000
 
 // Reflog reads up to MaxReflog entries of ref's reflog off the main
 // thread and hands them to done on it. A read whose repository closed and
-// opened again (Trust) is answered with no entries and no error: the
-// views read again, as for any change of the refs.
+// opened again (Trust) is answered ErrReopened, for the views to keep the
+// entries they show while they read them again.
 func (s *Session) Reflog(ref string, done func([]ReflogEntry, error)) {
 	r := s.Repo
 	if r == nil {
@@ -64,7 +64,7 @@ func (s *Session) Reflog(ref string, done func([]ReflogEntry, error)) {
 				break
 			}
 		}
-		s.handOver(r, func() { done(out, err) }, func() { done(nil, nil) })
+		s.handOver(r, func() { done(out, err) }, func() { done(nil, ErrReopened) })
 	})
 }
 

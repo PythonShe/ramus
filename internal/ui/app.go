@@ -294,6 +294,9 @@ type tab struct {
 	// the session's picsGen'th change of them.
 	pics    map[string]*ui.Bitmap
 	picsGen uint64
+	// again are the reads to ask again once the repository is open
+	// again (askAgain).
+	again []func()
 }
 
 // NewApp returns the app with nothing open.

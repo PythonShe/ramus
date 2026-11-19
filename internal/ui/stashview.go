@@ -174,6 +174,12 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 	if refs := t.s.State.Refs; (refs != ss.readFor || t.s.Writes != ss.readW) && !ss.loading {
 		ss.readFor, ss.readW, ss.loading = refs, t.s.Writes, true
 		t.s.Reflog("refs/stash", func(es []session.ReflogEntry, err error) {
+			if reopened(err) {
+				// A reopen read the refs again: so are the stashes, those
+				// shown staying till then.
+				ss.loading = false
+				return
+			}
 			ss.loading, ss.entries, ss.keys, ss.err = false, es, reflogKeys(es), ""
 			if st := t.s.State.Status; err != nil && st != nil && st.Branch.Stashes > 0 {
 				ss.err = errText(err)

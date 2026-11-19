@@ -126,6 +126,15 @@ func (p *wtPanel) readPatch(a *App, t *tab) {
 	}
 	f := p.file
 	p.stopPatch = t.s.WorktreePatch(f.worktree, f.f.Path, f.f.Untracked, func(res session.PatchResult) {
+		if p.file == f && reopened(res.Err) {
+			// Read again once open, the patch shown staying till then.
+			a.askAgain(t, func() {
+				if p.file == f {
+					p.readPatch(a, t)
+				}
+			})
+			return
+		}
 		if p.file == f {
 			p.patch = res
 			a.setPatch(&p.pv, res)

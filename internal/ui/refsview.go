@@ -129,6 +129,12 @@ func (a *App) loadRefs(t *tab) {
 	rs.readFor, rs.readW, rs.loading = st.Refs, t.s.Writes, true
 	t.s.LoadRefInfo(func(info session.RefInfo) {
 		rs.loading = false
+		if reopened(info.Err) {
+			// A reopen read the refs again: so is this, as shown next,
+			// the branches shown staying till then.
+			rs.readFor = nil
+			return
+		}
 		rs.info = &info
 	})
 }
@@ -516,6 +522,15 @@ func (a *App) verifyTag(t *tab, tg session.TagInfo) {
 	obj := tg.Object
 	rs.sigs[obj] = nil
 	t.s.Verify("", tg.Name, func(st signature.Status, err error) {
+		if v, ok := rs.sigs[obj]; ok && v == nil && reopened(err) {
+			// Asked again of the repository open now, still checking.
+			a.askAgain(t, func() {
+				if v, ok := rs.sigs[obj]; ok && v == nil {
+					a.verifyTag(t, tg)
+				}
+			})
+			return
+		}
 		if _, ok := rs.sigs[obj]; ok {
 			rs.sigs[obj] = &sigResult{st: st, err: err}
 		}
@@ -1165,6 +1180,15 @@ func (a *App) findCleanup(t *tab) {
 	}
 	cs.stop = t.s.FindCleanup(base, current, info.Branches, func(found []session.Candidate, err error) {
 		if base != cs.base {
+			return
+		}
+		if reopened(err) {
+			// Looked for again once open, still looking till then.
+			a.askAgain(t, func() {
+				if cs.open && cs.loading && cs.base == base {
+					a.findCleanup(t)
+				}
+			})
 			return
 		}
 		cs.loading, cs.found = false, found

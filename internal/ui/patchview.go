@@ -497,7 +497,13 @@ func (a *App) submoduleChange(c *ui.Context, t *tab, sc *subChange) {
 	}
 	if sc.old != nil && sc.new != nil && !bytes.Equal(sc.old, sc.new) && !sc.asked {
 		sc.asked = true
-		t.s.LoadSubmoduleRange(sc.path, sc.old, sc.new, func(r session.SubmoduleRange) { sc.rng = &r })
+		t.s.LoadSubmoduleRange(sc.path, sc.old, sc.new, func(r session.SubmoduleRange) {
+			if reopened(r.Err) {
+				sc.asked = false // asked again as shown next
+				return
+			}
+			sc.rng = &r
+		})
 	}
 	type row struct {
 		c       session.RangeCommit

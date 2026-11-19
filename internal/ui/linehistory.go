@@ -82,6 +82,11 @@ func (a *App) loadLineHistory(t *tab) {
 			return
 		}
 		lh.loading = false
+		if reopened(err) {
+			// Read again as shown next, the history shown staying.
+			lh.key = ""
+			return
+		}
 		var chosen []byte
 		if lh.log != nil && lh.chosen >= 0 && lh.chosen < len(lh.log.Commits) {
 			chosen = lh.log.Commits[lh.chosen].OID

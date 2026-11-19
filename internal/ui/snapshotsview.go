@@ -121,6 +121,11 @@ func (a *App) loadSnapshots(t *tab) {
 	ss.loading = true
 	at := t.s.Writes
 	t.s.Snapshots(func(list []snapshot.Snapshot, err error) {
+		if reopened(err) {
+			// Read again as shown next, a reopen counting as a write.
+			ss.loading = false
+			return
+		}
 		ss.loading, ss.listed = false, at
 		ss.err = ""
 		if err != nil {
@@ -145,16 +150,27 @@ func (a *App) snapshotFiles(c *ui.Context, t *tab, s snapshot.Snapshot) {
 		ss.fileList = ui.ListState{}
 		ss.fileAt, ss.patchFor = -1, ""
 		ref := s.Ref
-		t.s.SnapshotFiles(s, func(files []snapshot.File, err error) {
+		var ask func()
+		ask = func() {
 			if ss.filesOf != ref {
-				return
+				return // another snapshot is shown
 			}
-			ss.filesRead = true
-			if err != nil {
-				ss.filesErr = errText(err)
-			}
-			ss.files = files
-		})
+			t.s.SnapshotFiles(s, func(files []snapshot.File, err error) {
+				if ss.filesOf != ref {
+					return
+				}
+				if reopened(err) {
+					a.askAgain(t, ask)
+					return
+				}
+				ss.filesRead = true
+				if err != nil {
+					ss.filesErr = errText(err)
+				}
+				ss.files = files
+			})
+		}
+		ask()
 	}
 	files := ss.files
 	info := func() {
@@ -257,6 +273,11 @@ func (a *App) snapshotPatch(c *ui.Context, t *tab, s snapshot.Snapshot, f snapsh
 			ss.patchLoading = true
 			t.s.CommitPatch(detail, paths, ss.pager.max(), ws, session.Sides{}, func(res session.PatchResult) {
 				if ss.patchFor != key {
+					return
+				}
+				if reopened(res.Err) {
+					// Read again as the view is shown next.
+					ss.patchFor, ss.patchLoading = "", false
 					return
 				}
 				ss.patch = res

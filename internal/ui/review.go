@@ -388,6 +388,11 @@ func (a *App) loadReview(t *tab, w reviewWant) {
 		if it.key != key {
 			return
 		}
+		if reopened(res.Err) {
+			// Wanted again as shown next, the patch shown staying.
+			it.key = diffKey{}
+			return
+		}
 		it.res = res
 		a.setPatch(&it.pv, res)
 	})

@@ -139,7 +139,12 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 		cv.pv.stale.set()
 		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, infoRoom: cv.infoRoom, listRoom: cv.listRoom, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, metaW: cv.metaW, want: cv.want, noPull: cv.noPull}
 		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
-			if bytes.Equal(cv.id, d.OID) {
+			switch {
+			case !bytes.Equal(cv.id, d.OID):
+			case reopened(d.Err):
+				// Read again, with all it shows, as the view is shown next.
+				cv.id = nil
+			default:
 				cv.loading, cv.d = !d.Done, &d
 			}
 		})
@@ -157,7 +162,11 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			cv.cancel()
 		}
 		cv.cancel = t.s.LoadCommit(id, func(nd session.CommitDetail) {
-			if nd.Done && bytes.Equal(cv.id, nd.OID) {
+			switch {
+			case !nd.Done || !bytes.Equal(cv.id, nd.OID):
+			case reopened(nd.Err):
+				cv.id = nil // read again whole, as above
+			default:
 				cv.d = &nd
 			}
 		})
@@ -603,6 +612,10 @@ func (a *App) loadRelations(t *tab, cv *commitView) {
 		if !bytes.Equal(cv.id, id) {
 			return
 		}
+		if reopened(rel.Err) {
+			cv.relAsked = false // asked again as shown next
+			return
+		}
 		cv.rel = &rel
 		if n := len(rel.Children); n > 0 {
 			cv.childCancel = t.s.LoadSubjects(rel.Children[:min(n, shownChildren)], func(subjects []string) {
@@ -938,6 +951,11 @@ func (a *App) commitPatch(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 			}
 			read(func(res session.PatchResult) {
 				if cv.patchFor != key {
+					return
+				}
+				if reopened(res.Err) {
+					// Read again as the view is shown next.
+					cv.patchFor, cv.patchLoading = "", false
 					return
 				}
 				cv.patch = res

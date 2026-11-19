@@ -95,6 +95,8 @@ func (a *App) compareFrom(t *tab, cc *commitCompare) []byte {
 			cc.basing = false
 			var none *session.NoMergeBaseError
 			switch {
+			case reopened(err):
+				// Asked again as the view is shown next.
 			case errors.As(err, &none) && none.Shallow:
 				cc.note = locales.CompareShallowBase(redact.Control(cc.toName))
 			case errors.As(err, &none):
@@ -124,7 +126,12 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 		// shown till then.
 		cc.loading, cc.against, cc.readFor = true, from, t.s.State.Status
 		cc.cancel = t.s.CompareWorkTree(from, func(d session.CommitDetail) {
-			if cc.workTree && bytes.Equal(cc.against, from) {
+			switch {
+			case !cc.workTree || !bytes.Equal(cc.against, from):
+			case reopened(d.Err):
+				// Read again as shown next, the files read before staying.
+				cc.loading, cc.readFor = false, nil
+			default:
 				cc.loading, cc.d = !d.Done, &d
 			}
 		})
@@ -132,7 +139,15 @@ func (a *App) commitCompareView(c *ui.Context, t *tab) {
 		cc.loading, cc.against = true, from
 		to := cc.to
 		cc.cancel = t.s.Compare(from, to, func(d session.CommitDetail) {
-			if bytes.Equal(cc.against, from) && bytes.Equal(cc.to, to) {
+			switch {
+			case !bytes.Equal(cc.against, from) || !bytes.Equal(cc.to, to):
+			case reopened(d.Err):
+				// Read again as shown next; a list not yet counted goes.
+				cc.loading = false
+				if cc.d != nil && !cc.d.Done {
+					cc.d = nil
+				}
+			default:
 				// Listed first, then again counted.
 				cc.loading, cc.d = !d.Done, &d
 			}

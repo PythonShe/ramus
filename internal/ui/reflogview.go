@@ -141,7 +141,9 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 		ref := rs.ref
 		t.s.Reflog(ref, func(es []session.ReflogEntry, err error) {
 			rs.loading = false
-			if ref != rs.ref {
+			if ref != rs.ref || reopened(err) {
+				// A reopen read the refs again: so is the reflog, the
+				// entries shown staying till then.
 				return
 			}
 			rs.shownRef, rs.entries, rs.keys, rs.err = ref, es, reflogKeys(es), ""
@@ -210,12 +212,26 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 		ui.Column(c).Fill().Center().Gap(spaceL).Children(func() {
 			if ui.Button(c, locales.ReflogFindLost()).Clicked() {
 				rs.lostSearched, rs.lostLoading = true, true
-				t.s.LostCommits(func(l []session.LostCommit, err error) {
-					rs.lostLoading, rs.lost, rs.lostErr, rs.lostChosen = false, l, "", -1
-					if err != nil {
-						rs.lostErr = errText(err)
-					}
-				})
+				var search func()
+				search = func() {
+					t.s.LostCommits(func(l []session.LostCommit, err error) {
+						if reopened(err) {
+							// Searched again, unless the view was left meanwhile,
+							// which ended the search.
+							a.askAgain(t, func() {
+								if rs.lostLoading {
+									search()
+								}
+							})
+							return
+						}
+						rs.lostLoading, rs.lost, rs.lostErr, rs.lostChosen = false, l, "", -1
+						if err != nil {
+							rs.lostErr = errText(err)
+						}
+					})
+				}
+				search()
 			}
 		})
 		return

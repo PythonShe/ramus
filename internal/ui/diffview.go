@@ -134,6 +134,11 @@ func (a *App) readPatch(t *tab, key diffKey, sides session.Sides) {
 			if d.key != key {
 				return
 			}
+			if reopened(res.Err) {
+				// Read again as shown next, the patch shown staying.
+				d.key, d.loading = diffKey{}, false
+				return
+			}
 			d.res, d.resKey = res, key
 			a.setPatch(&d.pv, res)
 			if d.pager.more(res) {

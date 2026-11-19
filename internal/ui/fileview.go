@@ -281,6 +281,11 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 				return
 			}
 			fs.logLoading = false
+			if reopened(err) {
+				// Read again as shown next, the commits shown staying.
+				fs.logKey = ""
+				return
+			}
 			var chosen []byte
 			if fs.chosen >= 0 && fs.chosen < len(fs.commits) {
 				chosen = fs.commits[fs.chosen].OID
@@ -413,6 +418,11 @@ func (a *App) loadBlame(t *tab) {
 			for l := g.Start; l < g.Start+g.Lines && l < len(fs.lineCommit); l++ {
 				fs.lineCommit[l] = int32(g.Commit)
 			}
+		}
+		if u.Done && reopened(u.Err) {
+			// Blamed again as shown next, still loading till then.
+			fs.blameKey = ""
+			return
 		}
 		if u.Done {
 			fs.blameDone = true

@@ -291,11 +291,20 @@ func (a *App) savePatch(t *tab, req session.PatchSave, name string) {
 			case err != nil:
 				a.tell(t, errText(err))
 			case file != "":
-				t.s.SavePatch(req, file, func(err error) {
-					if err != nil {
-						a.tell(t, errText(err))
-					}
-				})
+				var store func()
+				store = func() {
+					t.s.SavePatch(req, file, func(err error) {
+						switch {
+						case reopened(err):
+							// Cut short: written again, whole, from the
+							// repository open now.
+							a.askAgain(t, store)
+						case err != nil:
+							a.tell(t, errText(err))
+						}
+					})
+				}
+				store()
 			}
 		})
 	})

@@ -40,7 +40,13 @@ func (d *dashState) read(t *tab) {
 	}
 	d.readFor, d.sums = wts, map[string]session.WorktreeSummary{}
 	sums := d.sums
-	d.stop = t.s.SummarizeWorktrees(wts, func(s session.WorktreeSummary) { sums[s.Path] = s })
+	d.stop = t.s.SummarizeWorktrees(wts, func(s session.WorktreeSummary) {
+		if reopened(s.Err) {
+			d.reload() // read again as shown next
+			return
+		}
+		sums[s.Path] = s
+	})
 }
 
 // Reload reads the dashboard again, as Cmd+R does.
@@ -178,6 +184,12 @@ func (a *App) openWorktree(t *tab, w repo.Worktree) {
 		}
 		path := w.Path
 		t.s.SummarizeWorktrees([]repo.Worktree{w}, func(sum session.WorktreeSummary) {
+			if reopened(sum.Err) {
+				// Asked again of the repository open now: whether git
+				// works there is not known.
+				a.askAgain(t, func() { a.openWorktree(t, w) })
+				return
+			}
 			a.openHeld(path, sum.InUse || sum.Err != nil)
 		})
 	}

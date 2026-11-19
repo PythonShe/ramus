@@ -39,8 +39,8 @@ type FileLogOptions struct {
 // a folder ends in "/"), newest first, off the main thread, and hands them
 // to done on it; limited is set when MaxFileLog cut it short. Leaving the
 // view stops the read, and done is not called. A read whose repository
-// closed and opened again (Trust) is answered with no commits and no
-// error: the view reads again, as for any change of the refs.
+// closed and opened again (Trust) is answered ErrReopened, for the view
+// to keep the commits it shows while it reads them again.
 func (s *Session) FileLog(path string, opt FileLogOptions, done func(commits []FileCommit, limited bool, err error)) {
 	r := s.Repo
 	if r == nil {
@@ -77,7 +77,7 @@ func (s *Session) FileLog(path string, opt FileLogOptions, done func(commits []F
 			}
 		}, func() {
 			if shown() {
-				done(nil, false, nil)
+				done(nil, false, ErrReopened)
 			}
 		})
 	})

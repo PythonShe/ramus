@@ -145,6 +145,11 @@ func (a *App) countStats(t *tab) {
 	ss.res, ss.title, ss.bars = session.StatsResult{Req: req}, "", nil
 	now := a.Now()
 	t.s.LoadStats(req, func(r session.StatsResult) {
+		if reopened(r.Err) {
+			// Counted again as shown next, for the same request.
+			ss.asked, ss.loading = nil, false
+			return
+		}
 		ss.res = r
 		ss.title, ss.bars = overTime(r.Stats.Weeks, now)
 		ss.loading = !r.Done
@@ -167,6 +172,12 @@ func (a *App) loadTreemap(t *tab, ts *treemapState, changes bool) {
 		*asked = req
 		ts.loading, ts.For, ts.path, ts.reading = true, req, nil, asked
 		done := func(pw session.PathWeights) {
+			if reopened(pw.Err) {
+				if ts.reading == asked {
+					*ts = treemapState{} // read again as shown next
+				}
+				return
+			}
 			// The tree is built off the main thread too: a large
 			// repository has hundreds of thousands of paths.
 			update := a.Update

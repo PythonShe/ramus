@@ -81,7 +81,7 @@ func handOffCases(t *testing.T, r *gittest.Repo, parent, head []byte) []handOffC
 			s.EditRange(parent, func(_ write.Rewrite, _ write.Seen, _ []EditCommit, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
 		{"FileLog", true, func(s *Session, answer func(bool)) {
-			s.FileLog("a.txt", FileLogOptions{}, func(cs []FileCommit, limited bool, err error) { answer(cs == nil && !limited && err == nil) })
+			s.FileLog("a.txt", FileLogOptions{}, func(_ []FileCommit, _ bool, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
 		{"LineLog", true, func(s *Session, answer func(bool)) {
 			s.LineLog("a.txt", 1, 1, func(_ *LineLog, err error) { answer(errors.Is(err, ErrReopened)) })
@@ -96,7 +96,7 @@ func handOffCases(t *testing.T, r *gittest.Repo, parent, head []byte) []handOffC
 			s.SnapshotFiles(snapshot.Snapshot{}, func(_ []snapshot.File, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
 		{"Reflog", false, func(s *Session, answer func(bool)) {
-			s.Reflog("HEAD", func(es []ReflogEntry, err error) { answer(es == nil && err == nil) })
+			s.Reflog("HEAD", func(_ []ReflogEntry, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
 		{"LostCommits", true, func(s *Session, answer func(bool)) {
 			s.LostCommits(func(_ []LostCommit, err error) { answer(errors.Is(err, ErrReopened)) })

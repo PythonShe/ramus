@@ -45,6 +45,12 @@ func (a *App) loadLocks(t *tab) {
 	ls.loading = true
 	at := t.s.Writes
 	t.s.LFSLocks(func(l lfs.Locks, err error) {
+		if reopened(err) {
+			// Read again as shown next, a reopen counting as a write; the
+			// locks listed stay till then.
+			ls.loading = false
+			return
+		}
 		ls.loading, ls.listed, ls.read = false, at, true
 		ls.err = ""
 		switch {

@@ -60,6 +60,7 @@ func (a *App) repoView(c *ui.Context, t *tab) {
 		return
 	}
 	a.resolvePending(t)
+	a.runAgain(t)
 	if !t.expired && t.s.Queue != nil {
 		t.expired = true
 		t.s.ExpireSnapshots(time.Duration(a.Settings.WithDefaults().SnapshotDays) * 24 * time.Hour)
