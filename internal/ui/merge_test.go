@@ -319,3 +319,47 @@ func TestMergeLoadErrorIsNotADeletion(t *testing.T) {
 		t.Fatalf("both deleted: texts %q", h.tt.Texts())
 	}
 }
+
+// Two quick Enters on a conflicted file read it once and ask once: the
+// second comes while the first still reads.
+func TestMarkResolvedReadsOnce(t *testing.T) {
+	h := newHarness(t)
+	r := conflictingRepo(h)
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	r.Run(nil, "merge", "topic")
+	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	h.click("a.txt")
+	h.until("the editor", func() bool { return h.tt.HasText("Conflict 1") && !tb.merge.loading })
+	// Each read of the conflict asks git once for its marker size.
+	reads := func() int {
+		n := 0
+		for _, rec := range tb.s.Repo.Runner.Journal().For(tb.s.Repo.GitDir) {
+			if strings.Contains(rec.Line, "check-attr -z conflict-marker-size -- a.txt") {
+				n++
+			}
+		}
+		return n
+	}
+	before := reads()
+	cf := &tb.cv.confirm
+
+	h.tt.Key(0, ui.KeyEnter)
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("the question", func() bool { return cf.open })
+	if n := reads() - before; n != 1 {
+		t.Fatalf("two quick Enters read a.txt %d times", n)
+	}
+	h.click("Cancel")
+	// One once the first has answered reads again: what it asks is its
+	// own.
+	h.click("a.txt")
+	h.tt.Key(0, ui.KeyEnter)
+	h.until("the question again", func() bool { return cf.open })
+	h.click("Cancel")
+	if n := reads() - before; n != 2 {
+		t.Fatalf("an Enter after the question read a.txt %d times in all", n)
+	}
+}

@@ -12,6 +12,7 @@ import (
 
 	"ramus/internal/git/conflict"
 	"ramus/internal/git/diff"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
 	"ramus/internal/session"
@@ -67,6 +68,14 @@ type changesState struct {
 	totalsFor struct {
 		m  *changeModel
 		st *status.Status
+	}
+	// marking are the files a Mark Resolved is reading, joined, and the
+	// repository it reads them in: a second Enter while it reads asks
+	// nothing more. A repository closed meanwhile never answers, so the
+	// guard holds only while marking.in is still the session's.
+	marking struct {
+		paths string
+		in    *repo.Repository
 	}
 }
 
@@ -1015,9 +1024,14 @@ func (a *App) toggleStage(t *tab, m *changeModel, rows []changeRow) {
 // are read one at a time, as the merge editor reads them.
 func (a *App) markResolved(t *tab, m *changeModel, es []int32) {
 	ps := paths(m.st, es)
-	if len(ps) == 0 || t.s.Queue == nil {
+	if len(ps) == 0 || t.s.Queue == nil || t.s.Repo == nil {
 		return
 	}
+	key, mk := strings.Join(ps, "\x00"), &t.cv.marking
+	if mk.paths == key && mk.in == t.s.Repo {
+		return
+	}
+	mk.paths, mk.in = key, t.s.Repo
 	var marked []string
 	var next func(i int)
 	next = func(i int) {
@@ -1029,6 +1043,9 @@ func (a *App) markResolved(t *tab, m *changeModel, es []int32) {
 				next(i + 1)
 			})
 			return
+		}
+		if mk.paths == key {
+			mk.paths, mk.in = "", nil
 		}
 		if len(marked) == 0 {
 			a.stagePaths(t, secUnstaged, ps)
