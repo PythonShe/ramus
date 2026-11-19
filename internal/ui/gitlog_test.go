@@ -60,3 +60,23 @@ func TestGitCommandLog(t *testing.T) {
 	h.click("Actions")
 	h.until("the actions", h.shows("Commands the app runs here show up in this log"))
 }
+
+// A read of the git commands asked of a repository closed before it
+// answered, as Trust reopens it, does not keep the list loading for
+// good: the repository opened again is read.
+func TestGitCommandLogAfterReopen(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	h.app.Open(r.Dir)
+	h.until("the banner", h.shows("Read-only"))
+	tb := h.app.current()
+	gl := &tb.gitLog
+	tb.sel, gl.mode = "log", 1
+	h.until("the commands", func() bool { return gl.recs != nil })
+	before := tb.s.Repo
+	h.click("Trust Repository")
+	h.until("reopened", func() bool { return tb.s.Repo != nil && tb.s.Repo != before })
+	// The read asked of the repository closed, which never answers.
+	gl.loading, gl.from, gl.recs = true, before, nil
+	h.until("the commands read again", func() bool { return gl.recs != nil && !gl.loading })
+}

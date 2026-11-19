@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/locales"
 )
@@ -18,9 +19,12 @@ type gitLogState struct {
 	recs    []run.Record // oldest first
 	version uint64
 	loading bool
-	list    ui.ListState
-	chosen  int // newest first; -1 none
-	out     ui.ListState
+	// from is the repository the read loading was asked of: one closed
+	// since, as on Trust, never answers it.
+	from   *repo.Repository
+	list   ui.ListState
+	chosen int // newest first; -1 none
+	out    ui.ListState
 	// lines are the output of the record shown, split once.
 	lines []string
 	shown run.Record
@@ -29,12 +33,15 @@ type gitLogState struct {
 // loadGitLog reads the journal again when it has moved on.
 func (a *App) loadGitLog(t *tab) {
 	gl := &t.gitLog
-	v := t.s.CommandsVersion()
-	if gl.loading || v == gl.version && gl.recs != nil {
+	v, r := t.s.CommandsVersion(), t.s.Repo
+	if r == nil || gl.loading && gl.from == r || v == gl.version && gl.recs != nil {
 		return
 	}
-	gl.loading = true
+	gl.loading, gl.from = true, r
 	t.s.GitCommands(func(recs []run.Record) {
+		if gl.from != r {
+			return // a later read was asked
+		}
 		gl.loading, gl.version = false, v
 		// Keep the same record chosen as newer ones come in above it.
 		var was *run.Record
