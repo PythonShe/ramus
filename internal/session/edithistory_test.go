@@ -120,3 +120,29 @@ func TestEditHistoryRefusesAMovedHead(t *testing.T) {
 		t.Fatalf("HEAD is %s, not the commit made meanwhile", got)
 	}
 }
+
+// A record of git log the edit cannot read fails the range: one skipped
+// would be left out of the rebase todo, and the commit dropped. git
+// prints a signature check before a signed commit when log.showSignature
+// is set, whatever the format.
+func TestEditRangeFailsOnARecordItCannotRead(t *testing.T) {
+	r := gittest.Init(t)
+	gittest.SSHSigning(t, r)
+	r.Write("a", "a\n")
+	from := r.Commit("first, unsigned")
+	r.Write("b", "b\n")
+	r.Git("add", "b")
+	r.Git("commit", "-q", "-S", "-m", "second, signed")
+	r.Write("c", "c\n")
+	head := r.Commit("third, unsigned")
+	id, _ := hex.DecodeString(from)
+	cs, _, err := readEditRange(t.Context(), testrun.Runner(t), r.GitDir(), head, id)
+	if err != nil || len(cs) != 3 {
+		t.Fatalf("plain: %d commits, %v", len(cs), err)
+	}
+	r.Git("config", "log.showSignature", "true")
+	cs, _, err = readEditRange(t.Context(), testrun.Runner(t), r.GitDir(), head, id)
+	if err == nil && len(cs) != 3 {
+		t.Fatalf("with signatures shown: %d commits of 3, and no error", len(cs))
+	}
+}

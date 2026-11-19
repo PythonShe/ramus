@@ -69,7 +69,9 @@ func (s *Session) EditRange(from []byte, done func(rw write.Rewrite, seen write.
 }
 
 // readEditRange lists the commits from from to head along first parents,
-// oldest first, and from's parent, "" for a root commit.
+// oldest first, and from's parent, "" for a root commit. A record it
+// cannot read fails the whole: the rebase todo is written from the list,
+// and a commit left out of it is dropped from the branch.
 func readEditRange(ctx context.Context, rn *run.Runner, gitDir, head string, from []byte) ([]EditCommit, string, error) {
 	res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, MaxOutput: 64 << 20,
 		Args: []string{"log", "--first-parent", "--format=%H%x1f%P%x1f%an%x1f%s%x00",
@@ -80,13 +82,17 @@ func readEditRange(ctx context.Context, rn *run.Runner, gitDir, head string, fro
 	var out []EditCommit
 	parent, found := "", false
 	for rec := range bytes.SplitSeq(res.Stdout, []byte{0}) {
-		f := bytes.SplitN(bytes.TrimLeft(rec, "\n"), []byte{0x1f}, 4)
-		if len(f) != 4 {
+		rec = bytes.TrimLeft(rec, "\n")
+		if len(rec) == 0 {
 			continue
 		}
-		id, err := hex.DecodeString(string(f[0]))
-		if err != nil {
-			continue
+		f := bytes.SplitN(rec, []byte{0x1f}, 4)
+		var id []byte
+		if len(f) == 4 {
+			id, err = hex.DecodeString(string(f[0]))
+		}
+		if len(f) != 4 || err != nil || len(id) == 0 {
+			return nil, "", errors.New("session: git log said " + strconv.Quote(string(rec)))
 		}
 		parents := bytes.Fields(f[1])
 		if len(parents) > 1 {
