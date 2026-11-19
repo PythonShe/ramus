@@ -45,10 +45,20 @@ func wait(t *testing.T, j *Job) (run.Result, error) {
 	t.Helper()
 	select {
 	case <-j.Done():
-	case <-time.After(30 * time.Second):
+	case <-time.After(waitLimit(t)):
 		t.Fatalf("%s did not end", j.Op.Name)
 	}
 	return j.Result()
+}
+
+// waitLimit is how long a test waits for a write: as long as go test lets
+// it run, short of a minute to report which write did not end. A write
+// over ten thousand files takes a minute on a loaded two-core runner.
+func waitLimit(t *testing.T) time.Duration {
+	if d, ok := t.Deadline(); ok {
+		return max(time.Until(d)-time.Minute, 30*time.Second)
+	}
+	return 10 * time.Minute
 }
 
 func TestQueueRunsInOrderWithLiveOutput(t *testing.T) {
