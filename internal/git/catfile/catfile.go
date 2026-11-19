@@ -435,7 +435,9 @@ func (p *Process) Close() error {
 		return nil
 	}
 	err := g.end()
-	if err != nil && !errors.Is(err, context.Canceled) {
+	// exec says ErrWaitDelay only when git exited 0 and something it
+	// left running still held its output: not a failure of git's.
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, exec.ErrWaitDelay) {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
 			return nil // killed or exited after stdin closed
