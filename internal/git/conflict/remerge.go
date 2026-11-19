@@ -252,6 +252,10 @@ func runMergeFile(ctx context.Context, r *run.Runner, paths [3]string, size int,
 	args := append([]string{"merge-file", "-p", "--marker-size=" + strconv.Itoa(size)}, extra...)
 	_, err := r.Run(ctx, &run.Cmd{
 		Outside: true, WorkTree: "/", Read: true, Untranslated: true, Stdout: w,
+		// Outside a repository, merge-file still reads the user's
+		// merge.conflictStyle, and -c does not override it there; the
+		// style is the options'.
+		Env:  []string{"GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=" + os.DevNull},
 		Args: append(args, "--", paths[0], paths[1], paths[2]),
 	})
 	if w.over {

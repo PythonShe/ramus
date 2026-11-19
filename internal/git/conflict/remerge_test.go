@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"ramus/internal/git/gitexe"
+	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
 	"ramus/internal/git/run"
 )
@@ -184,6 +186,41 @@ func TestRemergeNearTheSizeLimit(t *testing.T) {
 	want, werr := mergeFileOut(ctx, r, paths, "--ours")
 	if err != nil || werr != nil || string(got) != want {
 		t.Fatalf("taking ours differs: %v %v", err, werr)
+	}
+}
+
+// The merges of the sides again are git's own, whatever the user's config
+// says: a global merge.conflictStyle would turn the merge-style one into
+// diff3, and a file in merge style would not be read.
+func TestRemergeLeavesOutTheUsersConfig(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	global := filepath.Join(dir, "gitconfig")
+	if err := os.WriteFile(global, []byte("[merge]\n\tconflictStyle = zdiff3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g, err := gitexe.Find(ctx, os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	users := run.New(g, append(gittest.Env(), "GIT_CONFIG_GLOBAL="+global), 8)
+	lines := "a\nb\nc\nd\ne\nf\ng\nh\n"
+	var paths [3]string
+	var sides mergedSides
+	for i, s := range []string{example + lines + "end ours\n", example + lines + "end\n", example + lines + "end theirs\n"} {
+		paths[i] = filepath.Join(dir, strconv.Itoa(i))
+		if err := os.WriteFile(paths[i], []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sides.Ours, sides.Base, sides.Theirs = []byte(example+lines+"end ours\n"), []byte(example+lines+"end\n"), []byte(example+lines+"end theirs\n")
+	data, err := mergeFileOut(ctx, testrun.Runner(t), paths, "-L", "HEAD", "-L", "base", "-L", "topic")
+	if err != nil || strings.Contains(data, "|||||||") {
+		t.Fatalf("%v\n%s", err, data)
+	}
+	segs, err := remerge(ctx, users, []byte(data), defaultMarkerSize, sides)
+	if err != nil || Count(segs) != 1 {
+		t.Fatalf("%d conflicts, %v\n%s", Count(segs), err, data)
 	}
 }
 
