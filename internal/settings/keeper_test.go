@@ -87,6 +87,7 @@ func TestCheckReadsHandEdits(t *testing.T) {
 	Save(p, Defaults)
 	inApp, _ := Load(p)
 	k := NewKeeper(p)
+	defer k.Close()
 	k.Started(inApp)
 	got := make(chan FromFile, 4)
 	k.OnFile = func(f FromFile) { got <- f }
@@ -172,6 +173,7 @@ func TestKeeperReportsFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	k := NewKeeper(filepath.Join(blocker, "settings.json"))
+	defer k.Close()
 	var got error
 	k.Keep(Defaults, func(err error) { got = err })
 	k.Wait()
@@ -200,6 +202,7 @@ func TestQuitWaitsNotOnCallbacks(t *testing.T) {
 	Save(p, Defaults)
 	inApp, _ := Load(p)
 	k := NewKeeper(p)
+	defer k.Close()
 	k.Started(inApp)
 	main := make(mainThread)
 	heard := make(chan struct{}, 4)

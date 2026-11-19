@@ -29,6 +29,7 @@ func newModel(t *testing.T, p string) *model {
 	m := &model{t: t, p: p, k: NewKeeper(p), app: s, news: make(chan FromFile, 64), errs: make(chan error, 64)}
 	m.k.Started(s)
 	m.k.OnFile = func(f FromFile) { m.news <- f }
+	t.Cleanup(m.k.Close)
 	return m
 }
 

@@ -335,6 +335,11 @@ func Save(path string, s Settings) error {
 // the check before the rename only, which leaves a moment between the
 // check and the rename where its save is replaced.
 func save(path string, s Settings, base *Settings) (got Settings, data []byte, err error) {
+	if failSave != nil {
+		if err := failSave(); err != nil {
+			return s, nil, err
+		}
+	}
 	unlock, err := statefile.Lock(path, lockWait)
 	if err != nil {
 		return s, nil, err
@@ -496,3 +501,7 @@ func fieldsOf(s Settings) map[string]json.RawMessage {
 // beforeReplace, when set, runs as a save is about to replace its file:
 // a test edits the file there.
 var beforeReplace func()
+
+// failSave, when set, runs as a save starts, which fails with its error:
+// a test's disk that is full.
+var failSave func() error

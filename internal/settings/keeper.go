@@ -45,6 +45,14 @@ import (
 //  3. A write replaces the file only while it is as the write read it,
 //     looked at again before each try of the rename: else the write reads
 //     it again and merges anew, so an edit made meanwhile is kept.
+//  4. What the app shows and what the file holds end the same without the
+//     user doing more. After a write failed, the app's change not in the
+//     file is written again: by the next change, by a timer (retryFirst,
+//     doubling up to retryMost), by a reading taken that leaves the app
+//     holding what the file does not, and by the quit (SaveNow), which
+//     names the file in what the next launch tells (Unsaved) when even
+//     that write did not land. A failure is told once: a write the user
+//     did not ask for tells only an error unlike the last told.
 type Keeper struct {
 	path string
 	// OnFile, when set, hears settings read from the file that are not
@@ -57,6 +65,21 @@ type Keeper struct {
 	onError func(error)
 	has     bool
 	busy    bool
+	// quiet is set when next is a write the user did not ask for (4).
+	quiet bool
+	// app is the app's settings as last kept or taken, once known.
+	app      Settings
+	appKnown bool
+	// unsaved is set from a write that failed to one that lands: a change
+	// of the app's may not be in the file. failed is the error last told,
+	// failedTell who heard it; retry is the timer of the next try, wait
+	// its delay, closed set once Close stopped them.
+	unsaved    bool
+	failed     string
+	failedTell func(error)
+	retry      *time.Timer
+	wait       time.Duration
+	closed     bool
 	// base is the last settings the app and the file both held (1 above).
 	// Nil until Started: every field is then written.
 	base *Settings
@@ -108,17 +131,23 @@ func (k *Keeper) Started(s Settings) {
 // failed, on a goroutine of its own, as OnFile.
 func (k *Keeper) Keep(s Settings, onError func(error)) {
 	k.mu.Lock()
+	k.app, k.appKnown = s, true
+	k.queue(s, onError, false)
+	k.mu.Unlock()
+}
+
+// queue has s written, a write the user asked for unless quiet; call it
+// with k.mu held.
+func (k *Keeper) queue(s Settings, onError func(error), quiet bool) {
 	k.kept++
 	if !k.has {
 		k.work.add()
 	}
-	k.next, k.onError, k.has = s, onError, true
+	k.next, k.onError, k.has, k.quiet = s, onError, true, quiet
 	if k.busy {
-		k.mu.Unlock()
 		return
 	}
 	k.busy = true
-	k.mu.Unlock()
 	go k.run()
 }
 
@@ -130,12 +159,80 @@ func (k *Keeper) run() {
 			k.mu.Unlock()
 			return
 		}
-		s, gen, onError := k.next, k.kept, k.onError
-		k.next, k.onError, k.has = Settings{}, nil, false
+		s, gen, onError, quiet := k.next, k.kept, k.onError, k.quiet
+		k.next, k.onError, k.has, k.quiet = Settings{}, nil, false, false
 		k.mu.Unlock()
 		news, err := k.write(s, gen)
+		k.mu.Lock()
+		if err != nil {
+			if quiet && err.Error() == k.failed {
+				err = nil // told already
+			} else {
+				k.failed, k.failedTell = err.Error(), onError
+			}
+			k.later()
+		}
+		k.mu.Unlock()
 		k.tell(err, onError, news)
 		k.work.end()
+	}
+}
+
+// The delays between the tries of a write that failed: a disk full or a
+// folder not writable is mended by the user, at a time no event tells.
+var (
+	retryFirst = 2 * time.Second
+	retryMost  = time.Minute
+)
+
+// later has the app's settings written again after a write failed, once
+// the delay since the last try has passed; call it with k.mu held.
+func (k *Keeper) later() {
+	if k.retry != nil || k.closed {
+		return
+	}
+	k.wait = min(max(2*k.wait, retryFirst), retryMost)
+	k.retry = time.AfterFunc(k.wait, func() {
+		k.mu.Lock()
+		defer k.mu.Unlock()
+		k.retry = nil
+		k.again()
+	})
+}
+
+// again queues a write of the app's settings, not asked for by the user,
+// when one is not in the file and none is pending; call it with k.mu held.
+func (k *Keeper) again() {
+	if k.unsaved && !k.has && k.appKnown && !k.closed {
+		k.queue(k.app, k.failedTell, true)
+	}
+}
+
+// SaveNow writes at once the app's change a write that failed left out of
+// the file, for a quit, which then waits for it with WaitWrites.
+func (k *Keeper) SaveNow() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.again()
+}
+
+// Unsaved reports whether a change of the app's may not be in the file:
+// a write failed and none landed since, or one is pending or running.
+func (k *Keeper) Unsaved() bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.unsaved || k.has || k.busy
+}
+
+// Close stops the tries of a write that failed: a test's file goes with
+// it.
+func (k *Keeper) Close() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.closed = true
+	if k.retry != nil {
+		k.retry.Stop()
+		k.retry = nil
 	}
 }
 
@@ -155,6 +252,10 @@ func (k *Keeper) write(s Settings, gen uint64) (*FromFile, error) {
 	defer k.mu.Unlock()
 	k.wrote = gen
 	k.seen++
+	k.unsaved = err != nil
+	if err == nil {
+		k.failed, k.wait = "", 0
+	}
 	if err != nil || base == nil {
 		return nil, err
 	}
@@ -252,6 +353,9 @@ func (k *Keeper) read() (*FromFile, error) {
 // main thread: what the app changed since base stays, the rest is the
 // file's. It returns the settings to put in force, and false when they
 // are cur: nothing new, or f is not to be taken (2 on Keeper).
+//
+// Settings to put in force that hold a change of the app's the file does
+// not, left out by a write that failed, are written (4 on Keeper).
 func (k *Keeper) Take(f FromFile, cur Settings) (Settings, bool) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -260,6 +364,11 @@ func (k *Keeper) Take(f FromFile, cur Settings) (Settings, bool) {
 	}
 	s := merge(*k.base, cur, f.s)
 	k.base = &f.s
+	k.app, k.appKnown = s, true
+	// No Keep since the last write ended: what the app holds that the
+	// file does not is what a write that failed left out.
+	k.unsaved = !same(s, f.s)
+	k.again()
 	return s, !same(s, cur)
 }
 
