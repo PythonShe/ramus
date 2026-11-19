@@ -10,7 +10,8 @@
   },
   "icon": "assets/app-icon/monogram/png/icon-light-1024.png",
   "macos": {
-    "icon": "assets/app-icon/monogram/AppIcon.icon"
+    "icon": "assets/app-icon/monogram/AppIcon.icon",
+    "minimumSystemVersion": "13.0"
   },
   "out": "build",
   "linux": {

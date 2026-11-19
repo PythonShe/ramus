@@ -90,7 +90,7 @@ Ramus needs git 2.36 or later. Pull requests need
 logged in. Git LFS locks need
 [`git-lfs`](https://git-lfs.com).
 
-**macOS** (signed and notarized), 12 or later:
+**macOS** (signed and notarized), 13 or later:
 
 ```sh
 curl -fsSL https://github.com/PythonShe/ramus/releases/latest/download/install.sh | sh
@@ -98,7 +98,7 @@ curl -fsSL https://github.com/PythonShe/ramus/releases/latest/download/install.s
 
 or the `.dmg` from the [latest release](https://github.com/PythonShe/ramus/releases/latest).
 
-**Windows**: the setup `.exe` from the
+**Windows** 10 or later: the setup `.exe` from the
 [latest release](https://github.com/PythonShe/ramus/releases/latest), or in
 PowerShell:
 
@@ -108,7 +108,7 @@ irm https://github.com/PythonShe/ramus/releases/latest/download/install.ps1 | ie
 
 The Windows build is not signed yet, so SmartScreen asks before it runs.
 
-**Linux**: the `.deb`, `.rpm` or AppImage from the
+**Linux**, with GTK 3: the `.deb`, `.rpm` or AppImage from the
 [latest release](https://github.com/PythonShe/ramus/releases/latest), or,
 for your user alone, without root:
 

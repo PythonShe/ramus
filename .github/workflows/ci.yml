@@ -38,6 +38,18 @@ jobs:
             echo "links a library outside the system" >&2
             exit 1
           fi
+      # Go decides the oldest macOS the binary starts on, and a new Go can
+      # raise it. The Info.plist mygo writes from mygo.json must say the
+      # same, or macOS installs the app where it then cannot start.
+      - name: The binary's minimum macOS is the app's
+        run: |
+          binary=$(otool -l "$RUNNER_TEMP/ramus" | awk '$1 == "cmd" { build = $2 == "LC_BUILD_VERSION" } build && $1 == "minos" { print $2; exit }')
+          app=$(jq -r .macos.minimumSystemVersion mygo.json)
+          echo "the binary needs macOS $binary; mygo.json says $app"
+          if [ "$binary" != "$app" ]; then
+            echo "set macos.minimumSystemVersion in mygo.json, and the README, to $binary" >&2
+            exit 1
+          fi
       # The hosted runner is a VM with a virtual GPU: its median varies
       # from 150 to 290 ms, nearly all AppKit and Metal. The gate catches
       # a regression; the 200 ms target is for hardware.
