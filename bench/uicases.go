@@ -290,26 +290,92 @@ func scrollKernel(m *meter) error {
 	if !ok {
 		return fmt.Errorf("no list of commits")
 	}
-	// Fling: 600 frames of a large wheel step, as a fast trackpad swipe.
+	// What moves as history came, the columns settling, comes to rest.
+	x.live(time.Second)
+	// Fling: 600 frames of a large wheel step down the history, as a fast
+	// trackpad swipe. The tester's clock stands still between the wheel
+	// and the next refresh: the frames the wheel's own settling runs
+	// meanwhile build the place the scroll left, and only the refresh
+	// after it moves the rows, as a window's frame does.
 	var fs frames
+	before := strings.Join(x.tt.Texts(), "\n")
 	for range 600 {
-		x.tt.Wheel(at.X+at.W/2, at.Y+200, 0, -2400)
-		fs = append(fs, x.frame())
+		x.tt.Wheel(at.X+at.W/2, at.Y+200, 0, 2400)
+		fs = append(fs, x.live(refresh))
+	}
+	if strings.Join(x.tt.Texts(), "\n") == before {
+		return fmt.Errorf("the list did not scroll")
 	}
 	fs.record(m, "scroll: ")
+	x.live(time.Second)
 	// The kernel's first commit, 2.6.12-rc2.
-	const first = "1da177e4c3f41524e886b7f1b8a0c1fc7321cac2"
+	const root = "1da177e4c3f41524e886b7f1b8a0c1fc7321cac2"
 	if err := x.tt.Click("Go to hash or ref"); err != nil {
 		return err
 	}
-	x.frame()
-	x.tt.Type(first)
+	x.live(refresh)
+	x.tt.Type(root)
 	t1 := time.Now()
 	x.tt.Key(0, mygoui.KeyEnter)
 	shown := regexp.MustCompile(`^Linux-2\.6\.12-rc2`)
-	if err := x.until("the first commit", time.Minute, func() bool { return x.shows(shown) }); err != nil {
+	if err := x.untilLive("the first commit", time.Minute, func() bool { return x.shows(shown) }); err != nil {
 		return err
 	}
 	m.time("jump to the first commit", time.Since(t1))
+	return nil
+}
+
+// refresh is a 60 Hz display's frame.
+const refresh = time.Second / 60
+
+// live moves the tester's clock on by d, running the frames a window
+// would meanwhile, one a refresh while something moves, and the updates
+// that came; it returns how long the frames took.
+func (x *app) live(d time.Duration) time.Duration {
+	t0 := time.Now()
+	x.tt.Advance(d)
+	took := time.Since(t0)
+	x.pump()
+	return took
+}
+
+// pump runs the updates that came, and reports whether any did.
+func (x *app) pump() bool {
+	for ran := false; ; ran = true {
+		select {
+		case fn := <-x.updates:
+			fn()
+		default:
+			return ran
+		}
+	}
+}
+
+// untilLive is until for a view whose clock runs: what animates runs to
+// its end rather than asking for frames on a clock that stands still,
+// and an update has a frame built, as a window's does.
+func (x *app) untilLive(what string, d time.Duration, ok func() bool) error {
+	deadline := time.Now().Add(d)
+	last := time.Now()
+	for !ok() {
+		now := time.Now()
+		x.tt.Advance(now.Sub(last))
+		last = now
+		if x.pump() {
+			x.tt.Frame()
+		}
+		if ok() {
+			return nil
+		}
+		if now.After(deadline) {
+			return fmt.Errorf("timed out after %v waiting for %s", d, what)
+		}
+		select {
+		case fn := <-x.updates:
+			fn()
+			x.tt.Frame()
+		case <-time.After(refresh):
+		}
+	}
 	return nil
 }
