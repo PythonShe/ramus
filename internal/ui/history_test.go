@@ -280,6 +280,31 @@ func TestReflogView(t *testing.T) {
 	})
 }
 
+// Choosing another ref's reflog shows its own entries, or that they are
+// read, never the entries of the ref shown before under its name, where
+// their menus would act on them.
+func TestReflogOfAnotherRef(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("branch", "other")
+	r.Write("a.txt", "a\n")
+	r.Commit("add a")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("open", h.shows("No local changes"))
+	h.click("Reflog")
+	h.app.Settings.NoSidebar = true
+	h.until("HEAD's reflog", h.shows("HEAD@{1}"))
+	rs := &h.app.current().reflog
+	rs.ref = "refs/heads/other"
+	// A frame before the read lands.
+	h.tt.Frame()
+	if h.tt.HasText("HEAD@{1}") || len(rs.entries) != 0 {
+		t.Fatalf("HEAD's entries shown under other: %q", h.tt.Texts())
+	}
+	h.until("other's reflog", h.shows("other@{0}"))
+}
+
 func TestStatsView(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()

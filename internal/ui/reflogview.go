@@ -22,7 +22,9 @@ type reflogState struct {
 	readFor *refs.List
 	readRef string
 	loading bool
-	entries []session.ReflogEntry
+	// shownRef is the ref whose reflog entries and err are.
+	shownRef string
+	entries  []session.ReflogEntry
 	// keys name entries in the list, keys[i] entries[i].
 	keys     []reflogKey
 	err      string
@@ -128,6 +130,11 @@ func (a *App) reflogRefMenu(c *ui.Context, t *tab) {
 
 func (a *App) reflogList(c *ui.Context, t *tab) {
 	rs := &t.reflog
+	if rs.ref != rs.shownRef && (rs.entries != nil || rs.err != "") {
+		// Another ref's entries are not shown, nor acted on, under this
+		// one's name while its own are read.
+		rs.entries, rs.keys, rs.err, rs.chosen, rs.chosenID = nil, nil, "", -1, nil
+	}
 	// Any ref change may have added an entry.
 	if refs := t.s.State.Refs; (refs != rs.readFor || rs.ref != rs.readRef) && !rs.loading {
 		rs.readFor, rs.readRef, rs.loading = refs, rs.ref, true
@@ -137,7 +144,7 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 			if ref != rs.ref {
 				return
 			}
-			rs.entries, rs.keys, rs.err = es, reflogKeys(es), ""
+			rs.shownRef, rs.entries, rs.keys, rs.err = ref, es, reflogKeys(es), ""
 			if err != nil {
 				rs.err = errText(err)
 			}
