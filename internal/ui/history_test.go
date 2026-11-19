@@ -560,18 +560,23 @@ func TestHistoryColumns(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("open", h.shows("No local changes"))
 	h.click("History")
-	h.until("the rows", h.shows("Ramus Test"))
+	tb := h.app.current()
+	hv := &tb.hist
+	// The rows' text and the chosen commit's detail, which comes when it
+	// will and names the author and the commit too: the header and the
+	// rows are told from it by where they are.
+	h.until("the rows and the detail", func() bool { return rowTextRead(tb, 0) && hv.detail.d != nil && hv.detail.d.Done })
 	h.tt.Frame()
-	hv := &h.app.current().hist
 	at := func(s string) ui.Rect { b, _ := h.tt.Find(s); return b }
+	titled := func(s string) bool { return columnTitled(h, s) }
 	// The author's cell is their picture and their name.
 	authorCell := func() ui.Rect {
 		// The first row's, under the header: the name can show elsewhere
-		// first, as a tooltip over the list.
+		// first, as a tooltip over the list, or in the detail beside it.
 		var b ui.Rect
-		hy := at("Author").Y
+		hy, list := at("Author").Y, at("Commits")
 		for _, a := range h.tt.AccessAll() {
-			if a.Name == "Ramus Test" && a.Bounds.H > 0 && a.Bounds.Y > hy && (b.H == 0 || a.Bounds.Y < b.Y) {
+			if a.Name == "Ramus Test" && a.Bounds.H > 0 && a.Bounds.Y > hy && a.Bounds.X < list.X+list.W && (b.H == 0 || a.Bounds.Y < b.Y) {
 				b = a.Bounds
 			}
 		}
@@ -638,7 +643,7 @@ func TestHistoryColumns(t *testing.T) {
 		settle()
 	}
 	clickTitle("Date")
-	if hasExact(h, "Date") || !h.app.Settings.HistoryColumns["date"].Hidden || at("Commit").X != hash-histColumnMin[colDate]-spaceM+shutWidth+spaceM {
+	if titled("Date") || !h.app.Settings.HistoryColumns["date"].Hidden || at("Commit").X != hash-histColumnMin[colDate]-spaceM+shutWidth+spaceM {
 		t.Fatalf("date not shut: %+v, hash at %v from %v", h.app.Settings.HistoryColumns["date"], at("Commit").X, hash)
 	}
 	// Shut, a thin column between the author's divider and its own
@@ -654,17 +659,17 @@ func TestHistoryColumns(t *testing.T) {
 	h.tt.Frame()
 	h.tt.Release(x+1, y)
 	settle()
-	if !hasExact(h, "Date") || at("Date").W != histColumnMin[colDate] || hv.cols.end != 10 {
+	if !titled("Date") || at("Date").W != histColumnMin[colDate] || hv.cols.end != 10 {
 		t.Fatalf("date clicked back to %v, room at the end %v", at("Date"), hv.cols.end)
 	}
 	// The hash, shut by its title, leaves its thin column at the end.
 	clickTitle("Commit")
-	if hasExact(h, "Commit") || !h.app.Settings.HistoryColumns["hash"].Hidden {
+	if titled("Commit") || !h.app.Settings.HistoryColumns["hash"].Hidden {
 		t.Fatal("hash column not shut by its title")
 	}
 	h.tt.ClickAt(after("Date")+spaceM/2+shutWidth/2, y)
 	settle()
-	if !hasExact(h, "Commit") || hv.cols.end != 10 {
+	if !titled("Commit") || hv.cols.end != 10 {
 		t.Fatalf("hash not back from its divider: room at the end %v", hv.cols.end)
 	}
 	// Dragged left, a column stops at its least width.
@@ -677,7 +682,7 @@ func TestHistoryColumns(t *testing.T) {
 	}
 	h.tt.Release(after("Author")-200, y)
 	settle()
-	if hasExact(h, "Author") == false || authorCell().W != histColumnMin[colAuthor] {
+	if titled("Author") == false || authorCell().W != histColumnMin[colAuthor] {
 		t.Fatalf("author let go at %v", authorCell().W)
 	}
 	// A press the system takes undoes its drag.
@@ -699,7 +704,7 @@ func TestHistoryColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle()
-	if hasExact(h, "Commit") {
+	if titled("Commit") {
 		t.Fatal("hash column not shut from the menu")
 	}
 	if err := h.tt.RightClick("Message"); err != nil {
@@ -709,7 +714,7 @@ func TestHistoryColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle()
-	if !hasExact(h, "Commit") {
+	if !titled("Commit") {
 		t.Fatal("hash column not back from the menu")
 	}
 
@@ -943,8 +948,11 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	h.app.Open(r.Dir)
 	h.until("open", h.shows("No local changes"))
 	h.click("History")
-	h.until("the rows", h.shows("Ramus Test"))
-	hv := &h.app.current().hist
+	tb := h.app.current()
+	hv := &tb.hist
+	// The rows' text and the chosen commit's detail, which comes when it
+	// will.
+	h.until("the rows and the detail", func() bool { return rowTextRead(tb, 0) && hv.detail.d != nil && hv.detail.d.Done })
 	settle := func() {
 		h.tt.Frame()
 		h.tt.Advance(time.Second)
@@ -956,7 +964,7 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	x, y := date.X-spaceM/2, date.Y+date.H/2
 	h.tt.ClickAt(x, y)
 	settle()
-	if m := h.app.Settings.HistoryMessage; m != 220 || !hasExact(h, "Author") {
+	if m := h.app.Settings.HistoryMessage; m != 220 || !columnTitled(h, "Author") {
 		t.Fatalf("click on a shut author's divider: message kept at %v", m)
 	}
 
@@ -969,7 +977,7 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 		}
 		settle()
 	}
-	if m := h.app.Settings.HistoryMessage; m != 220 || !hasExact(h, "Commit") {
+	if m := h.app.Settings.HistoryMessage; m != 220 || !columnTitled(h, "Commit") {
 		t.Fatalf("the hash hidden and shown from the menu: message kept at %v", m)
 	}
 
@@ -1028,7 +1036,7 @@ func TestHistoryMessageKeepsItsWidth(t *testing.T) {
 	h.tt.Frame()
 	h.tt.Release(x+300-msg.W, y)
 	settle()
-	if now, _ := h.tt.Find("Message"); now.W != 300 || h.app.Settings.HistoryMessage != 300 || !hasExact(h, "Commit") {
+	if now, _ := h.tt.Find("Message"); now.W != 300 || h.app.Settings.HistoryMessage != 300 || !columnTitled(h, "Commit") {
 		t.Fatalf("message %v, kept at %v, columns %v", now.W, h.app.Settings.HistoryMessage, hv.cols.shown)
 	}
 }
@@ -1451,4 +1459,26 @@ func (h *harness) rightClickRow(role ui.Role, text string) {
 	})
 	h.tt.RightClickAt(row.Bounds.X+row.Bounds.W/2, row.Bounds.Y+row.Bounds.H/2)
 	h.tt.Frame()
+}
+
+// columnTitled reports whether the history's header shows a column
+// titled s, rather than the commit's detail a text s.
+func columnTitled(h *harness, s string) bool {
+	head, _ := h.tt.Find("Message")
+	for _, a := range h.tt.AccessAll() {
+		if a.Name == s && a.Bounds.H > 0 && a.Bounds.Y == head.Y {
+			return true
+		}
+	}
+	return false
+}
+
+// rowTextRead reports whether the text of history row i of tb is read.
+func rowTextRead(tb *tab, i int) bool {
+	h := tb.s.History
+	if h.Snap == nil || i >= h.Snap.Len() {
+		return false
+	}
+	ch, _ := tb.hist.loaded(h, i)
+	return ch != nil
 }
