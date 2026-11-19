@@ -84,16 +84,19 @@ func TestReadsTheLibraryOf060(t *testing.T) {
 // kept by a save of this one.
 func TestKeepsWhatALaterVersionAdded(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "library.json")
-	os.WriteFile(p, []byte(`{"version": 3, "repos": [{"path": "/r/a", "name": "a", "opened": "2026-11-01T10:00:00Z", "colour": "teal"}],
-		"groups": [{"name": "work", "paths": ["/r/a"], "sort": {"by": "name"}}], "sync": true}`), 0o600)
+	// Paths as the library cleans them, which on Windows have a drive.
+	a, b := Clean(filepath.Join(t.TempDir(), "a")), Clean(filepath.Join(t.TempDir(), "b"))
+	qa, _ := json.Marshal(a)
+	os.WriteFile(p, []byte(`{"version": 3, "repos": [{"path": `+string(qa)+`, "name": "a", "opened": "2026-11-01T10:00:00Z", "colour": "teal"}],
+		"groups": [{"name": "work", "paths": [`+string(qa)+`], "sort": {"by": "name"}}], "sync": true}`), 0o600)
 	l, err := Load(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := l.SetFavourite("/r/a", true); err != nil {
+	if err := l.SetFavourite(a, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.SetGroup("work", []string{"/r/a", "/r/b"}); err != nil {
+	if err := l.SetGroup("work", []string{a, b}); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(p)
