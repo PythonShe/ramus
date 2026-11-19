@@ -214,7 +214,7 @@ func (a *App) setPatch(pv *patchView, res session.PatchResult) {
 		pv.p.Path(0) == res.Parsed.Path(0) {
 		scroll = pv.d.ScrollY()
 	}
-	pv.d, pv.p, pv.failed, pv.pics, pv.sub = nil, res.Parsed, false, pictureState{}, nil
+	pv.d, pv.p, pv.failed, pv.pics, pv.sub, pv.picked = nil, res.Parsed, false, pictureState{}, nil, pickedLines{}
 	p := res.Parsed
 	if p == nil || len(p.Files) == 0 {
 		return

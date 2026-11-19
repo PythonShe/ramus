@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 	"golang.org/x/image/tiff"
 
+	"ramus/internal/git/diff"
 	"ramus/internal/git/gittest"
 	"ramus/internal/session"
 )
@@ -293,6 +295,18 @@ func TestPictureWaitersAreBounded(t *testing.T) {
 		h.app.setPatch(pv, session.PatchResult{})
 	}
 	untilWaiting(t, "all moved on", 0)
+}
+
+// A patch replaced lets go of the lines picked in the viewer before,
+// which can be a whole patch's, even when no viewer follows it.
+func TestSetPatchForgetsPickedLines(t *testing.T) {
+	h := newHarness(t)
+	pv := &patchView{p: &diff.Parsed{}, d: &editor.DiffState{}}
+	pv.picked = pickedLines{d: pv.d, chosen: func(int) bool { return true }, n: 3}
+	h.app.setPatch(pv, session.PatchResult{}) // as a binary, empty or submodule patch
+	if pv.picked.d != nil || pv.picked.chosen != nil {
+		t.Fatal("the lines picked in the viewer replaced are kept")
+	}
 }
 
 func TestDifference(t *testing.T) {
