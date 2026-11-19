@@ -47,6 +47,15 @@ func Clone(r *run.Runner, opt CloneOptions) (*Job, error) {
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return nil, err
 	}
+	// made is a folder the clone itself creates, which a stopped clone
+	// removes; one that was there empty is only emptied.
+	made := false
+	if _, err := os.Lstat(dir); errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			return nil, err
+		}
+		made = true
+	}
 	args := []string{"clone", "--progress", "--no-recurse-submodules"}
 	if opt.Submodules {
 		args[2] = "--recurse-submodules"
@@ -61,7 +70,46 @@ func Clone(r *run.Runner, opt CloneOptions) (*Job, error) {
 		args = append(args, "--bare")
 	}
 	args = append(args, "--", opt.URL, dir)
-	return start(r, Op{Name: "Clone " + redact.Secrets(opt.URL), Cmd: run.Cmd{Outside: true, WorkTree: parent, Args: args, Timeout: CloneTimeout, Stall: NetworkStall}}), nil
+	op := Op{Name: "Clone " + redact.Secrets(opt.URL), Cmd: run.Cmd{Outside: true, WorkTree: parent, Args: args, Timeout: CloneTimeout, Stall: NetworkStall}}
+	op.do = func(ctx context.Context, j *Job) (run.Result, error) {
+		res, err := execute(ctx, r, j, j.Op.Cmd, nil)
+		// git removes a clone that fails on its own while fetching, and
+		// keeps one whose checkout failed, saying so. Stopped, it keeps
+		// what it made once the fetch is done, and on Windows, where it
+		// is ended at once, all of it: the folder would be left half
+		// made, and a clone there again refused.
+		var e *run.Error
+		switch {
+		case err == nil:
+		case ctx.Err() != nil || errors.As(err, &e) && e.ExitCode == -1:
+			if cerr := unclone(dir, made); cerr != nil {
+				return res, fmt.Errorf("write: the clone stopped, and what it made in %s could not be removed: %w", dir, cerr)
+			}
+		case made:
+			// git empties a folder it was given when its fetch fails;
+			// the folder is the clone's own.
+			os.Remove(dir)
+		}
+		return res, err
+	}
+	return start(r, op), nil
+}
+
+// unclone removes what a clone stopped part way made in dir: the folder
+// itself when the clone made it, else what it holds, as it was empty.
+func unclone(dir string, made bool) error {
+	if made {
+		return os.RemoveAll(dir)
+	}
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, e := range ents {
+		errs = append(errs, os.RemoveAll(filepath.Join(dir, e.Name())))
+	}
+	return errors.Join(errs...)
 }
 
 // CloneTimeout bounds a clone; a kernel over a slow link takes a while.
@@ -97,6 +145,10 @@ func start(r *run.Runner, op Op) *Job {
 			}
 			j.finish(res, err)
 		}()
+		if j.Op.do != nil {
+			res, err = j.Op.do(j.ctx, j)
+			return
+		}
 		res, err = execute(j.ctx, r, j, j.Op.Cmd, j.Op.Input)
 	}()
 	return j

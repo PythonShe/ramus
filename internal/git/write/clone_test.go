@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
@@ -58,9 +59,13 @@ func TestCloneAndInit(t *testing.T) {
 			t.Errorf("cloned from %q", bad)
 		}
 	}
-	j, _ = Clone(rn, CloneOptions{URL: "file://" + filepath.Join(t.TempDir(), "missing"), Dir: filepath.Join(t.TempDir(), "x")})
+	missing := filepath.Join(t.TempDir(), "x")
+	j, _ = Clone(rn, CloneOptions{URL: "file://" + filepath.Join(t.TempDir(), "missing"), Dir: missing})
 	if _, err := wait(t, j); err == nil || !strings.Contains(err.Error(), "missing") {
 		t.Fatalf("clone of nothing: %v", err)
+	}
+	if _, err := os.Lstat(missing); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a failed clone left its folder: %v", err)
 	}
 
 	fresh := filepath.Join(t.TempDir(), "fresh")
@@ -140,6 +145,66 @@ func TestCloneLFS(t *testing.T) {
 	}
 	if !slices.ContainsFunc(lines, func(l string) bool { return strings.Contains(l, "Filtering content") || strings.Contains(l, "LFS") }) {
 		t.Errorf("no LFS progress among\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+// A clone stopped while it checks out files, which git then keeps, is
+// removed: a folder the clone made goes, one that was there empty is
+// left empty, so a clone there again is not refused.
+func TestCloneStoppedLeavesNothing(t *testing.T) {
+	gittest.Shell(t)
+	g := testrun.Runner(t).Git()
+	marker := filepath.Join(t.TempDir(), "checking out")
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	slow := "[filter \"slow\"]\n\tsmudge = \"touch '" + filepath.ToSlash(marker) + "'; sleep 60; cat\"\n"
+	if err := os.WriteFile(global, []byte(slow), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rn := run.New(g, append(gittest.Env(), "GIT_CONFIG_GLOBAL="+global), 4)
+	src := gittest.Init(t)
+	src.Write(".gitattributes", "*.slow filter=slow\n")
+	src.Write("a.slow", "a\n")
+	src.Write("b.txt", "b\n")
+	src.Commit("slow")
+	url := "file://" + filepath.ToSlash(src.Dir)
+	for _, existed := range []bool{false, true} {
+		os.Remove(marker)
+		dir := filepath.Join(t.TempDir(), "clone")
+		if existed {
+			if err := os.Mkdir(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		j, err := Clone(rn, CloneOptions{URL: url, Dir: dir})
+		if err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(30 * time.Second)
+		for {
+			if _, err := os.Stat(marker); err == nil {
+				break
+			}
+			select {
+			case <-j.Done():
+				t.Fatalf("the clone ended before checking out: %v", j.err)
+			default:
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("the filter never ran")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		j.Cancel()
+		if _, err := wait(t, j); !errors.Is(err, context.Canceled) {
+			t.Fatalf("stopped clone: %v", err)
+		}
+		ents, err := os.ReadDir(dir)
+		switch {
+		case !existed && !errors.Is(err, os.ErrNotExist):
+			t.Fatalf("the folder the clone made is still there: %d entries, %v", len(ents), err)
+		case existed && (err != nil || len(ents) > 0):
+			t.Fatalf("the folder that was there: %d entries, %v", len(ents), err)
+		}
 	}
 }
 
