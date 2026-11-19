@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"ramus/internal/git/config"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/run"
 )
@@ -22,6 +23,14 @@ type Track struct {
 	Gone bool
 	// Branch is the branch this was read for, as refs/heads/main.
 	Branch string
+	// Push is where git push sends the branch when that is another
+	// remote than its upstream's, as a fork's: the remote branch it
+	// updates, as refs/remotes/fork/topic; "" when it goes upstream.
+	// PushAhead counts the commits not there yet; PushGone is a branch
+	// not pushed there yet.
+	Push      string
+	PushAhead int
+	PushGone  bool
 }
 
 // trackTimeout bounds counting: branches far apart in a large history
@@ -84,15 +93,29 @@ func (s *Session) LoadTrack(done func(Track)) {
 			w(t)
 		}
 	}
+	triangular := pushesElsewhere(r.Config(), strings.TrimPrefix(head.Target, "refs/heads/"))
 	err := r.Life().Go(func(context.Context) {
 		defer cancel()
-		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
-			Args: []string{"for-each-ref", "--format=%(upstream)%00%(upstream:track,nobracket)", head.Target}})
+		cmd := &run.Cmd{GitDir: r.GitDir, Read: true,
+			Args: []string{"for-each-ref", "--format=%(upstream)%00%(upstream:track,nobracket)%00%(push)%00%(push:track,nobracket)", head.Target}}
+		if triangular {
+			// git push sends it to the branch of its name there, as
+			// current does; git's own @{push} gives up on simple's.
+			cmd.Config = []string{"push.default=current"}
+		}
+		res, err := r.Runner.Run(ctx, cmd)
 		t := Track{Branch: head.Target}
 		if err == nil {
-			up, track, _ := strings.Cut(strings.TrimSpace(string(res.Stdout)), "\x00")
-			t.Upstream = up
-			t.Ahead, t.Behind, t.Gone = parseTrack(track)
+			f := strings.Split(strings.TrimSpace(string(res.Stdout)), "\x00")
+			for len(f) < 4 {
+				f = append(f, "")
+			}
+			t.Upstream = f[0]
+			t.Ahead, t.Behind, t.Gone = parseTrack(f[1])
+			if triangular && f[2] != "" && f[2] != t.Upstream {
+				t.Push = f[2]
+				t.PushAhead, _, t.PushGone = parseTrack(f[3])
+			}
 		}
 		// One timed out reports none rather than leaving its callers
 		// waiting, and so does one of a repository closed since.
@@ -103,6 +126,29 @@ func (s *Session) LoadTrack(done func(Track)) {
 		cancel()
 		finish(Track{Branch: head.Target})
 	}
+}
+
+// pushesElsewhere reports whether git push sends branch (a short name)
+// to another remote than the one it pulls from, as a fork's branch goes
+// to the fork: by branch.<name>.pushRemote or remote.pushDefault, with
+// push.default leaving the branch its name there.
+func pushesElsewhere(cfg *config.Config, branch string) bool {
+	if cfg == nil {
+		return false
+	}
+	push := ""
+	for _, key := range []string{"branch." + branch + ".pushRemote", "remote.pushDefault"} {
+		if v, ok := cfg.Get(key); ok && v != "" {
+			push = v
+			break
+		}
+	}
+	pull, _ := cfg.Get("branch." + branch + ".remote")
+	switch d, _ := cfg.Get("push.default"); d {
+	case "", "simple", "current":
+		return push != "" && push != pull
+	}
+	return false
 }
 
 // CountPulled counts the commits of the upstream of branch (a full ref

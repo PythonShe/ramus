@@ -69,7 +69,7 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 	w := t.s.Where()
 	ro := t.s.Queue == nil
 	g := glyphs()
-	var label, tip, upstream string
+	var label, tip, upstream, pushTo string
 	var act func()
 	// pairs are the glyphs and counts shown, in order; publish shows a
 	// word in place of a count.
@@ -85,6 +85,7 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 			return
 		}
 		upstream = redact.Control(opt.Remote)
+		pushTo = upstream
 		label = locales.SyncPublish()
 		tip = locales.SyncPublishTo(upstream)
 		pairs = []pair{{g.cloudUp, locales.SyncPublishShort()}}
@@ -92,21 +93,31 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 		act = func() { a.submit(t, write.Push(w, opt), nil) }
 	default:
 		upstream = redact.Control(strings.TrimPrefix(tr.Upstream, "refs/remotes/"))
+		// What a push sends, where it goes: a fork's branch to the fork,
+		// all it is ahead of upstream until it is there once.
+		pushTo = upstream
+		ahead := tr.Ahead
+		if tr.Push != "" {
+			pushTo = redact.Control(strings.TrimPrefix(tr.Push, "refs/remotes/"))
+			if !tr.PushGone {
+				ahead = tr.PushAhead
+			}
+		}
 		if tr.Behind > 0 {
 			pairs = append(pairs, pair{g.arrowDown, locales.SyncCount(tr.Behind)})
 		}
-		if tr.Ahead > 0 {
-			pairs = append(pairs, pair{g.arrowUp, locales.SyncCount(tr.Ahead)})
+		if ahead > 0 {
+			pairs = append(pairs, pair{g.arrowUp, locales.SyncCount(ahead)})
 		}
 		switch {
 		case tr.Behind > 0:
 			label = locales.SyncPullLabel(tr.Behind, upstream)
-			if tr.Ahead > 0 {
-				label = locales.SyncDivergedLabel(tr.Behind, tr.Ahead, upstream)
+			if ahead > 0 {
+				label = locales.SyncDivergedLabel(tr.Behind, ahead, upstream)
 			}
 			act = func() { a.syncPull(t, "") }
-		case tr.Ahead > 0:
-			label = locales.SyncPushLabel(tr.Ahead, upstream)
+		case ahead > 0:
+			label = locales.SyncPushLabel(ahead, pushTo)
 			act = func() { a.submit(t, write.Push(w, write.PushOptions{Branch: head.Target}), nil) }
 		default:
 			label = locales.SyncFetch()
@@ -131,7 +142,7 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 		case syncPull:
 			tip = locales.SyncPulling(upstream)
 		case syncPush:
-			tip = locales.SyncPushing(upstream)
+			tip = locales.SyncPushing(pushTo)
 		default:
 			tip = locales.SyncFetching(upstream)
 		}
