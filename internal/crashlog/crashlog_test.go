@@ -58,6 +58,34 @@ func TestPrune(t *testing.T) {
 	}
 }
 
+// Two reports in the same millisecond keep two files, and the same panic
+// again within a minute writes none.
+func TestReportsKept(t *testing.T) {
+	l := New(t.TempDir(), "")
+	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	a, err := l.write(Report{Time: at, What: "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := l.write(Report{Time: at, What: "b"})
+	if err != nil || a == b {
+		t.Fatalf("%s and %s: %v", a, b, err)
+	}
+	if first, _ := os.ReadFile(a); !strings.Contains(string(first), "\na\n") {
+		t.Fatalf("the first report overwritten:\n%s", first)
+	}
+	for i, want := range []bool{true, false, true} {
+		value := "boom"
+		if i == 2 {
+			value = "other"
+		}
+		name, err := l.Panic("", "", lifetime.Panic{Value: value, Stack: "stack"})
+		if err != nil || (name != "") != want {
+			t.Fatalf("panic %d (%s): %q %v", i, value, name, err)
+		}
+	}
+}
+
 // TestFatal crashes a child process and reads its report at the next
 // "launch".
 func TestFatal(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -47,6 +48,8 @@ type Log struct {
 	mu      sync.Mutex
 	git     string
 	journal *run.Journal
+	// panics is when each panic value was last reported.
+	panics map[string]time.Time
 }
 
 // New returns the log keeping its reports in dir, for the app at version.
@@ -146,10 +149,32 @@ func (l *Log) clean(s string) string {
 	return s
 }
 
+// samePanicGap is how long a panic with the same value as one reported
+// is not reported again: work that reruns on every change of the files
+// would otherwise write a report many times a second.
+const samePanicGap = time.Minute
+
 // Panic writes a report of a panic recovered in the work of the
-// repository at path (git directory gitDir), and returns its file.
+// repository at path (git directory gitDir), and returns its file; ""
+// when one with the same value was reported less than samePanicGap ago.
 func (l *Log) Panic(path, gitDir string, p lifetime.Panic) (string, error) {
-	return l.write(Report{Time: time.Now(), What: "A panic was recovered in a repository's work; the app went on.",
+	now := time.Now()
+	l.mu.Lock()
+	if last, ok := l.panics[p.Value]; ok && now.Sub(last) < samePanicGap {
+		l.mu.Unlock()
+		return "", nil
+	}
+	if l.panics == nil {
+		l.panics = map[string]time.Time{}
+	}
+	for v, at := range l.panics {
+		if now.Sub(at) >= samePanicGap {
+			delete(l.panics, v)
+		}
+	}
+	l.panics[p.Value] = now
+	l.mu.Unlock()
+	return l.write(Report{Time: now, What: "A panic was recovered in a repository's work; the app went on.",
 		Repo: path, Value: p.Value, Stack: p.Stack, GitDir: gitDir})
 }
 
@@ -157,8 +182,27 @@ func (l *Log) write(r Report) (string, error) {
 	if err := os.MkdirAll(l.dir, 0o700); err != nil {
 		return "", err
 	}
-	name := filepath.Join(l.dir, "crash-"+r.Time.Format("2006-01-02T15-04-05.000")+".txt")
-	if err := os.WriteFile(name, []byte(l.Text(r)), 0o600); err != nil {
+	// Two reports in the same millisecond, as of one bug hit by two
+	// repositories at once, each keep a file.
+	base := filepath.Join(l.dir, "crash-"+r.Time.Format("2006-01-02T15-04-05.000"))
+	name := base + ".txt"
+	var f *os.File
+	for i := 2; ; i++ {
+		var err error
+		f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, fs.ErrExist) || i > 100 {
+			return "", err
+		}
+		name = fmt.Sprintf("%s-%d.txt", base, i)
+	}
+	_, err := f.WriteString(l.Text(r))
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
 		return "", err
 	}
 	l.prune()
