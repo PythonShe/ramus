@@ -66,8 +66,8 @@ func TestLockedError(t *testing.T) {
 	if !errors.As(err, &le) {
 		t.Fatalf("held lock: %v", err)
 	}
-	if lsofMissing() {
-		t.Skip("no lsof")
+	if !holdersKnown() {
+		t.Skip("neither lsof nor /proc")
 	}
 	if len(le.Holders) != 1 || le.Holders[0].PID != os.Getpid() {
 		t.Fatalf("holders %+v, want this process", le.Holders)
@@ -211,13 +211,20 @@ func TestRemoveLockTellsAHeldLock(t *testing.T) {
 	})
 }
 
-func lsofMissing() bool {
-	for _, p := range []string{"/usr/sbin/lsof", "/usr/bin/lsof", "/bin/lsof"} {
+// holdersKnown reports whether this system tells who has a file open, as
+// the test expects it: by lsof, or without it by /proc, as Linux does.
+// Windows is not looked at here.
+func holdersKnown() bool {
+	if runtime.GOOS == "windows" {
+		return false
+	}
+	for _, p := range lsofPaths {
 		if _, err := os.Stat(p); err == nil {
-			return false
+			return true
 		}
 	}
-	return true
+	_, err := os.Stat("/proc/self/fd")
+	return err == nil
 }
 
 func TestFetchDoesNotWaitOnIndexLock(t *testing.T) {

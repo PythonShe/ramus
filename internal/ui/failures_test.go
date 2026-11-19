@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -165,10 +166,13 @@ func TestPullMode(t *testing.T) {
 // own, a lock left behind, says so, rather than leaving it to the
 // merge's bar.
 func TestFailureDuringConflicts(t *testing.T) {
-	if _, err := os.Stat("/usr/sbin/lsof"); err != nil {
-		if _, err := os.Stat("/usr/bin/lsof"); err != nil {
-			t.Skip("no lsof")
-		}
+	// The lock is stale, and held by no one, which the app tells by lsof
+	// or, without it, by /proc, as on Linux.
+	_, lsof := os.Stat("/usr/sbin/lsof")
+	_, lsof2 := os.Stat("/usr/bin/lsof")
+	_, proc := os.Stat("/proc/self/fd")
+	if runtime.GOOS == "windows" || (lsof != nil && lsof2 != nil && proc != nil) {
+		t.Skip("neither lsof nor /proc")
 	}
 	h := newHarness(t)
 	r := h.repoWith("a.txt")
