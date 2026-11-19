@@ -43,8 +43,32 @@ const (
 // a merge tool for git difftool to fall back to.
 var ErrNoDiffTool error = &sayError{locales.SessionNoDiffTool}
 
-// diffTools counts the tools open.
-type diffTools struct{ open atomic.Int32 }
+// diffTools counts the tools open, which run in the session's lifetime,
+// not the repository's: Trust closing the repository to open it again
+// leaves the user's tool, with what they edited in it, open. Closing the
+// session (the tab) stops them, as it did before.
+type diffTools struct {
+	open atomic.Int32
+	// ctx is cancelled as the session closes; made with the first tool.
+	// Both are used on the main thread only.
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// lifetime is the context the tools run in, which close cancels.
+func (d *diffTools) lifetime() context.Context {
+	if d.ctx == nil {
+		d.ctx, d.cancel = context.WithCancel(context.Background())
+	}
+	return d.ctx
+}
+
+// close stops the tools open.
+func (d *diffTools) close() {
+	if d.cancel != nil {
+		d.cancel()
+	}
+}
 
 // OpenDiffTool hands a comparison to the diff tool git's config names,
 // or else to req.Own, through git difftool, and calls done on the main thread once the tool
@@ -122,9 +146,15 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 	if len(runs) == 0 {
 		runs = []run.Cmd{base}
 	}
-	r.Life().Go(func(ctx context.Context) {
+	life := s.tools.lifetime()
+	// Done waits for it. While a repository is open, running counts it
+	// already, so this Add comes before any Wait.
+	s.running.Add(1)
+	go func() {
+		defer s.running.Done()
+		defer s.recoverWork()
 		defer s.tools.open.Add(-1)
-		ctx, cancel := context.WithTimeout(ctx, diffToolTime)
+		ctx, cancel := context.WithTimeout(life, diffToolTime)
 		defer cancel()
 		var stderr strings.Builder
 		var err error
@@ -165,14 +195,21 @@ func (s *Session) OpenDiffTool(req DiffToolRequest, done func(error)) {
 				err = errors.New(msg)
 			}
 		}
-		if ctx.Err() != nil && r.Life().Context().Err() != nil {
-			return // the repository closed, which ended the tool
+		if ctx.Err() != nil && life.Err() != nil {
+			return // the session closed, which ended the tool
 		}
-		// The tool's own end is told whichever repository is open now: it
+		// The tool's own end is told whichever repository is open now, as
+		// after Trust opened it again: what it says is of the tool and
 		// holds nothing of r.
-		tell := func() { done(err) }
-		s.handOver(r, tell, tell)
-	})
+		s.update(func() {
+			s.mu.Lock()
+			closed := s.closed
+			s.mu.Unlock()
+			if !closed {
+				done(err)
+			}
+		})
+	}()
 }
 
 // limitedWriter keeps the first bytes written and drops the rest.

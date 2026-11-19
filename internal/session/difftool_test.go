@@ -260,3 +260,66 @@ func TestTerminalDiffToolRefused(t *testing.T) {
 		})
 	}
 }
+
+// A diff tool open when Trust opens the repository again stays open,
+// with what the user edited in it, and its end is told once it closes;
+// closing the session (its tab) still stops it.
+func TestDiffToolOutlivesTheReopen(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the tool is a shell command that traps its stop")
+	}
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("a")
+	r.Write("a.txt", "two\n")
+	dir := t.TempDir()
+	signal := func(name string) string { return filepath.ToSlash(filepath.Join(dir, name)) }
+	// The tool says it started, and that it was stopped, by the files it
+	// writes; it runs until the test writes release.
+	t.Cleanup(func() { os.WriteFile(signal("release"), nil, 0o644) })
+	own := fmt.Sprintf(`trap 'echo > %q; exit 1' TERM; echo > %q; while [ ! -e %q ]; do sleep 0.05; done`,
+		signal("stopped"), signal("started"), signal("release"))
+	exists := func(name string) bool { _, err := os.Stat(filepath.Join(dir, name)); return err == nil }
+	m := make(mainThread, 256)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+
+	var got error
+	calls := 0
+	s.OpenDiffTool(DiffToolRequest{Paths: []string{"a.txt"}, Own: own}, func(err error) { got = err; calls++ })
+	m.until(t, "the tool to start", func() bool { return exists("started") })
+	old := s.Repo
+	s.reopenTrusted()
+	// Every goroutine of the closed repository has ended: had the tool
+	// run in its lifetime, it would have been stopped by now.
+	m.drainClosed(t, old)
+	m.until(t, "the repository open again", func() bool { return s.Repo != nil && s.State.Status != nil })
+	if exists("stopped") || calls != 0 {
+		t.Fatalf("the reopen ended the tool: stopped %v, done called %d times", exists("stopped"), calls)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "release"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m.until(t, "the tool's end", func() bool { return calls > 0 })
+	if got != nil || calls != 1 {
+		t.Fatalf("the tool's end told %d times, the last %v", calls, got)
+	}
+
+	// Closing the session stops a tool still open, and tells no one.
+	for _, f := range []string{"started", "release"} {
+		os.Remove(filepath.Join(dir, f))
+	}
+	calls = 0
+	s.OpenDiffTool(DiffToolRequest{Paths: []string{"a.txt"}, Own: own}, func(error) { calls++ })
+	m.until(t, "the second tool to start", func() bool { return exists("started") })
+	s.Close()
+	m.until(t, "the tool stopped", func() bool { return exists("stopped") })
+	<-s.Done()
+	for len(m) > 0 {
+		(<-m)()
+	}
+	if calls != 0 {
+		t.Fatalf("a tool the closing stopped told its end %d times", calls)
+	}
+}

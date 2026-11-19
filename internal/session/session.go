@@ -968,6 +968,7 @@ func (s *Session) Close() {
 	if r != nil {
 		r.Close()
 	}
+	s.tools.close()
 	s.Repo = nil
 	s.dropPulls()
 	go func() { s.running.Wait(); close(s.done) }()
