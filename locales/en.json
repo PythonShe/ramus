@@ -394,6 +394,10 @@
   "mergeAllTheirs": "All Theirs",
   "mergeSaveAndMarkResolved": "Save and Mark Resolved",
   "mergeNoMarkersLeft": "No conflict markers are left in this file",
+  "mergeChangedOnDisk": "This file changed on disk, so its conflicts were read again and the choices made in it were cleared",
+  "@mergeChangedOnDisk": {
+    "description": "Shown in the merge editor when the conflicted file changed outside it while the user was resolving it."
+  },
   "mergeMarkResolved": "Mark Resolved",
   "mergeConflictNumber": "Conflict {n}",
   "@mergeConflictNumber": {

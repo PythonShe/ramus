@@ -2173,6 +2173,22 @@ func (msgs Messages) MergeNoMarkersLeft() string {
 	return Catalog.Format(msgs.locale, "mergeNoMarkersLeft", nil)
 }
 
+// MergeChangedOnDisk says "This file changed on disk, so its conflicts were read again and the choices made in it were cleared"
+// in the language the app shows.
+//
+// Shown in the merge editor when the conflicted file changed outside it
+// while the user was resolving it.
+func MergeChangedOnDisk() string { return In(i18n.Locale()).MergeChangedOnDisk() }
+
+// MergeChangedOnDisk says "This file changed on disk, so its conflicts were read again and the choices made in it were cleared"
+// in the language of msgs.
+//
+// Shown in the merge editor when the conflicted file changed outside it
+// while the user was resolving it.
+func (msgs Messages) MergeChangedOnDisk() string {
+	return Catalog.Format(msgs.locale, "mergeChangedOnDisk", nil)
+}
+
 // MergeMarkResolved says "Mark Resolved"
 // in the language the app shows.
 func MergeMarkResolved() string { return In(i18n.Locale()).MergeMarkResolved() }

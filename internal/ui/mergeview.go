@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -125,18 +126,41 @@ func (a *App) loadMerge(t *tab, path string) {
 	if ms.loading || ms.path == path && ms.readW == t.s.Writes {
 		return
 	}
-	ms.path, ms.readW, ms.loading, ms.err = path, t.s.Writes, true, ""
+	if ms.path != path {
+		ms.err = ""
+	}
+	ms.path, ms.readW, ms.loading = path, t.s.Writes, true
 	t.s.LoadConflict(path, func(cf session.ConflictFile) {
 		if ms.path != path {
 			ms.loading = false
 			return
 		}
-		ms.loading, ms.cf = false, cf
+		ms.loading = false
 		n := conflict.Count(cf.Segments)
+		if sameConflict(ms.cf, cf) && n == len(ms.choices) {
+			// Any write ending reads the file again, a background fetch
+			// included: the choices made on the file as it is stay.
+			ms.cf = cf
+			return
+		}
+		worked := ms.cf.Path == cf.Path && slices.ContainsFunc(ms.choices, func(ch conflict.Choice) bool { return ch != conflict.Unresolved })
+		ms.cf = cf
+		if worked {
+			ms.err = locales.MergeChangedOnDisk()
+		}
 		ms.choices, ms.custom = make([]conflict.Choice, n), make([]string, n)
 		ms.results, ms.resultOf, ms.resultMade, ms.opened = nil, nil, nil, nil
 		a.showConflicts(ms)
 	})
+}
+
+// sameConflict reports whether b is the conflict a was read as, the file
+// unchanged on disk since.
+func sameConflict(a, b session.ConflictFile) bool {
+	sa, sb := a.Seen, b.Seen
+	return a.Path == b.Path && a.Err == nil && b.Err == nil && a.Segments != nil && b.Segments != nil &&
+		a.Ours == b.Ours && a.Theirs == b.Theirs && a.Binary == b.Binary &&
+		sa.Exists && sb.Exists && sa.Size == sb.Size && sa.Mode == sb.Mode && sa.ModTime.Equal(sb.ModTime)
 }
 
 // showConflicts numbers ms's conflicts and builds what its segments show

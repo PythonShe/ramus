@@ -7,8 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"ramus/internal/git/conflict"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 func conflictingRepo(h *harness) *gittest.Repo {
@@ -134,4 +136,50 @@ func TestOpenedText(t *testing.T) {
 	if got := openedText([]byte("a\nb\n")); got != "a\nb" {
 		t.Fatalf("short run %q", got)
 	}
+}
+
+// A write that leaves the conflicted file as it was, as a background
+// fetch or another file staged, keeps the choices made and the text
+// typed; one that changed the file on disk starts again, and says so.
+func TestMergeChoicesOutliveOtherWrites(t *testing.T) {
+	h := newHarness(t)
+	r := conflictingRepo(h)
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	r.Run(nil, "merge", "topic")
+	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
+	r.Write("z.txt", "z\n")
+	r.Write("y.txt", "y\n")
+	h.until("z listed", func() bool { return hasExact(h, "z.txt") && hasExact(h, "y.txt") })
+	h.click("a.txt")
+	h.until("the editor", h.shows("Conflict 1"))
+	ms := &tb.merge
+	h.click("Edit")
+	ms.custom[0] = "typed by hand\n"
+
+	stage := func(path string) {
+		t.Helper()
+		w := tb.s.Writes
+		if _, err := tb.s.Submit(write.Stage(tb.s.Where(), []string{path})); err != nil {
+			t.Fatal(err)
+		}
+		h.until("the write counted", func() bool { return tb.s.Writes > w })
+		h.until("reloaded", func() bool { return ms.readW == tb.s.Writes && !ms.loading })
+	}
+	stage("z.txt")
+	if ms.choices[0] != conflict.Custom || ms.custom[0] != "typed by hand\n" {
+		t.Fatalf("after an unrelated write: choice %v, text %q", ms.choices[0], ms.custom[0])
+	}
+	if ms.err != "" {
+		t.Fatalf("an unchanged file said %q", ms.err)
+	}
+
+	r.Write("a.txt", "<<<<<<< HEAD\nours again, longer\n=======\ntheirs again\n>>>>>>> topic\n")
+	stage("y.txt")
+	if ms.choices[0] != conflict.Unresolved {
+		t.Fatalf("a file changed on disk kept choice %v", ms.choices[0])
+	}
+	h.until("why", h.shows(locales.MergeChangedOnDisk()))
 }
