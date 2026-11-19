@@ -3,6 +3,8 @@ package trust
 import (
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"testing"
 )
 
@@ -35,6 +37,39 @@ func TestStore(t *testing.T) {
 	}
 	if third, _ := Load(path); third.Trusted(repo) {
 		t.Error("still trusted after revoking")
+	}
+}
+
+// Answers given at once, from several tabs, are all saved: no save of an
+// older list lands after a newer one.
+func TestConcurrentSetsAllSaved(t *testing.T) {
+	var repos []string
+	for i := range 8 {
+		d := filepath.Join(t.TempDir(), strconv.Itoa(i), ".git")
+		os.MkdirAll(d, 0o755)
+		repos = append(repos, d)
+	}
+	for round := range 50 {
+		path := filepath.Join(t.TempDir(), "trust.json")
+		s, _ := Load(path)
+		var wg sync.WaitGroup
+		for _, d := range repos {
+			wg.Go(func() {
+				if err := s.Set(d, true); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		wg.Wait()
+		back, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range repos {
+			if !back.Trusted(d) {
+				t.Fatalf("round %d: %s was not saved", round, d)
+			}
+		}
 	}
 }
 

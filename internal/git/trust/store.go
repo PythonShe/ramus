@@ -26,6 +26,9 @@ type Store struct {
 	// broken is why the file could not be read and was left in place:
 	// Set then refuses, rather than write over the user's list.
 	broken error
+	// write keeps saves in order, each of a list no older than the one
+	// saved before it.
+	write sync.Mutex
 }
 
 type file struct {
@@ -100,6 +103,8 @@ func (s *Store) Trusted(commonDir string) bool {
 // Set records the user's answer and saves the store.
 func (s *Store) Set(commonDir string, trusted bool) error {
 	d := clean(commonDir)
+	s.write.Lock()
+	defer s.write.Unlock()
 	s.mu.Lock()
 	if s.broken != nil {
 		s.mu.Unlock()
