@@ -15,10 +15,15 @@ const renameTries = 8
 
 // rename replaces to with from. Windows refuses to replace a file another
 // program has open without sharing its deletion, which those programs
-// hold only for a moment, so the rename is tried again a few times.
-func rename(from, to string) error {
+// hold only for a moment, so the rename is tried again a few times; ok,
+// when given, says before each try whether to go on: the program may have
+// written the file meanwhile.
+func rename(from, to string, ok func() bool) error {
 	wait := 10 * time.Millisecond
 	for i := 0; ; i++ {
+		if ok != nil && !ok() {
+			return errChanged
+		}
 		err := os.Rename(from, to)
 		if err == nil || i == renameTries-1 || !busy(err) {
 			return err

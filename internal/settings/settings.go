@@ -265,16 +265,21 @@ func decode(data []byte) (s Settings, partial bool, err error) {
 	// A value of the wrong type leaves its field as it was and the rest
 	// decodes: encoding/json carries on past it.
 	if err := json.Unmarshal(data, &s); err != nil {
-		return s.WithDefaults(), true, badFields(top, err)
+		err = badFields(&s, top, err)
+		return s.WithDefaults(), true, err
 	}
 	return s.WithDefaults(), false, nil
 }
 
 // badFields says which of the fields in top do not decode, err when it
-// cannot tell.
-func badFields(top map[string]json.RawMessage, err error) error {
+// cannot tell, and leaves each of them unset in s. encoding/json fills a
+// list or a map up to the value that does not fit: the half read would
+// be in force, and a save would write it over the user's text, which it
+// keeps for a field left unset.
+func badFields(s *Settings, top map[string]json.RawMessage, err error) error {
 	var msgs []string
 	t := reflect.TypeFor[Settings]()
+	v := reflect.ValueOf(s).Elem()
 	for i := range t.NumField() {
 		key, raw, ok := lookupKey(top, jsonName(t.Field(i)))
 		if !ok {
@@ -282,6 +287,7 @@ func badFields(top map[string]json.RawMessage, err error) error {
 		}
 		if ferr := json.Unmarshal(raw, reflect.New(t.Field(i).Type).Interface()); ferr != nil {
 			msgs = append(msgs, fmt.Sprintf("%q: %v", key, ferr))
+			v.Field(i).SetZero()
 		}
 	}
 	if len(msgs) == 0 {
@@ -337,8 +343,29 @@ func Save(path string, s Settings) error {
 // has as base had it is left as the file has it, edited by hand since;
 // got is then what the file holds once written, data its content.
 func save(path string, s Settings, base *Settings) (got Settings, data []byte, err error) {
+	for range maxMerges {
+		got, data, err = saveOnce(path, s, base)
+		if !errors.Is(err, errChanged) {
+			return got, data, err
+		}
+	}
+	return s, nil, fmt.Errorf("settings: %s kept changing while it was written: %w", path, err)
+}
+
+// maxMerges bounds the merges of a save whose file changes each time
+// before it is replaced.
+const maxMerges = 5
+
+// errChanged is a file found changed since it was read, at its
+// replacement.
+var errChanged = errors.New("changed meanwhile")
+
+// saveOnce is one try of save, which fails with errChanged when the file
+// changes between its reading and its replacement.
+func saveOnce(path string, s Settings, base *Settings) (got Settings, data []byte, err error) {
 	merged := map[string]json.RawMessage{}
 	old, err := os.ReadFile(path)
+	existed := err == nil
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		old = nil
@@ -402,7 +429,15 @@ func save(path string, s Settings, base *Settings) (got Settings, data []byte, e
 	}
 	data = append(data, '\n')
 	if !bytes.Equal(data, old) {
-		if err := WriteFile(path, data); err != nil {
+		// An edit saved between the reading and the rename would be lost.
+		unchanged := func() bool {
+			now, err := os.ReadFile(path)
+			if !existed {
+				return errors.Is(err, fs.ErrNotExist)
+			}
+			return err == nil && bytes.Equal(now, old)
+		}
+		if err := writeFile(path, data, unchanged); err != nil {
 			return s, nil, err
 		}
 	}
@@ -458,7 +493,16 @@ func fieldsOf(s Settings) map[string]json.RawMessage {
 // The data reaches the disk before the rename: without that, a power cut
 // soon after can leave the file empty on file systems that order neither,
 // and an empty file is one the app cannot read.
-func WriteFile(path string, data []byte) error {
+func WriteFile(path string, data []byte) error { return writeFile(path, data, nil) }
+
+// beforeReplace, when set, runs as a write is about to replace its file:
+// a test edits the file there.
+var beforeReplace func()
+
+// writeFile is WriteFile, which, with unchanged, replaces the file only
+// while unchanged says it is as it was, asked before each try of the
+// rename, and fails with errChanged when it is not.
+func writeFile(path string, data []byte, unchanged func() bool) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -481,7 +525,10 @@ func WriteFile(path string, data []byte) error {
 		os.Remove(tmp.Name())
 		return err
 	}
-	if err := rename(tmp.Name(), path); err != nil {
+	if beforeReplace != nil {
+		beforeReplace()
+	}
+	if err := rename(tmp.Name(), path, unchanged); err != nil {
 		os.Remove(tmp.Name())
 		return err
 	}

@@ -65,7 +65,7 @@ func KeepAside(path string) (string, error) {
 		if _, err := os.Lstat(name); !errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
-		if err := rename(path, name); err != nil {
+		if err := rename(path, name, nil); err != nil {
 			return "", err
 		}
 		return name, nil

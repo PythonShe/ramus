@@ -4,7 +4,13 @@ package settings
 
 import "os"
 
-func rename(from, to string) error { return os.Rename(from, to) }
+// rename replaces to with from, while ok, when given, says it may.
+func rename(from, to string, ok func() bool) error {
+	if ok != nil && !ok() {
+		return errChanged
+	}
+	return os.Rename(from, to)
+}
 
 // syncDir has the rename itself reach the disk. A folder that cannot be
 // synced leaves the file as durable as the system makes it anyway.
