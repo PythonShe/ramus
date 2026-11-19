@@ -19,10 +19,12 @@ type reflogState struct {
 	lostShown int
 	ref       string
 
-	readFor  *refs.List
-	readRef  string
-	loading  bool
-	entries  []session.ReflogEntry
+	readFor *refs.List
+	readRef string
+	loading bool
+	entries []session.ReflogEntry
+	// keys name entries in the list, keys[i] entries[i].
+	keys     []reflogKey
 	err      string
 	list     tableState
 	chosen   int
@@ -37,6 +39,27 @@ type reflogState struct {
 
 	detail  commitView
 	detailW float32
+}
+
+// reflogKey names a reflog entry in the list across reads, as its
+// selector does not: each new entry renumbers those below it. An entry is
+// known by its commit, and by how many older entries have that commit,
+// which a new entry on top leaves as it was.
+type reflogKey struct {
+	oid string
+	n   int
+}
+
+// reflogKeys are the keys of entries, newest first as git lists them.
+func reflogKeys(entries []session.ReflogEntry) []reflogKey {
+	keys := make([]reflogKey, len(entries))
+	seen := make(map[string]int, len(entries))
+	for i := len(entries) - 1; i >= 0; i-- {
+		id := string(entries[i].OID)
+		keys[i] = reflogKey{id, seen[id]}
+		seen[id]++
+	}
+	return keys
 }
 
 func newReflogState() reflogState {
@@ -114,7 +137,7 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 			if ref != rs.ref {
 				return
 			}
-			rs.entries, rs.err = es, ""
+			rs.entries, rs.keys, rs.err = es, reflogKeys(es), ""
 			if err != nil {
 				rs.err = errText(err)
 			}
@@ -139,8 +162,11 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 		emptyState(c, locales.ReflogNoEntries())
 		return
 	}
-	entries := rs.entries
+	entries, keys := rs.entries, rs.keys
 	rs.list.Selected = &rs.chosen
+	// A menu opened on an entry is built again for the item chosen, by
+	// then perhaps at another index as entries came on top.
+	rs.list.Key = func(i int) any { return keys[i] }
 	rs.list.Label = func(i int) string {
 		return locales.ReflogEntry(entries[i].Selector, redact.Control(entries[i].Message))
 	}
@@ -199,6 +225,7 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	}
 	lost := rs.lost
 	rs.lostList.Selected = &rs.lostChosen
+	rs.lostList.Key = func(i int) any { return string(lost[i].OID) }
 	rs.lostList.Label = func(i int) string { return locales.ReflogLost(redact.Control(lost[i].Subject), lost[i].Author) }
 	rs.lostList.CellMenu = func(m *ui.Menu, i, _ int) { a.commitItems(m, t, lost[i].OID, lost[i].Merges) }
 	now := a.Now()

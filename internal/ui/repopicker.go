@@ -156,6 +156,7 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 				return
 			}
 			hover := ""
+			p.list.Key = func(i int) any { return [2]string{rows[i].key, rows[i].heading} }
 			list := ui.List(c, &p.list, len(rows), func(i int) {
 				r := a.repoRowView(c, rows[i], rows[i].heading == "" && rows[i].key == p.hi)
 				if rows[i].heading != "" {

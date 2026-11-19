@@ -45,6 +45,8 @@ type wtFile struct {
 type wtRow struct {
 	w    int
 	file int // -1 for the worktree itself
+	// key names the row in the list: the worktree's path, and the file's.
+	key [2]string
 }
 
 const (
@@ -199,14 +201,17 @@ func (a *App) wtList(c *ui.Context, t *tab, p *wtPanel) (act func()) {
 		if w.Bare {
 			continue
 		}
-		rows = append(rows, wtRow{i, -1})
+		rows = append(rows, wtRow{i, -1, [2]string{w.Path}})
 		if p.expanded[w.Path] {
-			for j := range p.sums[w.Path].Files {
-				rows = append(rows, wtRow{i, j})
+			for j, f := range p.sums[w.Path].Files {
+				rows = append(rows, wtRow{i, j, [2]string{w.Path, f.Path}})
 			}
 		}
 	}
 	now := a.Now()
+	// A menu opened on a worktree is built again for the item chosen, by
+	// then perhaps at another index as files came and went above it.
+	p.list.Key = func(i int) any { return rows[i].key }
 	ui.List(c, &p.list, len(rows), func(i int) {
 		r := rows[i]
 		w := wts[r.w]

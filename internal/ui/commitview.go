@@ -775,6 +775,9 @@ func (a *App) commitFiles(c *ui.Context, t *tab, cv *commitView, d *session.Comm
 		lineCounts(c, int(d.Sum.Added), int(d.Sum.Deleted))
 	})
 	cv.files.Selected = &cv.file
+	// A menu opened on a file is built again for the item chosen, by then
+	// perhaps at another index as the work tree's files changed.
+	cv.files.Key = func(i int) any { return string(f.Path(i)) }
 	cv.files.Label = func(i int) string {
 		return fileLabel(fileStatusWord(f.Status(i)), commitFileName(f, i), lineAt(d.Lines, i))
 	}

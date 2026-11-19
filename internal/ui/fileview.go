@@ -226,6 +226,7 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 			cs := fs.commits
 			now := a.Now()
 			fs.list.Selected = &fs.chosen
+			fs.list.Key = func(i int) any { return string(cs[i].OID) }
 			fs.list.Label = func(i int) string {
 				return locales.FileHistoryCommit(redact.Control(cs[i].Subject), redact.Control(cs[i].Author), ago(now, cs[i].Time))
 			}

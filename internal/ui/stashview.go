@@ -208,6 +208,7 @@ func (a *App) stashView(c *ui.Context, t *tab) {
 			}
 			entries := ss.entries
 			ss.list.Selected = &ss.chosen
+			ss.list.Key = func(i int) any { return string(entries[i].OID) }
 			ss.list.Label = func(i int) string { return locales.StashEntryLabel(stashName(i), redact.Control(entries[i].Message)) }
 			now := a.Now()
 			var act func()

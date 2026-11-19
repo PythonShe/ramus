@@ -102,6 +102,9 @@ func (a *App) lfsLocksView(c *ui.Context, t *tab) {
 			return
 		}
 		ls.list.Selected = &ls.chosen
+		// A menu opened on a lock is built again for the item chosen, by
+		// then perhaps at another index as the locks were read again.
+		ls.list.Key = func(i int) any { return [2]string{locks[i].ID, locks[i].Path} }
 		ls.list.Label = func(i int) string { return locales.LocksRow(locks[i].Path, lockOwner(locks[i])) }
 		var act func()
 		ls.list.CellMenu = func(m *ui.Menu, i, _ int) { a.lockMenu(m, t, locks[i], &act) }

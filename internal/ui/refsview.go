@@ -295,6 +295,15 @@ func (a *App) refList(c *ui.Context, t *tab) {
 		}
 		return redact.Control(rows[i].label)
 	}
+	// Rows are known by the ref or folder they show: a menu opened on one
+	// is built again for the item chosen, by then perhaps at another index
+	// as the refs regrouped.
+	rs.list.Key = func(i int) any {
+		if r := rows[i]; r.idx >= 0 {
+			return fullRef(info, rs.kind, r.idx)
+		}
+		return prefix + rows[i].folder
+	}
 	var act func()
 	rs.list.CellMenu = func(m *ui.Menu, i, _ int) {
 		switch r := rows[i]; {

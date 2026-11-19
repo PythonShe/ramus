@@ -157,6 +157,10 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 			} else {
 				now := a.Now()
 				hover := -1
+				// A menu opened on a branch is built again for the item
+				// chosen, by then perhaps at another index as the fetch
+				// landed or the branches were sorted.
+				p.list.Key = func(i int) any { return rows[i] }
 				ui.List(c, &p.list, len(rows), func(i int) {
 					r := pickRowView(c, t, p, rows[i], i == p.hi, now)
 					if rows[i].heading != "" {

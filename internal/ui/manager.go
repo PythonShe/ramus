@@ -47,6 +47,7 @@ func (a *App) managerView(c *ui.Context) {
 			ui.Text(c, locales.ManagerTitle()).Bold()
 			ui.SearchField(c, &m.query).Label(locales.ManagerSearchLabel()).Placeholder(locales.ManagerSearchPlaceholder()).AutoFocus()
 			m.list.Selected = &m.chosen
+			m.list.Key = func(i int) any { return repos[i].Path }
 			m.list.Label = func(i int) string { return repos[i].Name }
 			l := ui.List(c, &m.list, len(repos), func(i int) {
 				r := repos[i]

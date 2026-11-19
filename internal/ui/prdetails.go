@@ -234,6 +234,7 @@ func (a *App) prChecks(c *ui.Context, rv *prReview) {
 		if rv.r.ChecksMore {
 			ui.Text(c, locales.PrsChecksMore(kindName(rv.repo.Kind))).FontSize(textSmall).TextColor(th.Warning).Padding(0, insetX, spaceS, insetX)
 		}
+		rv.checkList.Key = func(i int) any { return [3]string{list[i].Group, list[i].Name, list[i].URL} }
 		ui.List(c, &rv.checkList, len(list), func(i int) {
 			ch := list[i]
 			k := plainInk(th)

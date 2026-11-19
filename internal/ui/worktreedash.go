@@ -69,6 +69,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 		{ID: "open", Width: 80, Align: ui.End, Fixed: true},
 	}
 	d.table.Selected = &d.chosen
+	d.table.Key = func(i int) any { return wts[i].Path }
 	d.table.Label = func(i int) string { return worktreeLabel(wts[i]) }
 	var act func()
 	ui.Column(c).Fill().Children(func() {

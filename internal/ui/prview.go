@@ -297,6 +297,7 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 			ui.Text(c, ps.detailErr).FontSize(textSmall).TextColor(th.Danger).Padding(0, insetX, spaceS, insetX).Selectable()
 		}
 		ps.table.Selected = &ps.chosen
+		ps.table.Key = func(i int) any { return list[i].Number }
 		ps.table.Label = func(i int) string {
 			return locales.PrsRow(list[i].Ref(ps.repo.Kind), redact.Control(list[i].Title), list[i].Author)
 		}
