@@ -99,9 +99,10 @@ func TestSyncPushDuringFetch(t *testing.T) {
 	r := h.repoWith()
 	r.Git("remote", "add", "origin", origin.Dir)
 	r.Git("push", "-q", "-u", "origin", "main")
-	// The fetch holds until the gate is there, which it never is.
+	// The fetch holds until the gate is there, which it never is: a
+	// minute at most, for no loop to outlive the test.
 	gate := filepath.Join(t.TempDir(), "gate")
-	r.Git("config", "remote.origin.uploadpack", "while [ ! -e '"+filepath.ToSlash(gate)+"' ]; do sleep 0.05; done; git upload-pack")
+	r.Git("config", "remote.origin.uploadpack", "i=0; while [ $i -lt 1200 ] && [ ! -e '"+filepath.ToSlash(gate)+"' ]; do sleep 0.05; i=$((i+1)); done; git upload-pack")
 	r.Write("mine", "x")
 	head := r.Commit("mine")
 	h.trust.Set(r.GitDir(), true)

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
@@ -195,10 +196,28 @@ func TestDiffToolLeavingAProcessRunning(t *testing.T) {
 	r.Write("a.txt", "one\n")
 	r.Commit("a")
 	r.Write("a.txt", "two\n")
-	stop := filepath.Join(t.TempDir(), "stop")
-	// The leftover ends once the test has, by the file it waits for.
-	t.Cleanup(func() { os.WriteFile(stop, nil, 0o644) })
-	own := fmt.Sprintf(`while [ ! -e %q ]; do sleep 0.1; done &`, filepath.ToSlash(stop))
+	// The leftover ends once the test has, by the file it waits for, and
+	// says so; a minute at most, or once its folder goes. The folder is
+	// removed only after, not by t.TempDir's cleanup, which runs before
+	// a cleanup registered after it and would take the stop file away
+	// before the loop saw it.
+	dir, err := os.MkdirTemp("", "difftool-leftover")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop, gone := filepath.Join(dir, "stop"), filepath.Join(dir, "gone")
+	t.Cleanup(func() {
+		defer os.RemoveAll(dir)
+		os.WriteFile(stop, nil, 0o644)
+		for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+			if _, err := os.Stat(gone); err == nil {
+				return
+			}
+		}
+		t.Error("the tool's leftover did not end")
+	})
+	own := fmt.Sprintf(`(i=0; while [ $i -lt 600 ] && [ -d %[1]q ] && [ ! -e %[2]q ]; do sleep 0.1; i=$((i+1)); done; : > %[3]q) &`,
+		filepath.ToSlash(dir), filepath.ToSlash(stop), filepath.ToSlash(gone))
 	m := make(mainThread, 64)
 	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })
@@ -293,9 +312,10 @@ func TestDiffToolOutlivesTheReopen(t *testing.T) {
 	dir := t.TempDir()
 	signal := func(name string) string { return filepath.ToSlash(filepath.Join(dir, name)) }
 	// The tool says it started, and that it was stopped, by the files it
-	// writes; it runs until the test writes release.
+	// writes; it runs until the test writes release, or a minute at most,
+	// for no loop to outlive a test that failed.
 	t.Cleanup(func() { os.WriteFile(signal("release"), nil, 0o644) })
-	own := fmt.Sprintf(`trap 'echo > %q; exit 1' TERM; echo > %q; while [ ! -e %q ]; do sleep 0.05; done`,
+	own := fmt.Sprintf(`trap 'echo > %q; exit 1' TERM; echo > %q; i=0; while [ $i -lt 1200 ] && [ ! -e %q ]; do sleep 0.05; i=$((i+1)); done`,
 		signal("stopped"), signal("started"), signal("release"))
 	exists := func(name string) bool { _, err := os.Stat(filepath.Join(dir, name)); return err == nil }
 	m := make(mainThread, 256)

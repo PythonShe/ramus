@@ -17,9 +17,10 @@ func TestFileHistoryLastReadWins(t *testing.T) {
 	}
 	dir := t.TempDir()
 	// The first history of one.txt read once ARM is there is held, its
-	// output kept, until RELEASE is.
+	// output kept, until RELEASE is: a minute at most, for a test that
+	// failed before it wrote RELEASE leaves no loop behind.
 	body := `case " $* " in *" log "*" one.txt "*) if [ -e FLAG/ARM ] && mkdir FLAG/held 2>/dev/null; then ` +
-		gitBin + ` "$@" > FLAG/out; s=$?; : > FLAG/started; while [ ! -e FLAG/RELEASE ]; do sleep 0.02; done; cat FLAG/out; exit $s; fi;; esac`
+		gitBin + ` "$@" > FLAG/out; s=$?; : > FLAG/started; i=0; while [ $i -lt 3000 ] && [ ! -e FLAG/RELEASE ]; do sleep 0.02; i=$((i+1)); done; cat FLAG/out; exit $s; fi;; esac`
 	h := newHarnessWith(t, wrappedGit(t, body, dir))
 	r := h.repoWith()
 	r.Write("one.txt", "a\n")
