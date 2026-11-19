@@ -31,7 +31,8 @@ const maxRelationRefs = 100
 // contain commit oid, and its children among the commits they and HEAD
 // reach, off the main thread, and hands them to done on it, once. cancel
 // stops the search; done is not called after it. What was found for the
-// refs and HEAD as they are is handed over at once.
+// refs and HEAD as they are is handed over at once. A search whose
+// repository closed and opened again (Trust) ends with ErrReopened.
 func (s *Session) LoadCommitRelations(oid []byte, done func(CommitRelations)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
@@ -47,20 +48,28 @@ func (s *Session) LoadCommitRelations(oid []byte, done func(CommitRelations)) (c
 	ctx, stop := context.WithCancel(s.viewContext(r))
 	// dropped is read and written on the main thread only.
 	dropped := false
+	reopened := func() {
+		if !dropped {
+			done(CommitRelations{Err: ErrReopened})
+		}
+	}
 	r.Life().Go(func(context.Context) {
 		defer stop()
 		rel := readRelations(ctx, r, list, head, oid)
 		if ctx.Err() != nil {
+			if closedUnder(r) {
+				s.handOver(r, nil, reopened)
+			}
 			return // cancelled, or the repository closed
 		}
-		s.update(func() {
+		s.handOver(r, func() {
 			if rel.Err == nil {
 				s.keep(r, key, answer{relations: &rel, relationsRefs: gen, relationsHead: head})
 			}
 			if !dropped {
 				done(rel)
 			}
-		})
+		}, reopened)
 	})
 	return func() { dropped = true; stop() }
 }

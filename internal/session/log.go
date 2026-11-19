@@ -245,17 +245,17 @@ func (s *Session) CommandsVersion() uint64 { return s.runner.Journal().Version()
 
 // GitCommands reads, off the main thread, the git commands of this
 // repository the runner still keeps, reads included, oldest first, and
-// hands them to done on it.
+// hands them to done on it: none while the repository is not open, or
+// once it closed and opened again (Trust), for the view to ask again.
 func (s *Session) GitCommands(done func([]run.Record)) {
 	r := s.Repo
 	if r == nil {
+		done(nil)
 		return
 	}
-	j, update := s.runner.Journal(), s.update
+	j := s.runner.Journal()
 	r.Life().Go(func(ctx context.Context) {
 		recs := j.For(r.GitDir)
-		if ctx.Err() == nil {
-			update(func() { done(recs) })
-		}
+		s.handOver(r, func() { done(recs) }, func() { done(nil) })
 	})
 }

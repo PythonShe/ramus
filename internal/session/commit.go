@@ -49,7 +49,6 @@ func (s *Session) LoadCommitSetup(done func(CommitSetup)) {
 		return
 	}
 	w := message.Where{GitDir: r.GitDir, WorkTree: r.WorkTree}
-	update := s.update
 	unborn := len(s.State.Head.OID) == 0
 	cfg := r.Config()
 	r.Life().Go(func(ctx context.Context) {
@@ -69,7 +68,7 @@ func (s *Session) LoadCommitSetup(done func(CommitSetup)) {
 		if !unborn {
 			cs.Last, _ = message.Last(ctx, r.Runner, w)
 		}
-		update(func() { done(cs) })
+		s.handOver(r, func() { done(cs) }, func() { done(CommitSetup{Comment: "#", Err: ErrReopened}) })
 	})
 }
 
@@ -82,10 +81,9 @@ func (s *Session) HeadMessage(done func(msg string, err error)) {
 		return
 	}
 	w := message.Where{GitDir: r.GitDir, WorkTree: r.WorkTree}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		msg, err := message.Last(ctx, r.Runner, w)
-		update(func() { done(msg, err) })
+		s.handOver(r, func() { done(msg, err) }, func() { done("", ErrReopened) })
 	})
 }
 
@@ -108,7 +106,6 @@ func (s *Session) CheckLineEnds(done func(LineEnds)) {
 		done(LineEnds{Complete: true})
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		var res LineEnds
 		files, err := stagedFiles(ctx, r.Runner, r.GitDir, r.WorkTree, r.Caps.HashSize)
@@ -123,7 +120,7 @@ func (s *Session) CheckLineEnds(done func(LineEnds)) {
 			res.AutoCRLF, res.EOL, err = lineend.Settings(ctx, r.Runner, r.GitDir, r.WorkTree, res.Findings)
 		}
 		res.Err = err
-		update(func() { done(res) })
+		s.handOver(r, func() { done(res) }, func() { done(LineEnds{Err: ErrReopened}) })
 	})
 }
 
@@ -316,13 +313,12 @@ func (s *Session) LoadPrepared(comment string, done func(Prepared)) {
 		done(Prepared{})
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		var p Prepared
 		p.Message, _ = write.PreparedMessage(r.GitDir, comment)
 		_, err := os.Lstat(filepath.Join(r.GitDir, "rebase-merge", "amend"))
 		p.Edit = err == nil
-		update(func() { done(p) })
+		s.handOver(r, func() { done(p) }, func() { done(Prepared{}) })
 	})
 }
 
@@ -362,7 +358,6 @@ func (s *Session) Verify(commit, tag string, done func(signature.Status, error))
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		var st signature.Status
 		var err error
@@ -371,6 +366,6 @@ func (s *Session) Verify(commit, tag string, done func(signature.Status, error))
 		} else {
 			st, err = signature.Commit(ctx, r.Runner, r.GitDir, commit)
 		}
-		update(func() { done(st, err) })
+		s.handOver(r, func() { done(st, err) }, func() { done(signature.Status{}, ErrReopened) })
 	})
 }

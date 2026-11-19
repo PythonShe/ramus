@@ -787,13 +787,15 @@ func tagTarget(data []byte) []byte {
 // and hands it to done on it with the number of the mailmap that named
 // their authors: text named through a mailmap of a lower number is stale.
 // The ids must stay as they are until then: not the bytes of a
-// commit-graph's mapping.
+// commit-graph's mapping. Text read of a repository closed meanwhile, as
+// Trust opens it again, is not handed over: done gets no text and no
+// error, as the history it was read for is gone too.
 func (s *Session) HistoryText(ids [][]byte, done func(c *history.TextChunk, names int, err error)) {
 	r := s.Repo
 	if r == nil {
+		done(nil, 0, nil)
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		cat, err := r.CatFile()
 		var c *history.TextChunk
@@ -803,7 +805,7 @@ func (s *Session) HistoryText(ids [][]byte, done func(c *history.TextChunk, name
 			mm, names = s.names(ctx, r)
 			c, err = history.LoadText(cat, ids, mm)
 		}
-		update(func() { done(c, names, err) })
+		s.handOver(r, func() { done(c, names, err) }, func() { done(nil, 0, nil) })
 	})
 }
 
@@ -848,7 +850,8 @@ type CommitDetail struct {
 // it as it is read: the message first, then its changed files, then the
 // lines they change and its signature, side by side, so a commit of
 // 10,000 files or a slow signature check holds back nothing read before. cancel stops the reading; done is not called
-// after it. A commit read before is handed over whole, at once.
+// after it. A commit read before is handed over whole, at once. A read
+// whose repository closed and opened again (Trust) ends with ErrReopened.
 func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()) {
 	r := s.Repo
 	if r == nil {
@@ -862,23 +865,32 @@ func (s *Session) LoadCommit(oid []byte, done func(CommitDetail)) (cancel func()
 		return func() {}
 	}
 	ctx, stop := context.WithCancel(s.viewContext(r))
-	// dropped is read and written on the main thread only.
-	dropped := false
+	// dropped and told are read and written on the main thread only.
+	dropped, told := false, false
+	reopened := func() {
+		if !dropped && !told {
+			told = true
+			done(CommitDetail{OID: oid, Done: true, Err: ErrReopened})
+		}
+	}
 	deliver := func(d CommitDetail) {
-		s.update(func() {
+		s.handOver(r, func() {
 			if d.Done && d.Err == nil {
 				s.keep(r, key, answer{detail: &d})
 			}
 			if !dropped {
 				done(d)
 			}
-		})
+		}, reopened)
 	}
 	r.Life().Go(func(context.Context) {
 		defer stop()
 		d := CommitDetail{OID: oid}
 		d.Err = s.readCommit(ctx, r, &d, deliver)
 		if ctx.Err() != nil && d.Err != nil {
+			if closedUnder(r) {
+				s.handOver(r, nil, reopened)
+			}
 			return // cancelled, or the repository closed
 		}
 		d.Done, d.Checking = true, false
@@ -989,7 +1001,8 @@ func emptyTree(hashSize int) []byte {
 // parent off the main thread, leaving out the white space ws says, and
 // hands it to done on it, with the whole files sides names. A newer call
 // cancels a read still running, whose done is not called. A patch read
-// before is handed over at once.
+// before is handed over at once. A read whose repository closed and
+// opened again (Trust) is answered ErrReopened.
 func (s *Session) CommitPatch(d CommitDetail, paths []string, maxBytes int, ws diff.Whitespace, sides Sides, done func(PatchResult)) {
 	s.commitPatchOf(d, paths, maxBytes, ws, sides, false, done)
 }
@@ -1010,7 +1023,6 @@ func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws
 	if len(d.Parents) > 0 {
 		parent = d.Parents[0]
 	}
-	update := s.update
 	s.commitPatch.mu.Lock()
 	if s.commitPatch.cancel != nil {
 		s.commitPatch.cancel()
@@ -1044,11 +1056,22 @@ func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws
 			readSides(r, sides, &res)
 		}
 		res.Err = err
+		// A newer read, or the view left, cancels it; r closing too, which
+		// is answered.
+		reopened := func() {
+			if ctx.Err() == nil || closedUnder(r) {
+				cancel()
+				done(PatchResult{Err: ErrReopened})
+			}
+		}
 		if ctx.Err() != nil {
+			if closedUnder(r) {
+				s.handOver(r, nil, reopened)
+			}
 			cancel()
 			return
 		}
-		update(func() {
+		s.handOver(r, func() {
 			live := ctx.Err() == nil
 			cancel()
 			if err == nil {
@@ -1057,18 +1080,18 @@ func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws
 			if live {
 				done(res)
 			}
-		})
+		}, reopened)
 	})
 }
 
 // ResolveCommit finds the commit a hash, ref or other revision names,
-// off the main thread, and hands it to done on it.
+// off the main thread, and hands it to done on it, unless the repository
+// closed meanwhile.
 func (s *Session) ResolveCommit(rev string, done func([]byte, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Untranslated: true,
 			Args: []string{"rev-parse", "--verify", "--quiet", "--end-of-options", rev + "^{commit}"}})
@@ -1079,19 +1102,19 @@ func (s *Session) ResolveCommit(rev string, done func([]byte, error)) {
 		if err != nil {
 			err = errors.New(locales.SessionNoCommitNamed(strconv.Quote(rev)))
 		}
-		update(func() { done(id, err) })
+		s.handOver(r, func() { done(id, err) }, nil)
 	})
 }
 
 // FindRow looks for the row of commit oid in h off the main thread, as
-// it can take a scan of every row, and hands it, or -1, to done on it.
+// it can take a scan of every row, and hands it, or -1, to done on it,
+// unless the repository closed meanwhile.
 func (s *Session) FindRow(h HistoryState, oid []byte, done func(int)) {
 	r := s.Repo
 	if r == nil || h.Snap == nil {
 		done(-1)
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		row := -1
 		for i := range h.Snap.Len() {
@@ -1103,7 +1126,7 @@ func (s *Session) FindRow(h HistoryState, oid []byte, done func(int)) {
 				break
 			}
 		}
-		update(func() { done(row) })
+		s.handOver(r, func() { done(row) }, nil)
 	})
 }
 
@@ -1111,13 +1134,13 @@ func (s *Session) FindRow(h HistoryState, oid []byte, done func(int)) {
 const MaxFormatPatch = 64 << 20
 
 // FormatPatch reads commit oid as git format-patch writes it, off the
-// main thread, and hands it to done on it.
+// main thread, and hands it to done on it, unless the repository closed
+// meanwhile.
 func (s *Session) FormatPatch(oid []byte, done func(string, error)) {
 	r := s.Repo
 	if r == nil {
 		return
 	}
-	update := s.update
 	r.Life().Go(func(ctx context.Context) {
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, MaxOutput: MaxFormatPatch,
 			Args: []string{"format-patch", "-1", "--stdout", "--no-color", "--no-ext-diff", hex.EncodeToString(oid), "--"}})
@@ -1125,6 +1148,6 @@ func (s *Session) FormatPatch(oid []byte, done func(string, error)) {
 		if err == nil {
 			text = string(res.Stdout)
 		}
-		update(func() { done(text, err) })
+		s.handOver(r, func() { done(text, err) }, nil)
 	})
 }

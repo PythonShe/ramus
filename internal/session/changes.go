@@ -145,8 +145,9 @@ type PatchSlot struct {
 
 // Patch reads a work-tree patch off the main thread, in the form git
 // apply takes back, and hands it to done on it. A newer call cancels a
-// read still running, whose done is not called. A patch read before from
-// the same objects and work tree file is handed over at once.
+// read still running, whose done is not called; a read whose repository
+// closed and opened again (Trust) is answered ErrReopened. A patch read
+// before from the same objects and work tree file is handed over at once.
 //
 // sides names the whole files, for the view to unfold lines from.
 func (s *Session) Patch(req diff.PatchRequest, sides Sides, done func(PatchResult)) {
@@ -168,7 +169,6 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 		req.Context = 3
 	}
 	req.NoRefresh = s.holding
-	update := s.update
 	slot.mu.Lock()
 	if slot.cancel != nil {
 		slot.cancel()
@@ -185,6 +185,14 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 		}
 	}
 	file := filepath.Join(r.WorkTree, filepath.FromSlash(sides.WorkTreePath))
+	// A newer read, or the view left, cancels it; r closing too, as Trust
+	// opens it again, which is answered.
+	reopened := func() {
+		if ctx.Err() == nil || closedUnder(r) {
+			cancel()
+			done(PatchResult{Err: ErrReopened})
+		}
+	}
 	// read runs git, off the main thread; before is the key of the work
 	// tree file the patch is kept by, read before git ran.
 	read := func(key string, before fileKey) {
@@ -204,10 +212,13 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 			keep = ok && after == before
 		}
 		if ctx.Err() != nil {
+			if closedUnder(r) {
+				s.handOver(r, nil, reopened)
+			}
 			cancel()
 			return
 		}
-		update(func() {
+		s.handOver(r, func() {
 			live := ctx.Err() == nil
 			cancel()
 			if keep {
@@ -216,7 +227,7 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 			if live {
 				done(res)
 			}
-		})
+		}, reopened)
 	}
 	if !work {
 		r.Life().Go(func(context.Context) { read(key, fileKey{}) })
@@ -229,7 +240,7 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 			return
 		}
 		full := key + fk.String()
-		update(func() {
+		s.handOver(r, func() {
 			if ctx.Err() != nil {
 				cancel()
 				return
@@ -240,6 +251,6 @@ func (s *Session) PatchIn(slot *PatchSlot, req diff.PatchRequest, sides Sides, d
 				return
 			}
 			r.Life().Go(func(context.Context) { read(full, fk) })
-		})
+		}, reopened)
 	})
 }

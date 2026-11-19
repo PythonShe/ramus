@@ -84,7 +84,6 @@ func (s *Session) LoadTrack(done func(Track)) {
 			w(t)
 		}
 	}
-	update := s.update
 	err := r.Life().Go(func(context.Context) {
 		defer cancel()
 		res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true,
@@ -96,8 +95,8 @@ func (s *Session) LoadTrack(done func(Track)) {
 			t.Ahead, t.Behind, t.Gone = parseTrack(track)
 		}
 		// One timed out reports none rather than leaving its callers
-		// waiting.
-		update(func() { finish(t) })
+		// waiting, and so does one of a repository closed since.
+		s.handOver(r, func() { finish(t) }, func() { finish(Track{Branch: head.Target}) })
 	})
 	if err != nil {
 		// The repository closed: none, rather than callers left waiting.
@@ -115,7 +114,6 @@ func (s *Session) CountPulled(branch, old string, done func(int)) {
 	if r == nil || !strings.HasPrefix(branch, "refs/heads/") || old == "" {
 		return
 	}
-	update := s.update
 	// git takes @{upstream} after a branch's short name only.
 	r.Life().Go(func(ctx context.Context) {
 		ctx, cancel := context.WithTimeout(ctx, trackTimeout)
@@ -129,6 +127,6 @@ func (s *Session) CountPulled(branch, old string, done func(int)) {
 		if err != nil {
 			return
 		}
-		update(func() { done(n) })
+		s.handOver(r, func() { done(n) }, nil)
 	})
 }

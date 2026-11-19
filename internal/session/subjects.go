@@ -11,7 +11,7 @@ import (
 
 // LoadSubjects reads the subjects of commits oids off the main thread and
 // hands them to done on it, in their order; a commit that cannot be read
-// has "". cancel drops the answer.
+// has "". cancel drops the answer, and so does the repository closing.
 func (s *Session) LoadSubjects(oids [][]byte, done func([]string)) (cancel func()) {
 	r := s.Repo
 	if r == nil || len(oids) == 0 {
@@ -45,11 +45,11 @@ func (s *Session) LoadSubjects(oids [][]byte, done func([]string)) (cancel func(
 		if ctx.Err() != nil {
 			return
 		}
-		s.update(func() {
+		s.handOver(r, func() {
 			if !dropped {
 				done(out)
 			}
-		})
+		}, nil)
 	})
 	return func() { dropped = true; stop() }
 }
