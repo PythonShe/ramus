@@ -3,6 +3,7 @@ package write
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 )
 
@@ -103,6 +105,16 @@ type FileState struct {
 	// which the write leaves alone: present, its contents neither
 	// recorded nor checked.
 	Ignored bool
+	// Sum, when set, is ContentSum of the file's bytes as the user saw
+	// them: the file is then judged by its contents, not its time, which
+	// an edit of the same size within one tick of the clock leaves.
+	Sum string
+}
+
+// ContentSum is the sum of data a FileState's Sum holds.
+func ContentSum(data []byte) string {
+	s := sha256.Sum256(data)
+	return string(s[:])
 }
 
 // MaxObserved bounds the files Observe records.
@@ -256,7 +268,16 @@ func checkFiles(workTree string, files []FileState) error {
 		if f.Ignored {
 			continue
 		}
-		if now := stat(workTree, f.Path); !now.same(f) {
+		now := stat(workTree, f.Path)
+		ok := now.same(f)
+		if f.Sum != "" && f.Exists && f.Mode.IsRegular() {
+			ok = now.Exists && now.Mode == f.Mode && now.Size == f.Size
+			if ok {
+				b, err := pathsafe.ReadFile(filepath.Join(workTree, filepath.FromSlash(f.Path)), f.Size)
+				ok = err == nil && ContentSum(b) == f.Sum
+			}
+		}
+		if !ok {
 			return &StaleError{What: f.Path, Saw: describe(f), Now: describe(now)}
 		}
 		if !f.Exists || !f.Mode.IsDir() {

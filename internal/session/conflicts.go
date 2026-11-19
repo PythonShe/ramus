@@ -213,6 +213,10 @@ func loadConflict(ctx context.Context, rn *run.Runner, gitDir, workTree, path st
 		cf.Err = err
 		return cf
 	}
+	if len(data) <= conflict.MaxSize {
+		// A save is refused whenever the bytes differ from these.
+		cf.Seen.Sum, cf.Seen.Size = write.ContentSum(data), int64(len(data))
+	}
 	// git's rule: a NUL in the first 8,000 bytes is binary.
 	if bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0 {
 		cf.Binary = true
