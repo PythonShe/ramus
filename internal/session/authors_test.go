@@ -1,16 +1,21 @@
 package session
 
 import (
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gitexe"
 	"ramus/internal/git/gittest"
+	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 )
 
@@ -47,6 +52,42 @@ func TestLoadAuthors(t *testing.T) {
 	r.Git("commit-graph", "write", "--reachable")
 	if got := load(); !slices.Equal(got, want) {
 		t.Fatalf("with a commit-graph got %q, want %q", got, want)
+	}
+}
+
+// The commits graphRecent lists stay readable after the commit-graph
+// they came from is replaced and unmapped.
+func TestGraphRecentOutlivesTheGraph(t *testing.T) {
+	g := gittest.Init(t)
+	for range 5 {
+		g.Write("f", strconv.Itoa(len(g.Git("rev-list", "--all"))))
+		g.Commit("c")
+	}
+	g.Git("commit-graph", "write", "--reachable")
+	r, err := repo.Open(t.Context(), testrun.Runner(t), g.Dir, func(repo.Location) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(r.Close)
+	tip, _ := hex.DecodeString(strings.TrimSpace(g.Git("rev-parse", "HEAD")))
+	ids := graphRecent(r, tip, 5)
+	want := make([]string, len(ids))
+	for i, id := range ids {
+		want[i] = hex.EncodeToString(id)
+	}
+	for range 5 {
+		g.Commit("more")
+		g.Git("commit-graph", "write", "--reachable")
+		if _, err := r.CommitGraph(); err != nil {
+			t.Fatal(err)
+		}
+		runtime.GC()
+		time.Sleep(10 * time.Millisecond) // cleanups run on a goroutine of their own
+	}
+	for i, id := range ids {
+		if got := hex.EncodeToString(id); got != want[i] {
+			t.Fatalf("commit %d reads %s after the graph went, was %s", i, got, want[i])
+		}
 	}
 }
 

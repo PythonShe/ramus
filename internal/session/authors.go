@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/hex"
@@ -206,7 +207,9 @@ func graphRecent(r *repo.Repository, tip []byte, n int) [][]byte {
 		if !ok {
 			break
 		}
-		out = append(out, g.OID(p))
+		// A copy: the graph's mapping goes once nothing holds g, which
+		// may be before the commits are read.
+		out = append(out, bytes.Clone(g.OID(p)))
 	}
 	if w.Err() != nil {
 		return nil
