@@ -1,8 +1,10 @@
 package session
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/git/gittest"
 )
@@ -86,5 +88,31 @@ func TestFileLogAndBlame(t *testing.T) {
 	}
 	if c := commits[lineCommit[0]]; c.Path != a || c.Summary != "one" || c.Author == "" {
 		t.Fatalf("first line's commit %+v", c)
+	}
+}
+
+// A blame cancelled, as the file view does before it blames another
+// file, calls back no more, even with what it had posted before the
+// cancel: its commits would land in the next blame.
+func TestCancelledBlameCallsBackNoMore(t *testing.T) {
+	r := gittest.Init(t)
+	var b strings.Builder
+	for i := range 3000 {
+		fmt.Fprintf(&b, "line %d\n", i)
+	}
+	r.Write("a", b.String())
+	r.Write("b", "bee\n")
+	r.Commit("one")
+	s, m := openFor(t, r)
+	aCalls := 0
+	cancelA := s.Blame("a", func([]byte, error) { aCalls++ }, func(BlameUpdate) { aCalls++ })
+	// The main thread is busy; the blame of a posts meanwhile.
+	time.Sleep(700 * time.Millisecond)
+	cancelA()
+	bDone := false
+	s.Blame("b", func([]byte, error) {}, func(u BlameUpdate) { bDone = bDone || u.Done })
+	m.until(t, "b's blame", func() bool { return bDone })
+	if aCalls > 0 {
+		t.Errorf("the cancelled blame of a called back %d times after it was cancelled", aCalls)
 	}
 }

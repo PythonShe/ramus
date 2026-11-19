@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ramus/internal/git/conflict"
@@ -69,10 +70,25 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 	if s.blame.cancel != nil {
 		s.blame.cancel()
 	}
-	ctx, stop := context.WithCancel(s.viewContext(r))
-	s.blame.cancel = stop
+	view := s.viewContext(r)
+	ctx, stop := context.WithCancel(view)
+	// What was posted before a cancel can run after it, and would land
+	// in the blame that replaced this one: each posted function checks
+	// the blame is still wanted when it runs. Not by ctx, which ends
+	// with the blame's own work too.
+	var dropped atomic.Bool
+	cancel = func() { dropped.Store(true); stop() }
+	live := func() bool { return !dropped.Load() && view.Err() == nil }
+	s.blame.cancel = cancel
 	s.blame.mu.Unlock()
-	post := s.update
+	post := func(fn func()) {
+		s.update(func() {
+			if live() {
+				fn()
+			}
+		})
+	}
+	args := []string{"blame", "--incremental"}
 	r.Life().Go(func(context.Context) {
 		defer stop()
 		data, readErr := readWorkFile(r.WorkTree, path)
@@ -89,7 +105,7 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 		wg.Go(func() {
 			_, runErr = r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, WorkTree: r.WorkTree, Read: true, Stdout: pw,
 				Timeout: 10 * time.Minute, Env: []string{"GIT_LITERAL_PATHSPECS=1"}, Config: []string{"core.quotePath=false"},
-				Args: []string{"blame", "--incremental", "--", path}})
+				Args: append(args, "--", path)})
 			pw.CloseWithError(runErr)
 		})
 		parseErr := parseBlame(ctx, pr, func(u BlameUpdate) {
@@ -108,7 +124,7 @@ func (s *Session) Blame(path string, text func([]byte, error), update func(Blame
 		}
 		post(func() { update(BlameUpdate{Done: true, Err: err}) })
 	})
-	return stop
+	return cancel
 }
 
 func readWorkFile(workTree, path string) ([]byte, error) {
