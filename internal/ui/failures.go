@@ -94,17 +94,6 @@ func (a *App) diagnose(t *tab, e *session.LogEntry) diagnosis {
 			}
 			d.fixes = append(d.fixes, remedy{label, func() { a.removeLock(t, e, le.Path, op, again) }})
 		}
-	case errors.As(e.Err, &kept):
-		// It may have dropped work before it stopped: the user hears where
-		// that is.
-		cause := why
-		if re == nil {
-			cause = failure(kept.Err)
-		}
-		d.text = locales.RepoFailedKeptSnapshot(e.Name, oneLine(cause))
-		if kept.Undo {
-			d.text = locales.RepoFailedKeptUndo(e.Name, oneLine(cause))
-		}
 	case errors.Is(e.Err, run.ErrTimeout):
 		d.text = locales.RepoTimedOut(e.Name)
 		if again {
@@ -139,6 +128,17 @@ func (a *App) diagnose(t *tab, e *session.LogEntry) diagnosis {
 		}
 	case containsAny(stderr, "Authentication failed", "Permission denied (", "Invalid username or password", "could not read Username"):
 		d.text = locales.RepoLoginRefused(e.Name)
+	case errors.As(e.Err, &kept):
+		// It may have dropped work before it stopped: the user hears where
+		// that is.
+		cause := why
+		if re == nil {
+			cause = failure(kept.Err)
+		}
+		d.text = locales.RepoFailedKeptSnapshot(e.Name, oneLine(cause))
+		if kept.Undo {
+			d.text = locales.RepoFailedKeptUndo(e.Name, oneLine(cause))
+		}
 	case again && op.NoIndex:
 		// The network, most often: the same again may well go through.
 		d.fixes = append(d.fixes, retry())
