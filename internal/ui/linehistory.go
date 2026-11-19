@@ -9,7 +9,6 @@ import (
 
 	"ramus/internal/git/diff"
 	"ramus/internal/git/redact"
-	"ramus/internal/git/refs"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -21,16 +20,19 @@ type lineHistory struct {
 	// work tree has them; 0 when none were.
 	from, to int
 	key      string
-	keyFor   *refs.List
-	loading  bool
-	log      *session.LineLog
-	err      string
-	list     tableState
-	chosen   int
-	shown    int // the commit whose patch res holds, -1 none
-	res      session.PatchResult
-	pv       patchView
-	detail   float32
+	// keyFor is HEAD's commit the history was read from: git log -L
+	// follows the lines from HEAD only, so other refs moving, as a
+	// background fetch moves them, change nothing it shows.
+	keyFor  string
+	loading bool
+	log     *session.LineLog
+	err     string
+	list    tableState
+	chosen  int
+	shown   int // the commit whose patch res holds, -1 none
+	res     session.PatchResult
+	pv      patchView
+	detail  float32
 }
 
 // linesMode is the file view's mode that shows a line history.
@@ -70,10 +72,11 @@ func (lh *lineHistory) label() string {
 func (a *App) loadLineHistory(t *tab) {
 	fs, lh := &t.file, &t.file.lines
 	key := fs.path + "\x00" + strconv.Itoa(lh.from) + "\x00" + strconv.Itoa(lh.to)
-	if lh.loading || key == lh.key && t.s.State.Refs == lh.keyFor {
+	head := string(t.s.State.Head.OID)
+	if lh.loading || key == lh.key && head == lh.keyFor {
 		return
 	}
-	lh.key, lh.keyFor, lh.loading = key, t.s.State.Refs, true
+	lh.key, lh.keyFor, lh.loading = key, head, true
 	t.s.LineLog(fs.path, lh.from, lh.to, func(l *session.LineLog, err error) {
 		if lh.key != key {
 			return

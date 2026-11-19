@@ -59,6 +59,38 @@ func TestLeftLineHistoryReadsAgain(t *testing.T) {
 	h.until("the line history read again", func() bool { return hasExact(h, "Line 1") && hasExact(h, "one") })
 }
 
+// A line history is read again when HEAD moves, not on every change of
+// the refs, as a background fetch makes.
+func TestLineHistoryKeepsThroughRefChanges(t *testing.T) {
+	count := filepath.Join(t.TempDir(), "count")
+	h := newHarnessWith(t, wrappedGit(t, `for a in "$@"; do case "$a" in -L*) echo x >> FLAG;; esac; done`, count))
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	h.app.ShowFile(filepath.Join(r.Dir, "README"), true)
+	h.until("the blame", func() bool { return hasExact(h, "hello") && !h.tt.HasText("Blaming") })
+	tb := h.app.current()
+	h.until("HEAD read", func() bool { return len(tb.s.State.Head.OID) > 0 })
+	h.menu("hello", "History of This Line")
+	h.until("the line history", func() bool { return hasExact(h, "one") && !tb.file.lines.loading })
+	runs := func() int {
+		b, _ := os.ReadFile(count)
+		return strings.Count(string(b), "x")
+	}
+	if runs() != 1 {
+		t.Fatalf("%d runs of git log -L", runs())
+	}
+	refs := tb.s.State.Refs
+	r.Git("tag", "t1")
+	h.until("the new tag", func() bool { return tb.s.State.Refs != refs })
+	h.pumpFor(200 * time.Millisecond)
+	if runs() != 1 {
+		t.Fatalf("a new tag ran git log -L again: %d runs", runs())
+	}
+	r.Write("other", "x")
+	r.Commit("two")
+	h.until("the history read again once HEAD moved", func() bool { return runs() == 2 && !tb.file.lines.loading })
+}
+
 // The history of a file asked for while another's was read is never
 // shown with the other file's commits.
 func TestFileHistoryOfTheFileShown(t *testing.T) {
