@@ -33,6 +33,9 @@ func (q *Queue) popStash(ctx context.Context, e Entry) error {
 	}
 	// The changes are back; what is left is to drop the stash.
 	if entry, err = q.stashEntry(ctx, workTree, e.stash); err == nil {
+		if q.beforeDrop != nil {
+			q.beforeDrop()
+		}
 		var res run.Result
 		if res, err = git("stash", "drop", entry); err == nil {
 			err = q.putBack(ctx, git, e.stash, string(res.Stdout))

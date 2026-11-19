@@ -224,6 +224,9 @@ type Queue struct {
 	started bool
 	closed  error
 	wake    chan struct{}
+	// beforeDrop, in tests, runs between finding the stash an undo takes
+	// back and dropping it, as a stash pushed then in a terminal would.
+	beforeDrop func()
 }
 
 // DefaultLockWait covers another git command finishing.

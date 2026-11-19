@@ -2,6 +2,7 @@ package write
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -32,22 +33,25 @@ func TestPopStashTakesItsOwnStash(t *testing.T) {
 		t.Fatalf("a %q, stashes %q", h.read("a"), list())
 	}
 
-	// Pushed over it once it was found: the one dropped was the other.
+	// Another pushed over it in a terminal once it was found: the one git
+	// dropped was the other, which is stored again.
 	h.r.Git("checkout", "-q", "--", "a")
 	mine = stash("mine again\n", "mine again")
-	third := stash("third\n", "third")
-	res, err := h.q.r.Run(context.Background(), &run.Cmd{GitDir: h.w.GitDir, WorkTree: h.r.Dir, Untranslated: true,
-		Args: []string{"stash", "drop", "stash@{0}"}})
-	if err != nil {
-		t.Fatal(err)
+	var third string
+	h.q.beforeDrop = func() {
+		h.r.Write("b", "third\n")
+		h.r.Git("stash", "push", "-q", "--include-untracked", "-m", "third", "--", "b")
+		third = strings.TrimSpace(h.r.Git("rev-parse", "refs/stash"))
 	}
-	git := func(args ...string) (run.Result, error) {
-		return h.q.r.Run(context.Background(), &run.Cmd{GitDir: h.w.GitDir, WorkTree: h.r.Dir, Untranslated: true, Args: args})
+	e = Entry{Name: "Switch", stash: mine, op: Op{Cmd: run.Cmd{WorkTree: h.r.Dir}}}
+	var se *StashKeptError
+	if err := h.q.popStash(context.Background(), e); !errors.As(err, &se) {
+		t.Fatalf("no error for a stash dropped in its place: %v", err)
 	}
-	if err := h.q.putBack(context.Background(), git, mine, string(res.Stdout)); err == nil {
-		t.Fatal("no error for a stash dropped in its place")
+	if third == "" || h.read("a") != "mine again\n" {
+		t.Fatalf("a %q, third %q", h.read("a"), third)
 	}
-	for _, id := range []string{mine, other, third} {
+	for _, id := range []string{other, third} {
 		if !strings.Contains(list(), id) {
 			t.Fatalf("stash %s lost: %q", id, list())
 		}
