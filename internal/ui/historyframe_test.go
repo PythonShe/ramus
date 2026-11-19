@@ -9,14 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"ramus/internal/git/gittest"
 	"ramus/internal/library"
 	"ramus/internal/session"
 )
 
 // longHistory opens a repository of n commits, with a commit-graph, on
 // History, and returns its tab once the whole history is laid out and
-// what moved as it came is at rest.
-func longHistory(t *testing.T, h *harness, n int) *tab {
+// what moved as it came is at rest, and the repository.
+func longHistory(t *testing.T, h *harness, n int) (*tab, *gittest.Repo) {
 	t.Helper()
 	r := h.repoWith()
 	var stream strings.Builder
@@ -42,7 +43,7 @@ func longHistory(t *testing.T, h *harness, n int) *tab {
 		return tb.s.History.Done && tb.s.History.Snap != nil && tb.s.History.Snap.Len() == n+1
 	})
 	h.tt.Advance(time.Second)
-	return tb
+	return tb, r
 }
 
 // A frame of the history list costs what it shows, however long the
@@ -53,7 +54,7 @@ func longHistory(t *testing.T, h *harness, n int) *tab {
 func TestHistoryFrameCostsWhatItShows(t *testing.T) {
 	const n = 30000
 	h := newHarness(t)
-	tb := longHistory(t, h, n)
+	tb, _ := longHistory(t, h, n)
 	hv := &tb.hist
 	if h.tt.FramePending() {
 		t.Fatal("history at rest still asks for frames")
@@ -102,7 +103,7 @@ func TestHistoryFrameCostsWhatItShows(t *testing.T) {
 // Any other failure is told.
 func TestHistoryTextOfAReopenedRepositoryIsNotTold(t *testing.T) {
 	h := newHarness(t)
-	tb := longHistory(t, h, 300)
+	tb, _ := longHistory(t, h, 300)
 	hv := &tb.hist
 	var ids [][]byte
 	for r := range 3 {
