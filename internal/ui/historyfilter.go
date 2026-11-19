@@ -463,7 +463,9 @@ func (a *App) keepFetching(t *tab) {
 // named, "" in the app's own choice, in its open tab and in the library.
 func (a *App) setEditor(path, name string) {
 	for _, t := range a.tabs {
-		if t.s.Path == path {
+		// path is the library's, the path resolved; the tab's may be
+		// spelled another way.
+		if t.is(cleanPath(path)) {
 			t.prefs.editor = name
 		}
 	}
@@ -474,7 +476,9 @@ func (a *App) setEditor(path, name string) {
 // background, or lets it again, in its open tab and in the library.
 func (a *App) setFetchOff(path string, off bool) {
 	for _, t := range a.tabs {
-		if t.s.Path == path {
+		// path is the library's, the path resolved; the tab's may be
+		// spelled another way.
+		if t.is(cleanPath(path)) {
 			t.prefs.fetchOff = off
 		}
 	}

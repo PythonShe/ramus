@@ -2,10 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"ramus/internal/library"
 	"ramus/internal/session"
 )
 
@@ -64,5 +67,34 @@ func TestHistoryTextOfAReopenedRepositoryIsNotTold(t *testing.T) {
 	h.app.gotText(tb, hv.text.gen, ids, nil, 0, fmt.Errorf("cat-file died"))
 	if h.app.notice == "" {
 		t.Fatal("a failed read is not told")
+	}
+}
+
+// A repository opened by another spelling of its path, here a symbolic
+// link, takes the switches the manager sets by the library's path, the
+// resolved one: its open tab stops fetching in the background, and opens
+// files in the editor chosen, as the library says.
+func TestRepositorySwitchesReachATabOpenByAnotherPath(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	tmp, _ := filepath.EvalSymlinks(t.TempDir())
+	link := filepath.Join(tmp, "link")
+	if err := os.Symlink(r.Dir, link); err != nil {
+		t.Skip(err)
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(link)
+	tb := h.app.current()
+	h.until("the path resolved", func() bool { return tb.real != "" && tb.prefs.loaded })
+	if tb.s.Path == tb.real {
+		t.Fatalf("the tab is open on %s, its path resolved", tb.s.Path)
+	}
+	h.app.setFetchOff(library.Clean(link), true)
+	if !tb.prefs.fetchOff {
+		t.Fatal("the open tab still fetches after the manager turned it off")
+	}
+	h.app.setEditor(library.Clean(link), "vim")
+	if tb.prefs.editor != "vim" {
+		t.Fatalf("the open tab's editor is %q", tb.prefs.editor)
 	}
 }
