@@ -17,7 +17,9 @@ type CommitOptions struct {
 	Amend bool
 	Seen  string
 	// Branch is the branch HEAD names ("refs/heads/main"), "" when
-	// detached: its value is backed up before an amend.
+	// detached: a commit refuses when HEAD names another by then, and
+	// its value is backed up before an amend. Neither Branch nor Seen
+	// set checks nothing.
 	Branch    string
 	SignOff   bool
 	NoVerify  bool
@@ -61,6 +63,11 @@ func Commit(w Where, opt CommitOptions) (Op, error) {
 		if opt.Branch != "" {
 			op.Backup = []string{opt.Branch}
 		}
+	} else if opt.Branch != "" || opt.Seen != "" {
+		// The commit lands on the branch the user saw: a switch made
+		// elsewhere since would put it on another. A commit made there on
+		// the same branch is no reason to refuse.
+		op.Expect = &Expect{Branch: opt.Branch, AnyCommit: true}
 	}
 	if opt.SignOff {
 		args = append(args, "--signoff")

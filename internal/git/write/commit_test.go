@@ -85,6 +85,36 @@ func TestCommitAmendAndPush(t *testing.T) {
 	}
 }
 
+// A commit lands on the branch the user saw, or not at all: a switch in
+// the terminal since makes it refuse; a commit there on the same branch
+// does not.
+func TestCommitRefusesAnotherBranch(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	seen := h.seen()
+	h.r.Git("branch", "other")
+	h.r.Git("switch", "-q", "other")
+	h.r.Stage("a", "2")
+	op, err := Commit(h.w, CommitOptions{Message: "two", Seen: seen.Head, Branch: seen.Branch})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var se *StaleError
+	if _, err := wait(t, h.q.Submit(op)); !errors.As(err, &se) || se.What != "the current branch" {
+		t.Fatalf("commit after a switch elsewhere: %v", err)
+	}
+	if h.rev("other") != h.rev("main") {
+		t.Fatal("committed on the other branch")
+	}
+	h.r.Git("switch", "-q", "main")
+	h.r.Git("commit", "-q", "--allow-empty", "--only", "-m", "from the terminal")
+	h.do(op, nil, true)
+	if s := strings.TrimSpace(h.r.Git("log", "-1", "--format=%s", "main")); s != "two" {
+		t.Fatalf("main ends with %q", s)
+	}
+}
+
 func mustOp(t *testing.T) func(Op, error) Op {
 	return func(op Op, err error) Op {
 		t.Helper()
