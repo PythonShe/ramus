@@ -132,6 +132,11 @@ func Parse(text []byte) (*Parsed, error) {
 			f.Old, f.New = gitLinePaths(line, start)
 		case f == nil:
 			return nil, fmt.Errorf("%w: %q before any file", ErrBadPatch, line)
+		case len(p.Hunks) > int(f.Hunks.Start) && len(line) > 0 && (line[0] == ' ' || line[0] == '+' || line[0] == '-'):
+			// A hunk line after the counts ran out: the header said fewer
+			// lines than the hunk has, and taking the rest for headers
+			// would drop them.
+			return nil, fmt.Errorf("%w: hunk longer than its header says", ErrBadPatch)
 		case bytes.HasPrefix(line, []byte("@@ ")):
 			hk, err := hunkHeader(line)
 			if err != nil {

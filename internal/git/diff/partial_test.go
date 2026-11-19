@@ -43,6 +43,29 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// A hunk whose header counts fewer lines than follow it is refused, not
+// cut short at the count: the lines past it would be lost, and a "--- " or
+// "+++ " among them taken for the file's paths.
+func TestParseRefusesUndercountedHunk(t *testing.T) {
+	head := "diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\n"
+	for _, body := range []string{
+		"@@ -1 +1 @@\n-a\n+b\n+c\n",
+		"@@ -1 +1 @@\n-a\n+b\n c\n",
+		"@@ -1,2 +1 @@\n-a\n-b\n--- x\n",
+		"@@ -1 +1 @@\n-a\n+b\n+++ y\n",
+	} {
+		if _, err := Parse([]byte(head + body)); !errors.Is(err, ErrBadPatch) {
+			t.Errorf("%q: %v", body, err)
+		}
+	}
+	// What may follow a hunk that adds up: another hunk, the next file,
+	// the end, or a blank line, as git log -L leaves between commits.
+	ok := head + "@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-e\n+E\n\n" + "diff --git a/g b/g\n--- a/g\n+++ b/g\n@@ -1 +1 @@\n-x\n+y\n\\ No newline at end of file\n"
+	if p, err := Parse([]byte(ok)); err != nil || len(p.Files) != 2 || len(p.Lines) != 7 {
+		t.Fatalf("%v %+v", err, p)
+	}
+}
+
 // TestSelectAgainstGit stages and discards random choices of lines of
 // random edits through git apply, and checks the result against what the
 // choice means, line by line.
