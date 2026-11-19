@@ -1,8 +1,11 @@
 package session
 
 import (
+	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +13,7 @@ import (
 	"ramus/internal/git/diff"
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/repo"
 )
 
 // runFor runs what goes to the main thread for d.
@@ -271,5 +275,166 @@ func TestHeldPatchLeavesTheIndex(t *testing.T) {
 	}
 	if after, _ := os.Stat(index); !after.ModTime().Equal(fi.ModTime()) {
 		t.Fatal("reading the patch wrote the index")
+	}
+}
+
+// markWith returns a shell command that leaves a file named name in
+// marks, for a driver that must not run.
+func markWith(t *testing.T, marks, name string) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the drivers are shell commands")
+	}
+	return fmt.Sprintf("touch %q; ", filepath.Join(marks, name))
+}
+
+// noMarks fails the test for every driver that ran.
+func noMarks(t *testing.T, marks string) {
+	t.Helper()
+	if ran, _ := os.ReadDir(marks); len(ran) > 0 {
+		var names []string
+		for _, e := range ran {
+			names = append(names, e.Name())
+		}
+		t.Errorf("drivers ran: %v", names)
+	}
+}
+
+// readWorktree summarizes the worktree at path, and reads the patch of
+// one of its files.
+func readWorktree(t *testing.T, s *Session, m mainThread, path, file string) (WorktreeSummary, PatchResult) {
+	t.Helper()
+	var wt *repo.Worktree
+	m.until(t, "the worktree listed", func() bool {
+		for i, w := range s.State.Worktrees {
+			if w.Path == path {
+				wt = &s.State.Worktrees[i]
+			}
+		}
+		return wt != nil
+	})
+	var sum *WorktreeSummary
+	stop := s.SummarizeWorktrees([]repo.Worktree{*wt}, func(got WorktreeSummary) { sum = &got })
+	defer stop()
+	m.until(t, "the summary", func() bool { return sum != nil })
+	var patch *PatchResult
+	s.WorktreePatch(path, file, false, func(res PatchResult) { patch = &res })
+	m.until(t, "the patch", func() bool { return patch != nil })
+	return *sum, *patch
+}
+
+// A repository can list another repository as one of its worktrees; git
+// there follows that repository's own config, which the user trusted in
+// neither case, so its drivers do not run.
+func TestWorktreeOfAnotherRepositoryRunsNoDriver(t *testing.T) {
+	for _, trust := range []bool{false, true} {
+		t.Run(fmt.Sprint("trusted=", trust), func(t *testing.T) {
+			marks := t.TempDir()
+			mark := markWith(t, marks, "other")
+			r := gittest.Init(t)
+			r.Write("a.txt", "one\n")
+			head := r.Commit("one")
+			other := gittest.Init(t)
+			other.Write(".gitattributes", "*.y filter=other diff=other\n")
+			other.Write("a.y", "one\n")
+			other.Commit("one")
+			other.Git("config", "filter.other.process", mark+"exit 1")
+			other.Git("config", "filter.other.clean", mark+"cat")
+			other.Git("config", "filter.other.required", "true")
+			other.Git("config", "diff.other.textconv", mark+"cat")
+			other.Write("a.y", "two\n")
+			adm := filepath.Join(r.GitDir(), "worktrees", "x")
+			os.MkdirAll(adm, 0o755)
+			os.WriteFile(filepath.Join(adm, "gitdir"), []byte(filepath.Join(other.Dir, ".git")+"\n"), 0o644)
+			os.WriteFile(filepath.Join(adm, "HEAD"), []byte(head+"\n"), 0o644)
+			os.WriteFile(filepath.Join(adm, "commondir"), []byte("../..\n"), 0o644)
+			var dirs []string
+			if trust {
+				dirs = append(dirs, r.GitDir())
+			}
+			m := make(mainThread, 64)
+			s := Open(testrun.Runner(t), trusted(t, dirs...), r.Dir, m.update)
+			t.Cleanup(func() { s.Close(); <-s.Done() })
+			path, _ := filepath.EvalSymlinks(other.Dir)
+			sum, patch := readWorktree(t, s, m, path, "a.y")
+			noMarks(t, marks)
+			if sum.Err != nil || sum.Changes != 1 || patch.Err != nil {
+				t.Fatalf("summary %+v, patch error %v", sum, patch.Err)
+			}
+		})
+	}
+}
+
+// A submodule is a repository of its own, which trusting the
+// superproject does not trust: reading its commits runs nothing its
+// config names.
+func TestSubmoduleRangeRunsNoDriver(t *testing.T) {
+	marks := t.TempDir()
+	mark := markWith(t, marks, "gpg")
+	// git runs gpg.program itself, not through the shell.
+	gpg := filepath.Join(t.TempDir(), "gpg")
+	os.WriteFile(gpg, []byte("#!/bin/sh\n"+mark+"exit 1\n"), 0o755)
+	sub := gittest.Init(t)
+	sub.Write("s", "0")
+	old := sub.Commit("first")
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("one")
+	r.Git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub.Dir, "lib")
+	r.Commit("with lib")
+	inner := gittest.Open(t, filepath.Join(r.Dir, "lib"))
+	inner.Write("s", "1")
+	inner.Commit("second")
+	// Signed, so that showing signatures starts the verifier.
+	body := inner.Git("cat-file", "commit", "HEAD")
+	head, rest, _ := strings.Cut(body, "\n")
+	signed := head + "\n" + strings.Replace(rest, "\n\n", "\ngpgsig -----BEGIN PGP SIGNATURE-----\n \n -----END PGP SIGNATURE-----\n\n", 1)
+	id, err := inner.Run([]byte(signed), "hash-object", "-t", "commit", "-w", "--stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner.Git("config", "log.showSignature", "true")
+	inner.Git("config", "gpg.program", gpg)
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the status", func() bool { return s.State.Status != nil })
+	var got *SubmoduleRange
+	oldID, _ := hex.DecodeString(old)
+	newID, _ := hex.DecodeString(strings.TrimSpace(id))
+	s.LoadSubmoduleRange("lib", oldID, newID, func(res SubmoduleRange) { got = &res })
+	m.until(t, "the range", func() bool { return got != nil })
+	noMarks(t, marks)
+	if got.Err != nil || len(got.Added) != 1 || got.Added[0].Subject != "second" {
+		t.Fatalf("range %+v", got)
+	}
+}
+
+// A linked worktree's own config.worktree is not in the hardening of the
+// worktree the repository was opened in: read from a repository not
+// trusted, its drivers do not run.
+func TestLinkedWorktreeConfigRunsNoDriver(t *testing.T) {
+	marks := t.TempDir()
+	mark := markWith(t, marks, "wt")
+	r := gittest.Init(t)
+	r.Write(".gitattributes", "*.z filter=wt diff=wt\n")
+	r.Write("a.z", "one\n")
+	r.Commit("one")
+	r.Git("config", "extensions.worktreeConfig", "true")
+	wt := addWorktree(t, r, "agent")
+	wtRepo := gittest.Open(t, wt)
+	wtRepo.Git("config", "--worktree", "filter.wt.process", mark+"exit 1")
+	wtRepo.Git("config", "--worktree", "filter.wt.clean", mark+"cat")
+	wtRepo.Git("config", "--worktree", "filter.wt.required", "true")
+	wtRepo.Git("config", "--worktree", "diff.wt.textconv", mark+"cat")
+	os.WriteFile(filepath.Join(wt, "a.z"), []byte("two\n"), 0o644)
+	s, m := openFor(t, r)
+	if !s.State.Restricted {
+		t.Fatal("the repository is trusted")
+	}
+	sum, patch := readWorktree(t, s, m, wt, "a.z")
+	noMarks(t, marks)
+	if sum.Err != nil || sum.Changes != 1 || patch.Err != nil {
+		t.Fatalf("summary %+v, patch error %v", sum, patch.Err)
 	}
 }

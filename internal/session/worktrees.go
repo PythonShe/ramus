@@ -2,16 +2,20 @@ package session
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"ramus/internal/git/config"
 	"ramus/internal/git/diff"
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/internal/git/status"
+	"ramus/internal/git/trust"
 )
 
 // Bounds on the worktree dashboard and panel: how many worktrees they
@@ -90,6 +94,7 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 	}
 	ctx, cancel := context.WithCancel(r.Life().Context())
 	update := s.update
+	in := s.gitIn(r)
 	every := worktreeEvery
 	if s.worktreeEvery > 0 {
 		every = s.worktreeEvery
@@ -97,7 +102,7 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 	r.Life().Go(func(context.Context) {
 		for {
 			t0 := time.Now()
-			summarizeAll(ctx, r, wts, true, func(sum WorktreeSummary) {
+			summarizeAll(ctx, r, in, wts, true, func(sum WorktreeSummary) {
 				update(func() {
 					if ctx.Err() == nil {
 						done(sum)
@@ -120,10 +125,10 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 }
 
 // summarizeAll summarizes the worktrees but the missing and bare ones,
-// a few at a time, handing each to emit as it comes, off the main
-// thread; it returns once all are read or ctx ends. count counts the
-// lines changed, as summarize does.
-func summarizeAll(ctx context.Context, r *repo.Repository, wts []repo.Worktree, count bool, emit func(WorktreeSummary)) {
+// a few at a time, running git in each as in says, handing each to emit
+// as it comes, off the main thread; it returns once all are read or ctx
+// ends. count counts the lines changed, as summarize does.
+func summarizeAll(ctx context.Context, r *repo.Repository, in gitIn, wts []repo.Worktree, count bool, emit func(WorktreeSummary)) {
 	jobs := make(chan repo.Worktree)
 	ended := make(chan struct{})
 	for range dashboardWorkers {
@@ -135,7 +140,7 @@ func summarizeAll(ctx context.Context, r *repo.Repository, wts []repo.Worktree, 
 				// left waiting.
 				func() {
 					defer r.Life().Recover()
-					sum := summarize(ctx, r.Runner, r.Caps.HashSize, wt, count, time.Now())
+					sum := summarize(ctx, in, r.Caps.HashSize, wt, count, time.Now())
 					if ctx.Err() != nil {
 						return
 					}
@@ -172,7 +177,7 @@ func summarizeAll(ctx context.Context, r *repo.Repository, wts []repo.Worktree, 
 // when it was last used. Without count, the lines changed are not
 // counted: Busy needs none of them, and counting reads the untracked
 // files whole.
-func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktree, count bool, now time.Time) (sum WorktreeSummary) {
+func summarize(ctx context.Context, in gitIn, hashSize int, wt repo.Worktree, count bool, now time.Time) (sum WorktreeSummary) {
 	sum = WorktreeSummary{Path: wt.Path}
 	gitDir := worktreeGitDir(wt.Path)
 	if fi, err := os.Stat(filepath.Join(gitDir, "index")); err == nil {
@@ -187,10 +192,14 @@ func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktre
 		sum.Busy = locked || !sum.Active.IsZero() && now.Sub(sum.Active) < InUseFor
 		sum.InUse = sum.Busy || wt.Locked || repo.InProgress(gitDir) != repo.NoOperation
 	}()
-	// Discover: git finds the worktree's repository itself, with its
-	// ownership checks, as in a terminal there. Every untracked file is
-	// listed, not the folders they are in: an agent makes new ones.
-	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: wt.Path, Discover: true, Read: true, MaxOutput: dashboardMaxOutput,
+	loc, r, err := in(ctx, wt.Path)
+	if err != nil {
+		sum.Err = err
+		return sum
+	}
+	// Every untracked file is listed, not the folders they are in: an
+	// agent makes new ones.
+	res, err := r.Run(ctx, &run.Cmd{GitDir: loc.GitDir, WorkTree: loc.WorkTree, Read: true, MaxOutput: dashboardMaxOutput,
 		Args: []string{"status", "--porcelain=v2", "-z", "--no-ahead-behind", "--ignore-submodules=dirty", "--untracked-files=all"}})
 	if err != nil {
 		sum.Err = err
@@ -204,7 +213,7 @@ func summarize(ctx context.Context, r *run.Runner, hashSize int, wt repo.Worktre
 	sum.Changes = st.Len()
 	var lines *diff.NumStat
 	if wt.Head != "" && count {
-		res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: wt.Path, Discover: true, Read: true, MaxOutput: dashboardMaxOutput,
+		res, err := r.Run(ctx, &run.Cmd{GitDir: loc.GitDir, WorkTree: loc.WorkTree, Read: true, MaxOutput: dashboardMaxOutput,
 			Config: []string{"core.quotePath=false"},
 			// diff-index, not diff, which refreshes the index (diff.Head).
 			Args: []string{"diff-index", "--numstat", "-z", "--no-renames", "--ignore-submodules=dirty", "HEAD"}})
@@ -271,17 +280,21 @@ func (s *Session) WorktreePatch(worktree, path string, untracked bool, done func
 	}
 	ctx, cancel := context.WithCancel(r.Life().Context())
 	update := s.update
-	gitDir := worktreeGitDir(worktree)
+	in := s.gitIn(r)
 	r.Life().Go(func(context.Context) {
 		req := diff.PatchRequest{Source: diff.Head, Paths: []string{path}, Context: -1, MaxBytes: 16 << 20}
 		if untracked {
 			req.Source = diff.Untracked
 		}
 		var res PatchResult
-		p, err := diff.WorkTreePatch(ctx, r.Runner, gitDir, worktree, req)
-		res.Truncated = p.Truncated
+		loc, rn, err := in(ctx, worktree)
 		if err == nil {
-			res.Parsed, err = diff.Parse(p.Text)
+			var p diff.Patch
+			p, err = diff.WorkTreePatch(ctx, rn, loc.GitDir, loc.WorkTree, req)
+			res.Truncated = p.Truncated
+			if err == nil {
+				res.Parsed, err = diff.Parse(p.Text)
+			}
 		}
 		res.Err = err
 		update(func() {
@@ -312,8 +325,14 @@ func othersBusy(ctx context.Context, r *repo.Repository) bool {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// Without the session's trust store, only r's own worktrees count as
+	// trusted, and those only when r is.
+	own := func(commonDir string) bool { return !r.Restricted && commonDir == r.CommonDir }
+	in := func(ctx context.Context, dir string) (repo.Location, *run.Runner, error) {
+		return folderGit(ctx, r, r.Runner, own, dir)
+	}
 	busy := make(chan bool, len(others))
-	summarizeAll(ctx, r, others, false, func(sum WorktreeSummary) { busy <- sum.Busy })
+	summarizeAll(ctx, r, in, others, false, func(sum WorktreeSummary) { busy <- sum.Busy })
 	close(busy)
 	for b := range busy {
 		if b {
@@ -321,6 +340,72 @@ func othersBusy(ctx context.Context, r *repo.Repository) bool {
 		}
 	}
 	return false
+}
+
+// gitIn finds the repository whose work tree is a folder and the runner
+// for git there, as folderGit does.
+type gitIn func(ctx context.Context, dir string) (repo.Location, *run.Runner, error)
+
+// gitIn is folderGit for the folders r names, with the trust the user
+// gave. Call it on the main thread.
+func (s *Session) gitIn(r *repo.Repository) gitIn {
+	plain, ts := r.Runner, s.trust
+	if r.Restricted && s.runner != nil {
+		plain = s.runner
+	}
+	trusted := func(trustDir string) bool { return ts != nil && ts.Trusted(trustDir) }
+	return func(ctx context.Context, dir string) (repo.Location, *run.Runner, error) {
+		return folderGit(ctx, r, plain, trusted, dir)
+	}
+}
+
+// errNoRepository is a folder that is not the top of a work tree.
+var errNoRepository = errors.New("session: the folder holds no repository of its own")
+
+// folderGit finds the repository whose work tree is dir, a folder other
+// than the one r was opened in (a worktree r lists, a submodule), and
+// the runner for git there. r's own runner will not do: its hardening
+// covers the drivers of r's config, not those of a linked worktree's
+// config.worktree, and the folder r names may be another repository
+// altogether, with a config of its own. git runs there through plain
+// only when the user trusts the folder as repo.Open would ask it
+// (repo.TrustDir); otherwise it runs hardened from the folder's own
+// config, as r would were it not trusted.
+func folderGit(ctx context.Context, r *repo.Repository, plain *run.Runner, trusted func(trustDir string) bool, dir string) (repo.Location, *run.Runner, error) {
+	loc, err := repo.Discover(dir)
+	if err != nil {
+		return loc, nil, err
+	}
+	// Discovery walks up to the repository above when dir holds none,
+	// and spells the work tree as the disk does.
+	if real, err := pathsafe.Real(dir); err != nil || loc.WorkTree != real {
+		return loc, nil, errNoRepository
+	}
+	// git is given the folders found here rather than finding its own,
+	// so it checks no ownership itself.
+	if err := repo.CheckOwnership(ctx, r.Runner, loc); err != nil {
+		return loc, nil, err
+	}
+	// Most folders are told without their config: the one holding its
+	// .git directory, a worktree git registered. A submodule's needs its
+	// core.worktree, so the config is read only where that could decide.
+	var cfg *config.Config
+	dir = repo.TrustDir(loc, nil)
+	if dir != loc.CommonDir {
+		if cfg, err = config.Read(ctx, r.Runner, loc.GitDir); err != nil {
+			return loc, nil, err
+		}
+		dir = repo.TrustDir(loc, cfg)
+	}
+	if trusted(dir) {
+		return loc, plain, nil
+	}
+	if cfg == nil {
+		if cfg, err = config.Read(ctx, r.Runner, loc.GitDir); err != nil {
+			return loc, nil, err
+		}
+	}
+	return loc, r.Runner.Hardened(trust.Hardening(cfg)), nil
 }
 
 // worktreeGitDir is the git directory of the worktree at path: .git
