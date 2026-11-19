@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"ramus/internal/git/run"
 )
@@ -26,10 +27,28 @@ import (
 // pair up as markers do (see other). A file the index holds conflicted is
 // read as having no conflicts only when every line in it like one of git's
 // markers can be text of its sides.
+//
+// A file that takes past loadTime to read is refused as one whose
+// conflicts cannot be told apart.
 func Load(ctx context.Context, r *run.Runner, gitDir, workTree, path string, data []byte) ([]Segment, error) {
 	if len(data) > MaxSize {
 		return nil, errLarge
 	}
+	in, cancel := context.WithTimeout(ctx, loadTime)
+	defer cancel()
+	segs, err := load(in, r, gitDir, workTree, path, data)
+	if err != nil && in.Err() != nil && ctx.Err() == nil {
+		return nil, ErrAmbiguous
+	}
+	return segs, err
+}
+
+// loadTime bounds the reading of one file. Merging the sides again takes
+// most of it: git merge-file's histogram diff, which ort merges with,
+// takes seconds on a file of tens of megabytes.
+var loadTime = 20 * time.Second
+
+func load(ctx context.Context, r *run.Runner, gitDir, workTree, path string, data []byte) ([]Segment, error) {
 	sizes, err := markerSizes(ctx, r, gitDir, workTree, path)
 	if err != nil {
 		return nil, err
@@ -66,7 +85,7 @@ type loader struct {
 
 func (l *loader) readSides() (mergedSides, error) {
 	if l.sides == nil {
-		s, err := readSides(l.ctx, l.r, l.gitDir, l.workTree, l.path)
+		s, err := readSides(l.ctx, l.r, l.gitDir, l.workTree, l.path, len(l.data))
 		if err != nil {
 			return s, err
 		}
@@ -253,8 +272,8 @@ func hasOpen(data []byte, size int) bool {
 	return false
 }
 
-// readSides reads the stages of path in the index.
-func readSides(ctx context.Context, r *run.Runner, gitDir, workTree, path string) (mergedSides, error) {
+// readSides reads the stages of path in the index, each about hint bytes.
+func readSides(ctx context.Context, r *run.Runner, gitDir, workTree, path string, hint int) (mergedSides, error) {
 	var s mergedSides
 	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true,
 		Env:  []string{"GIT_LITERAL_PATHSPECS=1"},
@@ -280,18 +299,20 @@ func readSides(ctx context.Context, r *run.Runner, gitDir, workTree, path string
 		default:
 			continue
 		}
-		blob, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, MaxOutput: MaxSize,
+		// Grown once to about the size a side has: as large as a merge
+		// of it, the file.
+		var blob bytes.Buffer
+		blob.Grow(min(hint+hint/8+512, MaxSize))
+		w := &limited{b: &blob, max: MaxSize}
+		_, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Stdout: w,
 			Args: []string{"cat-file", "blob", string(f[1])}})
-		if errors.Is(err, run.ErrOutputTooLarge) {
+		if w.over {
 			return s, errLarge
 		}
 		if err != nil {
 			return s, err
 		}
-		*side = blob.Stdout
-		if *side == nil {
-			*side = []byte{}
-		}
+		*side = blob.Bytes()
 	}
 	return s, nil
 }

@@ -80,8 +80,8 @@ func (c realMerge) run(t *testing.T, op, style string) (r *gittest.Repo, ours, t
 	return r, ours, theirs, mergeBase
 }
 
-// load reads the merged file as the merge editor does.
-func load(t *testing.T, r *gittest.Repo) ([]Segment, []byte, error) {
+// loadMerged reads the merged file as the merge editor does.
+func loadMerged(t *testing.T, r *gittest.Repo) ([]Segment, []byte, error) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(r.Dir, realFile))
 	if err != nil {
@@ -160,7 +160,7 @@ func TestLoadWhenTheMergeChangesTheMarkerSize(t *testing.T) {
 					if r == nil {
 						t.Fatal("no conflict in the file")
 					}
-					segs, data, err := load(t, r)
+					segs, data, err := loadMerged(t, r)
 					if err != nil || Count(segs) != 1 {
 						t.Fatalf("%d conflicts, %v\n%s", Count(segs), err, data)
 					}
@@ -196,7 +196,7 @@ func TestLoadFindsTheMarkerSizeInTheFile(t *testing.T) {
 				if r == nil {
 					t.Fatal("no conflict in the file")
 				}
-				segs, data, err := load(t, r)
+				segs, data, err := loadMerged(t, r)
 				if !strings.Contains(string(data), "\n==========\n") {
 					t.Fatalf("not merged with markers of 10\n%s", data)
 				}
@@ -224,7 +224,7 @@ func TestLoadNeverMissesConflicts(t *testing.T) {
 			if r == nil {
 				t.Fatal("no conflict in the file")
 			}
-			segs, data, err := load(t, r)
+			segs, data, err := loadMerged(t, r)
 			if !strings.Contains(string(data), "b<<<<<<< HEAD\n") {
 				t.Fatalf("no open marker on a line\n%q", data)
 			}
@@ -266,7 +266,7 @@ func TestLoadNeverMissesConflicts(t *testing.T) {
 				if err := os.WriteFile(p, []byte(c.edit(string(data))), 0o644); err != nil {
 					t.Fatal(err)
 				}
-				segs, data, err := load(t, r)
+				segs, data, err := loadMerged(t, r)
 				if c.read && (err != nil || Count(segs) != 0 || string(data) != c.edit("")) {
 					t.Fatalf("%d conflicts, %v\n%s", Count(segs), err, data)
 				}

@@ -1,11 +1,11 @@
 package conflict
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"os"
-	"strings"
 
 	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
@@ -46,14 +46,15 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 		}
 		size, ends[i] = max(size, n+1), end
 	}
-	out, err := runMergeFile(ctx, r, [3]string{local, base, remote}, size, "--diff3", "-L", labels[0], "-L", labels[1], "-L", labels[2])
+	var out bytes.Buffer
+	err := runMergeFile(ctx, r, [3]string{local, base, remote}, size, &out, MaxSize, "--diff3", "-L", labels[0], "-L", labels[1], "-L", labels[2])
 	if errors.Is(err, errBinary) {
 		return Files{Binary: true}, nil
 	}
 	if err != nil {
 		return Files{}, err
 	}
-	segs, err := parseSize([]byte(out), size)
+	segs, err := parseSize(out.Bytes(), size)
 	if err != nil {
 		return Files{}, err
 	}
@@ -113,7 +114,7 @@ func longestRun(path string) (int, ending, error) {
 
 // limited keeps up to max bytes, then refuses the rest, which stops git.
 type limited struct {
-	b    *strings.Builder
+	b    *bytes.Buffer
 	max  int
 	over bool
 }

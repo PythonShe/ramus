@@ -12,14 +12,18 @@ import (
 	"ramus/internal/git/run"
 )
 
-// remergeVariants are the ways git may have merged the file: each
-// conflict style, and the diff algorithms its merges use (myers, which
-// git merge-file and the recursive strategy use, and histogram, which
-// ort does). A git without --diff-algorithm for merge-file skips those.
-var remergeVariants = [][]string{
-	nil, {"--diff3"}, {"--zdiff3"},
-	{"--diff-algorithm=histogram"}, {"--diff3", "--diff-algorithm=histogram"}, {"--zdiff3", "--diff-algorithm=histogram"},
-}
+// remergeStyles are the conflict styles git may have merged the file in,
+// and remergeAlgos the diff algorithms its merges use: myers, which git
+// merge-file and the recursive strategy use, and histogram, which ort
+// does. A git without --diff-algorithm for merge-file skips those.
+var (
+	remergeStyles = [][]string{nil, {"--diff3"}, {"--zdiff3"}}
+	remergeAlgos  = [][]string{nil, {"--diff-algorithm=histogram"}}
+)
+
+// maxRemerge bounds what one merge of the sides again may write, which is
+// held while it is read.
+const maxRemerge = 2 * MaxSize
 
 // remerge reads data, a file git left conflicted whose sides hold lines
 // like conflict markers of size, by merging the sides again with markers
@@ -28,7 +32,8 @@ var remergeVariants = [][]string{
 // with git's markers of size, any labels on them, line for line. A merge
 // data can be read as in two ways, or as none, as when a conflict was
 // edited by hand, is ErrAmbiguous: a guess could drop a line, once
-// resolved, that was in no conflict.
+// resolved, that was in no conflict. So is a file that would take a merge
+// past maxRemerge to tell.
 func remerge(ctx context.Context, r *run.Runner, data []byte, size int, s mergedSides) ([]Segment, error) {
 	if s.Ours == nil || s.Theirs == nil {
 		// One side deleted: git leaves the other as it is, all text.
@@ -60,33 +65,60 @@ func remerge(ctx context.Context, r *run.Runner, data []byte, size int, s merged
 		long = max(long, n)
 	}
 	long++
+	opens, bases := markerLines(data, size)
+	// git writes a base marker in every conflict of diff3 and zdiff3, and
+	// none in merge style: a file with none is in merge style, one with
+	// base markers none of its sides holds in another.
+	styles := remergeStyles
+	switch {
+	case bases == 0:
+		styles = styles[:1]
+	case !s.holds(size, func(k marker) bool { return k == baseMark }):
+		styles = styles[1:]
+	}
+	// A merge that is the file holds its lines, but for the markers, which
+	// are longer here, and have no label: one longer than that is not.
+	limit := len(data) + opens*4*(long+2)
+	over := limit > maxRemerge
+	limit = min(limit, maxRemerge)
+	var out bytes.Buffer
+	out.Grow(min(limit, len(data)+len(data)/4+4096))
 	var found []Segment
 	matched := false
-	for _, v := range remergeVariants {
-		out, err := runMergeFile(ctx, r, paths, long, v...)
-		var e *run.Error
-		switch {
-		case err == nil:
-		case errors.As(err, &e) && e.ExitCode == 129:
-			continue // an option this git does not have
-		case errors.Is(err, errBinary):
-			return nil, ErrAmbiguous
-		default:
-			return nil, err
-		}
-		segs, err := parseSize([]byte(out), long)
-		if err != nil {
-			return nil, err
-		}
-		for _, conv := range []bool{false, true} {
-			got, ok := match(data, size, segs, conv)
-			if !ok {
-				continue
-			}
-			if matched && !sameReading(found, got) {
+	for _, style := range styles {
+		for _, algo := range remergeAlgos {
+			out.Reset()
+			// No labels: the file's are read, whatever they are.
+			opts := append(append([]string{"-L", "", "-L", "", "-L", ""}, style...), algo...)
+			err := runMergeFile(ctx, r, paths, long, &out, limit, opts...)
+			var e *run.Error
+			switch {
+			case err == nil:
+			case errors.Is(err, ErrTooLarge) && !over:
+				continue // longer than a merge the file can be
+			case errors.Is(err, ErrTooLarge):
 				return nil, ErrAmbiguous
+			case errors.As(err, &e) && e.ExitCode == 129:
+				continue // an option this git does not have
+			case errors.Is(err, errBinary):
+				return nil, ErrAmbiguous
+			default:
+				return nil, err
 			}
-			found, matched = got, true
+			segs, err := parseAny(out.Bytes(), long)
+			if err != nil {
+				return nil, err
+			}
+			for _, conv := range []bool{false, true} {
+				got, ok := match(data, size, segs, conv)
+				if !ok {
+					continue
+				}
+				if matched && !sameReading(found, got) {
+					return nil, ErrAmbiguous
+				}
+				found, matched = got, true
+			}
 		}
 	}
 	if !matched {
@@ -162,6 +194,21 @@ func match(data []byte, size int, segs []Segment, conv bool) ([]Segment, bool) {
 	return out, pos == len(data)
 }
 
+// markerLines counts the open and the base markers of size in data.
+func markerLines(data []byte, size int) (opens, bases int) {
+	for pos := 0; pos < len(data); {
+		line, next := lineAt(data, pos)
+		switch kind, _ := markerOf(line, size); kind {
+		case open:
+			opens++
+		case baseMark:
+			bases++
+		}
+		pos = next
+	}
+	return opens, bases
+}
+
 // sameReading reports whether two readings split a file alike.
 func sameReading(a, b []Segment) bool {
 	return slices.EqualFunc(a, b, func(x, y Segment) bool {
@@ -197,18 +244,18 @@ func crlf(b []byte) []byte {
 var errBinary = errors.New("conflict: binary")
 
 // runMergeFile runs git merge-file -p on paths (ours, base, theirs) with
-// markers of size and extra options, outside any repository, and returns
-// what it writes; conflicts are no failure.
-func runMergeFile(ctx context.Context, r *run.Runner, paths [3]string, size int, extra ...string) (string, error) {
-	var out strings.Builder
-	w := &limited{b: &out, max: MaxSize}
+// markers of size and extra options, outside any repository, and writes
+// what it prints to out, ErrTooLarge past max bytes; conflicts are no
+// failure.
+func runMergeFile(ctx context.Context, r *run.Runner, paths [3]string, size int, out *bytes.Buffer, max int, extra ...string) error {
+	w := &limited{b: out, max: max}
 	args := append([]string{"merge-file", "-p", "--marker-size=" + strconv.Itoa(size)}, extra...)
 	_, err := r.Run(ctx, &run.Cmd{
 		Outside: true, WorkTree: "/", Read: true, Untranslated: true, Stdout: w,
 		Args: append(args, "--", paths[0], paths[1], paths[2]),
 	})
 	if w.over {
-		return "", ErrTooLarge
+		return ErrTooLarge
 	}
 	var e *run.Error
 	switch {
@@ -216,9 +263,9 @@ func runMergeFile(ctx context.Context, r *run.Runner, paths [3]string, size int,
 	case errors.As(err, &e) && e.ExitCode > 0 && e.ExitCode < 128:
 		// The number of conflicts.
 	case errors.As(err, &e) && strings.Contains(e.Stderr, "Cannot merge binary files"):
-		return "", errBinary
+		return errBinary
 	default:
-		return "", err
+		return err
 	}
-	return out.String(), nil
+	return nil
 }

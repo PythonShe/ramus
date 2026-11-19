@@ -112,7 +112,8 @@ func Parse(data []byte) ([]Segment, error) {
 // parseSize splits data into segments at conflict markers of size
 // characters, the size git wrote them in (see Load). A marker out of place
 // is read as text of the side it is in; parseSize fails when a conflict is
-// not closed, or the file is larger than MaxSize.
+// not closed, or the file is larger than MaxSize. The segments are slices
+// of data.
 //
 // Text in the file that only looks like a conflict, as an example in a
 // document, is read as one: Load tells them apart.
@@ -120,48 +121,38 @@ func parseSize(data []byte, size int) ([]Segment, error) {
 	if len(data) > MaxSize {
 		return nil, errLarge
 	}
-	var p parsed
+	return parseAny(data, size)
+}
+
+// parseAny is parseSize at any length.
+func parseAny(data []byte, size int) ([]Segment, error) {
+	var segs []Segment
+	from := 0 // where the text before the next conflict starts
 	for pos := 0; pos < len(data); {
 		line, next := lineAt(data, pos)
 		if kind, _ := markerOf(line, size); kind != open {
 			// A line like a marker outside a conflict, as a
 			// reStructuredText underline, is text.
-			p.text = append(p.text, line...)
 			pos = next
 			continue
 		}
-		c, end, _ := conflictAt(data, pos, size)
+		c, end := conflictAt(data, pos, size)
 		if c == nil {
 			return nil, ErrMarkers
 		}
-		p.add(c)
-		pos = end
+		if pos > from {
+			segs = append(segs, Segment{Text: data[from:pos:pos]})
+		}
+		segs = append(segs, Segment{Conflict: c})
+		pos, from = end, end
 	}
-	return p.done(), nil
+	if from < len(data) {
+		segs = append(segs, Segment{Text: data[from:len(data):len(data)]})
+	}
+	return segs, nil
 }
 
 var errLarge = fmt.Errorf("conflict: the file is larger than %d MB", MaxSize>>20)
-
-// parsed gathers segments: text up to a conflict, the conflict, and so on.
-type parsed struct {
-	segs []Segment
-	text []byte
-}
-
-func (p *parsed) add(c *Conflict) {
-	if len(p.text) > 0 {
-		p.segs = append(p.segs, Segment{Text: p.text})
-		p.text = nil
-	}
-	p.segs = append(p.segs, Segment{Conflict: c})
-}
-
-func (p *parsed) done() []Segment {
-	if len(p.text) > 0 {
-		p.segs = append(p.segs, Segment{Text: p.text})
-	}
-	return p.segs
-}
 
 // lineAt returns the line of data that starts at pos, with its newline,
 // and where the next one starts.
@@ -174,36 +165,36 @@ func lineAt(data []byte, pos int) ([]byte, int) {
 }
 
 // conflictAt reads the conflict whose open marker is the line at pos,
-// returning it, where its close marker ends, and the lines of its other
-// markers; nil when no close marker ends it.
-func conflictAt(data []byte, pos, size int) (*Conflict, int, [][]byte) {
+// returning it and where its close marker ends; nil when no close marker
+// ends it. Each side is a slice of data.
+func conflictAt(data []byte, pos, size int) (*Conflict, int) {
 	line, pos := lineAt(data, pos)
 	_, n := markerOf(line, size)
-	c := &Conflict{OursLabel: label(line, n), Ours: []byte{}, Theirs: []byte{}}
-	marks := [][]byte{line}
+	c := &Conflict{OursLabel: label(line, n)}
 	state := open // the last marker seen
+	from := pos   // where the side being read starts
+	cut := func(at int) []byte { return data[from:at:at] }
 	for pos < len(data) {
+		at := pos
 		line, pos = lineAt(data, pos)
 		kind, n := markerOf(line, size)
 		switch {
 		case kind == baseMark && state == open:
-			c.HasBase, c.BaseLabel, c.Base, state = true, label(line, n), []byte{}, baseMark
-			marks = append(marks, line)
+			c.Ours, c.HasBase, c.BaseLabel = cut(at), true, label(line, n)
+			state, from = baseMark, pos
 		case kind == sep && (state == open || state == baseMark):
-			state = sep
-			marks = append(marks, line)
+			if state == open {
+				c.Ours = cut(at)
+			} else {
+				c.Base = cut(at)
+			}
+			state, from = sep, pos
 		case kind == closeMark && state == sep:
-			c.TheirsLabel = label(line, n)
-			return c, pos, append(marks, line)
-		case state == open:
-			c.Ours = append(c.Ours, line...)
-		case state == baseMark:
-			c.Base = append(c.Base, line...)
-		default:
-			c.Theirs = append(c.Theirs, line...)
+			c.Theirs, c.TheirsLabel = cut(at), label(line, n)
+			return c, pos
 		}
 	}
-	return nil, pos, nil
+	return nil, pos
 }
 
 // Count is the number of conflicts in segs.

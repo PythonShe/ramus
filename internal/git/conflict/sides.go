@@ -19,10 +19,16 @@ var ErrAmbiguous = errors.New("conflict: text in the file looks like conflict ma
 // holdsMarkers reports whether a side holds a line like a conflict marker
 // of size: when none does, every marker in the merge is git's.
 func (s mergedSides) holdsMarkers(size int) bool {
+	return s.holds(size, func(k marker) bool { return k != none })
+}
+
+// holds reports whether a side holds a line like a conflict marker of size
+// whose kind is is.
+func (s mergedSides) holds(size int, is func(marker) bool) bool {
 	for _, side := range [][]byte{s.Base, s.Ours, s.Theirs} {
 		for pos := 0; pos < len(side); {
 			line, next := lineAt(side, pos)
-			if kind, _ := markerOf(line, size); kind != none {
+			if kind, _ := markerOf(line, size); is(kind) {
 				return true
 			}
 			pos = next

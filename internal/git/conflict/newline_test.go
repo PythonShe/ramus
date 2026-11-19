@@ -71,7 +71,7 @@ func TestTakingASideKeepsItsEnd(t *testing.T) {
 					if r == nil {
 						t.Fatal("no conflict in the file")
 					}
-					segs, data, err := load(t, r)
+					segs, data, err := loadMerged(t, r)
 					if err != nil || Count(segs) != 1 {
 						t.Fatalf("%d conflicts, %v\n%q", Count(segs), err, data)
 					}
