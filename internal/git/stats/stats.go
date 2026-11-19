@@ -172,14 +172,46 @@ type Reader interface {
 // batch is the commits read in one cat-file round trip.
 const batch = 2048
 
+// IDs is a list of object ids of one width, end to end in one buffer: a
+// whole history's commits are then one allocation, with no pointer for
+// the collector to follow, rather than one each.
+type IDs struct {
+	Flat  []byte
+	Width int
+}
+
+// Len returns the number of ids.
+func (s IDs) Len() int {
+	if s.Width == 0 {
+		return 0
+	}
+	return len(s.Flat) / s.Width
+}
+
+// Append adds id, whose width the first id sets.
+func (s *IDs) Append(id []byte) {
+	if s.Width == 0 {
+		s.Width = len(id)
+	}
+	s.Flat = append(s.Flat, id...)
+}
+
+// Slices appends ids lo to hi, as slices of the buffer, to buf.
+func (s IDs) Slices(lo, hi int, buf [][]byte) [][]byte {
+	for i := lo; i < hi; i++ {
+		buf = append(buf, s.Flat[i*s.Width:(i+1)*s.Width:(i+1)*s.Width])
+	}
+	return buf
+}
+
 // Collect reads the commits ids names through readers, one goroutine
 // each, counting their authors. progress, when set, gets the commits read
 // and the counts so far every so often, from the collecting goroutine.
-func Collect(ctx context.Context, readers []Reader, ids [][]byte, mm *mailmap.Map, progress func(read int, s Stats)) (Stats, error) {
+func Collect(ctx context.Context, readers []Reader, all IDs, mm *mailmap.Map, progress func(read int, s Stats)) (Stats, error) {
 	if len(readers) == 0 {
 		return Stats{}, errors.New("stats: no reader")
 	}
-	work := make(chan [][]byte)
+	work := make(chan [2]int)
 	type result struct {
 		c   *Counter
 		n   int
@@ -197,7 +229,9 @@ func Collect(ctx context.Context, readers []Reader, ids [][]byte, mm *mailmap.Ma
 				}
 			}()
 			defer carry.Carry()
-			for ids := range work {
+			var ids [][]byte
+			for w := range work {
+				ids = all.Slices(w[0], w[1], ids[:0])
 				c := NewCounter(mm)
 				err := rd.ReadContext(ctx, ids, func(_ int, o catfile.Object) error {
 					if o.Type != "commit" {
@@ -215,9 +249,9 @@ func Collect(ctx context.Context, readers []Reader, ids [][]byte, mm *mailmap.Ma
 	}
 	go func() {
 		defer close(work)
-		for i := 0; i < len(ids); i += batch {
+		for i := 0; i < all.Len(); i += batch {
 			select {
-			case work <- ids[i:min(i+batch, len(ids))]:
+			case work <- [2]int{i, min(i+batch, all.Len())}:
 			case <-ctx.Done():
 				return
 			}

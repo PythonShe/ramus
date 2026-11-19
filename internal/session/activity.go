@@ -121,7 +121,7 @@ func ReadActivity(ctx context.Context, r *repo.Repository, src ActivitySource, p
 	}
 	var report func(int)
 	if progress != nil {
-		report = func(n int) { progress(n, len(ids)) }
+		report = func(n int) { progress(n, ids.Len()) }
 	}
 	return activity.Read(ctx, readers, ids, src.mm, report)
 }

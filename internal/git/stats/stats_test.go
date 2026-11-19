@@ -43,10 +43,10 @@ func TestCollectMatchesGit(t *testing.T) {
 	var mm mailmap.Map
 	mm.Add([]byte(mmText))
 
-	var ids [][]byte
+	var ids IDs
 	for _, h := range strings.Fields(r.Git("rev-list", "--all")) {
 		id, _ := hex.DecodeString(h)
-		ids = append(ids, id)
+		ids.Append(id)
 	}
 	var readers []Reader
 	for range 3 {
@@ -118,10 +118,7 @@ func (panicky) ReadContext(context.Context, [][]byte, func(int, catfile.Object) 
 // A panic reading commits is raised again by Collect, in its caller's
 // goroutine, where the caller's recover reaches it, and does not hang it.
 func TestCollectRaisesAPanic(t *testing.T) {
-	ids := make([][]byte, 5*batch)
-	for i := range ids {
-		ids[i] = make([]byte, 20)
-	}
+	ids := IDs{Flat: make([]byte, 5*batch*20), Width: 20}
 	defer func() {
 		c, ok := recover().(*lifetime.Carried)
 		if !ok || c.Value != "boom" || !strings.Contains(c.Stack, "panicky") {

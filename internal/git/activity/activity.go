@@ -101,11 +101,11 @@ const batch = 2048
 // Read reads the commits ids names through readers, one goroutine each,
 // into records, mapping authors through mm (which may be nil). progress,
 // when set, gets the number read every batch, from a reading goroutine.
-func Read(ctx context.Context, readers []stats.Reader, ids [][]byte, mm *mailmap.Map, progress func(read int)) (*Records, error) {
+func Read(ctx context.Context, readers []stats.Reader, all stats.IDs, mm *mailmap.Map, progress func(read int)) (*Records, error) {
 	if len(readers) == 0 {
 		return nil, errors.New("activity: no reader")
 	}
-	work := make(chan [][]byte)
+	work := make(chan [2]int)
 	var (
 		mu    sync.Mutex
 		out   = &Records{}
@@ -125,7 +125,9 @@ func Read(ctx context.Context, readers []stats.Reader, ids [][]byte, mm *mailmap
 			}()
 			defer carry.Carry()
 			part := &Records{}
-			for ids := range work {
+			var ids [][]byte
+			for w := range work {
+				ids = all.Slices(w[0], w[1], ids[:0])
 				err := rd.ReadContext(ctx, ids, func(_ int, o catfile.Object) error {
 					if o.Type != "commit" {
 						return nil
@@ -151,9 +153,9 @@ func Read(ctx context.Context, readers []stats.Reader, ids [][]byte, mm *mailmap
 			mu.Unlock()
 		})
 	}
-	for i := 0; i < len(ids) && ctx.Err() == nil; i += batch {
+	for i := 0; i < all.Len() && ctx.Err() == nil; i += batch {
 		select {
-		case work <- ids[i:min(i+batch, len(ids))]:
+		case work <- [2]int{i, min(i+batch, all.Len())}:
 		case <-ctx.Done():
 		}
 	}

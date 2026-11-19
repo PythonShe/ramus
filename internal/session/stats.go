@@ -1,7 +1,6 @@
 package session
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -128,25 +127,25 @@ func countStats(ctx context.Context, r *repo.Repository, req StatsRequest, list 
 		defer p.Close()
 		readers = append(readers, p)
 	}
-	st, err := stats.Collect(ctx, readers, ids, mm, func(read int, st stats.Stats) { progress(read, len(ids), st) })
-	return StatsResult{Stats: st, Read: len(ids), Total: len(ids)}, err
+	st, err := stats.Collect(ctx, readers, ids, mm, func(read int, st stats.Stats) { progress(read, ids.Len(), st) })
+	return StatsResult{Stats: st, Read: ids.Len(), Total: ids.Len()}, err
 }
 
 // statsCommits lists the commits reachable from tips with a commit time
 // in the requested range: from the commit-graph without reading a commit
 // when it holds them, else from git rev-list.
-func statsCommits(ctx context.Context, r *repo.Repository, cat *catfile.Process, tips [][]byte, req StatsRequest) ([][]byte, error) {
+func statsCommits(ctx context.Context, r *repo.Repository, cat *catfile.Process, tips [][]byte, req StatsRequest) (stats.IDs, error) {
 	in := func(t int64) bool {
 		return (req.Since.IsZero() || t >= req.Since.Unix()) && (req.Until.IsZero() || t < req.Until.Unix())
 	}
 	g, err := r.CommitGraph()
 	if err != nil {
-		return nil, err
+		return stats.IDs{}, err
 	}
 	if g != nil {
 		ts, err := commitTips(cat, g, tips)
 		if err != nil {
-			return nil, err
+			return stats.IDs{}, err
 		}
 		if pos, ok := history.Covered(g, ts); ok {
 			return graphCommits(ctx, g, pos, in)
@@ -161,18 +160,18 @@ func statsCommits(ctx context.Context, r *repo.Repository, cat *catfile.Process,
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return stats.IDs{}, err
 	}
 	snap := store.Snapshot()
-	out := make([][]byte, len(ids))
-	for i, id := range ids {
-		out[i] = snap.OID(id)
+	out := stats.IDs{Flat: make([]byte, 0, len(ids)*r.Caps.HashSize), Width: r.Caps.HashSize}
+	for _, id := range ids {
+		out.Append(snap.OID(id))
 	}
 	return out, nil
 }
 
-func graphCommits(ctx context.Context, g *commitgraph.Graph, pos []uint32, in func(int64) bool) ([][]byte, error) {
-	var out [][]byte
+func graphCommits(ctx context.Context, g *commitgraph.Graph, pos []uint32, in func(int64) bool) (stats.IDs, error) {
+	var out stats.IDs
 	w := history.NewWalk(g, pos)
 	for n := 0; ; n++ {
 		p, _, ok := w.Next()
@@ -180,11 +179,13 @@ func graphCommits(ctx context.Context, g *commitgraph.Graph, pos []uint32, in fu
 			break
 		}
 		if n&65535 == 0 && ctx.Err() != nil {
-			return nil, ctx.Err()
+			return stats.IDs{}, ctx.Err()
 		}
 		if in(g.CommitTime(p)) {
-			// A copy: the graph's mapping goes once nothing holds g.
-			out = append(out, bytes.Clone(g.OID(p)))
+			// Copied into one buffer: the graph's mapping goes once
+			// nothing holds g, and one allocation per commit would be a
+			// history's worth of objects.
+			out.Append(g.OID(p))
 		}
 	}
 	return out, w.Err()
