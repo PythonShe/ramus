@@ -257,7 +257,8 @@ func summarize(ctx context.Context, in gitIn, hashSize int, wt repo.Worktree, co
 // countLines counts the lines of a file that is not binary, as git
 // would show it added whole: a NUL in its start makes it binary.
 func countLines(file string) (n int, binary bool) {
-	f, err := os.Open(file)
+	// The file may have become a named pipe since it was looked at.
+	f, err := pathsafe.OpenRegular(file)
 	if err != nil {
 		return 0, false
 	}
@@ -416,7 +417,10 @@ func worktreeGitDir(path string) string {
 	if err != nil || fi.IsDir() || fi.Size() > 4096 {
 		return dot
 	}
-	b, err := os.ReadFile(dot)
+	// Regular files only: the folder is any the repository names, and a
+	// named pipe there would hold the read, and the repository's close,
+	// for ever.
+	b, err := pathsafe.ReadFile(dot, 4096)
 	if err != nil {
 		return dot
 	}

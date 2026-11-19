@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -137,7 +136,8 @@ func readWorkFile(workTree, path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.Open(abs)
+	// Not a named pipe, whose open would not return.
+	f, err := pathsafe.OpenRegular(abs)
 	if err != nil {
 		return nil, err
 	}

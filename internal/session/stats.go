@@ -14,6 +14,7 @@ import (
 	"ramus/internal/git/commits"
 	"ramus/internal/git/history"
 	"ramus/internal/git/mailmap"
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/refs"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
@@ -245,7 +246,9 @@ func mailmapData(ctx context.Context, r *repo.Repository) [][]byte {
 		if err != nil || !fi.Mode().IsRegular() || fi.Size() > maxMailmap {
 			return
 		}
-		if data, err := os.ReadFile(p); err == nil {
+		// The config names the file: regular still when read, not a
+		// named pipe put there since.
+		if data, err := pathsafe.ReadFile(p, maxMailmap); err == nil {
 			out = append(out, data)
 		}
 	}

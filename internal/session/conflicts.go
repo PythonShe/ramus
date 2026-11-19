@@ -199,7 +199,8 @@ func loadConflict(ctx context.Context, rn *run.Runner, gitDir, workTree, path st
 		cf.Err = err
 		return cf
 	}
-	f, err := os.Open(abs)
+	// Not a named pipe, whose open would not return.
+	f, err := pathsafe.OpenRegular(abs)
 	if errors.Is(err, os.ErrNotExist) {
 		return cf // deleted on disk: a side is chosen
 	}

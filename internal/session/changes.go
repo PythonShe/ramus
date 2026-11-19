@@ -11,6 +11,7 @@ import (
 
 	"ramus/internal/git/diff"
 	"ramus/internal/git/lfs"
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/write"
 )
@@ -128,7 +129,8 @@ func readWorkTreeFile(workTree, rel string, max int) ([]byte, error) {
 	if fi.Size() > int64(max) {
 		return nil, errTooLarge
 	}
-	f, err := os.Open(p)
+	// Regular still: it may have been replaced by a named pipe since.
+	f, err := pathsafe.OpenRegular(p)
 	if err != nil {
 		return nil, err
 	}
