@@ -28,8 +28,35 @@ func TestCheck(t *testing.T) {
 		"C:/x":                     Absolute,
 		"..\\x":                    DotDot,
 	} {
-		if got := Check(path); got != want {
+		if got := check(path, false); got != want {
 			t.Errorf("Check(%q) = %b, want %b", path, got, want)
+		}
+	}
+}
+
+// On Windows a device name or a colon in a component is flagged: the name
+// would open a device or another file's data stream, not a file of its
+// own.
+func TestCheckOnWindows(t *testing.T) {
+	for path, want := range map[string]Flag{
+		"src/main.go":      0,
+		"CON":              Reserved,
+		"dir/nul.txt":      Reserved,
+		"aux .c":           Reserved,
+		"COM1":             Reserved,
+		"lpt9.log":         Reserved,
+		"COM\u00b2":        Reserved,
+		"CONIN$":           Reserved,
+		"a.txt:evil":       Reserved,
+		"C:/x":             Absolute,
+		"C:/x/b:c":         Absolute | Reserved,
+		"console.txt":      0,
+		"COM0":             0,
+		"com10":            0,
+		"connect/null.txt": 0,
+	} {
+		if got := check(path, true); got != want {
+			t.Errorf("check(%q) = %b, want %b", path, got, want)
 		}
 	}
 }
@@ -65,6 +92,35 @@ func TestInWorkTree(t *testing.T) {
 		if !ok && rel != "" && rel != "out/file" && !errors.Is(err, ErrUnsafe) {
 			t.Errorf("%q: %v", rel, err)
 		}
+	}
+}
+
+// A symlink in the work tree leading to its .git, or a submodule's, does
+// not let a path reach a hook there.
+func TestNotIntoTheGitDirectory(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".git", "hooks"), 0o755)
+	os.MkdirAll(filepath.Join(root, "sub", ".git"), 0o755)
+	os.WriteFile(filepath.Join(root, ".git", "hooks", "pre-commit"), []byte("x"), 0o755)
+	if err := os.Symlink(".git", filepath.Join(root, "link")); err != nil {
+		t.Skip(err)
+	}
+	os.Symlink(filepath.Join("sub", ".git"), filepath.Join(root, "sublink"))
+	os.Symlink(filepath.Join(".git", "hooks", "pre-commit"), filepath.Join(root, "hook"))
+	for _, rel := range []string{"link/hooks/pre-commit", "link/config", "sublink/config"} {
+		if p, err := InWorkTree(root, rel); !errors.Is(err, ErrUnsafe) {
+			t.Errorf("InWorkTree(%q) = %s, %v", rel, p, err)
+		}
+		if p, err := Target(root, rel); !errors.Is(err, ErrUnsafe) {
+			t.Errorf("Target(%q) = %s, %v", rel, p, err)
+		}
+	}
+	if p, err := Target(root, "hook"); !errors.Is(err, ErrUnsafe) {
+		t.Errorf("Target(hook) = %s, %v", p, err)
+	}
+	// The link itself is the work tree's to remove.
+	if _, err := InWorkTree(root, "link"); err != nil {
+		t.Error(err)
 	}
 }
 

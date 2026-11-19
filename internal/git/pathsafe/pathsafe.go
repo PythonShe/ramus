@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -27,12 +28,20 @@ const (
 	LineBreak
 	// Absolute is a path that starts at a root or a drive.
 	Absolute
+	// Reserved is, on Windows, a component naming a device (CON, nul.txt)
+	// or holding a colon, which opens an alternate data stream of
+	// another file: git for Windows refuses both.
+	Reserved
 )
 
 // Check returns the flags of a slash-separated path from git. A flagged
 // path is shown with its flag, never hidden, and the app never follows
 // it.
 func Check(path string) Flag {
+	return check(path, runtime.GOOS == "windows")
+}
+
+func check(path string, windows bool) Flag {
 	var f Flag
 	if strings.ContainsAny(path, "\n\r\u0085\u2028\u2029") {
 		f |= LineBreak
@@ -40,15 +49,42 @@ func Check(path string) Flag {
 	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\") || (len(path) >= 2 && path[1] == ':') {
 		f |= Absolute
 	}
-	for _, c := range strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' }) {
+	for i, c := range strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' }) {
 		if c == "." || c == ".." {
 			f |= DotDot
 		}
 		if IsDotGit(c) {
 			f |= DotGit
 		}
+		// A drive's colon is the Absolute flag's, not a stream's.
+		drive := i == 0 && len(c) == 2 && c[1] == ':' && strings.HasPrefix(path, c)
+		if windows && !drive && reservedOnWindows(c) {
+			f |= Reserved
+		}
 	}
 	return f
+}
+
+// reservedOnWindows reports a name Windows does not open as a file of
+// that name: a device, with any extension and trailing spaces (CON,
+// nul.txt, COM1, CONIN$), or one with a colon (an alternate data stream,
+// a.txt:evil).
+func reservedOnWindows(name string) bool {
+	if strings.Contains(name, ":") {
+		return true
+	}
+	base, _, _ := strings.Cut(name, ".")
+	base = strings.ToUpper(strings.TrimRight(base, " "))
+	switch base {
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
+		return true
+	}
+	dev, n, ok := strings.Cut(base, "COM")
+	if !ok || dev != "" {
+		dev, n, ok = strings.Cut(base, "LPT")
+	}
+	// COM1 to COM9 and LPT1 to LPT9, and with a superscript 1, 2 or 3.
+	return ok && dev == "" && (len(n) == 1 && n[0] >= '1' && n[0] <= '9' || n == "¹" || n == "²" || n == "³")
 }
 
 // IsDotGit reports a path component that is .git or that a case-folding
@@ -114,7 +150,8 @@ var ErrUnsafe = errors.New("pathsafe: path is not safe to touch")
 // writes or deletes it in the work tree at root (writing .gitignore,
 // removing an untracked file): it must be relative, with no ".", ".." or
 // .git component and no line break, and no directory on the way may be a
-// symlink that leads out of the work tree. It returns the path on disk.
+// symlink that leads out of the work tree or into a .git in it. It
+// returns the path on disk.
 func InWorkTree(root, rel string) (string, error) {
 	if rel == "" || Check(rel) != 0 {
 		return "", fmt.Errorf("%w: %q", ErrUnsafe, rel)
@@ -142,6 +179,9 @@ func InWorkTree(root, rel string) (string, error) {
 			}
 			if !within(realRoot, target) {
 				return "", fmt.Errorf("%w: %q leads out of the work tree", ErrUnsafe, rel)
+			}
+			if inGitDir(realRoot, target) {
+				return "", fmt.Errorf("%w: %q leads into a git directory", ErrUnsafe, rel)
 			}
 			next = target
 		}
@@ -176,12 +216,32 @@ func Target(root, rel string) (string, error) {
 	if !within(realRoot, target) {
 		return "", fmt.Errorf("%w: %q leads out of the work tree", ErrUnsafe, rel)
 	}
+	if inGitDir(realRoot, target) {
+		return "", fmt.Errorf("%w: %q leads into a git directory", ErrUnsafe, rel)
+	}
 	return p, nil
 }
 
 func within(root, p string) bool {
 	rel, err := filepath.Rel(root, p)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
+}
+
+// inGitDir reports a path p in the work tree at root that is, or is under,
+// a .git of it: the repository's own git directory or a submodule's,
+// which a symlink reaches though the path names none. A hook is a file
+// there.
+func inGitDir(root, p string) bool {
+	rel, err := filepath.Rel(root, p)
+	if err != nil {
+		return false
+	}
+	for _, c := range strings.Split(filepath.ToSlash(rel), "/") {
+		if IsDotGit(c) {
+			return true
+		}
+	}
+	return false
 }
 
 // Unquote reads a path as git writes one where it cannot use -z: as it is,

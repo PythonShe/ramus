@@ -8785,6 +8785,22 @@ func (msgs Messages) RepoPathAbsolute() string {
 	return Catalog.Format(msgs.locale, "repoPathAbsolute", nil)
 }
 
+// RepoPathReserved says "names a Windows device or data stream"
+// in the language the app shows.
+//
+// Completes "This path …". Shown on Windows for a name such as CON or
+// nul.txt, or one holding a colon.
+func RepoPathReserved() string { return In(i18n.Locale()).RepoPathReserved() }
+
+// RepoPathReserved says "names a Windows device or data stream"
+// in the language of msgs.
+//
+// Completes "This path …". Shown on Windows for a name such as CON or
+// nul.txt, or one holding a colon.
+func (msgs Messages) RepoPathReserved() string {
+	return Catalog.Format(msgs.locale, "repoPathReserved", nil)
+}
+
 // HistoryNoCommits says "No commits yet"
 // in the language the app shows.
 func HistoryNoCommits() string { return In(i18n.Locale()).HistoryNoCommits() }

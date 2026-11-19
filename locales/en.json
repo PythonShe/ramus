@@ -1785,6 +1785,10 @@
   "@repoPathAbsolute": {
     "description": "Completes \"This path …\"."
   },
+  "repoPathReserved": "names a Windows device or data stream",
+  "@repoPathReserved": {
+    "description": "Completes \"This path …\". Shown on Windows for a name such as CON or nul.txt, or one holding a colon."
+  },
   "historyNoCommits": "No commits yet",
   "historyNoMatch": "No commits match",
   "historyGoTo": "Go to hash or ref",

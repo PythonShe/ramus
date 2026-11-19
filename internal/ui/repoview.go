@@ -561,6 +561,9 @@ func showPath(p string) (shown, why string) {
 	if f&pathsafe.Absolute != 0 {
 		reasons = append(reasons, locales.RepoPathAbsolute())
 	}
+	if f&pathsafe.Reserved != 0 {
+		reasons = append(reasons, locales.RepoPathReserved())
+	}
 	return strconv.Quote(p), locales.RepoPathFlagged(strings.Join(reasons, ", "))
 }
 
