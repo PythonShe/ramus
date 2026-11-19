@@ -63,6 +63,7 @@ func start(w *Watcher, _ Options) (platform, error) {
 func (ww *windowsWatch) read() {
 	defer ww.done.Done()
 	buf := make([]byte, bufferSize)
+	first := true
 	for {
 		var n uint32
 		// A read is issued under the lock close takes to cancel, so that
@@ -83,10 +84,18 @@ func (ww *windowsWatch) read() {
 		if closed {
 			return
 		}
-		if err != nil {
+		switch windowsReadEnded(err, first, len(buf)) {
+		case readSmaller:
+			buf = make([]byte, shareBufferSize)
+			continue
+		case readDropped:
+			ww.w.dropped()
+			continue
+		case readFailed:
 			ww.w.fail(err)
 			return
 		}
+		first = false
 		if n == 0 {
 			ww.w.dropped() // the buffer overflowed
 			continue
