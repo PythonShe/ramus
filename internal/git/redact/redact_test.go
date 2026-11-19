@@ -55,14 +55,32 @@ func TestSecrets(t *testing.T) {
 		"git -c http.extraHeader=Authorization: token zzz fetch":          "zzz",
 		"glpat-abcdefghijklmnopqrst1":                                     "glpat-",
 		"aws AKIAABCDEFGHIJKLMNOP":                                        "AKIAABCD",
+		"fatal: unable to access 'https://user:p@ss@host.example/x.git/'": "ss@host",
+		"https://host.example/x.git?private_token=sekrit1&ref=main":       "sekrit1",
+		"https://host.example/x.git?a=1&access_token=sekrit2#frag":        "sekrit2",
+		"https://bucket.example/o?X-Amz-Signature=abc123&sig=sekrit3":     "sekrit3",
+		"remote: X-Auth-Token: sekrit4":                                   "sekrit4",
+		"runner glrt-abcdefghijklmnopqrstu":                               "glrt-",
+		"deploy gldt-abcdefghijklmnopqrstu":                               "gldt-",
+		"hf_abcdefghijklmnopqrstuvwxyzABCDEF":                             "hf_abc",
+		"npm_abcdefghijklmnopqrstuvwxyz0123456789":                        "npm_abc",
 	} {
 		got := Secrets(in)
 		if strings.Contains(got, gone) || !strings.Contains(got, Hidden) {
 			t.Errorf("Secrets(%q) = %q", in, got)
 		}
 	}
-	if got := Secrets("Merge branch 'password-reset'"); got != "Merge branch 'password-reset'" {
-		t.Errorf("redacted ordinary text: %q", got)
+	for _, plain := range []string{
+		"Merge branch 'password-reset'",
+		"see https://example.com/a@b/c and mail me@example.com",
+		"https://host.example/x?ref=main&page=2",
+	} {
+		if got := Secrets(plain); got != plain {
+			t.Errorf("redacted ordinary text: %q", got)
+		}
+	}
+	if got := Secrets("https://user:p@ss@host.example/x"); got != "https://"+Hidden+"@host.example/x" {
+		t.Errorf("the host is not kept: %q", got)
 	}
 }
 

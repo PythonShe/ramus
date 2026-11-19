@@ -140,10 +140,13 @@ func skipCSI(s string, i int) int {
 }
 
 var (
-	userinfoRE = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@\s]+@`)
-	headerRE   = regexp.MustCompile(`(?i)\b((?:proxy-)?authorization|cookie|set-cookie|private-token|x-api-key)(\s*[:=]\s*)[^\n]*`)
+	// The user part runs to the last "@" before the host: a password may
+	// hold an "@" of its own.
+	userinfoRE = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^/?#\s]+@`)
+	headerRE   = regexp.MustCompile(`(?i)\b((?:proxy-)?authorization|cookie|set-cookie|private-token|job-token|x-api-key|x-auth-token|x-access-token)(\s*[:=]\s*)[^\n]*`)
+	queryRE    = regexp.MustCompile(`(?i)([?&](?:private_token|access_token|refresh_token|id_token|token|auth|key|api_key|apikey|client_secret|secret|sig|signature|password|passwd)=)[^&\s#'"]+`)
 	pairRE     = regexp.MustCompile(`(?im)^(\s*(?:password|token|oauth_?refresh_?token|authtype|credential)\s*=).*$`)
-	tokenRE    = regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|xox[abposr]-[A-Za-z0-9-]{10,}|ATBB[A-Za-z0-9]{20,})\b`)
+	tokenRE    = regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|gl(?:pat|rt|dt|cbt|ptt|oas|ft|imt|soat|agent)-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{30,}|npm_[A-Za-z0-9]{36}|AKIA[0-9A-Z]{16}|xox[abposr]-[A-Za-z0-9-]{10,}|ATBB[A-Za-z0-9]{20,})\b`)
 	extraRE    = regexp.MustCompile(`(?i)(http\.(?:[^\s=]*\.)?extraheader\s*=\s*)[^\n]*`)
 )
 
@@ -155,11 +158,13 @@ func Shown(s string) string { return Secrets(Control(s)) }
 const Hidden = "<redacted>"
 
 // Secrets hides credentials before text goes into the command log, an
-// error report or the crash log: the user part of URLs, auth and cookie
-// headers, http.extraHeader values, the password and token lines of git's
-// credential protocol, and tokens of well-known services by their shape.
+// error report or the crash log: the user part of URLs and their token
+// and signature parameters, auth and cookie headers, http.extraHeader
+// values, the password and token lines of git's credential protocol, and
+// tokens of well-known services by their shape.
 func Secrets(s string) string {
 	s = userinfoRE.ReplaceAllString(s, "${1}"+Hidden+"@")
+	s = queryRE.ReplaceAllString(s, "${1}"+Hidden)
 	s = headerRE.ReplaceAllString(s, "${1}${2}"+Hidden)
 	s = extraRE.ReplaceAllString(s, "${1}"+Hidden)
 	s = pairRE.ReplaceAllString(s, "${1}"+Hidden)
