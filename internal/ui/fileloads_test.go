@@ -1,0 +1,67 @@
+package ui
+
+import (
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+	"time"
+
+	"ramus/internal/git/gitexe"
+	"ramus/internal/git/gittest"
+	"ramus/internal/git/run"
+)
+
+// wrappedGit returns a runner whose git is a shell script that runs body,
+// which sees git's arguments as "$@", and then the real git; FLAG in
+// body is replaced by flag.
+func wrappedGit(t *testing.T, body, flag string) *run.Runner {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as git")
+	}
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip(err)
+	}
+	bin := t.TempDir()
+	script := "#!/bin/sh\n" + strings.ReplaceAll(body, "FLAG", flag) + "\nexec " + real + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g, err := gitexe.Find(context.Background(), bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return run.New(g, gittest.Env(), 8)
+}
+
+// The history of a file asked for while another's was read is never
+// shown with the other file's commits.
+func TestFileHistoryOfTheFileShown(t *testing.T) {
+	flag := filepath.Join(t.TempDir(), "slow")
+	h := newHarnessWith(t, wrappedGit(t, `if [ -e FLAG ]; then for a in "$@"; do [ "$a" = one.txt ] && sleep 2; done; fi`, flag))
+	r := h.repoWith()
+	r.Write("one.txt", "a\n")
+	r.Commit("only one")
+	r.Write("two.txt", "b\n")
+	r.Commit("only two")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	os.WriteFile(flag, nil, 0o644)
+	h.app.ShowFile(filepath.Join(r.Dir, "one.txt"), false)
+	h.until("one.txt's history read", func() bool { return tb.file.logLoading })
+	h.app.ShowFile(filepath.Join(r.Dir, "two.txt"), false)
+	start := time.Now()
+	h.until("one.txt's history read to its end", func() bool {
+		if tb.file.path == "two.txt" && hasExact(h, "only one") {
+			t.Fatalf("two.txt's history lists one.txt's commit: %q", h.tt.Texts())
+		}
+		return time.Since(start) > 3*time.Second && hasExact(h, "only two")
+	})
+}

@@ -185,9 +185,14 @@ func (a *App) fileHistory(c *ui.Context, t *tab) {
 	th := c.Theme()
 	fs := &t.file
 	key := fs.path + "\x00" + strconv.FormatBool(fs.follow) + strconv.FormatBool(fs.noMerges)
-	if (key != fs.logKey || t.s.State.Refs != fs.logFor) && !fs.logLoading {
+	// Another file, or the same followed otherwise, is read at once; a
+	// read of what was shown before lands nowhere.
+	if key != fs.logKey || t.s.State.Refs != fs.logFor && !fs.logLoading {
 		fs.logKey, fs.logFor, fs.logLoading = key, t.s.State.Refs, true
 		t.s.FileLog(fs.path, session.FileLogOptions{Follow: fs.follow, NoMerges: fs.noMerges}, func(cs []session.FileCommit, limited bool, err error) {
+			if fs.logKey != key {
+				return
+			}
 			fs.logLoading = false
 			var chosen []byte
 			if fs.chosen >= 0 && fs.chosen < len(fs.commits) {
