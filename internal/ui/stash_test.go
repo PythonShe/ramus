@@ -129,6 +129,14 @@ func TestStashTitleCounts(t *testing.T) {
 	h.click("Include untracked files")
 	r.Write("f.txt", "changed\n")
 	h.until("three", h.shows("Stash Changes to 3 Files"))
+
+	// Closed, it keeps neither the status it counted, which can list
+	// hundreds of thousands of files, nor the tab.
+	h.click("Cancel")
+	h.tt.Frame()
+	if d := h.app.stashUI; d.open || d.counted.of != nil || d.t != nil {
+		t.Fatalf("the closed dialog keeps the status %v, the tab %v", d.counted.of != nil, d.t != nil)
+	}
 }
 
 // The dialog builds every frame; the status, which can list hundreds of

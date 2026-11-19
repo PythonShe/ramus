@@ -92,6 +92,11 @@ func canStashStaged(t *tab) bool {
 func (a *App) stashDialogView(c *ui.Context) {
 	d := &a.stashUI
 	if !d.open || d.t == nil {
+		// Closed: let go of the tab, and of the status counted, which can
+		// list hundreds of thousands of files. Opening starts afresh.
+		if d.t != nil {
+			*d = stashDialog{}
+		}
 		return
 	}
 	th := c.Theme()
