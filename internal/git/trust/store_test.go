@@ -1,9 +1,11 @@
 package trust
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -137,5 +139,69 @@ func TestUnreadableStore(t *testing.T) {
 		if again, err := Load(path); err != nil || !again.Trusted(repo) {
 			t.Errorf("%q: the new answer is not saved: %v", content, err)
 		}
+	}
+}
+
+// What a later version of the app wrote in the file, a key of its own
+// and a key in a folder's entry, is still there after this version saves
+// an answer; a folder no longer trusted takes its entry with it.
+func TestKeepsWhatALaterVersionAdded(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "trust.json")
+	repo := filepath.Join(dir, "project", ".git")
+	other := filepath.Join(dir, "other", ".git")
+	os.MkdirAll(repo, 0o755)
+	os.MkdirAll(other, 0o755)
+	repo = clean(repo)
+	id, err := identity(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := `{
+	"trusted": [` + strconv.Quote(repo) + `],
+	"folders": {
+		` + strconv.Quote(repo) + `: {"id": ` + strconv.Quote(id) + `, "colour": "teal"},
+		"/elsewhere/.git": {"declined": true}
+	},
+	"version": 2,
+	"policy": {"askEvery": "30d"}
+}`
+	os.WriteFile(path, []byte(later), 0o600)
+	s, err := Load(path)
+	if err != nil || !s.Trusted(repo) {
+		t.Fatalf("not read: %v", err)
+	}
+	if err := s.Set(other, true); err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Trusted []string
+		Folders map[string]map[string]json.RawMessage
+		Version json.RawMessage
+		Policy  json.RawMessage
+	}
+	data, _ := os.ReadFile(path)
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if string(got.Version) != "2" || !strings.Contains(string(got.Policy), `"askEvery": "30d"`) {
+		t.Errorf("the file's own keys were dropped:\n%s", data)
+	}
+	if f := got.Folders[repo]; string(f["colour"]) != `"teal"` || string(f["id"]) != strconv.Quote(id) {
+		t.Errorf("the folder's keys were dropped:\n%s", data)
+	}
+	if string(got.Folders["/elsewhere/.git"]["declined"]) != "true" {
+		t.Errorf("an entry of a folder not trusted was dropped:\n%s", data)
+	}
+	if again, err := Load(path); err != nil || !again.Trusted(repo) || !again.Trusted(other) {
+		t.Fatalf("not read back: %v\n%s", err, data)
+	}
+
+	if err := s.Set(repo, false); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(path)
+	if strings.Contains(string(data), "teal") || !strings.Contains(string(data), "askEvery") {
+		t.Errorf("after the folder is no longer trusted:\n%s", data)
 	}
 }
