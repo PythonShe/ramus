@@ -68,6 +68,11 @@ type Options struct {
 	// since its own go with it. A folder that is gone has no files to
 	// keep: Take copies its snapshots and returns none.
 	Worktree string
+	// Writes says the write that follows writes Paths as they are
+	// spelled: Take refuses a path the disk holds under another
+	// spelling, on a volume that does not tell the two apart, which the
+	// snapshot would not keep and the write would overwrite.
+	Writes bool
 }
 
 // noCommitOut is git add's refusal of a repository inside the work tree
@@ -273,6 +278,11 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 			return Snapshot{}, err
 		}
 		w = Where{GitDir: gd, WorkTree: opts.Worktree}
+	}
+	if opts.Writes && !s.All {
+		if err := checkSpelling(w.WorkTree, s.Paths); err != nil {
+			return Snapshot{}, err
+		}
 	}
 	var err error
 	if s.Head, err = revParse(ctx, r, w, "HEAD^{commit}"); err != nil {
@@ -824,8 +834,12 @@ func restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 	if whole && (mode != Exact || !s.All) {
 		return Snapshot{}, nil, errors.New("snapshot: nothing to restore")
 	}
-	before, err := Take(ctx, r, w, Options{Reason: "Before restoring " + s.Time.Format(time.DateTime), Paths: paths})
+	before, err := Take(ctx, r, w, Options{Reason: "Before restoring " + s.Time.Format(time.DateTime), Paths: paths, Writes: true})
 	if err != nil {
+		var se *SpellingError
+		if errors.As(err, &se) {
+			return Snapshot{}, nil, err
+		}
 		return Snapshot{}, nil, fmt.Errorf("snapshot: keeping the current state first: %w", err)
 	}
 	git := func(spec []string, args ...string) error {
