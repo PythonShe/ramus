@@ -131,6 +131,8 @@ func (a *App) commitDetail(c *ui.Context, t *tab, id []byte, cv *commitView) {
 			}
 		}
 		cv.stopPull()
+		// The patch shown goes: its pictures need not take their turn.
+		cv.pv.stale.set()
 		*cv = commitView{id: id, loading: true, file: -1, infoW: cv.infoW, listW: cv.listW, infoRoom: cv.infoRoom, listRoom: cv.listRoom, wasOpen: cv.wasOpen, msgH: cv.msgH, msgSized: cv.msgSized, msgSet: cv.msgSet, metaW: cv.metaW, want: cv.want, noPull: cv.noPull}
 		cv.cancel = t.s.LoadCommit(id, func(d session.CommitDetail) {
 			if bytes.Equal(cv.id, d.OID) {

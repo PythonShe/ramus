@@ -108,11 +108,14 @@ func (p *wtPanel) halt() {
 		p.stopPatch = nil
 	}
 	p.file = nil
+	p.pv.stale.set()
 }
 
 // show shows the patch of a file in place of the list.
 func (p *wtPanel) show(a *App, t *tab, w repo.Worktree, f session.WorktreeFile) {
 	p.file = &wtFile{worktree: w.Path, name: filepath.Base(w.Path), f: f}
+	// The patch shown goes: its pictures need not take their turn.
+	p.pv.stale.set()
 	p.patch, p.pv = session.PatchResult{}, patchView{}
 	p.readPatch(a, t)
 }
@@ -353,6 +356,7 @@ func (a *App) wtPatchView(c *ui.Context, p *wtPanel) {
 				p.stopPatch = nil
 			}
 			p.file = nil
+			p.pv.stale.set()
 		}
 		shown, _ := showPath(f.f.Path)
 		pathLabel(c, shown).Shrink(1)
