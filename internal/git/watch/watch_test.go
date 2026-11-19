@@ -81,6 +81,56 @@ func TestWatch(t *testing.T) {
 	wait(t, w, "renamed")
 }
 
+// A file written in a folder, by a write and by a rename over it as git
+// writes its index, is reported, not the folder: a folder reported means
+// everything in it to be read again.
+func TestFileNotItsFolder(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "sub"), 0o755)
+	w, err := New(root, Options{Latency: 20 * time.Millisecond})
+	if err == ErrUnsupported {
+		t.Skip(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	ready(t, w, root)
+	os.WriteFile(filepath.Join(root, "sub", "f"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(root, "sub", "g.lock"), []byte("y"), 0o644)
+	os.Rename(filepath.Join(root, "sub", "g.lock"), filepath.Join(root, "sub", "g"))
+	seen := map[string]bool{}
+	deadline := time.After(5 * time.Second)
+	for !seen["sub/f"] || !seen["sub/g"] {
+		select {
+		case b := <-w.Events():
+			if b.Overflow {
+				t.Fatal("overflow")
+			}
+			for _, p := range b.Paths {
+				seen[p] = true
+			}
+		case <-deadline:
+			t.Fatalf("saw %v", seen)
+		}
+	}
+	// What else the system reports comes with the files, or soon after.
+	for quiet := time.After(300 * time.Millisecond); ; {
+		select {
+		case b := <-w.Events():
+			for _, p := range b.Paths {
+				seen[p] = true
+			}
+			continue
+		case <-quiet:
+		}
+		break
+	}
+	if seen["sub"] {
+		t.Errorf("the folder was reported: %v", seen)
+	}
+}
+
 // A root named in another letter case than the disk holds, where the
 // file system ignores case, is watched as the folder it names.
 func TestRootInAnotherCase(t *testing.T) {

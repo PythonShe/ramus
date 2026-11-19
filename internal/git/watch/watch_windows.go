@@ -3,6 +3,8 @@
 package watch
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 	"unicode/utf16"
 	"unsafe"
@@ -95,14 +97,30 @@ func (ww *windowsWatch) read() {
 			if off+12+rec.FileNameLength > n {
 				break
 			}
-			name := unsafe.Slice(&rec.FileName, nameLen)
-			ww.w.changed(string(utf16.Decode(name)))
+			name := string(utf16.Decode(unsafe.Slice(&rec.FileName, nameLen)))
+			if !ww.folderModified(rec.Action, name) {
+				ww.w.changed(name)
+			}
 			if rec.NextEntryOffset == 0 {
 				break
 			}
 			off += rec.NextEntryOffset
 		}
 	}
+}
+
+// folderModified reports a record of a folder modified, which Windows
+// makes for every folder whose entries change, besides the record of the
+// entry itself: one for .git each time git renames a file into it. It
+// says nothing the entry's own record does not, and a folder reported
+// reads as one replaced, everything under it to be read again. A folder
+// added, removed or renamed is still reported.
+func (ww *windowsWatch) folderModified(action uint32, name string) bool {
+	if action != windows.FILE_ACTION_MODIFIED {
+		return false
+	}
+	fi, err := os.Lstat(filepath.Join(ww.w.root, name))
+	return err == nil && fi.IsDir()
 }
 
 func (ww *windowsWatch) close() error {
