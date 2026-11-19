@@ -75,7 +75,7 @@ func TestDiedSaysWhy(t *testing.T) {
 	}
 	defer p.Close()
 	p.Read([][]byte{decode(bad)}, func(int, Object) error { return nil })
-	if err := p.cmd.Process.Kill(); err != nil {
+	if err := p.g.cmd.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
 	if err := p.Read([][]byte{decode(c)}, func(int, Object) error { return nil }); !errors.Is(err, ErrClosed) {
@@ -83,6 +83,50 @@ func TestDiedSaysWhy(t *testing.T) {
 	}
 	if p.Alive() {
 		t.Fatal("alive once killed")
+	}
+}
+
+// git ends once it has had nothing to read for a while, letting go of
+// the packs it holds open, and starts again for the next read. It never
+// runs inside the repository, which Windows would then not let move.
+func TestEndsWhenIdle(t *testing.T) {
+	r := gittest.Init(t)
+	c := r.Commit("first")
+	runner := testrun.Runner(t)
+	p, err := Start(context.Background(), runner, r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	if dir, _ := filepath.Rel(r.Dir, p.g.cmd.Dir); !strings.HasPrefix(dir, "..") {
+		t.Fatalf("git runs in %s, inside the repository", p.g.cmd.Dir)
+	}
+	p.mu.Lock()
+	p.idle = 20 * time.Millisecond
+	p.mu.Unlock()
+	read := func() {
+		t.Helper()
+		var typ string
+		if err := p.Read([][]byte{decode(c)}, func(_ int, o Object) error { typ = o.Type; return nil }); err != nil || typ != "commit" {
+			t.Fatalf("read %q, %v", typ, err)
+		}
+	}
+	for range 2 {
+		read()
+		deadline := time.Now().Add(10 * time.Second)
+		for runner.Running() != 0 {
+			if time.Now().After(deadline) {
+				t.Fatal("git still runs while idle")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		if !p.Alive() {
+			t.Fatal("not alive once idle")
+		}
+	}
+	read()
+	if runner.Running() != 1 {
+		t.Fatalf("%d gits running", runner.Running())
 	}
 }
 
