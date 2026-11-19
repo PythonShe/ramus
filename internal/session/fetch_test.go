@@ -296,6 +296,50 @@ func TestWriteDoesNotWaitForTheBackgroundFetch(t *testing.T) {
 	}
 }
 
+// Background fetches hung on the network hold few of the app's process
+// slots, however many repositories are open: the reads of every
+// repository still find one.
+func TestHungBackgroundFetchesLeaveSlotsForReads(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the hanging ssh is a shell script")
+	}
+	for deadline := time.Now().Add(10 * time.Second); len(quietFetches) > 0; time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("background fetches of other tests still running")
+		}
+	}
+	hang := filepath.Join(t.TempDir(), "ssh")
+	if err := os.WriteFile(hang, []byte("#!/bin/sh\nexec sleep 60\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	slots := cap(quietFetches) + 1
+	runner := run.New(testrun.Runner(t).Git(), gittest.Env(), slots)
+	var sessions []*Session
+	for range slots + 1 {
+		r := gittest.Init(t)
+		r.Commit("one")
+		r.Git("config", "core.sshCommand", hang)
+		r.Git("remote", "add", "origin", "ssh://example.invalid/x")
+		m := make(mainThread, 64)
+		s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
+		t.Cleanup(func() { s.Close(); <-s.Done() })
+		m.until(t, "the status", func() bool { return s.State.Status != nil && s.refreshIdle.Load() })
+		m.settle(t, s)
+		if s.FetchFresh(0, func(error) {}) != (len(sessions) < cap(quietFetches)) {
+			t.Fatalf("fetch %d started: %v", len(sessions)+1, s.Fetching())
+		}
+		sessions = append(sessions, s)
+	}
+	// Each fetch hung started has its slot by now.
+	time.Sleep(300 * time.Millisecond)
+	last := sessions[len(sessions)-1].Repo
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := runner.Run(ctx, &run.Cmd{GitDir: last.GitDir, Read: true, Args: []string{"rev-parse", "HEAD"}}); err != nil {
+		t.Fatalf("a read found no slot: %v", err)
+	}
+}
+
 // The ssh a fetch no one answers runs is the user's own, with BatchMode
 // on when it is OpenSSH, and left as the user set it when it is not.
 func TestBatchSSH(t *testing.T) {

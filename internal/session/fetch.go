@@ -319,9 +319,17 @@ func lookupEnv(env []string, key string) string {
 	return v
 }
 
+// quietFetches bounds the background fetches running or queued at once
+// across every open repository. A fetch hung on a network that drops
+// packets holds one of the app's process slots until it is stopped as
+// stalled, minutes later, and every read of every repository waits for a
+// slot meanwhile: two leave most of the app's eight (main.go) to them.
+var quietFetches = make(chan struct{}, 2)
+
 // quietFetch fetches every remote with no one to ask for a password,
-// unless a fetch is running or there is no remote; it reports whether
-// it started one.
+// unless a fetch is running, as many as quietFetches allows run in other
+// repositories, or there is no remote; it reports whether it started
+// one.
 func (s *Session) quietFetch(done func(error)) bool {
 	bf, r := &s.fetch, s.Repo
 	if r == nil || r.Restricted || bf.job != nil || len(r.Config().Subsections("remote", "url")) == 0 {
@@ -330,6 +338,11 @@ func (s *Session) quietFetch(done func(error)) bool {
 	op, err := write.Fetch(s.Where(), "", false)
 	if err != nil {
 		return false
+	}
+	select {
+	case quietFetches <- struct{}{}:
+	default:
+		return false // tried again at the next turn
 	}
 	op.Name = locales.SessionFetchInBackground()
 	op.Cmd.Timeout = fetchTimeout
@@ -343,6 +356,7 @@ func (s *Session) quietFetch(done func(error)) bool {
 	// of as the user's, nor is it waited on to close.
 	j, err := s.submit(op, repo.RefsChanged, true)
 	if err != nil {
+		<-quietFetches
 		return false
 	}
 	bf.job, bf.started = j, time.Now()
@@ -352,6 +366,7 @@ func (s *Session) quietFetch(done func(error)) bool {
 	// fetch never stays running.
 	go func() {
 		<-j.Done()
+		<-quietFetches
 		_, err := j.Result()
 		update(func() {
 			if bf.job != j {
