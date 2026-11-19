@@ -308,7 +308,17 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 		// checking nothing moved, since only it knows what it drops. Its
 		// fresh snapshot is what a later undo restores.
 		if err = q.verify(e.Before); err == nil {
-			e.Snapshot, err = q.redoFiles(ctx, e)
+			var fresh snapshot.Snapshot
+			var ran bool
+			fresh, ran, err = q.redoFiles(ctx, e)
+			if ran && fresh.Commit != "" {
+				// Run, if only in part: what it dropped is in the fresh
+				// snapshot, which the next undo puts back.
+				e.Snapshot = fresh
+				if err != nil {
+					err = &KeptError{Err: err, Snapshot: fresh, Undo: true}
+				}
+			}
 		}
 	default:
 		err = q.apply(ctx, e, e.Before, e.After, false)
@@ -333,11 +343,12 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 
 // moved reports an undo or redo that failed once the repository had
 // moved, which its entry moves with, the error saying what is left: the
-// branches' settings, or the rest after HEAD.
+// branches' settings, the rest after HEAD, or a redo that ran part way.
 func moved(err error) bool {
 	var ce *configError
 	var pe *partlyError
-	return errors.As(err, &ce) || errors.As(err, &pe)
+	var ke *KeptError
+	return errors.As(err, &ce) || errors.As(err, &pe) || errors.As(err, &ke) && ke.Undo
 }
 
 // apply moves the repository from state from to state to, refusing if it
@@ -592,15 +603,14 @@ func (q *Queue) touchedPaths(ctx context.Context, e Entry) ([]string, error) {
 	return slices.Sorted(maps.Keys(set)), nil
 }
 
-// redoFiles runs a write again, with a fresh snapshot, which it returns.
-func (q *Queue) redoFiles(ctx context.Context, e Entry) (snapshot.Snapshot, error) {
+// redoFiles runs a write again, with a fresh snapshot, which it returns;
+// ran is whether it came to running the write, if only in part.
+func (q *Queue) redoFiles(ctx context.Context, e Entry) (s snapshot.Snapshot, ran bool, err error) {
 	cmd := e.op.Cmd
-	var s snapshot.Snapshot
 	if e.op.Snapshot != nil {
 		w := snapshot.Where{GitDir: q.gitDir, WorkTree: cmd.WorkTree}
-		var err error
 		if s, err = snapshot.Take(ctx, q.r, w, *e.op.Snapshot); err != nil {
-			return e.Snapshot, fmt.Errorf("write: keeping a snapshot first: %w", err)
+			return e.Snapshot, false, fmt.Errorf("write: keeping a snapshot first: %w", err)
 		}
 	}
 	cmd.Read = false
@@ -608,17 +618,17 @@ func (q *Queue) redoFiles(ctx context.Context, e Entry) (snapshot.Snapshot, erro
 		cmd.Stdin = bytes.NewReader(e.op.Input)
 	}
 	if _, err := q.r.Run(ctx, &cmd); err != nil {
-		return e.Snapshot, err
+		return s, true, err
 	}
 	// A write split over several commands, as a delete of many paths,
 	// is redone whole.
 	for _, c := range e.op.More {
 		c.Read = false
 		if _, err := q.r.Run(ctx, &c); err != nil {
-			return e.Snapshot, err
+			return s, true, err
 		}
 	}
-	return s, nil
+	return s, true, nil
 }
 
 // settleTimeout bounds reading what a write left, once it ran.

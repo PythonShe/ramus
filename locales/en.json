@@ -1657,6 +1657,14 @@
   "@repoWriteFailed": {
     "description": "The repository's error bar: name is the command the app ran, as Push or Commit; error is what git said."
   },
+  "repoFailedKeptUndo": "{name} failed: {error}. What it changed before it stopped is kept in a snapshot, and Undo puts it back.",
+  "@repoFailedKeptUndo": {
+    "description": "The repository's error bar, for a write that drops work (a discard, a delete) and failed part way: name is the write, as Discard changes to a; error is what git said. Undo is the Edit menu's Undo."
+  },
+  "repoFailedKeptSnapshot": "{name} failed: {error}. What it changed before it stopped is kept in a snapshot, in the Snapshots view.",
+  "@repoFailedKeptSnapshot": {
+    "description": "The repository's error bar, for a write that drops work (a hard reset) and failed part way: name is the write; error is what git said. The Snapshots view lists the snapshots and restores their files."
+  },
   "repoShowInLog": "Show in Log",
   "@repoShowInLog": {
     "description": "A button in the error bar: shows the failed command's output in the Command Log."

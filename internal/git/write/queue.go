@@ -116,6 +116,26 @@ type Job struct {
 	entry uint64
 }
 
+// KeptError is a write that failed after keeping a snapshot of what it
+// was about to change: whatever it changed before it stopped is in
+// Snapshot. With Undo set the write recorded an entry, and Undo puts
+// that back; else the snapshot list holds it.
+type KeptError struct {
+	Err      error
+	Snapshot snapshot.Snapshot
+	Undo     bool
+}
+
+func (e *KeptError) Error() string {
+	how := "the snapshot list has it"
+	if e.Undo {
+		how = "Undo puts it back"
+	}
+	return fmt.Sprintf("%v; what it changed is kept in the snapshot taken %s, and %s", e.Err, e.Snapshot.Time.Format(time.DateTime), how)
+}
+
+func (e *KeptError) Unwrap() error { return e.Err }
+
 // Events delivers output as it comes; it is closed when the job ends.
 func (j *Job) Events() <-chan Event { return j.events }
 
@@ -371,7 +391,7 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 			if stashed != nil {
 				preErr = q.unstash(ctx, j, stashed, preErr)
 			}
-			return res, preErr
+			return res, q.kept(j, preErr, false)
 		}
 	}
 	res, err := execute(ctx, q.r, j, j.Op.Cmd, j.Op.Input)
@@ -392,10 +412,28 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 			err = &StashKeptError{Err: err, Pop: unread}
 		}
 	}
-	if err == nil && record {
+	j.mu.Lock()
+	snapped := j.snap.Commit != ""
+	j.mu.Unlock()
+	// A write of files that failed part way may have dropped work all the
+	// same, a discard with a filter that failed after it unstaged, or a
+	// delete cancelled between its runs: undo puts back what it kept.
+	if record && (err == nil || snapped && j.Op.Undo == FilesOnly) {
 		q.record(j, before)
 	}
-	return res, err
+	return res, q.kept(j, err, true)
+}
+
+// kept is err, from a write that ran past its checks, saying where what
+// the write changed is kept, when it kept a snapshot first; recorded is
+// whether it may have recorded an entry for Undo.
+func (q *Queue) kept(j *Job, err error, recorded bool) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if err == nil || j.snap.Commit == "" {
+		return err
+	}
+	return &KeptError{Err: err, Snapshot: j.snap, Undo: recorded && j.entry != 0}
 }
 
 func (q *Queue) record(j *Job, before fullState) {

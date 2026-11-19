@@ -8287,6 +8287,46 @@ func (msgs Messages) RepoWriteFailed(name string, error string) string {
 	return Catalog.Format(msgs.locale, "repoWriteFailed", map[string]any{"name": name, "error": error})
 }
 
+// RepoFailedKeptUndo says "{name} failed: {error}. What it changed before it stopped is kept in a snapshot, and Undo puts it back."
+// in the language the app shows.
+//
+// The repository's error bar, for a write that drops work (a discard, a
+// delete) and failed part way: name is the write, as Discard changes to a;
+// error is what git said. Undo is the Edit menu's Undo.
+func RepoFailedKeptUndo(name string, error string) string {
+	return In(i18n.Locale()).RepoFailedKeptUndo(name, error)
+}
+
+// RepoFailedKeptUndo says "{name} failed: {error}. What it changed before it stopped is kept in a snapshot, and Undo puts it back."
+// in the language of msgs.
+//
+// The repository's error bar, for a write that drops work (a discard, a
+// delete) and failed part way: name is the write, as Discard changes to a;
+// error is what git said. Undo is the Edit menu's Undo.
+func (msgs Messages) RepoFailedKeptUndo(name string, error string) string {
+	return Catalog.Format(msgs.locale, "repoFailedKeptUndo", map[string]any{"name": name, "error": error})
+}
+
+// RepoFailedKeptSnapshot says "{name} failed: {error}. What it changed before it stopped is kept in a snapshot, in the Snapshots view."
+// in the language the app shows.
+//
+// The repository's error bar, for a write that drops work (a hard reset)
+// and failed part way: name is the write; error is what git said. The
+// Snapshots view lists the snapshots and restores their files.
+func RepoFailedKeptSnapshot(name string, error string) string {
+	return In(i18n.Locale()).RepoFailedKeptSnapshot(name, error)
+}
+
+// RepoFailedKeptSnapshot says "{name} failed: {error}. What it changed before it stopped is kept in a snapshot, in the Snapshots view."
+// in the language of msgs.
+//
+// The repository's error bar, for a write that drops work (a hard reset)
+// and failed part way: name is the write; error is what git said. The
+// Snapshots view lists the snapshots and restores their files.
+func (msgs Messages) RepoFailedKeptSnapshot(name string, error string) string {
+	return Catalog.Format(msgs.locale, "repoFailedKeptSnapshot", map[string]any{"name": name, "error": error})
+}
+
 // RepoShowInLog says "Show in Log"
 // in the language the app shows.
 //

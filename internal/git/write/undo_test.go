@@ -503,6 +503,41 @@ func TestUndoMixedReset(t *testing.T) {
 	}
 }
 
+// A discard that fails part way, after it unstaged and before it wrote
+// the file back, can be undone, and says where its work is kept.
+func TestFailedDiscardCanBeUndone(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write(".gitattributes", "a filter=broken\n")
+	h.r.Write("a", "1\n")
+	h.r.Commit("one")
+	h.r.Git("config", "filter.broken.clean", "cat")
+	h.r.Git("config", "filter.broken.smudge", "false")
+	h.r.Git("config", "filter.broken.required", "true")
+	h.r.Stage("a", "STAGED WORK\n")
+	h.r.Write("a", "UNSTAGED WORK\n")
+	op, err := DiscardStaged(h.w, []string{"a"}, []string{"a"}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j := h.q.Submit(op)
+	_, err = wait(t, j)
+	var ke *KeptError
+	if !errors.As(err, &ke) || !ke.Undo || ke.Snapshot.Commit == "" {
+		t.Fatalf("discard failing part way: %v", err)
+	}
+	if h.index("a") == "STAGED WORK\n" {
+		t.Fatal("the discard did not get as far as unstaging: the test shows nothing")
+	}
+	if j.Entry() == 0 || j.Entry() != h.q.History.Last() {
+		t.Fatal("no undo recorded")
+	}
+	h.r.Git("config", "filter.broken.smudge", "cat")
+	h.undo()
+	if h.index("a") != "STAGED WORK\n" || h.read("a") != "UNSTAGED WORK\n" {
+		t.Fatalf("after undo: staged %q, file %q", h.index("a"), h.read("a"))
+	}
+}
+
 // An undo that fails once HEAD is back, putting back the work a hard
 // reset dropped, moves its entry with HEAD: Redo goes forward again,
 // rather than every later Undo refusing as HEAD moved.

@@ -101,6 +101,28 @@ func TestRemoveStaleLock(t *testing.T) {
 	}
 }
 
+// A discard that fails part way, after it may have dropped work, says
+// where that work is kept.
+func TestFailedDiscardSaysWhereTheWorkIs(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write(".gitattributes", "a filter=broken\n")
+	r.Write("a", "1\n")
+	r.Commit("filter")
+	r.Git("config", "filter.broken.clean", "cat")
+	r.Git("config", "filter.broken.smudge", "false")
+	r.Git("config", "filter.broken.required", "true")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	r.Write("a", "work\n")
+	tb := h.app.current()
+	if _, err := tb.s.Submit(write.Discard(tb.s.Where(), []string{"a"})); err != nil {
+		t.Fatal(err)
+	}
+	h.until("the failure", h.shows("is kept in a snapshot, and Undo puts it back."))
+}
+
 // What Notify says stays, each until dismissed, rather than the last
 // taking the place of the ones before.
 func TestWindowNotesStack(t *testing.T) {

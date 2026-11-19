@@ -56,6 +56,7 @@ func (a *App) diagnose(t *tab, e *session.LogEntry) diagnosis {
 		return remedy{locales.RepoTryAgain(), func() { a.submit(t, op, nil) }}
 	}
 	var le *write.LockedError
+	var kept *write.KeptError
 	// A write stopped on conflicts says so; any other failure while a
 	// merge has some, a lock or a refused login, is told as itself.
 	// Only what git printed is read, not the error's paths.
@@ -92,6 +93,17 @@ func (a *App) diagnose(t *tab, e *session.LogEntry) diagnosis {
 				label = locales.RepoRemoveLockTryAgain()
 			}
 			d.fixes = append(d.fixes, remedy{label, func() { a.removeLock(t, e, le.Path, op, again) }})
+		}
+	case errors.As(e.Err, &kept):
+		// It may have dropped work before it stopped: the user hears where
+		// that is.
+		cause := why
+		if re == nil {
+			cause = failure(kept.Err)
+		}
+		d.text = locales.RepoFailedKeptSnapshot(e.Name, oneLine(cause))
+		if kept.Undo {
+			d.text = locales.RepoFailedKeptUndo(e.Name, oneLine(cause))
 		}
 	case errors.Is(e.Err, run.ErrTimeout):
 		d.text = locales.RepoTimedOut(e.Name)
