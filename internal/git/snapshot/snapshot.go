@@ -13,6 +13,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -722,15 +723,18 @@ func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 		}
 		return before, git(ps, "restore", "--source="+s.Commit, "--worktree", "--overlay")
 	}
-	// The files first, while the index still has those the write added:
-	// a file in neither the snapshot nor the index is not git's to
-	// remove, and stays.
+	// The files first, while the index still has those the write added.
 	ps, err := match(s.Commit, true)
 	if err != nil {
 		return before, err
 	}
 	if whole || len(ps) > 0 {
 		if err := git(ps, "restore", "--source="+s.Commit, "--worktree", "--no-overlay"); err != nil {
+			return before, err
+		}
+	}
+	if !whole {
+		if err := removeMade(ctx, r, w, s, paths); err != nil {
 			return before, err
 		}
 	}
@@ -744,6 +748,80 @@ func Restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 		err = git(ps, "restore", "--source="+s.Index, "--staged")
 	}
 	return before, err
+}
+
+// removeMade removes, of paths, the files git restore leaves that s did
+// not have: those in no index. The snapshot kept every file there that
+// git does not ignore, so such a file was not there when it was taken.
+// One git ignores may have been, unless the snapshot kept ignored files
+// too, and stays. Run once the snapshot's files are back, so their
+// .gitignore files say what was ignored then; one made since is removed
+// first, as it may stop ignoring a file that was there.
+func removeMade(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []string) error {
+	args := []string{"ls-files", "-z", "--others", "--full-name"}
+	if !s.Ignored {
+		args = append(args, "--exclude-standard")
+	}
+	for {
+		var others []string
+		err := listPaths(ctx, r, w, nil, paths, func(name string) {
+			// A folder of its own is a repository inside, which the
+			// snapshot leaves out.
+			if !strings.HasSuffix(name, "/") {
+				others = append(others, name)
+			}
+		}, args...)
+		if err != nil {
+			return err
+		}
+		had, err := known(ctx, r, w, s.Commit, false, others)
+		if err != nil {
+			return err
+		}
+		kept := make(map[string]bool, len(had))
+		for _, p := range had {
+			kept[p] = true
+		}
+		made := slices.DeleteFunc(others, func(p string) bool { return kept[p] })
+		if !s.Ignored {
+			rules := slices.DeleteFunc(slices.Clone(made), func(p string) bool { return path.Base(p) != ".gitignore" })
+			if len(rules) > 0 {
+				// The files they ignore are listed again without them.
+				if err := removeFiles(w.WorkTree, rules); err != nil {
+					return err
+				}
+				continue
+			}
+		}
+		return removeFiles(w.WorkTree, made)
+	}
+}
+
+// removeFiles removes files and links under root, then the folders that
+// leaves empty, as git does when it removes a file.
+func removeFiles(root string, names []string) error {
+	for _, name := range names {
+		p := filepath.Join(root, filepath.FromSlash(name))
+		fi, err := os.Lstat(p)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if fi.IsDir() {
+			continue
+		}
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		for dir := path.Dir(name); dir != "." && dir != "/"; dir = path.Dir(dir) {
+			if os.Remove(filepath.Join(root, filepath.FromSlash(dir))) != nil {
+				break // not empty, or gone
+			}
+		}
+	}
+	return nil
 }
 
 // known returns the paths that name something in tree, or in the index

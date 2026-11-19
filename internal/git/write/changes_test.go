@@ -163,6 +163,37 @@ func TestRestoreFrom(t *testing.T) {
 	}
 }
 
+// Undo of a restore from a commit removes the files the restore made,
+// which no index holds, and leaves those that were there, ignored ones
+// included.
+func TestRestoreFromUndoRemovesWhatItMade(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write(".gitignore", "*.log\n")
+	h.r.Write("top", "top\n")
+	h.r.Write("old/x", "x\n")
+	first := h.r.Commit("one")
+	h.r.Git("rm", "-q", "-r", "top", "old")
+	h.r.Commit("two")
+	h.r.Write("old/keep.log", "ignored, there before\n")
+	h.r.Write("old/mine", "untracked, there before\n")
+	for _, path := range []string{"top", "old"} {
+		op, err := RestoreFrom(h.w, path, first)
+		h.do(op, err, true)
+		if h.read(path+map[string]string{"top": "", "old": "/x"}[path]) == "" {
+			t.Fatalf("%s not restored", path)
+		}
+		h.undo()
+	}
+	for _, p := range []string{"top", "old/x"} {
+		if _, err := os.Lstat(filepath.Join(h.r.Dir, p)); err == nil {
+			t.Errorf("%s left after undo", p)
+		}
+	}
+	if h.read("old/keep.log") != "ignored, there before\n" || h.read("old/mine") != "untracked, there before\n" {
+		t.Fatal("undo removed a file that was there")
+	}
+}
+
 // A discard of what is staged deletes a file staged as new, though it
 // was changed after, in a repository with no commit yet, and one added
 // though ignored; the ignored files of an untracked folder deleted with

@@ -383,7 +383,8 @@ func TestRestoreModes(t *testing.T) {
 	}
 
 	// Exact: what a hard reset dropped comes back, staged and unstaged,
-	// and a file that was deleted is deleted again.
+	// a file that was deleted is deleted again, and one the snapshot did
+	// not have goes.
 	f.r.Git("reset", "-q", "--hard")
 	if _, err := Restore(context.Background(), f.run, f.w, s, []string{"dir", "b", "gone"}, Exact); err != nil {
 		t.Fatal(err)
@@ -394,8 +395,8 @@ func TestRestoreModes(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(f.r.Dir, "gone")); err == nil {
 		t.Fatal("a deleted file came back")
 	}
-	if read(t, filepath.Join(f.r.Dir, "dir/new")) != "added later" {
-		t.Fatal("an untracked file was removed")
+	if _, err := os.Lstat(filepath.Join(f.r.Dir, "dir/new")); err == nil {
+		t.Fatal("a file the snapshot did not have was left")
 	}
 }
 
@@ -430,6 +431,58 @@ func TestRestoreManyPathsListsOnce(t *testing.T) {
 	}
 	if read(t, filepath.Join(f.r.Dir, paths[3])) != "changed" || read(t, filepath.Join(f.r.Dir, paths[20])) != "1" {
 		t.Fatal("not restored")
+	}
+}
+
+// An exact restore removes the files the snapshot did not have, in no
+// index, a folder of them with them, and only those: an ignored file,
+// which the snapshot did not keep, may have been there before and stays,
+// though a .gitignore made since stopped ignoring it.
+func TestExactRemovesOnlyWhatWasNotThere(t *testing.T) {
+	f := setup(t)
+	f.r.Write(".gitignore", "*.log\n")
+	f.r.Write("dir/a", "a")
+	f.r.Commit("one")
+	f.r.Write("dir/keep.log", "ignored, there before")
+	f.r.Write("dir/untracked", "there before")
+	paths := []string{"dir", "new", "deep"}
+	s := f.take(Options{Reason: "x", Paths: paths})
+
+	// What the write made.
+	f.r.Write("new", "made")
+	f.r.Write("deep/er/file", "made")
+	f.r.Write("dir/made", "made")
+	f.r.Write("dir/.gitignore", "!keep.log\n")
+	f.r.Write("dir/made.log", "made, ignored")
+	if err := os.Symlink("a", filepath.Join(f.r.Dir, "dir", "link")); err != nil {
+		t.Skip(err)
+	}
+	if _, err := Restore(context.Background(), f.run, f.w, s, paths, Exact); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"new", "deep", "dir/made", "dir/.gitignore", "dir/link"} {
+		if _, err := os.Lstat(filepath.Join(f.r.Dir, p)); err == nil {
+			t.Errorf("%s left", p)
+		}
+	}
+	for p, want := range map[string]string{"dir/a": "a", "dir/keep.log": "ignored, there before", "dir/untracked": "there before", "dir/made.log": "made, ignored"} {
+		if got := read(t, filepath.Join(f.r.Dir, p)); got != want {
+			t.Errorf("%s: %q", p, got)
+		}
+	}
+
+	// With ignored files kept, an ignored file the snapshot did not have
+	// was not there.
+	s = f.take(Options{Reason: "x", Paths: []string{"dir"}, Ignored: true})
+	f.r.Write("dir/later.log", "made")
+	if _, err := Restore(context.Background(), f.run, f.w, s, []string{"dir"}, Exact); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(filepath.Join(f.r.Dir, "dir/later.log")); err == nil {
+		t.Error("an ignored file made since was left")
+	}
+	if read(t, filepath.Join(f.r.Dir, "dir/keep.log")) != "ignored, there before" {
+		t.Error("an ignored file kept was lost")
 	}
 }
 
