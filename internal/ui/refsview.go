@@ -304,6 +304,10 @@ func (a *App) refList(c *ui.Context, t *tab) {
 		}
 		return prefix + rows[i].folder
 	}
+	// The rows are filtered as the user types and regrouped as folders
+	// open: the list stays where it is scrolled, not with the row at its
+	// top.
+	rs.list.KeepOffset = true
 	var act func()
 	rs.list.CellMenu = func(m *ui.Menu, i, _ int) {
 		switch r := rows[i]; {

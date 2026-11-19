@@ -174,6 +174,7 @@ func (a *App) reflogList(c *ui.Context, t *tab) {
 	// A menu opened on an entry is built again for the item chosen, by
 	// then perhaps at another index as entries came on top.
 	rs.list.Key = func(i int) any { return keys[i] }
+	keepTop(&rs.list.ListState)
 	rs.list.Label = func(i int) string {
 		return locales.ReflogEntry(entries[i].Selector, redact.Control(entries[i].Message))
 	}
@@ -233,6 +234,7 @@ func (a *App) lostList(c *ui.Context, t *tab) {
 	lost := rs.lost
 	rs.lostList.Selected = &rs.lostChosen
 	rs.lostList.Key = func(i int) any { return string(lost[i].OID) }
+	keepTop(&rs.lostList.ListState)
 	rs.lostList.Label = func(i int) string { return locales.ReflogLost(redact.Control(lost[i].Subject), lost[i].Author) }
 	rs.lostList.CellMenu = func(m *ui.Menu, i, _ int) { a.commitItems(m, t, lost[i].OID, lost[i].Merges) }
 	now := a.Now()

@@ -212,6 +212,7 @@ func (a *App) wtList(c *ui.Context, t *tab, p *wtPanel) (act func()) {
 	// A menu opened on a worktree is built again for the item chosen, by
 	// then perhaps at another index as files came and went above it.
 	p.list.Key = func(i int) any { return rows[i].key }
+	keepTop(&p.list)
 	ui.List(c, &p.list, len(rows), func(i int) {
 		r := rows[i]
 		w := wts[r.w]

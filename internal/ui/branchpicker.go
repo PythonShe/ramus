@@ -161,6 +161,10 @@ func (a *App) branchButton(c *ui.Context, t *tab) {
 				// chosen, by then perhaps at another index as the fetch
 				// landed or the branches were sorted.
 				p.list.Key = func(i int) any { return rows[i] }
+				// The rows are sorted again as the branches' state lands,
+				// and filtered as the user types: the list stays where it
+				// is scrolled, not with the branch at its top.
+				p.list.KeepOffset = true
 				ui.List(c, &p.list, len(rows), func(i int) {
 					r := pickRowView(c, t, p, rows[i], i == p.hi, now)
 					if rows[i].heading != "" {

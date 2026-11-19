@@ -134,6 +134,7 @@ func (a *App) lineHistoryView(c *ui.Context, t *tab) {
 			// A menu opened on a commit is built again for the item chosen,
 			// by then perhaps at another index as the log was read again.
 			lh.list.Key = func(i int) any { return string(cs[i].OID) }
+			keepTop(&lh.list.ListState)
 			lh.list.Label = func(i int) string {
 				return locales.FileHistoryCommit(redact.Control(cs[i].Subject), redact.Control(cs[i].Author), ago(now, cs[i].Time))
 			}
