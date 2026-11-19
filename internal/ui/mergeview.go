@@ -885,13 +885,21 @@ func (a *App) conflictMenu(menu *ui.Menu, t *tab, m *changeModel, es []int32, ac
 			*act = func() { a.takeBoth(t, p) }
 		}
 	}
-	gui, tool := "", ""
+	gui, tool, toolCmd := "", "", ""
 	if r := t.s.Repo; r != nil {
 		gui, _ = r.Config().Get("merge.guitool")
 		tool, _ = r.Config().Get("merge.tool")
+		if gui != "" {
+			tool = gui
+		}
+		toolCmd, _ = r.Config().Get("mergetool." + tool + ".cmd")
 	}
-	if menu.Item(locales.MergeOpenInTool()).Disabled(ro || gui == "" && tool == "").Chosen() {
+	if menu.Item(locales.MergeOpenInTool()).Disabled(ro || tool == "").Chosen() {
 		*act = func() {
+			if write.TerminalTool(tool, toolCmd) {
+				a.notice = locales.MergeTerminalTool(tool)
+				return
+			}
 			var paths []string
 			for _, e := range es {
 				paths = append(paths, string(m.st.Path(int(e))))

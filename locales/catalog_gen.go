@@ -2675,6 +2675,22 @@ func (msgs Messages) MergeOpenInTool() string {
 	return Catalog.Format(msgs.locale, "mergeOpenInTool", nil)
 }
 
+// MergeTerminalTool says "The merge tool {tool} runs in a terminal, which Ramus cannot show: set merge.guitool to a tool with a window"
+// in the language the app shows.
+//
+// tool is the name of the merge tool git's config names, as vimdiff;
+// merge.guitool is a git setting, kept as it is.
+func MergeTerminalTool(tool string) string { return In(i18n.Locale()).MergeTerminalTool(tool) }
+
+// MergeTerminalTool says "The merge tool {tool} runs in a terminal, which Ramus cannot show: set merge.guitool to a tool with a window"
+// in the language of msgs.
+//
+// tool is the name of the merge tool git's config names, as vimdiff;
+// merge.guitool is a git setting, kept as it is.
+func (msgs Messages) MergeTerminalTool(tool string) string {
+	return Catalog.Format(msgs.locale, "mergeTerminalTool", map[string]any{"tool": tool})
+}
+
 // MergeToolTitle says "Merge {file}"
 // in the language the app shows.
 func MergeToolTitle(file string) string { return In(i18n.Locale()).MergeToolTitle(file) }
