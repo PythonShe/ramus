@@ -375,10 +375,10 @@ func (a *App) cleanTree(c *ui.Context, t *tab) {
 		ui.Row(c).Gap(spaceM).Children(func() {
 			if tr.Upstream != "" && !tr.Gone && !head.Detached {
 				upstream := redact.Control(strings.TrimPrefix(tr.Upstream, "refs/remotes/"))
-				if tr.Behind > 0 && ui.Button(c, locales.SyncPullLabel(tr.Behind, upstream)).Disabled(ro || t.s.Fetching()).Clicked() {
+				if tr.Behind > 0 && nameButton(c, locales.SyncPullLabel(tr.Behind, upstream)).Disabled(ro || t.s.Fetching()).Clicked() {
 					a.syncPull(t, "")
 				}
-				if pushTo, ahead := pushTarget(tr); ahead > 0 && ui.Button(c, locales.SyncPushLabel(ahead, pushTo)).Disabled(ro || t.s.Fetching()).Clicked() {
+				if pushTo, ahead := pushTarget(tr); ahead > 0 && nameButton(c, locales.SyncPushLabel(ahead, pushTo)).Disabled(ro || t.s.Fetching()).Clicked() {
 					a.submit(t, write.Push(w, write.PushOptions{Branch: head.Target}), nil)
 				}
 			}

@@ -110,8 +110,8 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 		ui.Text(c, locales.ManagerGroups()).Bold()
 		for _, g := range groups {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.ManagerGroupCount(g.Name, len(g.Paths))).Grow(1)
-				if ui.Button(c, locales.ManagerOpenGroup(g.Name)).Clicked() {
+				ui.Text(c, locales.ManagerGroupCount(g.Name, len(g.Paths))).Grow(1).MinWidth(leastBesideNamedW)
+				if nameButton(c, locales.ManagerOpenGroup(g.Name)).Clicked() {
 					paths := g.Paths
 					*act = func() {
 						for _, p := range paths {
@@ -120,7 +120,7 @@ func (a *App) groupsPanel(c *ui.Context, act *func()) {
 						m.open = false
 					}
 				}
-				if ui.Button(c, locales.ManagerDeleteGroup(g.Name)).Clicked() {
+				if nameButton(c, locales.ManagerDeleteGroup(g.Name)).Clicked() {
 					name := g.Name
 					*act = func() { a.libraryWrite(func(l *library.Library) error { return l.SetGroup(name, nil) }) }
 				}

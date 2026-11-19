@@ -301,7 +301,7 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 			if hf.only != "" {
 				label = redact.Control(shortRefName(hf.only))
 			}
-			ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
+			givesWay(ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
 				if m.Item(locales.HistoryAllBranches()).Radio(hf.only == "").Chosen() {
 					hf.only, apply = "", true
 				}
@@ -311,7 +311,7 @@ func (a *App) filterBar(c *ui.Context, t *tab) {
 						hf.only, apply = b, true
 					}
 				}
-			})
+			}))
 			for _, f := range []struct {
 				v     *string
 				label string

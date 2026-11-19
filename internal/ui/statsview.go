@@ -220,7 +220,7 @@ func (a *App) statsBranchMenu(c *ui.Context, t *tab) {
 	if ss.branch != "" {
 		label = redact.Control(strings.TrimPrefix(ss.branch, "refs/heads/"))
 	}
-	ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
+	givesWay(ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
 		// Items by the ref's full name: two names cleaned for showing may
 		// read alike, and branches come and go while the menu is open.
 		if m.Item(locales.StatsAllBranches()).ID("all").Chosen() {
@@ -245,7 +245,7 @@ func (a *App) statsBranchMenu(c *ui.Context, t *tab) {
 				a.countStats(t)
 			}
 		}
-	})
+	}))
 }
 
 // bar is one bar of a chart and what its tooltip says.

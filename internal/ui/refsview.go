@@ -1238,7 +1238,7 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, locales.RefsCleanupTitle()).Bold().Grow(1)
 				ui.Text(c, locales.RefsCleanupAgainst()).TextColor(th.TextMuted)
-				ui.PopoverMenuButton(c, redact.Control(strings.TrimPrefix(cs.base, "refs/heads/")), func(m *ui.Menu) {
+				givesWay(ui.PopoverMenuButton(c, redact.Control(strings.TrimPrefix(cs.base, "refs/heads/")), func(m *ui.Menu) {
 					if t.refs.info == nil {
 						return
 					}
@@ -1251,7 +1251,7 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 							a.findCleanup(t)
 						}
 					}
-				})
+				}))
 			})
 			switch {
 			case cs.loading:

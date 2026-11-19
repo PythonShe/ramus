@@ -106,7 +106,7 @@ func (a *App) reflogView(c *ui.Context, t *tab) {
 func (a *App) reflogRefMenu(c *ui.Context, t *tab) {
 	rs := &t.reflog
 	label := strings.TrimPrefix(rs.ref, "refs/heads/")
-	ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
+	givesWay(ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
 		if m.Item("HEAD").Chosen() {
 			rs.ref = "HEAD"
 		}
@@ -125,7 +125,7 @@ func (a *App) reflogRefMenu(c *ui.Context, t *tab) {
 				}
 			}
 		}
-	})
+	}))
 }
 
 func (a *App) reflogList(c *ui.Context, t *tab) {

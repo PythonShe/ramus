@@ -220,7 +220,7 @@ func (a *App) libScopeMenu(c *ui.Context) {
 	if s.scope != "" {
 		label = s.scope
 	}
-	ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
+	givesWay(ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
 		if m.Item(locales.StatsAllRepositories()).Chosen() && s.scope != "" {
 			s.scope = ""
 			a.loadLibStats()
@@ -231,7 +231,7 @@ func (a *App) libScopeMenu(c *ui.Context) {
 				a.loadLibStats()
 			}
 		}
-	})
+	}))
 }
 
 // shade is the step of a sequential scale a count takes, 0 for none and
