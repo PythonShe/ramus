@@ -24,9 +24,13 @@ func TestRemoveStale(t *testing.T) {
 		}
 	}
 	for _, name := range []string{
-		".settings.json.123456", ".settings.json.broken.42", // given up on
+		".settings.json.123456", ".settings.json.broken.42", ".settings.json.broken-2.42", // given up on
 		".layout.json.987", // another file's
 		".settings.json.lock", "settings.json", ".settings.json.notes", "other.123",
+		// the user's, in a form no write of the app's makes
+		".settings.json.backup.20260101", ".settings.json.orig.1", ".settings.json.v2.swp.7",
+		".settings.json.broken-.1", ".settings.json.broken-x.1", ".settings.json.broken.", ".settings.json.",
+		"settings.json.20260101", ".settings.jsonx.1",
 	} {
 		put(name, old)
 	}
@@ -37,13 +41,23 @@ func TestRemoveStale(t *testing.T) {
 	for _, e := range entries {
 		left = append(left, e.Name())
 	}
-	want := []string{".layout.json.987", ".settings.json.777", ".settings.json.lock", ".settings.json.notes", "other.123", "settings.json"}
+	want := []string{".layout.json.987", ".settings.json.", ".settings.json.777", ".settings.json.backup.20260101",
+		".settings.json.broken-.1", ".settings.json.broken-x.1", ".settings.json.broken.", ".settings.json.lock",
+		".settings.json.notes", ".settings.json.orig.1", ".settings.json.v2.swp.7", ".settings.jsonx.1",
+		"other.123", "settings.json", "settings.json.20260101"}
 	if !slices.Equal(left, want) {
 		t.Fatalf("left %q, want %q", left, want)
 	}
+	// In a folder the app alone writes, every old temporary name goes.
 	RemoveStaleIn(dir)
 	entries, _ = os.ReadDir(dir)
-	if len(entries) != len(want)-1 {
-		t.Fatalf("the folder's own temporary file not removed: %v", entries)
+	left = left[:0]
+	for _, e := range entries {
+		left = append(left, e.Name())
+	}
+	want = []string{".settings.json.", ".settings.json.777", ".settings.json.broken.", ".settings.json.lock",
+		".settings.json.notes", "other.123", "settings.json", "settings.json.20260101"}
+	if !slices.Equal(left, want) {
+		t.Fatalf("in the app's own folder left %q, want %q", left, want)
 	}
 }

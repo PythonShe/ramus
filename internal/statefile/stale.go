@@ -19,14 +19,32 @@ const StaleAfter = time.Hour
 // RemoveStale removes the temporary files a WriteFile of path left beside
 // the file it writes (through a link, beside the file it leads to), when
 // older than StaleAfter: ".<name>.<digits>", and those of the copies kept
-// aside, ".<name>.broken.<digits>". Those of a write running are younger.
+// aside, ".<name>.broken.<digits>" and ".<name>.broken-<n>.<digits>".
+// Those of a write running are younger. The folder may be the user's, so
+// no other name is taken.
 func RemoveStale(path string) {
 	to, err := target(path)
 	if err != nil {
 		return
 	}
-	prefix := "." + filepath.Base(to) + "."
-	removeStale(filepath.Dir(to), func(name string) bool { return strings.HasPrefix(name, prefix) })
+	base := filepath.Base(to)
+	removeStale(filepath.Dir(to), func(name string) bool { return ownTemp(name, base) })
+}
+
+// ownTemp reports whether name is one WriteFile gives its temporary file
+// when writing base or a copy of it kept aside (asideName).
+func ownTemp(name, base string) bool {
+	rest, ok := strings.CutPrefix(name, "."+base+".")
+	if !ok {
+		return false
+	}
+	for n := range maxAside {
+		if r, ok := strings.CutPrefix(rest, strings.TrimPrefix(asideName(base, n), base+".")+"."); ok {
+			rest = r
+			break
+		}
+	}
+	return digits(rest)
 }
 
 // RemoveStaleIn is RemoveStale for every file of a folder the app alone
@@ -55,10 +73,16 @@ func removeStale(dir string, ours func(string) bool) {
 // ".<name>.*": a dot, then digits to its end.
 func isTemp(name string) bool {
 	i := strings.LastIndexByte(name, '.')
-	if i <= 0 || i == len(name)-1 {
+	return i > 0 && digits(name[i+1:])
+}
+
+// digits reports whether s is one or more decimal digits, what
+// os.CreateTemp puts for its pattern's "*".
+func digits(s string) bool {
+	if s == "" {
 		return false
 	}
-	for _, c := range name[i+1:] {
+	for _, c := range s {
 		if c < '0' || c > '9' {
 			return false
 		}
