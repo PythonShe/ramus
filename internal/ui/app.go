@@ -47,7 +47,12 @@ type Deps struct {
 	// read again; "" keeps nothing.
 	CacheDir string
 	// Update runs a function on the main thread and rebuilds the view
-	// (Window.Update). It returns at once.
+	// (Window.Update). As the app wires it, it waits until the main
+	// thread takes the function up (mygo.RunOnMain), which then runs in
+	// the next frame, or at once while the window is not shown yet. So
+	// it is never called holding a lock the main thread takes, nor from
+	// work the main thread waits for, as a quit waits for the writes
+	// (goWrite has a write count as done before it shows the result).
 	Update func(func())
 	// PickFolder asks the user for a folder and blocks until they answer;
 	// "" when they cancel. It is only called off the main thread.
