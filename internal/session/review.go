@@ -246,12 +246,16 @@ func (s *Session) ForgetPulls(keep []int) {
 			if s.Queue == nil {
 				return
 			}
-			// What the other sessions keep as the write is asked for: one
-			// may have fetched a pull request since the refs were read.
-			others := s.othersPulls(r.CommonDir)
+			// What the sessions keep as the write is asked for, this one
+			// included: one may have fetched a pull request since the
+			// refs were read.
+			kept := s.othersPulls(r.CommonDir)
+			pullsInUse.mu.Lock()
+			kept = append(kept, pullsInUse.by[filepath.Clean(r.CommonDir)][s]...)
+			pullsInUse.mu.Unlock()
 			var in strings.Builder
 			for _, g := range drop {
-				if !slices.Contains(others, g.n) {
+				if !slices.Contains(kept, g.n) {
 					// With the value read: a ref fetched again since is
 					// not deleted.
 					in.WriteString("delete " + g.name + " " + g.old + "\n")
