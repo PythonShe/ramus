@@ -3,6 +3,7 @@ package write
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -649,14 +650,106 @@ func (q *Queue) touchedPaths(ctx context.Context, e Entry) ([]string, error) {
 			if err := list(now, "diff-index", "--cached", "-z", "--name-only", "--diff-filter=D", s.Commit, "--"); err != nil {
 				return nil, err
 			}
+			var still []string
 			for p := range before {
 				if now[p] {
-					delete(set, p)
+					still = append(still, p)
 				}
+			}
+			// Of those, one the write removed or changed, to make room for a
+			// file or folder of its own, is its doing all the same.
+			same, err := q.leftAsKept(ctx, e, still)
+			if err != nil {
+				return nil, err
+			}
+			for p := range same {
+				delete(set, p)
 			}
 		}
 	}
 	return slices.Sorted(maps.Keys(set)), nil
+}
+
+// leftAsKept are those of paths, untracked files e's snapshot holds, that
+// are on disk as the snapshot holds them: the same kind, and the same
+// object once git's filters ran, as git add made of them. One that is
+// gone, a folder now, or of other content, is not, nor one past
+// hashBudget, which is then put back on undo as one the write changed.
+func (q *Queue) leftAsKept(ctx context.Context, e Entry, paths []string) (map[string]bool, error) {
+	same := map[string]bool{}
+	if len(paths) == 0 {
+		return same, nil
+	}
+	root := e.op.Cmd.WorkTree
+	slices.Sort(paths)
+	kept := map[string][2]string{} // path: mode, object id
+	for _, c := range SplitArgs(run.Cmd{GitDir: q.gitDir, WorkTree: root, Read: true, Env: []string{"GIT_LITERAL_PATHSPECS=1"},
+		Args: []string{"ls-tree", "-z", "--full-tree", e.Snapshot.Commit, "--"}}, paths) {
+		res, err := q.r.Run(ctx, &c)
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range strings.Split(string(res.Stdout), "\x00") {
+			meta, name, ok := strings.Cut(rec, "\t")
+			if f := strings.Fields(meta); ok && len(f) == 3 {
+				kept[name] = [2]string{f[0], f[2]}
+			}
+		}
+	}
+	var files []string
+	budget := int64(hashBudget)
+	for _, p := range paths {
+		k, ok := kept[p]
+		if !ok {
+			continue
+		}
+		full := filepath.Join(root, filepath.FromSlash(p))
+		fi, err := os.Lstat(full)
+		switch {
+		case err != nil:
+		case k[0] == "120000" && fi.Mode()&os.ModeSymlink != 0:
+			if t, err := os.Readlink(full); err == nil && blobID(len(k[1]), []byte(t)) == k[1] {
+				same[p] = true
+			}
+		case k[0] == "160000" && fi.IsDir():
+			same[p] = true // a repository inside, which the write does not go into
+		case (k[0] == "100644" || k[0] == "100755") && fi.Mode().IsRegular() && fi.Size() <= budget:
+			budget -= fi.Size()
+			files = append(files, p)
+		}
+	}
+	for _, c := range SplitArgs(run.Cmd{GitDir: q.gitDir, WorkTree: root, Read: true, Args: []string{"hash-object", "--"}}, files) {
+		res, err := q.r.Run(ctx, &c)
+		if err != nil {
+			return nil, err
+		}
+		ids, names := strings.Fields(string(res.Stdout)), c.Args[2:]
+		if len(ids) != len(names) {
+			return nil, fmt.Errorf("write: git hash-object gave %d ids for %d files", len(ids), len(names))
+		}
+		for i, id := range ids {
+			if kept[names[i]][1] == id {
+				same[names[i]] = true
+			}
+		}
+	}
+	return same, nil
+}
+
+// blobID is the object id git gives a blob of b, in a repository whose
+// ids are size hex digits long.
+func blobID(size int, b []byte) string {
+	head := []byte("blob " + strconv.Itoa(len(b)) + "\x00")
+	if size == sha1.Size*2 {
+		h := sha1.New()
+		h.Write(head)
+		h.Write(b)
+		return hex.EncodeToString(h.Sum(nil))
+	}
+	h := sha256.New()
+	h.Write(head)
+	h.Write(b)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // redoFiles runs a write again, with a fresh snapshot, which it returns;

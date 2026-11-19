@@ -459,6 +459,49 @@ func TestUndoLeavesWhatTheWriteDidNotTouch(t *testing.T) {
 			}
 		})
 	}
+	// An untracked file a hard reset removed, in the way of a file or
+	// folder it checks out, is its doing: undo puts it back.
+	for _, c := range []struct{ name, tracked, untracked string }{
+		{"hard reset over a folder", "d", "d/foo"},
+		{"hard reset over a file", "d/x", "d"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.r.Write("a", "1\n")
+			base := h.r.Commit("base")
+			h.r.Write(c.tracked, "tracked\n")
+			target := h.r.Commit("adds " + c.tracked)
+			h.r.Git("reset", "-q", "--hard", base)
+			h.r.Write(c.untracked, "my untracked work\n")
+			h.r.Write("loose", "untracked\n")
+			op, err := Reset(h.w, target, ResetHard, h.seen())
+			h.do(op, err, true)
+			if h.read(c.tracked) != "tracked\n" {
+				t.Fatal("the reset did not replace it: the test shows nothing")
+			}
+			h.r.Write("loose", "edited since\n")
+			h.undo()
+			if h.read(c.untracked) != "my untracked work\n" || h.read("loose") != "edited since\n" {
+				t.Fatalf("%s %q, loose %q", c.untracked, h.read(c.untracked), h.read("loose"))
+			}
+		})
+	}
+	// Told by git's own reading of the file, through its filters, not by
+	// its bytes: one a clean filter changes is left alone all the same.
+	t.Run("hard reset, filtered", func(t *testing.T) {
+		h, one := setup(t)
+		h.r.Write(".git/info/attributes", "*.up filter=up\n")
+		h.r.Git("config", "filter.up.clean", "tr a-z A-Z")
+		h.r.Write("loose.up", "lower case\n")
+		h.r.Write("a", "work\n")
+		op, err := Reset(h.w, one, ResetHard, h.seen())
+		h.do(op, err, true)
+		h.r.Write("loose.up", "edited since\n")
+		h.undo()
+		if h.read("loose.up") != "edited since\n" {
+			t.Fatalf("loose.up %q", h.read("loose.up"))
+		}
+	})
 	t.Run("mixed reset", func(t *testing.T) {
 		h, one := setup(t)
 		h.r.Stage("a", "staged\n")
