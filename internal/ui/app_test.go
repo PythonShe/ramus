@@ -175,18 +175,25 @@ func (h *harness) closeAll() {
 	for s := range h.seen {
 		lives = append(lives, s.Done())
 	}
-	h.app.CloseAll()
-	h.app.writes.Wait()
-	h.app.repoPick.reading.Wait()
-	if k := h.app.keeper; k != nil {
-		k.Wait()
-	}
+	closeApp(h.app)
 	for _, d := range lives {
 		select {
 		case <-d:
 		case <-time.After(10 * time.Second):
 			h.t.Error("a repository did not close")
 		}
+	}
+}
+
+// closeApp closes a's tabs and waits for its writes, as a quit does: a
+// write still going, as of the library, puts files in a test's folder
+// as it is removed.
+func closeApp(a *App) {
+	a.CloseAll()
+	a.writes.Wait()
+	a.repoPick.reading.Wait()
+	if k := a.keeper; k != nil {
+		k.Wait()
 	}
 }
 

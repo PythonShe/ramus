@@ -131,6 +131,10 @@ func TestOpenShowsAnotherWindowsTab(t *testing.T) {
 	h.app.Open(r2.Dir)
 	other := NewApp(Deps{Runner: h.runner, Trust: h.trust, Library: h.lib, Settings: settings.Defaults,
 		Update: func(fn func()) { h.updates <- fn }})
+	// Its write of the library goes to the harness' folder, and must end
+	// before the folder goes; the harness waits for its tabs' sessions,
+	// noted below.
+	t.Cleanup(func() { closeApp(other) })
 	shown := 0
 	other.ShowOpen = func(p string) bool {
 		if !h.app.Has(p) {

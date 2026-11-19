@@ -79,6 +79,7 @@ func TestShowFileLooksOffTheMainThread(t *testing.T) {
 func TestShowFileInTheWindowThatHasIt(t *testing.T) {
 	h1, h2 := newHarness(t), newHarness(t)
 	r := h2.repoWith("a.txt", "src/b.txt")
+	t.Cleanup(h1.closeAll) // it makes no repository, which would register it
 	h1.trust.Set(r.GitDir(), true)
 	h2.trust.Set(r.GitDir(), true)
 	h2.app.Open(r.Dir)
