@@ -55,6 +55,10 @@ func TestHistoryWritesTheGraph(t *testing.T) {
 		t.Fatalf("native %v, advice %v, without a commit-graph", s.History.Native, s.History.Advice)
 	}
 	m.until(t, "two writes failed on the lock", func() bool {
+		// A write no one waits on ends with the app.
+		if j := s.graph.job; j != nil && !j.Op.Cmd.EndsWithApp {
+			t.Fatal("the graph write outlives the app")
+		}
 		w := graphWrites(s)
 		return len(w) >= 2 && !w[1].Running
 	})
