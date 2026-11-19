@@ -90,10 +90,19 @@ func FindMade(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []s
 			return Made{}, err
 		}
 	}
+	for _, p := range s.absent {
+		if exists(w.WorkTree, p) {
+			cands = append(cands, p)
+		}
+	}
 	if s.listed {
+		absent := pathSet{}
+		for _, p := range s.absent {
+			absent[p] = true
+		}
 		var inWhole []string
 		cands = slices.DeleteFunc(cands, func(p string) bool {
-			if !before.holds(p) {
+			if absent[p] || !before.holds(p) {
 				return false
 			}
 			if !before[p] {
@@ -387,6 +396,30 @@ func listIgnoredIn(ctx context.Context, r *run.Runner, w Where, paths []string) 
 		n := strings.TrimSuffix(name, "/")
 		return !set.covers(n) && !(n != name && up[n])
 	}), nil
+}
+
+// overwritten are the files of paths on disk, ignored as unkept lists
+// them, that the tree-ish source holds: those a write of paths from it
+// writes over. absent are those it holds where nothing is, which the
+// write makes, though in a folder ignored whole.
+func overwritten(ctx context.Context, r *run.Runner, w Where, source string, paths, unkept []string) (over, absent []string, err error) {
+	ign := pathSet{}
+	for _, p := range unkept {
+		ign[strings.TrimSuffix(p, "/")] = true
+	}
+	var held []string
+	err = listPaths(ctx, r, w, nil, paths, func(name string) {
+		if ign.covers(name) {
+			held = append(held, name)
+		}
+	}, "ls-tree", "-r", "-z", "--name-only", "--full-tree", source)
+	over, _ = onDisk(w.WorkTree, held)
+	for _, p := range held {
+		if !exists(w.WorkTree, p) && len(absent) < MaxPaths {
+			absent = append(absent, p)
+		}
+	}
+	return over, absent, err
 }
 
 // holds reports whether name, a folder with its slash, is a path of s or

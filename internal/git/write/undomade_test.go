@@ -185,6 +185,25 @@ func TestUndoOfARestoreThatFailedPartWay(t *testing.T) {
 	}
 }
 
+// A restore that writes over an ignored file, as the commit it takes the
+// folder from had one by that name, keeps it first, and its undo brings
+// it back.
+func TestRestoreKeepsTheIgnoredFileItWritesOver(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write(".gitignore", "*.env\n")
+	first := h.restoreGone(map[string]string{"cfg/x": "x\n", "cfg/app.env": "committed\n"}, "cfg")
+	h.r.Write("cfg/app.env", "mine\n")
+	op, err := RestoreFrom(h.w, "cfg", first)
+	h.do(op, err, true)
+	if h.read("cfg/app.env") != "committed\n" {
+		t.Fatal("the restore did not write over it: the test shows nothing")
+	}
+	h.undo()
+	if h.read("cfg/app.env") != "mine\n" || h.exists("cfg/x") {
+		t.Fatalf("app.env %q, x there %v", h.read("cfg/app.env"), h.exists("cfg/x"))
+	}
+}
+
 // A repository the user put since in a folder a restore made, where the
 // commit had a submodule, stays.
 func TestUndoOfARestoreLeavesARepositoryInside(t *testing.T) {

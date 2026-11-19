@@ -73,6 +73,10 @@ type Options struct {
 	// spelling, on a volume that does not tell the two apart, which the
 	// snapshot would not keep and the write would overwrite.
 	Writes bool
+	// Source, when set, is the tree-ish (hex) the write takes Paths from:
+	// the ignored files on disk it holds, which the write overwrites, are
+	// kept too.
+	Source string
 }
 
 // noCommitOut is git add's refusal of a repository inside the work tree
@@ -250,6 +254,9 @@ type Snapshot struct {
 	// there before whatever ran next. Only Take lists them, for paths.
 	unkept []string
 	listed bool
+	// absent are files in unkept folders the write takes from its Source
+	// where nothing was: the write's once there.
+	absent []string
 }
 
 // Take keeps the work tree's state of opts.Paths (or of everything) in a
@@ -403,6 +410,24 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 			s.unkept, s.listed = un, true
 		} else if ctx.Err() != nil {
 			return Snapshot{}, err
+		}
+	}
+	if opts.Source != "" && len(s.unkept) > 0 {
+		// An ignored file the write writes over, from what it takes the
+		// paths from, is kept all the same.
+		over, absent, err := overwritten(ctx, r, w, opts.Source, s.Paths, s.unkept)
+		if err != nil {
+			return Snapshot{}, err
+		}
+		s.absent = absent
+		if len(over) > 0 {
+			var force []byte
+			for _, p := range over {
+				force = append(append(append(force, ":(literal)"...), p...), 0)
+			}
+			if _, err := git(force, []string{"GIT_NO_LAZY_FETCH=1"}, "add", "-f", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
+				return Snapshot{}, err
+			}
 		}
 	}
 	if s.Tree, err = git(nil, nil, "write-tree"); err != nil {
@@ -834,7 +859,7 @@ func restore(ctx context.Context, r *run.Runner, w Where, s Snapshot, paths []st
 	if whole && (mode != Exact || !s.All) {
 		return Snapshot{}, nil, errors.New("snapshot: nothing to restore")
 	}
-	before, err := Take(ctx, r, w, Options{Reason: "Before restoring " + s.Time.Format(time.DateTime), Paths: paths, Writes: true})
+	before, err := Take(ctx, r, w, Options{Reason: "Before restoring " + s.Time.Format(time.DateTime), Paths: paths, Writes: true, Source: s.Commit})
 	if err != nil {
 		var se *SpellingError
 		if errors.As(err, &se) {

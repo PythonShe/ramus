@@ -104,7 +104,7 @@ func RestoreFrom(w Where, path, commit string) (Op, error) {
 	}
 	name := "Restore " + path + " as of " + short(commit)
 	return Op{Name: name, Cmd: w.slow(fromStdin("restore", "--source="+commit, "--worktree", "--no-overlay", noRecurse)...),
-		Input: pathspecs([]string{path}), Snapshot: &snapshot.Options{Reason: name, Paths: []string{path}, Writes: true}, Undo: FilesOnly}, nil
+		Input: pathspecs([]string{path}), Snapshot: &snapshot.Options{Reason: name, Paths: []string{path}, Writes: true, Source: commit}, Undo: FilesOnly}, nil
 }
 
 // MaxArgPaths bounds the paths one write on conflicted files takes.
