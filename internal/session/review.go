@@ -14,6 +14,7 @@ import (
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
+	"ramus/locales"
 )
 
 // ReviewRepo is the repository on GitHub or GitLab whose pull requests
@@ -182,6 +183,51 @@ func (s *Session) FetchPull(repo forge.Repo, n int, base string, deepen int) (*w
 		return nil, err
 	}
 	return s.Submit(op)
+}
+
+// ForgetPulls deletes the refs FetchPull kept of the pull requests not
+// in keep, as a quiet write in the queue: they keep each pull request's
+// commits from gc, its heads force-pushed over included, and a mirror
+// push sends them. It is called with the open ones and the one under
+// review, so they stay as many as the pull requests open.
+func (s *Session) ForgetPulls(keep []int) {
+	r := s.Repo
+	if r == nil || r.Restricted || s.Queue == nil {
+		return
+	}
+	update := s.update
+	w := s.Where()
+	r.Life().Go(func(ctx context.Context) {
+		list, err := r.Refs().List()
+		if err != nil {
+			return
+		}
+		var in strings.Builder
+		i, _ := list.Find(write.PullPrefix)
+		for ; i < list.Len(); i++ {
+			name := list.Name(i)
+			rest, ok := strings.CutPrefix(name, write.PullPrefix)
+			if !ok {
+				break
+			}
+			num, _, _ := strings.Cut(rest, "/")
+			if n, err := strconv.Atoi(num); err == nil && slices.Contains(keep, n) {
+				continue
+			}
+			in.WriteString("delete " + name + "\n")
+		}
+		if in.Len() == 0 || ctx.Err() != nil {
+			return
+		}
+		update(func() {
+			if s.Repo != r || s.Queue == nil {
+				return
+			}
+			op := write.Op{Name: locales.SessionForgetPulls(), RefsOnly: true, NoIndex: true, Input: []byte(in.String()),
+				Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: []string{"update-ref", "--stdin"}, Background: true}}
+			s.submit(op, repo.RefsChanged, true)
+		})
+	})
 }
 
 // PullRange is what a fetched pull request n changes: from the merge

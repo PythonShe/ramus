@@ -385,6 +385,33 @@ func TestReviewReadInPart(t *testing.T) {
 	h.until("what GitHub said", h.shows(locales.PrsReadInPart("Resource not accessible by personal access token")))
 }
 
+// The refs that keep the commits of a pull request reviewed go once it
+// is no longer open; those of the open ones stay.
+func TestClosedPullsForgotten(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", "https://github.com/o/r")
+	head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	for _, ref := range []string{"refs/ramus/pulls/5/head", "refs/ramus/pulls/5/base", "refs/ramus/pulls/7/head", "refs/ramus/pulls/70/head"} {
+		r.Git("update-ref", ref, head)
+	}
+	list := `{"data":{"repository":{"pullRequests":{"totalCount":1,"nodes":[{"id":"PR_7","number":7,"title":"Add a thing",
+"url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},"headRefName":"thing",
+"baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","headRepositoryOwner":{"login":"o"}}]}}}}`
+	env, _ := reviewTool(t, "gh", "pullRequests(states", "pullRequest(number", list, `{}`)
+	tools := &forgeTools{env: env}
+	h.app.forgeFind = tools.find
+	h.app.Settings.PullRequests = true
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the pull requests in the sidebar", h.shows("Pull Requests"))
+	h.click("Pull Requests")
+	h.until("the list", h.shows("Add a thing"))
+	h.until("the closed ones' refs gone", func() bool {
+		return strings.TrimSpace(r.Git("for-each-ref", "--format=%(refname)", "refs/ramus/pulls/")) == "refs/ramus/pulls/7/head"
+	})
+}
+
 // An answer too large to read is said in words, sending the user to the
 // host's page.
 func TestTooLargeSaid(t *testing.T) {

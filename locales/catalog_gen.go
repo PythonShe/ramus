@@ -15789,6 +15789,22 @@ func (msgs Messages) SessionWriteCommitGraph() string {
 	return Catalog.Format(msgs.locale, "sessionWriteCommitGraph", nil)
 }
 
+// SessionForgetPulls says "Remove the refs of closed pull requests"
+// in the language the app shows.
+//
+// An entry of the command log: deletes the refs that kept the commits of
+// pull requests reviewed and no longer open.
+func SessionForgetPulls() string { return In(i18n.Locale()).SessionForgetPulls() }
+
+// SessionForgetPulls says "Remove the refs of closed pull requests"
+// in the language of msgs.
+//
+// An entry of the command log: deletes the refs that kept the commits of
+// pull requests reviewed and no longer open.
+func (msgs Messages) SessionForgetPulls() string {
+	return Catalog.Format(msgs.locale, "sessionForgetPulls", nil)
+}
+
 // SessionTrust says "Trust this repository"
 // in the language the app shows.
 //

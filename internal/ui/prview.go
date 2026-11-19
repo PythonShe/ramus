@@ -251,6 +251,18 @@ func (a *App) loadPRList(t *tab) {
 		if res.DetailErr != nil {
 			ps.detailErr = errForge(res.DetailErr)
 		}
+		// The commits fetched of those no longer open go, so the refs
+		// that keep them stay as many as the pull requests open.
+		if res.Err == nil && !res.Partial {
+			keep := make([]int, 0, len(res.List)+1)
+			for _, l := range res.List {
+				keep = append(keep, l.Number)
+			}
+			if ps.rv != nil {
+				keep = append(keep, ps.rv.n)
+			}
+			t.s.ForgetPulls(keep)
+		}
 	})
 }
 

@@ -3371,6 +3371,10 @@
   "@sessionWriteCommitGraph": {
     "description": "An entry of the command log; commit-graph is git's file."
   },
+  "sessionForgetPulls": "Remove the refs of closed pull requests",
+  "@sessionForgetPulls": {
+    "description": "An entry of the command log: deletes the refs that kept the commits of pull requests reviewed and no longer open."
+  },
   "sessionTrust": "Trust this repository",
   "@sessionTrust": {
     "description": "An entry of the command log, shown when recording that the user trusts the repository failed."
