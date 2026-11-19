@@ -19,7 +19,6 @@ import (
 	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
-	"ramus/internal/git/status"
 	"ramus/internal/git/trust"
 	"ramus/internal/git/write"
 	"ramus/internal/layout"
@@ -223,14 +222,8 @@ type tab struct {
 	open   map[string]bool
 	cv     changesState
 	commit commitState
-	// seq is a continue, skip or abort of a stopped operation on its way,
-	// and the status read when it was asked: until it ends, and on
-	// success until the status is read again, the bar asks no other, or
-	// a second click would skip the next commit too.
-	seq struct {
-		running bool
-		status  *status.Status
-	}
+	// seq is a continue, skip or abort of a stopped operation on its way.
+	seq seqState
 	// The command log: entries newest first, and the output of one.
 	logList   ui.ListState
 	logChosen int

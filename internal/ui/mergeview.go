@@ -533,6 +533,7 @@ func (a *App) takeBoth(t *tab, path string) {
 // operationBar shows an operation that stopped part way, and what can be
 // done about it.
 func (a *App) operationBar(c *ui.Context, t *tab) {
+	t.seq.settle(t)
 	if st := t.s.State.Status; st != nil && st.Unmerged() == 0 && t.merge.path != "" && t.cv.model != nil && t.cv.model.st == st {
 		// Nothing left to resolve, as the list, built off the main thread,
 		// shows too: the conflict last shown, which can be tens of
@@ -558,10 +559,7 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 	if op == repo.CherryPick {
 		opKey = "cherryPick"
 	}
-	if t.seq.status != nil && t.seq.status != t.s.State.Status {
-		t.seq.status = nil
-	}
-	ro = ro || t.seq.running || t.seq.status != nil
+	ro = ro || t.seq.busy()
 	ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).Background(th.Surface).Children(func() {
 		what := locales.MergeStopped(opKey)
 		if conflicts > 0 {
@@ -591,24 +589,45 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 	})
 }
 
+// seqState is the continue, skip or abort of a stopped operation asked
+// last: until it ends, and on success until the status is read again,
+// the bar asks no other, or a second click would skip the next commit
+// too.
+type seqState struct {
+	// entry logs it; nil when there is none to wait for.
+	entry *session.LogEntry
+}
+
+// busy reports whether the bar waits for the step asked last: it runs,
+// or it succeeded and the state was not read since (settle).
+func (s *seqState) busy() bool {
+	e := s.entry
+	return e != nil && (e.Running || e.Err == nil)
+}
+
+// settle lets the step asked last go once the state was read after it
+// ended, which a status read after then says: the state read after a
+// write ends may be handed over before or after the write's own end is,
+// so neither the order of the two nor the status changing tells.
+func (s *seqState) settle(t *tab) {
+	e := s.entry
+	if e == nil || e.Running || t.s.State.Refreshed.Before(e.Ended) {
+		return
+	}
+	*s = seqState{}
+}
+
 // submitSequence submits a continue, skip or abort, one at a time.
 func (a *App) submitSequence(t *tab, op write.Op, err error) {
 	if err != nil {
 		a.notice = errText(err)
 		return
 	}
-	j, err := t.s.Submit(op)
-	if err != nil {
+	if _, err := t.s.Submit(op); err != nil {
 		a.notice = errText(err)
 		return
 	}
-	t.seq.running = true
-	t.s.Then(j, func(err error) {
-		t.seq.running = false
-		if err == nil {
-			t.seq.status = t.s.State.Status
-		}
-	})
+	t.seq = seqState{entry: lastEntry(t)}
 }
 
 // mergeDialog asks how to merge a branch, after showing what it would
