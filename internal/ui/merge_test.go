@@ -492,3 +492,41 @@ func TestDroppedMergeStaysEmpty(t *testing.T) {
 		t.Fatalf("an emptied editor holds %+v", ms.shown)
 	}
 }
+
+// A file git did not merge line by line, as its merge attribute is unset
+// (-merge, or binary on a text file), holds our side whole and no
+// markers: the editor offers a side, whole, as for a binary file, rather
+// than saying its conflicts are resolved.
+func TestMergeOffersASideForAFileKeptWhole(t *testing.T) {
+	for _, attr := range []string{"-merge", "binary"} {
+		t.Run(attr, func(t *testing.T) {
+			h := newHarness(t)
+			r := h.repoWith()
+			r.Write(".gitattributes", "*.txt "+attr+"\n")
+			r.Write("w.txt", "base\n")
+			r.Commit("base")
+			r.Git("switch", "-q", "-c", "topic")
+			r.Write("w.txt", "theirs\n")
+			r.Commit("topic")
+			r.Git("switch", "-q", "main")
+			r.Write("w.txt", "ours\n")
+			r.Commit("main")
+			r.Run(nil, "merge", "topic")
+			if !strings.Contains(r.Git("ls-files", "-u"), "w.txt") || readFile(t, filepath.Join(r.Dir, "w.txt")) != "ours\n" {
+				t.Fatal("git did not leave w.txt conflicted with our side whole")
+			}
+			h.trust.Set(r.GitDir(), true)
+			h.app.Open(r.Dir)
+			h.until("the conflicts", func() bool { return hasExact(h, "w.txt") })
+			h.click("w.txt")
+			h.until("the sides", h.shows(locales.MergeWholeBothSides()))
+			if h.tt.HasText(locales.MergeNoMarkersLeft()) {
+				t.Fatalf("texts %q", h.tt.Texts())
+			}
+			h.click(locales.MergeTakeTheirs())
+			h.until("theirs taken", func() bool {
+				return !strings.Contains(r.Git("ls-files", "-u"), "w.txt") && readFile(t, filepath.Join(r.Dir, "w.txt")) == "theirs\n"
+			})
+		})
+	}
+}

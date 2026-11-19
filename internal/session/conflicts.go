@@ -138,9 +138,14 @@ func alternate(dir string) string {
 type ConflictFile struct {
 	Path string
 	// Segments are the file split at its conflict markers; nil for a
-	// binary file or one whose markers do not pair up (Err says).
+	// binary file, one kept whole, or one whose markers do not pair up
+	// (Err says).
 	Segments []conflict.Segment
 	Binary   bool
+	// Whole is set for a file git did not merge line by line, as its
+	// merge attribute is unset (-merge, or binary): the work tree holds
+	// our side whole, with no markers, and a side is taken whole.
+	Whole bool
 	// Ours and Theirs are false when that side deleted the file.
 	Ours, Theirs bool
 	// Staged is set when the index holds the file's conflict stages: a
@@ -244,5 +249,39 @@ func loadConflict(ctx context.Context, rn *run.Runner, gitDir, workTree, path st
 		return cf
 	}
 	cf.Segments, cf.Err = conflict.Load(ctx, rn, gitDir, workTree, path, data)
+	if cf.Err == nil && cf.Ours && cf.Theirs && conflict.Count(cf.Segments) == 0 {
+		// No markers, though both sides changed it: git left it whole,
+		// or the user resolved it by hand, which the attribute tells.
+		whole, err := mergeUnset(ctx, rn, gitDir, workTree, path)
+		if err != nil {
+			cf.Segments, cf.Err = nil, err
+			return cf
+		}
+		if whole {
+			cf.Segments, cf.Whole = nil, true
+		}
+	}
 	return cf
+}
+
+// mergeUnset reports whether path's merge attribute is unset, as -merge
+// and binary set it, in the work tree or in HEAD: git merges such a file
+// as a whole, and a conflict leaves our side in the work tree.
+func mergeUnset(ctx context.Context, rn *run.Runner, gitDir, workTree, path string) (bool, error) {
+	for _, extra := range [][]string{nil, {"--source=HEAD"}} {
+		args := append(append([]string{"check-attr", "-z"}, extra...), "merge", "--", path)
+		res, err := rn.Run(ctx, &run.Cmd{GitDir: gitDir, WorkTree: workTree, Read: true, Args: args})
+		if err != nil {
+			if extra != nil && ctx.Err() == nil {
+				// No commit yet, or a git without check-attr --source (2.40).
+				return false, nil
+			}
+			return false, err
+		}
+		// path NUL attribute NUL value NUL
+		if f := bytes.Split(res.Stdout, []byte{0}); len(f) >= 3 && string(f[2]) == "unset" {
+			return true, nil
+		}
+	}
+	return false, nil
 }

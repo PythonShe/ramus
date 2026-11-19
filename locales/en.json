@@ -438,6 +438,7 @@
   "mergeDeletedHere": "Deleted on this side, changed on the other",
   "mergeDeletedThere": "Changed on this side, deleted on the other",
   "mergeBinaryBothSides": "Binary file changed on both sides",
+  "mergeWholeBothSides": "Changed on both sides, and not merged line by line, as its merge attribute says",
   "mergeTakeOurs": "Take Ours",
   "mergeTakeTheirs": "Take Theirs",
   "mergeDeleteIt": "Delete File",

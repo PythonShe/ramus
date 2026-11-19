@@ -2329,6 +2329,16 @@ func (msgs Messages) MergeBinaryBothSides() string {
 	return Catalog.Format(msgs.locale, "mergeBinaryBothSides", nil)
 }
 
+// MergeWholeBothSides says "Changed on both sides, and not merged line by line, as its merge attribute says"
+// in the language the app shows.
+func MergeWholeBothSides() string { return In(i18n.Locale()).MergeWholeBothSides() }
+
+// MergeWholeBothSides says "Changed on both sides, and not merged line by line, as its merge attribute says"
+// in the language of msgs.
+func (msgs Messages) MergeWholeBothSides() string {
+	return Catalog.Format(msgs.locale, "mergeWholeBothSides", nil)
+}
+
 // MergeTakeOurs says "Take Ours"
 // in the language the app shows.
 func MergeTakeOurs() string { return In(i18n.Locale()).MergeTakeOurs() }

@@ -346,7 +346,7 @@ func (a *App) mergeEditor(c *ui.Context, t *tab, path string) {
 			// a new status read soon says.
 			loading(c, "")
 			return
-		case !cf.Ours || !cf.Theirs || cf.Binary:
+		case !cf.Ours || !cf.Theirs || cf.Binary || cf.Whole:
 			a.sidesOnly(c, t, cf)
 			return
 		case len(ms.choices) == 0:
@@ -587,6 +587,8 @@ func (a *App) sidesOnly(c *ui.Context, t *tab, cf session.ConflictFile) {
 			what = locales.MergeDeletedHere()
 		case !cf.Theirs:
 			what = locales.MergeDeletedThere()
+		case cf.Whole:
+			what = locales.MergeWholeBothSides()
 		default:
 			what = locales.MergeBinaryBothSides()
 		}
