@@ -192,7 +192,7 @@ func errForge(err error) string {
 	}
 	var rej *forge.RejectedError
 	if errors.As(err, &rej) {
-		return locales.PrsRejected(rej.Msg)
+		return locales.PrsRejected(redact.Control(rej.Msg))
 	}
 	return errText(err)
 }
@@ -306,7 +306,7 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 		ps.table.Selected = &ps.chosen
 		ps.table.Key = func(i int) any { return list[i].Number }
 		ps.table.Label = func(i int) string {
-			return locales.PrsRow(list[i].Ref(ps.repo.Kind), redact.Control(list[i].Title), list[i].Author)
+			return locales.PrsRow(list[i].Ref(ps.repo.Kind), redact.Control(list[i].Title), redact.Control(list[i].Author))
 		}
 		var act func()
 		ps.table.CellMenu = func(m *ui.Menu, i, _ int) {
@@ -339,9 +339,10 @@ func (a *App) prListView(c *ui.Context, t *tab) {
 					}
 				})
 			case 2:
-				mutedCell(c, k, p.Author)
+				mutedCell(c, k, redact.Control(p.Author))
 			case 3:
-				mutedCell(c, k, p.Branch)
+				// A branch name may hold what reads as another's.
+				mutedCell(c, k, redact.Control(p.Branch))
 			case 4:
 				ui.Text(c, prStatus(p.Decision, p.Checks)).FontSize(textSmall).TextColor(decisionColor(k, p.Decision)).SingleLine()
 			case 5:
@@ -547,7 +548,7 @@ func (a *App) fetchReview(t *tab, rv *prReview) {
 					failed(errors.New(locales.PrsShallow(kindName(rv.repo.Kind))))
 					return
 				case errors.As(err, &none):
-					failed(errors.New(locales.PrsNoMergeBase(kindName(rv.repo.Kind), rv.r.Base)))
+					failed(errors.New(locales.PrsNoMergeBase(kindName(rv.repo.Kind), redact.Control(rv.r.Base))))
 					return
 				case err != nil:
 					failed(err)
@@ -684,7 +685,7 @@ func (a *App) prReviewView(c *ui.Context, t *tab, rv *prReview) {
 			ui.Text(c, rv.err).FontSize(textSmall).TextColor(th.Danger).Padding(0, insetX).Selectable()
 		}
 		ui.Row(c).Padding(spaceXS, insetX).Gap(spaceM).Children(func() {
-			ui.Text(c, locales.PrsMeta(r.Author, r.Branch, r.Base)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+			ui.Text(c, locales.PrsMeta(redact.Control(r.Author), redact.Control(r.Branch), redact.Control(r.Base))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 			if r.Draft {
 				ui.Text(c, locales.PullsDraft()).FontSize(textSmall).TextColor(th.TextMuted)
 			}
@@ -1034,7 +1035,7 @@ func shownBody(s string) string {
 
 func commentHead(c *ui.Context, author string, at time.Time, now time.Time) {
 	ui.Row(c).Gap(spaceM).Children(func() {
-		ui.Text(c, author).Bold().FontSize(textSmall)
+		ui.Text(c, redact.Control(author)).Bold().FontSize(textSmall)
 		ui.Text(c, ago(now, at)).FontSize(textSmall).TextColor(c.Theme().TextMuted)
 	})
 }
@@ -1253,17 +1254,20 @@ func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 		if len(th.Comments) == 0 {
 			continue
 		}
-		what := locales.PrsOutdatedOn(th.Path, th.OriginalLine)
+		// Shown as the files list shows it: one that could read as
+		// another's is quoted.
+		path, _ := showPath(th.Path)
+		what := locales.PrsOutdatedOn(path, th.OriginalLine)
 		switch {
 		case th.File && th.Outdated:
-			what = locales.PrsCommentOnFile("yes", th.Path)
+			what = locales.PrsCommentOnFile("yes", path)
 		case th.File:
-			what = locales.PrsCommentOnFile("no", th.Path)
+			what = locales.PrsCommentOnFile("no", path)
 		case !th.Outdated && th.Line > 0:
 			if listed == nil || listed[th.Path] {
 				continue
 			}
-			what = locales.PrsCommentOn(th.Path, th.Line)
+			what = locales.PrsCommentOn(path, th.Line)
 		}
 		ev = append(ev, prEvent{id: id("thread", th.ID, th.Comments[0].Author, th.Comments[0].At), author: th.Comments[0].Author, at: th.Comments[0].At, thread: th, what: what})
 	}
@@ -1284,6 +1288,9 @@ func prTimeline(r *forge.Review, files *diff.Raw) []prEvent {
 		}
 		return x.at.Compare(y.at)
 	})
+	for i := range ev {
+		ev[i].author = redact.Control(ev[i].author)
+	}
 	return ev
 }
 
@@ -1400,7 +1407,8 @@ func (a *App) staleDrafts(c *ui.Context, rv *prReview) {
 		ui.List(c, &rv.staleList, len(rv.drafts), func(i int) {
 			dr := rv.drafts[i]
 			ui.Row(c).FillWidth().Gap(spaceM).AlignItems(ui.Center).Padding(space2XS, 0).Children(func() {
-				ui.Text(c, fmt.Sprintf("%s:%d", dr.Path, dr.Line)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+				shown, _ := showPath(dr.Path)
+				ui.Text(c, fmt.Sprintf("%s:%d", shown, dr.Line)).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 				ui.Text(c, shownBody(dr.Body)).FontSize(textSmall).SingleLine().Grow(1)
 				if ui.Button(c, locales.CommonDelete()).Disabled(rv.busy()).Clicked() {
 					drop = i

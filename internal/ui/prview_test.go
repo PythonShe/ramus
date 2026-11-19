@@ -318,7 +318,7 @@ func TestPullRequestsTurnedOff(t *testing.T) {
 	r := h.repoWith()
 	r.Git("remote", "add", "origin", "https://github.com/o/r")
 	list := `{"data":{"repository":{"pullRequests":{"totalCount":1,"nodes":[{"id":"PR_7","number":7,"title":"Add a thing",
-"url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},"headRefName":"thing",
+"url":"https://github.com/o/r/pull/7","isDraft":false,"state":"OPEN","author":{"login":"ann"},"headRefName":"thing\u202eniam",
 "baseRefName":"main","updatedAt":"2026-11-13T16:04:48Z","headRepositoryOwner":{"login":"o"}}]}}}}`
 	env, log := reviewTool(t, "gh", "pullRequests(states", "pullRequest(number", list, `{}`)
 	tools := &forgeTools{env: env}
@@ -333,6 +333,10 @@ func TestPullRequestsTurnedOff(t *testing.T) {
 	h.until("the pull requests in the sidebar", h.shows("Pull Requests"))
 	h.click("Pull Requests")
 	h.until("the list", h.shows("Add a thing"))
+	// A branch name shows without what would make it read as another.
+	if !h.tt.HasText("thingniam") {
+		t.Fatalf("branch shown as %q", h.tt.Texts())
+	}
 	tb := h.app.current()
 
 	h.app.Settings.PullRequests = false
@@ -372,6 +376,19 @@ func TestThreadOnAFile(t *testing.T) {
 	}}
 	ev := prTimeline(r, nil)
 	if len(ev) != 3 || ev[1].what != "on a.go" || ev[2].what != "on b.go, since changed" {
+		t.Fatalf("timeline %+v", ev)
+	}
+}
+
+// What the host names, paths and people, shows nothing that would make
+// it read as another: a path is quoted as the files list quotes it.
+func TestHostNamesRedacted(t *testing.T) {
+	at := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	r := &forge.Review{Pull: forge.Pull{Number: 7}, Author: "ann\u202e", Created: at, Threads: []forge.Thread{
+		{ID: "T1", Path: "a\u202egp.go", Outdated: true, OriginalLine: 3, Comments: []forge.Comment{{Author: "bob\u200b", At: at}}},
+	}}
+	ev := prTimeline(r, nil)
+	if len(ev) != 2 || ev[0].author != "ann" || ev[1].author != "bob" || ev[1].what != `on "a\u202egp.go", line 3, since changed` {
 		t.Fatalf("timeline %+v", ev)
 	}
 }
