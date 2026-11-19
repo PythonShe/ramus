@@ -106,6 +106,23 @@ func TestTimeoutAndCancel(t *testing.T) {
 	}
 }
 
+// A deadline of the caller's own is reported as that, not as the
+// runner's time limit and its length.
+func TestCallerDeadline(t *testing.T) {
+	r := gittest.Init(t)
+	pr, pw, _ := os.Pipe()
+	defer pw.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	_, err := runner(t, 1).Run(ctx, &Cmd{GitDir: r.GitDir(), Args: []string{"cat-file", "--batch"}, Stdin: pr})
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrTimeout) {
+		t.Fatalf("got %v", err)
+	}
+	if strings.Contains(err.Error(), DefaultTimeout.String()) {
+		t.Fatalf("reported as the runner's limit: %v", err)
+	}
+}
+
 func TestPoolBound(t *testing.T) {
 	r := gittest.Init(t)
 	run := runner(t, 2)

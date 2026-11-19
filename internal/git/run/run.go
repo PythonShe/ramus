@@ -456,6 +456,9 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	if timeout == 0 {
 		timeout = DefaultTimeout
 	}
+	// The caller's ctx stays apart, so that its own deadline is not taken
+	// for this one.
+	caller := ctx
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := r.command(ctx, c)
@@ -512,6 +515,11 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 			e.Err = fmt.Errorf("%w: over %d bytes", ErrOutputTooLarge, limit)
 		case stalled.Load():
 			e.Err = fmt.Errorf("%w: nothing heard for %v", ErrStalled, c.Stall)
+		case errors.Is(caller.Err(), context.DeadlineExceeded):
+			// The caller's own limit: how long git ran, not ours.
+			e.Err = fmt.Errorf("%w after %v: %w", ErrTimeout, res.Duration.Round(time.Millisecond), caller.Err())
+		case caller.Err() != nil:
+			e.Err = caller.Err()
 		case errors.Is(ctx.Err(), context.DeadlineExceeded):
 			e.Err = fmt.Errorf("%w after %v", ErrTimeout, timeout)
 		case ctx.Err() != nil:
