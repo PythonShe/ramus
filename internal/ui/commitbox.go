@@ -478,13 +478,18 @@ func (a *App) loadDraft(t *tab) {
 }
 
 // keepDraft hands the message to the store when it changed. The commit
-// template alone is not a draft.
+// template alone is not a draft, nor a message the app put in the editor
+// for Amend or an operation, unedited: read back after a restart without
+// what brought it, it would be committed as a new commit's.
 func (a *App) keepDraft(t *tab) {
 	cs := &t.commit
 	if a.Drafts == nil || !cs.draftRead {
 		return
 	}
 	d := drafts.Draft{Subject: cs.subject, Body: cs.body, CoAuthors: cs.coAuthors}
+	if loaded := func(m string) bool { return m != "" && cs.holds(m) }; loaded(cs.amendMsg) || loaded(cs.opMsg) {
+		d.Subject, d.Body = "", ""
+	}
 	if s := cs.setup; s != nil && s.Template != "" && d.CoAuthors == "" && message.Join(d.Subject, d.Body) == message.Join(message.Split(s.Template)) {
 		d = drafts.Draft{}
 	}

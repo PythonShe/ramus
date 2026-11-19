@@ -58,3 +58,36 @@ func TestCommitDraft(t *testing.T) {
 	h.until("the commit", func() bool { return !cs.busy && cs.subject == "Subject line" })
 	h.until("the draft gone", func() bool { return stored().Empty() })
 }
+
+// HEAD's message, loaded by Amend, is no draft: kept, it would come back
+// after a restart with Amend unticked, to be committed as a new commit.
+// Edited, it is the user's.
+func TestAmendMessageIsNoDraft(t *testing.T) {
+	h := newHarness(t)
+	store := drafts.New(t.TempDir())
+	h.app.Drafts = store
+	r := h.repoWith()
+	h.trust.Set(r.GitDir(), true)
+	path := library.Clean(r.Dir)
+	stored := func() drafts.Draft {
+		d, err := store.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	h.app.Open(r.Dir)
+	h.until("the commit box", h.shows("Commit to main"))
+	cs := &h.app.current().commit
+	h.until("the draft read", func() bool { return cs.draftRead && cs.setup != nil })
+	cs.amend = true
+	h.until("HEAD's message", func() bool { return cs.subject == "one" })
+	for range 5 {
+		h.tt.Frame()
+	}
+	if d := stored(); !d.Empty() {
+		t.Fatalf("HEAD's message kept as a draft: %+v", d)
+	}
+	cs.subject = "one, reworded"
+	h.until("the edit kept", func() bool { return stored().Subject == "one, reworded" })
+}
