@@ -28,13 +28,15 @@ type group struct {
 	// suspended is a process created suspended, so that it is in its job
 	// before it runs (see watchGroup).
 	suspended bool
+	// dies ends the job with the app, should it end while git runs.
+	dies bool
 }
 
 // groups holds the group of each command prepared and not started yet.
 var groups sync.Map // *exec.Cmd -> *group
 
-func stopGroup(cmd *exec.Cmd) {
-	g := &group{}
+func stopGroup(cmd *exec.Cmd, dies bool) {
+	g := &group{dies: dies}
 	groups.Store(cmd, g)
 	gitexe.Hide(cmd)
 	cmd.Cancel = func() error {
@@ -70,6 +72,11 @@ func joinGroup(cmd *exec.Cmd) {
 	if err != nil {
 		return
 	}
+	if g.dies {
+		// The app holds the job's one handle: when it ends, crashed or
+		// killed, the handle closes and the job ends with it.
+		killOnClose(job, true)
+	}
 	h, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, uint32(cmd.Process.Pid))
 	if err != nil {
 		windows.CloseHandle(job)
@@ -92,6 +99,9 @@ func joinGroup(cmd *exec.Cmd) {
 		windows.WaitForSingleObject(h, windows.INFINITE)
 		windows.CloseHandle(h)
 		g.mu.Lock()
+		if g.dies {
+			killOnClose(g.job, false)
+		}
 		windows.CloseHandle(g.job)
 		g.job = 0
 		g.mu.Unlock()
@@ -110,6 +120,16 @@ func watchGroup(cmd *exec.Cmd) (waited func()) {
 		cmd.SysProcAttr.CreationFlags |= windows.CREATE_SUSPENDED
 	}
 	return func() {}
+}
+
+// killOnClose has job end, or no longer end, when its last handle closes.
+func killOnClose(job windows.Handle, on bool) {
+	var info windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+	if on {
+		info.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+	}
+	windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation,
+		uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info)))
 }
 
 // resume lets every thread of process pid run: the one thread of a

@@ -34,9 +34,13 @@ var waits sync.Map // *exec.Cmd -> *waiting
 // app was started from, where no one would see it, and makes cancelling
 // stop its group, so that all of it stops with git: SIGTERM, then, for a
 // command Run waits on that has not ended by killAfter, SIGKILL, so that
-// a hook that ignores SIGTERM does not outlive it.
-func stopGroup(cmd *exec.Cmd) {
+// a hook that ignores SIGTERM does not outlive it. One that dies ends with
+// the app, where the system can say when it ends.
+func stopGroup(cmd *exec.Cmd, dies bool) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if dies {
+		dieWithApp(cmd.SysProcAttr)
+	}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil

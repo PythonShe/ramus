@@ -97,6 +97,9 @@ type pool struct {
 	running  atomic.Int64
 	commands atomic.Int64
 	journal  Journal
+	// quit is cancelled when the app quits; see Quit.
+	quit     context.Context
+	quitting context.CancelFunc
 }
 
 // New returns a runner for git with env (the resolved user environment)
@@ -111,7 +114,9 @@ func New(git *gitexe.Git, env []string, max int) *Runner {
 			clean = append(clean, kv)
 		}
 	}
-	return &Runner{git: git, env: clean, pool: &pool{slots: make(chan struct{}, max)}}
+	p := &pool{slots: make(chan struct{}, max)}
+	p.quit, p.quitting = context.WithCancel(context.Background())
+	return &Runner{git: git, env: clean, pool: p}
 }
 
 // Environ is the user's environment commands run with, for other tools
@@ -166,6 +171,12 @@ func (r *Runner) SetConfig(config []string) {
 	c := slices.Clone(config)
 	r.config.Store(&c)
 }
+
+// Quit stops every command Run is running that reads or that no one waits
+// on, as a quiet fetch, for an app that quits: git would go on without it,
+// a fetch hung on the network for hours. A write the user started is let
+// end. Commands Run starts later are not affected.
+func (r *Runner) Quit() { r.quitting() }
 
 // IsHardened reports a runner from Hardened.
 func (r *Runner) IsHardened() bool { return r.hardened }
@@ -447,7 +458,7 @@ func (r *Runner) command(ctx context.Context, c *Cmd) *exec.Cmd {
 		cmd.Env = append(cmd.Env, "LC_ALL=", "LC_MESSAGES=C")
 	}
 	cmd.Stdin = c.Stdin
-	stopGroup(cmd)
+	stopGroup(cmd, dies(c))
 	return cmd
 }
 
@@ -461,6 +472,9 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	caller := ctx
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	if dies(c) {
+		defer context.AfterFunc(r.quit, cancel)()
+	}
 	cmd := r.command(ctx, c)
 	limit := c.MaxOutput
 	if limit <= 0 {
@@ -535,6 +549,11 @@ func (r *Runner) start(ctx context.Context, c *Cmd) (Result, error) {
 	r.journal.record(c, c.Line(), t0, res, nil, false)
 	return res, nil
 }
+
+// dies reports a command that should end with the app: a read, or one no
+// one waits on. A write the user started is let end, rather than stopped
+// half way.
+func dies(c *Cmd) bool { return c.Read || c.NoPrompt }
 
 // watchStall calls stop once act has seen nothing for stall, the time a
 // question to the user is open aside, until done is closed.

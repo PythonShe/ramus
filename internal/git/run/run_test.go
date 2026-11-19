@@ -123,6 +123,43 @@ func TestCallerDeadline(t *testing.T) {
 	}
 }
 
+// Quit stops the reads and the commands no one waits on, and lets a
+// write the user started end.
+func TestQuit(t *testing.T) {
+	r := gittest.Init(t)
+	run := runner(t, 4)
+	pr, pw, _ := os.Pipe()
+	defer pw.Close()
+	errs := make(chan error, 2)
+	for _, c := range []*Cmd{
+		{GitDir: r.GitDir(), Read: true, Args: []string{"cat-file", "--batch"}, Stdin: pr},
+		{GitDir: r.GitDir(), NoPrompt: true, Args: []string{"cat-file", "--batch"}, Stdin: pr},
+	} {
+		go func() { _, err := run.Run(context.Background(), c); errs <- err }()
+	}
+	write := make(chan error, 1)
+	go func() {
+		_, err := run.Run(context.Background(), &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir,
+			Config: []string{"alias.s=!sleep 1"}, Args: []string{"s"}})
+		write <- err
+	}()
+	time.Sleep(200 * time.Millisecond)
+	run.Quit()
+	for range 2 {
+		select {
+		case err := <-errs:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("got %v", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("a read went on after Quit")
+		}
+	}
+	if err := <-write; err != nil {
+		t.Fatalf("the write: %v", err)
+	}
+}
+
 func TestPoolBound(t *testing.T) {
 	r := gittest.Init(t)
 	run := runner(t, 2)

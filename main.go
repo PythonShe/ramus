@@ -161,6 +161,11 @@ func main() {
 		ws.quitting = true
 	})
 	mygo.App.OnQuitCanceled(func() { ws.quitting, ws.quitAnyway = false, false })
+	mygo.App.OnQuit(func() {
+		if ws.git != nil {
+			ws.git.Quit() // git would go on without the app
+		}
+	})
 	mygo.App.OnOpenFile(func(p string) {
 		ws.raise(handle(cli.Request{Kind: cli.Open, Paths: []string{p}}, ""))
 	})
