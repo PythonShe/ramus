@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -60,9 +61,10 @@ type Options struct {
 	// agent run.
 	Ignored bool
 	// Worktree, when set, is the folder of another worktree of the
-	// repository, about to be removed: its state is kept, under the refs
-	// of the worktree Take is given, since its own go with it. A folder
-	// that is gone has nothing to keep: Take returns no snapshot.
+	// repository, about to be removed: its state is kept, and its own
+	// snapshots copied, under the refs of the worktree Take is given,
+	// since its own go with it. A folder that is gone has nothing to
+	// keep: Take returns no snapshot.
 	Worktree string
 }
 
@@ -292,7 +294,68 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	if _, err := r.Run(ctx, &run.Cmd{GitDir: keep, Args: []string{"update-ref", "-m", "ramus snapshot", s.Ref, s.Commit, ""}}); err != nil {
 		return Snapshot{}, err
 	}
+	if opts.Worktree != "" {
+		if err := adopt(ctx, r, w.GitDir, keep); err != nil {
+			return Snapshot{}, err
+		}
+	}
 	return s, nil
+}
+
+// adopt copies the snapshots of the worktree whose git directory is from
+// under the same names in the worktree whose git directory is keep: a
+// worktree's refs go with it when it is removed, and its snapshots may
+// hold the only copy of work discarded or reset there. A name keep holds
+// already, for another commit, takes a suffix.
+func adopt(ctx context.Context, r *run.Runner, from, keep string) error {
+	theirs, err := snapshotRefs(ctx, r, from)
+	if err != nil || len(theirs) == 0 {
+		return err
+	}
+	ours, err := snapshotRefs(ctx, r, keep)
+	if err != nil {
+		return err
+	}
+	var in bytes.Buffer
+	for _, name := range slices.Sorted(maps.Keys(theirs)) {
+		oid, target := theirs[name], name
+		for i := 1; ; i++ {
+			o, taken := ours[target]
+			if !taken {
+				break
+			}
+			if o == oid {
+				target = "" // copied already, by a removal that then failed
+				break
+			}
+			target = name + "-" + strconv.Itoa(i)
+		}
+		if target != "" {
+			ours[target] = oid
+			fmt.Fprintf(&in, "create %s %s\n", target, oid)
+		}
+	}
+	if in.Len() == 0 {
+		return nil
+	}
+	_, err = r.Run(ctx, &run.Cmd{GitDir: keep, Stdin: &in, Args: []string{"update-ref", "-m", "ramus snapshot", "--stdin"}})
+	return err
+}
+
+// snapshotRefs are the snapshot refs of the worktree whose git directory
+// is gitDir, by name, with the commit each names.
+func snapshotRefs(ctx context.Context, r *run.Runner, gitDir string) (map[string]string, error) {
+	res, err := r.Run(ctx, &run.Cmd{GitDir: gitDir, Read: true, Args: []string{"for-each-ref", "--format=%(refname) %(objectname)", Prefix}})
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for line := range strings.Lines(string(res.Stdout)) {
+		if name, oid, ok := strings.Cut(strings.TrimSpace(line), " "); ok {
+			out[name] = oid
+		}
+	}
+	return out, nil
 }
 
 // clearAssumed takes the assume-unchanged mark off entries of the index

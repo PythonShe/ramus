@@ -285,6 +285,36 @@ func TestPerWorktree(t *testing.T) {
 	}
 }
 
+// Removing a worktree keeps the snapshots taken in it, under the worktree
+// that removes it, besides its state as it was.
+func TestRemovedWorktreeKeepsItsSnapshots(t *testing.T) {
+	f := setup(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	main := f.w
+	wt, _ := filepath.EvalSymlinks(t.TempDir())
+	wt = filepath.Join(wt, "wt")
+	f.r.Git("worktree", "add", "-q", "--detach", wt)
+	wtGit := strings.TrimSpace(f.r.Git("-C", wt, "rev-parse", "--absolute-git-dir"))
+	os.WriteFile(filepath.Join(wt, "a"), []byte("precious"), 0o644)
+	f.w = Where{GitDir: wtGit, WorkTree: wt}
+	old := f.take(Options{Reason: "Discard changes to a", Paths: []string{"a"}})
+	f.r.Git("-C", wt, "checkout", "--", "a")
+	f.w = main
+	// Twice, as when the first removal failed after its snapshot.
+	for range 2 {
+		f.take(Options{Reason: "Remove worktree wt", Ignored: true, Worktree: wt})
+	}
+	f.r.Git("worktree", "remove", "--force", wt)
+	l, _ := f.list(f.r.GitDir(), f.r.GitDir())
+	if !slices.ContainsFunc(l, func(s Snapshot) bool { return s.Commit == old.Commit && s.Ref == old.Ref }) {
+		t.Fatalf("the worktree's snapshot is gone: %+v", l)
+	}
+	if len(l) != 3 {
+		t.Errorf("%d snapshots, want the worktree's and two of its removal", len(l))
+	}
+}
+
 func TestAssumeUnchanged(t *testing.T) {
 	f := setup(t)
 	f.r.Write("a", "1")
