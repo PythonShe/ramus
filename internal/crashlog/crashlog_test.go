@@ -2,6 +2,7 @@ package crashlog
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -99,7 +100,7 @@ func TestWindowsHomeTakenOut(t *testing.T) {
 // "launch".
 func TestFatal(t *testing.T) {
 	if dir := os.Getenv("CRASHLOG_CHILD"); dir != "" {
-		if _, err := New(dir, "").CatchFatal(); err != nil {
+		if err := New(dir, "").CatchFatal(); err != nil {
 			t.Fatal(err)
 		}
 		go func() { panic("fatal https://u:hunter2@example.com/x") }()
@@ -113,18 +114,57 @@ func TestFatal(t *testing.T) {
 		t.Fatalf("the child did not crash: %s", out)
 	}
 	l := New(dir, "")
-	name, err := l.CatchFatal()
-	if err != nil || name == "" {
-		t.Fatalf("%q %v", name, err)
+	if err := l.CatchFatal(); err != nil {
+		t.Fatal(err)
 	}
 	defer l.stopFatal()
-	data, _ := os.ReadFile(name)
+	names, err := l.ReportFatal()
+	if err != nil || len(names) != 1 {
+		t.Fatalf("%q %v", names, err)
+	}
+	data, _ := os.ReadFile(names[0])
 	text := string(data)
 	if !strings.Contains(text, "fatal error") && !strings.Contains(text, "panic: fatal") || strings.Contains(text, "hunter2") || !strings.Contains(text, "goroutine") {
 		t.Fatalf("report:\n%s", text)
 	}
 	// Read once: the next launch finds nothing.
-	if again, err := l.CatchFatal(); err != nil || again != "" {
+	if err := l.CatchFatal(); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := l.ReportFatal(); err != nil || len(again) != 0 {
 		t.Fatalf("again %q %v", again, err)
+	}
+}
+
+// The report of a crash that printed more than is kept, as a throw with
+// thousands of goroutines does, has the error and the goroutine that
+// crashed, which come first, and the end.
+func TestLongFatalKeepsItsHead(t *testing.T) {
+	dir := t.TempDir()
+	var b strings.Builder
+	b.WriteString("fatal error: concurrent map writes\n\ngoroutine 7 [running]:\nramus/internal/ui.(*App).culprit()\n\n")
+	for i := 0; b.Len() < 2<<20; i++ {
+		fmt.Fprintf(&b, "goroutine %d [select]:\nramus/internal/session.idle()\n\n", 100+i)
+	}
+	b.WriteString("goroutine 99999 [chan receive]:\nramus/internal/last.one()\n")
+	os.WriteFile(filepath.Join(dir, fatalFile), []byte(b.String()), 0o600)
+	l := New(dir, "")
+	if err := l.CatchFatal(); err != nil {
+		t.Fatal(err)
+	}
+	defer l.stopFatal()
+	names, err := l.ReportFatal()
+	if err != nil || len(names) != 1 {
+		t.Fatalf("%q %v", names, err)
+	}
+	data, _ := os.ReadFile(names[0])
+	text := string(data)
+	for _, s := range []string{"fatal error: concurrent map writes", "(*App).culprit()", "bytes left out", "internal/last.one()"} {
+		if !strings.Contains(text, s) {
+			t.Errorf("the report lacks %q", s)
+		}
+	}
+	if len(data) > fatalHead+fatalTail+4<<10 {
+		t.Errorf("report of %d bytes", len(data))
 	}
 }

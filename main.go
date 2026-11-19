@@ -66,8 +66,11 @@ func main() {
 		dir, cacheDir = probe, probe
 	}
 	crash := crashlog.New(filepath.Join(dir, "crashes"), mygo.App.Version())
+	// Before anything else that may crash, and in the probe too, which
+	// times the start; a crash it cannot keep is only not kept.
+	crash.CatchFatal()
 	if probe == "" {
-		go crash.CatchFatal() // a crash it cannot keep is only not kept
+		go crash.ReportFatal()
 		session.OnPanic = func(path, gitDir string, p lifetime.Panic) {
 			go crash.Panic(path, gitDir, p)
 		}

@@ -7,6 +7,7 @@
 package crashlog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -31,7 +32,10 @@ import (
 const (
 	MaxReports  = 20
 	maxCommands = 30
-	maxFatal    = 256 << 10 // of a crash's output, its end kept
+	// Of a crash's output, its head, the error and the goroutine that
+	// crashed, and its end are kept.
+	fatalHead = 64 << 10
+	fatalTail = 192 << 10
 )
 
 // fatalFile receives what the runtime prints when the process dies.
@@ -240,58 +244,106 @@ func (l *Log) prune() {
 }
 
 // CatchFatal has the runtime also print a crash that ends the process
-// into the log's folder, and first turns what an earlier one printed
-// there into a report. It returns that report's file, "" when there was
-// none.
-func (l *Log) CatchFatal() (string, error) {
+// into the log's folder. What an earlier crash printed there is first set
+// aside, for ReportFatal to turn into a report. It costs a rename and an
+// open, so that it may run first thing at launch, before anything else
+// that could crash; the report, which reads and writes more, comes after.
+func (l *Log) CatchFatal() error {
 	if err := os.MkdirAll(l.dir, 0o700); err != nil {
-		return "", err
+		return err
 	}
-	f, err := os.OpenFile(filepath.Join(l.dir, fatalFile), os.O_RDWR|os.O_CREATE, 0o600)
+	name := filepath.Join(l.dir, fatalFile)
+	if st, err := os.Stat(name); err == nil && st.Size() > 0 {
+		pending := filepath.Join(l.dir, fmt.Sprintf("fatal-%d%s", time.Now().UnixNano(), pendingExt))
+		if err := os.Rename(name, pending); err != nil {
+			// Not caught this time, rather than the last crash lost.
+			return err
+		}
+	}
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return debug.SetCrashOutput(f, debug.CrashOptions{})
+}
+
+// pendingExt names what a crash printed, set aside by CatchFatal.
+const pendingExt = ".pending"
+
+// ReportFatal turns what earlier crashes printed, which CatchFatal set
+// aside, into reports, and returns their files, oldest first.
+func (l *Log) ReportFatal() ([]string, error) {
+	names, err := filepath.Glob(filepath.Join(l.dir, "fatal-*"+pendingExt))
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(names)
+	var reports []string
+	var errs []error
+	for _, name := range names {
+		report, err := l.reportFatal(name)
+		if report != "" {
+			reports = append(reports, report)
+		}
+		if err == nil {
+			err = os.Remove(name)
+		}
+		errs = append(errs, err)
+	}
+	return reports, errors.Join(errs...)
+}
+
+func (l *Log) reportFatal(name string) (string, error) {
+	f, err := os.Open(name)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
-	var report string
-	out, err := readEnd(f, maxFatal)
-	if err == nil && len(strings.TrimSpace(out)) > 0 {
-		st, _ := f.Stat()
-		when := time.Now()
-		if st != nil {
-			when = st.ModTime()
-		}
-		report, err = l.write(Report{Time: when, What: "Ramus stopped on a fatal error.", Stack: out})
-	}
+	st, err := f.Stat()
 	if err != nil {
 		return "", err
 	}
-	if err := f.Truncate(0); err != nil {
-		return report, err
+	out, err := readEnds(f, st.Size(), fatalHead, fatalTail)
+	if err != nil || strings.TrimSpace(out) == "" {
+		return "", err
 	}
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return report, err
-	}
-	return report, debug.SetCrashOutput(f, debug.CrashOptions{})
+	return l.write(Report{Time: st.ModTime(), What: "Ramus stopped on a fatal error.", Stack: out})
 }
 
 // stopFatal undoes CatchFatal, for tests.
 func (l *Log) stopFatal() { debug.SetCrashOutput(nil, debug.CrashOptions{}) }
 
-// readEnd reads the last max bytes of f.
-func readEnd(f *os.File, max int64) (string, error) {
-	st, err := f.Stat()
-	if err != nil {
+// readEnds reads f, of size bytes, whole when it holds at most head+tail
+// bytes, else its first head bytes and its last tail, each cut at a line,
+// with a line between them that says how much was left out. The runtime
+// prints the error and the goroutine that crashed first, and may then
+// print every other goroutine.
+func readEnds(f *os.File, size, head, tail int64) (string, error) {
+	if size <= head+tail {
+		buf := make([]byte, size)
+		n, err := f.ReadAt(buf, 0)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return "", err
+		}
+		return string(buf[:n]), nil
+	}
+	first := make([]byte, head)
+	if _, err := f.ReadAt(first, 0); err != nil && !errors.Is(err, io.EOF) {
 		return "", err
 	}
-	from := st.Size() - max
-	if from < 0 {
-		from = 0
-	}
-	buf := make([]byte, st.Size()-from)
-	if _, err := f.ReadAt(buf, from); err != nil && !errors.Is(err, io.EOF) {
+	last := make([]byte, tail)
+	if _, err := f.ReadAt(last, size-tail); err != nil && !errors.Is(err, io.EOF) {
 		return "", err
 	}
-	return string(buf), nil
+	if i := bytes.LastIndexByte(first, '\n'); i >= 0 {
+		first = first[:i+1]
+	}
+	if i := bytes.IndexByte(last, '\n'); i >= 0 {
+		last = last[i+1:]
+	}
+	left := size - int64(len(first)) - int64(len(last))
+	return fmt.Sprintf("%s\n... %d bytes left out ...\n\n%s", first, left, last), nil
 }
 
 // appVersion is the version packaged, or the commit built from.
