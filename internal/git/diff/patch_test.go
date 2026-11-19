@@ -60,6 +60,11 @@ func TestWorkTreePatch(t *testing.T) {
 	if _, err := WorkTreePatch(context.Background(), run, r.GitDir(), r.Dir, PatchRequest{Source: Untracked}); err == nil {
 		t.Error("untracked without a path")
 	}
+	// An untracked file deleted since the status was read: git diff
+	// --no-index fails with the exit status it gives for a difference.
+	if p, err := WorkTreePatch(context.Background(), run, r.GitDir(), r.Dir, PatchRequest{Source: Untracked, Paths: []string{"vanished"}, Context: -1}); err == nil {
+		t.Errorf("a vanished untracked file read as %q", p.Text)
+	}
 }
 
 // A large patch is read and parsed into arrays sized once: grown by

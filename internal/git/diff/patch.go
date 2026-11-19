@@ -157,9 +157,8 @@ func runPatch(ctx context.Context, r *run.Runner, gitDir, workTree string, args,
 	if w.full {
 		return Patch{Text: w.cut(), Truncated: true}, nil
 	}
-	var e *run.Error
-	if err != nil && exit1 && errors.As(err, &e) && e.ExitCode == 1 {
-		err = nil
+	if exit1 {
+		err = exitOne(err, w.n)
 	}
 	if err != nil {
 		return Patch{}, err

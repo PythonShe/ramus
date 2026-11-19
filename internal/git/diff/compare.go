@@ -70,7 +70,7 @@ func CompareFolders(ctx context.Context, r *run.Runner, old, new string, max int
 	defer cancel()
 	w := &capped{max: max, cancel: cancel}
 	_, err := r.Run(ctx, compareCmd([]string{"--name-status", "-z", "-M", "--", old, new}, w))
-	if err = exitOne(err); err != nil && !w.full {
+	if err = exitOne(err, w.n); err != nil && !w.full {
 		return nil, err
 	}
 	c, err := parseCompared(w.text(), old, new)
@@ -82,10 +82,12 @@ func CompareFolders(ctx context.Context, r *run.Runner, old, new string, max int
 }
 
 // exitOne drops the exit status 1 that git diff --no-index gives when the
-// sides differ.
-func exitOne(err error) error {
+// sides differ, wrote being how much it printed. It gives 1 when it fails
+// too, as for a file it cannot read: then it printed nothing and said why
+// on stderr, which a difference leaves empty.
+func exitOne(err error, wrote int) error {
 	var e *run.Error
-	if errors.As(err, &e) && e.ExitCode == 1 {
+	if errors.As(err, &e) && e.ExitCode == 1 && (wrote > 0 || strings.TrimSpace(e.Stderr) == "") {
 		return nil
 	}
 	return err
@@ -190,7 +192,7 @@ func ComparePatch(ctx context.Context, r *run.Runner, old, new string, ws Whites
 	if w.full {
 		return Patch{Text: w.cut(), Truncated: true}, nil
 	}
-	if err = exitOne(err); err != nil {
+	if err = exitOne(err, w.n); err != nil {
 		return Patch{}, err
 	}
 	return Patch{Text: w.text()}, nil

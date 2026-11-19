@@ -72,3 +72,21 @@ func TestCompare(t *testing.T) {
 		t.Fatalf("same %q, %v", same.Text, err)
 	}
 }
+
+// git diff --no-index exits 1 both when the sides differ and when it
+// fails; a side that is gone is an error, not "no differences".
+func TestCompareMissingSide(t *testing.T) {
+	root := t.TempDir()
+	there := filepath.Join(root, "there")
+	if err := os.WriteFile(there, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gone := filepath.Join(root, "gone")
+	r := testrun.Runner(t)
+	if p, err := ComparePatch(context.Background(), r, there, gone, AllWhitespace, 0); err == nil {
+		t.Errorf("a file gone compared as %q", p.Text)
+	}
+	if c, err := CompareFolders(context.Background(), r, root, filepath.Join(root, "no folder"), 0); err == nil {
+		t.Errorf("a folder gone compared as %d entries", c.Len())
+	}
+}
