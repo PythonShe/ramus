@@ -250,20 +250,23 @@ func refMatches(pattern, ref string) bool {
 }
 
 // CheckRemoteURL refuses a URL git would read as an option, one with
-// control characters, which hide what it is, and the ext:: and fd::
-// transports, which run commands.
+// control characters or line separators, which hide what it is, and the
+// ext:: and fd:: transports, which run commands. A remote added or
+// changed and a clone take the same check.
 func CheckRemoteURL(url string) error {
 	switch {
 	case strings.TrimSpace(url) == "":
 		return errors.New("write: the URL is empty")
 	case strings.HasPrefix(url, "-"):
 		return fmt.Errorf("write: %q starts with -", url)
-	case strings.ContainsFunc(url, func(r rune) bool { return r < 0x20 || r == 0x7f || r >= 0x80 && r < 0xa0 }):
+	case strings.ContainsFunc(url, func(r rune) bool {
+		return r < 0x20 || r == 0x7f || r >= 0x80 && r < 0xa0 || r == 0x2028 || r == 0x2029
+	}):
 		return errors.New("write: the URL has control characters")
 	}
 	lower := strings.ToLower(url)
 	if strings.HasPrefix(lower, "ext::") || strings.HasPrefix(lower, "fd::") {
-		return fmt.Errorf("write: %q runs a command; Ramus does not add such remotes", url)
+		return fmt.Errorf("write: %q runs a command; Ramus does not use such URLs", url)
 	}
 	return nil
 }

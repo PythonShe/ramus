@@ -33,7 +33,7 @@ var ErrDirNotEmpty = errors.New("write: the folder to clone into is not empty")
 // Clone starts a clone at once, outside any queue since there is no
 // repository yet. It recurses into submodules only when asked.
 func Clone(r *run.Runner, opt CloneOptions) (*Job, error) {
-	if err := redact.CheckRemoteURL(opt.URL); err != nil {
+	if err := CheckRemoteURL(opt.URL); err != nil {
 		return nil, err
 	}
 	dir, err := filepath.Abs(opt.Dir)

@@ -12,7 +12,6 @@ import (
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
-	"ramus/internal/git/redact"
 	"ramus/internal/git/run"
 )
 
@@ -51,8 +50,13 @@ func TestCloneAndInit(t *testing.T) {
 	if _, err := Clone(rn, CloneOptions{URL: "file://" + src.Dir, Dir: dir}); !errors.Is(err, ErrDirNotEmpty) {
 		t.Fatalf("clone into a full folder: %v", err)
 	}
-	if _, err := Clone(rn, CloneOptions{URL: "-uhoh", Dir: t.TempDir()}); !errors.Is(err, redact.ErrBadURL) {
-		t.Fatalf("option as URL: %v", err)
+	// A URL refused as a remote is refused to clone from, before git
+	// runs: ext:: runs a command where the user's config allows it.
+	for _, bad := range []string{"-uhoh", "ext::sh -c true", "FD::17", "https://example.com/ repo", " "} {
+		if j, err := Clone(rn, CloneOptions{URL: bad, Dir: t.TempDir()}); err == nil {
+			wait(t, j)
+			t.Errorf("cloned from %q", bad)
+		}
 	}
 	j, _ = Clone(rn, CloneOptions{URL: "file://" + filepath.Join(t.TempDir(), "missing"), Dir: filepath.Join(t.TempDir(), "x")})
 	if _, err := wait(t, j); err == nil || !strings.Contains(err.Error(), "missing") {
