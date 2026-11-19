@@ -404,7 +404,10 @@ func (a *App) bisectBar(c *ui.Context, t *tab) {
 				v     write.BisectVerdict
 			}{{locales.OpsBisectGood(), write.BisectGood}, {locales.OpsBisectBad(), write.BisectBad}, {locales.OpsBisectSkip(), write.BisectSkip}} {
 				if ui.Button(c, v.label).Disabled(ro).Clicked() {
-					op, err := write.BisectMark(w, v.v, "", false)
+					// The commit checked out as the bar is clicked: a second
+					// click queued behind the first must not mark the commit
+					// the first one checks out next, untested.
+					op, err := write.BisectMark(w, v.v, hex.EncodeToString(t.s.State.Head.OID), false)
 					a.submit(t, op, err)
 				}
 			}

@@ -243,3 +243,29 @@ func TestCommitOps(t *testing.T) {
 	h.click("Apply")
 	h.until("applied", func() bool { return strings.HasPrefix(r.Git("log", "-1", "--format=%s"), "step b") })
 }
+
+// A mark clicked twice on the bisect bar, the second while the first
+// still runs, marks the commit the bar showed both times, never the next
+// one git checks out, which no one has tested yet.
+func TestBisectMarkTwice(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	for i := range 8 {
+		r.Write("n", strings.Repeat("x", i+1))
+		r.Commit("step " + string(rune('a'+i)))
+	}
+	r.Git("bisect", "start", "HEAD", "HEAD~8")
+	shown := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	h.click("History")
+	h.until("bisecting", h.shows("left to test"))
+	h.click("Bad")
+	h.click("Bad")
+	h.idle(tb, "the marks")
+	if bad := strings.TrimSpace(r.Git("rev-parse", "refs/bisect/bad")); bad != shown {
+		t.Fatalf("marked %s bad, not %s the bar showed", bad, shown)
+	}
+}
