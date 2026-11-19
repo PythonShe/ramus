@@ -396,6 +396,10 @@ func TestHardeningKeyWithEquals(t *testing.T) {
 		{"status", "--porcelain=v2", "-z"},
 		{"log", "-p", "--", "a.x"},
 		{"diff-files", "-p"},
+		// A textconv blanked is a command git cannot run: blame, which
+		// applies it unless told not to, would fail on the file.
+		{"blame", "--porcelain", "--", "a.x"},
+		{"blame", "--porcelain", "HEAD", "--", "a.x"},
 	} {
 		if _, err := h.Run(ctx, &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir, Read: true, Args: args}); err != nil {
 			t.Fatalf("%v: %v", args, err)

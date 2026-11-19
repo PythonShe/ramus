@@ -350,6 +350,10 @@ func (r *Runner) argv(c *Cmd) (args, env []string) {
 	switch c.Args[0] {
 	case "diff", "log", "show":
 		globals = append(globals, "--no-ext-diff", "--no-textconv")
+	case "blame":
+		// The hardening blanks the repository's textconv drivers, which
+		// blame would then fail to run on the file.
+		globals = append(globals, "--no-textconv")
 	}
 	switch c.Args[0] {
 	case "diff", "diff-files", "diff-index":
