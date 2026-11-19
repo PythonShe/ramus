@@ -89,7 +89,7 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 		label = locales.SyncPublish()
 		tip = locales.SyncPublishTo(upstream)
 		pairs = []pair{{g.cloudUp, locales.SyncPublishShort()}}
-		opt.Branch = head.Target
+		opt = opt.From(head.Target)
 		act = func() { a.submit(t, write.Push(w, opt), nil) }
 	default:
 		upstream = redact.Control(strings.TrimPrefix(tr.Upstream, "refs/remotes/"))
@@ -110,7 +110,7 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 			act = func() { a.syncPull(t, "") }
 		case ahead > 0:
 			label = locales.SyncPushLabel(ahead, pushTo)
-			act = func() { a.submit(t, write.Push(w, write.PushOptions{Branch: head.Target}), nil) }
+			act = func() { a.submit(t, write.Push(w, write.PushOptions{}.From(head.Target)), nil) }
 		default:
 			label = locales.SyncFetch()
 			act = func() {

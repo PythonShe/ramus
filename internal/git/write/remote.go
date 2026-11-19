@@ -38,6 +38,14 @@ type PushOptions struct {
 	Detached bool
 }
 
+// From is opt for a push asked for with HEAD on branch
+// ("refs/heads/main"), "" when it was detached: the push refuses to run
+// once HEAD is elsewhere, where git push would send what is there.
+func (opt PushOptions) From(branch string) PushOptions {
+	opt.Branch, opt.Detached = branch, branch == ""
+	return opt
+}
+
 // Push sends the current branch to its remote.
 func Push(w Where, opt PushOptions) Op {
 	args := []string{"push", "--progress"}
