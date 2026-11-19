@@ -119,6 +119,14 @@ func (c *CLI) gitlabPulls(ctx context.Context, base Repo, head string, branches 
 		}
 	}
 	for _, br := range branches {
+		if _, ok := opened[br]; ok {
+			c.searched.forget(searchKey(base, head, br, "open"))
+		}
+		if _, ok := latest[br]; ok {
+			c.searched.forget(searchKey(base, head, br, "any"))
+		}
+	}
+	for _, br := range branches {
 		if _, seen := into[br]; seen {
 			continue
 		}

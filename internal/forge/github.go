@@ -121,6 +121,7 @@ func (c *CLI) githubPulls(ctx context.Context, base Repo, headOwner string, bran
 					found[l.branch] = p
 				}
 				delete(deep, key(l))
+				c.searched.forget(key(l))
 				continue
 			}
 			// An open one found, the closed ones are not looked through.

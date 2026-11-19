@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -129,11 +130,18 @@ func fakePager(t *testing.T, program, first, more, morePattern string) []string 
 		t.Skip("the fake tool is a shell script")
 	}
 	dir := t.TempDir()
+	writePager(t, filepath.Join(dir, program), first, more, morePattern)
+	return []string{"PATH=" + dir + ":/usr/bin:/bin"}
+}
+
+// writePager writes the program of fakePager at path, or changes its
+// answers.
+func writePager(t *testing.T, path, first, more, morePattern string) {
+	t.Helper()
 	script := "#!/bin/sh\ncase \"$*\" in\n" + morePattern + ") cat <<'EOF'\n" + more + "\nEOF\n;;\n*) cat <<'EOF'\n" + first + "\nEOF\n;;\nesac\n"
-	if err := os.WriteFile(filepath.Join(dir, program), []byte(script), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return []string{"PATH=" + dir + ":/usr/bin:/bin"}
 }
 
 // A fork's main has its open pull request found though other forks'
@@ -253,6 +261,89 @@ func TestPullsPagedThroughOnce(t *testing.T) {
 			t.Errorf("gitlab: %d calls, want %d", n, want)
 		}
 	}
+}
+
+// A pull request of the head's found once and pushed off the first page
+// since, by other forks' updated after it, is paged for and found again;
+// a list read through without it is read through again once the memo
+// ages.
+func TestPullsFoundAgainOffTheFirstPage(t *testing.T) {
+	var others []string
+	for i := range 10 {
+		others = append(others, fmt.Sprintf(`{"number":%d,"title":"t","url":"u","isDraft":false,"state":"OPEN","headRefName":"main","headRepositoryOwner":{"login":"other%d"},"commits":{"nodes":[]}}`, 500+i, i))
+	}
+	mine := `{"number":456,"title":"Mine","url":"u","isDraft":false,"state":"OPEN","headRefName":"main","headRepositoryOwner":{"login":"me"},"commits":{"nodes":[]}}`
+	ghFirst := func(nodes []string, next bool) string {
+		return `{"data":{"repository":{"b0":{"nodes":[` + strings.Join(nodes, ",") + `],"pageInfo":{"hasNextPage":` + strconv.FormatBool(next) + `,"endCursor":"C1"}},
+			"c0":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+	}
+	ghMore := func(nodes ...string) string {
+		return `{"data":{"repository":{"p0":{"nodes":[` + strings.Join(nodes, ",") + `],"pageInfo":{"hasNextPage":false,"endCursor":"C2"}}}}}`
+	}
+	const ghPattern = "*h0=main*a0=C1*"
+	env := fakePager(t, "gh", ghFirst(others, true), ghMore(), ghPattern)
+	c, err := Find(env, GitHub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, fork := Repo{GitHub, "github.com", "up/r"}, Repo{GitHub, "github.com", "me/r"}
+	lookup := func(c *CLI, base, fork Repo, want int, stage string) {
+		t.Helper()
+		got, err := c.Pulls(context.Background(), base, fork, []string{"main"})
+		if err != nil || got["main"].Number != want {
+			t.Fatalf("%s %s: %+v, %v; want #%d", base.Host, stage, got, err, want)
+		}
+	}
+	lookup(c, base, fork, 0, "read through, none")
+	writePager(t, c.Path, ghFirst(append([]string{mine}, others[:9]...), true), ghMore(), ghPattern)
+	lookup(c, base, fork, 456, "made, on the first page")
+	writePager(t, c.Path, ghFirst(others, true), ghMore(mine), ghPattern)
+	lookup(c, base, fork, 456, "pushed to the second page")
+
+	// Read through without it, the list is not paged again at once, and
+	// is once the memo has aged.
+	writePager(t, c.Path, ghFirst(others, true), ghMore(), ghPattern)
+	lookup(c, base, fork, 0, "gone again")
+	writePager(t, c.Path, ghFirst(others, true), ghMore(mine), ghPattern)
+	lookup(c, base, fork, 0, "remembered")
+	age := func(c *CLI) {
+		c.searched.mu.Lock()
+		for k := range c.searched.m {
+			c.searched.m[k] = time.Now().Add(-searchedFor)
+		}
+		c.searched.mu.Unlock()
+	}
+	age(c)
+	lookup(c, base, fork, 456, "remembered long ago")
+
+	var mrs []string
+	for i := range 100 {
+		mrs = append(mrs, fmt.Sprintf(`{"iid":"%d","title":"t","webUrl":"u","state":"opened","sourceBranch":"main","sourceProject":{"fullPath":"other%d/p"}}`, 500+i, i))
+	}
+	mr := `{"iid":"8","title":"Mine","webUrl":"u","state":"opened","sourceBranch":"main","sourceProject":{"fullPath":"me/p"}}`
+	glFirst := func(nodes []string) string {
+		return `{"data":{"project":{"o":{"nodes":[` + strings.Join(nodes, ",") + `],"pageInfo":{"hasNextPage":true,"endCursor":"X1"}},
+			"d":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`
+	}
+	glMore := func(nodes ...string) string {
+		return `{"data":{"project":{"o":{"nodes":[` + strings.Join(nodes, ",") + `],"pageInfo":{"hasNextPage":false,"endCursor":"X2"}}}}}`
+	}
+	const glPattern = `*after:\"X1\"*`
+	if c, err = Find(fakePager(t, "glab", glFirst(mrs), glMore(), glPattern), GitLab); err != nil {
+		t.Fatal(err)
+	}
+	base, fork = Repo{GitLab, "gitlab.com", "g/p"}, Repo{GitLab, "gitlab.com", "me/p"}
+	lookup(c, base, fork, 0, "read through, none")
+	writePager(t, c.Path, glFirst(append([]string{mr}, mrs[:99]...)), glMore(), glPattern)
+	lookup(c, base, fork, 8, "made, on the first page")
+	writePager(t, c.Path, glFirst(mrs), glMore(mr), glPattern)
+	lookup(c, base, fork, 8, "pushed to the second page")
+	writePager(t, c.Path, glFirst(mrs), glMore(), glPattern)
+	lookup(c, base, fork, 0, "gone again")
+	writePager(t, c.Path, glFirst(mrs), glMore(mr), glPattern)
+	lookup(c, base, fork, 0, "remembered")
+	age(c)
+	lookup(c, base, fork, 8, "remembered long ago")
 }
 
 func TestSquashHint(t *testing.T) {
