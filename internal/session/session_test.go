@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,6 +128,41 @@ func TestUntrustedOpensRestricted(t *testing.T) {
 	if s.State.Restricted || s.Queue == nil || !ts.Trusted(r.GitDir()) {
 		t.Fatalf("after trust %+v", s.State)
 	}
+}
+
+// A quit right after a Trust click holds the main thread while it waits
+// for the trust to be in its file: the wait ends once it is, not when
+// the main thread is free again to show it.
+func TestQuitWaitsNotOnShowingTheTrust(t *testing.T) {
+	r := gittest.Init(t)
+	r.Commit("one")
+	m := make(mainThread, 64)
+	held := make(chan struct{})
+	var holding atomic.Bool
+	update := func(fn func()) {
+		if holding.Load() {
+			<-held // as Window.Update waits for a main thread a quit holds
+		}
+		m.update(fn)
+	}
+	ts := trusted(t)
+	s := Open(testrun.Runner(t), ts, r.Dir, update)
+	defer func() { s.Close(); <-s.Done() }()
+	release := sync.OnceFunc(func() { holding.Store(false); close(held) })
+	defer release() // first, should the test fail while held
+	m.until(t, "status", func() bool { return s.State.Status != nil })
+	holding.Store(true)
+	if err := s.Trust(); err != nil {
+		t.Fatal(err)
+	}
+	if !ts.Wait(20 * time.Second) {
+		t.Fatal("the quit's wait for the trust ended only with its bound")
+	}
+	if !ts.Trusted(r.GitDir()) {
+		t.Fatal("the wait ended before the trust was recorded")
+	}
+	release()
+	m.until(t, "the reopen", func() bool { return !s.State.Restricted && s.State.Status != nil && !s.State.Opening })
 }
 
 // A trust that cannot be recorded says so in the log, and leaves the

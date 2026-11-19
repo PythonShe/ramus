@@ -878,10 +878,11 @@ func (s *Session) Trust() error {
 	// right after it waits for the save (trust.Store.Wait).
 	saved := ts.Saving()
 	err := r.Life().Go(func(context.Context) {
-		defer saved()
 		err := errors.New("session: recording the trust panicked")
 		// Deferred, to run though Set panicked: else Trust would never
-		// write again.
+		// write again. Before it, as deferred after it, the save counts
+		// as done: update waits for the main thread, which a quit holds
+		// while it waits for the save.
 		defer update(func() {
 			s.trusting = false
 			if err != nil {
@@ -893,6 +894,7 @@ func (s *Session) Trust() error {
 				s.reopenTrusted()
 			}
 		})
+		defer saved()
 		err = ts.Set(r.TrustDir, true)
 	})
 	if err != nil {
