@@ -186,6 +186,29 @@ func TestPushRefusesOnceHeadMoved(t *testing.T) {
 	}
 }
 
+// A push chosen with HEAD detached, run once HEAD is on a branch,
+// pushes nothing: git would push that branch.
+func TestDetachedPushRefusesOnceOnABranch(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	bare := gittest.Init(t, "--bare")
+	h.r.Git("remote", "add", "origin", bare.Dir)
+	h.r.Git("push", "-q", "-u", "origin", "main")
+	h.r.Git("switch", "-q", "--detach")
+	push := Push(h.w, PushOptions{Detached: true})
+	h.r.Git("switch", "-q", "main")
+	h.r.Write("b", "1")
+	h.r.Commit("not to push")
+	_, err := wait(t, h.q.Submit(push))
+	if _, ok := errors.AsType[*StaleError](err); !ok {
+		t.Fatalf("pushed, or failed otherwise: %v", err)
+	}
+	if got := strings.TrimSpace(bare.Git("log", "-1", "--format=%s", "main")); got != "one" {
+		t.Fatalf("remote main is %q", got)
+	}
+}
+
 func TestRemotesFetchPullPushAndTags(t *testing.T) {
 	h := newHarness(t)
 	h.r.Write("a", "1")

@@ -32,6 +32,10 @@ type PushOptions struct {
 	// ("refs/heads/main"): the push refuses to run once HEAD is on
 	// another, which git push would send in its place.
 	Branch string
+	// Detached is a push chosen with HEAD on no branch, as a commit and
+	// push there: it refuses to run once HEAD is on a branch, which git
+	// push would send.
+	Detached bool
 }
 
 // Push sends the current branch to its remote.
@@ -47,7 +51,7 @@ func Push(w Where, opt PushOptions) Op {
 		name += " to " + opt.Remote
 	}
 	op := Op{Name: name, NoIndex: true, Cmd: run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Args: args, Timeout: PushTimeout, Stall: NetworkStall}}
-	if opt.Branch != "" {
+	if opt.Branch != "" || opt.Detached {
 		op.Expect = &Expect{Branch: opt.Branch, AnyCommit: true}
 	}
 	return op

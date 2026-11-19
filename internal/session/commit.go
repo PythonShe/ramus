@@ -185,9 +185,10 @@ func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done 
 	}
 	if push != nil && push.Branch == "" {
 		// The push sends the branch committed on, or nothing: a switch
-		// queued meanwhile would have git push another.
+		// queued meanwhile would have git push another. Committed with
+		// HEAD detached, it refuses once HEAD is on a branch.
 		p := *push
-		p.Branch = opt.Branch
+		p.Branch, p.Detached = opt.Branch, opt.Branch == ""
 		push = &p
 	}
 	upstream := s.State.Status != nil && s.State.Status.Branch.Upstream != ""
