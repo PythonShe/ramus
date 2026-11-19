@@ -187,6 +187,45 @@ func dangerButton(c *ui.Context, label string, disabled bool) ui.Element {
 	return b.Background(bg).TextColor(th.AccentText).Border(1, bg)
 }
 
+// leastNamedW is the least a control whose label holds a name narrows
+// to where its row has no room for it whole, wide enough to click. Each
+// such control is wider whole, a menu button of a name of one letter
+// included, so a row with room is laid out as it would be without.
+const leastNamedW = 48
+
+// leastBesideNamedW is the least a text that wraps keeps beside controls
+// that give way: without it they would leave it its longest word, and
+// it would grow a line for each few letters, out of its dialog.
+const leastBesideNamedW = 120
+
+// nameButton is ui.Button for a label holding a name the user or a
+// remote chose, in a row of a dialog or a bar whose width is set: where
+// the row has room it is ui.Button, and where it has not it gives way
+// with the other controls that do, each in proportion to its width and
+// down to leastNamedW, its label cut in the middle. Its accessible name
+// stays whole, and the dialog's text says the name in full.
+func nameButton(c *ui.Context, label string) ui.Element {
+	return namedLabel(c, ui.Button(c, ""), label)
+}
+
+// primaryNameButton is nameButton for ui.PrimaryButton.
+func primaryNameButton(c *ui.Context, label string) ui.Element {
+	return namedLabel(c, ui.PrimaryButton(c, ""), label)
+}
+
+// namedLabel gives b, a button built with no label, label as ui.Button
+// does, cut in the middle where b gives way.
+func namedLabel(c *ui.Context, b ui.Element, label string) ui.Element {
+	b.Children(func() { ui.Text(c, label).SingleLine().TruncateMiddle() })
+	return givesWay(b)
+}
+
+// givesWay lets a control whose label holds a name, and that cuts its
+// label where it narrows, as a menu button does, narrow where its row
+// has no room: in proportion to its width, as its siblings that also
+// give way, and down to leastNamedW.
+func givesWay(e ui.Element) ui.Element { return e.Shrink(1).MinWidth(leastNamedW) }
+
 // loading fills the space with a spinner, above what is being read when
 // it can take long enough to wonder.
 func loading(c *ui.Context, what string) {

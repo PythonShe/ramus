@@ -156,7 +156,7 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 				ui.Text(c, redact.Control(text)).Selectable()
 			}
 			ui.Row(c).Gap(spaceM).Children(func() {
-				if !current && ui.Button(c, locales.RemoteCheckoutSwitch(redact.Control(name))).Disabled(!canSwitch).Clicked() {
+				if !current && nameButton(c, locales.RemoteCheckoutSwitch(redact.Control(name))).Disabled(!canSwitch).Clicked() {
 					submit(write.Switch(t.s.Where(), d.local.Name, t.s.Seen()), nil)
 				}
 				switch {
@@ -165,7 +165,7 @@ func (a *App) remoteCheckoutView(c *ui.Context) {
 						reset()
 					}
 				case behind:
-					if ui.Button(c, locales.RemoteCheckoutReset(redact.Control(short))).Disabled(!canReset).Clicked() {
+					if nameButton(c, locales.RemoteCheckoutReset(redact.Control(short))).Disabled(!canReset).Clicked() {
 						reset()
 					}
 				}
@@ -251,7 +251,7 @@ func (a *App) elsewhereView(c *ui.Context) {
 				if ui.Button(c, locales.CommonCancel()).Clicked() {
 					d.open = false
 				}
-				if ui.PrimaryButton(c, locales.RemoteCheckoutOpen(filepath.Base(d.folder))).Clicked() {
+				if primaryNameButton(c, locales.RemoteCheckoutOpen(filepath.Base(d.folder))).Clicked() {
 					d.open = false
 					a.Open(d.folder)
 				}

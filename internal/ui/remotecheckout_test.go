@@ -179,13 +179,10 @@ func TestCheckOutRemoteBeforeDetails(t *testing.T) {
 			if !ok || !reset.Disabled || !h.tt.HasText("Reading how "+c.name+" stands against origin/"+c.name+"…") {
 				fatalf("while read, the dialog shows %q", h.tt.Texts())
 			}
-			// A long name's row runs past the dialog's edge, as it did.
-			if c.name != long {
-				w := tb.s.Writes
-				h.click("Reset to origin/" + c.name)
-				if !h.app.remoteUI.open || tb.s.Writes != w {
-					fatalf("the reset ran before the branch was read")
-				}
+			w := tb.s.Writes
+			h.click("Reset to origin/" + c.name)
+			if !h.app.remoteUI.open || tb.s.Writes != w {
+				fatalf("the reset ran before the branch was read")
 			}
 
 			h.until("the details", func() bool { return !h.app.remoteUI.unread })
