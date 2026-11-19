@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 
 	"ramus/internal/git/gittest"
 	"ramus/internal/git/gittest/testrun"
+	"ramus/internal/git/repo"
+	"ramus/internal/git/run"
 )
 
 // The refs listing carries each branch's upstream and how far apart they
@@ -130,6 +133,29 @@ func TestFindCleanup(t *testing.T) {
 		if got[k] != v {
 			t.Errorf("%s: %b, want %b", k, got[k], v)
 		}
+	}
+}
+
+// Patch ids take one of the app's process slots at a time: two, the
+// command whose patches they are holding one while it waits for
+// patch-id to read, would wait on each other with the others busy.
+func TestPatchIDsTakeOneSlot(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a", "1\n")
+	r.Commit("one")
+	r.Write("a", "2\n")
+	r.Commit("two")
+	one := run.New(testrun.Runner(t).Git(), gittest.Env(), 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rp, err := repo.Open(ctx, one, r.Dir, func(repo.Location) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rp.Close(); <-rp.Life().Done() })
+	ids, err := patchIDs(ctx, rp, []string{"log", "-p", "--no-color", "--no-ext-diff", "--format=commit %H", "HEAD", "--"})
+	if err != nil || len(ids) != 2 {
+		t.Fatalf("%d ids, %v", len(ids), err)
 	}
 }
 

@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"strconv"
 	"strings"
-	"sync"
 
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
@@ -159,6 +157,10 @@ func isSquashed(ctx context.Context, r *repo.Repository, gitOut func(...string) 
 			return false, nil
 		}
 		ids, err = patchIDs(ctx, r, []string{"log", "-p", "--no-color", "--no-ext-diff", "--no-merges", "--format=commit %H", base, "^" + mb, "--"})
+		if errors.Is(err, run.ErrOutputTooLarge) {
+			baseIDs[mb] = nil
+			return false, nil
+		}
 		if err != nil {
 			return false, err
 		}
@@ -168,6 +170,9 @@ func isSquashed(ctx context.Context, r *repo.Repository, gitOut func(...string) 
 		return false, nil
 	}
 	mine, err := patchIDs(ctx, r, []string{"diff", "--no-color", "--no-ext-diff", mb, branch, "--"})
+	if errors.Is(err, run.ErrOutputTooLarge) {
+		return false, nil
+	}
 	if err != nil || len(mine) != 1 {
 		return false, err
 	}
@@ -177,22 +182,22 @@ func isSquashed(ctx context.Context, r *repo.Repository, gitOut func(...string) 
 	return false, nil
 }
 
+// maxPatchInput bounds the patches patchIDs reads; past it a branch is
+// not checked for a squash.
+const maxPatchInput = 128 << 20
+
 // patchIDs runs git with args and git patch-id --stable on what it
-// prints, streaming one into the other, and returns the patch ids.
+// prints, and returns the patch ids. One runs after the other: streamed,
+// they would take two of the app's process slots, the first held while
+// it waits for the second to read, and with the others busy each would
+// wait on the other until the time limit.
 func patchIDs(ctx context.Context, r *repo.Repository, args []string) (map[string]bool, error) {
-	pr, pw := io.Pipe()
-	var wg sync.WaitGroup
-	var produceErr error
-	wg.Go(func() {
-		_, produceErr = r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Args: args, Stdout: pw})
-		pw.CloseWithError(produceErr)
-	})
-	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Args: []string{"patch-id", "--stable"}, Stdin: pr})
-	pr.CloseWithError(errors.New("session: patch-id ended"))
-	wg.Wait()
-	if err == nil {
-		err = produceErr
+	patches, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Args: args, MaxOutput: maxPatchInput})
+	if err != nil {
+		return nil, err
 	}
+	res, err := r.Runner.Run(ctx, &run.Cmd{GitDir: r.GitDir, Read: true, Args: []string{"patch-id", "--stable"},
+		Stdin: bytes.NewReader(patches.Stdout)})
 	if err != nil {
 		return nil, err
 	}
