@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/watch"
 )
 
@@ -121,13 +122,13 @@ func (w *watched) classify(p string) (Change, string) {
 func (r *Repository) Watch(skipDir func(rel string) bool) (<-chan Notice, error) {
 	var ws []*watched
 	add := func(root string, workTree bool) error {
-		real, err := filepath.EvalSymlinks(root)
+		real, err := pathsafe.Real(root)
 		if err != nil {
 			return err
 		}
 		x := &watched{workTree: workTree}
-		gd, _ := filepath.EvalSymlinks(r.GitDir)
-		cd, _ := filepath.EvalSymlinks(r.CommonDir)
+		gd, _ := pathsafe.Real(r.GitDir)
+		cd, _ := pathsafe.Real(r.CommonDir)
 		if rel, ok := under(real, gd); ok {
 			x.gitRel = rel
 		}
@@ -173,7 +174,7 @@ func (r *Repository) Watch(skipDir func(rel string) bool) (<-chan Notice, error)
 		return nil
 	}
 	covered := func(p string) bool {
-		rp, _ := filepath.EvalSymlinks(p)
+		rp, _ := pathsafe.Real(p)
 		for _, x := range ws {
 			if _, ok := under(x.w.Root(), rp); ok {
 				return true

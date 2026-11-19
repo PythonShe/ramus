@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+
+	"ramus/internal/git/pathsafe"
 )
 
 // Store remembers which repositories the user trusts, in a file of the
@@ -51,7 +53,7 @@ func clean(dir string) string {
 	if abs, err := filepath.Abs(dir); err == nil {
 		dir = abs
 	}
-	if real, err := filepath.EvalSymlinks(dir); err == nil {
+	if real, err := pathsafe.Real(dir); err == nil {
 		dir = real
 	}
 	return filepath.Clean(dir)

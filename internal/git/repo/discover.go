@@ -37,13 +37,14 @@ var ErrNotFound = errors.New("repo: not a git repository")
 
 // Discover finds the repository that contains path, as git does when run
 // there: the nearest .git directory or gitfile above it, or path itself
-// when it is a git directory.
+// when it is a git directory. Its paths are spelled as on disk
+// (pathsafe.Real), whatever the letter case path was given in.
 func Discover(path string) (Location, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return Location{}, err
 	}
-	if real, err := filepath.EvalSymlinks(abs); err == nil {
+	if real, err := pathsafe.Real(abs); err == nil {
 		abs = real
 	}
 	for dir := abs; ; {
@@ -118,7 +119,7 @@ func readGitfile(path string) (string, error) {
 
 func resolve(p string) string {
 	p = filepath.Clean(p)
-	if real, err := filepath.EvalSymlinks(p); err == nil {
+	if real, err := pathsafe.Real(p); err == nil {
 		return real
 	}
 	return p

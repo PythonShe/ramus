@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/run"
 )
@@ -59,7 +60,7 @@ func submoduleRange(ctx context.Context, r *repo.Repository, path string, old, n
 		return SubmoduleRange{Err: err}
 	}
 	// Discovery walks up to the parent when the submodule is not there.
-	if real, err := filepath.EvalSymlinks(dir); err != nil || loc.WorkTree != real {
+	if real, err := pathsafe.Real(dir); err != nil || loc.WorkTree != real {
 		return SubmoduleRange{Err: ErrNotCheckedOut}
 	}
 	if err := repo.CheckOwnership(ctx, r.Runner, loc); err != nil {

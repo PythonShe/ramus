@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/issuelink"
 	"ramus/internal/settings"
 )
@@ -77,12 +78,13 @@ func Load(path string) (*Library, error) {
 	return l, nil
 }
 
-// Clean resolves a path the way the library keys it.
+// Clean resolves a path the way the library keys it: spelled as on disk,
+// so that two spellings of one folder are one repository.
 func Clean(p string) string {
 	if abs, err := filepath.Abs(p); err == nil {
 		p = abs
 	}
-	if real, err := filepath.EvalSymlinks(p); err == nil {
+	if real, err := pathsafe.Real(p); err == nil {
 		p = real
 	}
 	return filepath.Clean(p)

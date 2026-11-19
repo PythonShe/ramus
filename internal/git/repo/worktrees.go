@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 )
 
@@ -35,12 +36,12 @@ func (r *Repository) Worktrees(ctx context.Context) ([]Worktree, error) {
 	}
 	wts := parseWorktrees(res.Stdout)
 	here := r.WorkTree
-	if real, err := filepath.EvalSymlinks(here); err == nil {
+	if real, err := pathsafe.Real(here); err == nil {
 		here = real
 	}
 	for i := range wts {
 		p := wts[i].Path
-		if real, err := filepath.EvalSymlinks(p); err == nil {
+		if real, err := pathsafe.Real(p); err == nil {
 			p = real
 		}
 		wts[i].Current = here != "" && p == here

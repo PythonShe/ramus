@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"ramus/internal/git/pathsafe"
 )
 
 // Batch is a set of changes, delivered together.
@@ -80,7 +82,9 @@ type platform interface {
 
 // New watches root and everything under it.
 func New(root string, opt Options) (*Watcher, error) {
-	real, err := filepath.EvalSymlinks(root)
+	// As the disk spells it: FSEvents reports paths so, and a root named in
+	// another letter case would match none of them.
+	real, err := pathsafe.Real(root)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +104,8 @@ func New(root string, opt Options) (*Watcher, error) {
 	return w, nil
 }
 
-// Root returns the watched directory, symlinks resolved.
+// Root returns the watched directory, symlinks resolved, spelled as on
+// disk.
 func (w *Watcher) Root() string { return w.root }
 
 // Rewatch walks the directory rel (slash-separated, relative to the

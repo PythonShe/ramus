@@ -43,6 +43,26 @@ func check(t *testing.T, dir string, submodule bool) {
 	}
 }
 
+// A repository reached by its path in another letter case, where the file
+// system ignores case, is found where the disk spells it, so that what is
+// keyed by its paths is keyed once.
+func TestDiscoverSpellsAsOnDisk(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("Sub/f", "x")
+	r.Commit("one")
+	upper := strings.ToUpper(r.Dir)
+	if _, err := os.Stat(filepath.Join(upper, "SUB")); err != nil {
+		t.Skip("the file system keeps case apart")
+	}
+	got, err := Discover(filepath.Join(upper, "SUB"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := oracle(t, r.Dir); got != want {
+		t.Errorf("got %+v\nwant %+v", got, want)
+	}
+}
+
 func TestDiscover(t *testing.T) {
 	r := gittest.Init(t)
 	r.Write("sub/dir/f", "x")

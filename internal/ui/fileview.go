@@ -127,7 +127,7 @@ func (a *App) resolvePending(t *tab) {
 
 // within is abs relative to root, with "/" for a folder, when it is in it.
 func within(root, abs string) (string, bool) {
-	for _, fix := range []func(string) (string, error){func(p string) (string, error) { return p, nil }, filepath.EvalSymlinks} {
+	for _, fix := range []func(string) (string, error){func(p string) (string, error) { return p, nil }, pathsafe.Real} {
 		r, err1 := fix(root)
 		p, err2 := fix(abs)
 		if err1 != nil || err2 != nil {

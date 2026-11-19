@@ -81,6 +81,32 @@ func TestWatch(t *testing.T) {
 	wait(t, w, "renamed")
 }
 
+// A root named in another letter case than the disk holds, where the
+// file system ignores case, is watched as the folder it names.
+func TestRootInAnotherCase(t *testing.T) {
+	base := t.TempDir()
+	dir := filepath.Join(base, "CaseRoot")
+	os.Mkdir(dir, 0o755)
+	other := filepath.Join(base, "caseroot")
+	if _, err := os.Stat(other); err != nil {
+		t.Skip("the file system keeps case apart")
+	}
+	w, err := New(other, Options{Latency: 20 * time.Millisecond})
+	if err == ErrUnsupported {
+		t.Skip(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	if filepath.Base(w.Root()) != "CaseRoot" {
+		t.Errorf("root %s", w.Root())
+	}
+	ready(t, w, dir)
+	os.WriteFile(filepath.Join(dir, "f"), []byte("x"), 0o644)
+	wait(t, w, "f")
+}
+
 func TestBurstIsOneBatch(t *testing.T) {
 	root := t.TempDir()
 	w, err := New(root, Options{Latency: 200 * time.Millisecond})
