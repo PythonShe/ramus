@@ -75,10 +75,18 @@ func (rw Rewrite) check() error {
 	return nil
 }
 
-// op is a rewrite of rw.Commit, backed up and undoable.
-func (rw Rewrite) op(name string, seen Seen, cmd run.Cmd) Op {
+// op is a rewrite of rw.Commit, backed up and undoable. rr decides, when
+// its turn comes, whether git history or the rebase in rr.fallback runs,
+// and checks the result.
+func (rw Rewrite) op(name string, seen Seen, cmd run.Cmd, rr *rewriteRun) Op {
 	cmd.Timeout = HookTimeout
-	op := Op{Name: name + " " + short(rw.Commit), Undo: MovesHead, Expect: seen.expect(), Cmd: cmd, Refs: rw.Branches}
+	rr.fallback.Timeout = HookTimeout
+	op := Op{Name: name + " " + short(rw.Commit), Undo: MovesHead, Expect: seen.expect(), Cmd: cmd, Refs: rw.Branches, rewrite: rr}
+	if !rr.history {
+		// The rebase refuses a commit HEAD does not have and a range with a
+		// merge in it.
+		op.Expect.Replay = &rr.rw
+	}
 	if seen.Branch != "" {
 		op.Backup = []string{seen.Branch}
 	}
@@ -99,14 +107,14 @@ var rebasePins = []string{"core.abbrev=no", "rebase.abbreviateCommands=false", "
 // (or the root), local changes stashed around it, and the branches
 // pointing into the range moved where git can. action, when set, is what
 // the todo does with rw.Commit in place of pick; the rebase stops before
-// it starts unless the todo says so then. The op made of it sets
-// Expect.Replay, which refuses a commit HEAD does not have and a range
-// with a merge in it.
+// it starts unless the todo says so then. A commit that the rewrite
+// leaves with no change stays, as git history is told too. The op made of
+// it sets Expect.Replay, which refuses a commit HEAD does not have and a
+// range with a merge in it.
 func (rw Rewrite) rebase(w Where, action string, extra ...string) run.Cmd {
 	// The user's rebase.autoSquash would fold every fixup! commit of the
-	// range into a commit the rewrite does not name; an --autosquash in
-	// extra, later, wins.
-	args := []string{"rebase", "--interactive", "--autostash", "--rebase-merges", "--no-autosquash"}
+	// range into a commit the rewrite does not name.
+	args := []string{"rebase", "--interactive", "--autostash", "--rebase-merges", "--no-autosquash", "--empty=keep"}
 	if rw.Git.Has(gitexe.UpdateRefs) {
 		args = append(args, "--update-refs")
 	}
@@ -126,8 +134,40 @@ func (rw Rewrite) rebase(w Where, action string, extra ...string) run.Cmd {
 		editor = "f() { sed -i.ramus -E -e 's/^(pick|p) " + rw.Commit + "( |$)/" + action + " " + rw.Commit + "\\2/' \"$1\" && " +
 			"grep -q '^" + action + " " + rw.Commit + "' \"$1\"; }; f"
 	}
-	c.Env = append(c.Env, "GIT_SEQUENCE_EDITOR="+editor)
+	// No message is asked for unless withMessage answers it: the user's
+	// editor would open where the app shows nothing.
+	c.Env = append(c.Env, "GIT_SEQUENCE_EDITOR="+editor, "GIT_EDITOR=true")
 	return c
+}
+
+// fixupEnv names the todo line a fix up's rebase puts after the pick of
+// its commit, set when the commit holding what is staged is made.
+const fixupEnv = "RAMUS_FIXUP_LINE"
+
+// fixupRebase is the rebase that folds the commit fixupEnv names into
+// rw.Commit, and leaves every other commit of the range as it is: the
+// line is placed by commit id, never by autosquash, which would fold the
+// user's own fixup! commits too and match the target by its subject.
+func (rw Rewrite) fixupRebase(w Where) run.Cmd {
+	c := rw.rebase(w, "")
+	// It fails, which stops the rebase before it starts, unless the line
+	// went in once.
+	editor := "f() { test -n \"$" + fixupEnv + "\" && " +
+		"awk -v l=\"$" + fixupEnv + "\" '{ print } ($1 == \"pick\" || $1 == \"p\") && $2 == \"" + rw.Commit + "\" { print l; n++ } END { exit n != 1 }' \"$1\" >\"$1.ramus\" && " +
+		"mv -f \"$1.ramus\" \"$1\"; }; f"
+	c.Env = setEnv(c.Env, "GIT_SEQUENCE_EDITOR", editor)
+	return c
+}
+
+// setEnv is env with key set to value, once.
+func setEnv(env []string, key, value string) []string {
+	out := env[:0:0]
+	for _, e := range env {
+		if !strings.HasPrefix(e, key+"=") {
+			out = append(out, e)
+		}
+	}
+	return append(out, key+"="+value)
 }
 
 // withMessage has git's editor write msg, fed on standard input, for
@@ -138,9 +178,13 @@ func withMessage(c run.Cmd, msg string) (run.Cmd, []byte, error) {
 		return c, nil, err
 	}
 	c.Config = append(c.Config, "core.commentChar="+cc)
-	c.Env = append(c.Env, "GIT_EDITOR=cat >")
+	c.Env = setEnv(c.Env, "GIT_EDITOR", "cat >")
 	return c, []byte(msg), nil
 }
+
+// historyEmpty reports whether git history takes --empty, which keeps a
+// commit the rewrite leaves with no change instead of dropping it.
+func historyEmpty(v gitexe.Version) bool { return v.Has(gitexe.HistoryDrop) }
 
 // Reword gives rw.Commit message msg, moving the commits and branches
 // after it, through git history reword where git has it, else a rebase.
@@ -153,22 +197,19 @@ func Reword(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 	if msg == "" {
 		return Op{}, errors.New("write: a commit message cannot be empty")
 	}
-	var c run.Cmd
-	fallback := !rw.Git.Has(gitexe.History)
-	if fallback {
-		c = rw.rebase(w, "reword")
-	} else {
-		c = w.cmd("history", "reword", "--update-refs=branches", "--end-of-options", rw.Commit)
-	}
-	c, in, err := withMessage(c, msg)
-	if err != nil {
+	rr := &rewriteRun{kind: rewordKind, rw: rw, msg: msg, history: rw.Git.Has(gitexe.History)}
+	var err error
+	if rr.fallback, _, err = withMessage(rw.rebase(w, "reword"), msg); err != nil {
 		return Op{}, err
 	}
-	op := rw.op("Reword", seen, c)
-	op.Input = in
-	if fallback {
-		op.Expect.Replay = &rw
+	c := rr.fallback
+	if rr.history {
+		if c, _, err = withMessage(w.cmd("history", "reword", "--update-refs=branches", "--end-of-options", rw.Commit), msg); err != nil {
+			return Op{}, err
+		}
 	}
+	op := rw.op("Reword", seen, c, rr)
+	op.Input = []byte(msg)
 	return op, nil
 }
 
@@ -179,53 +220,48 @@ func DropCommit(w Where, rw Rewrite, seen Seen) (Op, error) {
 	if err := rw.check(); err != nil {
 		return Op{}, err
 	}
-	if !rw.Git.Has(gitexe.HistoryDrop) {
-		op := rw.op("Drop", seen, rw.rebase(w, "drop"))
-		op.Expect.Replay = &rw
-		return op, nil
+	rr := &rewriteRun{kind: dropKind, rw: rw, history: rw.Git.Has(gitexe.HistoryDrop) && historyEmpty(rw.Git), fallback: rw.rebase(w, "drop")}
+	c := rr.fallback
+	if rr.history {
+		c = w.cmd("history", "drop", "--update-refs=branches", "--empty=keep", "--end-of-options", rw.Commit)
+		c.Env = append(c.Env, "GIT_EDITOR=true")
 	}
-	return rw.op("Drop", seen, w.cmd("history", "drop", "--update-refs=branches", "--end-of-options", rw.Commit)), nil
+	return rw.op("Drop", seen, c, rr), nil
 }
 
-// FixupInto folds what is staged into rw.Commit. With msg set, the
-// commit takes it as its message (a squash); that needs git history
-// fixup. Without, the message stays, through git history fixup where git
-// has it, else a fixup commit and an autosquash rebase.
+// FixupInto folds what is staged into rw.Commit, and only into it. With
+// msg set, the commit takes it as its message (a squash). Through git
+// history fixup where git has it, else a rebase that folds a commit of
+// what is staged, made without hooks, into rw.Commit by its id.
 func FixupInto(w Where, rw Rewrite, msg string, seen Seen) (Op, error) {
 	if err := rw.check(); err != nil {
 		return Op{}, err
 	}
-	if !rw.Git.Has(gitexe.HistoryFixup) {
-		if msg != "" {
-			return Op{}, ErrNeedsNewerGit
-		}
-		op := rw.op("Fix up", seen, rw.rebase(w, "", "--autosquash"))
-		op.Expect.Replay = &rw
-		pre := w.cmd("commit", "--fixup="+rw.Commit)
-		pre.Timeout = HookTimeout
-		op.Pre = &pre
-		return op, nil
-	}
+	name := "Fix up"
 	if msg != "" {
+		name = "Squash into"
 		if msg = cleanMessage(msg); msg == "" {
 			return Op{}, errors.New("write: a commit message cannot be empty")
 		}
 	}
-	args := []string{"history", "fixup", "--update-refs=branches"}
-	if msg != "" {
-		args = append(args, "--reedit-message")
-	}
-	c := w.cmd(append(args, "--end-of-options", rw.Commit)...)
-	name := "Fix up"
+	rr := &rewriteRun{kind: fixupKind, rw: rw, msg: msg, history: rw.Git.Has(gitexe.HistoryFixup) && historyEmpty(rw.Git), fallback: rw.fixupRebase(w)}
+	c := rr.fallback
 	var in []byte
-	if msg != "" {
-		name = "Squash into"
-		var err error
-		if c, in, err = withMessage(c, msg); err != nil {
-			return Op{}, err
+	if rr.history {
+		args := []string{"history", "fixup", "--update-refs=branches", "--empty=keep"}
+		if msg != "" {
+			args = append(args, "--reedit-message")
+		}
+		c = w.cmd(append(args, "--end-of-options", rw.Commit)...)
+		c.Env = append(c.Env, "GIT_EDITOR=true")
+		if msg != "" {
+			var err error
+			if c, in, err = withMessage(c, msg); err != nil {
+				return Op{}, err
+			}
 		}
 	}
-	op := rw.op(name, seen, c)
+	op := rw.op(name, seen, c, rr)
 	op.Input = in
 	return op, nil
 }
@@ -271,8 +307,9 @@ type Step struct {
 // EditHistory replays steps, oldest first, onto rw.Parent (the root when
 // it is ""), as an interactive rebase does with the todo they make; rw.Commit
 // is the oldest commit replayed. The todo is written whole, so the commits
-// must be a straight line, with no merge among them. A step's Refs move
-// only where git has update-ref; without, branches stay where they are.
+// must be a straight line, with no merge among them, and the steps must
+// name each of them once. A step's Refs move only where git has
+// update-ref; without, branches stay where they are.
 func EditHistory(w Where, rw Rewrite, steps []Step, seen Seen) (Op, error) {
 	if err := rw.check(); err != nil {
 		return Op{}, err
@@ -284,7 +321,7 @@ func EditHistory(w Where, rw Rewrite, steps []Step, seen Seen) (Op, error) {
 	if err != nil {
 		return Op{}, err
 	}
-	args := []string{"rebase", "--interactive", "--autostash", "--no-rebase-merges", "--no-autosquash"}
+	args := []string{"rebase", "--interactive", "--autostash", "--no-rebase-merges", "--no-autosquash", "--empty=keep"}
 	if rw.Parent == "" {
 		args = append(args, "--root")
 	} else {
@@ -295,7 +332,9 @@ func EditHistory(w Where, rw Rewrite, steps []Step, seen Seen) (Op, error) {
 	// The todo comes on standard input; a squash keeps the messages
 	// joined, which git's editor would otherwise be asked about.
 	c.Env = append(c.Env, "GIT_SEQUENCE_EDITOR=cat >", "GIT_EDITOR=true")
-	op := rw.op("Edit history from", seen, c)
+	rr := &rewriteRun{kind: editKind, rw: rw, steps: steps, fallback: c}
+	op := rw.op("Edit history from", seen, c, rr)
+	op.Expect.Replay = nil // the steps are checked against the range instead
 	op.Input = []byte(todo)
 	return op, nil
 }

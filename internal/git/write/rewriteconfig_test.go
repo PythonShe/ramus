@@ -1,13 +1,40 @@
 package write
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"ramus/internal/git/gitexe"
+	"ramus/internal/git/gittest"
+	"ramus/internal/git/lifetime"
+	"ramus/internal/git/refs"
+	"ramus/internal/git/run"
 )
+
+// newHarnessEnv is newHarness with env added to what every command the
+// queue runs gets, as the user's environment reaches git in the app.
+func newHarnessEnv(t *testing.T, env ...string) *harness {
+	t.Helper()
+	g, err := gitexe.Find(context.Background(), os.Getenv("PATH"))
+	if err != nil {
+		t.Skip(err)
+	}
+	r := gittest.Init(t)
+	life := lifetime.New(context.Background())
+	t.Cleanup(func() { life.Close(); <-life.Done() })
+	q, err := NewQueue(life, run.New(g, append(gittest.Env(), env...), 8), r.GitDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	q.Refs = refs.New(r.GitDir(), r.GitDir(), 20)
+	return &harness{t: t, r: r, q: q, w: Where{GitDir: r.GitDir(), WorkTree: r.Dir}}
+}
 
 // commitRaw commits what is staged with exactly msg as its message.
 func (h *harness) commitRaw(msg string) string {
@@ -28,6 +55,26 @@ func (h *harness) rawMessage(id string) string {
 	return msg
 }
 
+// recorder is a script that notes in a file that it ran, and fails: an
+// editor no rewrite may open.
+func recorder(t *testing.T) (script, log string) {
+	dir := filepath.Join(t.TempDir(), "dir with space")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	log = filepath.Join(dir, "ran")
+	script = filepath.Join(dir, "editor")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho \"$0 $*\" >>'"+log+"'\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return script, log
+}
+
+func ran(log string) string {
+	b, _ := os.ReadFile(log)
+	return string(b)
+}
+
 // git's own whitespace cleanup, which the commit box asks for, is what
 // cleanMessage does.
 func TestCleanMessageIsGitWhitespaceCleanup(t *testing.T) {
@@ -44,6 +91,58 @@ func TestCleanMessageIsGitWhitespaceCleanup(t *testing.T) {
 		if got := cleanMessage(msg); got != want {
 			t.Errorf("%q: %q, git says %q", msg, got, want)
 		}
+	}
+}
+
+// Fix up on a git without git history fixup folds what is staged into the
+// commit chosen and nothing else: the user's own fixup!, squash! and
+// amend! commits stay as they are, a target whose subject starts with
+// fixup! gets the change, and no editor is opened, whatever
+// rebase.autoSquash, core.editor, sequence.editor and GIT_EDITOR say.
+func TestFixupFallbackFoldsOnlyTheChange(t *testing.T) {
+	for _, auto := range []string{"true", "false"} {
+		t.Run("autoSquash="+auto, func(t *testing.T) {
+			editor, log := recorder(t)
+			h := newHarnessEnv(t, "GIT_EDITOR="+editor, "GIT_SEQUENCE_EDITOR="+editor, "EDITOR="+editor, "VISUAL="+editor)
+			h.r.Git("config", "rebase.autoSquash", auto)
+			h.r.Git("config", "core.editor", "'"+editor+"'")
+			h.r.Git("config", "sequence.editor", "'"+editor+"'")
+			h.r.Write("f0", "0\n")
+			base := h.r.Commit("base")
+			h.r.Write("f1", "1\n")
+			target := h.r.Commit("fixup! one")
+			h.r.Write("f2", "2\n")
+			h.r.Commit("two")
+			h.r.Write("f3", "3\n")
+			h.r.Commit("fixup! two")
+			h.r.Write("f4", "4\n")
+			h.r.Commit("squash! fixup! one")
+			h.r.Write("f5", "5\n")
+			h.r.Commit("amend! two\n\ntwo amended")
+			before := strings.TrimSpace(h.r.Git("log", "--format=%s", "main"))
+			h.r.Write("f1", "1\nfixed\n")
+			h.r.Git("add", "f1")
+			h.r.Write("f5", "5 not staged\n")
+			op, err := FixupInto(h.w, Rewrite{Commit: target, Parent: base, Git: oldGit}, "", h.seen())
+			h.do(op, err, true)
+			if got := strings.TrimSpace(h.r.Git("log", "--format=%s", "main")); got != before {
+				t.Fatalf("log:\n%s\nwant\n%s", got, before)
+			}
+			if got := h.r.Git("show", "main~4:f1"); got != "1\nfixed\n" {
+				t.Fatalf("target's f1 %q", got)
+			}
+			for i := 0; i < 4; i++ {
+				if got := h.r.Git("diff-tree", "-r", "--name-only", "--no-commit-id", fmt.Sprintf("main~%d", i)); strings.Contains(got, "f1") {
+					t.Fatalf("main~%d changed f1 too", i)
+				}
+			}
+			if h.status() != "M f5" {
+				t.Fatalf("status %q", h.status())
+			}
+			if s := ran(log); s != "" {
+				t.Fatalf("an editor ran:\n%s", s)
+			}
+		})
 	}
 }
 
@@ -71,6 +170,10 @@ func TestRewriteKeepsMessagesByteForByte(t *testing.T) {
 	rw := func(h *harness, ids []string, i int, v gitexe.Version) Rewrite {
 		return Rewrite{Commit: ids[i], Parent: h.rev(ids[i] + "~1"), Git: v}
 	}
+	stage := func(h *harness) {
+		h.r.Write("c1", "fixed\n")
+		h.r.Git("add", "c1")
+	}
 	rewrites := []rewrite{
 		{"reword", func(h *harness, ids []string, v gitexe.Version) (Op, error) {
 			return Reword(h.w, rw(h, ids, 1, v), typed, h.seen())
@@ -78,6 +181,14 @@ func TestRewriteKeepsMessagesByteForByte(t *testing.T) {
 		{"drop", func(h *harness, ids []string, v gitexe.Version) (Op, error) {
 			return DropCommit(h.w, rw(h, ids, 1, v), h.seen())
 		}, nil, []int{1}, nil},
+		{"fixup", func(h *harness, ids []string, v gitexe.Version) (Op, error) {
+			stage(h)
+			return FixupInto(h.w, rw(h, ids, 1, v), "", h.seen())
+		}, nil, nil, []int{1}},
+		{"squash", func(h *harness, ids []string, v gitexe.Version) (Op, error) {
+			stage(h)
+			return FixupInto(h.w, rw(h, ids, 1, v), typed, h.seen())
+		}, []int{1}, nil, nil},
 		{"edit", func(h *harness, ids []string, v gitexe.Version) (Op, error) {
 			// Reorder, reword one, fold one keeping the message before it,
 			// leave the rest.
@@ -183,5 +294,172 @@ func TestEditHistoryWhateverTheCommentChar(t *testing.T) {
 				t.Fatalf("log %q", got)
 			}
 		})
+	}
+}
+
+// A rewrite whose result is not the commits asked for, here a rebase whose
+// todo was changed under it to drop one more, is put back and fails, and
+// redo cannot do it again; an edit of history whose steps leave out a
+// commit is refused before it starts.
+func TestRewriteNotAsAskedIsPutBack(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("f0", "0\n")
+	base := h.r.Commit("base")
+	var ids []string
+	for i := 1; i <= 3; i++ {
+		h.r.Write(fmt.Sprint("f", i), "x\n")
+		ids = append(ids, h.r.Commit(fmt.Sprint("c", i)))
+	}
+	h.r.Write("f0", "local\n")
+	head := h.rev("main")
+	op, err := DropCommit(h.w, Rewrite{Commit: ids[0], Parent: base, Git: oldGit}, h.seen())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Drops the commit asked for, and the last one too.
+	op.Cmd.Env = setEnv(op.Cmd.Env, "GIT_SEQUENCE_EDITOR", "f() { sed -i.x -e 's/^pick "+ids[0]+"/drop "+ids[0]+"/' -e 's/^pick "+ids[2]+"/drop "+ids[2]+"/' \"$1\"; }; f")
+	_, err = wait(t, h.q.Submit(op))
+	if !errors.Is(err, ErrRewriteNotAsAsked) {
+		t.Fatalf("err %v", err)
+	}
+	if h.rev("main") != head || h.read("f0") != "local\n" {
+		t.Fatalf("main at %s, f0 %q", h.rev("main"), h.read("f0"))
+	}
+	if undo, redo := h.q.History.Next(); undo != "" || redo != "" {
+		t.Fatalf("history: undo %q redo %q", undo, redo)
+	}
+
+	op, err = EditHistory(h.w, Rewrite{Commit: ids[0], Parent: base, Git: localGit(t)}, []Step{
+		{Action: DoPick, Commit: ids[0]}, {Action: DoPick, Commit: ids[2]},
+	}, h.seen())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = wait(t, h.q.Submit(op)); err == nil || h.rev("main") != head {
+		t.Fatalf("an edit leaving out %s ran: %v", short(ids[1]), err)
+	}
+}
+
+// A rebase a rewrite runs that stops on something other than a conflict,
+// a hook refusing or a commit that cannot be signed, is stopped: the
+// branch and the local changes are as they were, and the user is told.
+func TestRewriteStoppedIsPutBack(t *testing.T) {
+	for _, what := range []string{"pre-commit", "commit-msg", "gpg"} {
+		t.Run(what, func(t *testing.T) {
+			h := newHarness(t)
+			h.r.Write("f0", "0\n")
+			base := h.r.Commit("base")
+			h.r.Write("f1", "1\n")
+			one := h.r.Commit("one")
+			h.r.Write("f2", "2\n")
+			h.r.Commit("two")
+			h.r.Write("f0", "local\n")
+			switch what {
+			case "gpg":
+				h.r.Git("config", "commit.gpgSign", "true")
+				h.r.Git("config", "gpg.format", "ssh")
+				h.r.Git("config", "user.signingKey", filepath.ToSlash(filepath.Join(t.TempDir(), "no such key")))
+			default:
+				hook(t, h.r, what, `echo "`+what+` says no" >&2; exit 1`)
+			}
+			head := h.rev("main")
+			op, err := Reword(h.w, Rewrite{Commit: one, Parent: base, Git: localGit(t), Branches: []string{"refs/heads/main"}}, "one reworded", h.seen())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = wait(t, h.q.Submit(op))
+			if err == nil {
+				t.Fatal("the reword went through")
+			}
+			var re *run.Error
+			if !errors.As(err, &re) {
+				t.Fatalf("not git's error: %v", err)
+			}
+			if h.rev("main") != head || h.read("f0") != "local\n" || h.status() != "M f0" {
+				t.Fatalf("main at %s, status %q", h.rev("main"), h.status())
+			}
+			if _, err := os.Stat(filepath.Join(h.r.GitDir(), "rebase-merge")); err == nil {
+				t.Fatal("the rebase was left in progress")
+			}
+			if s := strings.TrimSpace(h.r.Git("stash", "list")); s != "" {
+				t.Fatalf("stash left: %s", s)
+			}
+		})
+	}
+}
+
+// Where the user's config asks for signed commits, every commit a rewrite
+// makes is signed, through a rebase where git history cannot sign; so are
+// the notes of the commits copied where it asks for that, and the hooks a
+// rebase runs run.
+func TestRewriteDoesWhatTheConfigAsks(t *testing.T) {
+	type rewrite struct {
+		name string
+		make func(h *harness, rw Rewrite) (Op, error)
+	}
+	rewrites := []rewrite{
+		{"reword", func(h *harness, rw Rewrite) (Op, error) { return Reword(h.w, rw, "one reworded", h.seen()) }},
+		{"drop", func(h *harness, rw Rewrite) (Op, error) { return DropCommit(h.w, rw, h.seen()) }},
+		{"fixup", func(h *harness, rw Rewrite) (Op, error) {
+			h.r.Write("f1", "fixed\n")
+			h.r.Git("add", "f1")
+			return FixupInto(h.w, rw, "", h.seen())
+		}},
+		{"squash", func(h *harness, rw Rewrite) (Op, error) {
+			h.r.Write("f1", "fixed\n")
+			h.r.Git("add", "f1")
+			return FixupInto(h.w, rw, "one squashed", h.seen())
+		}},
+	}
+	for _, asks := range []string{"sign", "notes", "post-rewrite"} {
+		for _, x := range rewrites {
+			t.Run(asks+"/"+x.name, func(t *testing.T) {
+				h := newHarness(t)
+				h.r.Write("f0", "0\n")
+				base := h.r.Commit("base")
+				h.r.Write("f1", "1\n")
+				one := h.r.Commit("one")
+				h.r.Write("f2", "2\n")
+				h.r.Commit("two")
+				h.r.Write("f3", "3\n")
+				h.r.Commit("three")
+				var allowed string
+				switch asks {
+				case "sign":
+					allowed = gittest.SSHSigning(t, h.r)
+					h.r.Git("config", "commit.gpgSign", "true")
+				case "notes":
+					for _, rev := range []string{"main~2", "main~1", "main"} {
+						h.r.Git("notes", "add", "-m", "note of "+rev, rev)
+					}
+					h.r.Git("config", "notes.rewriteRef", "refs/notes/commits")
+				case "post-rewrite":
+					hook(t, h.r, "post-rewrite", `cat >>"$(git rev-parse --git-path rewritten)"`)
+				}
+				head := h.rev("main")
+				op, err := x.make(h, Rewrite{Commit: one, Parent: base, Git: localGit(t), Branches: []string{"refs/heads/main"}})
+				h.do(op, err, true)
+				ids := strings.Fields(h.r.Git("rev-list", "main", "^"+base))
+				switch asks {
+				case "sign":
+					for _, id := range ids {
+						if out, err := h.r.Run(nil, "-c", "gpg.ssh.allowedSignersFile="+allowed, "verify-commit", id); err != nil {
+							t.Fatalf("%s not signed: %v\n%s", short(id), err, out)
+						}
+					}
+				case "notes":
+					for _, id := range ids {
+						if out, err := h.r.Run(nil, "notes", "show", id); err != nil || !strings.HasPrefix(out, "note of ") {
+							t.Fatalf("%s has no note: %v %q", short(id), err, out)
+						}
+					}
+				case "post-rewrite":
+					b, _ := os.ReadFile(filepath.Join(h.r.GitDir(), "rewritten"))
+					if !strings.Contains(string(b), head) {
+						t.Fatalf("post-rewrite did not hear of %s: %q", short(head), b)
+					}
+				}
+			})
+		}
 	}
 }

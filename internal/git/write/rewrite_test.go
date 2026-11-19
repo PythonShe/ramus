@@ -90,12 +90,6 @@ func testRewrite(t *testing.T, v gitexe.Version) {
 	h.r.Write("f1", "f1 squashed\n")
 	h.r.Git("add", "f1")
 	op, err = FixupInto(h.w, rw("main~2"), "one, squashed", h.seen())
-	if !v.Has(gitexe.HistoryFixup) {
-		if err != ErrNeedsNewerGit {
-			t.Fatalf("squash on %s: %v", v.Raw, err)
-		}
-		return
-	}
 	h.do(op, err, true)
 	if subject("main~2") != "one, squashed" || h.r.Git("show", "main~2:f1") != "f1 squashed\n" {
 		t.Fatalf("squash: %q", subject("main~2"))
@@ -298,16 +292,9 @@ func TestEditHistoryEmptySquashSameSecond(t *testing.T) {
 	h.r.Commit("two")
 	h.r.Git("commit", "-q", "--allow-empty", "-m", "empty")
 	two, empty := h.rev("main~1"), h.rev("main")
-	// again makes the change two makes, which a fold into two finds made.
-	h.r.Git("checkout", "-q", "-b", "side", "main~2")
-	h.r.Write("f", "2\n")
-	h.r.Commit("again")
-	again := h.rev("side")
-	h.r.Git("checkout", "-q", "main")
 	for _, steps := range [][]Step{
 		{{Action: DoPick, Commit: two}, {Action: DoSquash, Commit: empty, Message: "folded"}},
 		{{Action: DoReword, Commit: two, Message: "two reworded"}, {Action: DoSquash, Commit: empty, Message: "folded"}},
-		{{Action: DoReword, Commit: two, Message: "two reworded"}, {Action: DoSquash, Commit: again, Message: "folded"}},
 		{{Action: DoReword, Commit: two, Message: "folded\n"}, {Action: DoSquash, Commit: empty}},
 	} {
 		op, err := EditHistory(h.w, Rewrite{Commit: two, Parent: h.rev("main~2"), Git: localGit(t)}, steps, h.seen())
@@ -319,6 +306,19 @@ func TestEditHistoryEmptySquashSameSecond(t *testing.T) {
 			t.Fatalf("joined message %q", body)
 		}
 		h.undo()
+	}
+	// again makes the change two makes, which back took out: with back
+	// dropped, a fold of again into two finds it made.
+	h.r.Git("checkout", "-q", "-b", "side", "main~1")
+	h.r.Write("f", "1\n")
+	back := h.r.Commit("back")
+	h.r.Write("f", "2\n")
+	again := h.r.Commit("again")
+	steps := []Step{{Action: DoReword, Commit: two, Message: "two reworded"}, {Action: DoDrop, Commit: back}, {Action: DoSquash, Commit: again, Message: "folded"}}
+	op, err := EditHistory(h.w, Rewrite{Commit: two, Parent: h.rev("main~2"), Git: localGit(t)}, steps, h.seen())
+	h.do(op, err, true)
+	if log := strings.TrimSpace(h.r.Git("log", "--format=%s", "side")); log != "folded\nbase" {
+		t.Fatalf("%+v: log:\n%s", steps, log)
 	}
 }
 

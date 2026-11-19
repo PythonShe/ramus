@@ -73,6 +73,9 @@ type Op struct {
 	// do runs in place of Cmd, for writes the engine makes of several
 	// commands: undo and redo, snapshots.
 	do func(ctx context.Context, j *Job) (run.Result, error)
+	// rewrite, when set, is a history rewrite: it picks the command when
+	// the write's turn comes, and checks what the command made.
+	rewrite *rewriteRun
 }
 
 // Stream says where a line came from.
@@ -373,6 +376,15 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	if err := q.prepare(ctx, j); err != nil {
 		return run.Result{}, err
 	}
+	cmd := j.Op.Cmd
+	var rewrite *rewriteState
+	if j.Op.rewrite != nil {
+		var err error
+		if rewrite, err = j.Op.rewrite.start(ctx, q, cmd); err != nil {
+			return run.Result{}, q.kept(j, err, false)
+		}
+		cmd = rewrite.cmd
+	}
 	if f := j.Op.File; f != nil {
 		if err := f.write(j.Op.Cmd.WorkTree); err != nil {
 			return run.Result{}, q.kept(j, err, false)
@@ -417,7 +429,7 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 		j.states = states
 		j.mu.Unlock()
 	}
-	res, err := execute(ctx, q.r, j, j.Op.Cmd, j.Op.Input)
+	res, err := execute(ctx, q.r, j, cmd, j.Op.Input)
 	for _, c := range j.Op.More {
 		if err != nil {
 			break
@@ -427,6 +439,9 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	if err != nil {
 		if le := lockError(q.gitDir, res.Stderr); le != nil {
 			err = le
+		}
+		if rewrite != nil {
+			err = rewrite.stopped(ctx, q, err)
 		}
 		switch {
 		case stashed != nil:
@@ -443,6 +458,9 @@ func (q *Queue) run(qctx context.Context, j *Job) (run.Result, error) {
 	// delete cancelled between its runs: undo puts back what it kept.
 	if record && (err == nil || snapped && j.Op.Undo == FilesOnly) {
 		q.record(j, before, err != nil)
+	}
+	if rewrite != nil && err == nil {
+		err = rewrite.finish(ctx, q, j)
 	}
 	return res, q.kept(j, err, true)
 }
