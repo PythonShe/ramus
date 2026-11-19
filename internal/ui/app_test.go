@@ -71,6 +71,18 @@ func newHarnessWith(t *testing.T, r *run.Runner) *harness {
 	h.app = NewApp(Deps{Runner: r, Trust: ts, Library: lib, Settings: settings.Defaults,
 		Update: func(fn func()) { h.updates <- fn }})
 	h.tt = ui.NewTester(h.app.View, 1200, 800)
+	// The app looks for the editors and terminals installed as it starts
+	// and posts what it found, on a slow machine in the middle of a test
+	// that counts or takes what is posted: it is taken here.
+	deadline := time.After(20 * time.Second)
+	for !h.app.palette.found {
+		select {
+		case fn := <-h.updates:
+			fn()
+		case <-deadline:
+			t.Fatal("the editors and terminals were not looked for")
+		}
+	}
 	return h
 }
 
