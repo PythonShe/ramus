@@ -178,9 +178,17 @@ func (s *Session) CommitOptions(opt write.CommitOptions) write.CommitOptions {
 // thread: a commit that failed where the user's hooks ran is a
 // *HookError.
 func (s *Session) Commit(opt write.CommitOptions, push *write.PushOptions, done func(error)) error {
-	op, err := write.Commit(s.Where(), s.CommitOptions(opt))
+	opt = s.CommitOptions(opt)
+	op, err := write.Commit(s.Where(), opt)
 	if err != nil {
 		return err
+	}
+	if push != nil && push.Branch == "" {
+		// The push sends the branch committed on, or nothing: a switch
+		// queued meanwhile would have git push another.
+		p := *push
+		p.Branch = opt.Branch
+		push = &p
 	}
 	upstream := s.State.Status != nil && s.State.Status.Branch.Upstream != ""
 	j, err := s.Submit(op)

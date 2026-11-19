@@ -1016,12 +1016,15 @@ func (a *App) remoteMenus(c *ui.Context, t *tab) {
 		}
 	})
 	glyphMenuButton(c, glyphs().arrowUp, locales.RefsPush(), func(m *ui.Menu) {
+		// The branch the menu is for: a push refuses once HEAD is on
+		// another, which git would push in its place.
+		branch := t.s.Seen().Branch
 		if m.Item(locales.RefsPush()).Disabled(noUp).Chosen() {
-			a.submit(t, write.Push(w, write.PushOptions{}), nil)
+			a.submit(t, write.Push(w, write.PushOptions{Branch: branch}), nil)
 		}
 		for _, r := range remotes {
 			if m.Item(locales.RefsPushAndTrack(redact.Control(r.Name))).Disabled(none || cur == nil).Chosen() {
-				a.submit(t, write.Push(w, write.PushOptions{Remote: r.Name}), nil)
+				a.submit(t, write.Push(w, write.PushOptions{Remote: r.Name, Branch: branch}), nil)
 			}
 		}
 		m.Separator()
@@ -1029,7 +1032,7 @@ func (a *App) remoteMenus(c *ui.Context, t *tab) {
 			up := strings.TrimPrefix(cur.Upstream, "refs/remotes/")
 			rs.ask = confirmState{open: true, title: locales.RefsForcePushTitle(redact.Control(up)),
 				message: locales.RefsForcePushMessage(), button: locales.RefsForcePush(),
-				run: func() { a.submit(t, write.Push(w, write.PushOptions{ForceWithLease: true}), nil) }}
+				run: func() { a.submit(t, write.Push(w, write.PushOptions{ForceWithLease: true, Branch: branch}), nil) }}
 		}
 	})
 }

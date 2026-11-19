@@ -88,6 +88,7 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 		label = locales.SyncPublish()
 		tip = locales.SyncPublishTo(upstream)
 		pairs = []pair{{g.cloudUp, locales.SyncPublishShort()}}
+		opt.Branch = head.Target
 		act = func() { a.submit(t, write.Push(w, opt), nil) }
 	default:
 		upstream = redact.Control(strings.TrimPrefix(tr.Upstream, "refs/remotes/"))
@@ -106,7 +107,7 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 			act = func() { a.syncPull(t, "") }
 		case tr.Ahead > 0:
 			label = locales.SyncPushLabel(tr.Ahead, upstream)
-			act = func() { a.submit(t, write.Push(w, write.PushOptions{}), nil) }
+			act = func() { a.submit(t, write.Push(w, write.PushOptions{Branch: head.Target}), nil) }
 		default:
 			label = locales.SyncFetch()
 			act = func() {
@@ -178,6 +179,9 @@ func (a *App) syncMenu(c *ui.Context, t *tab, tr session.Track) {
 	b.Children(func() { ui.Icon(c, glyphs().chevronDown).FontSize(iconSmall).TextColor(c.Theme().TextMuted) })
 	b.Menu(func(m *ui.Menu) {
 		w := t.s.Where()
+		// The branch the menu is for: a push refuses once HEAD is on
+		// another, which git would push in its place.
+		headBranch := t.s.Seen().Branch
 		var remotes []string
 		if r := t.s.Repo; r != nil {
 			remotes = r.Config().Subsections("remote", "url")
@@ -211,13 +215,14 @@ func (a *App) syncMenu(c *ui.Context, t *tab, tr session.Track) {
 		m.Separator()
 		if noUp {
 			opt, ok := pushOptions(t)
+			opt.Branch = headBranch
 			if m.Item(locales.SyncPublish()).Disabled(!ok || opt.Remote == "").Chosen() {
 				a.submit(t, write.Push(w, opt), nil)
 			}
 			return
 		}
 		if m.Item(locales.RefsPush()).Chosen() {
-			a.submit(t, write.Push(w, write.PushOptions{}), nil)
+			a.submit(t, write.Push(w, write.PushOptions{Branch: headBranch}), nil)
 		}
 		if m.Item(locales.RefsForcePushItem()).Danger().Chosen() {
 			up := strings.TrimPrefix(tr.Upstream, "refs/remotes/")
@@ -230,7 +235,7 @@ func (a *App) syncMenu(c *ui.Context, t *tab, tr session.Track) {
 			}
 			a.confirm = confirmState{open: true, title: locales.RefsForcePushTitle(redact.Control(up)),
 				message: locales.RefsForcePushMessage(), button: locales.RefsForcePush(),
-				run: func() { a.submit(t, write.Push(w, write.PushOptions{ForceWithLease: true}), nil) }}
+				run: func() { a.submit(t, write.Push(w, write.PushOptions{ForceWithLease: true, Branch: headBranch}), nil) }}
 		}
 	})
 }

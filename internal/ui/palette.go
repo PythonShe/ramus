@@ -328,6 +328,7 @@ func (a *App) writeCommands(t *tab) []command {
 		}
 	}
 	if opt, ok := pushOptions(t); ok && !head.Detached && !head.Unborn {
+		opt.Branch = head.Target
 		cmds = append(cmds, cmd("push", func() { a.submit(t, write.Push(w, opt), nil) }))
 	}
 	if len(head.OID) > 0 {

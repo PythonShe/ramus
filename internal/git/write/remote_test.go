@@ -1,6 +1,7 @@
 package write
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -158,6 +159,30 @@ func TestMergeAndRebase(t *testing.T) {
 	}
 	if _, err := Rebase(h.w, "--root", nil, h.seen()); err == nil {
 		t.Fatal("an option taken as what to rebase onto")
+	}
+}
+
+// A push of the branch the user chose, run once HEAD is on another,
+// pushes nothing: git would push that one.
+func TestPushRefusesOnceHeadMoved(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	bare := gittest.Init(t, "--bare")
+	h.r.Git("remote", "add", "origin", bare.Dir)
+	h.r.Git("push", "-q", "-u", "origin", "main")
+	h.r.Git("config", "push.default", "upstream")
+	push := Push(h.w, PushOptions{ForceWithLease: true, Branch: "refs/heads/main"})
+	h.r.Git("switch", "-q", "-c", "other")
+	h.r.Git("branch", "-q", "--set-upstream-to", "origin/main")
+	h.r.Write("b", "1")
+	h.r.Commit("other work")
+	_, err := wait(t, h.q.Submit(push))
+	if _, ok := errors.AsType[*StaleError](err); !ok {
+		t.Fatalf("pushed, or failed otherwise: %v", err)
+	}
+	if got := strings.TrimSpace(bare.Git("log", "-1", "--format=%s", "main")); got != "one" {
+		t.Fatalf("remote main is %q", got)
 	}
 }
 

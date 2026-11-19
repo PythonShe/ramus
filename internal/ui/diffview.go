@@ -374,7 +374,7 @@ func (a *App) cleanTree(c *ui.Context, t *tab) {
 					a.syncPull(t, "")
 				}
 				if tr.Ahead > 0 && ui.Button(c, locales.SyncPushLabel(tr.Ahead, upstream)).Disabled(ro || t.s.Fetching()).Clicked() {
-					a.submit(t, write.Push(w, write.PushOptions{}), nil)
+					a.submit(t, write.Push(w, write.PushOptions{Branch: head.Target}), nil)
 				}
 			}
 			dir, update := t.s.Path, a.Update

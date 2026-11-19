@@ -183,6 +183,47 @@ func (h *harness) labelled(s string) func() bool {
 
 // A push goes to the remote git picks: the branch's push remote, then
 // the default one, then the remote it tracks.
+// A force push asked for from the sync menu, confirmed once another
+// branch is checked out, pushes nothing: git would push that one, to the
+// upstream the user was asked about.
+func TestSyncForcePushBranchChanged(t *testing.T) {
+	h := newHarness(t)
+	origin := gittest.Init(t, "--bare")
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", origin.Dir)
+	r.Write("a.txt", "a\n")
+	r.Commit("add a")
+	r.Git("push", "-q", "-u", "origin", "main")
+	// Each branch pushes to its upstream, whatever its name.
+	r.Git("config", "push.default", "upstream")
+	r.Git("commit", "-q", "--amend", "-m", "add a, reworded")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	tb := h.app.current()
+	h.until("diverged", h.shows("Pull 1 commit from origin/main; 1 commit to push after"))
+	h.click("Fetch, Pull or Push")
+	if err := h.tt.ChooseMenuItem("Force Push with Lease…"); err != nil {
+		t.Fatalf("%v: %q", err, h.tt.Menu())
+	}
+	h.until("the question", h.shows("Overwrite origin/main?"))
+
+	// A branch that takes origin/main in, so git would push it.
+	r.Git("switch", "-q", "-c", "other", "origin/main")
+	r.Git("branch", "-q", "--set-upstream-to", "origin/main")
+	r.Write("o.txt", "o\n")
+	r.Commit("other work")
+	h.until("the switch", func() bool { return tb.s.State.Head.Target == "refs/heads/other" })
+	h.click("Force Push")
+	h.idle(tb, "no push")
+	if out, _ := origin.Run(nil, "log", "-1", "--format=%s", "main"); strings.TrimSpace(out) != "add a" {
+		t.Fatalf("pushed %q", out)
+	}
+	if l := tb.s.Log; len(l) == 0 || l[len(l)-1].Err == nil {
+		t.Fatal("the push did not say why it refused")
+	}
+}
+
 func TestPushRemote(t *testing.T) {
 	// Keys as git config --list prints them, lower case.
 	entry := func(k, v string) string { return "local\x00f\x00" + k + "\n" + v + "\x00" }
