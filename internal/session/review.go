@@ -197,8 +197,12 @@ func (s *Session) ForgetPulls(keep []int) {
 	}
 	update := s.update
 	w := s.Where()
+	rd := r.Refs()
+	if rd == nil {
+		return // refs not read here: the engine gave them to git
+	}
 	r.Life().Go(func(ctx context.Context) {
-		list, err := r.Refs().List()
+		list, err := rd.List()
 		if err != nil {
 			return
 		}
