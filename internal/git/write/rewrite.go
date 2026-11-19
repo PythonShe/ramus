@@ -334,9 +334,9 @@ func EditHistory(w Where, rw Rewrite, steps []Step, seen Seen) (Op, error) {
 	}
 	c := w.cmd(args...)
 	c.Config = append(c.Config, rebasePins...)
-	// The todo comes on standard input; a squash keeps the messages
-	// joined, which git's editor would otherwise be asked about.
-	c.Env = append(c.Env, "GIT_SEQUENCE_EDITOR=cat >", "GIT_EDITOR=true")
+	// The todo comes on standard input; the messages of rewords and
+	// squashes come from the todo, never from the user's editor.
+	c.Env = append(c.Env, "GIT_SEQUENCE_EDITOR=cat >", "GIT_EDITOR="+stepEditor)
 	rr := &rewriteRun{kind: editKind, rw: rw, steps: steps, fallback: c}
 	op := rw.op("Edit history from", seen, c, rr)
 	op.Expect.Replay = nil // the steps are checked against the range instead
@@ -377,37 +377,35 @@ func historyTodo(steps []Step, refs bool) (string, error) {
 		default:
 			return "", fmt.Errorf("write: unknown %v", s.Action)
 		}
-		word := s.Action.String()
 		// A squash with no message joins the messages here, whole: git
 		// joins them with comment lines of its own, and stripping those
 		// strips the user's lines that start with its comment character.
 		join := s.Action == DoSquash && msg == ""
 		if msg != "" || join {
-			// The new message is set once the commit is made, by an
-			// amend git runs: git's own editor would ask for it.
-			word = "pick"
-			if s.Action == DoSquash {
-				word = "fixup"
-			}
-			// HEAD before the step, for the amend to tell the step's
+			// git's own reword and squash make the commit, so its hooks run
+			// as they do in a terminal; the message is put where the editor
+			// git opens for it (stepEditor) takes it from.
+			// HEAD before the step, for the step's end to tell the step's
 			// commit made from one skipped, which left HEAD on the commit
 			// before: that one keeps its message.
 			b.WriteString("exec git rev-parse -q --verify HEAD >\"$(git rev-parse --git-path " + stepHead + ")\" || :\n")
+			// Cleaned as the commit box cleans a message, whatever
+			// commit.cleanup says: git stripspace is --cleanup=whitespace.
+			if join {
+				fmt.Fprintf(&b, "exec { git log -1 --no-show-signature --format=%%B HEAD; echo; git log -1 --no-show-signature --format=%%B %s; } | "+
+					"git stripspace >\"$(git rev-parse --git-path %s)\"\n", s.Commit, stepMessage)
+			} else {
+				fmt.Fprintf(&b, "exec printf '%%b' '%s' >\"$(git rev-parse --git-path %s)\"\n", printfArg(msg), stepMessage)
+			}
 		}
-		if join {
-			b.WriteString("exec git log -1 --no-show-signature --format=%B HEAD >\"$(git rev-parse --git-path " + stepMessage + ")\"\n")
-		}
-		fmt.Fprintf(&b, "%s %s\n", word, s.Commit)
-		// The amends clean the message as the commit box does, whatever
-		// commit.cleanup says.
-		if join {
-			fmt.Fprintf(&b, "exec %s || "+
-				"{ cat \"$(git rev-parse --git-path %s)\"; echo; git log -1 --no-show-signature --format=%%B %s; } | "+
-				"git commit --amend --only -q --allow-empty --cleanup=whitespace -F -\n", skipped(s.Commit, word == "fixup"), stepMessage, s.Commit)
-		}
-		if msg != "" {
-			fmt.Fprintf(&b, "exec %s || "+
-				"printf '%%b' '%s' | git commit --amend --only -q --allow-empty --cleanup=whitespace -F -\n", skipped(s.Commit, word == "fixup"), printfArg(msg))
+		fmt.Fprintf(&b, "%s %s\n", s.Action, s.Commit)
+		if msg != "" || join {
+			// The editor did not take the message when the step stopped on
+			// a conflict and was then committed by a continue, which gives
+			// git's: it is set by an amend. A step skipped leaves it unused.
+			fmt.Fprintf(&b, "exec m=\"$(git rev-parse --git-path %s)\" && "+
+				"if test -f \"$m\"; then { %s || git commit --amend --only -q --allow-empty --cleanup=whitespace -F \"$m\"; } && rm -f \"$m\"; fi\n",
+				stepMessage, skipped(s.Commit, s.Action == DoSquash))
 		}
 		kept = kept || s.Action != DoDrop
 		if !refs {
@@ -443,9 +441,14 @@ func skipped(commit string, fold bool) string {
 // rebase's own folder, which goes with it.
 const stepHead = "rebase-merge/ramus-step-head"
 
-// stepMessage is where a todo keeps the message of the commit a squash
-// folds into, to join the squashed commit's to.
+// stepMessage is where a todo keeps the message of the step to come, a
+// reword's or a squash's, for stepEditor to give git.
 const stepMessage = "rebase-merge/ramus-step-message"
+
+// stepEditor is the editor of an edit of history: it gives git the
+// message stepMessage holds, once, and otherwise leaves git's as it is.
+const stepEditor = "f() { m=\"$(git rev-parse --git-path " + stepMessage + ")\" && " +
+	"if test -f \"$m\"; then cat \"$m\" >\"$1\" && rm -f \"$m\"; fi; }; f"
 
 // printfArg is s as printf %b reads it inside single quotes, on one line.
 func printfArg(s string) string {

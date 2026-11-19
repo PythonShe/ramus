@@ -348,6 +348,56 @@ func TestEditHistorySkippedSquashKeepsTheCommitBefore(t *testing.T) {
 	}
 }
 
+// A reworded or squashed step that stops on a conflict, resolved and
+// continued, takes the message it was given: the continue makes the
+// commit with git's, and the step's end sets it.
+func TestEditHistoryContinuedStepTakesItsMessage(t *testing.T) {
+	for _, action := range []Action{DoReword, DoSquash} {
+		t.Run(action.String(), func(t *testing.T) {
+			h := newHarness(t)
+			h.r.Write("f", "1\n")
+			h.r.Commit("base")
+			h.r.Write("g", "g\n")
+			h.r.Commit("prev commit")
+			h.r.Write("f", "2\n")
+			h.r.Commit("two")
+			h.r.Write("f", "3\n")
+			h.r.Commit("three")
+			base, prev, two, three := h.rev("main~3"), h.rev("main~2"), h.rev("main~1"), h.rev("main")
+			// three before two stops on f.
+			op, err := EditHistory(h.w, Rewrite{Commit: prev, Parent: base, Git: localGit(t)}, []Step{
+				{Action: DoPick, Commit: prev},
+				{Action: action, Commit: three, Message: "THREE given\n\n# kept\n"},
+				{Action: DoDrop, Commit: two},
+			}, h.seen())
+			h.do(op, err, false)
+			h.r.Write("f", "3\n")
+			h.r.Git("add", "f")
+			log := countingHooks(t, h.r)
+			cont, err := Sequence(h.w, "rebase", Continue)
+			h.do(cont, err, true)
+			// git rebase --continue in a terminal commits the step once,
+			// its editor opened on the message.
+			if runs := hookRuns(t, log); runs["prepare-commit-msg"] != 1 {
+				t.Errorf("the hooks ran %v times", runs)
+			}
+			if body := h.r.Git("log", "-1", "--format=%B", "HEAD"); body != "THREE given\n\n# kept\n\n" {
+				t.Fatalf("message %q", body)
+			}
+			want := "THREE given\nprev commit\nbase"
+			if action == DoSquash {
+				want = "THREE given\nbase"
+			}
+			if log := strings.TrimSpace(h.r.Git("log", "--format=%s", "HEAD")); log != want {
+				t.Fatalf("log:\n%s", log)
+			}
+			if _, err := os.Stat(filepath.Join(h.r.GitDir(), "rebase-merge")); err == nil {
+				t.Fatal("the rebase is still in progress")
+			}
+		})
+	}
+}
+
 // The fallback's todo editor reads pick in both forms, and fails, which
 // stops the rebase before it starts, when it changed no line: the rebase
 // would otherwise replay every commit as it was and succeed.

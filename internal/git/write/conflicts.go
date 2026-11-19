@@ -214,6 +214,15 @@ func Sequence(w Where, operation string, action SequenceAction) (Op, error) {
 			if cc != "" {
 				cmd.Config = append(cmd.Config, "core.commentChar="+cc)
 			}
+			// A reword or squash of an edit of history stopped on a
+			// conflict: its message, cleaned already, is given as the
+			// edit gives it, so the commit is made once, as in a terminal.
+			if operation == "rebase" {
+				if _, err := os.Lstat(filepath.Join(w.GitDir, filepath.FromSlash(stepMessage))); err == nil {
+					cmd.Env = setEnv(cmd.Env, "GIT_EDITOR", stepEditor)
+					cmd.Config = append(cmd.Config, "commit.cleanup=verbatim")
+				}
+			}
 			return execute(ctx, j.q.r, j, cmd, nil)
 		}
 	}
