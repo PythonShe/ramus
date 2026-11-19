@@ -38,30 +38,30 @@ type pullsState struct {
 }
 
 // forgeTools finds the user's gh and glab once each; find runs off the
-// main thread.
+// main thread. One not found is looked for again each time it is asked
+// for, a few file lookups: installed meanwhile, it is found without the
+// app restarting.
 type forgeTools struct {
 	mu    sync.Mutex
 	env   []string
-	found map[forge.Kind]forgeFound
-}
-
-type forgeFound struct {
-	c   *forge.CLI
-	err error
+	found map[forge.Kind]*forge.CLI
 }
 
 func (f *forgeTools) find(k forge.Kind) (*forge.CLI, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if got, ok := f.found[k]; ok {
-		return got.c, got.err
+	if c, ok := f.found[k]; ok {
+		return c, nil
 	}
 	c, err := forge.Find(f.env, k)
-	if f.found == nil {
-		f.found = map[forge.Kind]forgeFound{}
+	if err != nil {
+		return nil, err
 	}
-	f.found[k] = forgeFound{c, err}
-	return c, err
+	if f.found == nil {
+		f.found = map[forge.Kind]*forge.CLI{}
+	}
+	f.found[k] = c
+	return c, nil
 }
 
 // findForge is how the app finds a host's tool: through the user's PATH,
@@ -240,18 +240,23 @@ func (a *App) pullItems(m *ui.Menu, t *tab, b session.BranchInfo, act *func()) {
 }
 
 // stackTool is the user's gh with the stack extension, looked for once
-// pull requests are turned on.
+// pull requests are turned on, and again now and then until it is found.
 type stackTool struct {
-	asked, ok bool
-	c         *forge.CLI
+	asking, ok bool
+	// at is when it was last looked for.
+	at time.Time
+	c  *forge.CLI
 }
 
-// findStackTool looks, off the main thread, for gh stack.
+// findStackTool looks, off the main thread, for gh stack; not found, it
+// looks again once pullsMaxAge has passed, as gh or its extension may
+// have been installed meanwhile.
 func (a *App) findStackTool() {
-	if a.ghStack.asked {
+	st := &a.ghStack
+	if st.asking || st.ok || !st.at.IsZero() && a.Now().Sub(st.at) < pullsMaxAge {
 		return
 	}
-	a.ghStack.asked = true
+	st.asking, st.at = true, a.Now()
 	find, update := a.findForge(), a.Update
 	a.goWork(nil, func() {
 		c, err := find(forge.GitHub)
@@ -259,7 +264,7 @@ func (a *App) findStackTool() {
 		if err == nil {
 			_, ok = c.HasStack(context.Background())
 		}
-		update(func() { a.ghStack.c, a.ghStack.ok = c, ok })
+		update(func() { st.c, st.ok, st.asking = c, ok, false })
 	})
 }
 

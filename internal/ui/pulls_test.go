@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"ramus/internal/forge"
 )
@@ -27,6 +29,40 @@ func fakeGH(t *testing.T, out string, code int) []string {
 		t.Fatal(err)
 	}
 	return []string{"PATH=" + dir + ":/usr/bin:/bin"}
+}
+
+// gh installed while the app runs is found without a restart, and so is
+// its stack extension, looked for again a while later.
+func TestToolInstalledLater(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake gh is a shell script")
+	}
+	dir := t.TempDir()
+	tools := &forgeTools{env: []string{"PATH=" + dir}}
+	if _, err := tools.find(forge.GitHub); !errors.Is(err, forge.ErrNoCLI) {
+		t.Fatalf("no gh: %v", err)
+	}
+	h := newHarness(t)
+	now := time.Date(2026, 11, 19, 9, 0, 0, 0, time.UTC)
+	h.app.Now = func() time.Time { return now }
+	h.app.forgeFind = tools.find
+	h.app.findStackTool()
+	h.until("gh stack looked for", func() bool { return !h.app.ghStack.asking })
+
+	script := "#!/bin/sh\necho 'gh stack version 0.1.0'\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if c, err := tools.find(forge.GitHub); err != nil || c == nil {
+		t.Fatalf("gh installed: %v", err)
+	}
+	h.app.findStackTool()
+	if h.app.ghStack.asking {
+		t.Fatal("looked for again at once")
+	}
+	now = now.Add(pullsMaxAge)
+	h.app.findStackTool()
+	h.until("gh stack found", func() bool { return h.app.ghStack.ok })
 }
 
 // A branch pushed to GitHub shows its open pull request and checks, as
