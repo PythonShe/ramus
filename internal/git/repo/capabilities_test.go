@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -143,5 +144,25 @@ func TestFormatVersion(t *testing.T) {
 		if !tc.works && len(c.Fallbacks()) == 0 {
 			t.Errorf("v%s %s: no fallback named", tc.version, tc.ext)
 		}
+	}
+}
+
+// Variables that change what git reads of replace refs and grafts, in the
+// app's own environment, are not given to git, so they do not change what
+// the engine decides either: native history and git's agree.
+func TestReplaceVariablesOfTheApp(t *testing.T) {
+	r := gittest.Init(t)
+	a := r.Commit("a")
+	b := r.Commit("b")
+	r.Git("replace", a, b)
+	grafts := filepath.Join(t.TempDir(), "grafts")
+	if err := os.WriteFile(grafts, []byte(a+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_NO_REPLACE_OBJECTS", "1")
+	t.Setenv("GIT_REPLACE_REF_BASE", "refs/elsewhere/")
+	t.Setenv("GIT_GRAFT_FILE", grafts)
+	if c := caps(t, r); !c.ReplaceRefs || c.Grafts {
+		t.Fatalf("%+v", c)
 	}
 }

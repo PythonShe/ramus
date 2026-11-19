@@ -122,14 +122,14 @@ func (c *Capabilities) checkHistory(loc Location, cfg *config.Config, seen *repl
 	c.CommitGraphOff = !cfg.Bool("core.commitgraph", true)
 	c.Shallow = exists(filepath.Join(loc.CommonDir, "shallow"))
 	c.Grafts = exists(graftFile(loc))
-	c.ReplaceRefs = cfg.Bool("core.usereplacerefs", true) && os.Getenv("GIT_NO_REPLACE_OBJECTS") == "" && hasReplaceRefs(loc, *c, seen)
+	// GIT_NO_REPLACE_OBJECTS, GIT_GRAFT_FILE and GIT_REPLACE_REF_BASE are
+	// not read: the runner keeps them from git, which so reads what they
+	// would have changed as it is by default.
+	c.ReplaceRefs = cfg.Bool("core.usereplacerefs", true) && hasReplaceRefs(loc, *c, seen)
 }
 
 // graftFile is where git reads grafts from.
 func graftFile(loc Location) string {
-	if f := os.Getenv("GIT_GRAFT_FILE"); f != "" {
-		return f
-	}
 	return filepath.Join(loc.CommonDir, "info", "grafts")
 }
 
@@ -190,16 +190,7 @@ func exists(p string) bool {
 }
 
 // replaceBase is where git looks for replace refs.
-func replaceBase() string {
-	b := os.Getenv("GIT_REPLACE_REF_BASE")
-	if b == "" {
-		return "refs/replace/"
-	}
-	if !strings.HasSuffix(b, "/") {
-		b += "/"
-	}
-	return b
-}
+func replaceBase() string { return "refs/replace/" }
 
 // replaceSeen is what a check of replace refs read, kept so the next
 // reads again only what changed since: packed-refs, or the reftable
