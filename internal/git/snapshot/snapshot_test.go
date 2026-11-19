@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -312,6 +313,35 @@ func TestRemovedWorktreeKeepsItsSnapshots(t *testing.T) {
 	}
 	if len(l) != 3 {
 		t.Errorf("%d snapshots, want the worktree's and two of its removal", len(l))
+	}
+}
+
+// An index copy a snapshot left when the app ended in the middle of it is
+// removed by the next snapshot; one a snapshot may be using stays.
+func TestLeftIndexCopiesRemoved(t *testing.T) {
+	f := setup(t)
+	f.r.Write("a", "1")
+	f.r.Commit("one")
+	gd := f.r.GitDir()
+	long := time.Now().Add(-48 * time.Hour)
+	left := []string{
+		copyPrefix + strconv.FormatInt(long.UnixNano(), 10) + "-00.index",
+		copyPrefix + strconv.FormatInt(long.UnixNano(), 10) + "-00.index.lock",
+		copyPrefix + "0123456789abcdef.index", // named before the time was in it
+	}
+	using := copyPrefix + strconv.FormatInt(time.Now().UnixNano(), 10) + "-01.index"
+	for _, n := range append(slices.Clone(left), using) {
+		os.WriteFile(filepath.Join(gd, n), []byte("x"), 0o600)
+	}
+	os.Chtimes(filepath.Join(gd, left[2]), long, long)
+	f.take(Options{Reason: "x"})
+	for _, n := range left {
+		if _, err := os.Lstat(filepath.Join(gd, n)); err == nil {
+			t.Errorf("%s left", n)
+		}
+	}
+	if _, err := os.Lstat(filepath.Join(gd, using)); err != nil {
+		t.Errorf("a copy in use removed: %v", err)
 	}
 }
 

@@ -170,6 +170,7 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 	if s.Head, err = revParse(ctx, r, w, "HEAD^{commit}"); err != nil {
 		return Snapshot{}, err
 	}
+	removeLeftCopies(w.GitDir, time.Now())
 	tmp, err := copyIndex(w.GitDir)
 	if err != nil {
 		return Snapshot{}, err
@@ -415,12 +416,43 @@ func present(ctx context.Context, git func([]byte, []string, ...string) (string,
 	return out, nil
 }
 
+// copyPrefix starts the name of copyIndex's copies.
+const copyPrefix = "ramus-snapshot-"
+
+// removeLeftCopies removes the index copies, and git's locks of them,
+// that a snapshot left in gitDir when the app ended in the middle of it:
+// each is a whole index, and nothing else would ever remove it. Only
+// those made longer ago than any snapshot runs are taken, so none in use
+// is. A copy's name says when it was made: its modification time is the
+// index's.
+func removeLeftCopies(gitDir string, now time.Time) {
+	for _, pattern := range []string{copyPrefix + "*.index", copyPrefix + "*.index.lock"} {
+		names, _ := filepath.Glob(filepath.Join(gitDir, pattern))
+		for _, name := range names {
+			made, _, _ := strings.Cut(strings.TrimPrefix(filepath.Base(name), copyPrefix), "-")
+			at, err := strconv.ParseInt(made, 10, 64)
+			if err != nil {
+				// Named by a version that did not say when: by the time
+				// it was last written, then.
+				fi, err := os.Lstat(name)
+				if err != nil {
+					continue
+				}
+				at = fi.ModTime().UnixNano()
+			}
+			if now.Sub(time.Unix(0, at)) > filterTimeout+time.Hour {
+				os.Remove(name)
+			}
+		}
+	}
+}
+
 // copyIndex copies the index next to it, so a split index still finds
 // its shared part, and returns the copy's path.
 func copyIndex(gitDir string) (string, error) {
 	var b [8]byte
 	rand.Read(b[:])
-	tmp := filepath.Join(gitDir, "ramus-snapshot-"+hex.EncodeToString(b[:])+".index")
+	tmp := filepath.Join(gitDir, copyPrefix+strconv.FormatInt(time.Now().UnixNano(), 10)+"-"+hex.EncodeToString(b[:])+".index")
 	src, err := pathsafe.OpenRegular(filepath.Join(gitDir, "index"))
 	if errors.Is(err, os.ErrNotExist) {
 		return tmp, nil // no index yet: git starts an empty one
