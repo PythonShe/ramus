@@ -54,12 +54,22 @@ func Template(ctx context.Context, r *run.Runner, w Where) (string, error) {
 	return string(b), err
 }
 
-// CommentChar returns core.commentChar, "#" unless set; "auto" is read
-// as "#", the character git falls back to.
+// CommentChar returns the string that starts a comment line, "#" unless
+// set; "auto" is read as "#", the character git falls back to. git takes
+// core.commentChar and core.commentString (2.45+) as one setting under
+// two names, the last one set winning, and either may hold a string.
 func CommentChar(ctx context.Context, r *run.Runner, w Where) string {
-	out, err := w.git(ctx, r, "config", "--get", "core.commentChar")
-	c := strings.TrimSuffix(out, "\n")
-	if err != nil || c == "" || c == "auto" {
+	out, err := w.git(ctx, r, "config", "-z", "--get-regexp", `^core\.comment(char|string)$`)
+	if err != nil {
+		return "#"
+	}
+	var c string
+	for _, e := range strings.Split(out, "\x00") {
+		if _, v, ok := strings.Cut(e, "\n"); ok {
+			c = v
+		}
+	}
+	if c == "" || c == "auto" {
 		return "#"
 	}
 	return c

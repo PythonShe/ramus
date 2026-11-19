@@ -59,3 +59,39 @@ func TestJoinSplitCheck(t *testing.T) {
 		t.Fatal("check person")
 	}
 }
+
+// The comment string is the one git uses: core.commentChar and
+// core.commentString are one setting under two names, the last set wins,
+// and it may be longer than a character. git stripspace is the oracle.
+func TestCommentCharIsGits(t *testing.T) {
+	rn := testrun.Runner(t)
+	ctx := context.Background()
+	for _, c := range []struct {
+		config [][2]string
+		want   string
+	}{
+		{nil, "#"},
+		{[][2]string{{"core.commentChar", ";"}}, ";"},
+		{[][2]string{{"core.commentString", "//"}}, "//"},
+		{[][2]string{{"core.commentChar", ";"}, {"core.commentString", "//"}}, "//"},
+		{[][2]string{{"core.commentString", "//"}, {"core.commentChar", ";"}}, ";"},
+		{[][2]string{{"core.commentChar", "auto"}}, "#"},
+	} {
+		r := gittest.Init(t)
+		w := Where{GitDir: r.GitDir(), WorkTree: r.Dir}
+		for _, kv := range c.config {
+			r.Git("config", "--add", kv[0], kv[1])
+		}
+		got := CommentChar(ctx, rn, w)
+		if got != c.want {
+			t.Fatalf("%v: comment %q, want %q", c.config, got, c.want)
+		}
+		if got == "#" && len(c.config) > 0 {
+			continue // auto: git picks a character per message
+		}
+		out, err := r.Run([]byte(got+" a comment\nkept\n"), "stripspace", "--strip-comments")
+		if err != nil || out != "kept\n" {
+			t.Fatalf("%v: git strips %q to %q %v", c.config, got+" a comment", out, err)
+		}
+	}
+}
