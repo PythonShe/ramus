@@ -82,6 +82,58 @@ type History struct {
 // MaxHistory bounds the entries kept; the oldest go first.
 const MaxHistory = 100
 
+// MaxHistoryBytes bounds the memory the entries hold, as a patch a
+// discard of lines keeps to redo it, or the state of the many files a
+// delete of a large folder left; the oldest go first, the last write
+// always stays undoable.
+const MaxHistoryBytes = 64 << 20
+
+// size is about the memory e holds.
+func (e *Entry) size() int {
+	n := 512 + len(e.op.Input) + len(e.Name) + pathsSize(e.Snapshot.Paths) + pathsSize(e.op.Cmd.Args)
+	for _, c := range e.op.More {
+		n += pathsSize(c.Args)
+	}
+	if o := e.op.Snapshot; o != nil {
+		n += pathsSize(o.Paths)
+	}
+	if l := e.left; l != nil {
+		n += len(l.index) + len(l.files)*96 + len(l.sums)*48
+		for _, f := range l.files {
+			n += len(f.Path)
+		}
+	}
+	return n
+}
+
+func pathsSize(paths []string) int {
+	n := len(paths) * 16
+	for _, p := range paths {
+		n += len(p)
+	}
+	return n
+}
+
+// trim drops the oldest entries past MaxHistoryBytes: those to undo
+// first, then those furthest to redo, keeping the last write. h.mu is
+// held.
+func (h *History) trim() {
+	total := 0
+	for _, side := range [][]Entry{h.done, h.undone} {
+		for i := range side {
+			total += side[i].size()
+		}
+	}
+	for total > MaxHistoryBytes && len(h.done) > 1 {
+		total -= h.done[0].size()
+		h.done = slices.Delete(h.done, 0, 1)
+	}
+	for total > MaxHistoryBytes && len(h.undone) > 0 && len(h.done)+len(h.undone) > 1 {
+		total -= h.undone[0].size()
+		h.undone = slices.Delete(h.undone, 0, 1)
+	}
+}
+
 // Next names the write Undo and Redo would act on, "" when none, for the
 // menu ("Undo Commit").
 func (h *History) Next() (undo, redo string) {
@@ -118,6 +170,7 @@ func (h *History) push(e Entry) uint64 {
 		h.done = slices.Delete(h.done, 0, len(h.done)-MaxHistory)
 	}
 	h.undone = nil
+	h.trim()
 	return e.id
 }
 
@@ -254,6 +307,7 @@ func (q *Queue) travel(ctx context.Context, undo bool, id uint64) (run.Result, e
 	} else {
 		h.done = append(h.done, e)
 	}
+	h.trim()
 	h.mu.Unlock()
 	return run.Result{}, err
 }

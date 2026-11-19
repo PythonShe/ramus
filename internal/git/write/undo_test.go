@@ -344,6 +344,33 @@ func TestUndoHardResetKeepsStaged(t *testing.T) {
 	f.roundTrip("Reset", MovesHead, &snapshot.Options{Reason: "Reset", Paths: []string{"a"}}, "reset", "-q", "--hard", "HEAD~")
 }
 
+// History holds no more than MaxHistoryBytes, as a patch each discard of
+// lines keeps to redo it: the oldest entries go, the last stays though
+// it alone is past the budget.
+func TestHistoryHasAByteBudget(t *testing.T) {
+	var h History
+	patch := make([]byte, 20<<20)
+	for i := range 6 {
+		h.push(Entry{Name: fmt.Sprintf("Discard lines %d", i), op: Op{Input: patch}})
+	}
+	h.mu.Lock()
+	n, total := len(h.done), 0
+	for i := range h.done {
+		total += h.done[i].size()
+	}
+	h.mu.Unlock()
+	if total > MaxHistoryBytes || n == 0 {
+		t.Fatalf("%d entries hold %d bytes", n, total)
+	}
+	if u, _ := h.Next(); u != "Discard lines 5" {
+		t.Fatalf("next undo %q", u)
+	}
+	h.push(Entry{Name: "Huge", op: Op{Input: make([]byte, MaxHistoryBytes+1)}})
+	if u, _ := h.Next(); u != "Huge" {
+		t.Fatalf("next undo %q", u)
+	}
+}
+
 // Redo of a delete git runs in several cleans, for its many paths,
 // deletes them all again.
 func TestRedoDeletesEveryPath(t *testing.T) {
