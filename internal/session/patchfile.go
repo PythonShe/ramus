@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"ramus/internal/git/pathsafe"
 	"ramus/internal/git/run"
 	"ramus/internal/git/write"
 	"ramus/locales"
@@ -186,7 +187,9 @@ func intendToAdd(ctx context.Context, rn *run.Runner, gitDir, workTree string, p
 		}
 		os.Remove(index + ".lock")
 	}()
-	src, err := os.Open(filepath.Join(gitDir, "index"))
+	// As every file under the git directory is opened: a named pipe there
+	// would hold the open for ever.
+	src, err := pathsafe.OpenRegular(filepath.Join(gitDir, "index"))
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		// No index yet: git starts from an empty one.
