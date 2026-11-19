@@ -9,7 +9,11 @@ import (
 	"time"
 )
 
-// stopsHard is false: git removes its lock files on SIGTERM.
+// stopsHard is false: git removes its lock files on SIGTERM. Only a git
+// stopped in the instant between making a lock and noting it for removal
+// leaves one, which the next write reports and the user can remove;
+// removing every lock made since the write started would also remove the
+// live ones of a git in a terminal.
 const stopsHard = false
 
 // lower runs the process started at the priority nice 10 gives, which
