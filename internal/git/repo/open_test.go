@@ -55,7 +55,7 @@ func TestOpenClose(t *testing.T) {
 		r.Close()
 		select {
 		case <-r.Life().Done():
-		case <-time.After(5 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatal("close did not finish")
 		}
 		if n := runner.Running(); n != 0 {
@@ -96,7 +96,7 @@ func TestCatFileReplacesTheDead(t *testing.T) {
 		if out, err := kill.CombinedOutput(); err != nil {
 			t.Fatalf("pkill: %v %s", err, out)
 		}
-		deadline := time.Now().Add(5 * time.Second)
+		deadline := time.Now().Add(time.Minute)
 		for cf.Read([][]byte{oid}, func(int, catfile.Object) error { return nil }) == nil {
 			if time.Now().After(deadline) {
 				t.Fatal("cat-file still reads once killed")
@@ -180,7 +180,7 @@ func TestCommitGraphReleased(t *testing.T) {
 		// rest run when the collector and their goroutine get to them,
 		// later on a busy machine.
 		mapped := func(want int) int {
-			deadline := time.Now().Add(5 * time.Second)
+			deadline := time.Now().Add(time.Minute)
 			for r.openGraphs() != want && time.Now().Before(deadline) {
 				settle()
 				time.Sleep(10 * time.Millisecond)

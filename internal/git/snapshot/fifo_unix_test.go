@@ -29,7 +29,7 @@ func TestWorktreesThatIsAPipe(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(time.Minute):
 		// A writer lets an open stuck on the pipe go, so the test ends.
 		if w, err := os.OpenFile(fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
 			w.Close()

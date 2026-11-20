@@ -39,7 +39,7 @@ func TestUndoDoesNotReadANamedPipe(t *testing.T) {
 		if !errors.As(err, &se) {
 			t.Fatalf("err %v", err)
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(time.Minute):
 		// Lets every reader go, each finding the pipe empty, so the test
 		// ends either way.
 		stop := make(chan struct{})

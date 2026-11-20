@@ -56,7 +56,7 @@ func TestRefusesWhatIsNoFile(t *testing.T) {
 				if !errors.Is(err, ErrNotRegular) {
 					t.Errorf("%s(%s): %v", name, p, err)
 				}
-			case <-time.After(10 * time.Second):
+			case <-time.After(time.Minute):
 				// Release the reader the pipe holds, so that the run ends.
 				if w, err := os.OpenFile(fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
 					w.Close()

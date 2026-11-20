@@ -114,7 +114,7 @@ func TestMovedFolders(t *testing.T) {
 	ready(t, w, root)
 	os.WriteFile(filepath.Join(away, "out", "deep", "f"), []byte("x"), 0o644)
 	os.WriteFile(filepath.Join(root, "moved", "deep", "g"), []byte("y"), 0o644)
-	for seen, deadline := false, time.After(5*time.Second); !seen; {
+	for seen, deadline := false, time.After(time.Minute); !seen; {
 		select {
 		case b := <-w.Events():
 			for _, p := range b.Paths {
@@ -173,7 +173,7 @@ func TestLimitLater(t *testing.T) {
 	os.MkdirAll(filepath.Join(root, "new"), 0o755)
 	// The watcher says it stopped seeing everything, and asks for a look
 	// at the whole tree.
-	deadline := time.After(5 * time.Second)
+	deadline := time.After(time.Minute)
 	for {
 		select {
 		case b := <-w.Events():

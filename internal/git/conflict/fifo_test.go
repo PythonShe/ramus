@@ -37,7 +37,7 @@ func TestMergeFilesRefusesANamedPipe(t *testing.T) {
 		if !errors.Is(err, pathsafe.ErrNotRegular) {
 			t.Fatalf("err %v", err)
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(time.Minute):
 		// Lets the reader go, so the test ends either way.
 		if f, err := os.OpenFile(pipe, os.O_RDWR, 0); err == nil {
 			f.Close()

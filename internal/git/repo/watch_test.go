@@ -47,7 +47,7 @@ func TestClassifyGit(t *testing.T) {
 
 func next(t *testing.T, ch <-chan Notice, want Change) Notice {
 	t.Helper()
-	deadline := time.After(5 * time.Second)
+	deadline := time.After(time.Minute)
 	var got Change
 	for {
 		select {
@@ -67,7 +67,7 @@ func next(t *testing.T, ch <-chan Notice, want Change) Notice {
 // notices until none came for a while.
 func ready(t *testing.T, ch <-chan Notice, what Change, change func()) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for got := false; !got; {
 		change()
 		select {
@@ -114,7 +114,7 @@ func TestWatch(t *testing.T) {
 	r.Close()
 	select {
 	case <-r.Life().Done():
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("close did not finish")
 	}
 }

@@ -179,7 +179,7 @@ func TestCloneStoppedLeavesNothing(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		deadline := time.Now().Add(30 * time.Second)
+		deadline := time.Now().Add(time.Minute)
 		for {
 			if _, err := os.Stat(marker); err == nil {
 				break

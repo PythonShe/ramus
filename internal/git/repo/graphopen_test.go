@@ -80,7 +80,7 @@ func TestCommitGraphOpensOutsideTheLock(t *testing.T) {
 	}()
 	select {
 	case <-locked:
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("the lock is held while the graph opens")
 	}
 	go open()

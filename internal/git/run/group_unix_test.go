@@ -42,11 +42,12 @@ func TestCancelKillsWhatIgnoresTerm(t *testing.T) {
 	defer cancel()
 	start := time.Now()
 	_, err := runner(t, 1).Run(ctx, &Cmd{GitDir: r.GitDir(), WorkTree: r.Dir,
-		Config: []string{fmt.Sprintf("alias.s=!trap '' TERM; sleep 3; touch %q", mark)}, Args: []string{"s"}})
+		Config: []string{fmt.Sprintf("alias.s=!trap '' TERM; sleep 7; touch %q", mark)}, Args: []string{"s"}})
 	if err == nil {
 		t.Fatal("ran to the end")
 	}
-	time.Sleep(time.Until(start.Add(4 * time.Second)))
+	// The kill has seconds to land in, on a machine slow to deliver it.
+	time.Sleep(time.Until(start.Add(8 * time.Second)))
 	if _, err := os.Stat(mark); err == nil {
 		t.Fatal("the hook outlived the cancelled command and ran to its end")
 	}

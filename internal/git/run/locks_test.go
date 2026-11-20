@@ -155,7 +155,7 @@ func TestNoWriteStartsWhileStoppedLocksGo(t *testing.T) {
 		}()
 		select {
 		case <-elsewhere:
-		case <-time.After(10 * time.Second):
+		case <-time.After(time.Minute):
 			t.Error("a write in another repository waits for the removal")
 		}
 		select {
@@ -167,7 +167,7 @@ func TestNoWriteStartsWhileStoppedLocksGo(t *testing.T) {
 	})
 	select {
 	case <-admitted:
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("the other write never counted in")
 	}
 	if err := <-taken; err != nil {

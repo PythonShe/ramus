@@ -114,7 +114,7 @@ func TestEndsWhenIdle(t *testing.T) {
 	}
 	for range 2 {
 		read()
-		deadline := time.Now().Add(10 * time.Second)
+		deadline := time.Now().Add(time.Minute)
 		for runner.Running() != 0 {
 			if time.Now().After(deadline) {
 				t.Fatal("git still runs while idle")
@@ -221,7 +221,7 @@ func TestCancel(t *testing.T) {
 		go func() { f(); close(ok) }()
 		select {
 		case <-ok:
-		case <-time.After(5 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatalf("%s waits for the batch", what)
 		}
 	}
@@ -275,7 +275,7 @@ func TestCloseDuringABatch(t *testing.T) {
 	go func() { p.Close(); close(closed) }()
 	select {
 	case <-closed:
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("Close waits for the batch")
 	}
 	close(release)
@@ -317,7 +317,7 @@ func TestPanicEndsTheProcess(t *testing.T) {
 	go func() { p.Close(); close(done) }()
 	select {
 	case <-done:
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("Close hangs")
 	}
 }

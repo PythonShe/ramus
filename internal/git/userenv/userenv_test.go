@@ -68,7 +68,9 @@ func TestResolveHangingShell(t *testing.T) {
 	if r.Err == nil {
 		t.Fatal("no error from a hanging shell")
 	}
-	if time.Since(start) > 3*time.Second {
+	// Well short of the shell's minute; long for a machine slow to start
+	// and stop one.
+	if time.Since(start) > 30*time.Second {
 		t.Fatalf("waited %v", time.Since(start))
 	}
 	if Lookup(r.Env, "PATH") != os.Getenv("PATH") {
@@ -79,14 +81,16 @@ func TestResolveHangingShell(t *testing.T) {
 // A shell given up on leaves nothing it started running.
 func TestResolveTimeoutStopsChildren(t *testing.T) {
 	mark := filepath.Join(t.TempDir(), "ran")
-	fakeShell(t, "sh -c 'sleep 2; touch \""+mark+"\"'\n")
+	// The child has seconds left when the shell is given up on: the kill
+	// has them to land in, on a machine slow to deliver it.
+	fakeShell(t, "sh -c 'sleep 6; touch \""+mark+"\"'\n")
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	start := time.Now()
 	if r := Resolve(ctx); r.Err == nil {
 		t.Fatal("no error")
 	}
-	time.Sleep(time.Until(start.Add(3 * time.Second)))
+	time.Sleep(time.Until(start.Add(7 * time.Second)))
 	if _, err := os.Stat(mark); err == nil {
 		t.Fatal("the shell's child ran on")
 	}

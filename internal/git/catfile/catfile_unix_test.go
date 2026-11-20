@@ -78,7 +78,7 @@ func TestStalledGitIsEnded(t *testing.T) {
 		if !errors.Is(err, ErrClosed) || !strings.Contains(err.Error(), run.ErrStalled.Error()) {
 			t.Fatalf("stalled read: %v", err)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("a stalled git holds the read")
 	}
 	if p.Alive() {
@@ -125,14 +125,14 @@ func TestStalledGitThatCannotDie(t *testing.T) {
 		if !errors.Is(err, ErrClosed) || !strings.Contains(err.Error(), run.ErrStalled.Error()) {
 			t.Fatalf("stalled read: %v", err)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("a git that cannot die holds the read")
 	}
 	closed := make(chan error, 1)
 	go func() { closed <- p.Close() }()
 	select {
 	case <-closed:
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("Close waits for a git that cannot die")
 	}
 }
@@ -184,7 +184,7 @@ func TestNoGitStartsWhileOneCannotDie(t *testing.T) {
 		select {
 		case err := <-done:
 			return err
-		case <-time.After(10 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatal("the read is held")
 			return nil
 		}
@@ -206,7 +206,7 @@ func TestNoGitStartsWhileOneCannotDie(t *testing.T) {
 	release.Close()
 	select {
 	case <-g.done:
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("the stand-in did not exit")
 	}
 	q, err := Start(context.Background(), runner, gitDir)
@@ -238,11 +238,18 @@ func TestGitLetGoOfThatDoesNotExitHoldsStartsOff(t *testing.T) {
 	}
 	defer hold.Close()
 	defer release.Close()
-	// A stand-in for a git killed while it cannot finish exiting: on a
-	// line from the test it closes its pipes, as a dying process does
-	// first, and then stays until the test closes the pipe it reads.
-	cmd := exec.Command("/bin/sh", "-c", "read x <&3; exec 0<&- 1>&- 2>&-; read y <&3")
-	cmd.ExtraFiles = []*os.File{hold}
+	asked, asking, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer asked.Close()
+	defer asking.Close()
+	// A stand-in for a git killed while it cannot finish exiting: it says
+	// when it was asked for an object; on a line from the test it closes
+	// its pipes, as a dying process does first, and then stays until the
+	// test closes the pipe it reads.
+	cmd := exec.Command("/bin/sh", "-c", "read asked; echo asked >&4; exec 4>&-; read x <&3; exec 0<&- 1>&- 2>&-; read y <&3")
+	cmd.ExtraFiles = []*os.File{hold, asking}
 	g := &proc{cmd: cmd, cancel: func() {}, untrack: func() {}, stderr: &limitedWriter{n: 1 << 10}, done: make(chan struct{})}
 	cmd.Stderr = g.stderr
 	stdin, err := cmd.StdinPipe()
@@ -263,9 +270,11 @@ func TestGitLetGoOfThatDoesNotExitHoldsStartsOff(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- p.ReadContext(ctx, [][]byte{decode(c)}, func(int, Object) error { return nil }) }()
-	// Cancelled once the read has its turn and waits for its answer.
-	for len(p.batch) == 0 {
-		time.Sleep(time.Millisecond)
+	// Cancelled once the read has its turn and waits for its answer: it
+	// has asked by then, which having its turn alone does not say.
+	asking.Close()
+	if _, err := asked.Read(make([]byte, 1)); err != nil {
+		t.Fatalf("the stand-in was not asked: %v", err)
 	}
 	time.Sleep(100 * time.Millisecond)
 	cancel()
@@ -275,7 +284,7 @@ func TestGitLetGoOfThatDoesNotExitHoldsStartsOff(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("cancelled read: %v", err)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("the read is held")
 	}
 	p.mu.Lock()
@@ -297,7 +306,7 @@ func TestGitLetGoOfThatDoesNotExitHoldsStartsOff(t *testing.T) {
 	release.Close()
 	select {
 	case <-g.done:
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("the stand-in did not exit")
 	}
 	q, err := Start(context.Background(), runner, gitDir)

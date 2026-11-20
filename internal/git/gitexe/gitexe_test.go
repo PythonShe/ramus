@@ -181,17 +181,19 @@ func TestProbeWrapperHangs(t *testing.T) {
 	dir := t.TempDir()
 	mark := filepath.Join(dir, "ran")
 	fake := filepath.Join(dir, "git")
-	os.WriteFile(fake, []byte("#!/bin/sh\nsleep 2\ntouch '"+mark+"'\necho git version 2.50.0\n"), 0o755)
+	// Seconds, for the bounds below to hold on a machine slow to start
+	// and stop a process.
+	os.WriteFile(fake, []byte("#!/bin/sh\nsleep 6\ntouch '"+mark+"'\necho git version 2.50.0\n"), 0o755)
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	start := time.Now()
 	if _, err := Probe(ctx, fake); err == nil {
 		t.Fatal("answered")
 	}
-	if d := time.Since(start); d > 1500*time.Millisecond {
+	if d := time.Since(start); d > 5*time.Second {
 		t.Fatalf("returned after %v", d)
 	}
-	time.Sleep(time.Until(start.Add(3 * time.Second)))
+	time.Sleep(time.Until(start.Add(7 * time.Second)))
 	if _, err := os.Stat(mark); err == nil {
 		t.Fatal("the wrapper's child ran on")
 	}

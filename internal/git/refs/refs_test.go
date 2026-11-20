@@ -274,7 +274,7 @@ func TestHostileLooseRefs(t *testing.T) {
 				t.Errorf("read %s", n)
 			}
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("listing refs blocked")
 	}
 }

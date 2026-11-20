@@ -51,7 +51,7 @@ func TestNamedPipesInTheGitDirectory(t *testing.T) {
 		go func() { s.fn(); close(done) }()
 		select {
 		case <-done:
-		case <-time.After(10 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatalf("%s: still waiting on a named pipe", s.what)
 		}
 	}

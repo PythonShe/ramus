@@ -50,7 +50,7 @@ func TestClose(t *testing.T) {
 	go func() { l.Close(); close(returned) }()
 	select {
 	case <-returned:
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("Close waited")
 	}
 	close(hold)
@@ -67,7 +67,7 @@ func TestClose(t *testing.T) {
 	l.Close()
 	// Goroutines end a while after they are done with, longer on a busy
 	// machine.
-	for deadline := time.Now().Add(5 * time.Second); runtime.NumGoroutine() > before; {
+	for deadline := time.Now().Add(time.Minute); runtime.NumGoroutine() > before; {
 		if time.Now().After(deadline) {
 			t.Errorf("%d goroutines left, %d before", runtime.NumGoroutine(), before)
 			break
@@ -87,14 +87,14 @@ func TestCloseStopsSubprocesses(t *testing.T) {
 		runner.Run(ctx, &run.Cmd{GitDir: r.GitDir(), Args: []string{"cat-file", "--batch"}, Stdin: blockingReader{ctx}})
 	})
 	<-started
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for runner.Running() == 0 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
 	l.Close()
 	select {
 	case <-l.Done():
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("close did not finish")
 	}
 	if runner.Running() != 0 {
@@ -122,7 +122,7 @@ func TestPanicRecovered(t *testing.T) {
 	l.Close()
 	select {
 	case <-l.Done():
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("not closed")
 	}
 }

@@ -34,7 +34,7 @@ func TestLockWaitsForAnotherWriter(t *testing.T) {
 		case <-held:
 		case <-j.Done():
 			t.Fatal("ran while index.lock existed")
-		case <-time.After(20 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatal("the write never came to the lock")
 		}
 	}

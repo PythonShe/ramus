@@ -32,7 +32,7 @@ func TestOpenNamedPipe(t *testing.T) {
 		if !errors.Is(err, osfile.ErrNotRegular) {
 			t.Fatalf("Open: %v", err)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		if w, err := os.OpenFile(fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
 			w.Close()
 		}

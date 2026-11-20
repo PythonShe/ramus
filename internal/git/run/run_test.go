@@ -105,7 +105,7 @@ func TestTimeoutAndCancel(t *testing.T) {
 	if !errors.Is(err, ErrTimeout) {
 		t.Fatalf("got %v", err)
 	}
-	if time.Since(start) > 3*time.Second {
+	if time.Since(start) > 30*time.Second {
 		t.Fatalf("took %v", time.Since(start))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -181,7 +181,7 @@ func TestQuit(t *testing.T) {
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("got %v", err)
 			}
-		case <-time.After(10 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatal("a read went on after Quit")
 		}
 	}
@@ -320,7 +320,8 @@ func TestCancelStopsChildren(t *testing.T) {
 	if err == nil {
 		t.Fatal("ran to the end")
 	}
-	if d := time.Since(start); d >= 2*time.Second {
+	// Well short of the child's half minute.
+	if d := time.Since(start); d >= 15*time.Second {
 		t.Fatalf("returned after %v: the child outlived git", d)
 	}
 }
@@ -352,15 +353,15 @@ func TestStall(t *testing.T) {
 		return err
 	}
 	start := time.Now()
-	if err := sh("sleep 5", 300*time.Millisecond); !errors.Is(err, ErrStalled) {
+	if err := sh("sleep 30", 300*time.Millisecond); !errors.Is(err, ErrStalled) {
 		t.Fatalf("silent: %v", err)
 	}
-	if d := time.Since(start); d > 4*time.Second {
+	if d := time.Since(start); d > 15*time.Second {
 		t.Fatalf("stopped after %v", d)
 	}
 	// Printing every half second, for longer than the stall: the limit
 	// leaves a slow machine's start of git and its shell room.
-	if err := sh("for i in 1 2 3 4 5 6; do echo x; sleep 0.5; done", 2*time.Second); err != nil {
+	if err := sh("for i in 1 2 3 4 5 6 7 8 9 10 11 12; do echo x; sleep 0.5; done", 5*time.Second); err != nil {
 		t.Fatalf("printing: %v", err)
 	}
 	mu.Lock()

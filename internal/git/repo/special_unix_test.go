@@ -27,7 +27,7 @@ func returns(t *testing.T, what string, fn func()) {
 	go func() { fn(); close(done) }()
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatalf("%s still waiting", what)
 	}
 }

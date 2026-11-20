@@ -25,7 +25,7 @@ func TestCommonDirFIFO(t *testing.T) {
 		if got != filepath.Clean(gitDir) {
 			t.Fatalf("common dir %s", got)
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(time.Minute):
 		// A writer lets a reader stuck on the pipe go, so the test ends.
 		if w, err := os.OpenFile(fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
 			w.Close()

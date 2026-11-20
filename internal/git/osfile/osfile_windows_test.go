@@ -125,7 +125,7 @@ func TestRefusesWhatIsNoFile(t *testing.T) {
 			if err == nil || path == "NUL" && !errors.Is(err, ErrNotRegular) {
 				t.Errorf("%s: %v", path, err)
 			}
-		case <-time.After(10 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatalf("%s: still waiting", path)
 		}
 	}

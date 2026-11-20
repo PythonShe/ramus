@@ -178,7 +178,7 @@ func TestNoJobEndsTheTree(t *testing.T) {
 	}()
 	select {
 	case <-copied:
-	case <-time.After(15 * time.Second):
+	case <-time.After(time.Minute):
 		// The child left running reads the input: at its end it exits,
 		// and lets the output go. A close of the output would not end
 		// the read, which holds the pipe on Windows.
