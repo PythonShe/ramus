@@ -210,6 +210,39 @@ func TestLoadFindsTheMarkerSizeInTheFile(t *testing.T) {
 	}
 }
 
+// A file git merged with markers of the work tree's size, which also
+// holds a whole conflict at HEAD's size that its sides do not, as an
+// example typed in while resolving, is refused: read at HEAD's size, git's
+// conflict would be text, and taking a side would keep its markers.
+func TestLoadRefusesAReadingThatLeavesMarkersOfTheOtherSize(t *testing.T) {
+	lines := "a\nb\nc\nd\ne\nf\ng\nh\n"
+	r := gittest.Init(t)
+	r.Write(realFile, lines+"end\n")
+	r.Commit("base")
+	r.Git("checkout", "-q", "-b", "topic")
+	r.Write(realFile, lines+"end theirs\n")
+	r.Commit("theirs")
+	r.Git("checkout", "-q", "main")
+	r.Write(realFile, lines+"end ours\n")
+	r.Commit("ours")
+	r.Write(".gitattributes", realFile+" conflict-marker-size=10\n") // not committed
+	if _, err := r.Run(nil, "merge", "-q", "topic"); err == nil {
+		t.Fatal("no conflict")
+	}
+	segs, data, err := loadMerged(t, r)
+	if !strings.Contains(string(data), "\n==========\n") {
+		t.Fatalf("not merged with markers of 10\n%s", data)
+	}
+	if err != nil || Count(segs) != 1 {
+		t.Fatalf("as git merged it: %d conflicts, %v", Count(segs), err)
+	}
+	edited := append([]byte("An example of a conflict:\n"+example), data...)
+	segs, err = Load(context.Background(), testrun.Runner(t), r.GitDir(), r.Dir, realFile, edited)
+	if !errors.Is(err, ErrAmbiguous) {
+		t.Fatalf("with an example of HEAD's size typed in: %d conflicts, %v", Count(segs), err)
+	}
+}
+
 // A file the index holds conflicted is never read as having no conflicts,
 // or fewer than it has, while git's markers are in it; a file resolved by
 // hand, its markers gone, is, whatever text like markers its sides gave

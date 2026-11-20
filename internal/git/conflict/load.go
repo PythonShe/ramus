@@ -60,6 +60,9 @@ func load(ctx context.Context, r *run.Runner, gitDir, workTree, path string, dat
 		segs, err := l.at(size)
 		switch {
 		case err == nil && Count(segs) > 0:
+			if err := l.another(size, sizes); err != nil {
+				return nil, err
+			}
 			return l.finish(segs)
 		case err == nil:
 			if i == 0 {
@@ -131,6 +134,29 @@ func (l *loader) at(size int) ([]Segment, error) {
 		return segs, err
 	}
 	return remerge(l.ctx, l.r, l.data, size, s)
+}
+
+// another refuses, with ErrAmbiguous, a reading at size, one of sizes,
+// when the file also holds a conflict at another of them in lines like
+// markers that are not all text of the sides: git wrote the file at one
+// of the two, and the reading at size may leave git's markers as text.
+func (l *loader) another(size int, sizes []int) error {
+	for _, n := range sizes {
+		if n == size {
+			continue
+		}
+		if at, err := parseSize(l.data, n); err != nil || Count(at) == 0 {
+			continue
+		}
+		s, err := l.readSides()
+		if err != nil {
+			return err
+		}
+		if !s.hold(l.data, n) {
+			return ErrAmbiguous
+		}
+	}
+	return nil
 }
 
 // strayMarkers reports whether data holds more lines like markers of size
