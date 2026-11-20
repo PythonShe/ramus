@@ -6,6 +6,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
 )
 
 // maxLinks bounds the symbolic links followed to a file, as the systems
@@ -61,9 +64,25 @@ func follow(path string) (string, error) {
 			return "", err
 		}
 		if !filepath.IsAbs(dest) {
-			dest = filepath.Join(filepath.Dir(path), dest)
+			dest = filepath.Dir(path) + string(filepath.Separator) + dest
 		}
-		path = dest
+		path = upFolder(dest)
 	}
 	return "", fmt.Errorf("%s: %w", path, ErrLinkLoop)
+}
+
+// upFolder cleans name, a link's text joined to the link's folder. Where
+// the system takes a ".." after a linked folder to the parent of the
+// folder it leads to, not back out of the link, as Unix does, cleaning
+// the text names another file: the folder part is then asked of the
+// system, which leaves a file that is not there yet named as it will be.
+func upFolder(name string) string {
+	dir, base := filepath.Split(name)
+	if runtime.GOOS == "windows" || !slices.Contains(strings.Split(dir, string(filepath.Separator)), "..") {
+		return filepath.Clean(name)
+	}
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		return filepath.Join(real, base)
+	}
+	return filepath.Clean(name)
 }

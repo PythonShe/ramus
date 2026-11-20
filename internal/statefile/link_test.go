@@ -88,6 +88,40 @@ func TestWriteThroughADanglingLink(t *testing.T) {
 	}
 }
 
+// A link that leads to no file yet, through a linked folder and up out of
+// it, has the file made where the system takes it to: up from the folder
+// the folder's link leads to, not from the link. What is written is read
+// back through the link, and a file beside the link of the name the text
+// gives is not touched.
+func TestWriteThroughADanglingLinkUpALinkedFolder(t *testing.T) {
+	dots, app := t.TempDir(), t.TempDir()
+	if err := os.Mkdir(filepath.Join(dots, "subdir"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link(t, filepath.Join(dots, "subdir"), filepath.Join(app, "folder"))
+	unrelated := filepath.Join(app, "prefs.json")
+	os.WriteFile(unrelated, []byte("theirs\n"), 0o600)
+	p := filepath.Join(app, "config.json")
+	text := "folder" + string(filepath.Separator) + ".." + string(filepath.Separator) + "prefs.json"
+	link(t, text, p)
+	if err := WriteFile(p, []byte("1\n")); err != nil {
+		t.Fatal(err)
+	}
+	isLink(t, p, text)
+	if data, err := os.ReadFile(p); err != nil || string(data) != "1\n" {
+		t.Fatalf("read back through the link: %q, %v", data, err)
+	}
+	if runtime.GOOS == "windows" {
+		return // ".." in a link's text is taken by the name there
+	}
+	if data, _ := os.ReadFile(filepath.Join(dots, "prefs.json")); string(data) != "1\n" {
+		t.Fatalf("the file the link leads to has %q", data)
+	}
+	if data, _ := os.ReadFile(unrelated); string(data) != "theirs\n" {
+		t.Fatalf("the file beside the link has %q", data)
+	}
+}
+
 // Links that lead back to themselves fail the write, which leaves them,
 // and are not kept aside either: there is no file to move.
 func TestWriteThroughALinkLoop(t *testing.T) {
