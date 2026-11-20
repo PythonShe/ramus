@@ -173,6 +173,49 @@ func TestPruneWorktreesKeepsTheirSnapshots(t *testing.T) {
 	}
 }
 
+// Pruning keeps the snapshots of a record that names the same folder as
+// another, which git prunes as a duplicate though its folder is there: one
+// worktree's folder deleted, another's moved into its place and repaired.
+func TestPruneWorktreesKeepsADuplicateRecordsSnapshots(t *testing.T) {
+	h := newHarness(t)
+	h.r.Write("a", "1")
+	h.r.Commit("one")
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	pa, pb := filepath.Join(base, "wa"), filepath.Join(base, "wb")
+	for _, p := range []string{pa, pb} {
+		b := filepath.Base(p)
+		h.r.Git("branch", b)
+		op, err := AddWorktree(h.w, WorktreeOptions{Path: p, Branch: b})
+		h.do(op, err, true)
+		h.r.Git("-C", p, "update-ref", snapshot.Prefix+b, "HEAD")
+	}
+	if err := os.RemoveAll(pa); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(pb, pa); err != nil {
+		t.Fatal(err)
+	}
+	h.r.Git("-C", pa, "worktree", "repair")
+	named := func(id string) string {
+		b, _ := os.ReadFile(filepath.Join(h.r.GitDir(), "worktrees", id, "gitdir"))
+		return strings.TrimSpace(string(b))
+	}
+	if named("wa") != named("wb") {
+		t.Skipf("the records name %q and %q after the repair", named("wa"), named("wb"))
+	}
+	h.do(PruneWorktrees(h.w), nil, true)
+	held := h.r.Git("for-each-ref", "--format=%(refname)", snapshot.Prefix)
+	es, _ := os.ReadDir(filepath.Join(h.r.GitDir(), "worktrees"))
+	for _, e := range es {
+		held += h.r.Git("--git-dir="+filepath.Join(h.r.GitDir(), "worktrees", e.Name()), "for-each-ref", "--format=%(refname)", snapshot.Prefix)
+	}
+	for _, b := range []string{"wa", "wb"} {
+		if !strings.Contains(held, snapshot.Prefix+b+"\n") {
+			t.Fatalf("%s's snapshot is under no ref: %q", b, held)
+		}
+	}
+}
+
 // A worktree whose folder was deleted outside the app is removed, and
 // its branch deleted, as git does: there is nothing of it to keep first.
 func TestWorktreeFolderGone(t *testing.T) {

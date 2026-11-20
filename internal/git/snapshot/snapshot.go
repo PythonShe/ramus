@@ -200,11 +200,13 @@ func linkedWorktrees(gitDir string, fn func(admin, named string)) error {
 
 // KeepPruned copies into the worktree of w the snapshots of each linked
 // worktree, not locked, whose folder is gone or whose gitdir file says
-// none: those git worktree prune removes, its snapshots with its git
-// directory.
+// none, or that names the folder another record does: those git worktree
+// prune removes, its snapshots with its git directory.
 func KeepPruned(ctx context.Context, r *run.Runner, w Where) error {
 	var gone []string
+	records := map[string]string{} // the records by id
 	err := linkedWorktrees(w.GitDir, func(admin, named string) {
+		records[filepath.Base(admin)] = admin
 		if _, err := os.Lstat(filepath.Join(admin, "locked")); err == nil {
 			return
 		}
@@ -212,8 +214,26 @@ func KeepPruned(ctx context.Context, r *run.Runner, w Where) error {
 			gone = append(gone, admin)
 		}
 	})
+	if err != nil || len(records) == 0 {
+		return err
+	}
+	// git also prunes a record that names the folder another does, which
+	// only git can tell as it does: it says which in a dry run.
+	res, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true, Untranslated: true,
+		Args: []string{"worktree", "prune", "--dry-run", "--verbose", "--expire=now"}})
 	if err != nil {
 		return err
+	}
+	for line := range strings.SplitSeq(res.Stderr+"\n"+string(res.Stdout), "\n") {
+		rest, ok := strings.CutPrefix(line, "Removing worktrees/")
+		if !ok {
+			continue
+		}
+		for id, admin := range records {
+			if strings.HasPrefix(rest, id+": ") && !slices.Contains(gone, admin) {
+				gone = append(gone, admin)
+			}
+		}
 	}
 	for _, admin := range gone {
 		if err := adopt(ctx, r, admin, w.GitDir); err != nil {
