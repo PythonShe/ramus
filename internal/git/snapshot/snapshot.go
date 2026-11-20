@@ -408,7 +408,9 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 			s.listed = true
 		} else if un, err := listIgnored(ctx, r, w, s.Paths); err == nil {
 			s.unkept, s.listed = un, true
-		} else if ctx.Err() != nil {
+		} else if ctx.Err() != nil || opts.Source != "" {
+			// A write from a source may write over ignored files: without
+			// their list, none of them would be kept.
 			return Snapshot{}, err
 		}
 	}

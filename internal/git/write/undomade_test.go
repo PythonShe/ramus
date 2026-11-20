@@ -204,6 +204,49 @@ func TestRestoreKeepsTheIgnoredFileItWritesOver(t *testing.T) {
 	}
 }
 
+// A restore from a commit that holds a file where the disk has a folder
+// with ignored files in it, ignored whole or not, or a folder where the
+// disk has an ignored file, ends as git's own, which removes them; the
+// snapshot taken first keeps them, and undo brings them back.
+func TestRestoreKeepsIgnoredFilesOfAnotherKind(t *testing.T) {
+	shapes := []struct {
+		name, ignore string
+		then, now    map[string]string
+	}{
+		{"a file over a folder ignored whole", "dir/cache/\n",
+			map[string]string{"dir/cache": "a file then\n"}, map[string]string{"dir/cache/local.txt": "mine\n", "dir/cache/sub/deep.txt": "mine too\n"}},
+		{"a file over a folder holding ignored files", "*.log\n",
+			map[string]string{"dir/cache": "a file then\n"}, map[string]string{"dir/cache/run.log": "mine\n", "dir/cache/notes": "untracked\n"}},
+		{"a folder over an ignored file", "dir/cache\n",
+			map[string]string{"dir/cache/x": "in a folder then\n"}, map[string]string{"dir/cache": "mine\n"}},
+	}
+	for _, s := range shapes {
+		t.Run(s.name, func(t *testing.T) {
+			h := likeGit(t, func(h *harness) (Op, []string, error) {
+				h.r.Write("dir/x", "1\n")
+				for p, c := range s.then {
+					h.r.Write(p, c)
+				}
+				first := h.r.Commit("one")
+				h.r.Git("rm", "-q", "-r", "dir/cache")
+				h.r.Write(".gitignore", s.ignore)
+				h.r.Write("dir/x", "2\n")
+				h.r.Commit("two")
+				for p, c := range s.now {
+					h.r.Write(p, c)
+				}
+				op, err := RestoreFrom(h.w, "dir", first)
+				return op, []string{"restore", "--source=" + first, "--worktree", "--no-overlay", "--", "dir"}, err
+			})
+			for p, c := range s.now {
+				if h.read(p) != c {
+					t.Fatalf("after undo %s holds %q", p, h.read(p))
+				}
+			}
+		})
+	}
+}
+
 // A repository the user put since in a folder a restore made, where the
 // commit had a submodule, stays.
 func TestUndoOfARestoreLeavesARepositoryInside(t *testing.T) {

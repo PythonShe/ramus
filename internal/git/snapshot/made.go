@@ -398,22 +398,49 @@ func listIgnoredIn(ctx context.Context, r *run.Runner, w Where, paths []string) 
 	}), nil
 }
 
-// overwritten are the files of paths on disk, ignored as unkept lists
-// them, that the tree-ish source holds: those a write of paths from it
-// writes over. absent are those it holds where nothing is, which the
-// write makes, though in a folder ignored whole.
+// overwritten are the files and folders of paths on disk, ignored as
+// unkept lists them, that a write of paths from the tree-ish source
+// writes over or removes: a file or folder where it holds a file, an
+// ignored file in a folder where it holds a file, and an ignored file
+// where it holds a folder. absent are those it holds where nothing is,
+// which the write makes, though in a folder ignored whole.
 func overwritten(ctx context.Context, r *run.Runner, w Where, source string, paths, unkept []string) (over, absent []string, err error) {
 	ign := pathSet{}
+	// below are the unkept entries in each folder that holds one.
+	below := map[string][]string{}
 	for _, p := range unkept {
-		ign[strings.TrimSuffix(p, "/")] = true
+		p = strings.TrimSuffix(p, "/")
+		ign[p] = true
+		for d := path.Dir(p); d != "." && d != "/"; d = path.Dir(d) {
+			below[d] = append(below[d], p)
+		}
 	}
 	var held []string
+	// other are the unkept entries where the source holds another kind.
+	other := map[string]bool{}
 	err = listPaths(ctx, r, w, nil, paths, func(name string) {
 		if ign.covers(name) {
 			held = append(held, name)
 		}
+		for _, p := range below[name] {
+			other[p] = true
+		}
+		for d := path.Dir(name); d != "." && d != "/"; d = path.Dir(d) {
+			if ign[d] {
+				other[d] = true
+			}
+		}
 	}, "ls-tree", "-r", "-z", "--name-only", "--full-tree", source)
-	over, _ = onDisk(w.WorkTree, held)
+	// A folder is kept whole: the write removes all of it.
+	files, dirs := onDisk(w.WorkTree, held)
+	more, moreDirs := onDisk(w.WorkTree, slices.Sorted(maps.Keys(other)))
+	seen := map[string]bool{}
+	for _, p := range slices.Concat(files, dirs, more, moreDirs) {
+		if !seen[p] {
+			seen[p] = true
+			over = append(over, p)
+		}
+	}
 	for _, p := range held {
 		if !exists(w.WorkTree, p) && len(absent) < MaxPaths {
 			absent = append(absent, p)
