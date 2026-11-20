@@ -123,3 +123,87 @@ func TestShowFileInTheWindowThatHasIt(t *testing.T) {
 		}
 	}
 }
+
+// ramus log or blame of a file in a folder of a repository whose tab is
+// still opening (the tab of the last session at a cold start, or one
+// just opened) opens that folder, whose tab closes for the repository's:
+// the file is shown there.
+func TestShowFileInAFolderOfATabStillOpening(t *testing.T) {
+	for _, beforeGit := range []bool{true, false} {
+		name := "opening"
+		if beforeGit {
+			name = "before git"
+		}
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			r := h.repoWith("src/b.go")
+			h.trust.Set(r.GitDir(), true)
+			runner := h.app.Runner
+			if beforeGit {
+				h.app.Runner = nil
+			}
+			h.app.Open(r.Dir)
+			if tb := h.app.current(); tb != nil && tb.s.Repo != nil {
+				t.Skip("the repository opened at once")
+			}
+			h.app.ShowFile(filepath.Join(r.Dir, "src", "b.go"), false)
+			if beforeGit {
+				h.until("the repository asked for", func() bool { return len(h.app.pending) > 1 })
+				h.app.SetRunner(runner, nil)
+			}
+			h.until("the file", func() bool {
+				tb := h.app.current()
+				return tb != nil && tb.sel == "file" && tb.file.path == "src/b.go"
+			})
+			if len(h.app.tabs) != 1 || h.app.pendingFile.abs != "" {
+				t.Fatalf("%d tabs, waits for %+v", len(h.app.tabs), h.app.pendingFile)
+			}
+		})
+	}
+}
+
+// The tab of a file's folder that closes for the repository's tab in
+// another window hands that window the file, not only the repository.
+func TestShowFileHandedOnWithTheTabOfItsFolder(t *testing.T) {
+	h1, h2 := newHarness(t), newHarness(t)
+	r := h2.repoWith("src/b.go")
+	t.Cleanup(h1.closeAll)
+	h1.trust.Set(r.GitDir(), true)
+	h2.trust.Set(r.GitDir(), true)
+	// As windows.go wires them.
+	h1.app.ShowOpen = func(p string) bool {
+		if h2.app.Has(p) {
+			h2.app.Open(p)
+			return true
+		}
+		return false
+	}
+	h1.app.ShowFileOpen = func(dir, abs string, blame bool) bool {
+		if h2.app.Has(dir) || h2.app.HoldsFile(abs) {
+			h2.app.ShowFile(abs, blame)
+			return true
+		}
+		return false
+	}
+	h1.app.ShowFile(filepath.Join(r.Dir, "src", "b.go"), true)
+	deadline := time.After(20 * time.Second)
+	for h1.app.pendingFile.abs == "" {
+		select {
+		case fn := <-h1.updates:
+			fn()
+		case <-deadline:
+			t.Fatal("the folder was not opened for the file")
+		}
+	}
+	// The other window opens the repository while this one's tab of the
+	// folder has yet to find it is in it.
+	h2.app.Open(r.Dir)
+	h1.until("the folder's tab handed on", func() bool { return len(h1.app.tabs) == 0 })
+	h2.until("the file", func() bool {
+		tb := h2.app.current()
+		return tb != nil && tb.sel == "file" && tb.file.path == "src/b.go" && tb.file.blame == 1
+	})
+	if len(h2.app.tabs) != 1 || h1.app.pendingFile.abs != "" || h2.app.pendingFile.abs != "" {
+		t.Fatalf("window 2 has %d tabs; window 1 waits for %+v, window 2 for %+v", len(h2.app.tabs), h1.app.pendingFile, h2.app.pendingFile)
+	}
+}

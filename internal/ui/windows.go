@@ -101,8 +101,15 @@ func (a *App) resolveTab(t *tab) {
 				return
 			}
 			same := func(o *tab) bool { return o != t && (o.is(real) || top != "" && o.is(top)) }
+			// A file asked for may wait for this tab, opened at its folder:
+			// it goes with the repository to the tab shown instead.
+			f := a.pendingFile
+			ours := f.abs != "" && t.is(f.dir)
 			if i := slices.IndexFunc(a.tabs, same); i >= 0 {
 				o, shown := a.tabs[i], a.current() == t
+				if ours {
+					a.pendingFile.dir = o.s.Path
+				}
 				a.Close(slices.Index(a.tabs, t))
 				if shown {
 					a.active = slices.Index(a.tabs, o)
@@ -118,7 +125,18 @@ func (a *App) resolveTab(t *tab) {
 			}
 			for _, p := range asks {
 				// Open asked for path already.
-				if p != "" && p != path && a.ShowOpen(p) {
+				if p == "" || p == path {
+					continue
+				}
+				if ours && a.ShowFileOpen != nil {
+					if a.ShowFileOpen(p, f.abs, f.blame) {
+						a.pendingFile = pendingFile{asked: f.asked}
+						a.Close(slices.Index(a.tabs, t))
+						return
+					}
+					continue
+				}
+				if a.ShowOpen(p) {
 					a.Close(slices.Index(a.tabs, t))
 					return
 				}
