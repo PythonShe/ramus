@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -64,6 +65,66 @@ func TestOperationBarWakesAfterTheRead(t *testing.T) {
 	}
 	if !h.tt.HasText("Rebase stopped") {
 		t.Fatalf("the rebase did not stop on the next commit: %q", h.tt.Texts())
+	}
+}
+
+// A Skip that stops at the next commit's conflict fails, as git exits 1
+// then: the bar offers nothing until the state read after it shows, or
+// a second click would skip a commit whose conflict was never shown.
+func TestOperationBarWaitsForTheReadAfterAFailedStep(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	r.Write("f.txt", "0\n")
+	r.Commit("base")
+	r.Git("switch", "-q", "-c", "topic")
+	for _, s := range []string{"A", "B", "C"} {
+		r.Write("f.txt", s+"\n")
+		r.Commit("commit " + s)
+	}
+	r.Git("switch", "-q", "main")
+	r.Write("f.txt", "main\n")
+	r.Commit("on main")
+	r.Git("switch", "-q", "topic")
+	r.Run(nil, "rebase", "main")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("Skip offered", func() bool { b, ok := h.tt.Access("Skip"); return ok && !b.Disabled })
+	stopped := func() string { return strings.TrimSpace(r.Git("log", "-1", "--format=%s", "REBASE_HEAD")) }
+	if got := stopped(); got != "commit A" {
+		t.Fatalf("stopped at %q", got)
+	}
+	logged := len(tb.s.Log)
+	h.click("Skip")
+	h.tt.Frame()
+	e := tb.s.Log[logged]
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		select {
+		case fn := <-h.updates:
+			fn()
+		case <-time.After(20 * time.Millisecond):
+		}
+		h.tt.Frame()
+		b, ok := h.tt.Access("Skip")
+		if !e.Running && !tb.s.State.Refreshed.Before(e.Ended) {
+			if !ok || b.Disabled {
+				t.Fatal("Skip stays off once the state read after the skip shows")
+			}
+			break
+		}
+		if ok && !b.Disabled {
+			t.Fatalf("Skip offered before the state read after the skip (ended %v, err %v) while git is stopped at %q", !e.Running, e.Err, stopped())
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for the state read after the skip")
+		}
+	}
+	if e.Err == nil {
+		t.Fatal("the skip that stopped at a conflict succeeded")
+	}
+	if got := stopped(); got != "commit B" || len(tb.s.Log) != logged+1 {
+		t.Fatalf("stopped at %q after %d writes", got, len(tb.s.Log)-logged)
 	}
 }
 

@@ -683,9 +683,10 @@ func (a *App) operationBar(c *ui.Context, t *tab) {
 }
 
 // seqState is the continue, skip or abort of a stopped operation asked
-// last: until it ends, and on success until the status is read again,
-// the bar asks no other, or a second click would skip the next commit
-// too.
+// last: until it ends and the status is read again, the bar asks no
+// other, or a second click would skip the next commit too. A step that
+// failed is waited for as well: git exits 1 when the next commit
+// conflicts, which is how a rebase usually stops again.
 type seqState struct {
 	// entry logs it; nil when there is none to wait for.
 	entry *session.LogEntry
@@ -695,10 +696,9 @@ type seqState struct {
 }
 
 // busy reports whether the bar waits for the step asked last: it runs,
-// or it succeeded and the state was not read since (settle).
+// or it ended and the state was not read since (settle).
 func (s *seqState) busy() bool {
-	e := s.entry
-	return e != nil && (e.Running || e.Err == nil)
+	return s.entry != nil
 }
 
 // settle lets the step asked last go once the state was read after it
