@@ -184,8 +184,16 @@ func resume(pid uint32) error {
 // caller ends pid itself. A process keeps the id of its parent after
 // that parent exits, and Windows gives the id to another process later:
 // one created before the process its parent id now names is not that
-// process's child, and is let be.
+// process's child, and is let be. So is one created after the snapshot,
+// which was not in it: the child it names exited and its id went to
+// another before it was opened.
 func killTree(pid uint32) {
+	// Read before the snapshot, on the system clock that creation times
+	// are on: a child made just before the snapshot may be let be, but
+	// no process made after the snapshot is ended.
+	var ft windows.Filetime
+	windows.GetSystemTimeAsFileTime(&ft)
+	taken := ft.Nanoseconds()
 	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
 		return
@@ -219,7 +227,7 @@ func killTree(pid uint32) {
 			if err != nil {
 				continue
 			}
-			if t, ok := created(h); ok && t >= since {
+			if t, ok := created(h); ok && t >= since && t <= taken {
 				end(c, t, depth+1)
 				windows.TerminateProcess(h, 1)
 			}
