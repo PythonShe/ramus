@@ -191,10 +191,10 @@ failures() {
 }
 
 # mygo is pure Go; building without cgo keeps cross-compiling working.
-# The ui package takes five minutes on GitHub's Windows runner, half of
-# go test's default timeout, and grows with every view: past it, go
-# test reports a hang.
-timeout=20m
+# The write package takes 13 to 18 minutes on GitHub's Windows runner,
+# past go test's default timeout of ten, and grows with every test: past
+# this one, go test reports a hang.
+timeout=30m
 if [ -z "$race" ]; then
 	if ! CGO_ENABLED=0 gotest all -timeout "$timeout" ./...; then
 		failures "go test" all
