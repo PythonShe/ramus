@@ -29,7 +29,7 @@ var cases = []benchCase{
 	{"filter-kernel", "filter the kernel's history by message, author and path, to the first screen and to the end", filterKernel},
 	{"status-monorepo", "open a 390k-file repository to a populated status, without fsmonitor", statusMonorepo},
 	{"touch-20k", "one file saved in an open repository of 20,000 files, to the status showing it", touchOne},
-	{"scroll-kernel", "scroll the kernel's graph of 1.3M commits; frame times; jump to its first commit", scrollKernel},
+	{"scroll-kernel", "fling down the kernel's graph of 1.5M commits, 600 wheel steps; frame times; jump to its first commit", scrollKernel},
 	{"diff-large", "a 50 MB text file's patch, git's part and the viewer's apart, and a 100 MB binary's", bigDiff},
 	{"commit-10k", "the file list of a commit of 10,000 files", commit10k},
 	{"save-5000", "5,000 files saved at once in an open repository: frame times, peak git processes", save5000},

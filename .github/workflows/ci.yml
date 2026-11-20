@@ -66,7 +66,7 @@ jobs:
       # time is AppKit and Metal. Over the 20 runs of 15 to 18 November
       # 2026 the median of ten starts went from 141 to 374 ms and the
       # fastest from 135 to 263 ms, for the same code: the runner cannot
-      # hold the 200 ms that hardware does (155 ms on Apple silicon, see
+      # hold the 200 ms that hardware does (171 ms on Apple silicon, see
       # docs/benchmarks.md). It fails past 300 ms, above every fastest
       # run seen, and warns past 250 ms, which two of the twenty reached.
       - name: Cold start to first frame

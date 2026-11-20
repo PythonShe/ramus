@@ -64,19 +64,18 @@ repositories and runs your own git.
 
 ## Fast on large repositories
 
-On Apple silicon (p50 of 3 runs, at background priority on a machine in
-use):
+On Apple silicon (p50 of 5 runs, on a machine in use):
 
 | | |
 |---|---|
-| Linux kernel, open to the first screen of history | 795 ms |
-| Linux kernel, all 1,507,296 commits laid out in the graph | 1.59 s, 176 MiB |
-| Scrolling the kernel's whole graph, slowest frame of 600 | 2.35 s |
-| 390,000-file repository, open to a populated status panel | 3.36 s |
-| One file saved, to the status showing it (20,000 files) | 154 ms |
-| 50 MB text diff, read and shown | 0.97 s |
-| Ten repositories open and idle | 0.09% CPU, 55 MiB |
-| Cold start to first frame, at normal priority (median of 10) | 155 ms |
+| Linux kernel, open to the first screen of history | 360 ms |
+| Linux kernel, all 1,507,472 commits laid out in the graph | 765 ms, 176 MiB |
+| Flinging down the kernel's graph, slowest frame of 3,000 | 6.5 ms |
+| 390,000-file repository, open to a populated status panel | 1.63 s |
+| One file saved, to the status showing it (20,000 files) | 162 ms |
+| 50 MB text diff, read and shown | 294 ms |
+| Ten repositories open and idle | 0.2% CPU, 60 MiB |
+| Cold start to first frame (median of 10) | 171 ms |
 
 Ramus reads git's files on disk itself and draws its interface natively on
 the GPU, with no web view. Everything that writes runs your `git`, so hooks,
