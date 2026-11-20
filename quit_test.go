@@ -27,7 +27,9 @@ func TestQuitGivesUpOnAHungWrite(t *testing.T) {
 		{"done", "/data/trust.json", func() bool { return true }},
 		{"failed", "/data/drafts", func() bool { return false }},
 	}
-	if left := ws.waitAll(20*time.Millisecond, waits); !slices.Equal(left, []string{"/data/layout.json", "/data/drafts"}) {
+	// Long enough for the writes that end to be seen ended, on a machine
+	// slow to run their goroutines.
+	if left := ws.waitAll(time.Second, waits); !slices.Equal(left, []string{"/data/layout.json", "/data/drafts"}) {
 		t.Fatalf("left %q", left)
 	}
 	if left := ws.waitAll(20*time.Millisecond, waits[:1]); len(left) != 1 || started.Load() != 1 {
@@ -55,8 +57,18 @@ func TestQuitRecordsWhatItGaveUpOn(t *testing.T) {
 	s.DiffSplit = true
 	k.Keep(s, nil)
 	ws := &windows{dataDir: dir, deps: ui.Deps{SettingsKeeper: k}}
+	// ended waits for the wait of key, which a quit leaves at its bound.
+	ended := func(key string) {
+		ws.waitMu.Lock()
+		w := ws.waiting[key]
+		ws.waitMu.Unlock()
+		if w != nil {
+			<-w.done
+		}
+	}
 	ws.flush()
 	unlock()
+	ended("unsaved")
 	files := takeUnsaved(dir)
 	if !slices.Equal(files, []string{p}) {
 		t.Fatalf("recorded %q", files)
@@ -69,13 +81,9 @@ func TestQuitRecordsWhatItGaveUpOn(t *testing.T) {
 	}
 	// The next quit, once the first's wait ended, writes the change and
 	// records nothing.
-	ws.waitMu.Lock()
-	w := ws.waiting["settings"]
-	ws.waitMu.Unlock()
-	if w != nil {
-		<-w.done
-	}
+	ended("settings")
 	ws.flush()
+	ended("unsaved")
 	if _, err := os.Stat(filepath.Join(dir, unsavedFile)); !os.IsNotExist(err) {
 		t.Fatalf("a record left: %v", err)
 	}
@@ -86,5 +94,32 @@ func TestQuitRecordsWhatItGaveUpOn(t *testing.T) {
 	defer ws.waitMu.Unlock()
 	if len(ws.waiting) != 0 {
 		t.Fatalf("waits left running: %v", ws.waiting)
+	}
+}
+
+// The record of an earlier close of the last window, still being written
+// as it closes again with everything written, is not left as the last
+// word: the next launch would tell of files that were saved.
+func TestQuitRecordWrittenOverOneStillBeingWritten(t *testing.T) {
+	was := unsavedWait
+	unsavedWait = time.Minute
+	t.Cleanup(func() { unsavedWait = was })
+	dir := t.TempDir()
+	ws := &windows{dataDir: dir, told: true}
+	block := make(chan struct{})
+	ws.start("unsaved", func() bool {
+		<-block
+		return writeUnsaved(dir, []string{"/data/settings.json"}) == nil
+	})
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		close(block)
+	}()
+	ws.recordUnsaved(nil)
+	if files := takeUnsaved(dir); files != nil {
+		t.Fatalf("left recorded as not saved: %q", files)
+	}
+	if ws.told {
+		t.Fatal("a record still taken to stand")
 	}
 }

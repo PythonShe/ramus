@@ -202,10 +202,17 @@ type waiting struct {
 // volume that does not answer) holds one goroutine however many times
 // the app closes its last window, not one more each time.
 func (ws *windows) start(key string, wait func() bool) *waiting {
+	w, _ := ws.begin(key, wait)
+	return w
+}
+
+// begin is start, and reports whether the wait returned is the one it
+// started, not an earlier one's still running.
+func (ws *windows) begin(key string, wait func() bool) (*waiting, bool) {
 	ws.waitMu.Lock()
 	defer ws.waitMu.Unlock()
 	if w := ws.waiting[key]; w != nil {
-		return w
+		return w, false
 	}
 	if ws.waiting == nil {
 		ws.waiting = map[string]*waiting{}
@@ -220,7 +227,7 @@ func (ws *windows) start(key string, wait func() bool) *waiting {
 		ws.waitMu.Unlock()
 		close(w.done)
 	}()
-	return w
+	return w, true
 }
 
 // waitAll starts waits and returns, once they have all returned or after
@@ -258,30 +265,42 @@ func (ws *windows) waitAll(d time.Duration, waits []pendingWrite) []string {
 }
 
 // unsavedWait bounds the writing of the record of the files a quit gave
-// up on, which may be on the volume that did not answer.
-const unsavedWait = 500 * time.Millisecond
+// up on, which may be on the volume that did not answer. A variable for
+// its test.
+var unsavedWait = 500 * time.Millisecond
 
 // recordUnsaved records files, those a quit gave up on, for the next
 // launch to tell once; none removes the record of an earlier close of
-// the last window, whose files were written since.
+// the last window, whose files were written since. The record of an
+// earlier close still being written is waited for and written over: left
+// as the last word, it would name files written since as not saved.
 func (ws *windows) recordUnsaved(files []string) {
 	if ws.dataDir == "" || (len(files) == 0 && !ws.told) {
 		return
 	}
-	ws.told = len(files) > 0
 	dir := ws.dataDir
-	w := ws.start("unsaved", func() bool {
+	write := func() bool {
 		if err := writeUnsaved(dir, files); err != nil {
 			log.Print(err)
 			return false
 		}
 		return true
-	})
+	}
 	t := time.NewTimer(unsavedWait)
 	defer t.Stop()
-	select {
-	case <-w.done:
-	case <-t.C:
+	for {
+		w, mine := ws.begin("unsaved", write)
+		// Until this one's is being written, a record may stand that a
+		// later close is to remove.
+		ws.told = !mine || len(files) > 0
+		select {
+		case <-w.done:
+			if mine {
+				return
+			}
+		case <-t.C:
+			return
+		}
 	}
 }
 
