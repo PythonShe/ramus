@@ -279,7 +279,7 @@ func (s *Session) LoadHistory() {
 	s.hist.cancel, s.hist.loading, s.hist.done = cancel, key, done
 	h := s.History
 	whole := h.Done && h.Err == nil && h.Snap != nil && h.View == key.view
-	head, gen, view := s.State.Head, s.hist.gen, s.historyView
+	head, gen, view, shown := s.State.Head, s.hist.gen, s.historyView, h.Snap
 	err := r.Life().Go(func(context.Context) {
 		defer close(done)
 		defer cancel()
@@ -293,7 +293,7 @@ func (s *Session) LoadHistory() {
 				return
 			}
 		}
-		s.loadHistory(ctx, gen, r, key, head, view, whole)
+		s.loadHistory(ctx, gen, r, key, head, view, whole, shown)
 	})
 	if err != nil {
 		close(done)
@@ -302,8 +302,9 @@ func (s *Session) LoadHistory() {
 }
 
 // loadHistory reads history for key. whole publishes it only once whole:
-// the same view is shown already, which stays until then.
-func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, key histKey, head refs.Head, view HistoryView, whole bool) {
+// the same view is shown already, which stays until then. shown is the
+// history published as the load began.
+func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, key histKey, head refs.Head, view HistoryView, whole bool, shown *lanes.Snapshot) {
 	t0 := time.Now()
 	var tagCommits map[string][]byte
 	var stashes []Stash
@@ -314,7 +315,8 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		if whole && !h.Done {
 			return
 		}
-		if whole && h.Base == nil {
+		anew := whole && h.Base == nil
+		if anew {
 			h.Found = s.findKept(ctx, h)
 		}
 		if (whole || h.Base != nil) && h.Done && h.Err == nil && !s.hist.below.Load() {
@@ -325,8 +327,22 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		// rows of a closed repository may point into its commit-graph's
 		// mapping, gone once it has closed.
 		h.TagCommits, h.Stashes = tagCommits, stashes
-		s.update(func() {
-			if s.Repo == r && s.hist.current(gen) {
+		var hand func(again int)
+		hand = func(again int) {
+			s.update(func() {
+				if s.Repo != r || !s.hist.current(gen) {
+					return
+				}
+				if anew && again > 0 && !s.keptIn(h.Found) {
+					// The view keeps a commit that was not looked for, as
+					// one chosen since: looked for again, or the choice
+					// would be dropped for a commit the history has.
+					r.Life().Go(func(ctx context.Context) {
+						h.Found = s.findKept(ctx, h)
+						hand(again - 1)
+					})
+					return
+				}
 				h.For, h.View, h.Load, h.Filtered = key.refs, key.view, key.load, !view.Filter.IsZero()
 				if s.History.View == key.view && s.History.First > 0 && h.First == 0 {
 					h.First = s.History.First
@@ -335,8 +351,9 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 				if h.Done && h.Err == nil {
 					s.writeGraphQuietly(h.Advice)
 				}
-			}
-		})
+			})
+		}
+		hand(keptAgain)
 	}
 	fail := func(err error) {
 		publish(HistoryState{Err: err, Done: true, Snap: (&lanes.Layout{}).Snapshot(), OID: func(uint32) []byte { return nil }})
@@ -352,7 +369,7 @@ func (s *Session) loadHistory(ctx context.Context, gen int, r *repo.Repository, 
 		return
 	}
 	tagCommits, stashes = tc, readStashes(ctx, r, key.refs)
-	if view.Filter.IsZero() && s.growHistory(ctx, gen, r, cat, key, tips, publish, t0) {
+	if view.Filter.IsZero() && s.growHistory(ctx, gen, r, cat, key, tips, shown, publish, t0) {
 		return
 	}
 	if ctx.Err() != nil {
@@ -535,11 +552,17 @@ func (s *Session) keepRevList(gen int, r *repo.Repository, key histKey, store *c
 // growHistory lays out the commits tips add on top of the history last
 // loaded whole, when the rest of it stays as it was, and publishes it. It
 // reports false when the whole is to be laid out anew.
-func (s *Session) growHistory(ctx context.Context, gen int, r *repo.Repository, cat *catfile.Process, key histKey, tips [][]byte, publish func(HistoryState), t0 time.Time) bool {
+func (s *Session) growHistory(ctx context.Context, gen int, r *repo.Repository, cat *catfile.Process, key histKey, tips [][]byte, shown *lanes.Snapshot, publish func(HistoryState), t0 time.Time) bool {
 	s.hist.mu.Lock()
 	last := s.hist.last
 	s.hist.mu.Unlock()
 	if last == nil || last.repo != r || last.key.view != key.view || last.key.load != key.load {
+		return false
+	}
+	if last.snap != shown {
+		// The load before this one was overtaken before the main thread
+		// took what it read: rows on top of that would come as rows over
+		// a history the view never had, its place and choice lost.
 		return false
 	}
 	real, err := r.CommitGraph()
@@ -614,6 +637,23 @@ func (s *Session) topText(ctx context.Context, r *repo.Repository, h HistoryStat
 		return nil, 0
 	}
 	return c, names
+}
+
+// keptAgain bounds how often a history laid out anew looks again for the
+// commits kept in view, which change as the view scrolls.
+const keptAgain = 2
+
+// keptIn reports whether found has all the commits the view keeps now.
+// Main thread only.
+func (s *Session) keptIn(found map[string]int) bool {
+	s.hist.mu.Lock()
+	defer s.hist.mu.Unlock()
+	for _, k := range s.hist.keep {
+		if _, ok := found[string(k)]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // findKept finds the rows of the commits the view keeps in place in h.
