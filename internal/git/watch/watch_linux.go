@@ -177,13 +177,16 @@ func (l *linuxWatch) read() {
 // handle acts on one read of events.
 func (l *linuxWatch) handle(buf []byte) {
 	n := len(buf)
-	// Directories moved away in this read, by the move's cookie: one
-	// whose arrival in the tree is not in the same read left it. An
-	// arrival read later only watches it anew.
+	// Directories moved away in this read, by the move's cookie: the
+	// watches of one whose arrival in the tree is not in the same read
+	// are forgotten. An arrival read later only watches it anew.
 	var moved map[uint32][]int32
-	// A directory moved out and back within the read (two cookies) gets
-	// its old watches back from addTree: they are watched again, not
-	// gone, and leave the departure's list.
+	// An arrival in the read, under the same cookie (a rename in the
+	// tree) or another (moved out and back), gets its old watches back
+	// from addTree: they are watched again, not gone, and leave the
+	// departure's list. Only those: a folder renamed in the tree and
+	// moved out again within the read has left by the time it is walked,
+	// and its watches, still under the old name, are forgotten.
 	kept := func(wd int32) {
 		for c, wds := range moved {
 			moved[c] = slices.DeleteFunc(wds, func(w int32) bool { return w == wd })
@@ -222,9 +225,6 @@ func (l *linuxWatch) handle(buf []byte) {
 			moved[ev.Cookie] = l.under(filepath.ToSlash(rel))
 		}
 		if ev.Mask&syscall.IN_ISDIR != 0 && ev.Mask&(syscall.IN_CREATE|syscall.IN_MOVED_TO) != 0 {
-			if ev.Mask&syscall.IN_MOVED_TO != 0 {
-				delete(moved, ev.Cookie)
-			}
 			// Watch the new directory, and report what was made in it
 			// before the watch was in place.
 			if err := l.addTreeNoting(rel, kept); err != nil {

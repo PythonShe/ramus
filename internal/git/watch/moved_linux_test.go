@@ -79,3 +79,51 @@ func TestMovedOutAndBackInOneRead(t *testing.T) {
 		}
 	}
 }
+
+// A folder renamed in the root, in one read with what follows: it keeps
+// its watches, under its new name; and when it is then moved out of the
+// root in the same read, its watches go, though they were never named
+// by the name it left by.
+func TestRenamedInOneRead(t *testing.T) {
+	for _, out := range []bool{false, true} {
+		root := t.TempDir()
+		away := t.TempDir()
+		os.MkdirAll(filepath.Join(root, "a", "sub"), 0o755)
+		w := &Watcher{root: root, notify: make(chan struct{}, 1), pending: map[string]struct{}{}}
+		fd, err := syscall.InotifyInit1(syscall.IN_CLOEXEC | syscall.IN_NONBLOCK)
+		if err != nil {
+			t.Fatal(err)
+		}
+		l := &linuxWatch{w: w, dirs: map[int32]string{}, file: os.NewFile(uintptr(fd), "inotify")}
+		defer l.file.Close()
+		if err := l.addTree("."); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(filepath.Join(root, "a"), filepath.Join(root, "b")); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{".", "b", "b/sub"}
+		if out {
+			if err := os.Rename(filepath.Join(root, "b"), filepath.Join(away, "b")); err != nil {
+				t.Fatal(err)
+			}
+			want = []string{"."}
+		}
+		buf := make([]byte, 64<<10)
+		n, err := syscall.Read(fd, buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		l.handle(buf[:n])
+		l.mu.Lock()
+		var watched []string
+		for _, d := range l.dirs {
+			watched = append(watched, d)
+		}
+		l.mu.Unlock()
+		slices.Sort(watched)
+		if !slices.Equal(watched, want) {
+			t.Errorf("moved out %v: watched %v, want %v", out, watched, want)
+		}
+	}
+}
