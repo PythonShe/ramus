@@ -235,7 +235,9 @@ func TestBranchPickerOpensAtItsTop(t *testing.T) {
 	h.app.setSidebar(false)
 	tb := h.app.current()
 	// As before the branches' state is read, which the sidebar asked for
-	// as the repository opened and may have by now.
+	// as the repository opened and may have by now: once that read is
+	// in, or it would put the state back.
+	h.until("the sidebar's read of the branches", func() bool { return !tb.refs.loading })
 	tb.refs.info, tb.refs.readFor = nil, nil
 	h.click("Branch main")
 	if tb.pick.info != nil || len(tb.pick.rows) == 0 || tb.pick.rows[0].ref != "refs/heads/a00" {

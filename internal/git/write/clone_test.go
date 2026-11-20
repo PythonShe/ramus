@@ -156,7 +156,7 @@ func TestCloneStoppedLeavesNothing(t *testing.T) {
 	g := testrun.Runner(t).Git()
 	marker := filepath.Join(t.TempDir(), "checking out")
 	global := filepath.Join(t.TempDir(), "gitconfig")
-	slow := "[filter \"slow\"]\n\tsmudge = \"touch '" + filepath.ToSlash(marker) + "'; sleep 60; cat\"\n"
+	slow := "[filter \"slow\"]\n\tsmudge = \"touch '" + filepath.ToSlash(marker) + "'; sleep 600; cat\"\n"
 	if err := os.WriteFile(global, []byte(slow), 0o644); err != nil {
 		t.Fatal(err)
 	}

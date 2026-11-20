@@ -23,7 +23,7 @@ func TestLeftViewReadsAgain(t *testing.T) {
 	// While the flag file exists, file history hangs.
 	bin := t.TempDir()
 	flag := filepath.Join(bin, "hang")
-	script := "#!/bin/sh\nif [ -e " + flag + " ]; then for a in \"$@\"; do [ \"$a\" = --name-only ] && exec sleep 67; done; fi\nexec " + real + " \"$@\"\n"
+	script := "#!/bin/sh\nif [ -e " + flag + " ]; then for a in \"$@\"; do [ \"$a\" = --name-only ] && exec sleep 667; done; fi\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -64,9 +64,9 @@ func TestLeftViewReadsAgain(t *testing.T) {
 	h.trust.Set(other.GitDir(), true)
 	h.app.Open(other.Dir)
 	h.until("the other tab", func() bool {
-		// The hanging git is the only sleep 67 on the machine: no other
+		// The hanging git is the only sleep 667 on the machine: no other
 		// test hangs its git for as long.
-		err := exec.Command("pgrep", "-f", "sleep 67").Run()
+		err := exec.Command("pgrep", "-f", "sleep 667").Run()
 		return h.app.current() != first && first.shown == "" && err != nil
 	})
 }

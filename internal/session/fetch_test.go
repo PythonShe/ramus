@@ -202,7 +202,7 @@ func TestTrustStartsTheBackgroundFetch(t *testing.T) {
 
 	// A fetch that hangs until the repository closes.
 	hang := filepath.Join(t.TempDir(), "ssh")
-	if err := os.WriteFile(hang, []byte("#!/bin/sh\nexec sleep 60\n"), 0o755); err != nil {
+	if err := os.WriteFile(hang, []byte("#!/bin/sh\nexec sleep 600\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	r.Git("config", "core.sshCommand", hang)
@@ -251,7 +251,7 @@ func TestWriteDoesNotWaitForTheBackgroundFetch(t *testing.T) {
 	r.Write("a.txt", "a\n")
 	r.Commit("one")
 	hang := filepath.Join(t.TempDir(), "ssh")
-	if err := os.WriteFile(hang, []byte("#!/bin/sh\nexec sleep 60\n"), 0o755); err != nil {
+	if err := os.WriteFile(hang, []byte("#!/bin/sh\nexec sleep 600\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	r.Git("config", "core.sshCommand", hang)
@@ -312,7 +312,7 @@ func TestHungBackgroundFetchesLeaveSlotsForReads(t *testing.T) {
 		}
 	}
 	hang := filepath.Join(t.TempDir(), "ssh")
-	if err := os.WriteFile(hang, []byte("#!/bin/sh\nexec sleep 60\n"), 0o755); err != nil {
+	if err := os.WriteFile(hang, []byte("#!/bin/sh\nexec sleep 600\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	slots := cap(quietFetches) + 1

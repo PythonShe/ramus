@@ -194,7 +194,7 @@ func TestStoppedWriteLeavesNoLock(t *testing.T) {
 	// through its hooks, and by then has the lock down for removal. Stopped
 	// in the instant it makes a lock, before that, git itself leaves it.
 	running := filepath.Join(t.TempDir(), "running")
-	hook := "#!/bin/sh\n: > '" + filepath.ToSlash(running) + "'\nsleep 30\n"
+	hook := "#!/bin/sh\n: > '" + filepath.ToSlash(running) + "'\nsleep 600\n"
 	if err := os.WriteFile(filepath.Join(hooks, "pre-commit"), []byte(hook), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestStoppedWriteLeavesOthersLocks(t *testing.T) {
 	hooks := filepath.Join(r.GitDir(), "hooks")
 	os.MkdirAll(hooks, 0o755)
 	running := filepath.Join(t.TempDir(), "running")
-	hook := "#!/bin/sh\n: > '" + filepath.ToSlash(running) + "'\nsleep 30\n"
+	hook := "#!/bin/sh\n: > '" + filepath.ToSlash(running) + "'\nsleep 600\n"
 	if err := os.WriteFile(filepath.Join(hooks, "pre-commit"), []byte(hook), 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -746,15 +746,16 @@ func TestAmendTakesTheCommitItsMessageIsOf(t *testing.T) {
 	cs.amend = true
 	h.tt.Frame()
 	h.until("HEAD's message", func() bool { return cs.subject == "second" })
-	// The state as a refresh not yet come leaves it.
+	cs.subject = "second, amended"
+	// A click on the button before it can commit does nothing.
+	h.until("ready to commit", func() bool { return commitReady(tb) })
+	// The state as a refresh not yet come leaves it: set last, with no
+	// wait after it in which a refresh would put the HEAD right.
 	old, err := hex.DecodeString(before)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tb.s.State.Head.OID = old
-	cs.subject = "second, amended"
-	// A click on the button before it can commit does nothing.
-	h.until("ready to commit", func() bool { return commitReady(tb) })
 	h.click("Amend Last Commit")
 	h.until("the amend", func() bool {
 		return !cs.busy && (cs.err != "" || strings.TrimSpace(r.Git("log", "-1", "--format=%s")) == "second, amended")

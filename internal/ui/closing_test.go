@@ -16,7 +16,7 @@ import (
 func (h *harness) hang(tb *tab) {
 	h.t.Helper()
 	op := write.Op{Name: "Slow push", Cmd: run.Cmd{GitDir: tb.s.Repo.GitDir, WorkTree: tb.s.Repo.WorkTree,
-		Config: []string{"alias.slow=!sleep 30"}, Args: []string{"slow"}}}
+		Config: []string{"alias.slow=!sleep 600"}, Args: []string{"slow"}}}
 	if _, err := tb.s.Submit(op); err != nil {
 		h.t.Fatal(err)
 	}

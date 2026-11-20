@@ -111,7 +111,7 @@ func TestStoppedLostSearchFails(t *testing.T) {
 	lostID := r.Commit("lost work")
 	r.Git("reset", "-q", "--hard", "HEAD~1")
 	bin := t.TempDir()
-	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = fsck ] && { echo \"dangling commit " + lostID + "\"; exec sleep 30; }; done\nexec " + real + " \"$@\"\n"
+	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = fsck ] && { echo \"dangling commit " + lostID + "\"; exec sleep 600; }; done\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

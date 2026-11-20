@@ -92,7 +92,7 @@ func TestQueueRunsInOrderWithLiveOutput(t *testing.T) {
 
 func TestCancel(t *testing.T) {
 	r, q, _ := newQueue(t)
-	hook(t, r, "pre-commit", "echo started >&2; sleep 30")
+	hook(t, r, "pre-commit", "echo started >&2; sleep 600")
 	slow := q.Submit(commitOp(r, "slow"))
 	queued := q.Submit(commitOp(r, "queued"))
 	ev, ok := <-slow.Events()
@@ -127,7 +127,7 @@ func TestCancel(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	r, q, life := newQueue(t)
-	hook(t, r, "pre-commit", "echo started >&2; sleep 30")
+	hook(t, r, "pre-commit", "echo started >&2; sleep 600")
 	running := q.Submit(commitOp(r, "running"))
 	<-running.Events()
 	queued := q.Submit(commitOp(r, "queued"))

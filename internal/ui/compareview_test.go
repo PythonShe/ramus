@@ -97,7 +97,7 @@ func TestComparePatchStops(t *testing.T) {
 	real := gittest.GitPath(t)
 	bin := t.TempDir()
 	// Its patches of two files outside a repository never come.
-	script := "#!/bin/sh\ncase \"$*\" in *--no-index*) exec sleep 60;; esac\nexec " + real + " \"$@\"\n"
+	script := "#!/bin/sh\ncase \"$*\" in *--no-index*) exec sleep 600;; esac\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestComparePatchStoppedIsDropped(t *testing.T) {
 	bin := t.TempDir()
 	// It lists the files that differ, but their patches come only once
 	// stopped.
-	script := "#!/bin/sh\ncase \"$*\" in *--name-status*) ;; *--no-index*) exec sleep 60;; esac\nexec " + real + " \"$@\"\n"
+	script := "#!/bin/sh\ncase \"$*\" in *--name-status*) ;; *--no-index*) exec sleep 600;; esac\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

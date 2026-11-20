@@ -22,7 +22,7 @@ func TestLeavingAViewCancelsItsReads(t *testing.T) {
 	real := gittest.GitPath(t)
 	// A git whose file history never ends.
 	bin := t.TempDir()
-	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = --name-only ] && exec sleep 60; done\nexec " + real + " \"$@\"\n"
+	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = --name-only ] && exec sleep 600; done\nexec " + real + " \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

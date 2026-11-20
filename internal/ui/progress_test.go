@@ -19,7 +19,7 @@ func TestRunningWriteCancel(t *testing.T) {
 	h.until("the repository", h.shows("No local changes"))
 	tb := h.app.current()
 	op := write.Op{Name: "Slow fetch", Cmd: run.Cmd{GitDir: r.GitDir(), WorkTree: r.Dir,
-		Config: []string{"alias.slow=!echo 'Receiving objects:  42% (42/100)' >&2; sleep 30"}, Args: []string{"slow"}}}
+		Config: []string{"alias.slow=!echo 'Receiving objects:  42% (42/100)' >&2; sleep 600"}, Args: []string{"slow"}}}
 	if _, err := tb.s.Submit(op); err != nil {
 		t.Fatal(err)
 	}
