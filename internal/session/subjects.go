@@ -6,6 +6,7 @@ import (
 
 	"ramus/internal/git/catfile"
 	"ramus/internal/git/object"
+	"ramus/internal/git/repo"
 	"ramus/internal/git/textenc"
 )
 
@@ -25,27 +26,8 @@ func (s *Session) LoadSubjects(oids [][]byte, done func([]string)) (cancel func(
 	dropped := false
 	r.Life().Go(func(context.Context) {
 		defer stop()
-		out := make([]string, len(oids))
-		cat, err := r.CatFile()
+		out, err := readSubjects(ctx, r, oids)
 		if err != nil {
-			return
-		}
-		_ = cat.ReadContext(ctx, oids, func(i int, o catfile.Object) error {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			if o.Type != "commit" {
-				return nil
-			}
-			cm, err := object.ParseCommit(o.Data)
-			if err != nil {
-				return nil
-			}
-			subject, _, _ := bytes.Cut(bytes.TrimLeft(cm.Message, "\n"), []byte("\n"))
-			out[i], _ = textenc.Decode(bytes.TrimSpace(subject), string(cm.Encoding))
-			return nil
-		})
-		if ctx.Err() != nil {
 			return
 		}
 		s.handOver(r, func() {
@@ -55,4 +37,49 @@ func (s *Session) LoadSubjects(oids [][]byte, done func([]string)) (cancel func(
 		}, nil)
 	})
 	return func() { dropped = true; stop() }
+}
+
+// ReadSubjects is LoadSubjects for what the user asked for once, as a
+// copy, which is not dropped with the view and always hears an answer:
+// the subjects, or why there are none; ErrReopened when the repository
+// closed and opened again (Trust), for the caller to ask again of the one
+// open now.
+func (s *Session) ReadSubjects(oids [][]byte, done func([]string, error)) {
+	r := s.Repo
+	if r == nil {
+		done(nil, errNotOpen)
+		return
+	}
+	r.Life().Go(func(ctx context.Context) {
+		out, err := readSubjects(ctx, r, oids)
+		s.handOver(r, func() { done(out, err) }, func() { done(nil, ErrReopened) })
+	})
+}
+
+// readSubjects reads the subjects of commits oids in r.
+func readSubjects(ctx context.Context, r *repo.Repository, oids [][]byte) ([]string, error) {
+	out := make([]string, len(oids))
+	cat, err := r.CatFile()
+	if err != nil {
+		return nil, err
+	}
+	_ = cat.ReadContext(ctx, oids, func(i int, o catfile.Object) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if o.Type != "commit" {
+			return nil
+		}
+		cm, err := object.ParseCommit(o.Data)
+		if err != nil {
+			return nil
+		}
+		subject, _, _ := bytes.Cut(bytes.TrimLeft(cm.Message, "\n"), []byte("\n"))
+		out[i], _ = textenc.Decode(bytes.TrimSpace(subject), string(cm.Encoding))
+		return nil
+	})
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

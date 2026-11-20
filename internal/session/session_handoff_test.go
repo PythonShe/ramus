@@ -128,6 +128,15 @@ func handOffCases(t *testing.T, r *gittest.Repo, parent, head []byte) []handOffC
 		{"ReadPatchFile", false, func(s *Session, answer func(bool)) {
 			s.ReadPatchFile(patchFile, func(_ PatchFile, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
+		{"ResolveCommit", false, func(s *Session, answer func(bool)) {
+			s.ResolveCommit("HEAD", func(_ []byte, err error) { answer(errors.Is(err, ErrReopened)) })
+		}},
+		{"FormatPatch", false, func(s *Session, answer func(bool)) {
+			s.FormatPatch(head, func(_ string, err error) { answer(errors.Is(err, ErrReopened)) })
+		}},
+		{"ReadSubjects", false, func(s *Session, answer func(bool)) {
+			s.ReadSubjects([][]byte{head}, func(_ []string, err error) { answer(errors.Is(err, ErrReopened)) })
+		}},
 		{"SavePatch", false, func(s *Session, answer func(bool)) {
 			// The file is written, or not, whichever repository is open:
 			// what it says, the write's own end or ErrReopened, is the

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -98,6 +99,19 @@ func TestTrustMidReadShowsNoError(t *testing.T) {
 				}
 			}
 			return true
+		}},
+		// What a click asks for once, which nothing asks again by itself:
+		// made of the repository open again, not lost.
+		{"copy subjects", nothing, func(h *harness, tb *tab) {
+			h.app.copySubjects(tb, [][]byte{hexOf(r, "HEAD~1"), hexOf(r, "HEAD")})
+		}, func(h *harness, _ *tab) bool {
+			return h.tt.Clipboard() == "one\nadd alpha\n"
+		}},
+		{"copy patch", nothing, func(h *harness, tb *tab) { h.app.copyPatch(tb, hexOf(r, "HEAD")) }, func(h *harness, _ *tab) bool {
+			return strings.Contains(h.tt.Clipboard(), "Subject: [PATCH] add alpha")
+		}},
+		{"jump", show("history"), func(h *harness, tb *tab) { h.app.jumpTo(tb, "topic") }, func(_ *harness, tb *tab) bool {
+			return bytes.Equal(tb.hist.chosenID, hexOf(r, "topic"))
 		}},
 	}
 	for _, c := range cases {

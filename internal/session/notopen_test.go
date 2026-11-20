@@ -95,6 +95,7 @@ func TestReadsWithNoRepositoryAreAnswered(t *testing.T) {
 		"LoadPullRange": func(a func()) { s.LoadPullRange(1, func(PullRange, error) { a() }) },
 		"LoadTrack":     func(a func()) { s.LoadTrack(func(Track) { a() }) },
 		"LoadSubjects":  func(a func()) { s.LoadSubjects([][]byte{head}, func([]string) { a() }) },
+		"ReadSubjects":  func(a func()) { s.ReadSubjects([][]byte{head}, func([]string, error) { a() }) },
 		"FileSizes":     func(a func()) { s.FileSizes("HEAD", func(PathWeights) { a() }) },
 		"ChangeCounts":  func(a func()) { s.ChangeCounts(StatsRequest{}, func(PathWeights) { a() }) },
 		"LoadSubmoduleRange": func(a func()) {

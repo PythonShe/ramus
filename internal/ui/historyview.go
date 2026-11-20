@@ -465,6 +465,16 @@ func (a *App) jumpTo(t *tab, rev string) {
 		if n != hv.jumpN {
 			return // a newer request, or the user chose a commit meanwhile
 		}
+		if reopened(err) {
+			// Asked again of the repository opened again, unless the user
+			// asked for another or chose a commit meanwhile.
+			a.askAgain(t, func() {
+				if n == hv.jumpN {
+					a.jumpTo(t, rev)
+				}
+			})
+			return
+		}
 		typed := strings.TrimSpace(hv.jump) == rev
 		switch {
 		case err != nil && typed && !hexish(rev):
@@ -1289,12 +1299,24 @@ func (a *App) copyMany(m *ui.Menu, t *tab, ids func() []string, n int) {
 			}
 		}
 		slices.Reverse(oids)
-		t.s.LoadSubjects(oids, func(subjects []string) {
-			if len(subjects) > 0 {
-				a.clip = redact.Control(strings.Join(subjects, "\n")) + "\n"
-			}
-		})
+		a.copySubjects(t, oids)
 	}
+}
+
+// copySubjects puts the subjects of commits oids on the clipboard, one a
+// line, once read: asked again of the repository opened again under the
+// read (Trust), and said in the notice when they cannot be read.
+func (a *App) copySubjects(t *tab, oids [][]byte) {
+	t.s.ReadSubjects(oids, func(subjects []string, err error) {
+		switch {
+		case reopened(err):
+			a.askAgain(t, func() { a.copySubjects(t, oids) })
+		case err != nil:
+			a.tell(t, errText(err))
+		case len(subjects) > 0:
+			a.clip = redact.Control(strings.Join(subjects, "\n")) + "\n"
+		}
+	})
 }
 
 // copiedMessage is a commit message as Copy Message puts it on the
@@ -1304,6 +1326,11 @@ func copiedMessage(msg []byte) string { return redact.Control(string(msg)) }
 
 func (a *App) copyPatch(t *tab, id []byte) {
 	t.s.FormatPatch(id, func(text string, err error) {
+		if reopened(err) {
+			// The copy asked for is made of the repository opened again.
+			a.askAgain(t, func() { a.copyPatch(t, id) })
+			return
+		}
 		if err != nil {
 			a.tell(t, errText(err))
 			return

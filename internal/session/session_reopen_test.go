@@ -80,11 +80,16 @@ func TestReadsOfAClosedRepositoryAreNotHandedOver(t *testing.T) {
 		{"LoadTrack", true, func(s *Session, answer func(bool)) {
 			s.LoadTrack(func(tr Track) { answer(tr.Upstream == "") })
 		}},
-		{"ResolveCommit", false, func(s *Session, answer func(bool)) {
-			s.ResolveCommit("HEAD", func([]byte, error) { answer(false) })
+		// Asked once by a click, which asks again of the repository
+		// opened again on hearing so.
+		{"ResolveCommit", true, func(s *Session, answer func(bool)) {
+			s.ResolveCommit("HEAD", func(_ []byte, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
-		{"FormatPatch", false, func(s *Session, answer func(bool)) {
-			s.FormatPatch(head, func(string, error) { answer(false) })
+		{"FormatPatch", true, func(s *Session, answer func(bool)) {
+			s.FormatPatch(head, func(_ string, err error) { answer(errors.Is(err, ErrReopened)) })
+		}},
+		{"ReadSubjects", true, func(s *Session, answer func(bool)) {
+			s.ReadSubjects([][]byte{head}, func(_ []string, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
 		{"LoadSubjects", false, func(s *Session, answer func(bool)) {
 			s.LoadSubjects([][]byte{head}, func([]string) { answer(false) })

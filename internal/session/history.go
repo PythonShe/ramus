@@ -1082,8 +1082,9 @@ func (s *Session) commitPatchOf(d CommitDetail, paths []string, maxBytes int, ws
 }
 
 // ResolveCommit finds the commit a hash, ref or other revision names,
-// off the main thread, and hands it to done on it, unless the repository
-// closed meanwhile.
+// off the main thread, and hands it to done on it; ErrReopened when the
+// repository closed and opened again (Trust), and nothing when the
+// session closed.
 func (s *Session) ResolveCommit(rev string, done func([]byte, error)) {
 	r := s.Repo
 	if r == nil {
@@ -1100,7 +1101,7 @@ func (s *Session) ResolveCommit(rev string, done func([]byte, error)) {
 		if err != nil {
 			err = errors.New(locales.SessionNoCommitNamed(strconv.Quote(rev)))
 		}
-		s.handOver(r, func() { done(id, err) }, nil)
+		s.handOver(r, func() { done(id, err) }, func() { done(nil, ErrReopened) })
 	})
 }
 
@@ -1132,8 +1133,9 @@ func (s *Session) FindRow(h HistoryState, oid []byte, done func(int)) {
 const MaxFormatPatch = 64 << 20
 
 // FormatPatch reads commit oid as git format-patch writes it, off the
-// main thread, and hands it to done on it, unless the repository closed
-// meanwhile.
+// main thread, and hands it to done on it; ErrReopened when the
+// repository closed and opened again (Trust), and nothing when the
+// session closed.
 func (s *Session) FormatPatch(oid []byte, done func(string, error)) {
 	r := s.Repo
 	if r == nil {
@@ -1147,6 +1149,6 @@ func (s *Session) FormatPatch(oid []byte, done func(string, error)) {
 		if err == nil {
 			text = string(res.Stdout)
 		}
-		s.handOver(r, func() { done(text, err) }, nil)
+		s.handOver(r, func() { done(text, err) }, func() { done("", ErrReopened) })
 	})
 }
