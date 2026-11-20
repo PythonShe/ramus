@@ -28,7 +28,7 @@ func TestRenamedOverWhileOpen(t *testing.T) {
 	if err := os.WriteFile(lock, []byte("new"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Rename(lock, path); err != nil {
+	if err := renameOver(lock, path); err != nil {
 		t.Fatalf("rename over a file being read: %v", err)
 	}
 	got, err := io.ReadAll(f)

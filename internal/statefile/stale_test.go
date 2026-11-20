@@ -3,7 +3,9 @@ package statefile
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -45,7 +47,7 @@ func TestRemoveStale(t *testing.T) {
 		".settings.json.broken-.1", ".settings.json.broken-x.1", ".settings.json.broken.", ".settings.json.lock",
 		".settings.json.notes", ".settings.json.orig.1", ".settings.json.v2.swp.7", ".settings.jsonx.1",
 		"other.123", "settings.json", "settings.json.20260101"}
-	if !slices.Equal(left, want) {
+	if want = asStored(want); !slices.Equal(left, want) {
 		t.Fatalf("left %q, want %q", left, want)
 	}
 	// In a folder the app alone writes, every old temporary name goes.
@@ -57,7 +59,21 @@ func TestRemoveStale(t *testing.T) {
 	}
 	want = []string{".settings.json.", ".settings.json.777", ".settings.json.broken.", ".settings.json.lock",
 		".settings.json.notes", "other.123", "settings.json", "settings.json.20260101"}
-	if !slices.Equal(left, want) {
+	if want = asStored(want); !slices.Equal(left, want) {
 		t.Fatalf("in the app's own folder left %q, want %q", left, want)
 	}
+}
+
+// asStored is names as the file system keeps them, sorted: Windows drops
+// the dots a name ends in, which leaves names no write makes either.
+func asStored(names []string) []string {
+	if runtime.GOOS != "windows" {
+		return names
+	}
+	out := make([]string, len(names))
+	for i, n := range names {
+		out[i] = strings.TrimRight(n, ".")
+	}
+	slices.Sort(out)
+	return out
 }

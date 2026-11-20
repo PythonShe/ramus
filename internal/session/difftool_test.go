@@ -100,7 +100,8 @@ func TestDiffToolManyFiles(t *testing.T) {
 	r := gittest.Init(t)
 	r.Git("config", "core.longpaths", "true")
 	// Few files, as each opens the tool: long names fill the line.
-	long := strings.Repeat("a folder with a long name ", 8)
+	// No space at the end, which Windows drops from a folder's name.
+	long := strings.TrimSpace(strings.Repeat("a folder with a long name ", 8))
 	var paths []string
 	for i := range 40 {
 		paths = append(paths, fmt.Sprintf("%s/%s/%s/file %03d.txt", long, long, long, i))
@@ -155,7 +156,15 @@ func TestDiffToolEnvironment(t *testing.T) {
 	r.Git("config", "diff.tool", "record")
 	g := testrun.Git(t)
 	// The user's environment, as the app has it, sets no GIT_TERMINAL_PROMPT.
-	runner := run.New(g, slices.DeleteFunc(gittest.Env(), func(e string) bool { return strings.HasPrefix(e, "GIT_TERMINAL_PROMPT=") }), 8)
+	env0 := slices.DeleteFunc(gittest.Env(), func(e string) bool { return strings.HasPrefix(e, "GIT_TERMINAL_PROMPT=") })
+	if runtime.GOOS == "windows" {
+		// Git for Windows hands the name to its shell helper without
+		// quoting a bracket (quote_arg_msys2 in compat/mingw.c), and the
+		// shell's runtime expands it to the neighbour, in a terminal
+		// too. That is git's to fix; the pathspec is what is checked here.
+		env0 = append(env0, "MSYS=noglob")
+	}
+	runner := run.New(g, env0, 8)
 	runner.SetPrompt([]string{"SSH_ASKPASS=/x/ramus", "SSH_ASKPASS_REQUIRE=force", "RAMUS_ASKPASS_TOKEN=tok"}, nil)
 	m := make(mainThread, 64)
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)

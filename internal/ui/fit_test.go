@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -15,12 +16,22 @@ import (
 	"ramus/internal/session"
 )
 
+// longName is how many letters the long name has: fewer on Windows,
+// where git takes a path of 259 characters and the name is a file under
+// a test's folder, and a folder there too.
+var longName = func() int {
+	if runtime.GOOS == "windows" {
+		return 120
+	}
+	return 200
+}()
+
 // fitNames are names of the kinds that push what holds them past its
 // edge: long with places to break, long without, of wide letters, and
 // of letters built of several code points. Each is a name git takes.
 var fitNames = []struct{ kind, name string }{
 	{"short", "login"},
-	{"200 letters", ("topic/" + strings.Repeat("a-long-branch-name-", 11))[:200]},
+	{"long with breaks", ("topic/" + strings.Repeat("a-long-branch-name-", 11))[:longName]},
 	{"40 letters unbroken", "averyveryveryveryverylongbranchnamewitho"},
 	{"wide letters", "功能/" + strings.Repeat("登录页面重新设计", 8)},
 	{"marks and emoji", strings.Repeat("é̂\U0001F469\U0001F3FD‍\U0001F4BB", 12)},

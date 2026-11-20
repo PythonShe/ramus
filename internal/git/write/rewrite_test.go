@@ -421,7 +421,11 @@ func TestRewriteTodoEdit(t *testing.T) {
 		if err := os.WriteFile(file, []byte(todo), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		err := exec.Command(sh, "-c", editor+` "$@"`, editor, file).Run()
+		// With forward slashes, as git names the todo to its editor: sed
+		// on Windows puts its temporary file beside the last one, and in
+		// the folder it runs in when there is none, which may be on
+		// another drive.
+		err := exec.Command(sh, "-c", editor+` "$@"`, editor, filepath.ToSlash(file)).Run()
 		got, _ := os.ReadFile(file)
 		switch {
 		case want == "" && err == nil:

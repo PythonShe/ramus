@@ -124,7 +124,9 @@ func TestCheckOutRemoteBeforeDetails(t *testing.T) {
 	tmp, _ := filepath.EvalSymlinks(t.TempDir())
 	t.Cleanup(h.closeAll) // before the folder above goes
 	r.Git("remote", "add", "origin", "https://example.invalid/r.git")
-	long := "topic/" + strings.Repeat("a-long-branch-name-", 8) + "end"
+	// As long as the path of its ref may be on Windows, under a test's
+	// folder: git takes 259 characters there.
+	long := "topic/" + strings.Repeat("a-long-branch-name-", 5) + "end"
 	branch := func(name, at, upstream string) {
 		r.Git("update-ref", "refs/remotes/origin/"+name, upstream)
 		r.Git("branch", "--no-track", name, at)
