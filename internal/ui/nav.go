@@ -107,7 +107,7 @@ func (a *App) pageTitle(t *tab) string {
 	case t.sel == sideCompare:
 		return locales.RepoSectionComparison()
 	case t.sel == "file":
-		return t.file.path
+		return redact.Control(t.file.path)
 	case t.sel == "history" && t.hist.chosenID != nil:
 		if d := t.hist.detail.d; d != nil && string(d.OID) == string(t.hist.chosenID) {
 			subject, _ := messageParts(d)
@@ -119,7 +119,7 @@ func (a *App) pageTitle(t *tab) string {
 	case t.sel == "history":
 		return locales.RepoSectionHistory()
 	case strings.HasPrefix(t.sel, "refs/"):
-		return shortRef(t.sel)
+		return redact.Control(shortRef(t.sel))
 	}
 	return partName(t.sel)
 }

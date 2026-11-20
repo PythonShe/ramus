@@ -374,7 +374,7 @@ func (a *App) personChip(c *ui.Context, hf *historyFilter) bool {
 	removed := false
 	ui.Row(c).Grow(1).MinWidth(leastFieldW).AlignItems(ui.Center).Children(func() {
 		ui.Row(c).Gap(space2XS).AlignItems(ui.Center).Padding(space2XS, space2XS, space2XS, spaceS).Shrink(1).MinWidth(0).
-			Radius(th.Radius).Background(th.Background).Border(1, th.Border).Tooltip(hf.author).
+			Radius(th.Radius).Background(th.Background).Border(1, th.Border).Tooltip(redact.Control(hf.author)).
 			Label(locales.HistoryFilterPerson(hf.person)).Children(func() {
 			ui.Text(c, hf.person).FontSize(textSmall).SingleLine().Shrink(1).MinWidth(0)
 			if closeButton(c, locales.HistoryFilterRemovePerson(hf.person)).Clicked() {

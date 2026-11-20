@@ -105,7 +105,7 @@ func (a *App) reflogView(c *ui.Context, t *tab) {
 // reflogRefMenu chooses whose reflog is shown: HEAD or a local branch.
 func (a *App) reflogRefMenu(c *ui.Context, t *tab) {
 	rs := &t.reflog
-	label := strings.TrimPrefix(rs.ref, "refs/heads/")
+	label := redact.Control(strings.TrimPrefix(rs.ref, "refs/heads/"))
 	givesWay(ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
 		if m.Item("HEAD").Chosen() {
 			rs.ref = "HEAD"
@@ -120,7 +120,9 @@ func (a *App) reflogRefMenu(c *ui.Context, t *tab) {
 				if n++; n > sideLimit {
 					break
 				}
-				if m.Item(strings.TrimPrefix(name, "refs/heads/")).Chosen() {
+				// By the full name: two names cleaned for showing may
+				// read alike.
+				if m.Item(redact.Control(strings.TrimPrefix(name, "refs/heads/"))).ID(name).Chosen() {
 					rs.ref = name
 				}
 			}

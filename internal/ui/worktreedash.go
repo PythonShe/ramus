@@ -100,9 +100,9 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 			switch col {
 			case 0:
 				ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
-					ui.Checkbox(c, d.pickedRef(w.Path), "").Label(locales.WorktreeCompareBox(filepath.Base(w.Path)))
+					ui.Checkbox(c, d.pickedRef(w.Path), "").Label(locales.WorktreeCompareBox(redact.Control(filepath.Base(w.Path))))
 					ui.Column(c).Grow(1).Children(func() {
-						name := ui.Text(c, filepath.Base(w.Path)).SingleLine()
+						name := ui.Text(c, redact.Control(filepath.Base(w.Path))).SingleLine()
 						if w.Current {
 							name.Bold()
 						}
@@ -111,11 +111,11 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 						// the path then in its tooltip.
 						switch {
 						case w.Prunable:
-							ui.Text(c, w.Path).FontSize(textCaption).TextColor(k.Warning).SingleLine()
+							ui.Text(c, redact.Control(w.Path)).FontSize(textCaption).TextColor(k.Warning).SingleLine()
 						case read && sum.Err != nil:
-							ui.Text(c, errText(sum.Err)).FontSize(textCaption).TextColor(k.Danger).SingleLine().Tooltip(w.Path + "\n" + errText(sum.Err))
+							ui.Text(c, errText(sum.Err)).FontSize(textCaption).TextColor(k.Danger).SingleLine().Tooltip(redact.Control(w.Path) + "\n" + errText(sum.Err))
 						default:
-							ui.Text(c, w.Path).FontSize(textCaption).TextColor(k.Muted).SingleLine()
+							ui.Text(c, redact.Control(w.Path)).FontSize(textCaption).TextColor(k.Muted).SingleLine()
 						}
 					})
 				})
@@ -149,7 +149,7 @@ func (a *App) worktreeDashboard(c *ui.Context, t *tab) {
 					ui.Text(c, ago(now, active)).TextColor(k.Muted)
 				}
 			case 5:
-				if !w.Current && ui.Button(c, locales.WorktreeOpen()).Label(locales.WorktreeOpenLabel(filepath.Base(w.Path))).Padding(0, spaceM).Clicked() {
+				if !w.Current && ui.Button(c, locales.WorktreeOpen()).Label(locales.WorktreeOpenLabel(redact.Control(filepath.Base(w.Path)))).Padding(0, spaceM).Clicked() {
 					act = func() { a.openWorktree(t, w) }
 				}
 			}

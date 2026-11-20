@@ -379,7 +379,7 @@ func (a *App) refList(c *ui.Context, t *tab) {
 					name.Bold()
 				}
 				if b.Worktree != "" {
-					ui.Text(c, locales.RefsInWorktree(filepath.Base(b.Worktree))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(locales.RefsCheckedOutIn(b.Worktree))
+					ui.Text(c, locales.RefsInWorktree(redact.Control(filepath.Base(b.Worktree)))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(locales.RefsCheckedOutIn(redact.Control(b.Worktree)))
 				}
 				if on := stackedOn(info, b.Name); on != "" {
 					ui.Text(c, locales.RefsOnBranch(redact.Control(on))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(locales.RefsStackedOn(redact.Control(on)))
@@ -703,7 +703,7 @@ func tracking(b session.BranchInfo) string {
 	if b.Upstream == "" {
 		return ""
 	}
-	up := strings.TrimPrefix(b.Upstream, "refs/remotes/")
+	up := redact.Control(strings.TrimPrefix(b.Upstream, "refs/remotes/"))
 	if b.Gone {
 		return locales.RefsUpstreamGone(up)
 	}
@@ -1264,13 +1264,13 @@ func (a *App) cleanupView(c *ui.Context, t *tab) {
 				})
 			default:
 				found := cs.found
-				cs.list.Label = func(i int) string { return strings.TrimPrefix(found[i].Branch.Name, "refs/heads/") }
+				cs.list.Label = func(i int) string { return redact.Control(strings.TrimPrefix(found[i].Branch.Name, "refs/heads/")) }
 				ui.List(c, &cs.list, len(found), func(i int) {
 					f := found[i]
 					ui.Row(c).Padding(rowPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Children(func() {
 						ui.Checkbox(c, &cs.picked[i], redact.Control(strings.TrimPrefix(f.Branch.Name, "refs/heads/"))).Grow(1)
 						if f.Branch.Worktree != "" {
-							ui.Text(c, locales.RefsInWorktree(filepath.Base(f.Branch.Worktree))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
+							ui.Text(c, locales.RefsInWorktree(redact.Control(filepath.Base(f.Branch.Worktree)))).FontSize(textSmall).TextColor(th.TextMuted).SingleLine()
 						}
 						ui.Text(c, whyWords(f.Why)).FontSize(textSmall).TextColor(th.TextMuted).Width(200).SingleLine()
 					})

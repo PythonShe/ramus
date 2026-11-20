@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/locales"
 )
 
@@ -163,7 +164,7 @@ func disclosure(open bool) *ui.SVG {
 func aheadBehind(c *ui.Context, k ink, ahead, behind int, upstream string) ui.Element {
 	row := ui.Row(c).Gap(spaceM).AlignItems(ui.Center)
 	if upstream != "" {
-		row.Description(locales.WorktreeAheadBehind(ahead, behind, upstream))
+		row.Description(locales.WorktreeAheadBehind(ahead, behind, redact.Control(upstream)))
 	}
 	return row.Children(func() {
 		for _, p := range []struct {

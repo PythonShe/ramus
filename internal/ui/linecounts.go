@@ -4,6 +4,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"ramus/internal/git/diff"
+	"ramus/internal/git/redact"
 	"ramus/locales"
 )
 
@@ -48,6 +49,7 @@ func inkFileLines(c *ui.Context, k ink, l diff.Lines) {
 // fileLabel is what a changed file is read aloud as: its state and path,
 // and the lines its change adds and deletes once counted.
 func fileLabel(state, path string, l diff.Lines) string {
+	path = redact.Control(path)
 	if !l.Known || l.Binary || l.Added == 0 && l.Deleted == 0 {
 		return locales.ChangesFileLabel(state, path)
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/session"
 	"ramus/locales"
 )
@@ -197,8 +198,8 @@ func coAuthorChips(c *ui.Context, cs *commitState) {
 			}
 			c.Key(s)
 			ui.Row(c).Gap(space2XS).AlignItems(ui.Center).Padding(space2XS, space2XS, space2XS, spaceS).
-				Radius(th.Radius).Background(th.Background).Border(1, th.Border).Tooltip(s).Children(func() {
-				ui.Text(c, name).FontSize(textSmall).SingleLine()
+				Radius(th.Radius).Background(th.Background).Border(1, th.Border).Tooltip(redact.Control(s)).Children(func() {
+				ui.Text(c, redact.Control(name)).FontSize(textSmall).SingleLine()
 				if closeButton(c, locales.CommitBoxRemoveCoAuthor(name)).Disabled(cs.busy).Clicked() {
 					remove = i
 				}

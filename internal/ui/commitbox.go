@@ -182,7 +182,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 				ui.PopoverMenuButton(c, locales.CommitBoxRecent(), func(m *ui.Menu) {
 					for _, msg := range recent {
 						subject, _ := message.Split(msg)
-						if m.Item(subject).Chosen() {
+						if m.Item(redact.Control(subject)).Chosen() {
 							cs.chooseRecent(msg)
 						}
 					}
@@ -208,7 +208,7 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		upstream, pushed := amendsPushed(t)
 		ui.Row(c).Gap(spaceM).Children(func() {
 			branch := strings.TrimPrefix(head.Target, "refs/heads/")
-			label := locales.CommitBoxCommitTo(branch)
+			label := locales.CommitBoxCommitTo(redact.Control(branch))
 			switch {
 			case cs.busy:
 				label = locales.CommitBoxCommitting()

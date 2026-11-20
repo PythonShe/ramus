@@ -12,6 +12,7 @@ import (
 
 	"ramus/internal/git/conflict"
 	"ramus/internal/git/diff"
+	"ramus/internal/git/redact"
 	"ramus/internal/git/repo"
 	"ramus/internal/git/status"
 	"ramus/internal/git/write"
@@ -968,11 +969,11 @@ func (a *App) changeMenu(menu *ui.Menu, t *tab, m *changeModel, r changeRow, act
 	if fileRow(r) && r.sec != secStaged {
 		p := m.path(r)
 		menu.Separator()
-		if menu.Item(locales.ChangesIgnorePath(p)).Disabled(ro).Chosen() {
+		if menu.Item(locales.ChangesIgnorePath(redact.Control(p))).Disabled(ro).Chosen() {
 			*act = func() { a.ignore(t, write.IgnorePattern(p)) }
 		}
 		if ext := path.Ext(p); ext != "" && !strings.ContainsAny(ext, `*?[\ `) {
-			if menu.Item(locales.ChangesIgnoreExt(ext)).Disabled(ro).Chosen() {
+			if menu.Item(locales.ChangesIgnoreExt(redact.Control(ext))).Disabled(ro).Chosen() {
 				*act = func() { a.ignore(t, "*"+ext) }
 			}
 		}

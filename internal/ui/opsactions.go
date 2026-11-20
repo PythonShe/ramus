@@ -337,7 +337,7 @@ func (a *App) applyPatchFile(t *tab) {
 }
 
 func (a *App) askApply(t *tab, pf session.PatchFile) {
-	base := filepath.Base(pf.Path)
+	base := redact.Control(filepath.Base(pf.Path))
 	files := strings.Join(pf.Files[:min(len(pf.Files), 5)], ", ")
 	if len(pf.Files) > 5 {
 		files = locales.OpsApplyMoreFiles(len(pf.Files)-5, files)

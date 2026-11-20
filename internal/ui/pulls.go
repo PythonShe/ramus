@@ -337,7 +337,7 @@ func (a *App) stackItems(m *ui.Menu, t *tab, b session.BranchInfo, repo forge.Re
 		*act = func() {
 			top := names[len(names)-1]
 			t.refs.ask = confirmState{open: true, title: locales.PullsCreateStackTitle(),
-				message: locales.PullsCreateStackMessage(strings.Join(names, ", "), top),
+				message: locales.PullsCreateStackMessage(redact.Control(strings.Join(names, ", ")), redact.Control(top)),
 				button:  locales.CommonCreate(),
 				safe:    true,
 				run:     func() { a.runStack(t, c, locales.PullsCreateStackJob(), append([]string{"init", "--"}, names...)...) }}

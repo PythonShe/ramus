@@ -122,7 +122,7 @@ func (p *wtPanel) halt() {
 
 // show shows the patch of a file in place of the list.
 func (p *wtPanel) show(a *App, t *tab, w repo.Worktree, f session.WorktreeFile) {
-	p.file = &wtFile{worktree: w.Path, name: filepath.Base(w.Path), f: f}
+	p.file = &wtFile{worktree: w.Path, name: redact.Control(filepath.Base(w.Path)), f: f}
 	// The patch shown goes: its pictures need not take their turn.
 	p.pv.stale.set()
 	p.patch, p.pv = session.PatchResult{}, patchView{}
@@ -281,7 +281,7 @@ func (a *App) wtList(c *ui.Context, t *tab, p *wtPanel) (act func()) {
 // button clicked.
 func wtWorktreeRow(c *ui.Context, w repo.Worktree, sum session.WorktreeSummary, read, expanded bool, now time.Time) (row ui.Element, open bool) {
 	th := c.Theme()
-	name := filepath.Base(w.Path)
+	name := redact.Control(filepath.Base(w.Path))
 	row = ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
 		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(locales.WorktreePanelShowFiles(name))
 	if row.Hovered() {

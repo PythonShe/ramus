@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"ramus/internal/git/redact"
 	"ramus/internal/git/refs"
 	"ramus/internal/session"
 	"ramus/locales"
@@ -74,7 +75,7 @@ const (
 func (a *App) branchButton(c *ui.Context, t *tab) {
 	th := c.Theme()
 	head := t.s.State.Head
-	name := strings.TrimPrefix(head.Target, "refs/heads/")
+	name := redact.Control(strings.TrimPrefix(head.Target, "refs/heads/"))
 	if head.Detached {
 		name = locales.BranchPickerDetached()
 	}
@@ -289,7 +290,7 @@ func pickRowView(c *ui.Context, t *tab, p *branchPick, r pickRow, hi bool, now t
 		return ui.Text(c, r.heading).FontSize(textCaption).TextColor(th.TextMuted).Height(rowHeight).Padding(spaceS+2, spaceS, 0, spaceS)
 	}
 	row := ui.Row(c).Height(rowHeight).Padding(0, spaceS).Gap(spaceS).AlignItems(ui.Center).Radius(th.Radius).
-		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(shortRef(r.ref))
+		Role(ui.RoleButton).Cursor(ui.CursorPointer).Label(redact.Control(shortRef(r.ref)))
 	fg, k := th.Text, pickInk(th, hi)
 	if hi {
 		row.Background(th.Accent)
@@ -302,13 +303,13 @@ func pickRowView(c *ui.Context, t *tab, p *branchPick, r pickRow, hi bool, now t
 		} else {
 			ui.Box(c).Width(markW)
 		}
-		ui.Text(c, shortRef(r.ref)).SingleLine().TruncateMiddle().Shrink(1).Grow(1).TextColor(fg)
+		ui.Text(c, redact.Control(shortRef(r.ref))).SingleLine().TruncateMiddle().Shrink(1).Grow(1).TextColor(fg)
 		b, ok := p.info[r.ref]
 		if !ok {
 			return
 		}
 		if b.Worktree != "" {
-			ui.Text(c, locales.RefsInWorktree(filepath.Base(b.Worktree))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(locales.RefsCheckedOutIn(b.Worktree))
+			ui.Text(c, locales.RefsInWorktree(redact.Control(filepath.Base(b.Worktree)))).FontSize(textSmall).TextColor(k.Muted).SingleLine().Description(locales.RefsCheckedOutIn(redact.Control(b.Worktree)))
 		}
 		if b.Upstream != "" && !b.Gone {
 			describeAheadBehind(row, b.Ahead, b.Behind)

@@ -200,7 +200,7 @@ func worktreeLabel(w repo.Worktree) string {
 	case w.Locked:
 		state = "locked"
 	}
-	return locales.WorktreeLabel(filepath.Base(w.Path), head, strings.TrimPrefix(w.Branch, "refs/heads/"), state)
+	return redact.Control(locales.WorktreeLabel(filepath.Base(w.Path), head, strings.TrimPrefix(w.Branch, "refs/heads/"), state))
 }
 
 // worktreeMenu is what can be done with worktree w from the sidebar. The

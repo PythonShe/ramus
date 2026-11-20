@@ -177,7 +177,7 @@ func (a *App) historyEditView(c *ui.Context) {
 						subject.TextColor(th.TextMuted).Strikethrough()
 					}
 					for _, b := range r.Branches {
-						ui.Text(c, strings.TrimPrefix(b, "refs/heads/")).FontSize(textCaption).TextColor(th.TextMuted).SingleLine().MaxWidth(140)
+						ui.Text(c, redact.Control(strings.TrimPrefix(b, "refs/heads/"))).FontSize(textCaption).TextColor(th.TextMuted).SingleLine().MaxWidth(140)
 					}
 					ui.Text(c, hex.EncodeToString(r.OID)[:8]).Font("monospace").FontSize(textSmall).Width(64).TextColor(th.TextMuted)
 				})

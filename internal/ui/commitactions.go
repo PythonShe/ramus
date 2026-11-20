@@ -50,7 +50,7 @@ func (a *App) commitItems(m *ui.Menu, t *tab, id []byte, merges int) {
 	if !head.Detached {
 		target = strings.TrimPrefix(head.Target, "refs/heads/")
 	}
-	m.Submenu(locales.CommitResetTo(target), func(sub *ui.Menu) {
+	m.Submenu(locales.CommitResetTo(redact.Control(target)), func(sub *ui.Menu) {
 		for _, mode := range []struct {
 			label string
 			mode  write.ResetMode
