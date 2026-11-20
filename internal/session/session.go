@@ -65,7 +65,8 @@ type State struct {
 	// WatchErr is why changes are not watched, when they are not: the
 	// window gaining focus then reads everything again.
 	WatchErr error
-	// Refreshed is when status was last read.
+	// Refreshed is when the read that last read status began: a write
+	// that ended before it is in the state.
 	Refreshed time.Time
 	// Monitor offers git's file system monitor and the untracked cache
 	// when status was slow.
@@ -580,6 +581,9 @@ const all = modulesChanged | repo.WorkTreeChanged | repo.IndexChanged | repo.Ref
 // read reads what changed and hands it to the main thread. It returns
 // how long a full status it put off waits, as seen.pause says, or zero.
 func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change, paths []string, urgent bool, seen *refreshSeen) time.Duration {
+	// What is read is as of no earlier than now: a write that ends
+	// while it is read may be in it or not.
+	began := s.timeNow()
 	if what&repo.Rescan != 0 {
 		what |= all
 	}
@@ -736,7 +740,7 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		if rechecked || wait == 0 {
 			fail(err)
 			res.st = st
-			res.readAt = s.timeNow()
+			res.readAt = began
 			seen.statusFailed = err != nil
 			if err == nil {
 				seen.status = st

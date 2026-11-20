@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"ramus/internal/git/gittest"
 	"ramus/internal/git/repo"
 )
 
@@ -125,6 +129,83 @@ func TestOperationBarWaitsForTheReadAfterAFailedStep(t *testing.T) {
 	}
 	if got := stopped(); got != "commit B" || len(tb.s.Log) != logged+1 {
 		t.Fatalf("stopped at %q after %d writes", got, len(tb.s.Log)-logged)
+	}
+}
+
+// A status read that began while a continue ran, as the watcher starts
+// one, and came back after the continue ended holds the state of before
+// the end: the bar waits for a read begun after it.
+func TestOperationBarWaitsForAReadBegunAfterTheStep(t *testing.T) {
+	gitBin := gittest.GitPath(t)
+	dir := t.TempDir()
+	wait := func(flag string) string {
+		return `i=0; while [ $i -lt 3000 ] && [ ! -e FLAG/` + flag + ` ]; do sleep 0.02; i=$((i+1)); done; `
+	}
+	// Armed, the continue waits to start, and the first status runs at
+	// once and hands its output over when let.
+	body := `case " $* " in ` +
+		`*" rebase "*"--continue"*) if [ -e FLAG/ARM ]; then : > FLAG/rebase-waits; ` + wait("GO_REBASE") + `fi;; ` +
+		`*" status "*) if [ -e FLAG/ARM ] && mkdir FLAG/held 2>/dev/null; then ` + gitBin + ` "$@" > FLAG/out; s=$?; : > FLAG/sampled; ` + wait("GO_STATUS") + `cat FLAG/out; exit $s; fi;; ` +
+		`esac`
+	h := newHarnessWith(t, wrappedGit(t, body, dir))
+	r := h.repoWith()
+	for _, s := range []string{"1", "2", "3"} {
+		r.Write("f.txt", s+"\n")
+		r.Commit("step " + s)
+	}
+	r.Git("-c", "sequence.editor=sed -i.bak s/^pick/edit/", "rebase", "-q", "-i", "HEAD~3")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	tb := h.app.current()
+	h.until("Continue offered", func() bool { b, ok := h.tt.Access("Continue"); return ok && !b.Disabled })
+	exists := func(name string) bool { _, err := os.Stat(filepath.Join(dir, name)); return err == nil }
+	flag := func(name string) {
+		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	head := func() string { return strings.TrimSpace(r.Git("rev-parse", "HEAD")) }
+	before := head()
+
+	flag("ARM")
+	logged := len(tb.s.Log)
+	h.click("Continue")
+	h.tt.Frame()
+	e := tb.s.Log[logged]
+	h.until("the continue started", func() bool { return exists("rebase-waits") })
+	tb.s.Refresh(repo.Rescan)
+	h.until("a status read under way", func() bool { return exists("sampled") })
+	if !e.Running {
+		t.Fatal("the continue ended before the read began")
+	}
+	flag("GO_REBASE")
+	h.until("the continue ended", func() bool { return !e.Running })
+	if e.Err != nil {
+		t.Fatalf("continue: %v", e.Err)
+	}
+	after := head()
+	if after == before {
+		t.Fatal("the continue moved nothing")
+	}
+	flag("GO_STATUS")
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		select {
+		case fn := <-h.updates:
+			fn()
+		case <-time.After(20 * time.Millisecond):
+		}
+		h.tt.Frame()
+		if b, ok := h.tt.Access("Continue"); ok && !b.Disabled {
+			if shown := fmt.Sprintf("%x", tb.s.State.Head.OID); shown != after {
+				t.Fatalf("Continue offered on the state read before the continue ended: HEAD shown %.8s, HEAD now %.8s, before the continue %.8s",
+					shown, after, before)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for the bar")
+		}
 	}
 }
 
