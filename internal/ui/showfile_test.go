@@ -162,6 +162,68 @@ func TestShowFileInAFolderOfATabStillOpening(t *testing.T) {
 	}
 }
 
+// A file asked for while one asked before waits for its repository to
+// open replaces it: the one asked first is not shown over it when the
+// repository opens and its answer lands last.
+func TestShowFileALaterAskReplacesOneWaiting(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith("a.txt", "b.txt")
+	h.trust.Set(r.GitDir(), true)
+	orig := h.app.Update
+	pump := func(what string, ok func() bool) {
+		t.Helper()
+		deadline := time.After(20 * time.Second)
+		for !ok() {
+			select {
+			case fn := <-h.updates:
+				fn()
+			case <-deadline:
+				t.Fatalf("timed out waiting for %s", what)
+			}
+		}
+	}
+	h.app.ShowFile(filepath.Join(r.Dir, "a.txt"), false)
+	pump("a.txt waiting", func() bool { return h.app.pendingFile.abs != "" })
+	if len(h.app.tabs) != 1 || h.app.tabs[0].s.Repo != nil {
+		t.Skipf("the repository opened before the second ask: %d tabs", len(h.app.tabs))
+	}
+	tb := h.app.tabs[0]
+	// The later ask, its answer held.
+	heldB := make(chan func(), 1)
+	h.app.Update = func(fn func()) { heldB <- fn }
+	h.app.ShowFile(filepath.Join(r.Dir, "b.txt"), false)
+	var landB func()
+	select {
+	case landB = <-heldB:
+	case <-time.After(20 * time.Second):
+		t.Fatal("the second ask found nothing")
+	}
+	// The repository opens; what is found for a file still waiting is
+	// held too.
+	var heldA []func()
+	hold := true
+	h.app.Update = func(fn func()) {
+		if hold {
+			heldA = append(heldA, fn)
+			return
+		}
+		orig(fn)
+	}
+	h.until("the repository", func() bool { return tb.s.Repo != nil })
+	h.tt.Frame()
+	time.Sleep(300 * time.Millisecond)
+	hold = false
+	landB()
+	h.until("b.txt", func() bool { return tb.sel == "file" && tb.file.path == "b.txt" })
+	for _, fn := range heldA {
+		fn()
+	}
+	h.tt.Frame()
+	if tb.file.path != "b.txt" {
+		t.Fatalf("%s, asked for first, is shown over b.txt, asked for after it", tb.file.path)
+	}
+}
+
 // The tab of a file's folder that closes for the repository's tab in
 // another window hands that window the file, not only the repository.
 func TestShowFileHandedOnWithTheTabOfItsFolder(t *testing.T) {

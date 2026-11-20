@@ -88,7 +88,8 @@ func (a *App) showFile(t *tab, path string, blame bool) {
 // the window on a volume that stopped answering; what an ask finds is
 // dropped once another was made after it.
 func (a *App) ShowFile(abs string, blame bool) {
-	a.pendingFile.asked++
+	// A file still waiting for its repository is no longer wanted.
+	a.pendingFile = pendingFile{asked: a.pendingFile.asked + 1}
 	n := a.pendingFile.asked
 	type open struct {
 		t    *tab
