@@ -268,6 +268,36 @@ func TestBranchPickerStaysWhereScrolled(t *testing.T) {
 	})
 }
 
+// A query typed in the branch picker scrolled down, the pointer off its
+// rows, brings the row Enter takes into view.
+func TestBranchPickerShowsTheRowEnterTakes(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	for i := range 30 {
+		r.Git("branch", fmt.Sprintf("a%02d", i))
+	}
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	h.app.setSidebar(false)
+	tb := h.app.current()
+	h.click("Branch main")
+	h.until("the branches and their state", func() bool { return tb.pick.info != nil && hasExact(h, "a00") })
+	h.scrollDown(&tb.pick.list, "Branches", 15)
+	sf, _ := h.tt.Find("Search branches")
+	h.tt.Move(sf.X+sf.W/2, sf.Y+sf.H/2)
+	h.tt.Frame()
+	// Every branch has an a: the rows stay as they are.
+	h.tt.Type("a")
+	h.until("the filter", func() bool { return tb.pick.rowsWith == "a" })
+	h.tt.Frame()
+	h.tt.Frame()
+	first, last := tb.pick.list.Visible()
+	if hi := tb.pick.hi; hi < first || hi > last {
+		t.Fatalf("Enter would take row %d, %s, which the list (rows %d to %d) does not show", hi, tb.pick.rows[hi].ref, first, last)
+	}
+}
+
 func TestRefsListStaysWhereScrolled(t *testing.T) {
 	for _, scroll := range []int{0, 5} {
 		t.Run(fmt.Sprint("scrolled ", scroll), func(t *testing.T) {

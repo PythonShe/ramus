@@ -334,7 +334,8 @@ func (p *branchPick) build(t *tab) []pickRow {
 	// A fetch landing while the picker is open keeps the arrows on the
 	// branch they were on.
 	keep := ""
-	if p.rowsWith == p.query && p.hi >= 0 && p.hi < len(p.rows) {
+	queried := p.rowsWith != p.query
+	if !queried && p.hi >= 0 && p.hi < len(p.rows) {
 		keep = p.rows[p.hi].ref
 	}
 	p.rowsFor, p.rowsGen, p.rowsWith, p.rowsInfo, p.rows = sr.refs, sr.gen, p.query, p.infoFor, nil
@@ -400,6 +401,11 @@ func (p *branchPick) build(t *tab) []pickRow {
 			p.hi = i
 			break
 		}
+	}
+	if queried && p.hi >= 0 {
+		// The list stays where it is scrolled as a query filters it: the
+		// row Enter takes is brought into view.
+		p.list.ScrollIntoView(p.hi)
 	}
 	return p.rows
 }

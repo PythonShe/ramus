@@ -32,6 +32,8 @@ type repoPick struct {
 	// the arrows.
 	ptr  pointerAt
 	list ui.ListState
+	// hiWith is the query the list last brought hi into view for.
+	hiWith string
 	// briefs are what was read of each repository, by path; stop ends
 	// the reading under way, and reading waits for it, for a test to
 	// before the repositories' folders go.
@@ -132,6 +134,12 @@ func (a *App) repoButton(c *ui.Context, t *tab) {
 				if at >= 0 {
 					p.hi = rows[at].key
 				}
+			}
+			if p.hiWith != p.query && at >= 0 {
+				// The list stays where it is scrolled as a query filters
+				// it: the row Enter takes is brought into view.
+				p.hiWith = p.query
+				p.list.ScrollIntoView(at)
 			}
 			move := func(d int) {
 				for i := at + d; i >= 0 && i < len(rows); i += d {
@@ -242,7 +250,7 @@ type pointerAt struct {
 // reads again the briefs gone stale.
 func (a *App) openRepoPicker() {
 	p := &a.repoPick
-	p.open, p.query, p.hi, p.ptr = true, "", "", pointerAt{}
+	p.open, p.query, p.hi, p.ptr, p.hiWith = true, "", "", pointerAt{}, ""
 	a.readBriefs()
 }
 

@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -227,5 +229,38 @@ func TestRepoPickerLeavesOutWorktrees(t *testing.T) {
 	at := slices.IndexFunc(h.app.repoRows(), func(r repoRow) bool { return r.path == library.Clean(now) })
 	if rows := h.app.repoRows(); rows[at-1].heading != "alice" && rows[at-2].heading != "alice" {
 		t.Fatalf("the worktree is not under its owner: %+v", rows)
+	}
+}
+
+// A query typed in the repository picker scrolled down, the pointer off
+// its rows, brings the row Enter takes into view.
+func TestRepoPickerShowsTheRowEnterTakes(t *testing.T) {
+	h := newHarness(t)
+	shown := h.repoWith()
+	parent, gitBin := t.TempDir(), gittest.GitPath(t)
+	for i := range 30 {
+		dir := filepath.Join(parent, fmt.Sprintf("repo-%02d", i))
+		if out, err := exec.Command(gitBin, "init", "-q", dir).CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+		h.lib.Opened(dir, time.Unix(1_700_000_000+int64(i), 0))
+	}
+	h.app.Open(shown.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	h.click("Repository " + filepath.Base(shown.Dir))
+	p := &h.app.repoPick
+	h.until("the repositories", func() bool { return hasExact(h, "repo-00") || hasExact(h, "repo-29") })
+	h.scrollDown(&p.list, "Repositories", 15)
+	sf, _ := h.tt.Find("Search repositories")
+	h.tt.Move(sf.X+sf.W/2, sf.Y+sf.H/2)
+	h.tt.Frame()
+	h.tt.Type("repo-")
+	h.tt.Frame()
+	h.tt.Frame()
+	rows := h.app.repoRows()
+	at := slices.IndexFunc(rows, func(r repoRow) bool { return r.key == p.hi })
+	first, last := p.list.Visible()
+	if at < 0 || at < first || at > last {
+		t.Fatalf("Enter would take row %d of %d, which the list (rows %d to %d) does not show", at, len(rows), first, last)
 	}
 }
