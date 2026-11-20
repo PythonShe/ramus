@@ -16,14 +16,16 @@ import (
 	"ramus/internal/session"
 )
 
-// longName is how many letters the long name has: fewer on Windows,
-// where git takes a path of 259 characters and the name is a file under
-// a test's folder, and a folder there too.
-var longName = func() int {
+// longName is how many letters the long name has, and wideTimes and
+// marksTimes how often the names of wide letters and of marks repeat
+// theirs: fewer on Windows, where git takes a path of 259 characters and
+// a git directory of 220 bytes, and the name is a file under a test's
+// folder, and a folder there too.
+var longName, wideTimes, marksTimes = func() (int, int, int) {
 	if runtime.GOOS == "windows" {
-		return 120
+		return 120, 4, 5
 	}
-	return 200
+	return 200, 8, 12
 }()
 
 // fitNames are names of the kinds that push what holds them past its
@@ -33,8 +35,8 @@ var fitNames = []struct{ kind, name string }{
 	{"short", "login"},
 	{"long with breaks", ("topic/" + strings.Repeat("a-long-branch-name-", 11))[:longName]},
 	{"40 letters unbroken", "averyveryveryveryverylongbranchnamewitho"},
-	{"wide letters", "功能/" + strings.Repeat("登录页面重新设计", 8)},
-	{"marks and emoji", strings.Repeat("é̂\U0001F469\U0001F3FD‍\U0001F4BB", 12)},
+	{"wide letters", "功能/" + strings.Repeat("登录页面重新设计", wideTimes)},
+	{"marks and emoji", strings.Repeat("é̂\U0001F469\U0001F3FD‍\U0001F4BB", marksTimes)},
 }
 
 // fitView is a dialog or a bar that shows a name the user or a remote

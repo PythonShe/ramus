@@ -86,10 +86,12 @@ func newHarnessWith(t *testing.T, r *run.Runner) *harness {
 	return h
 }
 
-// until pumps updates and frames until ok holds.
+// until pumps updates and frames until ok holds. It gives up after a
+// minute: a push took over twenty seconds on a slow day of CI's Windows
+// runner, where every test of git ran half as long again.
 func (h *harness) until(what string, ok func() bool) {
 	h.t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for {
 		h.tt.Frame()
 		h.note()
