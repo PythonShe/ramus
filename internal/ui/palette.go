@@ -349,6 +349,18 @@ func match(cmds []command, query string) []command {
 	return out
 }
 
+// The palette's width, how far its text is from its sides, and the height
+// its commands scroll in: at most
+// paletteListH, less in a low window, which keeps paletteListClear under
+// its middle for the field and the edge, and never under paletteListMin.
+const (
+	paletteW         = 560
+	palettePadX      = dialogPad
+	paletteListH     = 360
+	paletteListClear = 64
+	paletteListMin   = 120
+)
+
 // paletteView is the command palette: Cmd+Shift+P or Cmd+K, type, Enter.
 func (a *App) paletteView(c *ui.Context) {
 	p := &a.palette
@@ -369,22 +381,45 @@ func (a *App) paletteView(c *ui.Context) {
 		seen[cmd.label]++
 	}
 	var run func()
-	a.modal(c, &p.open, func() {
+	th := c.Theme()
+	_, wh := c.Size()
+	a.dialogBase(c, &p.open, func(back, panel ui.Element) {
+		back.Background(ui.RGBA(0, 0, 0, 0.4))
+		panel.Radius(radiusPanel).Background(th.Background).Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
 		cb := ui.ComboboxBase(c, &p.query)
-		cb.Input.AutoFocus().Placeholder(locales.PalettePlaceholder()).Label(locales.PaletteLabel()).Width(520)
-		cb.Popup(func(panel ui.Element) {
-			km := a.keys()
-			for i, cmd := range cmds {
-				if cmd.hidden {
-					continue
-				}
-				cb.Item(values[i]).Padding(spaceS, spaceL).Gap(spaceXL).Children(func() {
-					ui.Text(c, cmd.label).SingleLine().Grow(1)
-					if ks := km.byID[cmd.id]; cmd.id != "" && len(ks) > 0 {
-						ui.Text(c, ks[0].label()).FontSize(textSmall).TextColor(c.Theme().TextMuted)
+		// The field is the whole dialog, border and all, so that the
+		// commands open under all of it, edge to edge.
+		cb.Input.AutoFocus().Placeholder(locales.PalettePlaceholder()).Label(locales.PaletteLabel()).Width(paletteW).
+			Padding(spaceXL, palettePadX).Radius(radiusPanel).Border(1, hairline(th))
+		cb.Popup(func(list ui.Element) {
+			// ComboboxBase gives its popup no look: without one the
+			// commands are drawn over the window as they are.
+			list.Margin(spaceS, 0, 0, 0).Width(paletteW).Radius(radiusPanel).Background(th.Background).Border(1, hairline(th)).Clip().
+				Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
+			// The dialog is in the middle of the window: the commands
+			// have the half under it.
+			ui.Scroll(c).MaxHeight(max(min(paletteListH, wh/2-paletteListClear), paletteListMin)).Padding(spaceXS).Children(func() {
+				km := a.keys()
+				for i, cmd := range cmds {
+					if cmd.hidden {
+						continue
 					}
-				})
-			}
+					// Its text under the field's, its corners following
+					// the list's.
+					item := cb.Item(values[i]).Padding(spaceS, palettePadX-spaceXS).Gap(spaceXL).Radius(radiusPanel - spaceXS - 1)
+					keys := th.TextMuted
+					if item.Highlighted() {
+						item.Background(th.Accent).TextColor(th.AccentText)
+						keys = th.AccentText.Alpha(0.8)
+					}
+					item.Children(func() {
+						ui.Text(c, cmd.label).SingleLine().Grow(1).Shrink(1).MinWidth(0)
+						if ks := km.byID[cmd.id]; cmd.id != "" && len(ks) > 0 {
+							ui.Text(c, ks[0].label()).FontSize(textSmall).TextColor(keys)
+						}
+					})
+				}
+			})
 		})
 		if value, ok := cb.Chosen(); ok {
 			for i, cmd := range cmds {
