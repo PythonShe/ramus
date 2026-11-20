@@ -113,7 +113,7 @@ func TestNoJobEndsTheTree(t *testing.T) {
 	cmd := exec.CommandContext(ctx, comspec)
 	// A second cmd, the process's child, says it runs with a builtin,
 	// which writes at once whatever its output is, then waits for input
-	// that the test never ends, holding the output.
+	// that the test ends only once it has failed, holding the output.
 	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: comspec + ` /d /c ` + comspec + ` /d /c "echo started& set /p x="`}
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -138,11 +138,25 @@ func TestNoJobEndsTheTree(t *testing.T) {
 	if !started {
 		t.Fatalf("the child never ran: %v", sc.Err())
 	}
-	begin := time.Now()
 	cancel()
-	io.Copy(io.Discard, out)
-	cmd.Wait()
-	if d := time.Since(begin); d > 15*time.Second {
-		t.Fatalf("ended after %v: what the process started kept running", d)
+	// The output closes once all that held it has ended. Read apart and
+	// bounded: WaitDelay does not close a pipe the caller reads, so a
+	// child left running would hold the read past the test's own end.
+	copied := make(chan struct{})
+	go func() {
+		io.Copy(io.Discard, out)
+		close(copied)
+	}()
+	select {
+	case <-copied:
+	case <-time.After(15 * time.Second):
+		// The child left running reads the input: at its end it exits,
+		// and lets the output go. A close of the output would not end
+		// the read, which holds the pipe on Windows.
+		stdin.Close()
+		<-copied
+		cmd.Wait()
+		t.Fatal("15s after the cancel, what the process started still held its output")
 	}
+	cmd.Wait()
 }
