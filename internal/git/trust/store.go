@@ -47,6 +47,9 @@ type Store struct {
 	// falls to none.
 	saving int
 	idle   chan struct{}
+	// unsaved is set while the file lags what is in memory, its last
+	// write having failed: the next Trusted or Wait writes it again.
+	unsaved bool
 }
 
 // writeHook, when set, runs as a save begins to write its file:
@@ -159,40 +162,51 @@ func (s *Store) Trusted(commonDir string) bool {
 	if err != nil {
 		return false
 	}
-	if want == "" {
-		s.mu.Lock()
-		adopted := s.ids[d] == ""
-		if adopted {
-			s.ids[d] = got
-		}
-		want = s.ids[d]
-		s.mu.Unlock()
-		// Kept in memory only, the identity would be that of whatever
-		// folder is at the path at the next launch.
-		if adopted {
-			s.adopt()
-		}
+	s.mu.Lock()
+	adopted := s.ids[d] == ""
+	if adopted {
+		s.ids[d] = got
+	}
+	want = s.ids[d]
+	// Kept in memory only, an identity would be that of whatever folder
+	// is at the path at the next launch.
+	again := adopted || s.unsaved
+	s.mu.Unlock()
+	if again {
+		s.adopt()
 	}
 	return got == want
 }
 
 // adopt saves the identities an entry trusted before they were kept
-// took from its folder. One that is not saved is taken again, from
-// the folder there then, which is the trust of before.
+// took from its folder. One whose save fails is saved again by the next
+// Trusted or Wait; until then, at a launch, it is taken again from the
+// folder there then, which is the trust of before.
 func (s *Store) adopt() {
 	defer s.begin()()
 	s.write.Lock()
 	defer s.write.Unlock()
+	s.save()
+}
+
+// save writes the store as it is in memory, noting whether the file
+// then lags it. Call it with s.write held.
+func (s *Store) save() error {
 	s.mu.Lock()
 	if s.broken != nil {
 		s.mu.Unlock()
-		return
+		return s.broken
 	}
 	data, err := s.marshal()
 	s.mu.Unlock()
 	if err == nil {
-		writeAtomic(s.path, append(data, '\n'))
+		err = writeAtomic(s.path, append(data, '\n'))
 	}
+	s.mu.Lock()
+	// Writes are in order, each of all that was in memory as it began.
+	s.unsaved = err != nil
+	s.mu.Unlock()
+	return err
 }
 
 // Saving counts a save the caller is about to make, from before the
@@ -261,18 +275,26 @@ func (s *Store) Set(commonDir string, trusted bool) error {
 		delete(s.kept, d)
 		delete(s.others, d)
 	}
-	data, err := s.marshal()
 	s.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	return writeAtomic(s.path, append(data, '\n'))
+	return s.save()
 }
 
 // Wait waits, up to d, for the answers being saved to be in the file,
 // at a quit, after which the process may end at once; d bounds it for a
 // file on a volume that does not answer. It reports whether they were.
 func (s *Store) Wait(d time.Duration) bool {
+	s.mu.Lock()
+	again := s.unsaved
+	s.mu.Unlock()
+	if again {
+		end := s.begin()
+		go func() {
+			defer end()
+			s.write.Lock()
+			defer s.write.Unlock()
+			s.save()
+		}()
+	}
 	s.mu.Lock()
 	idle := s.idle
 	if s.saving == 0 {
