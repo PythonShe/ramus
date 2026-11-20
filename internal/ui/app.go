@@ -234,18 +234,16 @@ type App struct {
 	shownTab *tab
 }
 
-// configRead is a repository's config as it was last read: a config read
-// again is another, so what was read under the old one and comes from
-// the config, as a branch's upstream, is read again.
-type configRead = *config.Config
+// configRead tells one reading of a repository's config from the next:
+// what was read under the old one and comes from the config, as a
+// branch's upstream, is read again. It moves with the state, not when
+// the config is read: read then, the upstream would be ahead of the HEAD
+// shown, and a pull from the button would be refused as begun on a HEAD
+// that changed.
+type configRead = int
 
-// configRead is the config of the tab's repository as last read.
-func (t *tab) configRead() configRead {
-	if r := t.s.Repo; r != nil {
-		return r.Config()
-	}
-	return nil
-}
+// configRead is the reading of the config the tab's state shows.
+func (t *tab) configRead() configRead { return t.s.State.ConfigGen }
 
 // tab is one open repository.
 type tab struct {

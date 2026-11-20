@@ -17,6 +17,7 @@ import (
 
 	"ramus/internal/forge"
 	"ramus/internal/git/commitgraph"
+	"ramus/internal/git/config"
 	"ramus/internal/git/lfs"
 	"ramus/internal/git/lifetime"
 	"ramus/internal/git/refs"
@@ -53,8 +54,13 @@ type State struct {
 	// at open: its file locks can be shown.
 	LFS bool
 
-	Head       refs.Head
-	Refs       *refs.List
+	Head refs.Head
+	Refs *refs.List
+	// ConfigGen counts the configs this state was read under: it moves
+	// with the refs read after a config was read again, never before
+	// them, so that what follows the config, as a branch's upstream, is
+	// not read ahead of the HEAD and the refs it is shown beside.
+	ConfigGen  int
 	Worktrees  []repo.Worktree
 	Submodules []repo.Submodule
 	Status     *status.Status
@@ -174,6 +180,8 @@ type Session struct {
 	// refsGen counts the lists of refs State has had, so that what was
 	// found for one is told stale without keeping the list.
 	refsGen uint64
+	// configShown is the config State.ConfigGen last counted.
+	configShown *config.Config
 	// avatarSourceHook, when set, replaces the host's tool for pictures.
 	avatarSourceHook func(*repo.Repository) avatarSource
 	// graphEvery and graphRetry, when set, replace the constants.
@@ -772,6 +780,10 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		if res.list != nil {
 			st.Refs = res.list
 			s.refsGen++
+		}
+		if c := r.Config(); c != s.configShown {
+			s.configShown = c
+			st.ConfigGen++
 		}
 		if res.st != nil {
 			if res.st != st.Status {
