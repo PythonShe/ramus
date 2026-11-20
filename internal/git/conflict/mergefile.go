@@ -46,6 +46,9 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 		}
 		size, ends[i] = max(size, n+1), end
 	}
+	if size > maxMarkerRun {
+		return Files{}, ErrTooLarge
+	}
 	var out bytes.Buffer
 	err := runMergeFile(ctx, r, [3]string{local, base, remote}, size, &out, MaxSize, "--diff3", "-L", labels[0], "-L", labels[1], "-L", labels[2])
 	if errors.Is(err, errBinary) {
@@ -61,6 +64,13 @@ func MergeFiles(ctx context.Context, r *run.Runner, base, local, remote string, 
 	trimAdded(segs, ends[0], ends[1], ends[2])
 	return Files{Segments: segs}, nil
 }
+
+// maxMarkerRun bounds the markers of a merge made here, longer than any
+// run of marker characters in the files: git merge-file builds the whole
+// merge in memory, each conflict with markers of that length, before it
+// writes any of it, so the bound on what is read of it does not bound git.
+// Only a file made so starts a line with a run this long.
+const maxMarkerRun = 16 << 10
 
 // longestRun is the longest run of one of the characters conflict markers
 // are made of at the start of a line of the file at path, and how the file

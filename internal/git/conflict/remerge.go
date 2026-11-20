@@ -66,6 +66,12 @@ func remerge(ctx context.Context, r *run.Runner, data []byte, size int, s merged
 	}
 	long++
 	opens, bases := markerLines(data, size)
+	if long > max(size+1, maxMarkerRun) || opens*3*long > maxRemerge {
+		// git builds the whole merge in memory before it writes any of it:
+		// markers this long would hold it past what is read of it. Those
+		// of the size git merged with it held once already.
+		return nil, ErrAmbiguous
+	}
 	// git writes a base marker in every conflict of diff3 and zdiff3, and
 	// none in merge style: a file with none is in merge style, one with
 	// base markers none of its sides holds in another.

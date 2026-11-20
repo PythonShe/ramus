@@ -189,6 +189,55 @@ func TestRemergeNearTheSizeLimit(t *testing.T) {
 	}
 }
 
+// A merge of the sides again whose markers, longer than any run in the
+// sides, would hold git past what is read of it, by their length or by
+// the file's conflicts, is refused before git runs: git builds the whole
+// merge in memory. So is a merge for mergetool with such markers.
+func TestMergeAgainRefusesMarkersPastTheBound(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // git, if run, fails at once with this
+	r := testrun.Runner(t)
+	conflicts := func(n int) []byte {
+		return []byte(strings.Repeat("a\n"+example, n))
+	}
+	sides := func(run int) mergedSides {
+		long := strings.Repeat("=", run) + "\n"
+		return mergedSides{Base: []byte(long + "x\n"), Ours: []byte(long + "ours\n"), Theirs: []byte(long + "theirs\n")}
+	}
+	for _, c := range []struct {
+		name    string
+		data    []byte
+		run     int
+		refused bool
+	}{
+		{"a short run, few conflicts", conflicts(3), 100, false},
+		{"a run past the bound", conflicts(3), maxMarkerRun + 1, true},
+		{"as many conflicts as fill the bound", conflicts(maxRemerge/(3*maxMarkerRun) + 1), maxMarkerRun - 1, true},
+	} {
+		_, err := remerge(ctx, r, c.data, defaultMarkerSize, sides(c.run))
+		if c.refused && !errors.Is(err, ErrAmbiguous) || !c.refused && !errors.Is(err, context.Canceled) {
+			t.Errorf("%s: %v", c.name, err)
+		}
+	}
+
+	dir := t.TempDir()
+	put := func(name, s string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	labels := [3]string{"LOCAL", "BASE", "REMOTE"}
+	for _, n := range []int{100, maxMarkerRun} {
+		long := strings.Repeat("=", n) + "\n"
+		_, err := MergeFiles(ctx, r, put("base", long+"x\n"), put("local", long+"ours\n"), put("remote", long+"theirs\n"), labels)
+		if n == maxMarkerRun && !errors.Is(err, ErrTooLarge) || n < maxMarkerRun && !errors.Is(err, context.Canceled) {
+			t.Errorf("mergetool, a run of %d: %v", n, err)
+		}
+	}
+}
+
 // The merges of the sides again are git's own, whatever the user's config
 // says: a global merge.conflictStyle would turn the merge-style one into
 // diff3, and a file in merge style would not be read.
