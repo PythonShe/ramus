@@ -63,6 +63,9 @@ type Repository struct {
 	// graphAt is the commit-graph files as they were when graph was
 	// opened; git writes a new graph, or a new chain, by renaming.
 	graphAt [2]fileStamp
+	// graphGen counts what CommitGraph published, for an open made
+	// without the lock to see that another was published meanwhile.
+	graphGen uint64
 	// graphs are the mappings of every graph opened and not yet let go,
 	// with what forgets each from the lifetime.
 	graphs map[*commitgraph.Mappings]func() error
@@ -253,7 +256,6 @@ func (r *Repository) CatFile() (*catfile.Process, error) {
 // are copied by whoever keeps them past their hold on the Graph.
 func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.gone == nil {
 		r.gone, r.graphs = &graveyard{}, map[*commitgraph.Mappings]func() error{}
 	}
@@ -265,21 +267,41 @@ func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	}
 	if !r.Capabilities().CommitGraphUsable() || r.Caps.HashSize != 20 {
 		// Opened again once git would use it again.
-		r.graph, r.tried, r.broken, r.graphAt = nil, false, false, [2]fileStamp{}
+		r.publishGraph(nil, false, false, [2]fileStamp{})
+		r.mu.Unlock()
 		return nil, nil
 	}
 	info := filepath.Join(r.CommonDir, "objects", "info")
 	at := [2]fileStamp{stamp(filepath.Join(info, "commit-graph")), stamp(filepath.Join(info, "commit-graphs", "commit-graph-chain"))}
 	if r.tried && at == r.graphAt {
+		g := r.graph
+		r.mu.Unlock()
+		return g, nil
+	}
+	prev, gen := r.graph, r.graphGen
+	r.mu.Unlock()
+
+	// Opened without the lock, which every read of the repository's
+	// catfile or graph takes: a large graph, or a slow disk, would hold
+	// them all up.
+	g, err := openGraph(filepath.Join(r.CommonDir, "objects"), prev)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.graphGen != gen && r.tried && r.graphAt == at {
+		// Another call opened the same files meanwhile: what it
+		// published is used, so that one graph is mapped, not two.
+		if g != nil {
+			closeGraph(g)
+		}
 		return r.graph, nil
 	}
-	g, err := commitgraph.OpenReusing(filepath.Join(r.CommonDir, "objects"), r.graph)
 	var bad *commitgraph.FormatError
 	if errors.Is(err, commitgraph.ErrNotFound) || errors.As(err, &bad) || errors.Is(err, fs.ErrNotExist) {
 		// git warns of a graph it cannot read, or a chain missing a
 		// layer, and reads the commits themselves: so does history,
 		// rather than fail until the graph is written again.
-		r.graph, r.tried, r.broken, r.graphAt = nil, true, err != nil && !errors.Is(err, commitgraph.ErrNotFound), at
+		r.publishGraph(nil, true, err != nil && !errors.Is(err, commitgraph.ErrNotFound), at)
 		return nil, nil
 	}
 	if err != nil {
@@ -291,12 +313,27 @@ func (r *Repository) CommitGraph() (*commitgraph.Graph, error) {
 	m := g.Mappings()
 	forget, err := r.life.Own(m)
 	if err != nil {
+		// Closed meanwhile: nothing else would unmap it.
+		closeGraph(g)
 		return nil, err
 	}
 	r.graphs[m] = forget
 	runtime.AddCleanup(g, r.gone.add, m)
-	r.graph, r.tried, r.broken, r.graphAt = g, true, false, at
+	r.publishGraph(g, true, false, at)
 	return g, nil
+}
+
+// openGraph and closeGraph are seams for a test to make an open slow and
+// see a graph closed.
+var (
+	openGraph  = commitgraph.OpenReusing
+	closeGraph = (*commitgraph.Graph).Close
+)
+
+// publishGraph records what CommitGraph found, with r.mu held.
+func (r *Repository) publishGraph(g *commitgraph.Graph, tried, broken bool, at [2]fileStamp) {
+	r.graph, r.tried, r.broken, r.graphAt = g, tried, broken, at
+	r.graphGen++
 }
 
 // CommitGraphBroken reports whether the commit-graph CommitGraph last
