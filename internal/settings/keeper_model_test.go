@@ -159,8 +159,12 @@ func TestKeeperInterleavings(t *testing.T) {
 			m.k.Check(nil)
 			first := m.heard()
 			m.app.NoSidebar = true
+			// The reading taken queues the change's write, which is not
+			// to land before the hand edit: the edit would then undo it.
+			m.k.file.Lock()
 			m.take(first...)
 			hand(t, m.p, `{"emails": ["me@x", "work@x"]}`)
+			m.k.file.Unlock()
 			m.focus()
 			if !m.app.NoSidebar || len(m.app.Emails) != 2 {
 				t.Fatalf("after the second reading: %+v", m.app)
