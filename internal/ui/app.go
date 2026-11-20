@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -131,7 +130,7 @@ type App struct {
 	strip  tabStrip
 	// writes are the files being written off the main thread, for a quit
 	// and a test to wait for.
-	writes sync.WaitGroup
+	writes writeGroup
 	// refPrefsWrites orders the writes of each repository's pinned and
 	// hidden refs.
 	refPrefsWrites lastWrites

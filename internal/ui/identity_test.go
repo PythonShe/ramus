@@ -131,7 +131,7 @@ func TestIdentitySavesInTurn(t *testing.T) {
 	h.app.saveIdentity()
 	s.ident.Name = "Some Other"
 	h.app.SaveIdentity()
-	h.app.WaitIdentity()
+	h.app.WaitIdentity(time.Minute)
 	n := 0
 	h.until("a failure told", func() bool { n++; return n > 5 })
 	if s.err != "" {
@@ -177,7 +177,7 @@ func TestIdentityInRepository(t *testing.T) {
 	h.until("the name the repository keeps", h.describes(locales.SettingsGitRepositoryOwn(homeTilde(filepath.Join(r.GitDir(), "config")))))
 	s.ident.Name, s.ident.Email = "Changed", "job@example.com"
 	h.app.saveIdentity()
-	h.app.WaitIdentity()
+	h.app.WaitIdentity(time.Minute)
 	if b, _ := os.ReadFile(work); !strings.Contains(string(b), "email = job@example.com") {
 		t.Fatalf("the included file has:\n%s", b)
 	}
@@ -197,7 +197,7 @@ func TestIdentityReadAfterSave(t *testing.T) {
 	h.tt.Frame()
 	s := &h.app.settingsUI
 	s.identSaver = newIdentSaver()
-	s.identSaver.running = true // a write under way
+	s.identSaver.running, s.identSaver.idle = true, make(chan struct{}) // a write under way
 	h.app.openSettings()
 	h.settle()
 	if s.identRead {
@@ -209,7 +209,7 @@ func TestIdentityReadAfterSave(t *testing.T) {
 	is := s.identSaver
 	is.mu.Lock()
 	is.running = false
-	is.idle.Broadcast()
+	close(is.idle)
 	is.mu.Unlock()
 	h.until("the identity", func() bool { return s.identRead })
 	if s.ident.Name != "Written" || s.identWas != s.ident {
@@ -280,7 +280,7 @@ func TestIdentitySaveAfterPartlyFailed(t *testing.T) {
 	failed := func(*write.Identity, error) {}
 	first := write.Identity{Name: "N1", Email: "e1@example.com"}
 	is := newIdentSaver()
-	is.running = true
+	is.running, is.idle = true, make(chan struct{})
 	// Asked while the first is written, from the form, which has the
 	// first as written.
 	is.save(h.app, h.runner, &identWrite{was: first, now: write.Identity{Name: "N0", Email: "e2@example.com"}, from: from, failed: failed})

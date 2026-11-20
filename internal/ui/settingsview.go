@@ -519,7 +519,7 @@ func (a *App) readIdentity() {
 		if saver != nil {
 			// What a save asked before has to be in what is read, or
 			// the form would show, and save over, what it replaced.
-			saver.wait()
+			saver.waitIdle()
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		id, from, err := write.ReadIdentity(ctx, r, w)
@@ -584,12 +584,13 @@ func (a *App) saveIdentity() {
 // the window closes or the app quits, which no frame follows to write it.
 func (a *App) SaveIdentity() { a.saveIdentity() }
 
-// WaitIdentity waits for the identity being written, for the app to quit
-// once it is.
-func (a *App) WaitIdentity() {
+// WaitIdentity waits, up to d, for the identity being written, for the
+// app to quit once it is, and reports whether it was.
+func (a *App) WaitIdentity(d time.Duration) bool {
 	if is := a.settingsUI.identSaver; is != nil {
-		is.wait()
+		return is.wait(d)
 	}
+	return true
 }
 
 // identSaver writes the identity one change at a time: two writers of
@@ -599,28 +600,38 @@ type identSaver struct {
 	mu      sync.Mutex
 	running bool
 	next    *identWrite
-	// idle is broadcast as the last write ends, before its failure is
-	// told.
-	idle *sync.Cond
+	// idle is closed as the last write ends, before its failure is
+	// told; made again as the next starts.
+	idle chan struct{}
 	// failedHas is what the config holds after the last write failed,
 	// until the failure is told (told): a save asked meanwhile writes
 	// from it, as the form does not know it yet.
 	failedHas *write.Identity
 }
 
-func newIdentSaver() *identSaver {
-	is := &identSaver{}
-	is.idle = sync.NewCond(&is.mu)
-	return is
+func newIdentSaver() *identSaver { return &identSaver{} }
+
+// wait waits, up to d, until nothing is being written, and reports
+// whether nothing is.
+func (is *identSaver) wait(d time.Duration) bool {
+	is.mu.Lock()
+	running, idle := is.running, is.idle
+	is.mu.Unlock()
+	return !running || waitFor(idle, d)
 }
 
-// wait waits until nothing is being written.
-func (is *identSaver) wait() {
-	is.mu.Lock()
-	for is.running {
-		is.idle.Wait()
+// waitIdle waits until nothing is being written: off the main thread,
+// each write is time-limited.
+func (is *identSaver) waitIdle() {
+	for {
+		is.mu.Lock()
+		running, idle := is.running, is.idle
+		is.mu.Unlock()
+		if !running {
+			return
+		}
+		<-idle
 	}
-	is.mu.Unlock()
 }
 
 type identWrite struct {
@@ -658,7 +669,7 @@ func (is *identSaver) save(a *App, r *run.Runner, w *identWrite) {
 	if is.failedHas != nil {
 		w.was, is.failedHas = *is.failedHas, nil
 	}
-	is.running = true
+	is.running, is.idle = true, make(chan struct{})
 	a.goWork(nil, func() { is.drain(r, w) })
 }
 
@@ -688,7 +699,7 @@ func (is *identSaver) drain(r *run.Runner, w *identWrite) {
 				is.failedHas = failed
 			}
 			is.running = false
-			is.idle.Broadcast()
+			close(is.idle)
 		}
 		is.mu.Unlock()
 		if failed != nil {

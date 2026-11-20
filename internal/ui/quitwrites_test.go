@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -100,7 +101,7 @@ func TestQuitWaitsNotOnAnIdentityFailure(t *testing.T) {
 	h.app.SaveIdentity()
 	waited := make(chan struct{})
 	go func() {
-		h.app.WaitIdentity()
+		h.app.WaitIdentity(time.Minute)
 		close(waited)
 	}()
 	select {
@@ -110,4 +111,39 @@ func TestQuitWaitsNotOnAnIdentityFailure(t *testing.T) {
 	}
 	release()
 	h.until("the refusal", func() bool { return strings.Contains(s.err, "two words") })
+}
+
+// A quit's wait for a write that does not end returns at its bound and
+// leaves nothing waiting behind it, however many times it is made: the
+// files' writes and the identity's.
+func TestQuitWaitsLeaveNothingBehind(t *testing.T) {
+	h := newHarness(t)
+	release := make(chan struct{})
+	h.app.goWrite(func() func() { <-release; return nil })
+	is := newIdentSaver()
+	is.running, is.idle = true, make(chan struct{}) // a write that hangs
+	h.app.settingsUI.identSaver = is
+	before := runtime.NumGoroutine()
+	const waits = 50
+	for range waits {
+		if h.app.WaitWrites(time.Millisecond) {
+			t.Fatal("a write that hangs was waited out")
+		}
+		if h.app.WaitIdentity(time.Millisecond) {
+			t.Fatal("an identity that hangs was waited out")
+		}
+	}
+	// Other work of the app may come and go meanwhile, not one goroutine
+	// a wait.
+	if n := runtime.NumGoroutine() - before; n >= waits {
+		t.Fatalf("%d goroutines more after %d waits", n, 2*waits)
+	}
+	close(release)
+	is.mu.Lock()
+	is.running = false
+	close(is.idle)
+	is.mu.Unlock()
+	if !h.app.WaitWrites(10*time.Second) || !h.app.WaitIdentity(10*time.Second) {
+		t.Fatal("the writes ended, the waits did not")
+	}
 }

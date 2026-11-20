@@ -106,19 +106,64 @@ func (lw *lastWrites) do(key string, n uint64, write func()) bool {
 // thread (the library's record of a repository opened, forgotten or
 // grouped) to be written, at a quit, after which the process may end at
 // once. It reports whether they were.
-func (a *App) WaitWrites(d time.Duration) bool {
-	done := make(chan struct{})
-	go func() {
-		a.writes.Wait()
-		close(done)
-	}()
+func (a *App) WaitWrites(d time.Duration) bool { return waitFor(a.writes.idle(), d) }
+
+// waitFor waits, up to d, for done to close, and reports whether it did.
+// It leaves nothing behind once it returns.
+func waitFor(done <-chan struct{}, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
 	select {
 	case <-done:
 		return true
-	case <-time.After(d):
+	case <-t.C:
 		return false
 	}
 }
+
+// writeGroup counts the writes running, as a sync.WaitGroup does, with a
+// channel closed once none is, so that a wait for them can be bounded
+// without a goroutine of its own left waiting past the bound.
+type writeGroup struct {
+	mu sync.Mutex
+	n  int
+	// done is closed while n is 0; nil before the first write.
+	done chan struct{}
+}
+
+// Add adds d to the writes running, which must not go below 0.
+func (g *writeGroup) Add(d int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.n == 0 && d > 0 {
+		g.done = make(chan struct{})
+	}
+	g.n += d
+	switch {
+	case g.n < 0:
+		panic("ui: negative writeGroup count")
+	case g.n == 0 && d < 0:
+		close(g.done)
+	}
+}
+
+// Done ends one write.
+func (g *writeGroup) Done() { g.Add(-1) }
+
+// idle is closed once no write runs.
+func (g *writeGroup) idle() <-chan struct{} {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.n == 0 {
+		return closedChan
+	}
+	return g.done
+}
+
+// Wait waits until no write runs.
+func (g *writeGroup) Wait() { <-g.idle() }
+
+var closedChan = func() chan struct{} { c := make(chan struct{}); close(c); return c }()
 
 // goRecover runs fn in a goroutine of its own and hands a panic in it to
 // the crash log, when there is one, and to shown, instead of ending the

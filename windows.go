@@ -120,10 +120,8 @@ func (ws *windows) flush() {
 	}
 	for _, w := range ws.list {
 		w.app.SaveIdentity()
-		// Unbounded, but git, which writes it, is time-limited.
 		waits = append(waits, pendingWrite{fmt.Sprintf("identity %p", w.app), identityFile, func() bool {
-			w.app.WaitIdentity()
-			return true
+			return w.app.WaitIdentity(stopWait)
 		}})
 	}
 	// A repository just opened is recorded once it is found to be one,
