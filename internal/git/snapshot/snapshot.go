@@ -354,6 +354,17 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 		if err != nil {
 			return Snapshot{}, err
 		}
+		if opts.Source != "" && !opts.Ignored {
+			// git add refuses an ignored file named outright. One the write
+			// takes from its source is kept below, with the ignored files
+			// it writes over.
+			files, _ := onDisk(w.WorkTree, paths)
+			ign, err := checkIgnored(ctx, r, w, files)
+			if err != nil {
+				return Snapshot{}, err
+			}
+			paths = slices.DeleteFunc(paths, func(p string) bool { return ign[strings.TrimSuffix(p, "/")] })
+		}
 		if len(paths) == 0 {
 			add = nil // nothing on disk or in the index to keep
 		}

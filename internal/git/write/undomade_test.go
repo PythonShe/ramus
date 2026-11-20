@@ -247,6 +247,25 @@ func TestRestoreKeepsIgnoredFilesOfAnotherKind(t *testing.T) {
 	}
 }
 
+// A file ignored and untracked now, as an env file once committed, is
+// restored by its own name from the commit that held it as git's own
+// restore does, and undo brings back the one on disk.
+func TestRestoreAnIgnoredFileByName(t *testing.T) {
+	h := likeGit(t, func(h *harness) (Op, []string, error) {
+		h.r.Write("local.env", "committed once\n")
+		first := h.r.Commit("one")
+		h.r.Git("rm", "-q", "--cached", "local.env")
+		h.r.Write(".gitignore", "local.env\n")
+		h.r.Commit("two")
+		h.r.Write("local.env", "mine\n")
+		op, err := RestoreFrom(h.w, "local.env", first)
+		return op, []string{"restore", "--source=" + first, "--worktree", "--no-overlay", "--", "local.env"}, err
+	})
+	if h.read("local.env") != "mine\n" {
+		t.Fatalf("after undo %q", h.read("local.env"))
+	}
+}
+
 // A repository the user put since in a folder a restore made, where the
 // commit had a submodule, stays.
 func TestUndoOfARestoreLeavesARepositoryInside(t *testing.T) {
