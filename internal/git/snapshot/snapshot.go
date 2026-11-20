@@ -287,7 +287,7 @@ func Take(ctx context.Context, r *run.Runner, w Where, opts Options) (Snapshot, 
 		w = Where{GitDir: gd, WorkTree: opts.Worktree}
 	}
 	if opts.Writes && !s.All {
-		if err := checkSpelling(w.WorkTree, s.Paths); err != nil {
+		if err := checkSpelling(w.WorkTree, s.Paths, gitTakesAs(ctx, r, w)); err != nil {
 			return Snapshot{}, err
 		}
 	}

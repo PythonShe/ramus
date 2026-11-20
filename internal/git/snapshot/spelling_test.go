@@ -64,21 +64,40 @@ func TestRestoreRefusesAPathOnDiskInAnotherCase(t *testing.T) {
 }
 
 // A name the disk holds in another Unicode form, as APFS finds it, is
-// refused the same way; one spelled as on disk is not.
+// refused the same way where git reads names as the disk spells them
+// (core.precomposeunicode false), and git would take the file for another;
+// where git composes them, it takes the file for the name asked, and the
+// snapshot keeps it under that name. One spelled as on disk is never
+// refused.
 func TestSpellingInAnotherUnicodeForm(t *testing.T) {
-	dir := t.TempDir()
 	nfd, nfc := "café", "café"
-	if err := os.WriteFile(filepath.Join(dir, nfd), nil, 0o644); err != nil {
-		t.Skip(err)
-	}
-	if err := checkSpelling(dir, []string{nfd + "/x", "absent/" + nfc}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Lstat(filepath.Join(dir, nfc)); err != nil {
-		t.Skip("this volume tells the forms apart")
-	}
-	var se *SpellingError
-	if err := checkSpelling(dir, []string{nfc}); !errors.As(err, &se) || se.OnDisk != nfd {
-		t.Fatalf("%v", err)
+	for _, precompose := range []string{"false", "true"} {
+		f := setup(t)
+		f.r.Write("tracked", "t\n")
+		f.r.Commit("one")
+		f.r.Git("config", "core.precomposeunicode", precompose)
+		if err := os.WriteFile(filepath.Join(f.r.Dir, nfd), []byte("mine\n"), 0o644); err != nil {
+			t.Skip(err)
+		}
+		if err := checkSpelling(f.r.Dir, []string{nfd + "/x", "absent/" + nfc}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Lstat(filepath.Join(f.r.Dir, nfc)); err != nil {
+			t.Skip("this volume tells the forms apart")
+		}
+		s, err := Take(context.Background(), f.run, f.w, Options{Reason: "x", Paths: []string{nfc}, Writes: true})
+		var se *SpellingError
+		if precompose == "false" {
+			if !errors.As(err, &se) || se.OnDisk != nfd {
+				t.Fatalf("precompose false: %v", err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("precompose true: %v", err)
+		}
+		if got := f.r.Git("show", s.Commit+":"+nfc); got != "mine\n" {
+			t.Fatalf("the snapshot holds %q", got)
+		}
 	}
 }

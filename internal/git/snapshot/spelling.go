@@ -1,12 +1,18 @@
 package snapshot
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
+
+	"ramus/internal/git/run"
 )
 
 // SpellingError is a path the disk holds under another spelling, on a
@@ -24,10 +30,12 @@ func (e *SpellingError) Error() string {
 }
 
 // checkSpelling refuses, with a *SpellingError, the first of paths the
-// work tree at root holds under another spelling. Whether a folder's
-// volume tells spellings apart is asked of the volume, by looking the
-// name up as another case, not assumed from the system.
-func checkSpelling(root string, paths []string) error {
+// work tree at root holds under another spelling that git does not take
+// for the one asked: same, when set, reports whether git takes onDisk,
+// the path to an entry of p as the disk spells it, for asked. Whether a
+// folder's volume tells spellings apart is asked of the volume, by
+// looking the name up as another case, not assumed from the system.
+func checkSpelling(root string, paths []string, same func(p, asked, onDisk string) bool) error {
 	names := map[string]map[string]bool{} // a folder's entries, read once
 	for _, p := range paths {
 		dir, rel := root, ""
@@ -45,13 +53,61 @@ func checkSpelling(root string, paths []string) error {
 					names[dir] = in
 				}
 				if !in[c] {
-					return &SpellingError{Path: p, OnDisk: path.Join(append([]string{rel, spelledOnDisk(dir, c, fi, in)}, parts[i+1:]...)...)}
+					disk := spelledOnDisk(dir, c, fi, in)
+					if same == nil || !same(strings.TrimSuffix(p, "/"), path.Join(rel, c), path.Join(rel, disk)) {
+						return &SpellingError{Path: p, OnDisk: path.Join(append([]string{rel, disk}, parts[i+1:]...)...)}
+					}
 				}
 			}
 			dir, rel = next, path.Join(rel, c)
 		}
 	}
 	return nil
+}
+
+// gitTakesAs is checkSpelling's same for the repository at w. git takes
+// a name the disk spells otherwise for the one asked where it reads the
+// folder's names composed (core.precomposeunicode) and the two differ in
+// Unicode form only. Otherwise it does only for a file the index holds
+// as asked, p itself, with nothing held under the disk's spelling, as
+// after a rename in case only outside git: git finds that file by the
+// index's name. An untracked file in another case, or in a folder in
+// another case, git takes for another file, and a write of a folder
+// would write over it.
+func gitTakesAs(ctx context.Context, r *run.Runner, w Where) func(p, asked, onDisk string) bool {
+	precompose, read := false, false
+	// listed are what the index holds under a path, by the path.
+	listed := map[string][]string{}
+	list := func(q string) []string {
+		if l, ok := listed[q]; ok {
+			return l
+		}
+		res, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true, Env: []string{"GIT_LITERAL_PATHSPECS=1"},
+			Args: []string{"ls-files", "-z", "--cached", "--full-name", "--", q}})
+		var l []string
+		if err == nil {
+			// Compared byte for byte after: git may match a pathspec
+			// ignoring case.
+			l = strings.Split(strings.TrimSuffix(string(res.Stdout), "\x00"), "\x00")
+		}
+		listed[q] = l
+		return l
+	}
+	return func(p, asked, onDisk string) bool {
+		if !read {
+			res, err := r.Run(ctx, &run.Cmd{GitDir: w.GitDir, WorkTree: w.WorkTree, Read: true, Args: []string{"config", "--type=bool", "core.precomposeunicode"}})
+			precompose, read = err == nil && strings.TrimSpace(string(res.Stdout)) == "true", true
+		}
+		if precompose && norm.NFC.String(asked) == norm.NFC.String(onDisk) {
+			return true
+		}
+		for _, name := range list(onDisk) {
+			if name == onDisk || strings.HasPrefix(name, onDisk+"/") {
+				return false
+			}
+		}
+		return slices.Contains(list(p), p)
+	}
 }
 
 // needsLook reports whether the entry c of dir, which a lookup found as
