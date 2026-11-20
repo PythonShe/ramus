@@ -31,6 +31,8 @@ type app struct {
 	tt      *mygoui.Tester
 	r       *run.Runner
 	updates chan func()
+	// state is the folder of the app's state files, removed at close.
+	state string
 }
 
 func newApp() (*app, error) {
@@ -50,7 +52,7 @@ func newApp() (*app, error) {
 	if err != nil {
 		return nil, err
 	}
-	x := &app{r: run.New(g, os.Environ(), maxProcesses), updates: make(chan func(), 4096)}
+	x := &app{r: run.New(g, os.Environ(), maxProcesses), updates: make(chan func(), 4096), state: dir}
 	x.a = ui.NewApp(ui.Deps{Runner: x.r, Trust: ts, Library: lib, Settings: settings.Defaults,
 		Update: func(fn func()) { x.updates <- fn }})
 	x.tt = mygoui.NewTester(x.a.View, 1400, 900)
@@ -93,6 +95,7 @@ func (x *app) until(what string, d time.Duration, ok func() bool) error {
 func (x *app) close() {
 	x.a.CloseAll()
 	x.frame()
+	os.RemoveAll(x.state)
 }
 
 func (x *app) shows(re *regexp.Regexp) bool {
