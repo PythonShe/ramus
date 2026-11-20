@@ -13,6 +13,7 @@ func FuzzCommentMarkdown(f *testing.F) {
 		"", "-", "*", "+", "1.", "12)", "text\n-", "- a\n-\n- b", "-\t", "1.\t", "123456789.", "1234567890.",
 		"Text\n    ~~~\n\n<details>x</details>", "-     <details>x</details>", "-    x", "- ```\n<details>\n```",
 		"```", "~~~", "````\n```\n", "``` `x`", "```go\n<details>\n", "\t```\n", "  - ~~~\n    x",
+		"- \t~~~\n    <details>x</details>\n    ~~~\n", "1. \t```\n", "-\t\t~~~", " -  \t\tx",
 		"<details>", "</details>", "<details><summary>", "<details><summary>a</summary>",
 		strings.Repeat("<details>", 10) + strings.Repeat("</details>", 3), "<details open>x</details>",
 		"<DETAILS><SUMMARY>S</SUMMARY>x</DETAILS>", "a</details>b", "<details>\n```\n</details>\n```\n</details>",

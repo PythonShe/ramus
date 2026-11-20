@@ -60,6 +60,14 @@ func TestCommentFolds(t *testing.T) {
 		// Five spaces past a marker are code in the item.
 		{"code after a marker", "-     <details>x</details>", "[-     <details>x</details>]"},
 		{"text after a marker", "-    <details>x</details>", "[-]{: [x]}"},
+		// A tab after a marker and a space goes to column four, two past
+		// the marker: a fence opens.
+		{"a fence after a space and a tab", "- \t~~~\n    <details><summary>x</summary>literal</details>\n    ~~~\n",
+			"[- \t~~~\n    <details><summary>x</summary>literal</details>\n    ~~~]"},
+		{"a fence after a number, a space and a tab", "1. \t```\n    <details><summary>x</summary>literal</details>\n    ```\n",
+			"[1. \t```\n    <details><summary>x</summary>literal</details>\n    ```]"},
+		// Two tabs go to column eight: code in the item.
+		{"code after two tabs", "-\t\t<details>x</details>", "[-\t\t<details>x</details>]"},
 	} {
 		if got := shape(commentParts(c.in, "Image")); got != c.want {
 			t.Errorf("%s:\n got %s\nwant %s", c.name, got, c.want)

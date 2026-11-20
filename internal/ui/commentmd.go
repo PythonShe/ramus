@@ -162,7 +162,7 @@ func codeBlocks(s string) ranges {
 			end += at + 1
 		}
 		line := strings.TrimRight(s[at:end], "\r\n")
-		ind, n := indentOf(line)
+		ind, n := indentOf(line, 0)
 		rest := line[n:]
 		if fence != 0 {
 			if w := fenceWidth(rest); ind-fenceBase <= 3 && w >= fenceW && rest[0] == fence && strings.TrimSpace(rest[w:]) == "" {
@@ -209,16 +209,22 @@ func codeBlocks(s string) ranges {
 		if marker > 0 && ind-base <= 3 {
 			items = append(items, ind+marker)
 			base = ind + marker
-			// The marker's width counts a column past a marker that ends
-			// the line, which the line does not have.
-			rest = rest[min(marker, len(rest)):]
+			// The space after the marker's sign is measured from the
+			// column the sign ends at, where a tab stops; the marker's
+			// width counts a column past a marker that ends the line,
+			// which the line does not have.
+			sign := min(marker, len(rest))
+			for rest[sign-1] == ' ' || rest[sign-1] == '\t' {
+				sign--
+			}
+			cols, n := indentOf(rest[sign:], ind+sign)
+			rest = rest[sign:]
 			para, fenceOK = false, true
-			cols, n := indentOf(rest)
 			switch {
 			case rest[n:] == "":
 				at = end
 				continue
-			case cols >= 4:
+			case cols >= 5:
 				// Indented code in the item, one column past its marker.
 				code, codeEnd = at, end
 				at = end
@@ -242,20 +248,22 @@ func codeBlocks(s string) ranges {
 	return out
 }
 
-// indentOf is how far line is indented, in columns, a tab to the next
-// multiple of four, and the bytes its indentation takes.
-func indentOf(line string) (cols, n int) {
+// indentOf is how far line, which starts at column from, is indented, in
+// columns past from, a tab to the next multiple of four, and the bytes
+// its indentation takes.
+func indentOf(line string, from int) (cols, n int) {
+	col := from
 	for ; n < len(line); n++ {
 		switch line[n] {
 		case ' ':
-			cols++
+			col++
 		case '\t':
-			cols += 4 - cols%4
+			col += 4 - col%4
 		default:
-			return cols, n
+			return col - from, n
 		}
 	}
-	return cols, n
+	return col - from, n
 }
 
 // fenceWidth is the number of backticks or tildes s starts with.
