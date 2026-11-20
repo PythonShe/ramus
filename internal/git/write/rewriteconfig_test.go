@@ -202,6 +202,68 @@ func TestFixupUndoStagesTheChangeAgain(t *testing.T) {
 	}
 }
 
+// Fix up keeps an unstaged edit on the staged line, or on the line next to
+// it, in the file and out of the stash list, on the rebase as with git
+// history: what is staged is folded, the edit stays unstaged; undo stages
+// the change again under the edit, as it was.
+func TestFixupKeepsAnUnstagedEditOnTheStagedLine(t *testing.T) {
+	for _, v := range []string{"history", "rebase"} {
+		for _, shape := range []string{"same line", "next line", "far line"} {
+			t.Run(v+"/"+shape, func(t *testing.T) {
+				h := newHarness(t)
+				gv := localGit(t)
+				if v == "rebase" {
+					gv = oldGit
+				} else if !gv.Has(gitexe.HistoryDrop) {
+					t.Skip("git history fixup without --empty")
+				}
+				h.r.Write("f0", "0\n")
+				base := h.r.Commit("base")
+				h.r.Write("f1", "a\nb\nc\nd\ne\nf\ng\n")
+				one := h.r.Commit("one")
+				h.r.Write("f2", "2\n")
+				h.r.Commit("two")
+				h.r.Write("f1", "A\nb\nc\nd\ne\nf\ng\n")
+				h.r.Git("add", "f1")
+				working := map[string]string{
+					"same line": "A and more\nb\nc\nd\ne\nf\ng\n",
+					"next line": "A\nB\nc\nd\ne\nf\ng\n",
+					"far line":  "A\nb\nc\nd\ne\nf\nG\n",
+				}[shape]
+				h.r.Write("f1", working)
+				index, head := h.r.Git("ls-files", "--stage"), h.rev("main")
+				op, err := FixupInto(h.w, Rewrite{Commit: one, Parent: base, Git: gv}, "", h.seen())
+				h.do(op, err, true)
+				if got := h.r.Git("show", "main~1:f1"); got != "A\nb\nc\nd\ne\nf\ng\n" {
+					t.Fatalf("f1 in the commit %q", got)
+				}
+				if got := h.read("f1"); got != working {
+					t.Fatalf("f1 on disk %q, want %q", got, working)
+				}
+				if got := h.r.Git("diff", "--cached", "--name-only"); got != "" {
+					t.Fatalf("staged after the fix up %q", got)
+				}
+				if got := h.r.Git("stash", "list"); got != "" {
+					t.Fatalf("stash list %q", got)
+				}
+				h.undo()
+				if h.rev("main") != head {
+					t.Fatal("main not put back")
+				}
+				if got := h.r.Git("ls-files", "--stage"); got != index {
+					t.Fatalf("index after undo:\n%s\nwant\n%s", got, index)
+				}
+				if got := h.read("f1"); got != working {
+					t.Fatalf("f1 after undo %q", got)
+				}
+				if got := h.r.Git("stash", "list"); got != "" {
+					t.Fatalf("stash list after undo %q", got)
+				}
+			})
+		}
+	}
+}
+
 // Every way of rewriting keeps the messages of the commits it does not
 // change byte for byte, whatever commit.cleanup says, and stores a message
 // it sets as the commit box stores one.

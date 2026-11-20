@@ -151,9 +151,11 @@ const fixupEnv = "RAMUS_FIXUP_LINE"
 func (rw Rewrite) fixupRebase(w Where) run.Cmd {
 	c := rw.rebase(w, "")
 	// It fails, which stops the rebase before it starts, unless the line
-	// went in once.
+	// went in once. The commit the line names is HEAD when the rebase
+	// starts, so the todo also picks it, last: that pick goes.
 	editor := "f() { test -n \"$" + fixupEnv + "\" && " +
-		"awk -v l=\"$" + fixupEnv + "\" '{ print } ($1 == \"pick\" || $1 == \"p\") && $2 == \"" + rw.Commit + "\" { print l; n++ } END { exit n != 1 }' \"$1\" >\"$1.ramus\" && " +
+		"awk -v l=\"$" + fixupEnv + "\" 'BEGIN { k = split(l, w, \" \"); x = w[k] } ($1 == \"pick\" || $1 == \"p\") && $2 == x { next } " +
+		"{ print } ($1 == \"pick\" || $1 == \"p\") && $2 == \"" + rw.Commit + "\" { print l; n++ } END { exit n != 1 }' \"$1\" >\"$1.ramus\" && " +
 		"mv -f \"$1.ramus\" \"$1\"; }; f"
 	c.Env = setEnv(c.Env, "GIT_SEQUENCE_EDITOR", editor)
 	return c

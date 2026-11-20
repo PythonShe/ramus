@@ -63,6 +63,9 @@ type rewriteState struct {
 	staged string
 	// rebase is set when the rebase runs, not git history.
 	rebase bool
+	// fix is the commit of what is staged that a fix up's rebase folds
+	// in, which HEAD points at while the rebase runs.
+	fix string
 	// busy is a rebase in progress before the rewrite: not the rewrite's
 	// to stop.
 	busy bool
@@ -206,6 +209,10 @@ func hooksSet(ctx context.Context, r *run.Runner, w Where, names []string) (map[
 // fixupCommit reads what is staged, and for the rebase makes the commit
 // of it the rebase folds in: on HEAD, with no hooks run, signed or not as
 // it does not stay, holding the squash's message for fixup -C to take.
+// HEAD is moved to it, as git commit would: the rebase's autostash then
+// holds only what is not staged, set aside against what is, and goes
+// back over the folded change without a conflict; set aside against the
+// old HEAD, an edit on or next to a staged line would conflict.
 func (s *rewriteState) fixupCommit(ctx context.Context, q *Queue) error {
 	if s.staged == s.headTree {
 		return errNothingStaged
@@ -222,12 +229,27 @@ func (s *rewriteState) fixupCommit(ctx context.Context, q *Queue) error {
 	if err != nil {
 		return err
 	}
-	line := "fixup " + strings.TrimSpace(string(res.Stdout))
+	fix := strings.TrimSpace(string(res.Stdout))
+	line := "fixup " + fix
 	if s.rr.msg != "" {
-		line = "fixup -C " + strings.TrimSpace(string(res.Stdout))
+		line = "fixup -C " + fix
 	}
 	s.cmd.Env = setEnv(s.cmd.Env, fixupEnv, line)
+	if s.busy {
+		return nil // the rebase refuses to start; HEAD is the other rebase's
+	}
+	if err := s.moveHead(ctx, q, fix, s.head); err != nil {
+		return err
+	}
+	s.fix = fix
 	return nil
+}
+
+// moveHead points HEAD, and the branch it names, at to, when it is at from.
+func (s *rewriteState) moveHead(ctx context.Context, q *Queue, to, from string) error {
+	_, err := q.r.Run(ctx, &run.Cmd{GitDir: s.cmd.GitDir, WorkTree: s.cmd.WorkTree,
+		Args: []string{"update-ref", "-m", "fixup: " + short(s.rr.rw.Commit), "HEAD", to, from}})
+	return err
 }
 
 // checkSteps refuses an edit of history whose steps are not the commits
@@ -299,6 +321,15 @@ func (s *rewriteState) stopped(ctx context.Context, q *Queue, err error) error {
 			Env: []string{"GIT_EDITOR=true"}, Args: []string{"rebase", "--abort"}})
 		if aerr != nil {
 			return fmt.Errorf("%w (stopping the rebase it left failed too: %v)", err, aerr)
+		}
+	}
+	// The rebase stopped, or never began, with HEAD at the commit of what
+	// was staged: the branch goes back to where it was.
+	if s.fix != "" {
+		if now, _ := s.read(ctx, q, "rev-parse", "--verify", "HEAD^{commit}"); now == s.fix {
+			if merr := s.moveHead(ctx, q, s.head, s.fix); merr != nil {
+				return fmt.Errorf("%w (putting the branch back at %s failed too: %v)", err, short(s.head), merr)
+			}
 		}
 	}
 	// A rebase refused before it began has given the autostash back too,
