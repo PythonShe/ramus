@@ -37,10 +37,11 @@ func TestHistoryFilter(t *testing.T) {
 	h.click("Message")
 	h.tt.Type("NEEDLE")
 	h.tt.Key(0, ui.KeyEnter)
-	h.until("the match", func() bool { return h.tt.HasText("1 commit") && h.tt.HasText("side needle") })
-	if !shownRow(h, "side needle") || shownRow(h, "main work") {
-		t.Fatalf("filtered rows %q", h.tt.Texts())
-	}
+	// In its row: the detail of the commit chosen names it before the
+	// filtered rows are read.
+	h.until("the match", func() bool {
+		return h.tt.HasText("1 commit") && shownRow(h, "side needle") && !shownRow(h, "main work")
+	})
 	h.click("Clear")
 	h.until("every commit", h.shows("5 commits"))
 

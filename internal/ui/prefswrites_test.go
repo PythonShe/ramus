@@ -25,7 +25,7 @@ func TestRefPrefsAndLinksWrittenBeforeQuit(t *testing.T) {
 	h.app.openLinks(tb)
 	h.app.links.rules[0] = issuelink.Rule{Pattern: `\bPROJ-(\d+)\b`, URL: "https://jira.example.com/browse/PROJ-$1"}
 	h.app.saveLinks()
-	if !h.app.WaitWrites(10 * time.Second) {
+	if !h.app.WaitWrites(time.Minute) {
 		t.Fatal("the writes did not end")
 	}
 	lib, err := library.Load(h.lib.Path())

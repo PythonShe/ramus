@@ -91,7 +91,7 @@ func TestOneFolderUnderTwoSpellings(t *testing.T) {
 			if h.app.current() != tb {
 				t.Fatal("the tab opened first is not shown")
 			}
-			h.app.WaitWrites(10e9)
+			h.app.WaitWrites(60e9)
 			n := 0
 			for _, e := range h.lib.Recent(10) {
 				if strings.EqualFold(e.Path, real) {

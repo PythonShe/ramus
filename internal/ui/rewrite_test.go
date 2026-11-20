@@ -30,7 +30,15 @@ func TestRewriteFromHistory(t *testing.T) {
 	tb := h.app.current()
 	h.click("History")
 	h.until("history", h.shows("add b"))
-	subject := func(rev string) string { return strings.TrimSpace(r.Git("log", "-1", "--format=%s", rev)) }
+	// Asked while the rewrite runs: with a rebase half done, rev may name
+	// nothing yet, which is not a failure.
+	subject := func(rev string) string {
+		out, err := r.Run(nil, "log", "-1", "--format=%s", rev)
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(out)
+	}
 	// fresh waits for history read for the refs as they are now: rows of
 	// commits a rewrite replaced name commits on no branch.
 	fresh := func(what string) {
@@ -50,7 +58,10 @@ func TestRewriteFromHistory(t *testing.T) {
 	h.until("staged", func() bool { return hasStaged(tb.s.State.Status) })
 	h.until("history again", h.shows("add a"))
 	h.menu("add a", "Edit Commit", "Fix Up with Staged Changes")
-	h.until("fixed up", func() bool { return r.Git("show", "HEAD~2:a.txt") == "a fixed\n" })
+	h.until("fixed up", func() bool {
+		out, err := r.Run(nil, "show", "HEAD~2:a.txt")
+		return err == nil && out == "a fixed\n"
+	})
 	fresh("the fixup shown")
 
 	h.until("history again", h.shows("add b, reworded"))

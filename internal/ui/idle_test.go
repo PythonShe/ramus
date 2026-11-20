@@ -67,15 +67,18 @@ func TestIdle(t *testing.T) {
 		// Let what the view started finish: a spinner asks for frames
 		// until its work ends, and a git command, as a status a slow
 		// machine takes long over, posts nothing while it runs.
+		// Over a while with no git run begun in it: between two runs of
+		// one read, none is alive either.
 		h.until(what+" settled", func() bool {
+			started := ran()
 			select {
 			case fn := <-h.updates:
 				fn()
 				return false
-			case <-time.After(300 * time.Millisecond):
+			case <-time.After(1500 * time.Millisecond):
 			}
 			h.tt.Frame()
-			return !h.tt.FramePending() && running() == 0
+			return !h.tt.FramePending() && running() == 0 && ran() == started
 		})
 		before := ran()
 		posted := 0

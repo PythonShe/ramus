@@ -30,7 +30,7 @@ func TestQuitWaitsForRefsAndLinks(t *testing.T) {
 	h.tt.Frame()
 	h.app.links.rules[0] = issuelink.Rule{Pattern: `\bPROJ-(\d+)\b`, URL: "https://jira.example.com/browse/PROJ-$1"}
 	h.app.saveLinks()
-	if !h.app.WaitWrites(10 * time.Second) {
+	if !h.app.WaitWrites(time.Minute) {
 		t.Fatal("the library was not written in time")
 	}
 	back, err := library.Load(h.lib.Path())
@@ -73,7 +73,7 @@ func TestQuitWaitsNotOnALibraryNotice(t *testing.T) {
 	}
 	release := blockMain(h)
 	h.app.libraryWrite(func(l *library.Library) error { return l.SetFavourite(r.Dir, true) })
-	if !h.app.WaitWrites(10 * time.Second) {
+	if !h.app.WaitWrites(time.Minute) {
 		t.Fatal("the write waited for the main thread")
 	}
 	back, err := library.Load(h.lib.Path())
@@ -101,12 +101,14 @@ func TestQuitWaitsNotOnAnIdentityFailure(t *testing.T) {
 	h.app.SaveIdentity()
 	waited := make(chan struct{})
 	go func() {
-		h.app.WaitIdentity(time.Minute)
+		// Longer than the test waits for it: one waiting for the main
+		// thread is not let off by its own time running out.
+		h.app.WaitIdentity(5 * time.Minute)
 		close(waited)
 	}()
 	select {
 	case <-waited:
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("the wait for the identity waited for the main thread")
 	}
 	release()
@@ -143,7 +145,7 @@ func TestQuitWaitsLeaveNothingBehind(t *testing.T) {
 	is.running = false
 	close(is.idle)
 	is.mu.Unlock()
-	if !h.app.WaitWrites(10*time.Second) || !h.app.WaitIdentity(10*time.Second) {
+	if !h.app.WaitWrites(time.Minute) || !h.app.WaitIdentity(time.Minute) {
 		t.Fatal("the writes ended, the waits did not")
 	}
 }

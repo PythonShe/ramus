@@ -32,6 +32,10 @@ func TestReload(t *testing.T) {
 	tb := h.app.current()
 	h.until("its patch", patchHas(&tb.cv.diff.pv, "two", "one"))
 	tb.commit.subject = "half written"
+	// A status read between the write and its time set back saw the file
+	// new, and reads its patch once more as the time changes: over, before
+	// the patch is taken as the one kept.
+	h.settle()
 	first := tb.cv.diff.res.Parsed
 	tb.s.Refresh(repo.Rescan)
 	h.settle()

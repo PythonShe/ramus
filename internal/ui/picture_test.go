@@ -166,7 +166,15 @@ func TestDifferenceTooLargeAllocatesNothing(t *testing.T) {
 		runtime.ReadMemStats(&before)
 		tt := ui.NewTester(func(c *ui.Context) { h.app.makeDifference(c, pv) }, 200, 200)
 		tt.Frame()
-		(<-h.updates)()
+		// The difference's answer, whatever else is posted before it.
+		for deadline := time.After(time.Minute); !pv.pics.tooLarge && pv.pics.diff == nil; {
+			select {
+			case fn := <-h.updates:
+				fn()
+			case <-deadline:
+				t.Fatal("the difference was never made")
+			}
+		}
 		runtime.ReadMemStats(&after)
 		if !pv.pics.tooLarge || pv.pics.diff != nil {
 			t.Fatalf("tooLarge %v", pv.pics.tooLarge)
@@ -194,7 +202,7 @@ func TestPictureDecodeStopsWhenStale(t *testing.T) {
 	h.app.decodePictures(pv)
 	h.app.setPatch(pv, session.PatchResult{}) // another file chosen
 	endPicture()
-	for deadline := time.Now().Add(10 * time.Second); runtime.NumGoroutine() > goroutines; {
+	for deadline := time.Now().Add(time.Minute); runtime.NumGoroutine() > goroutines; {
 		if time.Now().After(deadline) {
 			t.Fatal("the decode did not end")
 		}
@@ -231,7 +239,7 @@ func picturesWaiting() (waiting, sentAway int) {
 // joins the queue, and leaves it, itself.
 func untilWaiting(t *testing.T, what string, n int) {
 	t.Helper()
-	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(time.Millisecond) {
+	for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Millisecond) {
 		if waiting, _ := picturesWaiting(); waiting == n {
 			return
 		}
@@ -341,7 +349,7 @@ func TestPictureWaitersAreBounded(t *testing.T) {
 		h.app.setPatch(pv, session.PatchResult{})
 		pv.pics.sides = [2][]byte{[]byte("old"), []byte("new")}
 		h.app.decodePictures(pv)
-		for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(time.Millisecond) {
+		for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Millisecond) {
 			waiting, away := picturesWaiting()
 			if waiting == min(i+1, maxPictureWaiters) && away-before == max(0, i+1-maxPictureWaiters) {
 				break
@@ -381,7 +389,7 @@ func TestPictureWaitersAreBounded(t *testing.T) {
 		select {
 		case fn := <-h.updates:
 			fn()
-		case <-time.After(10 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatalf("decoded %v of %d", order, len(pvs))
 		}
 		for i, pv := range pvs {

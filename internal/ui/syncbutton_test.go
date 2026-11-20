@@ -65,6 +65,9 @@ func TestSyncButton(t *testing.T) {
 
 	r.Write("more", "x")
 	r.Commit("more")
+	// The button counts what git has, as soon as it is read; the pull is
+	// held to the HEAD the state shows, which may come after.
+	h.idle(tb, "the commit shown")
 	diverged := "Pull 1 commit from origin/topic; 1 commit to push after"
 	h.until("diverged", h.shows(diverged))
 	h.click(diverged)

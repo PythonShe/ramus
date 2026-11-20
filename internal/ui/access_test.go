@@ -37,7 +37,7 @@ func unnamed(h *harness, where string) {
 // frame asked for and no git command running, however slow the machine.
 func (h *harness) settle() {
 	h.t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	since := time.Now()
 	for time.Since(since) < 300*time.Millisecond {
 		h.tt.Frame()

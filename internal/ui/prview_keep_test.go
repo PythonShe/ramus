@@ -177,7 +177,14 @@ func TestPullRequestReviewKeepsUp(t *testing.T) {
 	h.until("told it may have gone", h.shows("GitHub did not answer in time, and may have taken it. The pull request is read again: look for it there before sending it again."))
 	os.Remove(filepath.Join(dir, "slow"))
 	hurried.Store(false)
-	h.until("read again, sending again", func() bool { return !rv.verify && !rv.busy() && rv.read })
+	h.until("read again, sending again", func() bool {
+		if rv.verify && rv.read && !rv.loading && rv.err != "" {
+			// The read begun in a hurry timed out too, on a slow machine:
+			// read again, as Refresh does.
+			rv.reread()
+		}
+		return !rv.verify && !rv.busy() && rv.read
+	})
 	if got := *rv.replies["T1"]; got != "Slow reply" {
 		t.Fatalf("reply %q", got)
 	}

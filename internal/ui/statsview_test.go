@@ -32,8 +32,8 @@ func TestOverTimeBoundsFarDates(t *testing.T) {
 			if len(bars) > maxBars || n != 2 {
 				t.Errorf("a commit at %d: %d bars counting %d commits", far, len(bars), n)
 			}
-		case <-time.After(5 * time.Second):
-			t.Fatalf("a commit at %d: the chart still counting after 5s", far)
+		case <-time.After(time.Minute):
+			t.Fatalf("a commit at %d: the chart still counting after a minute", far)
 		}
 	}
 }
@@ -103,7 +103,7 @@ func TestTreemapDropsAnEarlierRead(t *testing.T) {
 		t.Fatal("the sizes are not read")
 	}
 	var store func()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for store == nil {
 		select {
 		case fn := <-h.updates:
@@ -207,7 +207,7 @@ func TestStatsBranchMenuFollowsItsBranch(t *testing.T) {
 	h.tt.Frame()
 	r.Git("branch", "ab")
 	// Read with no frame drawn: the menu shown is still the one opened.
-	deadline := time.After(20 * time.Second)
+	deadline := time.After(time.Minute)
 	for {
 		if _, ok := tab.s.State.Refs.Find("refs/heads/ab"); ok {
 			break

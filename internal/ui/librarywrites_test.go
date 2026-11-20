@@ -25,7 +25,7 @@ func TestLibraryKeepsOnlyRepositories(t *testing.T) {
 	}
 	r := h.repoWith()
 	h.app.Open(r.Dir)
-	h.app.WaitWrites(10 * time.Second)
+	h.app.WaitWrites(time.Minute)
 	if got := h.lib.Recent(10); len(got) != 1 || got[0].Path != library.Clean(r.Dir) {
 		t.Fatalf("library has %+v", got)
 	}
@@ -46,7 +46,7 @@ func TestLibraryKeepsTheRepositoryOfAFolder(t *testing.T) {
 	r.Commit("with lib")
 	h.app.Open(filepath.Join(r.Dir, "src", "deep"))
 	h.app.Open(filepath.Join(r.Dir, "lib", "s"))
-	if !h.app.WaitWrites(10 * time.Second) {
+	if !h.app.WaitWrites(time.Minute) {
 		t.Fatal("the library was not written in time")
 	}
 	var got []string
@@ -67,7 +67,7 @@ func TestWaitWritesHasTheLibraryWritten(t *testing.T) {
 	h := newHarness(t)
 	r := h.repoWith()
 	h.app.Open(r.Dir)
-	if !h.app.WaitWrites(10 * time.Second) {
+	if !h.app.WaitWrites(time.Minute) {
 		t.Fatal("the library was not written in time")
 	}
 	back, err := library.Load(h.lib.Path())

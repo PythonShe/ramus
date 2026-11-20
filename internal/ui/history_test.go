@@ -90,9 +90,14 @@ func TestHistoryView(t *testing.T) {
 
 	// Only the latest go-to is answered, whichever git answers first.
 	for range 10 {
+		asked := tab.hist.jumpN
 		h.app.jumpTo(tab, "HEAD")
 		h.app.jumpTo(tab, "v1")
-		h.until("the second jump", func() bool { return hex.EncodeToString(tab.hist.chosenID) == want })
+		// Answered and its row chosen: the commit alone is the one chosen
+		// the round before.
+		h.until("the second jump", func() bool {
+			return tab.hist.jumpN > asked+2 && tab.hist.want == nil && tab.hist.chosen >= 0 && hex.EncodeToString(tab.hist.chosenID) == want
+		})
 		h.settle()
 		if got := hex.EncodeToString(tab.hist.chosenID); got != want || tab.hist.chosen != 2 {
 			t.Fatalf("an older go-to won: %s", got)
@@ -1211,7 +1216,15 @@ func TestHistoryStaysAsCommitsLand(t *testing.T) {
 					r.Write("g.txt", "g\n")
 					r.Commit("new on top")
 				}},
-				{"an amend", "amended on top", func() { r.Git("commit", "-q", "--amend", "-m", "amended on top") }},
+				{"an amend", "amended on top", func() {
+					// At the repository's clock, not the day's: the commits
+					// fetched next have a date of their own, and are to
+					// be the newest whatever the day.
+					old := r.Env
+					r.Env = append(slices.Clone(old), fmt.Sprintf("GIT_COMMITTER_DATE=@%d +0000", r.Tick()))
+					defer func() { r.Env = old }()
+					r.Git("commit", "-q", "--amend", "-m", "amended on top")
+				}},
 				// More than the list looks around for its rows' keys.
 				{"a fetch of 1500", "fetched 1499", func() {
 					var b strings.Builder
@@ -1338,7 +1351,9 @@ func TestHistoryShowsCommitsLandingOnTop(t *testing.T) {
 	tb := h.app.current()
 	hv := &tb.hist
 	h.click("History")
-	h.until("history", h.shows("commit 198"))
+	// The row's own text: the detail of HEAD, chosen as history comes,
+	// names its parent too, before the rows are read.
+	h.until("history", func() bool { return rowTextRead(tb, 1) && h.tt.HasText("commit 198") })
 	h.click("commit 198")
 	h.until("chosen", func() bool { return hv.chosen == 1 })
 	chosenID := hex.EncodeToString(hv.chosenID)

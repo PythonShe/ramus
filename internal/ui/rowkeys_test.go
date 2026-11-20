@@ -116,6 +116,9 @@ func TestCheckMenuFollowsItsCheck(t *testing.T) {
 	rv := h.app.current().pr.rv
 	h.click("Checks (2)")
 	h.until("the checks", func() bool { _, ok := h.tt.Access("build, Passed"); return ok })
+	// Read, and not being read again: a read landing later would put its
+	// own checks in the place of those set here.
+	h.until("the review read", func() bool { return rv.read && !rv.loading })
 	// More than the page shows, so the list could scroll.
 	many := slices.Clone(rv.checks)
 	for n := range 40 {

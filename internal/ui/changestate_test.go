@@ -3,6 +3,8 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -34,7 +36,11 @@ func TestChangeStates(t *testing.T) {
 		"untracked q.txt",
 		"untracked folder newdir/, open",
 	} {
-		if _, ok := h.tt.Access(name); !ok {
+		// Alone, or with its lines counted after it, which may have come
+		// by now.
+		if !slices.ContainsFunc(h.tt.AccessAll(), func(a ui.AccessInfo) bool {
+			return a.Name == name || strings.HasPrefix(a.Name, name+", ")
+		}) {
 			t.Errorf("no row reads %q", name)
 		}
 	}
@@ -70,9 +76,14 @@ func TestChangeLines(t *testing.T) {
 		"deleted b.txt, 0 lines added, 1 deleted",
 		"untracked new.txt, 3 lines added, 0 deleted",
 	}
+	// All of them: what is staged and what is not are not counted at once.
 	h.until("the changes counted", func() bool {
-		_, ok := h.tt.Access(rows[len(rows)-1])
-		return ok
+		for _, name := range rows {
+			if _, ok := h.tt.Access(name); !ok {
+				return false
+			}
+		}
+		return true
 	})
 	for _, name := range rows {
 		if _, ok := h.tt.Access(name); !ok {

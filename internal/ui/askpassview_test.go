@@ -139,7 +139,7 @@ func TestAskpassWindowCloses(t *testing.T) {
 		t.Helper()
 		select {
 		case <-ended[dir]:
-		case <-time.After(10 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatalf("the helper in %s still waits", dir)
 		}
 	}

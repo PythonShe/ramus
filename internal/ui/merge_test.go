@@ -66,11 +66,11 @@ func TestMergeAndResolve(t *testing.T) {
 
 	tb.sel = "changes"
 	h.tt.Frame()
-	h.until("the conflicts", func() bool { return hasExact(h, "a.txt") })
-	// Each conflict says what kind it is.
-	if !hasExact(h, "both modified") || !hasExact(h, "deleted by them") {
-		t.Fatalf("kinds of conflict %q", h.tt.Texts())
-	}
+	// Each conflict says what kind it is: once the status read after the
+	// merge wrote its index shows, not one read halfway.
+	h.until("the conflicts", func() bool {
+		return hasExact(h, "a.txt") && hasExact(h, "both modified") && hasExact(h, "deleted by them")
+	})
 	h.click("a.txt")
 	h.until("the editor", h.shows("Conflict 1"))
 	h.click("Theirs")

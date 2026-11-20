@@ -234,6 +234,9 @@ func TestBranchPickerOpensAtItsTop(t *testing.T) {
 	h.until("the repository", h.shows("No local changes"))
 	h.app.setSidebar(false)
 	tb := h.app.current()
+	// As before the branches' state is read, which the sidebar asked for
+	// as the repository opened and may have by now.
+	tb.refs.info, tb.refs.readFor = nil, nil
 	h.click("Branch main")
 	if tb.pick.info != nil || len(tb.pick.rows) == 0 || tb.pick.rows[0].ref != "refs/heads/a00" {
 		t.Fatalf("the picker opened with its branches' state read: %v", tb.pick.rows)

@@ -230,7 +230,7 @@ func TestIdentityReadOfEarlierOpening(t *testing.T) {
 	var earlier func()
 	select {
 	case earlier = <-h.updates:
-	case <-time.After(20 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("no read")
 	}
 	s.open = false

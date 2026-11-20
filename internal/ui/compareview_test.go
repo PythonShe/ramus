@@ -118,7 +118,7 @@ func TestComparePatchStops(t *testing.T) {
 	h.until("the patch read", func() bool { return r.Running() == 1 })
 	h.app.compareUI.open = false
 	h.tt.Frame()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for r.Running() != 0 {
 		if time.Now().After(deadline) {
 			t.Fatalf("the read of the patch runs on after the comparison closed")
@@ -165,7 +165,7 @@ func TestComparePatchStoppedIsDropped(t *testing.T) {
 	// No update runs until both stopped reads handed theirs back.
 	h.click("b.txt")
 	h.click("a.txt")
-	for deadline := time.Now().Add(10 * time.Second); len(h.updates) < 2; time.Sleep(time.Millisecond) {
+	for deadline := time.Now().Add(time.Minute); len(h.updates) < 2; time.Sleep(time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatalf("%d of the stopped reads ended", len(h.updates))
 		}

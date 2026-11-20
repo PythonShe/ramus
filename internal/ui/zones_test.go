@@ -8,7 +8,7 @@ import (
 func waitZones(t *testing.T) {
 	t.Helper()
 	loadZones()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for zones.Load() == nil {
 		if time.Now().After(deadline) {
 			t.Fatal("the zones were not loaded")

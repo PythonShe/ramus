@@ -21,18 +21,19 @@ func TestDiscardIntentToAdd(t *testing.T) {
 	h.until("the repository", h.shows("No local changes"))
 	r.Write("ita.txt", "my work\n")
 	r.Git("add", "-N", "ita.txt")
-	h.until("the change", h.shows("ita.txt"))
 	tb := h.app.current()
-	st := tb.s.State.Status
-	found := false
-	for i := range st.Len() {
-		if string(st.Path(i)) == "ita.txt" {
-			found = intentToAdd(st, i)
+	// The status read after the add: one read between the write and the
+	// add shows the file too, as untracked.
+	h.until("the file added with intent to add", func() bool {
+		st := tb.s.State.Status
+		for i := range st.Len() {
+			if string(st.Path(i)) == "ita.txt" && intentToAdd(st, i) {
+				return true
+			}
 		}
-	}
-	if !found {
-		t.Fatal("ita.txt is not seen as added with intent to add")
-	}
+		return false
+	})
+	h.until("the change", h.shows("ita.txt"))
 	logged := len(tb.s.Log)
 	h.app.askDiscardPaths(tb, &tb.cv.confirm, discardSet{intent: []string{"ita.txt"}})
 	h.until("the question", h.shows("Discard 1 file?"))

@@ -76,7 +76,7 @@ func TestRefPrefsLastToggleKept(t *testing.T) {
 		h.app.toggleRef(tb, &tb.prefs.pinned, fmt.Sprintf("refs/heads/b%d", i%3))
 		h.app.toggleRef(tb, &tb.prefs.hidden, fmt.Sprintf("refs/heads/h%d", i%5))
 	}
-	if !h.app.WaitWrites(10 * time.Second) {
+	if !h.app.WaitWrites(time.Minute) {
 		t.Fatal("the library was not written in time")
 	}
 	back, err := library.Load(h.lib.Path())

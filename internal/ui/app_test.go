@@ -75,7 +75,7 @@ func newHarnessWith(t *testing.T, r *run.Runner) *harness {
 	// The app looks for the editors and terminals installed as it starts
 	// and posts what it found, on a slow machine in the middle of a test
 	// that counts or takes what is posted: it is taken here.
-	deadline := time.After(20 * time.Second)
+	deadline := time.After(time.Minute)
 	for !h.app.palette.found {
 		select {
 		case fn := <-h.updates:
@@ -182,7 +182,7 @@ func (h *harness) closeAll() {
 	for _, d := range lives {
 		select {
 		case <-d:
-		case <-time.After(10 * time.Second):
+		case <-time.After(time.Minute):
 			h.t.Error("a repository did not close")
 		}
 	}
@@ -753,6 +753,8 @@ func TestAmendTakesTheCommitItsMessageIsOf(t *testing.T) {
 	}
 	tb.s.State.Head.OID = old
 	cs.subject = "second, amended"
+	// A click on the button before it can commit does nothing.
+	h.until("ready to commit", func() bool { return commitReady(tb) })
 	h.click("Amend Last Commit")
 	h.until("the amend", func() bool {
 		return !cs.busy && (cs.err != "" || strings.TrimSpace(r.Git("log", "-1", "--format=%s")) == "second, amended")

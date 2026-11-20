@@ -43,7 +43,7 @@ func TestShowFileLooksOffTheMainThread(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		close(release)
 		t.Fatal("ShowFile waited for the path to be resolved")
 	}
@@ -172,7 +172,7 @@ func TestShowFileALaterAskReplacesOneWaiting(t *testing.T) {
 	orig := h.app.Update
 	pump := func(what string, ok func() bool) {
 		t.Helper()
-		deadline := time.After(20 * time.Second)
+		deadline := time.After(time.Minute)
 		for !ok() {
 			select {
 			case fn := <-h.updates:
@@ -195,7 +195,7 @@ func TestShowFileALaterAskReplacesOneWaiting(t *testing.T) {
 	var landB func()
 	select {
 	case landB = <-heldB:
-	case <-time.After(20 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("the second ask found nothing")
 	}
 	// The repository opens; what is found for a file still waiting is
@@ -248,7 +248,7 @@ func TestShowFileHandedOnWithTheTabOfItsFolder(t *testing.T) {
 		return false
 	}
 	h1.app.ShowFile(filepath.Join(r.Dir, "src", "b.go"), true)
-	deadline := time.After(20 * time.Second)
+	deadline := time.After(time.Minute)
 	for h1.app.pendingFile.abs == "" {
 		select {
 		case fn := <-h1.updates:

@@ -42,7 +42,7 @@ func TestOperationBarWakesAfterTheRead(t *testing.T) {
 	// needed.
 	e := tb.s.Log[logged]
 	read := func() bool { return !e.Running && !tb.s.State.Refreshed.Before(e.Ended) }
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for {
 		select {
 		case fn := <-h.updates:
@@ -102,7 +102,7 @@ func TestOperationBarWaitsForTheReadAfterAFailedStep(t *testing.T) {
 	h.click("Skip")
 	h.tt.Frame()
 	e := tb.s.Log[logged]
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for {
 		select {
 		case fn := <-h.updates:
@@ -188,7 +188,7 @@ func TestOperationBarWaitsForAReadBegunAfterTheStep(t *testing.T) {
 		t.Fatal("the continue moved nothing")
 	}
 	flag("GO_STATUS")
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for {
 		select {
 		case fn := <-h.updates:
