@@ -333,16 +333,19 @@ func removeMade(ctx context.Context, r *run.Runner, w Where, made Made) ([]strin
 	if err := listPaths(ctx, r, w, nil, names, func(name string) { still[name] = true }, args...); err != nil {
 		return nil, err
 	}
-	var gone, left []string
+	var left []string
 	for _, f := range made.Files {
-		switch {
-		case still[f.Path] && asMade(w.WorkTree, f):
-			gone = append(gone, f.Path)
-		case exists(w.WorkTree, f.Path):
+		// Each is checked right before its removal: an edit saved while
+		// the others are read stays.
+		if still[f.Path] && asMade(w.WorkTree, f) {
+			if err := removeFiles(w.WorkTree, []string{f.Path}); err != nil {
+				return append(left, untold...), err
+			}
+		} else if exists(w.WorkTree, f.Path) {
 			left = append(left, f.Path)
 		}
 	}
-	return append(left, untold...), removeFiles(w.WorkTree, gone)
+	return append(left, untold...), nil
 }
 
 func exists(root, p string) bool {
