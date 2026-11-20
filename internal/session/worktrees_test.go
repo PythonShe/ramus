@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -486,5 +487,33 @@ func TestWorktreesOfATrustedRepositoryRunPlain(t *testing.T) {
 	_, rn, err := s.gitIn(s.Repo)(t.Context(), wt)
 	if err != nil || rn != s.Repo.Runner {
 		t.Fatalf("the worktree runs git hardened (%v)", err)
+	}
+}
+
+// A one-shot summary read whole and queued for the main thread when
+// Trust's reopen runs there first is answered ErrReopened, once: the
+// view waiting on it asks again rather than wait for good.
+func TestSummaryQueuedAtReopenSaysSo(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write("a.txt", "one\n")
+	r.Commit("one")
+	s, m := openSettled(t, r)
+	var got []WorktreeSummary
+	s.SummarizeWorktrees([]repo.Worktree{{Path: r.Dir}}, func(sum WorktreeSummary) { got = append(got, sum) })
+	deadline := time.After(20 * time.Second)
+	for len(m) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("the summary was never handed over")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	// Long enough for the read to end, seeing its repository open.
+	time.Sleep(300 * time.Millisecond)
+	old := s.Repo
+	s.reopenTrusted()
+	m.drainClosed(t, old)
+	if len(got) != 1 || got[0].Path != r.Dir || !errors.Is(got[0].Err, ErrReopened) {
+		t.Fatalf("answered %+v; want once, as reopened", got)
 	}
 }

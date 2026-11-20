@@ -134,7 +134,15 @@ func (s *Session) summarizeWorktrees(wts []repo.Worktree, done func(WorktreeSumm
 						told[sum.Path] = true
 						done(sum)
 					}
-				}, nil)
+				}, func() {
+					// A one-shot read may have ended seeing r open, and
+					// told nothing on its way out; a watch's end says so
+					// of each worktree itself.
+					if !again && !stopped && !told[sum.Path] {
+						told[sum.Path] = true
+						done(WorktreeSummary{Path: sum.Path, Err: ErrReopened})
+					}
+				})
 			})
 			if !again {
 				return
