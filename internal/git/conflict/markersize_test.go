@@ -243,6 +243,37 @@ func TestLoadRefusesAReadingThatLeavesMarkersOfTheOtherSize(t *testing.T) {
 	}
 }
 
+// A file whose lines pair up as markers of more sizes than are worth
+// trying is refused, not read for minutes; and the reading at each size
+// stops when the read is left.
+func TestLoadBoundsTheSizesInTheFile(t *testing.T) {
+	var b strings.Builder
+	for n := 1; n <= maxPairedSizes+8; n++ {
+		if n != defaultMarkerSize {
+			b.WriteString(strings.Repeat("=", n) + "\n" + strings.Repeat(">", n) + "\n")
+		}
+	}
+	block := b.String()
+	c := realMerge{base: block + "end\n", ours: block + "end ours\n", theirs: block + "end theirs\n"}
+	r, _, _, _ := c.run(t, "merge", "merge")
+	if r == nil {
+		t.Fatal("no conflict")
+	}
+	resolved := []byte(block + "end by hand\n")
+	if _, err := Load(context.Background(), testrun.Runner(t), r.GitDir(), r.Dir, realFile, resolved); !errors.Is(err, ErrAmbiguous) {
+		t.Fatalf("%d sizes: %v", len(pairedSizes(resolved)), err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	few := "=\n>\n==\n>>\n"
+	l := &loader{ctx: ctx, data: []byte(few + "end by hand\n"),
+		sides: &mergedSides{Base: []byte(few + "end\n"), Ours: []byte(few + "end ours\n"), Theirs: []byte(few + "end theirs\n")}}
+	if _, err := l.other(nil, nil, []int{defaultMarkerSize}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("left: %v", err)
+	}
+}
+
 // A file the index holds conflicted is never read as having no conflicts,
 // or fewer than it has, while git's markers are in it; a file resolved by
 // hand, its markers gone, is, whatever text like markers its sides gave

@@ -204,8 +204,16 @@ func (l *loader) other(segs []Segment, refused error, sizes []int) ([]Segment, e
 	if s.Base == nil && s.Ours == nil && s.Theirs == nil {
 		return segs, refused // not conflicted in the index
 	}
+	if len(paired) > maxPairedSizes {
+		// Each size takes a pass over the file: only a file made so has
+		// this many, and it is not worth the time to tell.
+		return nil, ErrAmbiguous
+	}
 	text := map[int]bool{}
 	for _, n := range paired {
+		if err := l.ctx.Err(); err != nil {
+			return nil, err
+		}
 		if slices.Contains(sizes, n) || s.Ours == nil || s.Theirs == nil {
 			continue
 		}
@@ -226,12 +234,18 @@ func (l *loader) other(segs []Segment, refused error, sizes []int) ([]Segment, e
 		return nil, refused
 	}
 	for _, n := range paired {
+		if err := l.ctx.Err(); err != nil {
+			return nil, err
+		}
 		if !text[n] && !s.hold(l.data, n) {
 			return nil, ErrAmbiguous
 		}
 	}
 	return segs, nil
 }
+
+// maxPairedSizes bounds the sizes other reads a file at.
+const maxPairedSizes = 64
 
 // pairedSizes are the sizes of the separator lines in data that a close
 // marker of the same size follows, smallest first.
