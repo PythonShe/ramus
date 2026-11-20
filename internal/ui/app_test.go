@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"slices"
@@ -722,6 +723,45 @@ func TestChangesBulk(t *testing.T) {
 	h.until("two staged", h.shows("Staged (2)"))
 	if s := r.Git("status", "--porcelain"); !strings.Contains(s, "?? three.txt") {
 		t.Fatalf("status\n%s", s)
+	}
+}
+
+// An amend replaces the commit whose message the editor took, though the
+// HEAD shown is still the one before it, as it is after a commit until
+// what follows it is read: refused then, an amend right after a commit
+// said HEAD had changed.
+func TestAmendTakesTheCommitItsMessageIsOf(t *testing.T) {
+	h := newHarness(t)
+	r := h.repoWith()
+	before := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	r.Write("a.txt", "a\n")
+	r.Commit("second")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("Commit to main"))
+	tb := h.app.current()
+	cs := &tb.commit
+	h.until("ready", func() bool { return !cs.busy && cs.setup != nil })
+	cs.subject, cs.body = "", ""
+	cs.amend = true
+	h.tt.Frame()
+	h.until("HEAD's message", func() bool { return cs.subject == "second" })
+	// The state as a refresh not yet come leaves it.
+	old, err := hex.DecodeString(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tb.s.State.Head.OID = old
+	cs.subject = "second, amended"
+	h.click("Amend Last Commit")
+	h.until("the amend", func() bool {
+		return !cs.busy && (cs.err != "" || strings.TrimSpace(r.Git("log", "-1", "--format=%s")) == "second, amended")
+	})
+	if cs.err != "" {
+		t.Fatalf("the amend was refused: %s", cs.err)
+	}
+	if n := strings.TrimSpace(r.Git("rev-list", "--count", "HEAD")); n != "2" {
+		t.Fatalf("%s commits after an amend", n)
 	}
 }
 

@@ -132,10 +132,12 @@ func Recent(ctx context.Context, r *run.Runner, w Where, n int) ([]string, error
 	return msgs, nil
 }
 
-// Last returns HEAD's message, for amending it.
-func Last(ctx context.Context, r *run.Runner, w Where) (string, error) {
-	out, err := w.git(ctx, r, "log", "-1", "--format=%B", "HEAD", "--")
-	return strings.TrimRight(out, "\n"), err
+// Last returns HEAD's message, for amending it, and the commit it is
+// of: the one the amend then replaces, whatever HEAD is by then.
+func Last(ctx context.Context, r *run.Runner, w Where) (id, msg string, err error) {
+	out, err := w.git(ctx, r, "log", "-1", "--format=%H%n%B", "HEAD", "--")
+	id, msg, _ = strings.Cut(out, "\n")
+	return id, strings.TrimRight(msg, "\n"), err
 }
 
 // ErrEmpty is a message with no text.

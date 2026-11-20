@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"ramus/internal/git/gittest"
@@ -37,8 +38,9 @@ func TestTemplateAndRecent(t *testing.T) {
 	if err != nil || !slices.Equal(msgs, []string{"one", "two\n\nbody"}) {
 		t.Fatalf("recent %q %v", msgs, err)
 	}
-	if last, err := Last(ctx, rn, w); err != nil || last != "one" {
-		t.Fatalf("last %q %v", last, err)
+	head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	if id, last, err := Last(ctx, rn, w); err != nil || last != "one" || id != head {
+		t.Fatalf("last %q of %q, %v", last, id, err)
 	}
 }
 

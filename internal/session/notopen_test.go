@@ -41,7 +41,7 @@ func TestReadsWithNoRepositoryAreAnswered(t *testing.T) {
 		"LoadRefInfo":   func(a func()) { s.LoadRefInfo(func(RefInfo) { a() }) },
 		"Patch":         func(a func()) { s.Patch(diff.PatchRequest{}, Sides{}, func(PatchResult) { a() }) },
 		"ListClean":     func(a func()) { s.ListClean(false, func([]string, []write.FileState, error) { a() }) },
-		"HeadMessage":   func(a func()) { s.HeadMessage(func(string, error) { a() }) },
+		"HeadMessage":   func(a func()) { s.HeadMessage(func(string, string, error) { a() }) },
 		"CheckLineEnds": func(a func()) { s.CheckLineEnds(func(LineEnds) { a() }) },
 		"LoadPrepared":  func(a func()) { s.LoadPrepared("#", func(Prepared) { a() }) },
 		"Verify":        func(a func()) { s.Verify("", "refs/tags/v1", func(signature.Status, error) { a() }) },

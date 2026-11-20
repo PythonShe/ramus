@@ -66,7 +66,7 @@ func (s *Session) LoadCommitSetup(done func(CommitSetup)) {
 			cs.Err = err
 		}
 		if !unborn {
-			cs.Last, _ = message.Last(ctx, r.Runner, w)
+			_, cs.Last, _ = message.Last(ctx, r.Runner, w)
 		}
 		s.handOver(r, func() { done(cs) }, func() { done(CommitSetup{Comment: "#", Err: ErrReopened}) })
 	})
@@ -74,16 +74,16 @@ func (s *Session) LoadCommitSetup(done func(CommitSetup)) {
 
 // HeadMessage reads the message of the commit HEAD is on now, off the
 // main thread, for an amend, and hands it to done on it.
-func (s *Session) HeadMessage(done func(msg string, err error)) {
+func (s *Session) HeadMessage(done func(id, msg string, err error)) {
 	r := s.Repo
 	if r == nil {
-		done("", context.Canceled)
+		done("", "", context.Canceled)
 		return
 	}
 	w := message.Where{GitDir: r.GitDir, WorkTree: r.WorkTree}
 	r.Life().Go(func(ctx context.Context) {
-		msg, err := message.Last(ctx, r.Runner, w)
-		s.handOver(r, func() { done(msg, err) }, func() { done("", ErrReopened) })
+		id, msg, err := message.Last(ctx, r.Runner, w)
+		s.handOver(r, func() { done(id, msg, err) }, func() { done("", "", ErrReopened) })
 	})
 }
 
@@ -165,7 +165,9 @@ func zero(b []byte) bool {
 // branch.
 func (s *Session) CommitOptions(opt write.CommitOptions) write.CommitOptions {
 	h := s.State.Head
-	opt.Seen = hex.EncodeToString(h.OID)
+	if opt.Seen == "" {
+		opt.Seen = hex.EncodeToString(h.OID)
+	}
 	if !h.Detached {
 		opt.Branch = h.Target
 	}

@@ -60,7 +60,7 @@ func TestReadsOfAClosedRepositoryAreNotHandedOver(t *testing.T) {
 			s.Verify(hex.EncodeToString(head), "", func(_ signature.Status, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
 		{"HeadMessage", true, func(s *Session, answer func(bool)) {
-			s.HeadMessage(func(_ string, err error) { answer(errors.Is(err, ErrReopened)) })
+			s.HeadMessage(func(_, _ string, err error) { answer(errors.Is(err, ErrReopened)) })
 		}},
 		{"CheckLineEnds", true, func(s *Session, answer func(bool)) {
 			s.CheckLineEnds(func(le LineEnds) { answer(errors.Is(le.Err, ErrReopened)) })

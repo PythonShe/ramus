@@ -56,9 +56,12 @@ type commitState struct {
 	// wasAmend is amend as of the last frame, to load HEAD's message
 	// when amend is turned on over an empty editor; amendMsg is the
 	// message so loaded, which turning amend off takes away again while
-	// it is not edited.
+	// it is not edited; amendOf is the commit it is of, which the amend
+	// replaces: the HEAD shown may still be the one before it, until what
+	// follows a commit is read.
 	wasAmend bool
 	amendMsg string
+	amendOf  string
 	// recentMsg is the message the Recent menu put in the editor last,
 	// which another may replace without asking.
 	recentMsg string
@@ -143,12 +146,12 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 		// HEAD as it is now: a commit made in a terminal or a switch
 		// since the setup was read moved it. It takes the template's
 		// place, which an amend would otherwise make HEAD's message.
-		t.s.HeadMessage(func(msg string, err error) {
+		t.s.HeadMessage(func(id, msg string, err error) {
 			if err != nil || !cs.amend || !cs.untouched() {
 				return
 			}
 			cs.subject, cs.body = message.Split(msg)
-			cs.amendMsg = msg
+			cs.amendMsg, cs.amendOf = msg, id
 		})
 	case !cs.amend && cs.wasAmend && cs.amendMsg != "":
 		if cs.holds(cs.amendMsg) {
@@ -156,6 +159,9 @@ func (a *App) commitBox(c *ui.Context, t *tab) {
 			cs.fillTemplate()
 		}
 		cs.amendMsg = ""
+	}
+	if !cs.amend {
+		cs.amendOf = ""
 	}
 	cs.wasAmend = cs.amend
 	followTrack(t)
@@ -668,6 +674,10 @@ func (a *App) commit(t *tab, r commitRun) {
 	}
 	opt := write.CommitOptions{Message: msg, Amend: cs.amend, SignOff: cs.signOff, NoVerify: cs.noVerify || r.noHooks, CoAuthors: coAuthorList(cs.coAuthors)}
 	opt.Encoding = cs.encoding
+	if cs.amend {
+		// The commit whose message the editor took, when it took one.
+		opt.Seen = cs.amendOf
+	}
 	if s := cs.setup; s != nil && s.CanSign && cs.sign != s.Sign {
 		opt.Sign = write.SignNo
 		if cs.sign {
