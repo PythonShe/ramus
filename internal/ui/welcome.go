@@ -9,6 +9,9 @@ import (
 	"ramus/locales"
 )
 
+// welcomeIconSize is the side of the app's icon above its name.
+const welcomeIconSize = 64
+
 type welcomeState struct {
 	query  string
 	list   ui.ListState
@@ -33,6 +36,13 @@ func (a *App) welcomeBody(c *ui.Context) {
 	th := c.Theme()
 	ui.Column(c).Grow(1).FillWidth().Center().Children(func() {
 		ui.Column(c).Width(560).Gap(spaceXL).Children(func() {
+			icon := a.Icon
+			if th.Dark && a.IconDark != nil {
+				icon = a.IconDark
+			}
+			if icon != nil {
+				ui.Image(c, icon).Width(welcomeIconSize).Height(welcomeIconSize).Role(ui.RoleNone)
+			}
 			ui.Text(c, locales.AboutName()).FontSize(textDisplay).Bold()
 			ui.Row(c).Gap(spaceM).Children(func() {
 				if ui.PrimaryButton(c, locales.WelcomeOpen()).Clicked() {

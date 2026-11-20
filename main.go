@@ -95,6 +95,7 @@ func main() {
 		ApplyTheme: func(t string) { mygo.Theme.SetSource(mygo.ThemeSource(t)) },
 	}}
 	ws.deps.RoleKeys = func() map[string]string { return ws.roleKeys }
+	ws.deps.Icon, ws.deps.IconDark = edgeIcons()
 	var saved []layout.Window
 	var layoutErr error
 	if probe == "" {

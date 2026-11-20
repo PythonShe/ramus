@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 
@@ -11,13 +12,34 @@ import (
 	"ramus/locales"
 )
 
-// The app's icon, as the About window shows it.
+// The app's icon, as the About window and the window with no repository
+// open show it.
 var (
 	//go:embed assets/app-icon/monogram/svg/icon-light.svg
 	iconLight []byte
 	//go:embed assets/app-icon/monogram/svg/icon-dark.svg
 	iconDark []byte
 )
+
+// iconCanvas is the icon's canvas and, within it, the box of its shape:
+// the rest is the margin a Dock wants around an icon.
+const (
+	iconCanvas = `viewBox="0 0 1024 1024"`
+	iconShape  = `viewBox="100 100 824 824"`
+)
+
+// edgeIcons is the icon without its margin, for the window with no
+// repository open, where its edge lines up with the text under it.
+func edgeIcons() (light, dark *mygoui.SVG) {
+	crop := func(svg []byte) *mygoui.SVG {
+		s, err := mygoui.ParseSVG(bytes.Replace(svg, []byte(iconCanvas), []byte(iconShape), 1))
+		if err != nil {
+			return nil
+		}
+		return s
+	}
+	return crop(iconLight), crop(iconDark)
+}
 
 // aboutWindow is the About window, nil while it is not open.
 type aboutWindow struct {

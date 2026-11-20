@@ -71,6 +71,10 @@ type Deps struct {
 	Now func() time.Time
 	// Crash keeps the crash reports; nil keeps none.
 	Crash *crashlog.Log
+	// Icon is the app's icon for a light appearance and IconDark for a
+	// dark one, which the window with no repository open shows; nil
+	// shows none.
+	Icon, IconDark *ui.SVG
 	// KeysChanged is called on the main thread when the shortcuts
 	// change, for the app menu to show them; Accelerator reads them.
 	KeysChanged func()
