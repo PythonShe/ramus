@@ -352,7 +352,11 @@ func (s *rewriteState) finish(ctx context.Context, q *Queue, j *Job) error {
 	defer cancel()
 	why := s.verify(ctx, q)
 	if why != nil {
-		return s.takeBack(ctx, q, j, why)
+		// A check that ran out of time leaves ctx spent: the rewrite is
+		// taken back within a time of its own.
+		bctx, bcancel := context.WithTimeout(context.WithoutCancel(ctx), checkTimeout)
+		defer bcancel()
+		return s.takeBack(bctx, q, j, why)
 	}
 	if s.rebase {
 		if err := s.restage(ctx, q); err != nil {
