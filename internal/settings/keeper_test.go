@@ -105,6 +105,10 @@ func TestCheckReadsHandEdits(t *testing.T) {
 	if !changed || len(s.Emails) != 1 || !s.NoSidebar {
 		t.Fatalf("taken %+v", s)
 	}
+	// The reading taken has the app's change written: waited for, or the
+	// write lands on either side of the hand edit below, and a reading
+	// made before it is rightly not taken.
+	k.Wait()
 	os.WriteFile(p, []byte(`{"emails": ["me@x", "work@x"]}`), 0o600)
 	k.Check(onError)
 	k.Wait()
