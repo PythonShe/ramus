@@ -537,10 +537,11 @@ func (a *App) keepDraft(t *tab) {
 		return
 	}
 	cs.kept = d
-	a.Drafts.Keep(t.key(), d)
 	if cs.draftFrom != "" {
-		a.Drafts.Keep(cs.draftFrom, drafts.Draft{})
+		a.Drafts.Move(cs.draftFrom, t.key(), d)
 		cs.draftFrom = ""
+	} else {
+		a.Drafts.Keep(t.key(), d)
 	}
 }
 

@@ -46,14 +46,19 @@ type Store struct {
 
 	mu      sync.Mutex
 	pending map[string]Draft
-	busy    bool
+	// from is the earlier key of a draft waiting in pending, to remove
+	// once it is written (Move).
+	from map[string]string
+	busy bool
 	// write serializes writes, Keep's and Flush's, and reads with them:
 	// Windows will not open a file while a rename replaces it.
 	write sync.Mutex
 }
 
 // New keeps drafts in dir, made when the first one is written.
-func New(dir string) *Store { return &Store{dir: dir, pending: map[string]Draft{}} }
+func New(dir string) *Store {
+	return &Store{dir: dir, pending: map[string]Draft{}, from: map[string]string{}}
+}
 
 func (s *Store) name(path string) string {
 	sum := sha256.Sum256([]byte(path))
@@ -119,6 +124,16 @@ func (s *Store) Keep(path string, d Draft) {
 	go s.run()
 }
 
+// Move is Keep of d under path for the draft kept under from, an earlier
+// key of the same repository: that one is removed once a draft is
+// written under path, and stays while none could be.
+func (s *Store) Move(from, path string, d Draft) {
+	s.mu.Lock()
+	s.from[path] = from
+	s.mu.Unlock()
+	s.Keep(path, d)
+}
+
 func (s *Store) run() {
 	for {
 		s.write.Lock()
@@ -137,8 +152,10 @@ func (s *Store) run() {
 			s.write.Unlock()
 			return
 		}
+		from := s.from[path]
+		delete(s.from, path)
 		s.mu.Unlock()
-		err := s.save(path, d)
+		err := s.saveFrom(path, d, from)
 		s.write.Unlock()
 		if err != nil && s.OnError != nil {
 			s.OnError(err)
@@ -152,14 +169,33 @@ func (s *Store) Flush() error {
 	s.write.Lock()
 	defer s.write.Unlock()
 	s.mu.Lock()
-	pending := s.pending
-	s.pending = map[string]Draft{}
+	pending, from := s.pending, s.from
+	s.pending, s.from = map[string]Draft{}, map[string]string{}
 	s.mu.Unlock()
 	var errs []error
 	for path, d := range pending {
-		errs = append(errs, s.save(path, d))
+		errs = append(errs, s.saveFrom(path, d, from[path]))
 	}
 	return errors.Join(errs...)
+}
+
+// saveFrom is save, then the removal of the draft under from, a key d
+// was moved from, once d is written. A write that failed leaves it for
+// the next write under path.
+func (s *Store) saveFrom(path string, d Draft, from string) error {
+	err := s.save(path, d)
+	if from == "" {
+		return err
+	}
+	if err != nil {
+		s.mu.Lock()
+		if _, ok := s.from[path]; !ok {
+			s.from[path] = from
+		}
+		s.mu.Unlock()
+		return err
+	}
+	return s.save(from, Draft{})
 }
 
 func (s *Store) save(path string, d Draft) error {

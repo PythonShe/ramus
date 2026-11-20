@@ -3,6 +3,7 @@ package drafts
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -94,6 +95,76 @@ func TestKeepConcurrent(t *testing.T) {
 	waitIdle(s)
 	if got, err := New(s.dir).Load("/r"); err != nil || got.Subject != "last" {
 		t.Fatalf("%+v, %v", got, err)
+	}
+}
+
+// A draft moved to a new key stays under its old one until it is
+// written under the new: a write that fails (a full disk refuses the
+// write and allows the removal) leaves the message where it was, and the
+// next write that succeeds moves it.
+func TestMoveKeepsTheOldDraftUntilTheNewIsWritten(t *testing.T) {
+	for _, flush := range []bool{false, true} {
+		s := New(t.TempDir())
+		var failed []error
+		var mu sync.Mutex
+		s.OnError = func(err error) { mu.Lock(); failed = append(failed, err); mu.Unlock() }
+		older, key := "/as/given", "/as/resolved"
+		d := Draft{Subject: "typed last week"}
+		s.Keep(older, d)
+		if err := s.Flush(); err != nil {
+			t.Fatal(err)
+		}
+		waitIdle(s)
+		// A folder in the place of the new key's file: its write fails.
+		if err := os.MkdirAll(filepath.Join(s.name(key), "x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// For Flush to write it, as at a quit, no goroutine may.
+		hold := func(on bool) {
+			if flush {
+				s.mu.Lock()
+				s.busy = on
+				s.mu.Unlock()
+			}
+		}
+		hold(true)
+		s.Move(older, key, d)
+		if flush {
+			if err := s.Flush(); err == nil {
+				t.Fatal("flushed a draft that could not be written")
+			}
+		}
+		hold(false)
+		waitIdle(s)
+		mu.Lock()
+		n := len(failed)
+		mu.Unlock()
+		if !flush && n != 1 {
+			t.Fatalf("%d writes failed: %v", n, failed)
+		}
+		if got, err := New(s.dir).Load(older); err != nil || got != d {
+			t.Fatalf("flush %v: the draft under the older key is %+v, %v once the write under the new one failed", flush, got, err)
+		}
+
+		if err := os.RemoveAll(s.name(key)); err != nil {
+			t.Fatal(err)
+		}
+		d.Body = "and edited"
+		hold(true)
+		s.Keep(key, d)
+		if flush {
+			if err := s.Flush(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		hold(false)
+		waitIdle(s)
+		if got, err := New(s.dir).Load(key); err != nil || got != d {
+			t.Fatalf("flush %v: the new key has %+v, %v", flush, got, err)
+		}
+		if _, err := os.Stat(s.name(older)); !os.IsNotExist(err) {
+			t.Fatalf("flush %v: the older draft is still there once the new one is written: %v", flush, err)
+		}
 	}
 }
 
