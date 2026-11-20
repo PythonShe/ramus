@@ -88,5 +88,10 @@ func TestBlameStartedBeforeHeadMovedIsRedone(t *testing.T) {
 	// be of what is there now.
 	tb.s.Writes++
 	h.tt.Frame()
-	h.until("the blame done again", func() bool { return fs.stamp != "" && fs.blameKey == fs.stamp && fs.blameDone && blames() >= 2 })
+	// Begun for the stat asked last, not taken over from the one before.
+	// Not counted in git's runs: the first blame, cancelled, may not have
+	// reached git.
+	h.until("the blame done again", func() bool {
+		return fs.stamp != "" && fs.blameKey == fs.stamp && fs.blameDone && fs.blameFor == fs.stampFor && blames() >= 1
+	})
 }
