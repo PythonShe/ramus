@@ -134,30 +134,43 @@ func TestTidyComment(t *testing.T) {
 // A comment as long as a host allows (GitHub 64 KiB, GitLab a million
 // characters) is read in a time that grows with its length, whatever it
 // holds: one that took the square of it froze the window for minutes.
-// The bound is loose for a loaded machine; the square of a mebibyte
-// takes minutes.
+// One comment of a mebibyte is timed against sixteen of a sixteenth, which
+// take as long when the time grows with the length and a sixteenth of it
+// when it grows with the square, on a machine however slow or loaded: a
+// bound in seconds failed on a busy one that read fourteen times slower.
 func TestLongCommentsReadInLinearTime(t *testing.T) {
-	const size = 1 << 20
-	repeat := func(unit string) string { return strings.Repeat(unit, size/len(unit)) }
-	for name, body := range map[string]string{
-		"code and bangs":     repeat("`a` !"),
-		"code and tags":      repeat("`a` <"),
-		"code and folds":     repeat("`a` <details>"),
-		"unclosed summaries": repeat("<details><summary>x"),
-		"backticks never closed": strings.Repeat("x", size/2) + func() string {
-			var b strings.Builder
-			for w := 1; b.Len() < size/2; w++ {
-				b.WriteString(strings.Repeat("`", w) + "<a")
-			}
-			return b.String()
-		}(),
-		"pre with code": repeat("<pre>`a` `b`</pre> `c` "),
-	} {
+	const size, pieces = 1 << 20, 16
+	bodies := func(size int) map[string]string {
+		repeat := func(unit string) string { return strings.Repeat(unit, size/len(unit)) }
+		return map[string]string{
+			"code and bangs":     repeat("`a` !"),
+			"code and tags":      repeat("`a` <"),
+			"code and folds":     repeat("`a` <details>"),
+			"unclosed summaries": repeat("<details><summary>x"),
+			"backticks never closed": strings.Repeat("x", size/2) + func() string {
+				var b strings.Builder
+				for w := 1; b.Len() < size/2; w++ {
+					b.WriteString(strings.Repeat("`", w) + "<a")
+				}
+				return b.String()
+			}(),
+			"pre with code": repeat("<pre>`a` `b`</pre> `c` "),
+		}
+	}
+	read := func(body string, times int) time.Duration {
 		start := time.Now()
-		commentParts(body, "Image")
-		// The race detector slows the read as it does a frame.
-		if d := time.Since(start); d > 2*time.Second*raceSlowdown {
-			t.Errorf("%s: %d bytes read in %v", name, len(body), d)
+		for range times {
+			commentParts(body, "Image")
+		}
+		return time.Since(start)
+	}
+	small := bodies(size / pieces)
+	for name, body := range bodies(size) {
+		parts, whole := read(small[name], pieces), read(body, 1)
+		// Four times leaves room for what else the machine does; the
+		// square is sixteen.
+		if whole > 4*parts {
+			t.Errorf("%s: %d bytes read in %v, %d comments of a sixteenth in %v", name, len(body), whole, pieces, parts)
 		}
 	}
 }
