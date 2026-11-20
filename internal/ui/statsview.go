@@ -20,7 +20,11 @@ type statsState struct {
 	branch   string // full ref name, "" for every branch and tag
 	from, to string // YYYY-MM-DD, as typed
 	asked    *session.StatsRequest
-	res      session.StatsResult
+	// again is a count cut short (the view left, the repository opened
+	// again), asked again as it was when shown next: the dates typed
+	// since were not submitted.
+	again *session.StatsRequest
+	res   session.StatsResult
 	// title and bars are res's chart over time, made once per result
 	// rather than in every frame.
 	title   string
@@ -42,7 +46,11 @@ func (a *App) statsView(c *ui.Context, t *tab) {
 	th := c.Theme()
 	ss := &t.stats
 	if ss.asked == nil && t.s.State.Refs != nil {
-		a.countStats(t)
+		if ss.again != nil {
+			a.loadStats(t, *ss.again)
+		} else {
+			a.countStats(t)
+		}
 	}
 	ui.Column(c).Fill().Children(func() {
 		// It wraps rather than cut the modes off in a narrow window.
@@ -141,13 +149,19 @@ func (a *App) countStats(t *tab) {
 		ss.err = errText(err)
 		return
 	}
-	ss.err, ss.asked, ss.loading = "", &req, true
+	a.loadStats(t, req)
+}
+
+// loadStats asks for the counts of req.
+func (a *App) loadStats(t *tab, req session.StatsRequest) {
+	ss := &t.stats
+	ss.err, ss.asked, ss.again, ss.loading = "", &req, nil, true
 	ss.res, ss.title, ss.bars = session.StatsResult{Req: req}, "", nil
 	now := a.Now()
 	t.s.LoadStats(req, func(r session.StatsResult) {
 		if reopened(r.Err) {
 			// Counted again as shown next, for the same request.
-			ss.asked, ss.loading = nil, false
+			ss.asked, ss.again, ss.loading = nil, &req, false
 			return
 		}
 		ss.res = r

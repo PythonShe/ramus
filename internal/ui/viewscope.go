@@ -116,7 +116,7 @@ func (a *App) leaveView(t *tab, name string) {
 	case "stats":
 		ss := &t.stats
 		if ss.loading {
-			ss.asked, ss.loading = nil, false
+			ss.asked, ss.again, ss.loading = nil, ss.asked, false
 		}
 		for _, ts := range []*treemapState{&ss.sizes, &ss.changes} {
 			if ts.loading {

@@ -140,6 +140,56 @@ func TestTreemapDropsAnEarlierRead(t *testing.T) {
 	}
 }
 
+// A count cut short, by Trust reopening the repository or by the view
+// left, is counted again as it was asked, not from the dates as they are
+// typed now and not submitted: half a date would leave the view reading
+// for good, a whole one would be counted as if submitted.
+func TestStatsCutShortAskedAgainAsAsked(t *testing.T) {
+	for _, cut := range []string{"trust", "leave"} {
+		t.Run(cut, func(t *testing.T) {
+			h := newHarness(t)
+			r := h.repoWith()
+			r.Write("a.txt", "alpha\n")
+			r.Commit("add alpha")
+			if cut == "leave" {
+				h.trust.Set(r.GitDir(), true)
+			}
+			h.app.Open(r.Dir)
+			h.until("the repository", func() bool {
+				return len(h.app.tabs) == 1 && h.app.current().s.State.Status != nil && h.app.current().s.State.Refs != nil
+			})
+			tb := h.app.current()
+			ss := &tb.stats
+			old := tb.s.Repo
+			if cut == "trust" {
+				if err := tb.s.Trust(); err != nil {
+					t.Fatal(err)
+				}
+				if !h.trust.Wait(20 * time.Second) {
+					t.Fatal("the trust was not saved")
+				}
+			}
+			tb.sel = "stats"
+			h.tt.Frame()
+			if ss.asked == nil || !ss.loading {
+				t.Fatal("nothing asked")
+			}
+			ss.from = "2026-" // being typed, not submitted
+			if cut == "trust" {
+				h.until("the repository open again", func() bool { return tb.s.Repo != old && tb.s.Repo != nil })
+			} else {
+				tb.sel = "changes"
+				h.tt.Frame()
+				tb.sel = "stats"
+			}
+			h.until("counted again", func() bool { return ss.asked != nil && ss.res.Done })
+			if ss.err != "" || ss.res.Err != nil || ss.res.Stats.Commits != 2 || !ss.asked.Since.IsZero() {
+				t.Fatalf("error %q, %v; %d commits since %v", ss.err, ss.res.Err, ss.res.Stats.Commits, ss.asked.Since)
+			}
+		})
+	}
+}
+
 // The branch chosen in the statistics' menu is the one it was shown for,
 // when a branch whose name reads alike, once cleaned for showing, comes
 // in before it while the menu is open.
