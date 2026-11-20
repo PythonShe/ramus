@@ -271,6 +271,52 @@ func TestPictureWaitEnds(t *testing.T) {
 	}
 }
 
+// The picture turn is not given to a decode whose repository has
+// closed, nor to one whose file is no longer shown: not when the turn is
+// free, nor when it comes as they go, before the decode goes on.
+func TestPictureTurnNotTakenOnceUnwanted(t *testing.T) {
+	ended := make(chan struct{})
+	close(ended)
+	stale := newStaleness()
+	stale.set()
+	for _, c := range []struct {
+		stale *staleness
+		life  chan struct{}
+	}{{newStaleness(), ended}, {stale, nil}} {
+		if took, _ := waitPicture(c.stale, c.life); took {
+			endPicture()
+			t.Fatal("the free turn taken for a decode no longer wanted")
+		}
+	}
+	// On one thread the waiter, handed the turn, runs only once its
+	// repository has closed or its file gone too; but for a round where
+	// it was let run in between, as a test before this one may leave
+	// work behind, it must not take the turn.
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	const rounds = 20
+	taken := 0
+	for i := range rounds {
+		takePicture(t)
+		life, st := make(chan struct{}), newStaleness()
+		got := make(chan bool)
+		go func() { took, _ := waitPicture(st, life); got <- took }()
+		untilWaiting(t, "a decode", 1)
+		endPicture()
+		if i%2 == 0 {
+			close(life)
+		} else {
+			st.set()
+		}
+		if <-got {
+			endPicture()
+			taken++
+		}
+	}
+	if taken > rounds/4 {
+		t.Fatalf("the turn taken in %d of %d rounds for a decode no longer wanted", taken, rounds)
+	}
+}
+
 // However many files ask for their pictures while one decodes, only a
 // few wait, holding their bytes: one more sends the oldest away, whose
 // view asks again, if it still shows it, once a decode has ended. Asked

@@ -110,7 +110,15 @@ const maxPictureWaiters = 4
 // which would ask again: the views would go round at the frame rate for
 // as long as one long decode runs.
 func waitPicture(stale *staleness, life <-chan struct{}) (took, away bool) {
-	if stale.Load() {
+	wanted := func() bool {
+		select {
+		case <-life:
+			return false
+		default:
+			return !stale.Load()
+		}
+	}
+	if !wanted() {
 		return false, false
 	}
 	p := &pictureTurn
@@ -136,6 +144,12 @@ func waitPicture(stale *staleness, life <-chan struct{}) (took, away bool) {
 	p.Unlock()
 	select {
 	case <-me.turn:
+		// The turn may come as the decode stops being wanted, before it
+		// wakes: it goes on to the next.
+		if !wanted() {
+			endPicture()
+			return false, false
+		}
 		return true, false
 	case <-me.away:
 		select {
