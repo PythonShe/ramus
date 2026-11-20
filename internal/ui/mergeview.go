@@ -493,7 +493,8 @@ func (a *App) conflictBlock(c *ui.Context, ms *mergeState, k int, cc *conflict.C
 			if ours == "HEAD" && head != "" {
 				ours = head
 			}
-			ui.Row(c).Gap(spaceM).FillWidth().Children(func() {
+			// From the top: a side of fewer lines starts level with the others.
+			ui.Row(c).Gap(spaceM).FillWidth().AlignItems(ui.Start).Children(func() {
 				side(locales.MergeOursSide(redact.Control(ours)), shown.sides[0])
 				if cc.HasBase {
 					side(locales.MergeBaseSide(redact.Control(cc.BaseLabel)), shown.sides[1])
