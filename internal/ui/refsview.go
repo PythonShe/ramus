@@ -28,6 +28,7 @@ type refsState struct {
 
 	info    *session.RefInfo
 	readFor *refs.List
+	readCfg configRead
 	readW   int
 	loading bool
 
@@ -123,10 +124,11 @@ func (rs *refsState) showRef(name string) {
 func (a *App) loadRefs(t *tab) {
 	rs := &t.refs
 	st := t.s.State
-	if rs.loading || (st.Refs == rs.readFor && t.s.Writes == rs.readW && rs.info != nil) {
+	cfg := t.configRead()
+	if rs.loading || (st.Refs == rs.readFor && cfg == rs.readCfg && t.s.Writes == rs.readW && rs.info != nil) {
 		return
 	}
-	rs.readFor, rs.readW, rs.loading = st.Refs, t.s.Writes, true
+	rs.readFor, rs.readCfg, rs.readW, rs.loading = st.Refs, cfg, t.s.Writes, true
 	t.s.LoadRefInfo(func(info session.RefInfo) {
 		rs.loading = false
 		if reopened(info.Err) {

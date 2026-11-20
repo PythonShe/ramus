@@ -152,6 +152,27 @@ func TestSyncGoneUpstream(t *testing.T) {
 	h.until("even", h.labelled("Fetch"))
 }
 
+// An upstream given or taken away in a terminal moves no ref: the button
+// follows the config, publishing no branch that has an upstream.
+func TestSyncFollowsUpstreamSetOutside(t *testing.T) {
+	h := newHarness(t)
+	origin := gittest.Init(t, "--bare")
+	r := h.repoWith()
+	r.Git("remote", "add", "origin", origin.Dir)
+	r.Git("switch", "-q", "-c", "topic")
+	r.Git("push", "-q", "origin", "topic")
+	h.trust.Set(r.GitDir(), true)
+	h.app.Open(r.Dir)
+	h.until("the repository", h.shows("No local changes"))
+	h.until("publish", h.shows("Publish Branch"))
+
+	r.Git("branch", "-q", "-u", "origin/topic", "topic")
+	h.until("even with the upstream set", h.labelled("Fetch"))
+
+	r.Git("branch", "-q", "--unset-upstream", "topic")
+	h.until("publish again", h.shows("Publish Branch"))
+}
+
 // syncOf tells the writes the sync button follows from the others.
 func TestSyncOf(t *testing.T) {
 	w := write.Where{GitDir: "/r/.git", WorkTree: "/r"}

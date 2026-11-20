@@ -67,6 +67,7 @@ type commitState struct {
 	// pushed takes a force push.
 	track        session.Track
 	trackFor     *refs.List
+	trackCfg     configRead
 	trackOf      string
 	trackRead    string
 	trackLoading bool
@@ -433,12 +434,13 @@ func commitHidden(t *tab) bool {
 func followTrack(t *tab) {
 	cs := &t.commit
 	head := t.s.State.Head
-	if !cs.amend || cs.trackLoading || (cs.trackFor == t.s.State.Refs && cs.trackOf == head.Target) {
+	cfg := t.configRead()
+	if !cs.amend || cs.trackLoading || (cs.trackFor == t.s.State.Refs && cs.trackCfg == cfg && cs.trackOf == head.Target) {
 		return
 	}
 	// Until the new read lands, the old one says nothing: a commit
 	// since may have left the upstream behind.
-	cs.trackFor, cs.trackOf, cs.trackLoading, cs.trackRead = t.s.State.Refs, head.Target, true, ""
+	cs.trackFor, cs.trackCfg, cs.trackOf, cs.trackLoading, cs.trackRead = t.s.State.Refs, cfg, head.Target, true, ""
 	t.s.LoadTrack(func(tr session.Track) {
 		cs.trackLoading = false
 		cs.track, cs.trackRead = tr, tr.Branch

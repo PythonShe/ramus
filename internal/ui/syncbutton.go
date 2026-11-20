@@ -23,6 +23,7 @@ type syncState struct {
 	// switched to is read, the button is not shown.
 	trackOf string
 	readFor *refs.List
+	readCfg configRead
 	head    string
 	loading bool
 	// running is the fetch, pull or push the user started last, and
@@ -54,8 +55,10 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 	if head.Detached || head.Unborn || len(head.OID) == 0 {
 		return
 	}
-	if !s.loading && (s.readFor != t.s.State.Refs || s.head != head.Target) {
-		s.readFor, s.head, s.loading = t.s.State.Refs, head.Target, true
+	// The config too: a terminal gives a branch its upstream, or takes
+	// it away, without moving a ref.
+	if cfg := t.configRead(); !s.loading && (s.readFor != t.s.State.Refs || s.readCfg != cfg || s.head != head.Target) {
+		s.readFor, s.readCfg, s.head, s.loading = t.s.State.Refs, cfg, head.Target, true
 		t.s.LoadTrack(func(tr session.Track) {
 			s.loading = false
 			s.track, s.trackOf = tr, tr.Branch
