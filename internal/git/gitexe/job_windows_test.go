@@ -28,8 +28,10 @@ var comspec = filepath.Join(os.Getenv("SystemRoot"), "System32", "cmd.exe")
 func TestJobHoldsTheProcessFromTheStart(t *testing.T) {
 	var out bytes.Buffer
 	// It waits for its input to end, so that it still runs, in its job,
-	// when the test asks.
-	cmd := exec.Command(comspec, "/c", "set /p x=& echo answered")
+	// when the test asks. Made with a context, as the app makes every
+	// command: InJob sets Cancel, which Start refuses on a command made
+	// without one.
+	cmd := exec.CommandContext(context.Background(), comspec, "/c", "set /p x=& echo answered")
 	cmd.Stdout = &out
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -61,7 +63,9 @@ func TestJobHoldsTheProcessFromTheStart(t *testing.T) {
 		t.Fatalf("in the job Join made: %v, %v", in, err)
 	}
 	stdin.Close()
-	if err := cmd.Wait(); err != nil || !bytes.Contains(out.Bytes(), []byte("answered")) {
+	// Its exit code may be that of set /p, which fails on an input that
+	// ends empty: what it printed says it ran to its end.
+	if err := cmd.Wait(); !bytes.Contains(out.Bytes(), []byte("answered")) {
 		t.Fatalf("%v: %q", err, out.String())
 	}
 }
