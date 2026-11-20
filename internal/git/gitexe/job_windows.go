@@ -74,8 +74,18 @@ func (j *Job) Dies() bool { return j.dies }
 // process runs without one, cancelling ends it and its descendants one
 // by one, and the error says why. Once the process has exited, what it
 // left running is let be, as on other systems: the job is let go
-// without ending it.
+// without ending it. A command cancelled as it started has no error:
+// the cancel, killing the process or ending its job beside Join, makes
+// Join fail, which says nothing of whether jobs can be had.
 func (j *Job) Join(cmd *exec.Cmd) (err error) {
+	// Deferred first, to run last: after a failure to resume.
+	defer func() {
+		j.mu.Lock()
+		if j.cancelled {
+			err = nil
+		}
+		j.mu.Unlock()
+	}()
 	pid := uint32(cmd.Process.Pid)
 	if j.suspended {
 		defer func() {

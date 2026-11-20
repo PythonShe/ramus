@@ -70,6 +70,35 @@ func TestJobHoldsTheProcessFromTheStart(t *testing.T) {
 	}
 }
 
+// A command cancelled as it starts, before Join, is ended by the cancel,
+// and Join, which then cannot put it in its job nor resume it, says
+// nothing: the runner would keep the error as why git runs without a job.
+func TestJoinOfACancelledCommand(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cmd := exec.CommandContext(ctx, comspec, "/c", "exit")
+	j := InJob(cmd, false)
+	j.Suspend(cmd)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer cmd.Wait()
+	h, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(cmd.Process.Pid))
+	if err != nil {
+		cmd.Process.Kill()
+		t.Fatal(err)
+	}
+	defer windows.CloseHandle(h)
+	cancel()
+	if ev, err := windows.WaitForSingleObject(h, 10_000); ev != windows.WAIT_OBJECT_0 {
+		cmd.Process.Kill()
+		t.Fatalf("not ended by the cancel: %d, %v", ev, err)
+	}
+	if err := j.Join(cmd); err != nil {
+		t.Fatalf("Join of a command cancelled: %v", err)
+	}
+}
+
 var suspendThread = windows.NewLazySystemDLL("kernel32.dll").NewProc("SuspendThread")
 
 // suspendCount returns how many times the first thread of process pid is
