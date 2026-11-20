@@ -14,6 +14,8 @@ repositories and runs your own git.
 [Benchmarks](docs/benchmarks.md) ·
 [Contributing](CONTRIBUTING.md)
 
+<img src="assets/cards/bento.jpg" alt="Ramus showing the Linux kernel's history, beside three figures: 765 ms to lay out its 1.5 million commits, 171 ms from cold start to the first frame, 60 MiB with ten repositories open and idle" width="800">
+
 </div>
 
 ## What it does
@@ -71,6 +73,7 @@ On Apple silicon (p50 of 5 runs, on a machine in use):
 | Linux kernel, open to the first screen of history | 360 ms |
 | Linux kernel, all 1,507,472 commits laid out in the graph | 765 ms, 176 MiB |
 | Flinging down the kernel's graph, slowest frame of 3,000 | 6.5 ms |
+| A commit landing on the kernel's history, to it shown | 151 ms |
 | 390,000-file repository, open to a populated status panel | 1.63 s |
 | One file saved, to the status showing it (20,000 files) | 162 ms |
 | 50 MB text diff, read and shown | 294 ms |

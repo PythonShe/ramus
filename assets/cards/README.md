@@ -5,7 +5,7 @@ Pictures of Ramus for the places that list it, each 1600x1000 and under
 
 | Card | What it shows |
 |------|---------------|
-| `bento.jpg` | Three benchmark figures beside the dark window. The [mygo showcase](https://github.com/egoist/mygo-showcase) uses this one. |
+| `bento.jpg` | Three benchmark figures beside the dark window. The top of the repository's README and the [mygo showcase](https://github.com/egoist/mygo-showcase) use this one. |
 | `midnight.jpg` | A headline over the dark window. |
 | `ivory.jpg` | A headline beside the window in the light theme. |
 
