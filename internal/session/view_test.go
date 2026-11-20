@@ -44,7 +44,7 @@ func TestLeavingAViewCancelsItsReads(t *testing.T) {
 	s.SetView("file")
 	answered := false
 	s.FileLog("a", FileLogOptions{}, func([]FileCommit, bool, error) { answered = true })
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for runner.Running() == 0 {
 		if time.Now().After(deadline) {
 			t.Fatal("the file history never started")

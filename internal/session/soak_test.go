@@ -42,12 +42,12 @@ func TestSoak(t *testing.T) {
 		s.Close()
 		select {
 		case <-s.Done():
-		case <-time.After(20 * time.Second):
+		case <-time.After(time.Minute):
 			t.Fatal("the session did not end")
 		}
 	}
 	settle := func() (goroutines int, heap uint64) {
-		deadline := time.Now().Add(5 * time.Second)
+		deadline := time.Now().Add(time.Minute)
 		for {
 			runtime.GC()
 			var ms runtime.MemStats

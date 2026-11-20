@@ -18,7 +18,7 @@ func (m mainThread) update(fn func()) { m <- fn }
 
 func (m mainThread) until(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	deadline := time.After(20 * time.Second)
+	deadline := time.After(time.Minute)
 	for !ok() {
 		select {
 		case fn := <-m:

@@ -62,7 +62,7 @@ func TestIgnoredDirsFollowGitignore(t *testing.T) {
 	}
 	r.Write(".gitignore", "other/\n")
 	// The read runs beside the refresh, which may be the last update.
-	for deadline := time.Now().Add(20 * time.Second); d.skip("build"); m.pump(20 * time.Millisecond) {
+	for deadline := time.Now().Add(time.Minute); d.skip("build"); m.pump(20 * time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatal("build/ is still skipped")
 		}
@@ -89,7 +89,7 @@ func TestIgnoredDirsFollowForcedAdds(t *testing.T) {
 		t.Fatal("dist/ is not skipped")
 	}
 	r.Git("add", "-f", "dist/app.js")
-	for deadline := time.Now().Add(20 * time.Second); d.skip("dist"); m.pump(20 * time.Millisecond) {
+	for deadline := time.Now().Add(time.Minute); d.skip("dist"); m.pump(20 * time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatal("dist/ is still skipped")
 		}

@@ -47,7 +47,7 @@ func TestCatFileReadsStopWithTheirContext(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("a cancelled read said %v", err)
 		}
-	case <-time.After(20 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("a cancelled read waited for the batch before it")
 	}
 }

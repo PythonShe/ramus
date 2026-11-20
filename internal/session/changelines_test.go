@@ -34,6 +34,12 @@ func TestCountsCoalesce(t *testing.T) {
 	r.Write("a", "1\n")
 	r.Commit("one")
 	r.Write("a", "1\n2\n")
+	// Written lately whenever its lines are counted, however long the
+	// repository takes to open: no count of it is kept.
+	late := time.Now().Add(time.Hour)
+	if err := os.Chtimes(filepath.Join(r.Dir, "a"), late, late); err != nil {
+		t.Fatal(err)
+	}
 	m := make(mainThread, 64)
 	s := Open(runner, trusted(t, r.GitDir()), r.Dir, m.update)
 	t.Cleanup(func() { s.Close(); <-s.Done() })

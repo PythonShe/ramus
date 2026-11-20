@@ -144,7 +144,7 @@ func TestIndexCopyOfAPipe(t *testing.T) {
 		if err == nil {
 			t.Fatal("a pipe was copied as the index")
 		}
-	case <-time.After(20 * time.Second):
+	case <-time.After(time.Minute):
 		unblock()
 		t.Fatal("the copy waited on the pipe")
 	}

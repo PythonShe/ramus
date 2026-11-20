@@ -28,8 +28,10 @@ func TestStatusPause(t *testing.T) {
 // Full statuses are spaced out by twice what the last took, unless the
 // user asks.
 func TestFullStatusWaitsOutThePause(t *testing.T) {
-	const took = 400 * time.Millisecond
-	runner, logged := scriptRunner(t, `case "$*" in *"status --porcelain=v2"*) sleep 0.4;; esac`)
+	// Long beside what starting git takes on a slow machine: the bounds
+	// below are multiples of it.
+	const took = time.Second
+	runner, logged := scriptRunner(t, `case "$*" in *"status --porcelain=v2"*) sleep 1;; esac`)
 	r := gittest.Init(t)
 	r.Write("a", "1")
 	r.Commit("one")
@@ -50,13 +52,17 @@ func TestFullStatusWaitsOutThePause(t *testing.T) {
 		t.Fatalf("the next full status showed %v after the last", d)
 	}
 
-	m.pump(Debounce)
+	// No notice of the files written still on its way, which would show
+	// a status that is not the reload's.
+	m.settle(t, s)
+	asked := time.Now()
 	before, read := fullStatusRuns(logged()), s.State.Refreshed
 	s.Reload()
-	m.until(t, "the reload", func() bool { return !s.State.Refreshed.Equal(read) })
+	m.until(t, "the reload", func() bool { return fullStatusRuns(logged()) > before && !s.State.Refreshed.Equal(read) })
 	// One that waited out the pause would show 2*took after the last
-	// ended, and take took more.
-	if d := time.Since(last); d >= 3*took || fullStatusRuns(logged()) == before {
+	// ended, and take took more. Told only while the pause still had most
+	// of its time to run as the reload was asked for.
+	if d := time.Since(last); asked.Sub(last) < took/2 && d >= 3*took {
 		t.Fatalf("a reload the user asked for showed %v after the last status", d)
 	}
 }

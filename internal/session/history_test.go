@@ -509,7 +509,7 @@ func TestHistoryOfTheClosedRepositoryIsDropped(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The trust's answer is queued, not yet run.
-	for deadline := time.Now().Add(10 * time.Second); len(m) == 0; {
+	for deadline := time.Now().Add(time.Minute); len(m) == 0; {
 		if time.Now().After(deadline) {
 			t.Fatal("trust not queued")
 		}

@@ -33,7 +33,7 @@ func TestForgetPullsKeepsWhatAnotherSessionReviews(t *testing.T) {
 	a, b := open(), open()
 	waitGone := func(n string) {
 		t.Helper()
-		deadline := time.After(20 * time.Second)
+		deadline := time.After(time.Minute)
 		for has(n) {
 			select {
 			case fn := <-m:

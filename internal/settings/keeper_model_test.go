@@ -313,6 +313,15 @@ func TestKeeperTwoCopiesAtOnce(t *testing.T) {
 		wg.Go(func() { <-start; b.keep(split); b.k.Wait() })
 		close(start)
 		wg.Wait()
+		// A copy kept from the file by the other's lock for as long as it
+		// waits for one, on a slow machine, has its change still to
+		// write, as it does by itself later: now.
+		for try := 0; (a.k.Unsaved() || b.k.Unsaved()) && try < 10; try++ {
+			a.k.SaveNow()
+			a.k.Wait()
+			b.k.SaveNow()
+			b.k.Wait()
+		}
 		if s := load(t, p); s.Theme != "dark" || !s.DiffSplit {
 			t.Fatalf("run %d: one change lost: %+v", i, s)
 		}

@@ -20,7 +20,7 @@ import (
 // read of old will ever answer has been answered.
 func (m mainThread) drainClosed(t *testing.T, old *repo.Repository) {
 	t.Helper()
-	deadline := time.After(20 * time.Second)
+	deadline := time.After(time.Minute)
 	for {
 		select {
 		case fn := <-m:

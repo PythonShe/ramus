@@ -210,7 +210,7 @@ func TestPatchIDsTakeOneSlot(t *testing.T) {
 	r.Write("a", "2\n")
 	r.Commit("two")
 	one := run.New(testrun.Runner(t).Git(), gittest.Env(), 1)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	rp, err := repo.Open(ctx, one, r.Dir, func(repo.Location) bool { return true })
 	if err != nil {

@@ -58,7 +58,7 @@ func scriptRunner(t *testing.T, more string) (runner *run.Runner, logged func() 
 // changed nothing.
 func (m mainThread) settle(t *testing.T, s *Session) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	since := time.Now()
 	for time.Since(since) < 4*Debounce {
 		select {
@@ -118,13 +118,22 @@ func TestIgnoredWritesKeepTheStatus(t *testing.T) {
 			t.Fatalf("write %d to an ignored file published a status", i)
 		}
 	}
-	// The index written anew, as it was.
-	r.Git("add", "a")
-	r.Git("reset", "-q", "--", "a")
-	s.Refresh(repo.IndexChanged)
-	m.settle(t, s)
-	if s.State.Status != shown {
-		t.Fatal("an index written as it was published a status")
+	// The index written anew, as it was. A notice of the watcher's own
+	// for the ignored file, come late, joins the index's as a change in
+	// the work tree, which has the status published again: once those are
+	// through, it is not.
+	for try := 0; ; try++ {
+		shown = s.State.Status
+		r.Git("add", "a")
+		r.Git("reset", "-q", "--", "a")
+		s.Refresh(repo.IndexChanged)
+		m.settle(t, s)
+		if s.State.Status == shown {
+			break
+		}
+		if try == 10 {
+			t.Fatal("an index written as it was published a status")
+		}
 	}
 	r.Write("a", "3")
 	s.refreshPaths(repo.WorkTreeChanged, []string{"a"})

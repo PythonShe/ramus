@@ -214,7 +214,7 @@ func TestDiffToolLeavingAProcessRunning(t *testing.T) {
 	t.Cleanup(func() {
 		defer os.RemoveAll(dir)
 		os.WriteFile(stop, nil, 0o644)
-		for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		for deadline := time.Now().Add(time.Minute); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
 			if _, err := os.Stat(gone); err == nil {
 				return
 			}

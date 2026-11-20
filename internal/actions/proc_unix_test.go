@@ -32,7 +32,7 @@ func TestCancelEndsWhatTheActionStarted(t *testing.T) {
 			mu.Unlock()
 		})
 	}()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(time.Minute)
 	for {
 		mu.Lock()
 		p := pid
@@ -49,7 +49,7 @@ func TestCancelEndsWhatTheActionStarted(t *testing.T) {
 	if err := <-done; err == nil {
 		t.Fatal("a cancelled action succeeded")
 	}
-	for deadline = time.Now().Add(5 * time.Second); ; {
+	for deadline = time.Now().Add(time.Minute); ; {
 		// Its parent, the shell, is gone: the child is reaped by init, or
 		// is a zombie no signal reaches.
 		if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {

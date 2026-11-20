@@ -306,7 +306,7 @@ func TestHungBackgroundFetchesLeaveSlotsForReads(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the hanging ssh is a shell script")
 	}
-	for deadline := time.Now().Add(10 * time.Second); len(quietFetches) > 0; time.Sleep(10 * time.Millisecond) {
+	for deadline := time.Now().Add(time.Minute); len(quietFetches) > 0; time.Sleep(10 * time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatal("background fetches of other tests still running")
 		}

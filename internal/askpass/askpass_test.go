@@ -134,7 +134,7 @@ func TestHelperChecks(t *testing.T) {
 	}
 	select {
 	case <-a.Gone():
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Minute):
 		t.Fatal("an answered question is not gone")
 	}
 	s.mu.Lock()

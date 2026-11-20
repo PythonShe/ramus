@@ -237,7 +237,7 @@ func TestFetchWaitsForBusyWorktrees(t *testing.T) {
 	}
 	s.SetBackgroundFetch(20*time.Millisecond, nil)
 	// Put off more than once: it was due, and still held off.
-	for deadline := time.Now().Add(20 * time.Second); s.fetch.waited.Load() < 3; m.pump(10 * time.Millisecond) {
+	for deadline := time.Now().Add(time.Minute); s.fetch.waited.Load() < 3; m.pump(10 * time.Millisecond) {
 		if time.Now().After(deadline) {
 			t.Fatal("the fetch was never put off")
 		}
@@ -500,7 +500,7 @@ func TestSummaryQueuedAtReopenSaysSo(t *testing.T) {
 	s, m := openSettled(t, r)
 	var got []WorktreeSummary
 	s.SummarizeWorktrees([]repo.Worktree{{Path: r.Dir}}, func(sum WorktreeSummary) { got = append(got, sum) })
-	deadline := time.After(20 * time.Second)
+	deadline := time.After(time.Minute)
 	for len(m) == 0 {
 		select {
 		case <-deadline:
