@@ -47,8 +47,7 @@ const (
 // what it is behind, push what it is ahead, or fetch to find out; a
 // branch with no upstream is published to the remote. It shows that as
 // glyphs and counts, and says it in words to assistive technology and in
-// its tooltip. The chevron beside it opens every way to fetch, pull and
-// push.
+// its tooltip. Its arrow opens every way to fetch, pull and push.
 func (a *App) syncButton(c *ui.Context, t *tab) {
 	s := &t.sync
 	head := t.s.State.Head
@@ -144,8 +143,12 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 	}
 	still := c.Preferences().ReduceMotion
 	ui.Toolbar(c, func() {
+		// One control of two segments, so that the chevron reads as more
+		// of what the button does and is as easy to hit.
+		sb := ui.SplitButton(c, "")
+		sb.Group.Disabled(ro)
 		// Not Disabled while busy: dimmed, a turning glyph reads as off.
-		b := ui.Button(c, "").Label(label).Tooltip(tip).Description(tip).Disabled(ro)
+		b := sb.Button.Label(label).Tooltip(tip).Description(tip)
 		b.Children(func() {
 			ui.Row(c).Gap(spaceM).AlignItems(ui.Center).Children(func() {
 				for i, p := range pairs {
@@ -170,7 +173,7 @@ func (a *App) syncButton(c *ui.Context, t *tab) {
 		if b.Clicked() && !mine && !(busy && len(pairs) == 0) {
 			act()
 		}
-		a.syncMenu(c, t, tr)
+		a.syncMenu(sb.Arrow, t, tr)
 	}).Label(label)
 }
 
@@ -189,13 +192,11 @@ func pushTarget(tr session.Track) (to string, ahead int) {
 	return redact.Control(strings.TrimPrefix(tr.Push, "refs/remotes/")), ahead
 }
 
-// syncMenu is the chevron beside the sync button: every way to fetch,
-// pull and push the branch checked out, as Branches offers them.
-func (a *App) syncMenu(c *ui.Context, t *tab, tr session.Track) {
+// syncMenu gives the arrow of the sync button its menu: every way to
+// fetch, pull and push the branch checked out, as Branches offers them.
+func (a *App) syncMenu(arrow ui.Element, t *tab, tr session.Track) {
 	label := locales.SyncMenu()
-	b := ui.Button(c, "").Label(label).Tooltip(label).Disabled(t.s.Queue == nil).Padding(0, spaceXS)
-	b.Children(func() { ui.Icon(c, glyphs().chevronDown).FontSize(iconSmall).TextColor(c.Theme().TextMuted) })
-	b.Menu(func(m *ui.Menu) {
+	arrow.Label(label).Tooltip(label).Menu(func(m *ui.Menu) {
 		w := t.s.Where()
 		// The branch the menu is for: a push refuses once HEAD is on
 		// another, which git would push in its place.
