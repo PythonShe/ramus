@@ -95,6 +95,34 @@ func TestKeepUnknownInAList(t *testing.T) {
 	}
 }
 
+// The fields of an embedded struct, which encoding/json writes at the
+// level of the struct that embeds it, keep a later version's keys inside
+// them as the struct's own fields do.
+func TestKeepUnknownInAnEmbeddedStruct(t *testing.T) {
+	type child struct {
+		Known int `json:"known"`
+	}
+	type embedded struct {
+		Child child `json:"child"`
+	}
+	type outer struct {
+		embedded
+		Plain child `json:"plain"`
+	}
+	old := json.RawMessage(`{"child":{"known":1,"future":2},"plain":{"known":1,"future":2},"top":9}`)
+	now, err := json.Marshal(outer{embedded{child{3}}, child{3}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := KeepUnknown(old, now, reflect.TypeFor[outer]())
+	var got, want any
+	json.Unmarshal(out, &got)
+	json.Unmarshal([]byte(`{"child":{"known":3,"future":2},"plain":{"known":3,"future":2},"top":9}`), &want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %s", out)
+	}
+}
+
 // TestKeptAsideUnderAFreeName keeps two unreadable files in turn: the
 // second takes the next name, not the first's.
 func TestKeptAsideUnderAFreeName(t *testing.T) {

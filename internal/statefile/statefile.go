@@ -207,24 +207,34 @@ func keepUnknown(old, now json.RawMessage, t reflect.Type) (json.RawMessage, boo
 			return now, false
 		}
 		changed := false
-		for i := range t.NumField() {
-			f := t.Field(i)
-			name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-			if !f.IsExported() || name == "-" {
-				continue
-			}
-			if name == "" {
-				name = f.Name
-			}
-			nk, nv, ok := LookupKey(n, name)
-			_, ov, found := LookupKey(o, name)
-			if !ok || !found {
-				continue
-			}
-			if v, c := keepUnknown(ov, nv, f.Type); c {
-				n[nk], changed = v, true
+		var fields func(t reflect.Type)
+		fields = func(t reflect.Type) {
+			for i := range t.NumField() {
+				f := t.Field(i)
+				tag := f.Tag.Get("json")
+				// Its fields are written at this level, as fieldNames has it.
+				if f.Anonymous && tag == "" && f.Type.Kind() == reflect.Struct {
+					fields(f.Type)
+					continue
+				}
+				name, _, _ := strings.Cut(tag, ",")
+				if !f.IsExported() || name == "-" {
+					continue
+				}
+				if name == "" {
+					name = f.Name
+				}
+				nk, nv, ok := LookupKey(n, name)
+				_, ov, found := LookupKey(o, name)
+				if !ok || !found {
+					continue
+				}
+				if v, c := keepUnknown(ov, nv, f.Type); c {
+					n[nk], changed = v, true
+				}
 			}
 		}
+		fields(t)
 		for k, v := range Extra(old, t) {
 			if _, ok := n[k]; !ok {
 				n[k], changed = v, true
