@@ -98,7 +98,7 @@ func lockError(gitDir, stderr string) error {
 		if _, err := os.Lstat(path); err != nil {
 			continue // gone since
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), holdersWait)
 		defer cancel()
 		return describeLock(ctx, path)
 	}
@@ -181,8 +181,14 @@ func holders(ctx context.Context, path string) ([]Holder, error) {
 // cannot see.
 var errOtherUser = errors.New("the lock is another user's")
 
+// holdersWait bounds asking the system which processes have a lock open.
+// lsof answers in a fifth of a second on an idle machine and takes over
+// a second on a busy one; cut short, it says nothing of the lock, which
+// then cannot be told stale and removed.
+const holdersWait = 15 * time.Second
+
 func openedBy(ctx context.Context, path string) ([]Holder, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, holdersWait)
 	defer cancel()
 	var lsof string
 	for _, p := range lsofPaths {
