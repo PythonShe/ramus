@@ -45,16 +45,17 @@ type trackLoad struct {
 	cancel  context.CancelFunc
 	gen     int
 	refs    *refs.List
+	cfg     *config.Config
 	branch  string
 	waiters []func(Track)
 }
 
 // LoadTrack reads how the branch checked out stands with its upstream,
 // off the main thread, and calls done with it on the main thread. A call
-// while a read of the same refs and branch runs waits on that read; one
-// for newer refs or another branch cancels it, and its callers hear the
-// newer read, which names the branch it was read for. A failed read
-// reports none.
+// while a read of the same refs, config and branch runs waits on that
+// read; one for newer refs, a config read again or another branch cancels
+// it, and its callers hear the newer read, which names the branch it was
+// read for. A failed read reports none.
 func (s *Session) LoadTrack(done func(Track)) {
 	r := s.Repo
 	head := s.State.Head
@@ -63,8 +64,11 @@ func (s *Session) LoadTrack(done func(Track)) {
 		return
 	}
 	l := &s.track
+	// The config too: it names the upstream, and a caller records the
+	// config its answer was read under.
+	cfg := r.Config()
 	l.mu.Lock()
-	if l.cancel != nil && l.refs == s.State.Refs && l.branch == head.Target {
+	if l.cancel != nil && l.refs == s.State.Refs && l.cfg == cfg && l.branch == head.Target {
 		l.waiters = append(l.waiters, done)
 		l.mu.Unlock()
 		return
@@ -75,7 +79,7 @@ func (s *Session) LoadTrack(done func(Track)) {
 	ctx, cancel := context.WithTimeout(r.Life().Context(), trackTimeout)
 	l.gen++
 	gen := l.gen
-	l.cancel, l.refs, l.branch = cancel, s.State.Refs, head.Target
+	l.cancel, l.refs, l.cfg, l.branch = cancel, s.State.Refs, cfg, head.Target
 	l.waiters = append(l.waiters, done)
 	l.mu.Unlock()
 	// finish hands t to every caller waiting, unless a newer read took
@@ -87,13 +91,13 @@ func (s *Session) LoadTrack(done func(Track)) {
 			return
 		}
 		waiters := l.waiters
-		l.cancel, l.refs, l.waiters = nil, nil, nil
+		l.cancel, l.refs, l.cfg, l.waiters = nil, nil, nil, nil
 		l.mu.Unlock()
 		for _, w := range waiters {
 			w(t)
 		}
 	}
-	triangular := pushesElsewhere(r.Config(), strings.TrimPrefix(head.Target, "refs/heads/"))
+	triangular := pushesElsewhere(cfg, strings.TrimPrefix(head.Target, "refs/heads/"))
 	err := r.Life().Go(func(context.Context) {
 		defer cancel()
 		cmd := &run.Cmd{GitDir: r.GitDir, Read: true,
