@@ -44,6 +44,12 @@ func TestUntrackedFolderFiles(t *testing.T) {
 	if countExact(h, "+3") == 0 {
 		t.Fatalf("no count of the folder: %q", h.tt.Texts())
 	}
+	// The changes are counted in files, a folder being those it holds,
+	// the ignored left out: two entries of status, four files.
+	h.until("the files counted", func() bool { return h.tt.HasText("Changes (4)") && h.tt.HasText("Unstaged (4)") })
+	if _, ok := h.tt.Access("Unstaged, 4 files"); !ok {
+		t.Fatalf("the section's label: %q", h.tt.Texts())
+	}
 	tb := h.app.current()
 	pv := &tb.cv.diff.pv
 	h.click("sub/deep.txt")
@@ -149,7 +155,7 @@ func TestUntrackedFolderBound(t *testing.T) {
 			}
 		}
 		if len(m.rows) > 0 {
-			last = rowLabel(&h.app.current().cv, m, m.rows[len(m.rows)-1])
+			last = rowLabel(&h.app.current().cv, m, m.rows[len(m.rows)-1], h.app.current().s.State.Folders)
 		}
 		return n, last
 	}

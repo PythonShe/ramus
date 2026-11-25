@@ -93,6 +93,34 @@ type changeModel struct {
 	// staged counts the staged entries, the filter aside, for the commit
 	// box.
 	staged int
+	// whole are the untracked folders shown, for the count of the files
+	// of their section.
+	whole []folderShown
+}
+
+// folderShown is an untracked folder among the entries shown, and how
+// many files of it are: -1 for all it holds, or those the filter kept it
+// for.
+type folderShown struct {
+	entry int32
+	files int32
+}
+
+// fileCount is how many files sec shows: its entries, an untracked
+// folder being the files it holds by counts.
+func (m *changeModel) fileCount(sec section, counts *session.FolderCounts) int {
+	n := len(m.files[sec])
+	if sec != secUnstaged {
+		return n
+	}
+	for _, f := range m.whole {
+		if f.files >= 0 {
+			n += int(f.files) - 1
+		} else {
+			n += counts.Files(m.st.Path(int(f.entry))) - 1
+		}
+	}
+	return n
 }
 
 type dirSpan struct{ start, end uint32 }
@@ -154,8 +182,15 @@ func buildChanges(st *status.Status, filter string, tree bool, closed map[openKe
 		if inSection(st, i, secStaged) {
 			m.staged++
 		}
-		if len(q) > 0 && !containsFold(st.Path(i), q) && !m.holds(i, q) {
-			continue
+		if len(q) > 0 && !containsFold(st.Path(i), q) {
+			// An untracked folder is kept for the files of it that hold q.
+			held := m.held(i, q)
+			if held == 0 {
+				continue
+			}
+			m.whole = append(m.whole, folderShown{int32(i), int32(held)})
+		} else if untrackedFolder(st, i) {
+			m.whole = append(m.whole, folderShown{int32(i), -1})
 		}
 		for sec := range sections {
 			if inSection(st, i, sec) {
@@ -250,19 +285,20 @@ func (m *changeModel) untracked(folders map[string]session.FolderFiles) map[stri
 	return out
 }
 
-// holds reports whether entry i is an untracked folder holding a file
-// listed whose path holds q.
-func (m *changeModel) holds(i int, q []byte) bool {
+// held is how many files listed of entry i, an untracked folder, have a
+// path that holds q: none for any other entry.
+func (m *changeModel) held(i int, q []byte) int {
 	f, ok := m.listed(int32(i))
 	if !ok {
-		return false
+		return 0
 	}
+	n := 0
 	for _, p := range f.Paths {
 		if containsFold([]byte(p), q) {
-			return true
+			n++
 		}
 	}
-	return false
+	return n
 }
 
 // listed returns the files of entry i, an untracked folder, once listed.

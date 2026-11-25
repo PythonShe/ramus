@@ -64,7 +64,11 @@ type State struct {
 	Worktrees  []repo.Worktree
 	Submodules []repo.Submodule
 	Status     *status.Status
-	Operation  repo.Operation
+	// Folders counts the files of the untracked folders of Status, or,
+	// until those are counted, of the status before it; nil when it
+	// lists none.
+	Folders   *FolderCounts
+	Operation repo.Operation
 	// RefreshErr is the last refresh that failed; the state before it
 	// stays shown.
 	RefreshErr error
@@ -149,6 +153,8 @@ type Session struct {
 	commitPatch PatchSlot
 	// count runs the counts of the changes' lines, one at a time.
 	count countSlot
+	// folders runs the counts of the untracked folders' files.
+	folders folderSlot
 	// trusting is set while Trust writes its record; main thread only.
 	trusting bool
 	// ignored is the open repository's ignored directories, which its
@@ -602,9 +608,11 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 	}
 	type result struct {
-		head    *refs.Head
-		list    *refs.List
-		st      *status.Status
+		head *refs.Head
+		list *refs.List
+		st   *status.Status
+		// dirs are the untracked folders of st.
+		dirs    []string
 		op      *repo.Operation
 		wts     []repo.Worktree
 		subs    []repo.Submodule
@@ -749,6 +757,9 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			fail(err)
 			res.st = st
 			res.readAt = began
+			if err == nil && st != nil {
+				res.dirs = untrackedFolders(st)
+			}
 			seen.statusFailed = err != nil
 			if err == nil {
 				seen.status = st
@@ -785,8 +796,9 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 			s.configShown = c
 			st.ConfigGen++
 		}
+		newStatus := res.st != nil && res.st != st.Status
 		if res.st != nil {
-			if res.st != st.Status {
+			if newStatus {
 				st.Status, st.Refreshed = res.st, res.readAt
 			}
 			s.count.statusFor, s.count.index, s.count.indexOK = st.Status, res.index, res.indexOK
@@ -810,6 +822,9 @@ func (s *Session) read(ctx context.Context, r *repo.Repository, what repo.Change
 		}
 		st.RefreshErr = res.err
 		s.State = st
+		if newStatus {
+			s.countFolders(r, res.st, res.dirs)
+		}
 		if res.graphMoved {
 			s.historyLoadN++
 		}

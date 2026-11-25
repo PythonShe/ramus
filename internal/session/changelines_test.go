@@ -230,3 +230,54 @@ func TestCountsFolders(t *testing.T) {
 		}
 	}
 }
+
+// The files of the folders status lists whole are counted with each
+// status, the ignored left out, and a repository inside as the one
+// entry it is; a status listing no such folder has no counts.
+func TestCountsFilesOfUntrackedFolders(t *testing.T) {
+	r := gittest.Init(t)
+	r.Write(".gitignore", "*.log\n")
+	r.Write("a", "1\n")
+	r.Commit("one")
+	r.Write("a", "1\n2\n")
+	r.Write("new/x.txt", "1\n")
+	r.Write("new/deep/y.txt", "1\n")
+	r.Write("new/noise.log", "1\n")
+	r.Write("other/z.txt", "1\n")
+	m := make(mainThread, 64)
+	s := Open(testrun.Runner(t), trusted(t, r.GitDir()), r.Dir, m.update)
+	t.Cleanup(func() { s.Close(); <-s.Done() })
+	m.until(t, "the folders counted", func() bool {
+		st := s.State
+		return st.Status != nil && st.Status.Len() == 3 && st.Folders != nil && st.Folders.For == st.Status
+	})
+	fc := s.State.Folders
+	if n, o := fc.Files([]byte("new/")), fc.Files([]byte("other/")); n != 2 || o != 1 || fc.Extra != 1 {
+		t.Fatalf("new/ holds %d, other/ %d, %d past the entries", n, o, fc.Extra)
+	}
+	if n := fc.Files([]byte("none/")); n != 1 {
+		t.Fatalf("a folder not counted is %d files", n)
+	}
+	// A file more in a folder leaves the status's entries as they were,
+	// and is counted.
+	r.Write("new/more.txt", "1\n")
+	m.until(t, "the file added counted", func() bool {
+		return s.State.Folders != nil && s.State.Folders.Files([]byte("new/")) == 3 && s.State.Folders.Extra == 2
+	})
+	// Counts of a status before are summed over the folders the status
+	// shown lists: one gone since adds nothing, one new its one entry.
+	if got := s.State.Folders.over([]string{"other/", "third/"}).Extra; got != 0 {
+		t.Fatalf("%d files past the entries with new/ gone", got)
+	}
+	if got := s.State.Folders.over([]string{"new/", "third/"}).Extra; got != 2 {
+		t.Fatalf("%d files past the entries with new/ kept", got)
+	}
+	for _, d := range []string{"new", "other"} {
+		if err := os.RemoveAll(filepath.Join(r.Dir, d)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m.until(t, "no folder left", func() bool {
+		return s.State.Status != nil && s.State.Status.Len() == 1 && s.State.Folders == nil
+	})
+}

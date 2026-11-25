@@ -465,7 +465,7 @@ func (a *App) changesList(c *ui.Context, t *tab) {
 		cv.list.Selected = &cv.chosen
 		cv.list.Selection = &cv.picked
 		cv.list.Header = func(i int) bool { return rows[i].kind == rowHeader }
-		cv.list.Label = func(i int) string { return rowLabel(cv, m, rows[i]) }
+		cv.list.Label = func(i int) string { return rowLabel(cv, m, rows[i], t.s.State.Folders) }
 		var act func()
 		l := ui.List(c, &cv.list, len(rows)).Rows(func(r ui.ListRow) { a.changeRow(c, t, m, rows[r.Index], rowInk(r), &act) }).Label(locales.ChangesListLabel()).Grow(1)
 		if cv.chosen >= 0 && cv.chosen < len(rows) {
@@ -550,10 +550,12 @@ func (a *App) changesPane(c *ui.Context, t *tab) {
 	})
 }
 
-func rowLabel(cv *changesState, m *changeModel, r changeRow) string {
+// rowLabel is what is read aloud for r, a header saying how many files
+// its section shows by counts.
+func rowLabel(cv *changesState, m *changeModel, r changeRow, counts *session.FolderCounts) string {
 	switch r.kind {
 	case rowHeader:
-		return locales.ChangesSectionLabel(r.sec.title(), len(m.files[r.sec]))
+		return locales.ChangesSectionLabel(r.sec.title(), m.fileCount(r.sec, counts))
 	case rowDir:
 		return locales.ChangesFolderLabel(openState(!cv.closed[openKey{r.sec, m.dir(r.sec, r.idx)}]), m.name(r))
 	case rowInner:
@@ -592,13 +594,13 @@ func (a *App) changeRow(c *ui.Context, t *tab, m *changeModel, r changeRow, k in
 	ro := t.s.Queue == nil
 	if r.kind == rowHeader {
 		ui.Row(c).Padding(barPadY, insetX).Gap(spaceM).AlignItems(ui.Center).FillWidth().Background(th.Surface).Children(func() {
-			ui.Text(c, r.sec.header(len(m.files[r.sec]))).Bold().Grow(1)
+			n := m.fileCount(r.sec, t.s.State.Folders)
+			ui.Text(c, r.sec.header(n)).Bold().Grow(1)
 			tot := cv.sectionLines(m, r.sec)
 			lineCounts(c, int(tot.Added), int(tot.Deleted))
 			// With a filter typed, the files hidden are left as they are,
 			// and the button says so.
 			var label string
-			n := len(m.files[r.sec])
 			switch {
 			case r.sec == secStaged && m.filter != "":
 				label = locales.ChangesUnstageShown(n)

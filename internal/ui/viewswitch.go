@@ -51,10 +51,16 @@ func (a *App) viewSwitch(c *ui.Context, t *tab) {
 	}).Label(locales.TabsViews()).Shrink(0)
 }
 
-// changedFiles is how many files the working tree has changed.
+// changedFiles is how many files the working tree has changed: the
+// entries of the status, and what the folders it lists whole hold past
+// the entry each is.
 func changedFiles(st session.State) int {
 	if st.Status == nil {
 		return 0
 	}
-	return st.Status.Len()
+	n := st.Status.Len()
+	if st.Folders != nil {
+		n += st.Folders.Extra
+	}
+	return n
 }
