@@ -321,6 +321,8 @@ func TestRewriteKeepsMessagesByteForByte(t *testing.T) {
 		for _, path := range []string{"history", "rebase"} {
 			for _, x := range rewrites {
 				t.Run(cleanup+"/"+path+"/"+x.name, func(t *testing.T) {
+					// Each case has a repository of its own.
+					t.Parallel()
 					v := localGit(t)
 					if path == "rebase" {
 						v = oldGit

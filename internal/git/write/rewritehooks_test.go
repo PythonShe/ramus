@@ -117,6 +117,8 @@ func TestRewriteRunsTheMessageHookAsGitDoes(t *testing.T) {
 	}
 	for _, rr := range rewrites {
 		t.Run(rr.name, func(t *testing.T) {
+			// Each case has repositories of its own.
+			t.Parallel()
 			// git's own count, on a twin of the repository.
 			twin := gittest.Init(t)
 			tids := hookRepo(t, twin)
