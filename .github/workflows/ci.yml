@@ -159,6 +159,19 @@ jobs:
           go-version-file: go.mod
       - name: Git version
         run: git --version
+      # The tests start git and write files all through, which Defender
+      # scans on a runner thrown away after: a git started cost 32 ms here
+      # against 2 ms on Linux (TestSpawn, 2026-11-25). Not being
+      # able to turn it off is no reason to fail; the state is printed,
+      # and "What starting git costs" below says what it saved.
+      - name: Stop scanning what the tests run and write
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          Add-MpPreference -ExclusionPath $env:RUNNER_TEMP, $env:TEMP, $env:GITHUB_WORKSPACE, "$env:USERPROFILE\go", "$env:LOCALAPPDATA\go-build", "$env:ProgramFiles\Git"
+          Add-MpPreference -ExclusionProcess git.exe, go.exe, bash.exe, sh.exe
+          Get-MpComputerStatus | Select-Object AMRunningMode, RealTimeProtectionEnabled | Format-List
       - name: Check
         run: RAMUS_TEST_JSON="$RUNNER_TEMP/tests" scripts/check.sh
       - name: Tests skipped
